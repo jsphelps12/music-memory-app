@@ -52,7 +52,7 @@ Copy `.env.example` to `.env` and fill in:
 ## Key Conventions
 
 - Path aliases use `@/` (mapped to project root in tsconfig)
-- All screens are placeholder stubs — feature implementation is next phase
+- DB rows are snake_case; map to camelCase `Moment` type in fetch logic (see timeline or moment detail for pattern)
 - Auth gate in root layout redirects unauthenticated users to `(auth)/sign-in`
 - Song data is denormalized on the `moments` table (no separate songs table)
 - Row Level Security enforces per-user data isolation in Supabase
@@ -60,13 +60,17 @@ Copy `.env.example` to `.env` and fill in:
 
 ## Current Status
 
-Scaffold is complete. App builds and runs on a physical iPhone 17 Pro (iOS 26). All screens are placeholder stubs. Supabase project is live with schema deployed. MusicKit capability is enabled on Apple Developer portal.
+App builds and runs on a physical iPhone 17 Pro (iOS 26). Supabase project is live with schema deployed. MusicKit capability is enabled on Apple Developer portal.
+
+Implemented so far:
+1. **Auth screens** — sign-in/sign-up with email/password via Supabase Auth
+2. **Song search** — MusicKit-powered search modal with results list
+3. **Create moment form** — select song, write reflection, pick mood, tag people, save to Supabase
+4. **Timeline feed** — moment cards from Supabase, ordered by date, tap to open detail
+5. **Moment detail view** — modal with full moment data, artwork, mood/people chips, delete action
 
 ## Next Steps (MVP features, in order)
 
-1. **Auth screens** — sign-in and sign-up forms with email/password, wired to Supabase Auth
-2. **Song search** — MusicKit-powered search screen with results list
-3. **Create moment form** — select song, write reflection, pick mood, add photos, tag people
-4. **Timeline feed** — list of moments from Supabase, ordered by date
-5. **Moment detail view** — full-screen view of a moment
-6. **30-second preview playback** — play song snippets via MusicKit Player
+1. **30-second preview playback** — play song snippets via MusicKit Player
+2. **Photo support** — attach photos to moments, upload to Supabase Storage, display in detail view
+3. **Profile screen** — user info, stats, sign-out (currently just a sign-out button)
