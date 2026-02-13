@@ -12,6 +12,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePlayer } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
 import { MOODS } from "@/constants/Moods";
 import { Moment, MoodOption } from "@/types";
@@ -20,6 +21,7 @@ export default function MomentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { currentSong, isPlaying, play, pause, stop } = usePlayer();
   const [moment, setMoment] = useState<Moment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -54,6 +56,7 @@ export default function MomentDetailScreen() {
           songAlbumName: row.song_album_name,
           songArtworkUrl: row.song_artwork_url,
           songAppleMusicId: row.song_apple_music_id,
+          songPreviewUrl: row.song_preview_url ?? null,
           reflectionText: row.reflection_text,
           photoUrls: row.photo_urls ?? [],
           mood: row.mood,
@@ -150,6 +153,38 @@ export default function MomentDetailScreen() {
 
         <Text style={styles.songTitle}>{moment.songTitle}</Text>
         <Text style={styles.songArtist}>{moment.songArtist}</Text>
+
+        {moment.songPreviewUrl ? (
+          <TouchableOpacity
+            style={styles.playButton}
+            onPress={() => {
+              const isCurrentSong =
+                isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId;
+              if (isCurrentSong) {
+                pause();
+              } else {
+                play(
+                  {
+                    id: moment.songAppleMusicId,
+                    title: moment.songTitle,
+                    artistName: moment.songArtist,
+                    albumName: moment.songAlbumName,
+                    artworkUrl: moment.songArtworkUrl,
+                    appleMusicId: moment.songAppleMusicId,
+                    durationMs: 0,
+                  },
+                  moment.songPreviewUrl!
+                );
+              }
+            }}
+          >
+            <Text style={styles.playButtonText}>
+              {isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId
+                ? "Pause"
+                : "Play Preview"}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
 
         {moment.reflectionText ? (
           <Text style={styles.reflection}>{moment.reflectionText}</Text>
@@ -249,6 +284,19 @@ const styles = StyleSheet.create({
     color: "#666",
     marginTop: 4,
     marginBottom: 20,
+  },
+  playButton: {
+    alignSelf: "flex-start",
+    backgroundColor: "#000",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginBottom: 20,
+  },
+  playButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
   },
   reflection: {
     fontSize: 16,

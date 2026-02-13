@@ -51,6 +51,7 @@ export default function TimelineScreen() {
           songAlbumName: row.song_album_name,
           songArtworkUrl: row.song_artwork_url,
           songAppleMusicId: row.song_apple_music_id,
+          songPreviewUrl: row.song_preview_url ?? null,
           reflectionText: row.reflection_text,
           photoUrls: row.photo_urls ?? [],
           mood: row.mood,

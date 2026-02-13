@@ -4,7 +4,7 @@ import {
   CatalogSearchType,
 } from "@lomray/react-native-apple-music";
 import type { ISong } from "@lomray/react-native-apple-music";
-import { Song } from "@/types";
+import type { Song } from "@/types";
 
 export async function requestMusicAuthorization(): Promise<boolean> {
   const status = await Auth.authorize();
@@ -28,4 +28,18 @@ export async function searchSongs(query: string): Promise<Song[]> {
     appleMusicId: item.id,
     durationMs: item.duration ?? 0,
   }));
+}
+
+export async function fetchPreviewUrl(
+  appleMusicId: string
+): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `https://itunes.apple.com/lookup?id=${appleMusicId}`
+    );
+    const json = await response.json();
+    return json.results?.[0]?.previewUrl ?? null;
+  } catch {
+    return null;
+  }
 }

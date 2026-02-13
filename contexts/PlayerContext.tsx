@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useRef, useEffect } from "react";
+import { Audio } from "expo-av";
 import { Song } from "@/types";
 
 interface PlayerState {
   currentSong: Song | null;
   isPlaying: boolean;
-  play: (song: Song) => void;
+  play: (song: Song, previewUrl: string) => void;
   pause: () => void;
   stop: () => void;
 }
@@ -14,23 +15,56 @@ const PlayerContext = createContext<PlayerState | undefined>(undefined);
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const soundRef = useRef<Audio.Sound | null>(null);
 
-  const play = (song: Song) => {
+  const unloadSound = async () => {
+    if (soundRef.current) {
+      await soundRef.current.unloadAsync();
+      soundRef.current = null;
+    }
+  };
+
+  const play = async (song: Song, previewUrl: string) => {
+    await unloadSound();
+
+    const { sound } = await Audio.Sound.createAsync(
+      { uri: previewUrl },
+      { shouldPlay: true }
+    );
+    soundRef.current = sound;
     setCurrentSong(song);
     setIsPlaying(true);
-    // TODO: integrate with MusicKit playback
+
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.isLoaded && status.didJustFinish) {
+        setIsPlaying(false);
+        setCurrentSong(null);
+        unloadSound();
+      }
+    });
   };
 
-  const pause = () => {
+  const pause = async () => {
+    if (soundRef.current) {
+      await soundRef.current.pauseAsync();
+    }
     setIsPlaying(false);
-    // TODO: pause MusicKit playback
   };
 
-  const stop = () => {
+  const stop = async () => {
+    await unloadSound();
     setCurrentSong(null);
     setIsPlaying(false);
-    // TODO: stop MusicKit playback
   };
+
+  useEffect(() => {
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+    });
+    return () => {
+      unloadSound();
+    };
+  }, []);
 
   return (
     <PlayerContext.Provider value={{ currentSong, isPlaying, play, pause, stop }}>

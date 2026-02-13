@@ -28,9 +28,10 @@ export interface Moment {
   songAlbumName: string;
   songArtworkUrl: string;
   songAppleMusicId: string;
+  songPreviewUrl: string | null;
   reflectionText: string;
   photoUrls: string[];
-  mood: MoodOption;
+  mood: MoodOption | null;
   people: string[];
   location: string | null;
   momentDate: string;
