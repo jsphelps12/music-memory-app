@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
+import { getSignedPhotoUrl } from "@/lib/storage";
 import { MOODS } from "@/constants/Moods";
 import { Moment, MoodOption } from "@/types";
 
@@ -25,6 +26,7 @@ export default function MomentDetailScreen() {
   const [moment, setMoment] = useState<Moment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [photoSignedUrls, setPhotoSignedUrls] = useState<string[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -75,6 +77,24 @@ export default function MomentDetailScreen() {
       };
     }, [id])
   );
+
+  useEffect(() => {
+    if (!moment || moment.photoUrls.length === 0) {
+      setPhotoSignedUrls([]);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(moment.photoUrls.map((path) => getSignedPhotoUrl(path))).then(
+      (urls) => {
+        if (!cancelled) {
+          setPhotoSignedUrls(urls.filter((u): u is string => u !== null));
+        }
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [moment?.photoUrls]);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr + "T00:00:00");
@@ -185,6 +205,23 @@ export default function MomentDetailScreen() {
             </Text>
           </TouchableOpacity>
         ) : null}
+
+        {photoSignedUrls.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.photoGallery}
+            contentContainerStyle={styles.photoGalleryContent}
+          >
+            {photoSignedUrls.map((url, index) => (
+              <Image
+                key={index}
+                source={{ uri: url }}
+                style={styles.photoImage}
+              />
+            ))}
+          </ScrollView>
+        )}
 
         {moment.reflectionText ? (
           <Text style={styles.reflection}>{moment.reflectionText}</Text>
@@ -297,6 +334,19 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "600",
+  },
+  photoGallery: {
+    marginBottom: 20,
+    marginHorizontal: -20,
+  },
+  photoGalleryContent: {
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  photoImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 12,
   },
   reflection: {
     fontSize: 16,

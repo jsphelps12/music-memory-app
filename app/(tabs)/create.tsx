@@ -9,13 +9,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  ActionSheetIOS,
   StyleSheet,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { fetchPreviewUrl } from "@/lib/musickit";
+import { uploadMomentPhoto } from "@/lib/storage";
 import { MOODS } from "@/constants/Moods";
 import { MoodOption, Song } from "@/types";
 
@@ -30,6 +33,7 @@ export default function CreateMomentScreen() {
     songArtwork?: string;
     songAppleMusicId?: string;
     songDurationMs?: string;
+    photos?: string;
   }>();
 
   const [song, setSong] = useState<Song | null>(null);
@@ -49,12 +53,23 @@ export default function CreateMomentScreen() {
     }
   }, [params.songId]);
 
+  // Restore photos from params after song-search navigation
+  useEffect(() => {
+    if (params.photos) {
+      try {
+        const restored = JSON.parse(params.photos) as string[];
+        if (restored.length > 0) setPhotos(restored);
+      } catch {}
+    }
+  }, [params.photos]);
+
   const hasSong = !!song;
 
   const [reflection, setReflection] = useState("");
   const [selectedMood, setSelectedMood] = useState<MoodOption | null>(null);
   const [peopleInput, setPeopleInput] = useState("");
   const [people, setPeople] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<string[]>([]);
   const [momentDate, setMomentDate] = useState(new Date());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -72,6 +87,45 @@ export default function CreateMomentScreen() {
 
   const handleRemovePerson = (name: string) => {
     setPeople(people.filter((p) => p !== name));
+  };
+
+  const handleAddPhotos = () => {
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        options: ["Cancel", "Take Photo", "Choose from Library"],
+        cancelButtonIndex: 0,
+      },
+      async (buttonIndex) => {
+        let result: ImagePicker.ImagePickerResult | null = null;
+
+        if (buttonIndex === 1) {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== "granted") {
+            setError("Camera permission is required to take photos.");
+            return;
+          }
+          result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ["images"],
+            quality: 0.8,
+          });
+        } else if (buttonIndex === 2) {
+          result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ["images"],
+            allowsMultipleSelection: true,
+            quality: 0.8,
+          });
+        }
+
+        if (result && !result.canceled) {
+          const uris = result.assets.map((a) => a.uri);
+          setPhotos((prev) => [...prev, ...uris]);
+        }
+      }
+    );
+  };
+
+  const handleRemovePhoto = (uri: string) => {
+    setPhotos((prev) => prev.filter((p) => p !== uri));
   };
 
   const handleDateChange = (_event: DateTimePickerEvent, date?: Date) => {
@@ -95,6 +149,10 @@ export default function CreateMomentScreen() {
     try {
       const previewUrl = await fetchPreviewUrl(song!.appleMusicId);
 
+      const photoPaths = await Promise.all(
+        photos.map((uri) => uploadMomentPhoto(user!.id, uri))
+      );
+
       const { error: insertError } = await supabase.from("moments").insert({
         user_id: user!.id,
         song_title: song!.title,
@@ -106,7 +164,7 @@ export default function CreateMomentScreen() {
         reflection_text: reflection.trim(),
         mood: selectedMood,
         people,
-        photo_urls: [],
+        photo_urls: photoPaths,
         location: null,
         moment_date: momentDate.toISOString().split("T")[0],
       });
@@ -118,6 +176,7 @@ export default function CreateMomentScreen() {
       setSelectedMood(null);
       setPeopleInput("");
       setPeople([]);
+      setPhotos([]);
       setMomentDate(new Date());
       setError("");
 
@@ -146,7 +205,7 @@ export default function CreateMomentScreen() {
         {hasSong ? (
           <TouchableOpacity
             style={styles.songCard}
-            onPress={() => router.push("/song-search")}
+            onPress={() => router.push({ pathname: "/song-search", params: { photos: JSON.stringify(photos) } })}
           >
             {song!.artworkUrl ? (
               <Image
@@ -169,7 +228,7 @@ export default function CreateMomentScreen() {
         ) : (
           <TouchableOpacity
             style={styles.selectSongButton}
-            onPress={() => router.push("/song-search")}
+            onPress={() => router.push({ pathname: "/song-search", params: { photos: JSON.stringify(photos) } })}
           >
             <Text style={styles.selectSongButtonText}>Select Song</Text>
           </TouchableOpacity>
@@ -241,6 +300,32 @@ export default function CreateMomentScreen() {
               </View>
             ))}
           </View>
+        )}
+
+        {/* Photos */}
+        <Text style={styles.sectionLabel}>Photos</Text>
+        <TouchableOpacity style={styles.addPhotosButton} onPress={handleAddPhotos}>
+          <Text style={styles.addPhotosButtonText}>Add Photos</Text>
+        </TouchableOpacity>
+        {photos.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.photoScroll}
+            contentContainerStyle={styles.photoScrollContent}
+          >
+            {photos.map((uri) => (
+              <View key={uri} style={styles.photoThumbContainer}>
+                <Image source={{ uri }} style={styles.photoThumb} />
+                <TouchableOpacity
+                  style={styles.photoRemove}
+                  onPress={() => handleRemovePhoto(uri)}
+                >
+                  <Text style={styles.photoRemoveText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
         )}
 
         {/* Date picker */}
@@ -417,6 +502,52 @@ const styles = StyleSheet.create({
   personTagRemove: {
     fontSize: 12,
     color: "#999",
+  },
+  addPhotosButton: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderStyle: "dashed",
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+    backgroundColor: "#fafafa",
+  },
+  addPhotosButtonText: {
+    fontSize: 15,
+    color: "#666",
+    fontWeight: "500",
+  },
+  photoScroll: {
+    marginTop: 10,
+    marginHorizontal: -20,
+  },
+  photoScrollContent: {
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  photoThumbContainer: {
+    position: "relative",
+  },
+  photoThumb: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+  },
+  photoRemove: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoRemoveText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600",
   },
   datePicker: {
     alignSelf: "center",

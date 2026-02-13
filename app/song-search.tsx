@@ -9,12 +9,13 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { requestMusicAuthorization, searchSongs } from "@/lib/musickit";
 import type { Song } from "@/types";
 
 export default function SongSearchScreen() {
   const router = useRouter();
+  const { photos } = useLocalSearchParams<{ photos?: string }>();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Song[]>([]);
   const [loading, setLoading] = useState(false);
@@ -63,6 +64,7 @@ export default function SongSearchScreen() {
         songArtwork: song.artworkUrl,
         songAppleMusicId: song.appleMusicId,
         songDurationMs: String(song.durationMs),
+        ...(photos ? { photos } : {}),
       },
     });
   }
