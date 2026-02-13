@@ -1,10 +1,10 @@
 import { View, Text, StyleSheet } from "react-native";
 
-export default function TimelineScreen() {
+export default function ProfileScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Timeline</Text>
-      <Text style={styles.subtitle}>Your music moments will appear here</Text>
+      <Text style={styles.title}>Profile</Text>
+      <Text style={styles.subtitle}>Your settings and account</Text>
     </View>
   );
 }

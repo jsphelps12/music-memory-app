@@ -1,10 +1,10 @@
 import { View, Text, StyleSheet } from "react-native";
 
-export default function TimelineScreen() {
+export default function SignUpScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Timeline</Text>
-      <Text style={styles.subtitle}>Your music moments will appear here</Text>
+      <Text style={styles.title}>Sign Up</Text>
+      <Text style={styles.subtitle}>Create your Music Memory account</Text>
     </View>
   );
 }
@@ -17,7 +17,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   title: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: "bold",
     marginBottom: 8,
   },

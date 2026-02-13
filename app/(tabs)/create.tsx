@@ -1,10 +1,10 @@
 import { View, Text, StyleSheet } from "react-native";
 
-export default function TimelineScreen() {
+export default function CreateMomentScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Timeline</Text>
-      <Text style={styles.subtitle}>Your music moments will appear here</Text>
+      <Text style={styles.title}>New Moment</Text>
+      <Text style={styles.subtitle}>Capture a music memory</Text>
     </View>
   );
 }

@@ -1,10 +1,13 @@
 import { View, Text, StyleSheet } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 
-export default function TimelineScreen() {
+export default function MomentDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Timeline</Text>
-      <Text style={styles.subtitle}>Your music moments will appear here</Text>
+      <Text style={styles.title}>Moment Detail</Text>
+      <Text style={styles.subtitle}>Moment ID: {id}</Text>
     </View>
   );
 }
