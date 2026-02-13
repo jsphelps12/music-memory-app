@@ -31,6 +31,31 @@ export async function uploadMomentPhoto(
 }
 
 /**
+ * Upload an avatar image to Supabase Storage, overwriting any previous avatar.
+ * Returns the storage path.
+ */
+export async function uploadAvatar(
+  userId: string,
+  uri: string
+): Promise<string> {
+  const storagePath = `${userId}/avatar.jpg`;
+
+  const file = new File(uri);
+  const arrayBuffer = await file.arrayBuffer();
+
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(storagePath, arrayBuffer, {
+      contentType: "image/jpeg",
+      upsert: true,
+    });
+
+  if (error) throw error;
+
+  return storagePath;
+}
+
+/**
  * Generate a signed URL for a storage path (1 hour expiry).
  */
 export async function getSignedPhotoUrl(

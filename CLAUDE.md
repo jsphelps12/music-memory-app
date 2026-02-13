@@ -14,7 +14,7 @@ Music Memory App — an iOS app for capturing and revisiting music-linked memori
 - **Music**: Apple MusicKit via `@lomray/react-native-apple-music`
 - **Audio**: `expo-av` for preview playback
 - **Auth**: Supabase Auth (email/password, Apple Sign-In planned)
-- **State**: React Context (AuthContext, PlayerContext)
+- **State**: React Context (AuthContext with profile state, PlayerContext)
 
 ## Project Structure
 
@@ -30,6 +30,7 @@ hooks/                  # useAuth, usePlayer (re-exports from contexts)
 lib/
   supabase.ts           # Supabase client init
   musickit.ts           # MusicKit authorization, search, preview URL fetching
+  storage.ts            # Photo & avatar upload helpers, signed URL generation
 types/index.ts          # Core types: Song, Moment, UserProfile, MoodOption
 constants/Moods.ts      # Mood tag definitions
 supabase/schema.sql     # Database schema (run in Supabase SQL Editor)
@@ -58,7 +59,8 @@ Copy `.env.example` to `.env` and fill in:
 - Song data is denormalized on the `moments` table (no separate songs table)
 - Preview URLs are fetched from iTunes Lookup API (`/lookup?id={appleMusicId}`) at moment creation and stored in `song_preview_url`
 - Row Level Security enforces per-user data isolation in Supabase
-- Photo storage uses `moment-photos` bucket with `{user_id}/` folder prefixes
+- Photo storage uses `moment-photos` bucket with `{user_id}/` folder prefixes; avatars stored at `{user_id}/avatar.jpg`
+- Profile data (display_name, avatar_url) lives in `profiles` table; AuthContext fetches and exposes it
 
 ## Current Status
 
@@ -71,11 +73,12 @@ Implemented so far:
 4. **Timeline feed** — moment cards from Supabase, ordered by date, tap to open detail
 5. **Moment detail view** — modal with full moment data, artwork, mood/people chips, delete action
 6. **30-second preview playback** — expo-av plays iTunes preview clips; play/pause button on moment detail
+7. **Photo support** — attach photos to moments via camera/library, upload to Supabase Storage, display in detail view
+8. **Profile screen** — avatar upload, editable display name, moment count, member-since date, sign-out
 
 ## Next Steps (MVP features, in order)
 
-1. **Photo support** — attach photos to moments, upload to Supabase Storage, display in detail view
-2. **Profile screen** — user info, stats, sign-out (currently just a sign-out button)
+No remaining MVP blockers. Polish and ship.
 
 ## Roadmap (post-MVP)
 
