@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
@@ -16,6 +16,7 @@ const AuthContext = createContext<AuthState | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const suppressAuth = useRef(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -26,7 +27,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+      if (!suppressAuth.current) {
+        setSession(session);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -41,8 +44,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) throw error;
+    suppressAuth.current = true;
+    try {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      await supabase.auth.signOut();
+    } finally {
+      suppressAuth.current = false;
+    }
   };
 
   const signOut = async () => {
