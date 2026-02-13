@@ -12,6 +12,7 @@ Music Memory App — an iOS app for capturing and revisiting music-linked memori
 - **Language**: TypeScript
 - **Backend**: Supabase (auth, Postgres database, storage)
 - **Music**: Apple MusicKit via `@lomray/react-native-apple-music`
+- **Audio**: `expo-av` for preview playback
 - **Auth**: Supabase Auth (email/password, Apple Sign-In planned)
 - **State**: React Context (AuthContext, PlayerContext)
 
@@ -28,7 +29,7 @@ contexts/               # AuthContext, PlayerContext
 hooks/                  # useAuth, usePlayer (re-exports from contexts)
 lib/
   supabase.ts           # Supabase client init
-  musickit.ts           # MusicKit authorization + search helpers
+  musickit.ts           # MusicKit authorization, search, preview URL fetching
 types/index.ts          # Core types: Song, Moment, UserProfile, MoodOption
 constants/Moods.ts      # Mood tag definitions
 supabase/schema.sql     # Database schema (run in Supabase SQL Editor)
@@ -55,6 +56,7 @@ Copy `.env.example` to `.env` and fill in:
 - DB rows are snake_case; map to camelCase `Moment` type in fetch logic (see timeline or moment detail for pattern)
 - Auth gate in root layout redirects unauthenticated users to `(auth)/sign-in`
 - Song data is denormalized on the `moments` table (no separate songs table)
+- Preview URLs are fetched from iTunes Lookup API (`/lookup?id={appleMusicId}`) at moment creation and stored in `song_preview_url`
 - Row Level Security enforces per-user data isolation in Supabase
 - Photo storage uses `moment-photos` bucket with `{user_id}/` folder prefixes
 
@@ -68,9 +70,14 @@ Implemented so far:
 3. **Create moment form** — select song, write reflection, pick mood, tag people, save to Supabase
 4. **Timeline feed** — moment cards from Supabase, ordered by date, tap to open detail
 5. **Moment detail view** — modal with full moment data, artwork, mood/people chips, delete action
+6. **30-second preview playback** — expo-av plays iTunes preview clips; play/pause button on moment detail
 
 ## Next Steps (MVP features, in order)
 
-1. **30-second preview playback** — play song snippets via MusicKit Player
-2. **Photo support** — attach photos to moments, upload to Supabase Storage, display in detail view
-3. **Profile screen** — user info, stats, sign-out (currently just a sign-out button)
+1. **Photo support** — attach photos to moments, upload to Supabase Storage, display in detail view
+2. **Profile screen** — user info, stats, sign-out (currently just a sign-out button)
+
+## Roadmap (post-MVP)
+
+1. **Voice recordings** — attach voice memos to moments
+2. **Apple Sign-In** — alternative auth method
