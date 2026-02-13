@@ -154,9 +154,11 @@ export default function MomentDetailScreen() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
-        <Text style={styles.closeButtonText}>✕</Text>
-      </TouchableOpacity>
+      <View style={styles.topBar}>
+        <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
+          <Text style={styles.closeButtonText}>✕</Text>
+        </TouchableOpacity>
+      </View>
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -280,11 +282,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#007AFF",
   },
+  topBar: {
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    backgroundColor: "#fff",
+  },
   closeButton: {
-    position: "absolute",
-    top: 60,
-    right: 20,
-    zIndex: 10,
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -298,7 +304,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   scrollContent: {
-    paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 60,
   },

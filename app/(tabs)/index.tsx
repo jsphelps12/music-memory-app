@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  RefreshControl,
   StyleSheet,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -15,63 +16,76 @@ import { supabase } from "@/lib/supabase";
 import { MOODS } from "@/constants/Moods";
 import { Moment, MoodOption } from "@/types";
 
+const REFETCH_COOLDOWN_MS = 2000;
+
 export default function TimelineScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const lastFetchTime = useRef(0);
+
+  const fetchMoments = useCallback(
+    async (showLoading: boolean) => {
+      if (showLoading) setLoading(true);
+      setError("");
+      const { data, error: fetchError } = await supabase
+        .from("moments")
+        .select("*")
+        .eq("user_id", user!.id)
+        .order("moment_date", { ascending: false });
+
+      if (fetchError) {
+        setError(fetchError.message);
+        setLoading(false);
+        return;
+      }
+
+      const mapped: Moment[] = (data ?? []).map((row: any) => ({
+        id: row.id,
+        userId: row.user_id,
+        songTitle: row.song_title,
+        songArtist: row.song_artist,
+        songAlbumName: row.song_album_name,
+        songArtworkUrl: row.song_artwork_url,
+        songAppleMusicId: row.song_apple_music_id,
+        songPreviewUrl: row.song_preview_url ?? null,
+        reflectionText: row.reflection_text,
+        photoUrls: row.photo_urls ?? [],
+        mood: row.mood,
+        people: row.people ?? [],
+        location: row.location,
+        momentDate: row.moment_date,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+
+      setMoments(mapped);
+      setLoading(false);
+      lastFetchTime.current = Date.now();
+    },
+    [user]
+  );
 
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-
-      async function fetchMoments() {
-        setLoading(true);
-        setError("");
-        const { data, error: fetchError } = await supabase
-          .from("moments")
-          .select("*")
-          .eq("user_id", user!.id)
-          .order("moment_date", { ascending: false });
-
-        if (cancelled) return;
-
-        if (fetchError) {
-          setError(fetchError.message);
-          setLoading(false);
-          return;
-        }
-
-        const mapped: Moment[] = (data ?? []).map((row: any) => ({
-          id: row.id,
-          userId: row.user_id,
-          songTitle: row.song_title,
-          songArtist: row.song_artist,
-          songAlbumName: row.song_album_name,
-          songArtworkUrl: row.song_artwork_url,
-          songAppleMusicId: row.song_apple_music_id,
-          songPreviewUrl: row.song_preview_url ?? null,
-          reflectionText: row.reflection_text,
-          photoUrls: row.photo_urls ?? [],
-          mood: row.mood,
-          people: row.people ?? [],
-          location: row.location,
-          momentDate: row.moment_date,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-        }));
-
-        setMoments(mapped);
-        setLoading(false);
+      const elapsed = Date.now() - lastFetchTime.current;
+      // First load: show spinner. Subsequent focus: skip if recently fetched.
+      if (lastFetchTime.current === 0) {
+        fetchMoments(true);
+      } else if (elapsed >= REFETCH_COOLDOWN_MS) {
+        fetchMoments(false);
       }
-
-      fetchMoments();
-      return () => {
-        cancelled = true;
-      };
-    }, [user])
+    }, [fetchMoments])
   );
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchMoments(false);
+    setRefreshing(false);
+  }, [fetchMoments]);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr + "T00:00:00");
@@ -136,7 +150,7 @@ export default function TimelineScreen() {
         <Text style={styles.subtitle}>Your music moments</Text>
       </View>
 
-      {loading ? (
+      {loading && moments.length === 0 ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#000" />
         </View>
@@ -158,6 +172,9 @@ export default function TimelineScreen() {
           renderItem={renderMoment}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
         />
       )}
     </View>

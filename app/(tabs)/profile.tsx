@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ActionSheetIOS,
   Alert,
   ScrollView,
+  RefreshControl,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
@@ -17,6 +18,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { uploadAvatar } from "@/lib/storage";
 import { getSignedPhotoUrl } from "@/lib/storage";
+
+const REFETCH_COOLDOWN_MS = 2000;
 
 export default function ProfileScreen() {
   const { user, profile, signOut, updateProfile, refreshProfile } = useAuth();
@@ -27,28 +30,30 @@ export default function ProfileScreen() {
   const [nameInput, setNameInput] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [momentCount, setMomentCount] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const lastFetchTime = useRef(0);
+
+  const loadProfileData = useCallback(async () => {
+    await refreshProfile();
+
+    const { count } = await supabase
+      .from("moments")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user!.id);
+
+    setMomentCount(count ?? 0);
+    lastFetchTime.current = Date.now();
+  }, [user?.id]);
 
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-
-      async function load() {
-        await refreshProfile();
-
-        // Fetch moment count
-        const { count } = await supabase
-          .from("moments")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user!.id);
-
-        if (!cancelled) {
-          setMomentCount(count ?? 0);
-        }
+      const elapsed = Date.now() - lastFetchTime.current;
+      if (lastFetchTime.current === 0) {
+        loadProfileData();
+      } else if (elapsed >= REFETCH_COOLDOWN_MS) {
+        loadProfileData();
       }
-
-      load();
-      return () => { cancelled = true; };
-    }, [user?.id])
+    }, [loadProfileData])
   );
 
   // Load avatar signed URL when profile changes
@@ -69,6 +74,12 @@ export default function ProfileScreen() {
       return () => { cancelled = true; };
     }, [profile?.avatarUrl])
   );
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadProfileData();
+    setRefreshing(false);
+  }, [loadProfileData]);
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -163,6 +174,9 @@ export default function ProfileScreen() {
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+      }
     >
       {/* Avatar */}
       <TouchableOpacity onPress={handleAvatarPress} disabled={uploadingAvatar}>
