@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { fetchPreviewUrl } from "@/lib/musickit";
 import { MOODS } from "@/constants/Moods";
-import { MoodOption } from "@/types";
+import { MoodOption, Song } from "@/types";
 
 export default function CreateMomentScreen() {
   const router = useRouter();
@@ -32,7 +32,24 @@ export default function CreateMomentScreen() {
     songDurationMs?: string;
   }>();
 
-  const hasSong = !!params.songTitle;
+  const [song, setSong] = useState<Song | null>(null);
+
+  // Sync song from search params when returning from song-search modal
+  useEffect(() => {
+    if (params.songTitle) {
+      setSong({
+        id: params.songId ?? "",
+        title: params.songTitle,
+        artistName: params.songArtist ?? "",
+        albumName: params.songAlbum ?? "",
+        artworkUrl: params.songArtwork ?? "",
+        appleMusicId: params.songAppleMusicId ?? "",
+        durationMs: Number(params.songDurationMs) || 0,
+      });
+    }
+  }, [params.songId]);
+
+  const hasSong = !!song;
 
   const [reflection, setReflection] = useState("");
   const [selectedMood, setSelectedMood] = useState<MoodOption | null>(null);
@@ -76,15 +93,15 @@ export default function CreateMomentScreen() {
     setError("");
     setLoading(true);
     try {
-      const previewUrl = await fetchPreviewUrl(params.songAppleMusicId!);
+      const previewUrl = await fetchPreviewUrl(song!.appleMusicId);
 
       const { error: insertError } = await supabase.from("moments").insert({
         user_id: user!.id,
-        song_title: params.songTitle,
-        song_artist: params.songArtist,
-        song_album_name: params.songAlbum ?? null,
-        song_artwork_url: params.songArtwork ?? null,
-        song_apple_music_id: params.songAppleMusicId,
+        song_title: song!.title,
+        song_artist: song!.artistName,
+        song_album_name: song!.albumName || null,
+        song_artwork_url: song!.artworkUrl || null,
+        song_apple_music_id: song!.appleMusicId,
         song_preview_url: previewUrl,
         reflection_text: reflection.trim(),
         mood: selectedMood,
@@ -95,6 +112,14 @@ export default function CreateMomentScreen() {
       });
 
       if (insertError) throw insertError;
+
+      setSong(null);
+      setReflection("");
+      setSelectedMood(null);
+      setPeopleInput("");
+      setPeople([]);
+      setMomentDate(new Date());
+      setError("");
 
       router.replace("/(tabs)");
     } catch (e: any) {
@@ -123,9 +148,9 @@ export default function CreateMomentScreen() {
             style={styles.songCard}
             onPress={() => router.push("/song-search")}
           >
-            {params.songArtwork ? (
+            {song!.artworkUrl ? (
               <Image
-                source={{ uri: params.songArtwork }}
+                source={{ uri: song!.artworkUrl }}
                 style={styles.artwork}
               />
             ) : (
@@ -133,10 +158,10 @@ export default function CreateMomentScreen() {
             )}
             <View style={styles.songInfo}>
               <Text style={styles.songTitle} numberOfLines={1}>
-                {params.songTitle}
+                {song!.title}
               </Text>
               <Text style={styles.songArtist} numberOfLines={1}>
-                {params.songArtist}
+                {song!.artistName}
               </Text>
             </View>
             <Text style={styles.changeText}>Change</Text>

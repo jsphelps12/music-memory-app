@@ -53,7 +53,7 @@ export default function SongSearchScreen() {
   }, [query]);
 
   function handleSelect(song: Song) {
-    router.navigate({
+    router.replace({
       pathname: "/(tabs)/create",
       params: {
         songId: song.id,
