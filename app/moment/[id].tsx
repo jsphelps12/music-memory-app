@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
   },
   artwork: {
     width: "100%",
-    height: 200,
+    aspectRatio: 1,
     borderRadius: 12,
     marginBottom: 16,
   },
