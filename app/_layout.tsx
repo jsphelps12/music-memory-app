@@ -3,13 +3,16 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PlayerProvider } from "@/contexts/PlayerContext";
+
+const HAS_LAUNCHED_KEY = "has_launched";
 
 export { ErrorBoundary } from "expo-router";
 
@@ -23,20 +26,33 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const [hasLaunched, setHasLaunched] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (loading) return;
+    AsyncStorage.getItem(HAS_LAUNCHED_KEY).then((value) => {
+      setHasLaunched(value === "true");
+    });
+  }, []);
+
+  useEffect(() => {
+    if (loading || hasLaunched === null) return;
 
     const inAuthGroup = segments[0] === "(auth)";
 
     if (!session && !inAuthGroup) {
-      router.replace("/(auth)/sign-in");
+      if (!hasLaunched) {
+        AsyncStorage.setItem(HAS_LAUNCHED_KEY, "true");
+        setHasLaunched(true);
+        router.replace("/(auth)/welcome");
+      } else {
+        router.replace("/(auth)/sign-in");
+      }
     } else if (session && inAuthGroup) {
       router.replace("/(tabs)");
     }
-  }, [session, loading, segments]);
+  }, [session, loading, hasLaunched, segments]);
 
-  if (loading) return null;
+  if (loading || hasLaunched === null) return null;
 
   return <>{children}</>;
 }

@@ -27,9 +27,10 @@ These aren't from a specific phase — they're gaps in the current build that ne
 - [x] UI/UX overhaul — consistent design system, spacing, typography, colors
 - [x] Empty states ("No moments yet — create your first!")
 - [x] Loading skeletons / better loading states
-- [ ] Error states and retry patterns throughout
+- [x] Error states and retry patterns throughout
 - [x] Pull-to-refresh on timeline
-- [ ] Onboarding flow (first-launch walkthrough)
+- [x] Onboarding flow (first-launch welcome screen)
+- [x] Custom app icon
 - [ ] Apple Sign-In (alternative auth)
 - [x] Dark mode
 - [ ] Photo loading optimization — batch signed URLs, prefetch on timeline, or switch to public bucket

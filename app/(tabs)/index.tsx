@@ -8,6 +8,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
@@ -192,9 +193,17 @@ export default function TimelineScreen() {
         />
       ) : moments.length === 0 ? (
         <View style={styles.centered}>
+          <View style={styles.emptyIconContainer}>
+            <Ionicons
+              name="musical-notes"
+              size={40}
+              color={theme.colors.textTertiary}
+            />
+          </View>
           <Text style={styles.emptyTitle}>No moments yet</Text>
           <Text style={styles.emptySubtitle}>
-            Create your first music memory
+            A moment is a song paired with a memory —{"\n"}what you felt, who
+            you were with, and why it mattered.
           </Text>
           <TouchableOpacity
             style={styles.ctaButton}
@@ -251,6 +260,15 @@ function createStyles(theme: Theme) {
       justifyContent: "center",
       padding: theme.spacing.xl,
     },
+    emptyIconContainer: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: theme.colors.backgroundTertiary,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: theme.spacing.xl,
+    },
     emptyTitle: {
       fontSize: theme.fontSize.xl,
       fontWeight: theme.fontWeight.semibold,
@@ -260,6 +278,8 @@ function createStyles(theme: Theme) {
     emptySubtitle: {
       fontSize: theme.fontSize.base,
       color: theme.colors.textSecondary,
+      textAlign: "center",
+      lineHeight: 22,
     },
     ctaButton: {
       backgroundColor: theme.colors.buttonBg,

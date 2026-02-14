@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import { Link, useLocalSearchParams } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
@@ -23,9 +24,12 @@ export default function SignInScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [focusedField, setFocusedField] = useState("");
 
   const handleSignIn = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!email.trim() || !password) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError("Please enter both email and password.");
       return;
     }
@@ -35,6 +39,7 @@ export default function SignInScreen() {
     try {
       await signIn(email.trim(), password);
     } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(e.message ?? "Something went wrong.");
     } finally {
       setLoading(false);
@@ -55,24 +60,30 @@ export default function SignInScreen() {
         ) : null}
 
         <TextInput
-          style={styles.input}
+          style={[styles.input, focusedField === "email" && { borderColor: theme.colors.accent }]}
           placeholder="Email"
           placeholderTextColor={theme.colors.placeholder}
+          cursorColor={theme.colors.accent}
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
           value={email}
           onChangeText={setEmail}
+          onFocus={() => setFocusedField("email")}
+          onBlur={() => setFocusedField("")}
         />
 
         <TextInput
-          style={styles.input}
+          style={[styles.input, focusedField === "password" && { borderColor: theme.colors.accent }]}
           placeholder="Password"
           placeholderTextColor={theme.colors.placeholder}
+          cursorColor={theme.colors.accent}
           secureTextEntry
           autoComplete="password"
           value={password}
           onChangeText={setPassword}
+          onFocus={() => setFocusedField("password")}
+          onBlur={() => setFocusedField("")}
         />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -81,6 +92,7 @@ export default function SignInScreen() {
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleSignIn}
           disabled={loading}
+          activeOpacity={0.7}
         >
           {loading ? (
             <ActivityIndicator color={theme.colors.buttonText} />

@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { Link } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,9 +24,12 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [focusedField, setFocusedField] = useState("");
 
   const handleSignUp = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!email.trim() || !password) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError("Please enter both email and password.");
       return;
     }
@@ -36,6 +40,7 @@ export default function SignUpScreen() {
       await signUp(email.trim(), password);
       router.replace("/(auth)/sign-in?registered=1");
     } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(e.message ?? "Something went wrong.");
       setLoading(false);
     }
@@ -51,24 +56,30 @@ export default function SignUpScreen() {
         <Text style={styles.subtitle}>Create your Music Memory account</Text>
 
         <TextInput
-          style={styles.input}
+          style={[styles.input, focusedField === "email" && { borderColor: theme.colors.accent }]}
           placeholder="Email"
           placeholderTextColor={theme.colors.placeholder}
+          cursorColor={theme.colors.accent}
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
           value={email}
           onChangeText={setEmail}
+          onFocus={() => setFocusedField("email")}
+          onBlur={() => setFocusedField("")}
         />
 
         <TextInput
-          style={styles.input}
+          style={[styles.input, focusedField === "password" && { borderColor: theme.colors.accent }]}
           placeholder="Password"
           placeholderTextColor={theme.colors.placeholder}
+          cursorColor={theme.colors.accent}
           secureTextEntry
           autoComplete="new-password"
           value={password}
           onChangeText={setPassword}
+          onFocus={() => setFocusedField("password")}
+          onBlur={() => setFocusedField("")}
         />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -77,6 +88,7 @@ export default function SignUpScreen() {
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleSignUp}
           disabled={loading}
+          activeOpacity={0.7}
         >
           {loading ? (
             <ActivityIndicator color={theme.colors.buttonText} />
