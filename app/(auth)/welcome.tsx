@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
-const ICON = require("@/assets/images/asset.webp");
+const ICON = require("@/assets/images/app-icon.png");
 
 const FEATURES = [
   {
