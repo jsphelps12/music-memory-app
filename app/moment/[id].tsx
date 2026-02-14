@@ -4,6 +4,7 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   Alert,
   StyleSheet,
 } from "react-native";
@@ -31,6 +32,7 @@ export default function MomentDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [photoSignedUrls, setPhotoSignedUrls] = useState<string[]>([]);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const fetchMoment = useCallback(async () => {
     setLoading(true);
@@ -105,7 +107,17 @@ export default function MomentDetailScreen() {
   const getMood = (value: MoodOption | null) =>
     value ? MOODS.find((m) => m.value === value) : undefined;
 
+  const openMenu = () => {
+    setMenuOpen(true);
+  };
+
+  const handleEdit = () => {
+    setMenuOpen(false);
+    if (moment) router.push(`/moment/edit/${moment.id}`);
+  };
+
   const handleDelete = () => {
+    setMenuOpen(false);
     Alert.alert("Delete Moment", "Are you sure? This cannot be undone.", [
       { text: "Cancel", style: "cancel" },
       {
@@ -131,8 +143,8 @@ export default function MomentDetailScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.topBar}>
-          <View />
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }} />
           <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
             <Text style={styles.closeButtonText}>✕</Text>
           </TouchableOpacity>
@@ -160,66 +172,99 @@ export default function MomentDetailScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topBar}>
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => router.push(`/moment/edit/${moment.id}`)}
-        >
-          <Text style={styles.editButtonText}>Edit</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
-          <Text style={styles.closeButtonText}>✕</Text>
-        </TouchableOpacity>
+      <View style={styles.headerRow}>
+        <Text style={styles.date}>{formatDate(moment.momentDate)}</Text>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.moreButton} onPress={openMenu}>
+            <Text style={styles.moreButtonText}>{"\u22EF"}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+        </View>
       </View>
+      {menuOpen && (
+        <>
+          <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)} />
+          <View style={styles.menuContainer}>
+            <TouchableOpacity style={styles.menuItem} onPress={handleEdit}>
+              <Text style={styles.menuItemText}>Edit Moment</Text>
+            </TouchableOpacity>
+            <View style={styles.menuDivider} />
+            <TouchableOpacity style={styles.menuItem} onPress={handleDelete}>
+              <Text style={styles.menuItemTextDestructive}>Delete Moment</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {moment.songArtworkUrl ? (
-          <Image
-            source={{ uri: moment.songArtworkUrl }}
-            style={styles.artwork}
-          />
-        ) : (
-          <View style={[styles.artwork, styles.artworkPlaceholder]} />
-        )}
 
-        <Text style={styles.songTitle}>{moment.songTitle}</Text>
-        <Text style={styles.songArtist}>{moment.songArtist}</Text>
-
-        {moment.songPreviewUrl ? (
-          <TouchableOpacity
-            style={styles.playButton}
-            onPress={() => {
-              const isCurrentSong =
-                isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId;
-              if (isCurrentSong) {
-                pause();
-              } else {
-                play(
-                  {
-                    id: moment.songAppleMusicId,
-                    title: moment.songTitle,
-                    artistName: moment.songArtist,
-                    albumName: moment.songAlbumName,
-                    artworkUrl: moment.songArtworkUrl,
-                    appleMusicId: moment.songAppleMusicId,
-                    durationMs: 0,
-                  },
-                  moment.songPreviewUrl!
-                );
-              }
-            }}
-          >
-            <Text style={styles.playButtonText}>
-              {isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId
-                ? "Pause"
-                : "Play Preview"}
+        {/* Song row: artwork + title/artist + play */}
+        <View style={styles.songRow}>
+          {moment.songArtworkUrl ? (
+            <Image
+              source={{ uri: moment.songArtworkUrl }}
+              style={styles.artwork}
+            />
+          ) : (
+            <View style={[styles.artwork, styles.artworkPlaceholder]} />
+          )}
+          <View style={styles.songInfo}>
+            <Text style={styles.songTitle} numberOfLines={2}>
+              {moment.songTitle}
             </Text>
-          </TouchableOpacity>
+            <Text style={styles.songArtist} numberOfLines={1}>
+              {moment.songArtist}
+            </Text>
+            {moment.songAlbumName ? (
+              <Text style={styles.songAlbum} numberOfLines={1}>
+                {moment.songAlbumName}
+              </Text>
+            ) : null}
+          </View>
+          {moment.songPreviewUrl ? (
+            <TouchableOpacity
+              style={styles.playButton}
+              onPress={() => {
+                const isCurrentSong =
+                  isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId;
+                if (isCurrentSong) {
+                  pause();
+                } else {
+                  play(
+                    {
+                      id: moment.songAppleMusicId,
+                      title: moment.songTitle,
+                      artistName: moment.songArtist,
+                      albumName: moment.songAlbumName,
+                      artworkUrl: moment.songArtworkUrl,
+                      appleMusicId: moment.songAppleMusicId,
+                      durationMs: 0,
+                    },
+                    moment.songPreviewUrl!
+                  );
+                }
+              }}
+            >
+              <Text style={styles.playButtonText}>
+                {isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId
+                  ? "Pause"
+                  : "Play"}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        {/* Reflection — the main content */}
+        {moment.reflectionText ? (
+          <Text style={styles.reflection}>{moment.reflectionText}</Text>
         ) : null}
 
+        {/* Photos */}
         {photoSignedUrls.length > 0 && (
           <ScrollView
             horizontal
@@ -237,33 +282,24 @@ export default function MomentDetailScreen() {
           </ScrollView>
         )}
 
-        {moment.reflectionText ? (
-          <Text style={styles.reflection}>{moment.reflectionText}</Text>
-        ) : null}
-
-        {mood ? (
-          <View style={styles.moodChip}>
-            <Text style={styles.moodChipText}>
-              {mood.emoji} {mood.label}
-            </Text>
-          </View>
-        ) : null}
-
-        {moment.people.length > 0 ? (
-          <View style={styles.peopleRow}>
+        {/* Metadata */}
+        {(mood || moment.people.length > 0) && (
+          <View style={styles.metaRow}>
+            {mood ? (
+              <View style={styles.moodChip}>
+                <Text style={styles.moodChipText}>
+                  {mood.emoji} {mood.label}
+                </Text>
+              </View>
+            ) : null}
             {moment.people.map((person) => (
               <View key={person} style={styles.personChip}>
                 <Text style={styles.personChipText}>{person}</Text>
               </View>
             ))}
           </View>
-        ) : null}
+        )}
 
-        <Text style={styles.date}>{formatDate(moment.momentDate)}</Text>
-
-        <TouchableOpacity onPress={handleDelete} style={styles.deleteButton}>
-          <Text style={styles.deleteButtonText}>Delete Moment</Text>
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -304,7 +340,7 @@ function createStyles(theme: Theme) {
       color: theme.colors.accent,
       fontWeight: theme.fontWeight.medium,
     },
-    topBar: {
+    headerRow: {
       paddingTop: 60,
       paddingHorizontal: theme.spacing.xl,
       paddingBottom: theme.spacing.md,
@@ -313,14 +349,64 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       backgroundColor: theme.colors.background,
     },
-    editButton: {
-      paddingVertical: 6,
-      paddingHorizontal: theme.spacing.md,
+    date: {
+      fontSize: theme.fontSize.xl,
+      fontWeight: theme.fontWeight.bold,
+      color: theme.colors.text,
+      flex: 1,
     },
-    editButtonText: {
+    headerActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+    },
+    moreButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: theme.colors.closeButtonBg,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    moreButtonText: {
+      fontSize: 18,
+      fontWeight: theme.fontWeight.bold,
+      color: theme.colors.textSecondary,
+    },
+    menuBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 10,
+    },
+    menuContainer: {
+      position: "absolute",
+      top: 60 + 12 + 32 + 8, // headerPaddingTop + approx paddingBottom + button height + gap
+      right: theme.spacing.xl,
+      backgroundColor: theme.colors.cardBg,
+      borderRadius: 14,
+      minWidth: 190,
+      zIndex: 11,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.2,
+      shadowRadius: 20,
+      elevation: 8,
+      overflow: "hidden",
+    },
+    menuItem: {
+      paddingVertical: 14,
+      paddingHorizontal: theme.spacing.lg,
+    },
+    menuItemText: {
       fontSize: theme.fontSize.base,
-      color: theme.colors.accent,
-      fontWeight: theme.fontWeight.medium,
+      color: theme.colors.text,
+    },
+    menuItemTextDestructive: {
+      fontSize: theme.fontSize.base,
+      color: theme.colors.destructive,
+    },
+    menuDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: theme.colors.border,
     },
     closeButton: {
       width: 32,
@@ -339,38 +425,58 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.xl,
       paddingBottom: 60,
     },
-    artwork: {
-      width: "100%",
-      aspectRatio: 1,
+    songRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.colors.cardBg,
+      padding: theme.spacing.md,
       borderRadius: theme.radii.md,
-      marginBottom: theme.spacing.lg,
+      marginBottom: theme.spacing.xl,
+    },
+    artwork: {
+      width: 56,
+      height: 56,
+      borderRadius: theme.radii.sm,
     },
     artworkPlaceholder: {
       backgroundColor: theme.colors.artworkPlaceholder,
     },
+    songInfo: {
+      flex: 1,
+      marginLeft: theme.spacing.md,
+    },
     songTitle: {
-      fontSize: theme.fontSize.xl,
-      fontWeight: theme.fontWeight.bold,
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
       color: theme.colors.text,
     },
     songArtist: {
-      fontSize: theme.fontSize.base,
+      fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
-      marginTop: theme.spacing.xs,
-      marginBottom: theme.spacing.xl,
+      marginTop: 1,
+    },
+    songAlbum: {
+      fontSize: theme.fontSize.xs,
+      color: theme.colors.textTertiary,
+      marginTop: 1,
     },
     playButton: {
-      alignSelf: "flex-start",
       backgroundColor: theme.colors.buttonBg,
-      paddingHorizontal: theme.spacing.xl,
-      paddingVertical: 10,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 8,
       borderRadius: theme.radii.lg,
-      marginBottom: theme.spacing.xl,
+      marginLeft: theme.spacing.sm,
     },
     playButtonText: {
       color: theme.colors.buttonText,
       fontSize: theme.fontSize.sm,
       fontWeight: theme.fontWeight.semibold,
+    },
+    reflection: {
+      fontSize: 17,
+      color: theme.colors.text,
+      lineHeight: 26,
+      marginBottom: theme.spacing.xl,
     },
     photoGallery: {
       marginBottom: theme.spacing.xl,
@@ -385,29 +491,21 @@ function createStyles(theme: Theme) {
       height: 200,
       borderRadius: theme.radii.md,
     },
-    reflection: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      lineHeight: 24,
-      marginBottom: theme.spacing.xl,
+    metaRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing["3xl"],
     },
     moodChip: {
-      alignSelf: "flex-start",
       paddingHorizontal: 14,
       paddingVertical: 6,
       borderRadius: theme.spacing.lg,
       backgroundColor: theme.colors.chipBg,
-      marginBottom: theme.spacing.lg,
     },
     moodChipText: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.chipText,
-    },
-    peopleRow: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: theme.spacing.sm,
-      marginBottom: theme.spacing.lg,
     },
     personChip: {
       paddingHorizontal: theme.spacing.md,
@@ -418,21 +516,6 @@ function createStyles(theme: Theme) {
     personChipText: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.accentText,
-    },
-    date: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textTertiary,
-      marginBottom: theme.spacing["3xl"],
-    },
-    deleteButton: {
-      alignSelf: "center",
-      paddingVertical: theme.spacing.md,
-      paddingHorizontal: theme.spacing["2xl"],
-    },
-    deleteButtonText: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.destructive,
-      fontWeight: theme.fontWeight.medium,
     },
   });
 }

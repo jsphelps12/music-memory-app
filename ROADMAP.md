@@ -23,15 +23,16 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 
 These aren't from a specific phase — they're gaps in the current build that need addressing before moving forward.
 
-- [ ] Edit moments (currently create and delete only)
-- [ ] UI/UX overhaul — consistent design system, spacing, typography, colors
-- [ ] Empty states ("No moments yet — create your first!")
-- [ ] Loading skeletons / better loading states
+- [x] Edit moments
+- [x] UI/UX overhaul — consistent design system, spacing, typography, colors
+- [x] Empty states ("No moments yet — create your first!")
+- [x] Loading skeletons / better loading states
 - [ ] Error states and retry patterns throughout
-- [ ] Pull-to-refresh on timeline
+- [x] Pull-to-refresh on timeline
 - [ ] Onboarding flow (first-launch walkthrough)
 - [ ] Apple Sign-In (alternative auth)
-- [ ] Dark mode
+- [x] Dark mode
+- [ ] Photo loading optimization — batch signed URLs, prefetch on timeline, or switch to public bucket
 
 ---
 
