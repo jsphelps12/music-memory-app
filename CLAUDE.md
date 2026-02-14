@@ -76,11 +76,8 @@ Implemented so far:
 7. **Photo support** — attach photos to moments via camera/library, upload to Supabase Storage, display in detail view
 8. **Profile screen** — avatar upload, editable display name, moment count, member-since date, sign-out
 
-## Next Steps (MVP features, in order)
+## What's Next
 
-No remaining MVP blockers. Polish and ship.
+MVP is complete. Current focus: polish, edit moments, UI/UX overhaul.
 
-## Roadmap (post-MVP)
-
-1. **Voice recordings** — attach voice memos to moments
-2. **Apple Sign-In** — alternative auth method
+See `ROADMAP.md` for the full phased roadmap (7 phases from MVP through premium features, sharing, and legacy). See `music-journal-roadmap.md` for the original detailed planning document.
