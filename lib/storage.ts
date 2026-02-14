@@ -55,16 +55,31 @@ export async function uploadAvatar(
   return storagePath;
 }
 
+const CACHE_TTL_MS = 3000 * 1000; // 50 minutes
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+
 /**
  * Generate a signed URL for a storage path (1 hour expiry).
+ * Results are cached in memory for 50 minutes to avoid redundant API calls.
  */
 export async function getSignedPhotoUrl(
   path: string
 ): Promise<string | null> {
+  const cached = signedUrlCache.get(path);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.url;
+  }
+
   const { data, error } = await supabase.storage
     .from(BUCKET)
     .createSignedUrl(path, 3600);
 
   if (error || !data?.signedUrl) return null;
+
+  signedUrlCache.set(path, {
+    url: data.signedUrl,
+    expiresAt: Date.now() + CACHE_TTL_MS,
+  });
+
   return data.signedUrl;
 }
