@@ -12,6 +12,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { Image } from "expo-image";
+import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,6 +22,9 @@ import { getSignedPhotoUrl } from "@/lib/storage";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { SkeletonProfile } from "@/components/Skeleton";
+import { ErrorState } from "@/components/ErrorState";
+import { ErrorBanner } from "@/components/ErrorBanner";
+import { friendlyError } from "@/lib/errors";
 
 const REFETCH_COOLDOWN_MS = 2000;
 
@@ -29,6 +33,7 @@ export default function ProfileScreen() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -37,28 +42,44 @@ export default function ProfileScreen() {
   const [momentCount, setMomentCount] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [bannerError, setBannerError] = useState("");
   const lastFetchTime = useRef(0);
 
-  const loadProfileData = useCallback(async () => {
-    await refreshProfile();
+  const loadProfileData = useCallback(async (isInitial: boolean) => {
+    try {
+      if (isInitial) setLoadError("");
+      setBannerError("");
 
-    const { count } = await supabase
-      .from("moments")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user!.id);
+      await refreshProfile();
 
-    setMomentCount(count ?? 0);
-    lastFetchTime.current = Date.now();
-    setInitialLoading(false);
+      const { count, error: countError } = await supabase
+        .from("moments")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user!.id);
+
+      if (countError) throw countError;
+
+      setMomentCount(count ?? 0);
+      lastFetchTime.current = Date.now();
+      setInitialLoading(false);
+    } catch (e) {
+      if (isInitial) {
+        setLoadError(friendlyError(e));
+        setInitialLoading(false);
+      } else {
+        setBannerError(friendlyError(e));
+      }
+    }
   }, [user?.id]);
 
   useFocusEffect(
     useCallback(() => {
       const elapsed = Date.now() - lastFetchTime.current;
       if (lastFetchTime.current === 0) {
-        loadProfileData();
+        loadProfileData(true);
       } else if (elapsed >= REFETCH_COOLDOWN_MS) {
-        loadProfileData();
+        loadProfileData(false);
       }
     }, [loadProfileData])
   );
@@ -84,20 +105,24 @@ export default function ProfileScreen() {
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadProfileData();
+    await loadProfileData(false);
     setRefreshing(false);
   }, [loadProfileData]);
 
   const handleSignOut = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSigningOut(true);
+    setSignOutError("");
     try {
       await signOut();
-    } catch {
+    } catch (e) {
+      setSignOutError(friendlyError(e));
       setSigningOut(false);
     }
   };
 
   const handleAvatarPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     ActionSheetIOS.showActionSheetWithOptions(
       {
         options: ["Cancel", "Take Photo", "Choose from Library"],
@@ -148,11 +173,14 @@ export default function ProfileScreen() {
   };
 
   const handleNameSave = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const trimmed = nameInput.trim();
     setSavingName(true);
     try {
       await updateProfile({ displayName: trimmed || undefined });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert("Error", e.message ?? "Could not update name.");
     } finally {
       setSavingName(false);
@@ -168,6 +196,15 @@ export default function ProfileScreen() {
       >
         <SkeletonProfile />
       </ScrollView>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <ErrorState
+        message={loadError}
+        onRetry={() => loadProfileData(true)}
+      />
     );
   }
 
@@ -200,8 +237,16 @@ export default function ProfileScreen() {
         />
       }
     >
+      {bannerError ? (
+        <ErrorBanner
+          message={bannerError}
+          onRetry={() => loadProfileData(false)}
+          onDismiss={() => setBannerError("")}
+        />
+      ) : null}
+
       {/* Avatar */}
-      <TouchableOpacity onPress={handleAvatarPress} disabled={uploadingAvatar}>
+      <TouchableOpacity onPress={handleAvatarPress} disabled={uploadingAvatar} activeOpacity={0.7}>
         <View style={styles.avatarContainer}>
           {uploadingAvatar ? (
             <ActivityIndicator size="large" color={theme.colors.accent} />
@@ -223,23 +268,24 @@ export default function ProfileScreen() {
             onChangeText={setNameInput}
             placeholder="Display name"
             placeholderTextColor={theme.colors.placeholder}
+            cursorColor={theme.colors.accent}
             autoFocus
             returnKeyType="done"
             onSubmitEditing={handleNameSave}
           />
-          <TouchableOpacity onPress={handleNameSave} disabled={savingName}>
+          <TouchableOpacity onPress={handleNameSave} disabled={savingName} activeOpacity={0.7}>
             {savingName ? (
               <ActivityIndicator size="small" color={theme.colors.accent} />
             ) : (
               <Text style={styles.saveText}>Save</Text>
             )}
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setEditingName(false)}>
+          <TouchableOpacity onPress={() => setEditingName(false)} activeOpacity={0.7}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
       ) : (
-        <TouchableOpacity onPress={handleNamePress}>
+        <TouchableOpacity onPress={handleNamePress} activeOpacity={0.7}>
           <Text style={styles.displayName}>
             {displayName ?? "Add your name"}
           </Text>
@@ -266,10 +312,14 @@ export default function ProfileScreen() {
       </View>
 
       {/* Sign Out */}
+      {signOutError ? (
+        <Text style={styles.signOutErrorText}>{signOutError}</Text>
+      ) : null}
       <TouchableOpacity
         style={[styles.signOutButton, signingOut && styles.buttonDisabled]}
         onPress={handleSignOut}
         disabled={signingOut}
+        activeOpacity={0.7}
       >
         {signingOut ? (
           <ActivityIndicator color={theme.colors.destructive} />
@@ -371,8 +421,14 @@ function createStyles(theme: Theme) {
       color: theme.colors.textTertiary,
       marginTop: 2,
     },
+    signOutErrorText: {
+      color: theme.colors.destructive,
+      fontSize: theme.fontSize.sm,
+      marginTop: theme.spacing["2xl"],
+      textAlign: "center",
+    },
     signOutButton: {
-      marginTop: 48,
+      marginTop: theme.spacing.lg,
       paddingVertical: 14,
       paddingHorizontal: theme.spacing["3xl"],
       borderRadius: 10,

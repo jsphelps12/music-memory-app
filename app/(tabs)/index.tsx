@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
-  FlatList,
+  SectionList,
   TouchableOpacity,
   RefreshControl,
   StyleSheet,
@@ -16,6 +16,9 @@ import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { SkeletonTimelineCard } from "@/components/Skeleton";
+import { ErrorState } from "@/components/ErrorState";
+import { ErrorBanner } from "@/components/ErrorBanner";
+import { friendlyError } from "@/lib/errors";
 import { Moment, MoodOption } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 2000;
@@ -29,12 +32,14 @@ export default function TimelineScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [bannerError, setBannerError] = useState("");
   const lastFetchTime = useRef(0);
 
   const fetchMoments = useCallback(
     async (showLoading: boolean) => {
       if (showLoading) setLoading(true);
-      setError("");
+      setBannerError("");
+      if (showLoading) setError("");
       const { data, error: fetchError } = await supabase
         .from("moments")
         .select("*")
@@ -42,7 +47,11 @@ export default function TimelineScreen() {
         .order("moment_date", { ascending: false });
 
       if (fetchError) {
-        setError(fetchError.message);
+        if (showLoading) {
+          setError(friendlyError(fetchError));
+        } else {
+          setBannerError(friendlyError(fetchError));
+        }
         setLoading(false);
         return;
       }
@@ -90,12 +99,22 @@ export default function TimelineScreen() {
     setRefreshing(false);
   }, [fetchMoments]);
 
-  const formatDate = (dateStr: string) => {
+  const sections = useMemo(() => {
+    const grouped: Record<string, Moment[]> = {};
+    for (const m of moments) {
+      const date = new Date(m.momentDate + "T00:00:00");
+      const key = date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(m);
+    }
+    return Object.entries(grouped).map(([title, data]) => ({ title, data }));
+  }, [moments]);
+
+  const formatDay = (dateStr: string) => {
     const date = new Date(dateStr + "T00:00:00");
     return date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
-      year: "numeric",
     });
   };
 
@@ -139,12 +158,20 @@ export default function TimelineScreen() {
                 </Text>
               </View>
             ) : null}
-            <Text style={styles.date}>{formatDate(item.momentDate)}</Text>
+            <Text style={styles.date}>{formatDay(item.momentDate)}</Text>
           </View>
         </View>
       </TouchableOpacity>
     );
   };
+
+  const listHeader = bannerError ? (
+    <ErrorBanner
+      message={bannerError}
+      onRetry={() => fetchMoments(false)}
+      onDismiss={() => setBannerError("")}
+    />
+  ) : null;
 
   return (
     <View style={styles.container}>
@@ -159,15 +186,10 @@ export default function TimelineScreen() {
           ))}
         </View>
       ) : error ? (
-        <View style={styles.centered}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={() => fetchMoments(true)}
-          >
-            <Text style={styles.retryButtonText}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState
+          message={error}
+          onRetry={() => fetchMoments(true)}
+        />
       ) : moments.length === 0 ? (
         <View style={styles.centered}>
           <Text style={styles.emptyTitle}>No moments yet</Text>
@@ -177,17 +199,23 @@ export default function TimelineScreen() {
           <TouchableOpacity
             style={styles.ctaButton}
             onPress={() => router.push("/(tabs)/create")}
+            activeOpacity={0.7}
           >
             <Text style={styles.ctaButtonText}>Create Your First Moment</Text>
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
-          data={moments}
+        <SectionList
+          sections={sections}
           keyExtractor={(item) => item.id}
           renderItem={renderMoment}
+          renderSectionHeader={({ section: { title } }) => (
+            <Text style={styles.sectionHeader}>{title}</Text>
+          )}
+          ListHeaderComponent={listHeader}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -223,11 +251,6 @@ function createStyles(theme: Theme) {
       justifyContent: "center",
       padding: theme.spacing.xl,
     },
-    errorText: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.destructive,
-      textAlign: "center",
-    },
     emptyTitle: {
       fontSize: theme.fontSize.xl,
       fontWeight: theme.fontWeight.semibold,
@@ -250,18 +273,15 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.base,
       fontWeight: theme.fontWeight.semibold,
     },
-    retryButton: {
-      paddingVertical: theme.spacing.md,
-      paddingHorizontal: theme.spacing["2xl"],
-      marginTop: theme.spacing.lg,
-    },
-    retryButtonText: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.accent,
-      fontWeight: theme.fontWeight.medium,
-    },
     skeletonList: {
       paddingHorizontal: theme.spacing.xl,
+    },
+    sectionHeader: {
+      fontSize: theme.fontSize.lg,
+      fontWeight: theme.fontWeight.semibold,
+      color: theme.colors.textSecondary,
+      marginTop: theme.spacing.xl,
+      marginBottom: theme.spacing.md,
     },
     listContent: {
       paddingHorizontal: theme.spacing.xl,

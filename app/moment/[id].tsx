@@ -9,6 +9,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
+import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +20,8 @@ import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { SkeletonMomentDetail } from "@/components/Skeleton";
+import { ErrorState } from "@/components/ErrorState";
+import { friendlyError } from "@/lib/errors";
 import { Moment, MoodOption } from "@/types";
 
 export default function MomentDetailScreen() {
@@ -32,6 +35,7 @@ export default function MomentDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [photoSignedUrls, setPhotoSignedUrls] = useState<string[]>([]);
+  const [photoUrlError, setPhotoUrlError] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const fetchMoment = useCallback(async () => {
@@ -44,7 +48,7 @@ export default function MomentDetailScreen() {
       .single();
 
     if (fetchError) {
-      setError(fetchError.message);
+      setError(friendlyError(fetchError));
       setLoading(false);
       return;
     }
@@ -86,7 +90,9 @@ export default function MomentDetailScreen() {
     Promise.all(moment.photoUrls.map((path) => getSignedPhotoUrl(path))).then(
       (urls) => {
         if (!cancelled) {
-          setPhotoSignedUrls(urls.filter((u): u is string => u !== null));
+          const resolved = urls.filter((u): u is string => u !== null);
+          setPhotoSignedUrls(resolved);
+          setPhotoUrlError(resolved.length < moment.photoUrls.length);
         }
       }
     );
@@ -108,15 +114,18 @@ export default function MomentDetailScreen() {
     value ? MOODS.find((m) => m.value === value) : undefined;
 
   const openMenu = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setMenuOpen(true);
   };
 
   const handleEdit = () => {
+    Haptics.selectionAsync();
     setMenuOpen(false);
     if (moment) router.push(`/moment/edit/${moment.id}`);
   };
 
   const handleDelete = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     setMenuOpen(false);
     Alert.alert("Delete Moment", "Are you sure? This cannot be undone.", [
       { text: "Cancel", style: "cancel" },
@@ -145,7 +154,7 @@ export default function MomentDetailScreen() {
       <View style={styles.container}>
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }} />
-          <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.closeButton} onPress={() => router.back()} activeOpacity={0.7}>
             <Text style={styles.closeButtonText}>✕</Text>
           </TouchableOpacity>
         </View>
@@ -156,14 +165,18 @@ export default function MomentDetailScreen() {
 
   if (error || !moment) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>{error || "Moment not found"}</Text>
-        <TouchableOpacity onPress={fetchMoment} style={styles.retryLink}>
-          <Text style={styles.retryLinkText}>Try Again</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
-          <Text style={styles.backLinkText}>Go back</Text>
-        </TouchableOpacity>
+      <View style={styles.container}>
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }} />
+          <TouchableOpacity style={styles.closeButton} onPress={() => router.back()} activeOpacity={0.7}>
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        <ErrorState
+          message={error || "Moment not found"}
+          onRetry={fetchMoment}
+          onBack={() => router.back()}
+        />
       </View>
     );
   }
@@ -175,10 +188,10 @@ export default function MomentDetailScreen() {
       <View style={styles.headerRow}>
         <Text style={styles.date}>{formatDate(moment.momentDate)}</Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.moreButton} onPress={openMenu}>
+          <TouchableOpacity style={styles.moreButton} onPress={openMenu} activeOpacity={0.7}>
             <Text style={styles.moreButtonText}>{"\u22EF"}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.closeButton} onPress={() => router.back()} activeOpacity={0.7}>
             <Text style={styles.closeButtonText}>✕</Text>
           </TouchableOpacity>
         </View>
@@ -187,11 +200,11 @@ export default function MomentDetailScreen() {
         <>
           <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)} />
           <View style={styles.menuContainer}>
-            <TouchableOpacity style={styles.menuItem} onPress={handleEdit}>
+            <TouchableOpacity style={styles.menuItem} onPress={handleEdit} activeOpacity={0.7}>
               <Text style={styles.menuItemText}>Edit Moment</Text>
             </TouchableOpacity>
             <View style={styles.menuDivider} />
-            <TouchableOpacity style={styles.menuItem} onPress={handleDelete}>
+            <TouchableOpacity style={styles.menuItem} onPress={handleDelete} activeOpacity={0.7}>
               <Text style={styles.menuItemTextDestructive}>Delete Moment</Text>
             </TouchableOpacity>
           </View>
@@ -229,7 +242,9 @@ export default function MomentDetailScreen() {
           {moment.songPreviewUrl ? (
             <TouchableOpacity
               style={styles.playButton}
+              activeOpacity={0.7}
               onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 const isCurrentSong =
                   isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId;
                 if (isCurrentSong) {
@@ -281,6 +296,9 @@ export default function MomentDetailScreen() {
             ))}
           </ScrollView>
         )}
+        {photoUrlError && (
+          <Text style={styles.photoErrorText}>Some photos could not be loaded.</Text>
+        )}
 
         {/* Metadata */}
         {(mood || moment.people.length > 0) && (
@@ -310,35 +328,6 @@ function createStyles(theme: Theme) {
     container: {
       flex: 1,
       backgroundColor: theme.colors.background,
-    },
-    centered: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.background,
-      padding: theme.spacing.xl,
-    },
-    errorText: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.destructive,
-      textAlign: "center",
-      marginBottom: theme.spacing.lg,
-    },
-    backLink: {
-      paddingVertical: theme.spacing.sm,
-    },
-    backLinkText: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.accent,
-    },
-    retryLink: {
-      paddingVertical: theme.spacing.sm,
-      marginBottom: theme.spacing.xs,
-    },
-    retryLinkText: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.accent,
-      fontWeight: theme.fontWeight.medium,
     },
     headerRow: {
       paddingTop: 60,
@@ -490,6 +479,11 @@ function createStyles(theme: Theme) {
       width: 200,
       height: 200,
       borderRadius: theme.radii.md,
+    },
+    photoErrorText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textTertiary,
+      marginBottom: theme.spacing.md,
     },
     metaRow: {
       flexDirection: "row",

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
+import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker, {
   DateTimePickerEvent,
@@ -25,12 +26,16 @@ import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { MoodOption, Song } from "@/types";
+import { SkeletonMomentDetail } from "@/components/Skeleton";
+import { ErrorState } from "@/components/ErrorState";
+import { friendlyError } from "@/lib/errors";
 
 export default function EditMomentScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const scrollViewRef = useRef<ScrollView>(null);
   const params = useLocalSearchParams<{
     id: string;
     songId?: string;
@@ -53,43 +58,46 @@ export default function EditMomentScreen() {
   const [momentDate, setMomentDate] = useState(new Date());
   const [loadingMoment, setLoadingMoment] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
+  const [focusedField, setFocusedField] = useState("");
 
-  useEffect(() => {
-    async function fetchMoment() {
-      setLoadingMoment(true);
-      const { data, error: fetchError } = await supabase
-        .from("moments")
-        .select("*")
-        .eq("id", params.id)
-        .single();
+  const fetchMoment = useCallback(async () => {
+    setLoadingMoment(true);
+    setLoadError("");
+    const { data, error: fetchError } = await supabase
+      .from("moments")
+      .select("*")
+      .eq("id", params.id)
+      .single();
 
-      if (fetchError || !data) {
-        setError(fetchError?.message ?? "Moment not found");
-        setLoadingMoment(false);
-        return;
-      }
-
-      const row: any = data;
-      setSong({
-        id: row.song_apple_music_id,
-        title: row.song_title,
-        artistName: row.song_artist,
-        albumName: row.song_album_name ?? "",
-        artworkUrl: row.song_artwork_url ?? "",
-        appleMusicId: row.song_apple_music_id,
-        durationMs: 0,
-      });
-      setReflection(row.reflection_text ?? "");
-      setSelectedMood(row.mood ?? null);
-      setPeople(row.people ?? []);
-      setExistingPhotos(row.photo_urls ?? []);
-      setMomentDate(new Date(row.moment_date + "T00:00:00"));
+    if (fetchError || !data) {
+      setLoadError(friendlyError(fetchError ?? new Error("Moment not found")));
       setLoadingMoment(false);
+      return;
     }
 
-    fetchMoment();
+    const row: any = data;
+    setSong({
+      id: row.song_apple_music_id,
+      title: row.song_title,
+      artistName: row.song_artist,
+      albumName: row.song_album_name ?? "",
+      artworkUrl: row.song_artwork_url ?? "",
+      appleMusicId: row.song_apple_music_id,
+      durationMs: 0,
+    });
+    setReflection(row.reflection_text ?? "");
+    setSelectedMood(row.mood ?? null);
+    setPeople(row.people ?? []);
+    setExistingPhotos(row.photo_urls ?? []);
+    setMomentDate(new Date(row.moment_date + "T00:00:00"));
+    setLoadingMoment(false);
   }, [params.id]);
+
+  useEffect(() => {
+    fetchMoment();
+  }, [fetchMoment]);
 
   useEffect(() => {
     if (params.songTitle) {
@@ -194,11 +202,14 @@ export default function EditMomentScreen() {
   };
 
   const handleSave = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!hasSong) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError("Please select a song.");
       return;
     }
     if (!reflection.trim()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError("Please write a reflection.");
       return;
     }
@@ -233,9 +244,12 @@ export default function EditMomentScreen() {
 
       if (updateError) throw updateError;
 
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
     } catch (e: any) {
-      setError(e.message ?? "Failed to save changes.");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(friendlyError(e));
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } finally {
       setLoading(false);
     }
@@ -243,9 +257,19 @@ export default function EditMomentScreen() {
 
   if (loadingMoment) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={theme.colors.text} />
+      <View style={styles.container}>
+        <SkeletonMomentDetail />
       </View>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <ErrorState
+        message={loadError}
+        onRetry={fetchMoment}
+        onBack={() => router.back()}
+      />
     );
   }
 
@@ -255,6 +279,7 @@ export default function EditMomentScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -264,7 +289,7 @@ export default function EditMomentScreen() {
             <Text style={styles.title}>Edit Moment</Text>
             <Text style={styles.subtitle}>Update your music memory</Text>
           </View>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
@@ -273,6 +298,7 @@ export default function EditMomentScreen() {
         {hasSong ? (
           <TouchableOpacity
             style={styles.songCard}
+            activeOpacity={0.7}
             onPress={() =>
               router.push({
                 pathname: "/song-search",
@@ -301,6 +327,7 @@ export default function EditMomentScreen() {
         ) : (
           <TouchableOpacity
             style={styles.selectSongButton}
+            activeOpacity={0.7}
             onPress={() =>
               router.push({
                 pathname: "/song-search",
@@ -315,13 +342,16 @@ export default function EditMomentScreen() {
         {/* Reflection */}
         <Text style={styles.sectionLabel}>Reflection</Text>
         <TextInput
-          style={styles.reflectionInput}
+          style={[styles.reflectionInput, focusedField === "reflection" && { borderColor: theme.colors.accent }]}
           placeholder="What does this song remind you of?"
           placeholderTextColor={theme.colors.placeholder}
+          cursorColor={theme.colors.accent}
           multiline
           textAlignVertical="top"
           value={reflection}
           onChangeText={setReflection}
+          onFocus={() => setFocusedField("reflection")}
+          onBlur={() => setFocusedField("")}
         />
 
         {/* Mood selector */}
@@ -341,9 +371,10 @@ export default function EditMomentScreen() {
                   styles.moodChip,
                   isSelected && styles.moodChipSelected,
                 ]}
-                onPress={() =>
-                  setSelectedMood(isSelected ? null : mood.value)
-                }
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setSelectedMood(isSelected ? null : mood.value);
+                }}
               >
                 <Text
                   style={[
@@ -361,12 +392,14 @@ export default function EditMomentScreen() {
         {/* People tags */}
         <Text style={styles.sectionLabel}>People</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, focusedField === "people" && { borderColor: theme.colors.accent }]}
           placeholder="Add people (comma-separated)"
           placeholderTextColor={theme.colors.placeholder}
+          cursorColor={theme.colors.accent}
           value={peopleInput}
           onChangeText={setPeopleInput}
-          onBlur={handleAddPeople}
+          onFocus={() => setFocusedField("people")}
+          onBlur={() => { setFocusedField(""); handleAddPeople(); }}
           onSubmitEditing={handleAddPeople}
           returnKeyType="done"
         />
@@ -388,6 +421,7 @@ export default function EditMomentScreen() {
         <TouchableOpacity
           style={styles.addPhotosButton}
           onPress={handleAddPhotos}
+          activeOpacity={0.7}
         >
           <Text style={styles.addPhotosButtonText}>Add Photos</Text>
         </TouchableOpacity>
@@ -444,6 +478,7 @@ export default function EditMomentScreen() {
           style={[styles.saveButton, loading && styles.saveButtonDisabled]}
           onPress={handleSave}
           disabled={loading}
+          activeOpacity={0.7}
         >
           {loading ? (
             <ActivityIndicator color={theme.colors.buttonText} />
@@ -460,12 +495,6 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    centered: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
       backgroundColor: theme.colors.background,
     },
     scrollView: {

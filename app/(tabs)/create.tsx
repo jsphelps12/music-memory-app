@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
+import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
@@ -23,12 +24,14 @@ import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { MoodOption, Song } from "@/types";
+import { friendlyError } from "@/lib/errors";
 
 export default function CreateMomentScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const scrollViewRef = useRef<ScrollView>(null);
   const params = useLocalSearchParams<{
     songId?: string;
     songTitle?: string;
@@ -77,6 +80,7 @@ export default function CreateMomentScreen() {
   const [momentDate, setMomentDate] = useState(new Date());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [focusedField, setFocusedField] = useState("");
 
   const handleAddPeople = () => {
     const names = peopleInput
@@ -139,11 +143,14 @@ export default function CreateMomentScreen() {
   };
 
   const handleSave = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!hasSong) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError("Please select a song.");
       return;
     }
     if (!reflection.trim()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError("Please write a reflection.");
       return;
     }
@@ -175,6 +182,7 @@ export default function CreateMomentScreen() {
 
       if (insertError) throw insertError;
 
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setSong(null);
       setReflection("");
       setSelectedMood(null);
@@ -186,7 +194,9 @@ export default function CreateMomentScreen() {
 
       router.replace("/(tabs)");
     } catch (e: any) {
-      setError(e.message ?? "Failed to save moment.");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(friendlyError(e));
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } finally {
       setLoading(false);
     }
@@ -198,6 +208,7 @@ export default function CreateMomentScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -208,6 +219,7 @@ export default function CreateMomentScreen() {
         {hasSong ? (
           <TouchableOpacity
             style={styles.songCard}
+            activeOpacity={0.7}
             onPress={() => router.push({ pathname: "/song-search", params: { photos: JSON.stringify(photos) } })}
           >
             {song!.artworkUrl ? (
@@ -231,6 +243,7 @@ export default function CreateMomentScreen() {
         ) : (
           <TouchableOpacity
             style={styles.selectSongButton}
+            activeOpacity={0.7}
             onPress={() => router.push({ pathname: "/song-search", params: { photos: JSON.stringify(photos) } })}
           >
             <Text style={styles.selectSongButtonText}>Select Song</Text>
@@ -240,13 +253,16 @@ export default function CreateMomentScreen() {
         {/* Reflection */}
         <Text style={styles.sectionLabel}>Reflection</Text>
         <TextInput
-          style={styles.reflectionInput}
+          style={[styles.reflectionInput, focusedField === "reflection" && { borderColor: theme.colors.accent }]}
           placeholder="What does this song remind you of?"
           placeholderTextColor={theme.colors.placeholder}
+          cursorColor={theme.colors.accent}
           multiline
           textAlignVertical="top"
           value={reflection}
           onChangeText={setReflection}
+          onFocus={() => setFocusedField("reflection")}
+          onBlur={() => setFocusedField("")}
         />
 
         {/* Mood selector */}
@@ -263,9 +279,11 @@ export default function CreateMomentScreen() {
               <TouchableOpacity
                 key={mood.value}
                 style={[styles.moodChip, isSelected && styles.moodChipSelected]}
-                onPress={() =>
-                  setSelectedMood(isSelected ? null : mood.value)
-                }
+                activeOpacity={0.7}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setSelectedMood(isSelected ? null : mood.value);
+                }}
               >
                 <Text
                   style={[
@@ -283,12 +301,14 @@ export default function CreateMomentScreen() {
         {/* People tags */}
         <Text style={styles.sectionLabel}>People</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, focusedField === "people" && { borderColor: theme.colors.accent }]}
           placeholder="Add people (comma-separated)"
           placeholderTextColor={theme.colors.placeholder}
+          cursorColor={theme.colors.accent}
           value={peopleInput}
           onChangeText={setPeopleInput}
-          onBlur={handleAddPeople}
+          onBlur={() => { setFocusedField(""); handleAddPeople(); }}
+          onFocus={() => setFocusedField("people")}
           onSubmitEditing={handleAddPeople}
           returnKeyType="done"
         />
@@ -307,7 +327,7 @@ export default function CreateMomentScreen() {
 
         {/* Photos */}
         <Text style={styles.sectionLabel}>Photos</Text>
-        <TouchableOpacity style={styles.addPhotosButton} onPress={handleAddPhotos}>
+        <TouchableOpacity style={styles.addPhotosButton} activeOpacity={0.7} onPress={handleAddPhotos}>
           <Text style={styles.addPhotosButtonText}>Add Photos</Text>
         </TouchableOpacity>
         {photos.length > 0 && (
@@ -352,6 +372,7 @@ export default function CreateMomentScreen() {
           style={[styles.saveButton, loading && styles.saveButtonDisabled]}
           onPress={handleSave}
           disabled={loading}
+          activeOpacity={0.7}
         >
           {loading ? (
             <ActivityIndicator color={theme.colors.buttonText} />

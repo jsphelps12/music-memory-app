@@ -1,0 +1,23 @@
+{
+  "cli": {
+    "version": ">= 18.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "production": {
+      "distribution": "store",
+      "ios": {
+        "autoIncrement": true
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "jsphelps12@gmail.com",
+        "ascAppId": "6759203604",
+        "appleTeamId": "J9X5GR82CZ"
+      }
+    }
+  }
+}

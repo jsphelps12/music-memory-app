@@ -26,6 +26,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "Music Memory uses your photo library to attach photos to your moments.",
       NSCameraUsageDescription:
         "Music Memory uses your camera to take photos for your moments.",
+      ITSAppUsesNonExemptEncryption: false,
     },
     entitlements: {
       "com.apple.developer.applesignin": ["Default"],
@@ -59,6 +60,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-sqlite",
     "@react-native-community/datetimepicker",
   ],
+  extra: {
+    eas: {
+      projectId: "f0add7d9-3321-4ba3-a4c0-c91b97dc462b",
+    },
+  },
   experiments: {
     typedRoutes: true,
   },

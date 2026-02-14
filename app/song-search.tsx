@@ -6,9 +6,11 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  Linking,
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
+import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { requestMusicAuthorization, searchSongs } from "@/lib/musickit";
 import { useTheme } from "@/hooks/useTheme";
@@ -29,6 +31,7 @@ export default function SongSearchScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [authorized, setAuthorized] = useState(true);
+  const [retryKey, setRetryKey] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -63,9 +66,10 @@ export default function SongSearchScreen() {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [query]);
+  }, [query, retryKey]);
 
   function handleSelect(song: Song) {
+    Haptics.selectionAsync();
     const songParams = {
       songId: song.id,
       songTitle: song.title,
@@ -93,7 +97,7 @@ export default function SongSearchScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
@@ -104,6 +108,13 @@ export default function SongSearchScreen() {
           <Text style={styles.emptySubtext}>
             Please enable Music access in Settings.
           </Text>
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => Linking.openSettings()}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.settingsButtonText}>Open Settings</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -112,7 +123,7 @@ export default function SongSearchScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
           <Text style={styles.cancelText}>Cancel</Text>
         </TouchableOpacity>
       </View>
@@ -121,6 +132,7 @@ export default function SongSearchScreen() {
         style={styles.searchInput}
         placeholder="Search for a song..."
         placeholderTextColor={theme.colors.placeholder}
+        cursorColor={theme.colors.accent}
         value={query}
         onChangeText={setQuery}
         autoFocus
@@ -133,7 +145,14 @@ export default function SongSearchScreen() {
         </View>
       ) : error ? (
         <View style={styles.centered}>
-          <Text style={styles.emptyText}>{error}</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => setRetryKey((k) => k + 1)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
         </View>
       ) : results.length === 0 && query.trim().length >= 2 ? (
         <View style={styles.centered}>
@@ -153,6 +172,7 @@ export default function SongSearchScreen() {
             <TouchableOpacity
               style={styles.row}
               onPress={() => handleSelect(item)}
+              activeOpacity={0.7}
             >
               {item.artworkUrl ? (
                 <Image
@@ -215,6 +235,35 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.base,
       color: theme.colors.textSecondary,
       textAlign: "center",
+    },
+    errorText: {
+      fontSize: theme.fontSize.base,
+      color: theme.colors.destructive,
+      textAlign: "center",
+    },
+    retryButton: {
+      backgroundColor: theme.colors.buttonBg,
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing["2xl"],
+      borderRadius: theme.radii.md,
+      marginTop: theme.spacing.lg,
+    },
+    retryButtonText: {
+      color: theme.colors.buttonText,
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    settingsButton: {
+      backgroundColor: theme.colors.buttonBg,
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing["2xl"],
+      borderRadius: theme.radii.md,
+      marginTop: theme.spacing.lg,
+    },
+    settingsButtonText: {
+      color: theme.colors.buttonText,
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
     },
     emptySubtext: {
       fontSize: theme.fontSize.sm,
