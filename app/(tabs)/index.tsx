@@ -38,6 +38,7 @@ export default function TimelineScreen() {
 
   const fetchMoments = useCallback(
     async (showLoading: boolean) => {
+      if (!user) return;
       if (showLoading) setLoading(true);
       setBannerError("");
       if (showLoading) setError("");
