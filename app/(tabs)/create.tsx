@@ -1,8 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
-  Image,
   TextInput,
   TouchableOpacity,
   ScrollView,
@@ -12,6 +11,7 @@ import {
   ActionSheetIOS,
   StyleSheet,
 } from "react-native";
+import { Image } from "expo-image";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
@@ -20,11 +20,15 @@ import { supabase } from "@/lib/supabase";
 import { fetchPreviewUrl } from "@/lib/musickit";
 import { uploadMomentPhoto } from "@/lib/storage";
 import { MOODS } from "@/constants/Moods";
+import { useTheme } from "@/hooks/useTheme";
+import { Theme } from "@/constants/theme";
 import { MoodOption, Song } from "@/types";
 
 export default function CreateMomentScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const params = useLocalSearchParams<{
     songId?: string;
     songTitle?: string;
@@ -198,8 +202,7 @@ export default function CreateMomentScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>New Moment</Text>
-        <Text style={styles.subtitle}>Capture a music memory</Text>
+        <Text style={styles.title}>Capture a Moment</Text>
 
         {/* Song card */}
         {hasSong ? (
@@ -239,7 +242,7 @@ export default function CreateMomentScreen() {
         <TextInput
           style={styles.reflectionInput}
           placeholder="What does this song remind you of?"
-          placeholderTextColor="#999"
+          placeholderTextColor={theme.colors.placeholder}
           multiline
           textAlignVertical="top"
           value={reflection}
@@ -282,7 +285,7 @@ export default function CreateMomentScreen() {
         <TextInput
           style={styles.input}
           placeholder="Add people (comma-separated)"
-          placeholderTextColor="#999"
+          placeholderTextColor={theme.colors.placeholder}
           value={peopleInput}
           onChangeText={setPeopleInput}
           onBlur={handleAddPeople}
@@ -336,8 +339,8 @@ export default function CreateMomentScreen() {
           display="compact"
           maximumDate={new Date()}
           onChange={handleDateChange}
-          themeVariant="light"
-          accentColor="#000"
+          themeVariant={theme.isDark ? "dark" : "light"}
+          accentColor={theme.colors.accent}
           style={styles.datePicker}
         />
 
@@ -351,7 +354,7 @@ export default function CreateMomentScreen() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={theme.colors.buttonText} />
           ) : (
             <Text style={styles.saveButtonText}>Save Moment</Text>
           )}
@@ -361,216 +364,215 @@ export default function CreateMomentScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingTop: 80,
-    paddingBottom: 40,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#000",
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#666",
-    marginBottom: 32,
-  },
-  songCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f5f5f5",
-    padding: 12,
-    borderRadius: 12,
-  },
-  artwork: {
-    width: 56,
-    height: 56,
-    borderRadius: 8,
-  },
-  artworkPlaceholder: {
-    backgroundColor: "#e0e0e0",
-  },
-  songInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  songTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#000",
-  },
-  songArtist: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 2,
-  },
-  changeText: {
-    fontSize: 14,
-    color: "#999",
-    marginLeft: 8,
-  },
-  selectSongButton: {
-    backgroundColor: "#000",
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  selectSongButtonText: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "600",
-  },
-  sectionLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#000",
-    marginTop: 24,
-    marginBottom: 8,
-  },
-  reflectionInput: {
-    height: 120,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-    fontSize: 16,
-    backgroundColor: "#fafafa",
-  },
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    backgroundColor: "#fafafa",
-  },
-  moodScroll: {
-    marginHorizontal: -20,
-  },
-  moodScrollContent: {
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  moodChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#f0f0f0",
-  },
-  moodChipSelected: {
-    backgroundColor: "#000",
-  },
-  moodChipText: {
-    fontSize: 14,
-    color: "#333",
-  },
-  moodChipTextSelected: {
-    color: "#fff",
-  },
-  peopleTags: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 8,
-  },
-  personTag: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f0f0f0",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 6,
-  },
-  personTagText: {
-    fontSize: 14,
-    color: "#333",
-  },
-  personTagRemove: {
-    fontSize: 12,
-    color: "#999",
-  },
-  addPhotosButton: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderStyle: "dashed",
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: "center",
-    backgroundColor: "#fafafa",
-  },
-  addPhotosButtonText: {
-    fontSize: 15,
-    color: "#666",
-    fontWeight: "500",
-  },
-  photoScroll: {
-    marginTop: 10,
-    marginHorizontal: -20,
-  },
-  photoScrollContent: {
-    paddingHorizontal: 20,
-    gap: 10,
-  },
-  photoThumbContainer: {
-    position: "relative",
-  },
-  photoThumb: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-  },
-  photoRemove: {
-    position: "absolute",
-    top: -6,
-    right: -6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  photoRemoveText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  datePicker: {
-    alignSelf: "center",
-  },
-  error: {
-    color: "#d32f2f",
-    fontSize: 14,
-    marginTop: 16,
-  },
-  saveButton: {
-    height: 48,
-    backgroundColor: "#000",
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 24,
-  },
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
-  saveButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      padding: theme.spacing.xl,
+      paddingTop: 80,
+      paddingBottom: theme.spacing["4xl"],
+    },
+    title: {
+      fontSize: theme.fontSize["2xl"],
+      fontWeight: theme.fontWeight.bold,
+      color: theme.colors.text,
+      marginBottom: theme.spacing["2xl"],
+    },
+    songCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.colors.backgroundSecondary,
+      padding: theme.spacing.md,
+      borderRadius: theme.radii.md,
+    },
+    artwork: {
+      width: 56,
+      height: 56,
+      borderRadius: theme.radii.sm,
+    },
+    artworkPlaceholder: {
+      backgroundColor: theme.colors.artworkPlaceholder,
+    },
+    songInfo: {
+      flex: 1,
+      marginLeft: theme.spacing.md,
+    },
+    songTitle: {
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
+      color: theme.colors.text,
+    },
+    songArtist: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+      marginTop: 2,
+    },
+    changeText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textTertiary,
+      marginLeft: theme.spacing.sm,
+    },
+    selectSongButton: {
+      backgroundColor: theme.colors.buttonBg,
+      paddingVertical: theme.spacing.lg,
+      borderRadius: theme.radii.md,
+      alignItems: "center",
+    },
+    selectSongButtonText: {
+      color: theme.colors.buttonText,
+      fontSize: 17,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    sectionLabel: {
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
+      color: theme.colors.text,
+      marginTop: theme.spacing["2xl"],
+      marginBottom: theme.spacing.sm,
+    },
+    reflectionInput: {
+      height: 120,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 10,
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.md,
+      paddingBottom: theme.spacing.md,
+      fontSize: theme.fontSize.base,
+      color: theme.colors.text,
+      backgroundColor: theme.colors.backgroundInput,
+    },
+    input: {
+      height: 48,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 10,
+      paddingHorizontal: theme.spacing.lg,
+      fontSize: theme.fontSize.base,
+      color: theme.colors.text,
+      backgroundColor: theme.colors.backgroundInput,
+    },
+    moodScroll: {
+      marginHorizontal: -theme.spacing.xl,
+    },
+    moodScrollContent: {
+      paddingHorizontal: theme.spacing.xl,
+      gap: theme.spacing.sm,
+    },
+    moodChip: {
+      paddingHorizontal: 14,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radii.lg,
+      backgroundColor: theme.colors.chipBg,
+    },
+    moodChipSelected: {
+      backgroundColor: theme.colors.chipSelectedBg,
+    },
+    moodChipText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.chipText,
+    },
+    moodChipTextSelected: {
+      color: theme.colors.chipSelectedText,
+    },
+    peopleTags: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.sm,
+    },
+    personTag: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.colors.chipBg,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 6,
+      borderRadius: theme.spacing.lg,
+      gap: 6,
+    },
+    personTagText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.chipText,
+    },
+    personTagRemove: {
+      fontSize: theme.fontSize.xs,
+      color: theme.colors.textTertiary,
+    },
+    addPhotosButton: {
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderStyle: "dashed",
+      borderRadius: 10,
+      paddingVertical: 14,
+      alignItems: "center",
+      backgroundColor: theme.colors.backgroundInput,
+    },
+    addPhotosButtonText: {
+      fontSize: 15,
+      color: theme.colors.textSecondary,
+      fontWeight: theme.fontWeight.medium,
+    },
+    photoScroll: {
+      marginTop: 10,
+      marginHorizontal: -theme.spacing.xl,
+    },
+    photoScrollContent: {
+      paddingHorizontal: theme.spacing.xl,
+      gap: 10,
+    },
+    photoThumbContainer: {
+      position: "relative",
+    },
+    photoThumb: {
+      width: 80,
+      height: 80,
+      borderRadius: theme.radii.sm,
+    },
+    photoRemove: {
+      position: "absolute",
+      top: -6,
+      right: -6,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: "rgba(0,0,0,0.6)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    photoRemoveText: {
+      color: "#fff",
+      fontSize: 11,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    datePicker: {
+      alignSelf: "center",
+    },
+    error: {
+      color: theme.colors.destructive,
+      fontSize: theme.fontSize.sm,
+      marginTop: theme.spacing.lg,
+    },
+    saveButton: {
+      height: 48,
+      backgroundColor: theme.colors.buttonBg,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: theme.spacing["2xl"],
+    },
+    saveButtonDisabled: {
+      opacity: 0.6,
+    },
+    saveButtonText: {
+      color: theme.colors.buttonText,
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
+    },
+  });
+}

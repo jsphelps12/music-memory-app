@@ -4,6 +4,7 @@ import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
@@ -72,6 +73,7 @@ function RootLayoutNav() {
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <StatusBar style="auto" />
       <AuthGate>
         <Stack>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
@@ -82,6 +84,10 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="moment/[id]"
+            options={{ headerShown: false, presentation: "modal" }}
+          />
+          <Stack.Screen
+            name="moment/edit/[id]"
             options={{ headerShown: false, presentation: "modal" }}
           />
         </Stack>

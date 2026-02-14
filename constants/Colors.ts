@@ -1,19 +1,23 @@
-const tintColorLight = '#2f95dc';
-const tintColorDark = '#fff';
+// Deprecated: use constants/theme.ts and hooks/useTheme.ts instead.
+// Kept for backwards compatibility.
+import { getTheme } from "./theme";
+
+const light = getTheme("light").colors;
+const dark = getTheme("dark").colors;
 
 export default {
   light: {
-    text: '#000',
-    background: '#fff',
-    tint: tintColorLight,
-    tabIconDefault: '#ccc',
-    tabIconSelected: tintColorLight,
+    text: light.text,
+    background: light.background,
+    tint: light.accent,
+    tabIconDefault: light.tabBarInactive,
+    tabIconSelected: light.tabBarActive,
   },
   dark: {
-    text: '#fff',
-    background: '#000',
-    tint: tintColorDark,
-    tabIconDefault: '#ccc',
-    tabIconSelected: tintColorDark,
+    text: dark.text,
+    background: dark.background,
+    tint: dark.accent,
+    tabIconDefault: dark.tabBarInactive,
+    tabIconSelected: dark.tabBarActive,
   },
 };

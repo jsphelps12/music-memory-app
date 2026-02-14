@@ -1,24 +1,33 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
   TextInput,
   FlatList,
-  Image,
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
+import { Image } from "expo-image";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { requestMusicAuthorization, searchSongs } from "@/lib/musickit";
+import { useTheme } from "@/hooks/useTheme";
+import { Theme } from "@/constants/theme";
 import type { Song } from "@/types";
 
 export default function SongSearchScreen() {
   const router = useRouter();
-  const { photos } = useLocalSearchParams<{ photos?: string }>();
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const { photos, returnTo, momentId } = useLocalSearchParams<{
+    photos?: string;
+    returnTo?: string;
+    momentId?: string;
+  }>();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Song[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [authorized, setAuthorized] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -33,16 +42,19 @@ export default function SongSearchScreen() {
     if (trimmed.length < 2) {
       setResults([]);
       setLoading(false);
+      setError("");
       return;
     }
 
     setLoading(true);
+    setError("");
     timerRef.current = setTimeout(async () => {
       try {
         const songs = await searchSongs(trimmed);
         setResults(songs);
       } catch {
         setResults([]);
+        setError("Something went wrong. Try again.");
       } finally {
         setLoading(false);
       }
@@ -54,19 +66,27 @@ export default function SongSearchScreen() {
   }, [query]);
 
   function handleSelect(song: Song) {
-    router.replace({
-      pathname: "/(tabs)/create",
-      params: {
-        songId: song.id,
-        songTitle: song.title,
-        songArtist: song.artistName,
-        songAlbum: song.albumName,
-        songArtwork: song.artworkUrl,
-        songAppleMusicId: song.appleMusicId,
-        songDurationMs: String(song.durationMs),
-        ...(photos ? { photos } : {}),
-      },
-    });
+    const songParams = {
+      songId: song.id,
+      songTitle: song.title,
+      songArtist: song.artistName,
+      songAlbum: song.albumName,
+      songArtwork: song.artworkUrl,
+      songAppleMusicId: song.appleMusicId,
+      songDurationMs: String(song.durationMs),
+    };
+
+    if (returnTo === "edit" && momentId) {
+      router.replace({
+        pathname: "/moment/edit/[id]",
+        params: { id: momentId, ...songParams },
+      });
+    } else {
+      router.replace({
+        pathname: "/(tabs)/create",
+        params: { ...songParams, ...(photos ? { photos } : {}) },
+      });
+    }
   }
 
   if (!authorized) {
@@ -100,7 +120,7 @@ export default function SongSearchScreen() {
       <TextInput
         style={styles.searchInput}
         placeholder="Search for a song..."
-        placeholderTextColor="#999"
+        placeholderTextColor={theme.colors.placeholder}
         value={query}
         onChangeText={setQuery}
         autoFocus
@@ -109,11 +129,20 @@ export default function SongSearchScreen() {
 
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#000" />
+          <ActivityIndicator size="large" color={theme.colors.text} />
         </View>
-      ) : results.length === 0 && query.trim() ? (
+      ) : error ? (
         <View style={styles.centered}>
-          <Text style={styles.emptyText}>No results found</Text>
+          <Text style={styles.emptyText}>{error}</Text>
+        </View>
+      ) : results.length === 0 && query.trim().length >= 2 ? (
+        <View style={styles.centered}>
+          <Text style={styles.emptyText}>No results for "{query.trim()}"</Text>
+          <Text style={styles.emptySubtext}>Try a different search</Text>
+        </View>
+      ) : results.length === 0 ? (
+        <View style={styles.centered}>
+          <Text style={styles.hintText}>Search by song title or artist</Text>
         </View>
       ) : (
         <FlatList
@@ -149,73 +178,80 @@ export default function SongSearchScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  cancelText: {
-    fontSize: 17,
-    color: "#000",
-  },
-  searchInput: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: "#f0f0f0",
-    fontSize: 16,
-    color: "#000",
-  },
-  centered: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: "#666",
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: "#999",
-    marginTop: 8,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  artwork: {
-    width: 48,
-    height: 48,
-    borderRadius: 6,
-  },
-  artworkPlaceholder: {
-    backgroundColor: "#e0e0e0",
-  },
-  songInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  songTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#000",
-  },
-  songArtist: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 2,
-  },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    header: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.lg,
+      paddingBottom: theme.spacing.sm,
+    },
+    cancelText: {
+      fontSize: 17,
+      color: theme.colors.text,
+    },
+    searchInput: {
+      marginHorizontal: theme.spacing.lg,
+      marginBottom: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderRadius: 10,
+      backgroundColor: theme.colors.backgroundTertiary,
+      fontSize: theme.fontSize.base,
+      color: theme.colors.text,
+    },
+    centered: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: theme.spacing.xl,
+    },
+    emptyText: {
+      fontSize: theme.fontSize.base,
+      color: theme.colors.textSecondary,
+      textAlign: "center",
+    },
+    emptySubtext: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textTertiary,
+      marginTop: theme.spacing.sm,
+    },
+    hintText: {
+      fontSize: theme.fontSize.base,
+      color: theme.colors.textTertiary,
+    },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: 10,
+    },
+    artwork: {
+      width: 48,
+      height: 48,
+      borderRadius: 6,
+    },
+    artworkPlaceholder: {
+      backgroundColor: theme.colors.artworkPlaceholder,
+    },
+    songInfo: {
+      flex: 1,
+      marginLeft: theme.spacing.md,
+    },
+    songTitle: {
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
+      color: theme.colors.text,
+    },
+    songArtist: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+      marginTop: 2,
+    },
+  });
+}

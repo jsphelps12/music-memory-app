@@ -1,28 +1,33 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Image,
   TextInput,
   ActionSheetIOS,
   Alert,
   ScrollView,
   RefreshControl,
 } from "react-native";
+import { Image } from "expo-image";
 import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { uploadAvatar } from "@/lib/storage";
 import { getSignedPhotoUrl } from "@/lib/storage";
+import { useTheme } from "@/hooks/useTheme";
+import { Theme } from "@/constants/theme";
+import { SkeletonProfile } from "@/components/Skeleton";
 
 const REFETCH_COOLDOWN_MS = 2000;
 
 export default function ProfileScreen() {
   const { user, profile, signOut, updateProfile, refreshProfile } = useAuth();
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [signingOut, setSigningOut] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -31,6 +36,7 @@ export default function ProfileScreen() {
   const [savingName, setSavingName] = useState(false);
   const [momentCount, setMomentCount] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const lastFetchTime = useRef(0);
 
   const loadProfileData = useCallback(async () => {
@@ -43,6 +49,7 @@ export default function ProfileScreen() {
 
     setMomentCount(count ?? 0);
     lastFetchTime.current = Date.now();
+    setInitialLoading(false);
   }, [user?.id]);
 
   useFocusEffect(
@@ -153,6 +160,17 @@ export default function ProfileScreen() {
     }
   };
 
+  if (initialLoading) {
+    return (
+      <ScrollView
+        style={[styles.scroll, { backgroundColor: theme.colors.background }]}
+        contentContainerStyle={styles.container}
+      >
+        <SkeletonProfile />
+      </ScrollView>
+    );
+  }
+
   const displayName = profile?.displayName || null;
   const initials = displayName
     ? displayName
@@ -175,14 +193,18 @@ export default function ProfileScreen() {
       style={styles.scroll}
       contentContainerStyle={styles.container}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={theme.colors.text}
+        />
       }
     >
       {/* Avatar */}
       <TouchableOpacity onPress={handleAvatarPress} disabled={uploadingAvatar}>
         <View style={styles.avatarContainer}>
           {uploadingAvatar ? (
-            <ActivityIndicator size="large" color="#007AFF" />
+            <ActivityIndicator size="large" color={theme.colors.accent} />
           ) : avatarUri ? (
             <Image source={{ uri: avatarUri }} style={styles.avatar} />
           ) : (
@@ -200,13 +222,14 @@ export default function ProfileScreen() {
             value={nameInput}
             onChangeText={setNameInput}
             placeholder="Display name"
+            placeholderTextColor={theme.colors.placeholder}
             autoFocus
             returnKeyType="done"
             onSubmitEditing={handleNameSave}
           />
           <TouchableOpacity onPress={handleNameSave} disabled={savingName}>
             {savingName ? (
-              <ActivityIndicator size="small" color="#007AFF" />
+              <ActivityIndicator size="small" color={theme.colors.accent} />
             ) : (
               <Text style={styles.saveText}>Save</Text>
             )}
@@ -249,7 +272,7 @@ export default function ProfileScreen() {
         disabled={signingOut}
       >
         {signingOut ? (
-          <ActivityIndicator color="#d32f2f" />
+          <ActivityIndicator color={theme.colors.destructive} />
         ) : (
           <Text style={styles.signOutText}>Sign Out</Text>
         )}
@@ -260,106 +283,109 @@ export default function ProfileScreen() {
 
 const AVATAR_SIZE = 100;
 
-const styles = StyleSheet.create({
-  scroll: {
-    flex: 1,
-  },
-  container: {
-    alignItems: "center",
-    paddingTop: 80,
-    paddingBottom: 40,
-    paddingHorizontal: 20,
-  },
-  avatarContainer: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: "#E8E8E8",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  avatar: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-  },
-  initials: {
-    fontSize: 36,
-    fontWeight: "700",
-    color: "#888",
-  },
-  changePhotoText: {
-    fontSize: 14,
-    color: "#007AFF",
-    marginTop: 8,
-    textAlign: "center",
-  },
-  displayName: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginTop: 20,
-    color: "#333",
-  },
-  nameEditRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 20,
-  },
-  nameInput: {
-    fontSize: 18,
-    color: "#333",
-    borderBottomWidth: 1,
-    borderBottomColor: "#007AFF",
-    paddingVertical: 4,
-    minWidth: 160,
-  },
-  saveText: {
-    fontSize: 16,
-    color: "#007AFF",
-    fontWeight: "600",
-  },
-  cancelText: {
-    fontSize: 16,
-    color: "#888",
-  },
-  email: {
-    fontSize: 15,
-    color: "#888",
-    marginTop: 6,
-  },
-  statsRow: {
-    flexDirection: "row",
-    marginTop: 32,
-    gap: 40,
-  },
-  statItem: {
-    alignItems: "center",
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#333",
-  },
-  statLabel: {
-    fontSize: 13,
-    color: "#888",
-    marginTop: 2,
-  },
-  signOutButton: {
-    marginTop: 48,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#d32f2f",
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  signOutText: {
-    color: "#d32f2f",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    scroll: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    container: {
+      alignItems: "center",
+      paddingTop: 80,
+      paddingBottom: 40,
+      paddingHorizontal: theme.spacing.xl,
+    },
+    avatarContainer: {
+      width: AVATAR_SIZE,
+      height: AVATAR_SIZE,
+      borderRadius: AVATAR_SIZE / 2,
+      backgroundColor: theme.colors.backgroundTertiary,
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
+    },
+    avatar: {
+      width: AVATAR_SIZE,
+      height: AVATAR_SIZE,
+    },
+    initials: {
+      fontSize: 36,
+      fontWeight: theme.fontWeight.bold,
+      color: theme.colors.textTertiary,
+    },
+    changePhotoText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.accent,
+      marginTop: theme.spacing.sm,
+      textAlign: "center",
+    },
+    displayName: {
+      fontSize: theme.fontSize.xl,
+      fontWeight: theme.fontWeight.bold,
+      marginTop: theme.spacing.xl,
+      color: theme.colors.text,
+    },
+    nameEditRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      marginTop: theme.spacing.xl,
+    },
+    nameInput: {
+      fontSize: theme.fontSize.lg,
+      color: theme.colors.text,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.accent,
+      paddingVertical: theme.spacing.xs,
+      minWidth: 160,
+    },
+    saveText: {
+      fontSize: theme.fontSize.base,
+      color: theme.colors.accent,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    cancelText: {
+      fontSize: theme.fontSize.base,
+      color: theme.colors.textTertiary,
+    },
+    email: {
+      fontSize: 15,
+      color: theme.colors.textTertiary,
+      marginTop: 6,
+    },
+    statsRow: {
+      flexDirection: "row",
+      marginTop: theme.spacing["3xl"],
+      gap: theme.spacing["4xl"],
+    },
+    statItem: {
+      alignItems: "center",
+    },
+    statValue: {
+      fontSize: theme.fontSize.lg,
+      fontWeight: theme.fontWeight.bold,
+      color: theme.colors.text,
+    },
+    statLabel: {
+      fontSize: 13,
+      color: theme.colors.textTertiary,
+      marginTop: 2,
+    },
+    signOutButton: {
+      marginTop: 48,
+      paddingVertical: 14,
+      paddingHorizontal: theme.spacing["3xl"],
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.colors.destructive,
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    signOutText: {
+      color: theme.colors.destructive,
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
+    },
+  });
+}
