@@ -78,7 +78,10 @@ export default function MomentDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchMoment();
-    }, [fetchMoment])
+      return () => {
+        stop();
+      };
+    }, [fetchMoment, stop])
   );
 
   useEffect(() => {
