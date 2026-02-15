@@ -41,9 +41,9 @@ These aren't from a specific phase — they're gaps in the current build that ne
 
 Make logging effortless — goal is < 15 seconds to save a moment.
 
-- [ ] Music service connection (Spotify OAuth, MusicKit auth)
-- [ ] "Currently Playing" detection (Spotify SDK + MusicKit)
-- [ ] "Now Playing" widget on home screen with one-tap save
+- [x] Share extension — receive shared songs from Apple Music & Spotify via iOS share sheet
+- [x] Spotify cross-search — parse Spotify URLs via oEmbed API, cross-search Apple Music for a match with candidate picker
+- [x] "Now Playing" auto-fill — detect currently playing Apple Music song, real-time suggestion banner on create screen
 - [ ] Quick capture flow (song pre-filled, minimal fields, expand for details)
 - [ ] Auto-detect location (if permissions granted)
 - [ ] Auto-tag time of day
@@ -115,7 +115,7 @@ Premium tier: $7/month or $60/year.
 ## Other Ideas (Unscheduled)
 
 - [ ] Voice recordings / voice memos attached to moments
-- [ ] Spotify support (alternative to Apple Music)
+- [ ] Spotify support (full integration — share extension cross-search is done, but no native Spotify playback/auth)
 - [ ] Accessibility (VoiceOver, dynamic type)
 - [ ] Offline support (queue uploads when offline)
 - [ ] Export/backup (download your data)

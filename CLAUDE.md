@@ -11,7 +11,8 @@ Tracks — an iOS app for capturing and revisiting music-linked memories ("momen
 - **Framework**: Expo SDK 54 (React Native) with Expo Router v6 (file-based routing)
 - **Language**: TypeScript
 - **Backend**: Supabase (auth, Postgres database, storage)
-- **Music**: Apple MusicKit via `@lomray/react-native-apple-music`
+- **Music**: Apple MusicKit via `@lomray/react-native-apple-music`, custom NowPlaying Expo module for system player
+- **Share Extension**: `expo-share-intent` for receiving shared songs from Apple Music & Spotify
 - **Audio**: `expo-av` for preview playback
 - **Auth**: Supabase Auth (email/password with PKCE flow, Apple Sign-In via native `expo-apple-authentication`)
 - **State**: React Context (AuthContext with profile state, PlayerContext)
@@ -21,7 +22,7 @@ Tracks — an iOS app for capturing and revisiting music-linked memories ("momen
 
 ```
 app/                    # Expo Router file-based routes
-  _layout.tsx           # Root layout — AuthProvider, PlayerProvider, auth gate
+  _layout.tsx           # Root layout — AuthProvider, PlayerProvider, ShareIntentProvider, auth gate
   (auth)/               # Auth group (sign-in, sign-up)
   (tabs)/               # Tab navigator (Timeline, New Moment, Profile)
   moment/[id].tsx       # Moment detail (dynamic route, modal)
@@ -31,16 +32,20 @@ components/             # Shared UI components
   ErrorBanner.tsx       # Inline dismissible error banner for background failures
   Skeleton.tsx          # Loading skeleton components
 contexts/               # AuthContext, PlayerContext
-hooks/                  # useAuth, usePlayer (re-exports from contexts), useDeepLinkHandler
+hooks/                  # useAuth, usePlayer (re-exports from contexts), useDeepLinkHandler, useShareIntentHandler
 lib/
   supabase.ts           # Supabase client init
   musickit.ts           # MusicKit authorization, search, preview URL fetching
   storage.ts            # Photo & avatar upload helpers, public URL generation
   auth-linking.ts       # Deep link handling for email confirmation flows
+  music-url.ts          # URL parsing + song lookup for Apple Music & Spotify shared URLs
+  now-playing.ts        # System now playing detection via custom native module
   errors.ts             # friendlyError() — maps raw errors to user-friendly messages
 types/index.ts          # Core types: Song, Moment, UserProfile, MoodOption
 constants/Moods.ts      # Mood tag definitions
 constants/theme.ts      # Theme system (light/dark colors, spacing, typography)
+modules/
+  now-playing/          # Local Expo native module — MPMusicPlayerController.systemMusicPlayer
 supabase/schema.sql     # Database schema (run in Supabase SQL Editor)
 eas.json                # EAS Build & Submit configuration
 ```
@@ -79,6 +84,9 @@ Production values are stored as EAS environment variables (plain text — these 
 - Error handling uses `friendlyError()` from `lib/errors.ts` — never show raw Supabase/network errors to users
 - Use `ErrorState` for full-screen errors (load failures) and `ErrorBanner` for inline errors (background refresh failures that shouldn't replace existing content)
 - Timeline uses `SectionList` grouped by month ("February 2026", etc.)
+- Share extension handles Apple Music URLs directly (iTunes Lookup API) and Spotify URLs via oEmbed cross-search to Apple Music
+- Local Expo native modules live in `modules/` directory; `nativeModulesDir` is configured in package.json for autolinking; each module needs a podspec in its `ios/` folder
+- Now playing detection uses `MPMusicPlayerController.systemMusicPlayer` (not the library's `ApplicationMusicPlayer` which only sees app-initiated playback)
 
 ## Current Status
 
@@ -98,13 +106,14 @@ Implemented so far:
 11. **Error handling** — consistent error states and retry patterns across all screens
 12. **Theme system** — dark/light mode support with centralized theme constants
 13. **Public photo URLs** — switched from signed URLs to public bucket for zero-latency photo loading
+14. **Share extension** — iOS share sheet integration for Apple Music & Spotify songs via `expo-share-intent`; Spotify URLs cross-searched via oEmbed → Apple Music with candidate picker for ambiguous matches
+15. **Now Playing auto-fill** — custom Expo native module reads system Music player state; suggestion banner on create screen updates in real time as songs change
 
 ## What's Next
 
 MVP is complete. First TestFlight build is out for beta testing. Current focus: gathering feedback, polish, and iteration.
 
 Upcoming:
-- Apple Sign-In (alternative auth)
 - Continue polish items from roadmap
 
 See `ROADMAP.md` for the full phased roadmap (7 phases from MVP through premium features, sharing, and legacy). See `music-journal-roadmap.md` for the original detailed planning document.
