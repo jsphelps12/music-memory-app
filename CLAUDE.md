@@ -94,9 +94,10 @@ Implemented so far:
 7. **30-second preview playback** — expo-av plays iTunes preview clips; play/pause button on moment detail
 8. **Photo support** — attach photos to moments via camera/library, upload to Supabase Storage, display in detail view
 9. **Profile screen** — avatar upload, editable display name, moment count, member-since date, sign-out with error handling
-10. **Error handling** — consistent error states and retry patterns across all screens
-11. **Theme system** — dark/light mode support with centralized theme constants
-12. **Public photo URLs** — switched from signed URLs to public bucket for zero-latency photo loading
+10. **Search & filtering** — debounced text search (song/artist/reflection), multi-select mood and people chip filters, composable filters with clear/reset
+11. **Error handling** — consistent error states and retry patterns across all screens
+12. **Theme system** — dark/light mode support with centralized theme constants
+13. **Public photo URLs** — switched from signed URLs to public bucket for zero-latency photo loading
 
 ## What's Next
 
@@ -104,7 +105,6 @@ MVP is complete. First TestFlight build is out for beta testing. Current focus: 
 
 Upcoming:
 - Apple Sign-In (alternative auth)
-- Set up `expo-updates` for over-the-air updates
 - Continue polish items from roadmap
 
 See `ROADMAP.md` for the full phased roadmap (7 phases from MVP through premium features, sharing, and legacy). See `music-journal-roadmap.md` for the original detailed planning document.

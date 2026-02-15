@@ -65,10 +65,10 @@ Make logging effortless — goal is < 15 seconds to save a moment.
 
 ## Phase 4: Search, Filter & Organization
 
-- [ ] Search by song, artist, album (fuzzy matching)
-- [ ] Search by reflection text (full-text search)
-- [ ] Filter by date range, mood, person, location
-- [ ] Combination filters ("sad moments from 2023 with Sarah")
+- [x] Search by song, artist, reflection text
+- [x] Filter by mood and people tags
+- [x] Combination filters (search + mood + people compose together)
+- [ ] Filter by date range and location
 - [ ] Quick filter views (this week, this month, by mood, late night)
 - [ ] Sort options (chronological, by mood, by artist, random)
 - [ ] Custom collections ("Summer 2024", "My healing era")
