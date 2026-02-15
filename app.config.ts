@@ -60,6 +60,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-sqlite",
     "@react-native-community/datetimepicker",
   ],
+  updates: {
+    url: "https://u.expo.dev/f0add7d9-3321-4ba3-a4c0-c91b97dc462b",
+  },
+  runtimeVersion: {
+    policy: "appVersion",
+  },
   extra: {
     eas: {
       projectId: "f0add7d9-3321-4ba3-a4c0-c91b97dc462b",
