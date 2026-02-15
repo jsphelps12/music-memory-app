@@ -13,7 +13,7 @@ Tracks — an iOS app for capturing and revisiting music-linked memories ("momen
 - **Backend**: Supabase (auth, Postgres database, storage)
 - **Music**: Apple MusicKit via `@lomray/react-native-apple-music`
 - **Audio**: `expo-av` for preview playback
-- **Auth**: Supabase Auth (email/password, Apple Sign-In planned)
+- **Auth**: Supabase Auth (email/password with PKCE flow and email confirmation deep linking)
 - **State**: React Context (AuthContext with profile state, PlayerContext)
 - **Builds**: EAS Build + Submit for TestFlight distribution
 
@@ -31,11 +31,12 @@ components/             # Shared UI components
   ErrorBanner.tsx       # Inline dismissible error banner for background failures
   Skeleton.tsx          # Loading skeleton components
 contexts/               # AuthContext, PlayerContext
-hooks/                  # useAuth, usePlayer (re-exports from contexts)
+hooks/                  # useAuth, usePlayer (re-exports from contexts), useDeepLinkHandler
 lib/
   supabase.ts           # Supabase client init
   musickit.ts           # MusicKit authorization, search, preview URL fetching
-  storage.ts            # Photo & avatar upload helpers, signed URL generation
+  storage.ts            # Photo & avatar upload helpers, public URL generation
+  auth-linking.ts       # Deep link handling for email confirmation flows
   errors.ts             # friendlyError() — maps raw errors to user-friendly messages
 types/index.ts          # Core types: Song, Moment, UserProfile, MoodOption
 constants/Moods.ts      # Mood tag definitions
@@ -71,7 +72,9 @@ Production values are stored as EAS environment variables (plain text — these 
 - Song data is denormalized on the `moments` table (no separate songs table)
 - Preview URLs are fetched from iTunes Lookup API (`/lookup?id={appleMusicId}`) at moment creation and stored in `song_preview_url`
 - Row Level Security enforces per-user data isolation in Supabase
-- Photo storage uses `moment-photos` bucket with `{user_id}/` folder prefixes; avatars stored at `{user_id}/avatar.jpg`
+- Photo storage uses public `moment-photos` bucket with `{user_id}/` folder prefixes; avatars stored at `{user_id}/avatar.jpg`
+- Photo/avatar URLs are generated synchronously via `getPublicPhotoUrl()` — no API calls needed (bucket is public for reads; RLS still protects uploads/deletes)
+- Deep link scheme is `tracks://`; used for email confirmation redirects via PKCE auth flow
 - Profile data (display_name, avatar_url) lives in `profiles` table; AuthContext fetches and exposes it
 - Error handling uses `friendlyError()` from `lib/errors.ts` — never show raw Supabase/network errors to users
 - Use `ErrorState` for full-screen errors (load failures) and `ErrorBanner` for inline errors (background refresh failures that shouldn't replace existing content)
@@ -82,7 +85,7 @@ Production values are stored as EAS environment variables (plain text — these 
 App builds and runs on a physical iPhone 17 Pro (iOS 26). Supabase project is live with schema deployed. MusicKit capability is enabled on Apple Developer portal. First TestFlight build submitted, pending beta review.
 
 Implemented so far:
-1. **Auth screens** — sign-in/sign-up with email/password via Supabase Auth
+1. **Auth screens** — sign-in/sign-up with email/password via Supabase Auth, PKCE flow, email confirmation deep linking
 2. **Song search** — MusicKit-powered search modal with results list, retry on failure, Open Settings for auth refusal
 3. **Create moment form** — select song, write reflection, pick mood, tag people, save to Supabase
 4. **Timeline feed** — month-grouped SectionList, pull-to-refresh with error banners, skeleton loading
@@ -93,13 +96,14 @@ Implemented so far:
 9. **Profile screen** — avatar upload, editable display name, moment count, member-since date, sign-out with error handling
 10. **Error handling** — consistent error states and retry patterns across all screens
 11. **Theme system** — dark/light mode support with centralized theme constants
+12. **Public photo URLs** — switched from signed URLs to public bucket for zero-latency photo loading
 
 ## What's Next
 
 MVP is complete. First TestFlight build is out for beta testing. Current focus: gathering feedback, polish, and iteration.
 
 Upcoming:
-- Custom app icon
+- Apple Sign-In (alternative auth)
 - Set up `expo-updates` for over-the-air updates
 - Continue polish items from roadmap
 

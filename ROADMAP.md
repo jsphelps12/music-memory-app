@@ -33,7 +33,7 @@ These aren't from a specific phase — they're gaps in the current build that ne
 - [x] Custom app icon
 - [ ] Apple Sign-In (alternative auth)
 - [x] Dark mode
-- [ ] Photo loading optimization — batch signed URLs, prefetch on timeline, or switch to public bucket
+- [x] Photo loading optimization — switched to public bucket with synchronous URL generation
 
 ---
 
