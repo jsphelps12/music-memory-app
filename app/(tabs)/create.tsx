@@ -9,6 +9,8 @@ import {
   Platform,
   ActivityIndicator,
   ActionSheetIOS,
+  Modal,
+  FlatList,
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
@@ -20,6 +22,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { fetchPreviewUrl } from "@/lib/musickit";
 import { uploadMomentPhoto } from "@/lib/storage";
+import { getNowPlaying, onNowPlayingChange } from "@/lib/now-playing";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -41,11 +44,16 @@ export default function CreateMomentScreen() {
     songAppleMusicId?: string;
     songDurationMs?: string;
     photos?: string;
+    shareCandidates?: string;
+    shareFailedUrl?: string;
   }>();
 
   const [song, setSong] = useState<Song | null>(null);
+  const [nowPlayingSong, setNowPlayingSong] = useState<Song | null>(null);
+  const [candidates, setCandidates] = useState<Song[]>([]);
+  const [showCandidateModal, setShowCandidateModal] = useState(false);
 
-  // Sync song from search params when returning from song-search modal
+  // Sync song from search params when returning from song-search modal or share intent
   useEffect(() => {
     if (params.songTitle) {
       setSong({
@@ -60,6 +68,26 @@ export default function CreateMomentScreen() {
     }
   }, [params.songId]);
 
+  // Handle Spotify cross-search candidates from share intent
+  useEffect(() => {
+    if (params.shareCandidates) {
+      try {
+        const parsed = JSON.parse(params.shareCandidates) as Song[];
+        if (parsed.length > 1) {
+          setCandidates(parsed);
+          setShowCandidateModal(true);
+        }
+      } catch {}
+    }
+  }, [params.shareCandidates]);
+
+  // If share intent lookup failed, open song search
+  useEffect(() => {
+    if (params.shareFailedUrl) {
+      router.push({ pathname: "/song-search", params: { photos: JSON.stringify(photos) } });
+    }
+  }, [params.shareFailedUrl]);
+
   // Restore photos from params after song-search navigation
   useEffect(() => {
     if (params.photos) {
@@ -69,6 +97,29 @@ export default function CreateMomentScreen() {
       } catch {}
     }
   }, [params.photos]);
+
+  // Now Playing detection — check on mount and listen for song changes
+  useEffect(() => {
+    if (song) return;
+
+    let cancelled = false;
+    getNowPlaying().then((nowPlaying) => {
+      if (!cancelled && nowPlaying) {
+        setNowPlayingSong(nowPlaying);
+      }
+    });
+
+    const subscription = onNowPlayingChange((nowPlaying) => {
+      if (!cancelled) {
+        setNowPlayingSong(nowPlaying);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.remove();
+    };
+  }, [song]);
 
   const hasSong = !!song;
 
@@ -81,6 +132,25 @@ export default function CreateMomentScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focusedField, setFocusedField] = useState("");
+
+  const handleUseNowPlaying = () => {
+    if (nowPlayingSong) {
+      Haptics.selectionAsync();
+      setSong(nowPlayingSong);
+      setNowPlayingSong(null);
+    }
+  };
+
+  const handleDismissNowPlaying = () => {
+    setNowPlayingSong(null);
+  };
+
+  const handleSelectCandidate = (selected: Song) => {
+    Haptics.selectionAsync();
+    setSong(selected);
+    setCandidates([]);
+    setShowCandidateModal(false);
+  };
 
   const handleAddPeople = () => {
     const names = peopleInput
@@ -214,6 +284,45 @@ export default function CreateMomentScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.title}>Capture a Moment</Text>
+
+        {/* Now Playing suggestion banner */}
+        {!hasSong && nowPlayingSong && (
+          <View style={styles.nowPlayingBanner}>
+            <View style={styles.nowPlayingContent}>
+              {nowPlayingSong.artworkUrl ? (
+                <Image
+                  source={{ uri: nowPlayingSong.artworkUrl }}
+                  style={styles.nowPlayingArtwork}
+                />
+              ) : (
+                <View style={[styles.nowPlayingArtwork, styles.artworkPlaceholder]} />
+              )}
+              <View style={styles.nowPlayingInfo}>
+                <Text style={styles.nowPlayingLabel}>Now Playing</Text>
+                <Text style={styles.nowPlayingTitle} numberOfLines={1}>
+                  {nowPlayingSong.title}
+                </Text>
+                <Text style={styles.nowPlayingArtist} numberOfLines={1}>
+                  {nowPlayingSong.artistName}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.nowPlayingDismiss}
+                onPress={handleDismissNowPlaying}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.nowPlayingDismissText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.nowPlayingUseButton}
+              activeOpacity={0.7}
+              onPress={handleUseNowPlaying}
+            >
+              <Text style={styles.nowPlayingUseText}>Use this song</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Song card */}
         {hasSong ? (
@@ -381,6 +490,55 @@ export default function CreateMomentScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Spotify candidate selection modal */}
+      <Modal
+        visible={showCandidateModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowCandidateModal(false)}
+      >
+        <View style={styles.candidateModal}>
+          <View style={styles.candidateHeader}>
+            <Text style={styles.candidateTitle}>Select the right match</Text>
+            <TouchableOpacity onPress={() => setShowCandidateModal(false)}>
+              <Text style={styles.candidateClose}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.candidateSubtitle}>
+            We found several Apple Music matches for this Spotify song.
+          </Text>
+          <FlatList
+            data={candidates}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.candidateList}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.candidateRow}
+                activeOpacity={0.7}
+                onPress={() => handleSelectCandidate(item)}
+              >
+                {item.artworkUrl ? (
+                  <Image
+                    source={{ uri: item.artworkUrl }}
+                    style={styles.candidateArtwork}
+                  />
+                ) : (
+                  <View style={[styles.candidateArtwork, styles.artworkPlaceholder]} />
+                )}
+                <View style={styles.candidateInfo}>
+                  <Text style={styles.candidateSongTitle} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                  <Text style={styles.candidateArtist} numberOfLines={1}>
+                    {item.artistName}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -405,6 +563,66 @@ function createStyles(theme: Theme) {
       color: theme.colors.text,
       marginBottom: theme.spacing["2xl"],
     },
+    // Now Playing banner
+    nowPlayingBanner: {
+      backgroundColor: theme.colors.backgroundSecondary,
+      borderRadius: theme.radii.md,
+      padding: theme.spacing.md,
+      marginBottom: theme.spacing.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.accent,
+    },
+    nowPlayingContent: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    nowPlayingArtwork: {
+      width: 44,
+      height: 44,
+      borderRadius: theme.radii.sm,
+    },
+    nowPlayingInfo: {
+      flex: 1,
+      marginLeft: theme.spacing.md,
+    },
+    nowPlayingLabel: {
+      fontSize: theme.fontSize.xs,
+      fontWeight: theme.fontWeight.semibold,
+      color: theme.colors.accent,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    nowPlayingTitle: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.semibold,
+      color: theme.colors.text,
+      marginTop: 1,
+    },
+    nowPlayingArtist: {
+      fontSize: theme.fontSize.xs,
+      color: theme.colors.textSecondary,
+      marginTop: 1,
+    },
+    nowPlayingDismiss: {
+      padding: theme.spacing.xs,
+    },
+    nowPlayingDismissText: {
+      fontSize: theme.fontSize.xs,
+      color: theme.colors.textTertiary,
+    },
+    nowPlayingUseButton: {
+      marginTop: theme.spacing.sm,
+      backgroundColor: theme.colors.accent,
+      borderRadius: theme.radii.sm,
+      paddingVertical: theme.spacing.sm,
+      alignItems: "center",
+    },
+    nowPlayingUseText: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.semibold,
+      color: "#fff",
+    },
+    // Song card
     songCard: {
       flexDirection: "row",
       alignItems: "center",
@@ -594,6 +812,63 @@ function createStyles(theme: Theme) {
       color: theme.colors.buttonText,
       fontSize: theme.fontSize.base,
       fontWeight: theme.fontWeight.semibold,
+    },
+    // Candidate selection modal
+    candidateModal: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+      paddingTop: theme.spacing["2xl"],
+    },
+    candidateHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: theme.spacing.xl,
+      paddingBottom: theme.spacing.md,
+    },
+    candidateTitle: {
+      fontSize: theme.fontSize.lg,
+      fontWeight: theme.fontWeight.bold,
+      color: theme.colors.text,
+    },
+    candidateClose: {
+      fontSize: theme.fontSize.base,
+      color: theme.colors.accent,
+    },
+    candidateSubtitle: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+      paddingHorizontal: theme.spacing.xl,
+      marginBottom: theme.spacing.lg,
+    },
+    candidateList: {
+      paddingHorizontal: theme.spacing.xl,
+    },
+    candidateRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.border,
+    },
+    candidateArtwork: {
+      width: 48,
+      height: 48,
+      borderRadius: theme.radii.sm,
+    },
+    candidateInfo: {
+      flex: 1,
+      marginLeft: theme.spacing.md,
+    },
+    candidateSongTitle: {
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
+      color: theme.colors.text,
+    },
+    candidateArtist: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+      marginTop: 2,
     },
   });
 }

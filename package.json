@@ -28,6 +28,7 @@
     "expo-image-picker": "~17.0.10",
     "expo-linking": "~8.0.11",
     "expo-router": "~6.0.23",
+    "expo-share-intent": "^5.1.1",
     "expo-splash-screen": "~31.0.13",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
@@ -49,5 +50,10 @@
     "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "nativeModulesDir": "./modules"
+    }
+  }
 }

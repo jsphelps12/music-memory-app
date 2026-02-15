@@ -8,10 +8,13 @@ import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import "react-native-reanimated";
 
+import { ShareIntentProvider } from "expo-share-intent";
+
 import { useColorScheme } from "@/components/useColorScheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PlayerProvider } from "@/contexts/PlayerContext";
 import { useDeepLinkHandler } from "@/hooks/useDeepLinkHandler";
+import { useShareIntentHandler } from "@/hooks/useShareIntentHandler";
 
 const HAS_LAUNCHED_KEY = "has_launched";
 
@@ -77,17 +80,20 @@ export default function RootLayout() {
   if (!loaded) return null;
 
   return (
-    <AuthProvider>
-      <PlayerProvider>
-        <RootLayoutNav />
-      </PlayerProvider>
-    </AuthProvider>
+    <ShareIntentProvider>
+      <AuthProvider>
+        <PlayerProvider>
+          <RootLayoutNav />
+        </PlayerProvider>
+      </AuthProvider>
+    </ShareIntentProvider>
   );
 }
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   useDeepLinkHandler();
+  useShareIntentHandler();
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
