@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -10,13 +10,15 @@ import {
   ActivityIndicator,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import * as AppleAuthentication from "expo-apple-authentication";
 import { Link, useLocalSearchParams } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import { friendlyError } from "@/lib/errors";
 
 export default function SignInScreen() {
-  const { signIn } = useAuth();
+  const { signIn, signInWithApple } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { registered } = useLocalSearchParams<{ registered?: string }>();
@@ -25,6 +27,28 @@ export default function SignInScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focusedField, setFocusedField] = useState("");
+  const [appleAvailable, setAppleAvailable] = useState(false);
+
+  useEffect(() => {
+    AppleAuthentication.isAvailableAsync().then(setAppleAvailable);
+  }, []);
+
+  const handleAppleSignIn = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setError("");
+    setLoading(true);
+    try {
+      await signInWithApple();
+    } catch (e: any) {
+      const message = friendlyError(e);
+      if (message) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setError(message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSignIn = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -107,6 +131,28 @@ export default function SignInScreen() {
             <Text style={styles.buttonText}>Sign In</Text>
           )}
         </TouchableOpacity>
+
+        {appleAvailable && (
+          <>
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+              buttonStyle={
+                theme.isDark
+                  ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                  : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+              }
+              cornerRadius={10}
+              style={styles.appleButton}
+              onPress={handleAppleSignIn}
+            />
+          </>
+        )}
 
         <Link href="/(auth)/sign-up" asChild>
           <TouchableOpacity style={styles.linkContainer}>
@@ -204,6 +250,26 @@ function createStyles(theme: Theme) {
     linkBold: {
       fontWeight: theme.fontWeight.semibold,
       color: theme.colors.text,
+    },
+    dividerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: theme.spacing.xl,
+      marginBottom: theme.spacing.xl,
+    },
+    dividerLine: {
+      flex: 1,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: theme.colors.border,
+    },
+    dividerText: {
+      color: theme.colors.textSecondary,
+      fontSize: theme.fontSize.sm,
+      marginHorizontal: theme.spacing.md,
+    },
+    appleButton: {
+      height: 48,
+      width: "100%",
     },
   });
 }

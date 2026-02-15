@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
+import * as AppleAuthentication from "expo-apple-authentication";
 import { supabase } from "@/lib/supabase";
 import { UserProfile } from "@/types";
 
@@ -10,6 +11,7 @@ interface AuthState {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
+  signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: { displayName?: string; avatarUrl?: string }) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -92,6 +94,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithApple = async () => {
+    const credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+      ],
+    });
+
+    if (!credential.identityToken) {
+      throw new Error("Apple Sign-In failed — no identity token received.");
+    }
+
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: "apple",
+      token: credential.identityToken,
+    });
+    if (error) throw error;
+
+    // Apple only sends the full name on first authorization
+    if (credential.fullName) {
+      const parts = [credential.fullName.givenName, credential.fullName.familyName].filter(Boolean);
+      if (parts.length > 0) {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (currentSession?.user) {
+          await supabase
+            .from("profiles")
+            .update({ display_name: parts.join(" ") })
+            .eq("id", currentSession.user.id);
+        }
+      }
+    }
+  };
+
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -129,6 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         signIn,
         signUp,
+        signInWithApple,
         signOut,
         updateProfile,
         refreshProfile,

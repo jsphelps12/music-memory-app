@@ -51,5 +51,16 @@ export function friendlyError(err: unknown): string {
     return "That file is too large. Please try a smaller one.";
   }
 
+  // Apple Sign-In
+  if (lower.includes("err_request_canceled") || lower.includes("the operation couldn't be completed")) {
+    return "";
+  }
+  if (lower.includes("err_request_failed")) {
+    return "Apple Sign-In failed. Please try again.";
+  }
+  if (lower.includes("err_request_not_handled") || lower.includes("err_request_unknown")) {
+    return "Apple Sign-In is not available right now.";
+  }
+
   return "Something went wrong. Please try again.";
 }

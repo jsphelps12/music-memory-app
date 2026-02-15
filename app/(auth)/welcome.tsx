@@ -1,10 +1,14 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Image } from "expo-image";
+import * as Haptics from "expo-haptics";
+import * as AppleAuthentication from "expo-apple-authentication";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import { friendlyError } from "@/lib/errors";
 
 const ICON = require("@/assets/images/app-icon.png");
 
@@ -25,8 +29,29 @@ const FEATURES = [
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const { signInWithApple } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const [appleAvailable, setAppleAvailable] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    AppleAuthentication.isAvailableAsync().then(setAppleAvailable);
+  }, []);
+
+  const handleAppleSignIn = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setError("");
+    try {
+      await signInWithApple();
+    } catch (e: any) {
+      const message = friendlyError(e);
+      if (message) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setError(message);
+      }
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -54,6 +79,22 @@ export default function WelcomeScreen() {
       </View>
 
       <View style={styles.bottom}>
+        {appleAvailable && (
+          <AppleAuthentication.AppleAuthenticationButton
+            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+            buttonStyle={
+              theme.isDark
+                ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+            }
+            cornerRadius={10}
+            style={styles.appleButton}
+            onPress={handleAppleSignIn}
+          />
+        )}
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
         <TouchableOpacity
           style={styles.button}
           onPress={() => router.replace("/(auth)/sign-up")}
@@ -125,6 +166,17 @@ function createStyles(theme: Theme) {
     },
     bottom: {
       paddingBottom: 50,
+    },
+    appleButton: {
+      height: 48,
+      width: "100%",
+      marginBottom: theme.spacing.md,
+    },
+    error: {
+      color: theme.colors.destructive,
+      fontSize: theme.fontSize.sm,
+      textAlign: "center",
+      marginBottom: theme.spacing.md,
     },
     button: {
       height: 48,

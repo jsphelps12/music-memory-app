@@ -31,7 +31,7 @@ These aren't from a specific phase — they're gaps in the current build that ne
 - [x] Pull-to-refresh on timeline
 - [x] Onboarding flow (first-launch welcome screen)
 - [x] Custom app icon
-- [ ] Apple Sign-In (alternative auth)
+- [x] Apple Sign-In (alternative auth)
 - [x] Dark mode
 - [x] Photo loading optimization — switched to public bucket with synchronous URL generation
 

@@ -13,7 +13,7 @@ Tracks — an iOS app for capturing and revisiting music-linked memories ("momen
 - **Backend**: Supabase (auth, Postgres database, storage)
 - **Music**: Apple MusicKit via `@lomray/react-native-apple-music`
 - **Audio**: `expo-av` for preview playback
-- **Auth**: Supabase Auth (email/password with PKCE flow and email confirmation deep linking)
+- **Auth**: Supabase Auth (email/password with PKCE flow, Apple Sign-In via native `expo-apple-authentication`)
 - **State**: React Context (AuthContext with profile state, PlayerContext)
 - **Builds**: EAS Build + Submit for TestFlight distribution
 
@@ -85,7 +85,7 @@ Production values are stored as EAS environment variables (plain text — these 
 App builds and runs on a physical iPhone 17 Pro (iOS 26). Supabase project is live with schema deployed. MusicKit capability is enabled on Apple Developer portal. First TestFlight build submitted, pending beta review.
 
 Implemented so far:
-1. **Auth screens** — sign-in/sign-up with email/password via Supabase Auth, PKCE flow, email confirmation deep linking
+1. **Auth screens** — sign-in/sign-up with email/password via Supabase Auth, PKCE flow, email confirmation deep linking, Apple Sign-In
 2. **Song search** — MusicKit-powered search modal with results list, retry on failure, Open Settings for auth refusal
 3. **Create moment form** — select song, write reflection, pick mood, tag people, save to Supabase
 4. **Timeline feed** — month-grouped SectionList, pull-to-refresh with error banners, skeleton loading
