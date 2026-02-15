@@ -116,4 +116,4 @@ MVP is complete. First TestFlight build is out for beta testing. Current focus: 
 Upcoming:
 - Continue polish items from roadmap
 
-See `ROADMAP.md` for the full phased roadmap (7 phases from MVP through premium features, sharing, and legacy). See `music-journal-roadmap.md` for the original detailed planning document.
+See `docs/ROADMAP.md` for the full phased roadmap (7 phases from MVP through premium features, sharing, and legacy). See `docs/` for all planning docs (AI features, feature ideas, to-do, original roadmap).

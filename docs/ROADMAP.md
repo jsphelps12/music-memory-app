@@ -45,6 +45,7 @@ Make logging effortless — goal is < 15 seconds to save a moment.
 - [x] Spotify cross-search — parse Spotify URLs via oEmbed API, cross-search Apple Music for a match with candidate picker
 - [x] "Now Playing" auto-fill — detect currently playing Apple Music song, real-time suggestion banner on create screen
 - [ ] Quick capture flow (song pre-filled, minimal fields, expand for details)
+- [ ] iOS home screen widget — show now playing with one-tap "save moment", or recent moment / "On This Day"
 - [ ] Auto-detect location (if permissions granted)
 - [ ] Auto-tag time of day
 
@@ -119,4 +120,4 @@ Premium tier: $7/month or $60/year.
 - [ ] Accessibility (VoiceOver, dynamic type)
 - [ ] Offline support (queue uploads when offline)
 - [ ] Export/backup (download your data)
-- [ ] Widget (iOS home screen widget showing recent moment or "On This Day")
+
