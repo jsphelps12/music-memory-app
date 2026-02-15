@@ -13,7 +13,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   splash: {
     image: "./assets/images/app-icon.png",
     resizeMode: "contain",
-    backgroundColor: "#000000",
+    backgroundColor: "#FBF6F1",
   },
   ios: {
     supportsTablet: false,
@@ -21,11 +21,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     usesAppleSignIn: true,
     infoPlist: {
       NSAppleMusicUsageDescription:
-        "Music Memory uses Apple Music to search and play songs linked to your moments.",
+        "Tracks uses Apple Music to search and play songs linked to your moments.",
       NSPhotoLibraryUsageDescription:
-        "Music Memory uses your photo library to attach photos to your moments.",
+        "Tracks uses your photo library to attach photos to your moments.",
       NSCameraUsageDescription:
-        "Music Memory uses your camera to take photos for your moments.",
+        "Tracks uses your camera to take photos for your moments.",
       ITSAppUsesNonExemptEncryption: false,
     },
     entitlements: {
@@ -52,9 +52,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-image-picker",
       {
         photosPermission:
-          "Music Memory uses your photo library to attach photos to your moments.",
+          "Tracks uses your photo library to attach photos to your moments.",
         cameraPermission:
-          "Music Memory uses your camera to take photos for your moments.",
+          "Tracks uses your camera to take photos for your moments.",
       },
     ],
     "expo-sqlite",

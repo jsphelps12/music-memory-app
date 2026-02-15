@@ -53,7 +53,7 @@ export default function SignInScreen() {
     >
       <View style={styles.inner}>
         <Text style={styles.title}>Sign In</Text>
-        <Text style={styles.subtitle}>Welcome to Music Memory</Text>
+        <Text style={styles.subtitle}>Welcome to Tracks</Text>
 
         {registered ? (
           <Text style={styles.success}>Account created! Please sign in.</Text>

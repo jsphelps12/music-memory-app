@@ -287,7 +287,7 @@ export default function EditMomentScreen() {
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.title}>Edit Moment</Text>
-            <Text style={styles.subtitle}>Update your music memory</Text>
+            <Text style={styles.subtitle}>Update your moment</Text>
           </View>
           <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
             <Text style={styles.cancelText}>Cancel</Text>

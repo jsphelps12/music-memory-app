@@ -1,4 +1,4 @@
-# Music Memory App — Roadmap
+# Tracks — Roadmap
 
 See `music-journal-roadmap.md` for the full original planning document with detailed specs, wireframes, and success metrics.
 

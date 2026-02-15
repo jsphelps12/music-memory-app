@@ -53,7 +53,7 @@ export default function SignUpScreen() {
     >
       <View style={styles.inner}>
         <Text style={styles.title}>Sign Up</Text>
-        <Text style={styles.subtitle}>Create your Music Memory account</Text>
+        <Text style={styles.subtitle}>Create your Tracks account</Text>
 
         <TextInput
           style={[styles.input, focusedField === "email" && { borderColor: theme.colors.accent }]}
