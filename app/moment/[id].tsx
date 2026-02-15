@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
-import { getSignedPhotoUrl } from "@/lib/storage";
+import { getPublicPhotoUrl } from "@/lib/storage";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -34,8 +34,6 @@ export default function MomentDetailScreen() {
   const [moment, setMoment] = useState<Moment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [photoSignedUrls, setPhotoSignedUrls] = useState<string[]>([]);
-  const [photoUrlError, setPhotoUrlError] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const fetchMoment = useCallback(async () => {
@@ -84,25 +82,10 @@ export default function MomentDetailScreen() {
     }, [fetchMoment, stop])
   );
 
-  useEffect(() => {
-    if (!moment || moment.photoUrls.length === 0) {
-      setPhotoSignedUrls([]);
-      return;
-    }
-    let cancelled = false;
-    Promise.all(moment.photoUrls.map((path) => getSignedPhotoUrl(path))).then(
-      (urls) => {
-        if (!cancelled) {
-          const resolved = urls.filter((u): u is string => u !== null);
-          setPhotoSignedUrls(resolved);
-          setPhotoUrlError(resolved.length < moment.photoUrls.length);
-        }
-      }
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [moment?.photoUrls]);
+  const photoUrls = useMemo(
+    () => moment?.photoUrls.map(getPublicPhotoUrl) ?? [],
+    [moment?.photoUrls]
+  );
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr + "T00:00:00");
@@ -283,14 +266,14 @@ export default function MomentDetailScreen() {
         ) : null}
 
         {/* Photos */}
-        {photoSignedUrls.length > 0 && (
+        {photoUrls.length > 0 && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             style={styles.photoGallery}
             contentContainerStyle={styles.photoGalleryContent}
           >
-            {photoSignedUrls.map((url, index) => (
+            {photoUrls.map((url, index) => (
               <Image
                 key={index}
                 source={{ uri: url }}
@@ -298,9 +281,6 @@ export default function MomentDetailScreen() {
               />
             ))}
           </ScrollView>
-        )}
-        {photoUrlError && (
-          <Text style={styles.photoErrorText}>Some photos could not be loaded.</Text>
         )}
 
         {/* Metadata */}
@@ -482,11 +462,6 @@ function createStyles(theme: Theme) {
       width: 200,
       height: 200,
       borderRadius: theme.radii.md,
-    },
-    photoErrorText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textTertiary,
-      marginBottom: theme.spacing.md,
     },
     metaRow: {
       flexDirection: "row",

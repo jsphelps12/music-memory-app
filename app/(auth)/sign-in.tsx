@@ -56,7 +56,14 @@ export default function SignInScreen() {
         <Text style={styles.subtitle}>Welcome to Tracks</Text>
 
         {registered ? (
-          <Text style={styles.success}>Account created! Please sign in.</Text>
+          <View style={styles.successBox}>
+            <Text style={styles.successTitle}>Check your email</Text>
+            <Text style={styles.successMessage}>
+              We sent a confirmation link to your email. Tap it to verify your
+              account, then come back here and sign in.{"\n\n"}Don't worry if the
+              link shows an error page — your account will still be confirmed.
+            </Text>
+          </View>
         ) : null}
 
         <TextInput
@@ -146,10 +153,24 @@ function createStyles(theme: Theme) {
       marginBottom: 14,
       backgroundColor: theme.colors.backgroundInput,
     },
-    success: {
+    successBox: {
+      backgroundColor: theme.colors.backgroundSecondary,
+      borderRadius: 10,
+      padding: theme.spacing.lg,
+      marginBottom: theme.spacing.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    successTitle: {
       color: theme.colors.success,
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
+      marginBottom: theme.spacing.xs,
+    },
+    successMessage: {
+      color: theme.colors.textSecondary,
       fontSize: theme.fontSize.sm,
-      marginBottom: 14,
+      lineHeight: 20,
     },
     error: {
       color: theme.colors.destructive,

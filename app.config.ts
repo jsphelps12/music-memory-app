@@ -7,7 +7,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/images/app-icon.png",
-  scheme: "musicmemory",
+  scheme: "tracks",
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
   splash: {

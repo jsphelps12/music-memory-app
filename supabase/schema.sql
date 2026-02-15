@@ -99,7 +99,7 @@ create trigger profiles_updated_at
 
 -- 3. Storage bucket for moment photos
 insert into storage.buckets (id, name, public)
-values ('moment-photos', 'moment-photos', false);
+values ('moment-photos', 'moment-photos', true);
 
 create policy "Users can upload their own photos"
   on storage.objects for insert

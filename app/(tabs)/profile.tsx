@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, } from "react";
 import {
   View,
   Text,
@@ -17,8 +17,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { uploadAvatar } from "@/lib/storage";
-import { getSignedPhotoUrl } from "@/lib/storage";
+import { uploadAvatar, getPublicPhotoUrl } from "@/lib/storage";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { SkeletonProfile } from "@/components/Skeleton";
@@ -34,7 +33,6 @@ export default function ProfileScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
-  const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -84,24 +82,9 @@ export default function ProfileScreen() {
     }, [loadProfileData])
   );
 
-  // Load avatar signed URL when profile changes
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-
-      async function loadAvatar() {
-        if (profile?.avatarUrl) {
-          const url = await getSignedPhotoUrl(profile.avatarUrl);
-          if (!cancelled) setAvatarUri(url);
-        } else {
-          if (!cancelled) setAvatarUri(null);
-        }
-      }
-
-      loadAvatar();
-      return () => { cancelled = true; };
-    }, [profile?.avatarUrl])
-  );
+  const avatarUri = profile?.avatarUrl
+    ? getPublicPhotoUrl(profile.avatarUrl)
+    : null;
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);

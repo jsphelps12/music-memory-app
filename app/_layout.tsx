@@ -11,6 +11,7 @@ import "react-native-reanimated";
 import { useColorScheme } from "@/components/useColorScheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PlayerProvider } from "@/contexts/PlayerContext";
+import { useDeepLinkHandler } from "@/hooks/useDeepLinkHandler";
 
 const HAS_LAUNCHED_KEY = "has_launched";
 
@@ -86,6 +87,7 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  useDeepLinkHandler();
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>

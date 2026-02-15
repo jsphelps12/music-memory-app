@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, } from "react";
 import {
   View,
   Text,
@@ -21,7 +21,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { fetchPreviewUrl } from "@/lib/musickit";
-import { uploadMomentPhoto, getSignedPhotoUrl } from "@/lib/storage";
+import { uploadMomentPhoto, getPublicPhotoUrl } from "@/lib/storage";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -53,7 +53,6 @@ export default function EditMomentScreen() {
   const [peopleInput, setPeopleInput] = useState("");
   const [people, setPeople] = useState<string[]>([]);
   const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
-  const [existingPhotoUrls, setExistingPhotoUrls] = useState<string[]>([]);
   const [newPhotos, setNewPhotos] = useState<string[]>([]);
   const [momentDate, setMomentDate] = useState(new Date());
   const [loadingMoment, setLoadingMoment] = useState(true);
@@ -113,25 +112,10 @@ export default function EditMomentScreen() {
     }
   }, [params.songId]);
 
-  useEffect(() => {
-    if (existingPhotos.length === 0) {
-      setExistingPhotoUrls([]);
-      return;
-    }
-    let cancelled = false;
-    Promise.all(existingPhotos.map((path) => getSignedPhotoUrl(path))).then(
-      (urls) => {
-        if (!cancelled) {
-          setExistingPhotoUrls(
-            urls.filter((u): u is string => u !== null)
-          );
-        }
-      }
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [existingPhotos]);
+  const existingPhotoUrls = useMemo(
+    () => existingPhotos.map(getPublicPhotoUrl),
+    [existingPhotos]
+  );
 
   const hasSong = !!song;
 
@@ -188,7 +172,6 @@ export default function EditMomentScreen() {
 
   const handleRemoveExistingPhoto = (index: number) => {
     setExistingPhotos((prev) => prev.filter((_, i) => i !== index));
-    setExistingPhotoUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleRemoveNewPhoto = (uri: string) => {

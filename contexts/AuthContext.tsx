@@ -80,7 +80,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string) => {
     suppressAuth.current = true;
     try {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: "tracks://" },
+      });
       if (error) throw error;
       await supabase.auth.signOut();
     } finally {
