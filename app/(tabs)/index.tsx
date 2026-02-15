@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   RefreshControl,
   StyleSheet,
+  TextInput,
+  ScrollView,
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,6 +25,11 @@ import { friendlyError } from "@/lib/errors";
 import { Moment, MoodOption } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 2000;
+const DEBOUNCE_MS = 300;
+
+function escapeLike(str: string): string {
+  return str.replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
 
 export default function TimelineScreen() {
   const router = useRouter();
@@ -36,17 +43,81 @@ export default function TimelineScreen() {
   const [bannerError, setBannerError] = useState("");
   const lastFetchTime = useRef(0);
 
+  // Search & filter state
+  const [searchText, setSearchText] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [selectedMoods, setSelectedMoods] = useState<MoodOption[]>([]);
+  const [selectedPeople, setSelectedPeople] = useState<string[]>([]);
+  const [allPeople, setAllPeople] = useState<string[]>([]);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Refs to keep fetchMoments identity stable (avoids useFocusEffect loop)
+  const debouncedSearchRef = useRef(debouncedSearch);
+  debouncedSearchRef.current = debouncedSearch;
+  const selectedMoodsRef = useRef(selectedMoods);
+  selectedMoodsRef.current = selectedMoods;
+  const selectedPeopleRef = useRef(selectedPeople);
+  selectedPeopleRef.current = selectedPeople;
+
+  const hasActiveFilters =
+    debouncedSearch.length > 0 ||
+    selectedMoods.length > 0 ||
+    selectedPeople.length > 0;
+
+  const activeFilterCount =
+    (debouncedSearch.length > 0 ? 1 : 0) +
+    selectedMoods.length +
+    selectedPeople.length;
+
+  // Debounce search text
+  useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      setDebouncedSearch(searchText.trim());
+    }, DEBOUNCE_MS);
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, [searchText]);
+
   const fetchMoments = useCallback(
     async (showLoading: boolean) => {
       if (!user) return;
       if (showLoading) setLoading(true);
       setBannerError("");
       if (showLoading) setError("");
-      const { data, error: fetchError } = await supabase
+
+      const currentSearch = debouncedSearchRef.current;
+      const currentMoods = selectedMoodsRef.current;
+      const currentPeople = selectedPeopleRef.current;
+      const filtersActive =
+        currentSearch.length > 0 ||
+        currentMoods.length > 0 ||
+        currentPeople.length > 0;
+
+      let query = supabase
         .from("moments")
         .select("*")
         .eq("user_id", user!.id)
         .order("moment_date", { ascending: false });
+
+      if (currentSearch.length > 0) {
+        const term = escapeLike(currentSearch);
+        query = query.or(
+          `song_title.ilike.%${term}%,song_artist.ilike.%${term}%,reflection_text.ilike.%${term}%`
+        );
+      }
+
+      if (currentMoods.length > 0) {
+        query = query.in("mood", currentMoods);
+      }
+
+      if (currentPeople.length > 0) {
+        query = query.overlaps("people", currentPeople);
+      }
+
+      const { data, error: fetchError } = await query;
 
       if (fetchError) {
         if (showLoading) {
@@ -80,12 +151,35 @@ export default function TimelineScreen() {
       setMoments(mapped);
       setLoading(false);
       lastFetchTime.current = Date.now();
+
+      // Populate allPeople from unfiltered fetches
+      if (!filtersActive) {
+        const peopleSet = new Set<string>();
+        for (const m of mapped) {
+          for (const p of m.people) peopleSet.add(p);
+        }
+        setAllPeople(Array.from(peopleSet).sort());
+      }
     },
     [user]
   );
 
+  // Re-fetch when filters change
+  useEffect(() => {
+    if (lastFetchTime.current > 0) {
+      fetchMoments(false);
+    }
+  }, [debouncedSearch, selectedMoods, selectedPeople, fetchMoments]);
+
   useFocusEffect(
     useCallback(() => {
+      // Reset filters on tab focus (functional updates avoid new refs when already empty)
+      setSearchText((prev) => (prev === "" ? prev : ""));
+      setDebouncedSearch((prev) => (prev === "" ? prev : ""));
+      setSelectedMoods((prev) => (prev.length === 0 ? prev : []));
+      setSelectedPeople((prev) => (prev.length === 0 ? prev : []));
+      setFiltersExpanded(false);
+
       const elapsed = Date.now() - lastFetchTime.current;
       if (lastFetchTime.current === 0) {
         fetchMoments(true);
@@ -167,32 +261,201 @@ export default function TimelineScreen() {
     );
   };
 
-  const listHeader = bannerError ? (
-    <ErrorBanner
-      message={bannerError}
-      onRetry={() => fetchMoments(false)}
-      onDismiss={() => setBannerError("")}
-    />
-  ) : null;
+  const clearFilters = useCallback(() => {
+    setSearchText("");
+    setDebouncedSearch("");
+    setSelectedMoods([]);
+    setSelectedPeople([]);
+  }, []);
+
+  const toggleMood = useCallback((mood: MoodOption) => {
+    setSelectedMoods((prev) =>
+      prev.includes(mood) ? prev.filter((m) => m !== mood) : [...prev, mood]
+    );
+  }, []);
+
+  const togglePerson = useCallback((person: string) => {
+    setSelectedPeople((prev) =>
+      prev.includes(person)
+        ? prev.filter((p) => p !== person)
+        : [...prev, person]
+    );
+  }, []);
+
+  const listHeader = useMemo(
+    () => (
+      <>
+        {bannerError ? (
+          <ErrorBanner
+            message={bannerError}
+            onRetry={() => fetchMoments(false)}
+            onDismiss={() => setBannerError("")}
+          />
+        ) : null}
+
+        {/* Search bar */}
+        <View style={styles.searchBar}>
+          <Ionicons
+            name="search"
+            size={18}
+            color={theme.colors.placeholder}
+            style={styles.searchIcon}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search songs, reflections..."
+            placeholderTextColor={theme.colors.placeholder}
+            cursorColor={theme.colors.accent}
+            value={searchText}
+            onChangeText={setSearchText}
+            returnKeyType="search"
+          />
+          {searchText.length > 0 ? (
+            <TouchableOpacity
+              onPress={() => setSearchText("")}
+              hitSlop={8}
+            >
+              <Ionicons
+                name="close-circle"
+                size={18}
+                color={theme.colors.placeholder}
+              />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        {/* Expanded filter panel */}
+        {filtersExpanded ? (
+          <View style={styles.filterPanel}>
+            <Text style={styles.filterLabel}>Mood</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.chipRow}
+            >
+              {MOODS.map((mood) => {
+                const selected = selectedMoods.includes(mood.value);
+                return (
+                  <TouchableOpacity
+                    key={mood.value}
+                    style={[
+                      styles.filterChip,
+                      selected && styles.filterChipSelected,
+                    ]}
+                    onPress={() => toggleMood(mood.value)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        selected && styles.filterChipTextSelected,
+                      ]}
+                    >
+                      {mood.emoji} {mood.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {allPeople.length > 0 ? (
+              <>
+                <Text style={styles.filterLabel}>People</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.chipRow}
+                >
+                  {allPeople.map((person) => {
+                    const selected = selectedPeople.includes(person);
+                    return (
+                      <TouchableOpacity
+                        key={person}
+                        style={[
+                          styles.filterChip,
+                          selected && styles.filterChipSelected,
+                        ]}
+                        onPress={() => togglePerson(person)}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.filterChipText,
+                            selected && styles.filterChipTextSelected,
+                          ]}
+                        >
+                          {person}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </>
+            ) : null}
+          </View>
+        ) : null}
+
+        {/* Active filter summary */}
+        {hasActiveFilters ? (
+          <View style={styles.filterSummary}>
+            <Text style={styles.filterSummaryText}>
+              {activeFilterCount} {activeFilterCount === 1 ? "filter" : "filters"} active
+            </Text>
+            <TouchableOpacity onPress={clearFilters} hitSlop={8}>
+              <Text style={styles.clearFiltersText}>Clear</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </>
+    ),
+    [
+      bannerError,
+      searchText,
+      filtersExpanded,
+      selectedMoods,
+      selectedPeople,
+      allPeople,
+      hasActiveFilters,
+      activeFilterCount,
+      theme,
+      styles,
+    ]
+  );
+
+  const showEmptyFilterState = hasActiveFilters && moments.length === 0 && !loading && !error;
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Your Moments</Text>
+        <TouchableOpacity
+          onPress={() => setFiltersExpanded((v) => !v)}
+          hitSlop={8}
+          style={styles.filterToggle}
+        >
+          <Ionicons
+            name={filtersExpanded ? "options" : "options-outline"}
+            size={22}
+            color={theme.colors.text}
+          />
+          {hasActiveFilters && !filtersExpanded ? (
+            <View style={styles.filterBadge} />
+          ) : null}
+        </TouchableOpacity>
       </View>
 
-      {loading && moments.length === 0 ? (
+      {loading && moments.length === 0 && !hasActiveFilters ? (
         <View style={styles.skeletonList}>
           {[0, 1, 2, 3].map((i) => (
             <SkeletonTimelineCard key={i} />
           ))}
         </View>
-      ) : error ? (
+      ) : error && !hasActiveFilters ? (
         <ErrorState
           message={error}
           onRetry={() => fetchMoments(true)}
         />
-      ) : moments.length === 0 ? (
+      ) : !hasActiveFilters && moments.length === 0 && !loading ? (
         <View style={styles.centered}>
           <View style={styles.emptyIconContainer}>
             <Ionicons
@@ -223,9 +486,28 @@ export default function TimelineScreen() {
             <Text style={styles.sectionHeader}>{title}</Text>
           )}
           ListHeaderComponent={listHeader}
+          ListEmptyComponent={
+            showEmptyFilterState ? (
+              <View style={styles.emptyFilter}>
+                <Text style={styles.emptyFilterText}>
+                  No moments match your filters
+                </Text>
+                <TouchableOpacity
+                  style={styles.clearFiltersButton}
+                  onPress={clearFilters}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.clearFiltersButtonText}>
+                    Clear Filters
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : null
+          }
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={false}
+          keyboardDismissMode="on-drag"
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -246,6 +528,9 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.background,
     },
     header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
       paddingHorizontal: theme.spacing.xl,
       paddingTop: 80,
       paddingBottom: theme.spacing.lg,
@@ -253,6 +538,101 @@ function createStyles(theme: Theme) {
     title: {
       fontSize: theme.fontSize["2xl"],
       fontWeight: theme.fontWeight.bold,
+      color: theme.colors.text,
+    },
+    filterToggle: {
+      position: "relative",
+      padding: theme.spacing.xs,
+    },
+    filterBadge: {
+      position: "absolute",
+      top: 2,
+      right: 2,
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: theme.colors.accent,
+    },
+    searchBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.colors.backgroundInput,
+      borderRadius: theme.radii.sm,
+      paddingHorizontal: theme.spacing.md,
+      marginBottom: theme.spacing.md,
+      height: 40,
+    },
+    searchIcon: {
+      marginRight: theme.spacing.sm,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: theme.fontSize.base,
+      color: theme.colors.text,
+      padding: 0,
+    },
+    filterPanel: {
+      marginBottom: theme.spacing.md,
+    },
+    filterLabel: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.semibold,
+      color: theme.colors.textSecondary,
+      marginBottom: theme.spacing.sm,
+    },
+    chipRow: {
+      marginBottom: theme.spacing.md,
+    },
+    filterChip: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 6,
+      borderRadius: theme.radii.md,
+      backgroundColor: theme.colors.chipBg,
+      marginRight: theme.spacing.sm,
+    },
+    filterChipSelected: {
+      backgroundColor: theme.colors.chipSelectedBg,
+    },
+    filterChipText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.chipText,
+    },
+    filterChipTextSelected: {
+      color: theme.colors.chipSelectedText,
+    },
+    filterSummary: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: theme.spacing.md,
+    },
+    filterSummaryText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+    },
+    clearFiltersText: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.semibold,
+      color: theme.colors.accent,
+    },
+    emptyFilter: {
+      alignItems: "center",
+      paddingTop: theme.spacing["4xl"],
+    },
+    emptyFilterText: {
+      fontSize: theme.fontSize.base,
+      color: theme.colors.textSecondary,
+      marginBottom: theme.spacing.lg,
+    },
+    clearFiltersButton: {
+      paddingVertical: 10,
+      paddingHorizontal: theme.spacing.xl,
+      borderRadius: theme.radii.md,
+      backgroundColor: theme.colors.chipBg,
+    },
+    clearFiltersButtonText: {
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
       color: theme.colors.text,
     },
     centered: {

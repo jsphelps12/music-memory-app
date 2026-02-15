@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useRef, useEffect } from "react";
+import React, { createContext, useCallback, useContext, useState, useRef, useEffect } from "react";
 import { Audio } from "expo-av";
 import { Song } from "@/types";
 
@@ -17,14 +17,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
 
-  const unloadSound = async () => {
+  const unloadSound = useCallback(async () => {
     if (soundRef.current) {
       await soundRef.current.unloadAsync();
       soundRef.current = null;
     }
-  };
+  }, []);
 
-  const play = async (song: Song, previewUrl: string) => {
+  const play = useCallback(async (song: Song, previewUrl: string) => {
     await unloadSound();
 
     const { sound } = await Audio.Sound.createAsync(
@@ -42,20 +42,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         unloadSound();
       }
     });
-  };
+  }, [unloadSound]);
 
-  const pause = async () => {
+  const pause = useCallback(async () => {
     if (soundRef.current) {
       await soundRef.current.pauseAsync();
     }
     setIsPlaying(false);
-  };
+  }, []);
 
-  const stop = async () => {
+  const stop = useCallback(async () => {
     await unloadSound();
     setCurrentSong(null);
     setIsPlaying(false);
-  };
+  }, [unloadSound]);
 
   useEffect(() => {
     Audio.setAudioModeAsync({
