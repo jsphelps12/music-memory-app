@@ -19,10 +19,45 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 
 ---
 
-## Up Next: Polish & Core Gaps
+## Up Next: Beta Feedback & Polish
 
-These aren't from a specific phase — they're gaps in the current build that need addressing before moving forward.
+Priorities based on real-world usage from first beta weekend. Ordered by impact.
 
+### Photo & Media Performance
+- [ ] Photo compression on upload — resize to max 1920px, compress quality (expo-image-manipulator)
+- [ ] Thumbnail generation — create small thumbnails alongside originals for fast timeline loading
+- [ ] Full photo viewer — tap to open full-res with pinch-to-zoom and swipe-to-dismiss
+- [ ] Storage usage tracking — per-user storage counter to manage costs at scale
+
+### Moment Card Redesign
+- [ ] Larger, more immersive timeline cards — less list-like, more visual
+- [ ] Photo-first hierarchy — photos as card hero when available, artwork takes lesser role
+- [ ] Artwork-first fallback — album art prominent when no photos attached
+- [ ] Smooth card-to-detail transition — expand animation from timeline into moment detail
+- [ ] Blurred artwork/photo backgrounds for depth
+
+### Friends / Contacts
+- [ ] Friends list — `friends` table per user, CRUD management
+- [ ] People picker — replace comma-separated names with chip selector from friends list
+- [ ] "Moments with [person]" — filter/view moments by friend
+
+### Custom Moods
+- [ ] User-created mood tags — free text + emoji picker
+- [ ] Default mood suggestions with ability to add custom ones
+- [ ] Custom moods stored per-user (custom_moods table or JSON on profile)
+
+### Voice Notes
+- [ ] Record voice memos via expo-av
+- [ ] Upload to Supabase Storage alongside photos
+- [ ] Playback UI with waveform visualization on moment detail
+
+### Video Support
+- [ ] Video capture/selection via expo-image-picker
+- [ ] Video compression on upload (transcode to reasonable bitrate)
+- [ ] Video playback on moment detail — option to layer with song audio
+- [ ] Video thumbnail generation for timeline cards
+
+### Previous Polish (Complete)
 - [x] Edit moments
 - [x] UI/UX overhaul — consistent design system, spacing, typography, colors
 - [x] Empty states ("No moments yet — create your first!")
@@ -115,7 +150,6 @@ Premium tier: $7/month or $60/year.
 
 ## Other Ideas (Unscheduled)
 
-- [ ] Voice recordings / voice memos attached to moments
 - [ ] Spotify support (full integration — share extension cross-search is done, but no native Spotify playback/auth)
 - [ ] Accessibility (VoiceOver, dynamic type)
 - [ ] Offline support (queue uploads when offline)
