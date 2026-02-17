@@ -51,6 +51,20 @@ Priorities based on real-world usage from first beta weekend. Ordered by impact.
 - [ ] Upload to Supabase Storage alongside photos
 - [ ] Playback UI with waveform visualization on moment detail
 
+### Timeline Zoom & Calendar View
+- [ ] Pinch-to-zoom out on timeline to switch from list view to calendar grid view
+- [ ] Calendar grid (GitHub contributions / BeReal style) — shows days with moments, album art thumbnails
+- [ ] Toggle button as non-gesture fallback for switching views
+- [ ] Tap a day in calendar to zoom back into that month's moments
+- [ ] Animated crossfade transition between list and calendar views
+
+### Photo Metadata Auto-Detection
+- [ ] Extract EXIF date from photos added to moments (`expo-image-picker` exif option)
+- [ ] Extract GPS location from photo EXIF data and suggest as moment location
+- [ ] Suggestion banner — "Photo taken on [date] at [location]" with "Use" / "Dismiss" actions
+- [ ] Use earliest date when multiple photos have different dates
+- [ ] Reverse geocode GPS coordinates to human-readable location name
+
 ### Video Support
 - [ ] Video capture/selection via expo-image-picker
 - [ ] Video compression on upload (transcode to reasonable bitrate)
@@ -127,6 +141,7 @@ Premium tier: $7/month or $60/year.
 
 ## Phase 6: Discovery & Smart Resurfacing (Premium)
 
+- [ ] Mood-aware suggestions — detect current mood and suggest songs/moments to match or improve it
 - [ ] "Songs Like Your Moments" recommendations (audio feature analysis)
 - [ ] Smart resurfacing (mood-matched, pattern-based, relationship-based)
 - [ ] Rediscovery ("You loved this artist in 2023, then stopped")
