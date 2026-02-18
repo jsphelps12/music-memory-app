@@ -81,7 +81,7 @@ export default function SongSearchScreen() {
     };
 
     if (returnTo === "edit" && momentId) {
-      router.replace({
+      router.navigate({
         pathname: "/moment/edit/[id]",
         params: { id: momentId, ...songParams },
       });
