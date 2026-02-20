@@ -68,7 +68,7 @@ async function extractPhotoMetadata(assets: ImagePicker.ImagePickerAsset[]) {
 
 export default function CreateMomentScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, profile, saveCustomMood, deleteCustomMood } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -169,6 +169,9 @@ export default function CreateMomentScreen() {
   const [location, setLocation] = useState("");
   const [metaSuggestion, setMetaSuggestion] = useState<{ date?: Date; location?: string } | null>(null);
   const [dismissedMetaSuggestion, setDismissedMetaSuggestion] = useState(false);
+  const [showAddMoodForm, setShowAddMoodForm] = useState(false);
+  const [newMoodEmoji, setNewMoodEmoji] = useState("");
+  const [newMoodLabel, setNewMoodLabel] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focusedField, setFocusedField] = useState("");
@@ -183,6 +186,19 @@ export default function CreateMomentScreen() {
 
   const handleDismissNowPlaying = () => {
     setNowPlayingSong(null);
+  };
+
+  const handleSaveCustomMood = async () => {
+    const emoji = newMoodEmoji.trim();
+    const label = newMoodLabel.trim();
+    if (!emoji || !label) return;
+    const value = `custom_${Date.now()}`;
+    await saveCustomMood({ value, label, emoji });
+    setSelectedMood(value);
+    setShowAddMoodForm(false);
+    setNewMoodEmoji("");
+    setNewMoodLabel("");
+    Haptics.selectionAsync();
   };
 
   const handleSelectCandidate = (selected: Song) => {
@@ -310,6 +326,9 @@ export default function CreateMomentScreen() {
       setLocation("");
       setMetaSuggestion(null);
       setDismissedMetaSuggestion(false);
+      setShowAddMoodForm(false);
+      setNewMoodEmoji("");
+      setNewMoodLabel("");
       setError("");
 
       router.replace("/(tabs)");
@@ -432,8 +451,9 @@ export default function CreateMomentScreen() {
           style={styles.moodScroll}
           contentContainerStyle={styles.moodScrollContent}
         >
-          {MOODS.map((mood) => {
+          {[...MOODS, ...(profile?.customMoods ?? [])].map((mood) => {
             const isSelected = selectedMood === mood.value;
+            const isCustom = mood.value.startsWith("custom_");
             return (
               <TouchableOpacity
                 key={mood.value}
@@ -443,6 +463,11 @@ export default function CreateMomentScreen() {
                   Haptics.selectionAsync();
                   setSelectedMood(isSelected ? null : mood.value);
                 }}
+                onLongPress={isCustom ? () => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  deleteCustomMood(mood.value);
+                  if (selectedMood === mood.value) setSelectedMood(null);
+                } : undefined}
               >
                 <Text
                   style={[
@@ -455,7 +480,52 @@ export default function CreateMomentScreen() {
               </TouchableOpacity>
             );
           })}
+          <TouchableOpacity
+            style={styles.moodChipAdd}
+            activeOpacity={0.7}
+            onPress={() => {
+              Haptics.selectionAsync();
+              setShowAddMoodForm((v) => !v);
+            }}
+          >
+            <Text style={styles.moodChipAddText}>+ Add</Text>
+          </TouchableOpacity>
         </ScrollView>
+        {showAddMoodForm && (
+          <View style={styles.addMoodForm}>
+            <TextInput
+              style={styles.emojiInput}
+              placeholder="😊"
+              placeholderTextColor={theme.colors.placeholder}
+              value={newMoodEmoji}
+              onChangeText={setNewMoodEmoji}
+              maxLength={4}
+            />
+            <TextInput
+              style={[styles.input, styles.moodLabelInput]}
+              placeholder="Label"
+              placeholderTextColor={theme.colors.placeholder}
+              cursorColor={theme.colors.accent}
+              value={newMoodLabel}
+              onChangeText={setNewMoodLabel}
+              returnKeyType="done"
+              onSubmitEditing={handleSaveCustomMood}
+            />
+            <TouchableOpacity
+              style={styles.addMoodSaveButton}
+              activeOpacity={0.7}
+              onPress={handleSaveCustomMood}
+            >
+              <Text style={styles.addMoodSaveText}>Add</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => { setShowAddMoodForm(false); setNewMoodEmoji(""); setNewMoodLabel(""); }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.addMoodCancelText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* People tags */}
         <Text style={styles.sectionLabel}>People</Text>
@@ -855,6 +925,57 @@ function createStyles(theme: Theme) {
     },
     moodChipTextSelected: {
       color: theme.colors.chipSelectedText,
+    },
+    moodChipAdd: {
+      paddingHorizontal: 14,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radii.lg,
+      backgroundColor: theme.colors.chipBg,
+      borderWidth: 1,
+      borderStyle: "dashed",
+      borderColor: theme.colors.border,
+    },
+    moodChipAddText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+    },
+    addMoodForm: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.sm,
+    },
+    emojiInput: {
+      width: 52,
+      height: 44,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 10,
+      fontSize: 22,
+      textAlign: "center",
+      color: theme.colors.text,
+      backgroundColor: theme.colors.backgroundInput,
+    },
+    moodLabelInput: {
+      flex: 1,
+      height: 44,
+      marginTop: 0,
+    },
+    addMoodSaveButton: {
+      backgroundColor: theme.colors.accent,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 10,
+      borderRadius: theme.radii.sm,
+    },
+    addMoodSaveText: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.semibold,
+      color: "#fff",
+    },
+    addMoodCancelText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textTertiary,
+      paddingHorizontal: theme.spacing.xs,
     },
     peopleTags: {
       flexDirection: "row",

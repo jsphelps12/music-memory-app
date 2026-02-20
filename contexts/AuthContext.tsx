@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from "r
 import { Session, User } from "@supabase/supabase-js";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { supabase } from "@/lib/supabase";
-import { UserProfile } from "@/types";
+import { CustomMoodDefinition, UserProfile } from "@/types";
 
 interface AuthState {
   session: Session | null;
@@ -15,6 +15,8 @@ interface AuthState {
   signOut: () => Promise<void>;
   updateProfile: (updates: { displayName?: string; avatarUrl?: string }) => Promise<void>;
   refreshProfile: () => Promise<void>;
+  saveCustomMood: (mood: CustomMoodDefinition) => Promise<void>;
+  deleteCustomMood: (value: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -41,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       id: data.id,
       displayName: data.display_name,
       avatarUrl: data.avatar_url,
+      customMoods: data.custom_moods ?? [],
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     });
@@ -155,6 +158,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const saveCustomMood = async (mood: CustomMoodDefinition) => {
+    if (!session?.user) throw new Error("Not authenticated");
+    const current = profile?.customMoods ?? [];
+    const updated = [...current.filter((m) => m.value !== mood.value), mood];
+    const { error } = await supabase
+      .from("profiles")
+      .update({ custom_moods: updated })
+      .eq("id", session.user.id);
+    if (error) throw error;
+    await fetchProfile(session.user.id);
+  };
+
+  const deleteCustomMood = async (value: string) => {
+    if (!session?.user) throw new Error("Not authenticated");
+    const updated = (profile?.customMoods ?? []).filter((m) => m.value !== value);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ custom_moods: updated })
+      .eq("id", session.user.id);
+    if (error) throw error;
+    await fetchProfile(session.user.id);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -168,6 +194,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signOut,
         updateProfile,
         refreshProfile,
+        saveCustomMood,
+        deleteCustomMood,
       }}
     >
       {children}

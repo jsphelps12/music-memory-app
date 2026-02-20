@@ -1,7 +1,5 @@
-import { MoodOption } from "@/types";
-
 export interface MoodDefinition {
-  value: MoodOption;
+  value: string;
   label: string;
   emoji: string;
 }

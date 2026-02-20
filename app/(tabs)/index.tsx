@@ -33,7 +33,7 @@ function escapeLike(str: string): string {
 
 export default function TimelineScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [moments, setMoments] = useState<Moment[]>([]);
@@ -214,8 +214,13 @@ export default function TimelineScreen() {
     });
   };
 
+  const allMoods = useMemo(
+    () => [...MOODS, ...(profile?.customMoods ?? [])],
+    [profile?.customMoods]
+  );
+
   const getMood = (value: MoodOption | null) =>
-    value ? MOODS.find((m) => m.value === value) : undefined;
+    value ? allMoods.find((m) => m.value === value) : undefined;
 
   const renderMoment = ({ item }: { item: Moment }) => {
     const mood = getMood(item.mood);
@@ -333,7 +338,7 @@ export default function TimelineScreen() {
               showsHorizontalScrollIndicator={false}
               style={styles.chipRow}
             >
-              {MOODS.map((mood) => {
+              {allMoods.map((mood) => {
                 const selected = selectedMoods.includes(mood.value);
                 return (
                   <TouchableOpacity
@@ -415,6 +420,7 @@ export default function TimelineScreen() {
       selectedMoods,
       selectedPeople,
       allPeople,
+      allMoods,
       hasActiveFilters,
       activeFilterCount,
       theme,

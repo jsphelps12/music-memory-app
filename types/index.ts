@@ -8,17 +8,13 @@ export interface Song {
   durationMs: number;
 }
 
-export type MoodOption =
-  | "nostalgic"
-  | "joyful"
-  | "melancholy"
-  | "energetic"
-  | "peaceful"
-  | "romantic"
-  | "rebellious"
-  | "hopeful"
-  | "bittersweet"
-  | "empowered";
+export type MoodOption = string;
+
+export interface CustomMoodDefinition {
+  value: string;
+  label: string;
+  emoji: string;
+}
 
 export interface Moment {
   id: string;
@@ -43,6 +39,7 @@ export interface UserProfile {
   id: string;
   displayName: string | null;
   avatarUrl: string | null;
+  customMoods: CustomMoodDefinition[];
   createdAt: string;
   updatedAt: string;
 }

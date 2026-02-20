@@ -28,7 +28,7 @@ import { Moment, MoodOption } from "@/types";
 export default function MomentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { currentSong, isPlaying, play, pause, stop } = usePlayer();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -100,7 +100,7 @@ export default function MomentDetailScreen() {
   };
 
   const getMood = (value: MoodOption | null) =>
-    value ? MOODS.find((m) => m.value === value) : undefined;
+    value ? [...MOODS, ...(profile?.customMoods ?? [])].find((m) => m.value === value) : undefined;
 
   const openMenu = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -219,9 +219,14 @@ export default function MomentDetailScreen() {
             <Text style={styles.songTitle} numberOfLines={2}>
               {moment.songTitle}
             </Text>
-            <Text style={styles.songArtist} numberOfLines={1}>
-              {moment.songArtist}
-            </Text>
+            <TouchableOpacity
+              activeOpacity={0.6}
+              onPress={() => router.push({ pathname: "/artist", params: { name: moment.songArtist } })}
+            >
+              <Text style={[styles.songArtist, styles.songArtistLink]} numberOfLines={1}>
+                {moment.songArtist}
+              </Text>
+            </TouchableOpacity>
             {moment.songAlbumName ? (
               <Text style={styles.songAlbum} numberOfLines={1}>
                 {moment.songAlbumName}
@@ -449,6 +454,9 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
       marginTop: 1,
+    },
+    songArtistLink: {
+      textDecorationLine: "underline",
     },
     songAlbum: {
       fontSize: theme.fontSize.xs,
