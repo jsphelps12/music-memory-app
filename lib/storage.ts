@@ -7,6 +7,7 @@ const BUCKET = "moment-photos";
 
 const MAX_MOMENT_PHOTO_DIMENSION = 1920;
 const MAX_AVATAR_DIMENSION = 400;
+const MAX_THUMBNAIL_DIMENSION = 400;
 
 async function compressImage(uri: string, maxDimension: number): Promise<string> {
   const info = await ImageManipulator.manipulateAsync(uri, []);
@@ -52,6 +53,42 @@ export async function uploadMomentPhoto(
   if (error) throw error;
 
   return storagePath;
+}
+
+/**
+ * Upload a photo and a 400px thumbnail in parallel.
+ * Returns both storage paths.
+ */
+export async function uploadMomentPhotoWithThumbnail(
+  userId: string,
+  uri: string
+): Promise<{ fullPath: string; thumbnailPath: string }> {
+  const uuid = Crypto.randomUUID();
+
+  const [fullPath, thumbnailPath] = await Promise.all([
+    (async () => {
+      const compressed = await compressImage(uri, MAX_MOMENT_PHOTO_DIMENSION);
+      const path = `${userId}/${uuid}.jpg`;
+      const file = new File(compressed);
+      const { error } = await supabase.storage
+        .from(BUCKET)
+        .upload(path, await file.arrayBuffer(), { contentType: "image/jpeg", upsert: false });
+      if (error) throw error;
+      return path;
+    })(),
+    (async () => {
+      const thumb = await compressImage(uri, MAX_THUMBNAIL_DIMENSION);
+      const path = `${userId}/thumb_${uuid}.jpg`;
+      const file = new File(thumb);
+      const { error } = await supabase.storage
+        .from(BUCKET)
+        .upload(path, await file.arrayBuffer(), { contentType: "image/jpeg", upsert: false });
+      if (error) throw error;
+      return path;
+    })(),
+  ]);
+
+  return { fullPath, thumbnailPath };
 }
 
 /**

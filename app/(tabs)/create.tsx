@@ -22,7 +22,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { fetchPreviewUrl } from "@/lib/musickit";
-import { uploadMomentPhoto } from "@/lib/storage";
+import { uploadMomentPhotoWithThumbnail } from "@/lib/storage";
 import { getNowPlaying, onNowPlayingChange } from "@/lib/now-playing";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
@@ -265,9 +265,11 @@ export default function CreateMomentScreen() {
     try {
       const previewUrl = await fetchPreviewUrl(song!.appleMusicId);
 
-      const photoPaths = await Promise.all(
-        photos.map((uri) => uploadMomentPhoto(user.id, uri))
+      const results = await Promise.all(
+        photos.map((uri) => uploadMomentPhotoWithThumbnail(user.id, uri))
       );
+      const photoPaths = results.map((r) => r.fullPath);
+      const thumbnailPaths = results.map((r) => r.thumbnailPath);
 
       const { error: insertError } = await supabase.from("moments").insert({
         user_id: user.id,
@@ -281,6 +283,7 @@ export default function CreateMomentScreen() {
         mood: selectedMood,
         people,
         photo_urls: photoPaths,
+        photo_thumbnails: thumbnailPaths,
         location: location.trim() || null,
         moment_date: momentDate ? momentDate.toISOString().split("T")[0] : null,
       });

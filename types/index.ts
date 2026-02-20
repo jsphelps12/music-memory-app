@@ -27,6 +27,7 @@ export interface Moment {
   songPreviewUrl: string | null;
   reflectionText: string;
   photoUrls: string[];
+  photoThumbnails: string[];
   mood: MoodOption | null;
   people: string[];
   location: string | null;

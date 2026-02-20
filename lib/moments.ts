@@ -12,6 +12,7 @@ export function mapRowToMoment(row: any): Moment {
     songPreviewUrl: row.song_preview_url ?? null,
     reflectionText: row.reflection_text,
     photoUrls: row.photo_urls ?? [],
+    photoThumbnails: row.photo_thumbnails ?? [],
     mood: row.mood,
     people: row.people ?? [],
     location: row.location,

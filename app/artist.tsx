@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
+  ScrollView,
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -13,6 +14,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
+import { getPublicPhotoUrl } from "@/lib/storage";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -82,22 +84,30 @@ export default function ArtistScreen() {
 
   const renderItem = useCallback(({ item }: { item: Moment }) => {
     const mood = item.mood ? allMoods.find((m) => m.value === item.mood) : undefined;
+    const thumbUrls = item.photoThumbnails.length > 0
+      ? item.photoThumbnails.map(getPublicPhotoUrl)
+      : item.photoUrls.map(getPublicPhotoUrl);
+
     return (
       <TouchableOpacity
         style={[styles.card, !theme.isDark && theme.shadows.card]}
         activeOpacity={0.8}
         onPress={() => router.push(`/moment/${item.id}`)}
       >
-        {item.songArtworkUrl ? (
-          <Image source={{ uri: item.songArtworkUrl }} style={styles.artwork} />
-        ) : (
-          <View style={[styles.artwork, styles.artworkPlaceholder]} />
-        )}
-        <View style={styles.cardContent}>
-          <Text style={styles.songTitle} numberOfLines={1}>{item.songTitle}</Text>
-          {item.reflectionText ? (
-            <Text style={styles.reflection} numberOfLines={2}>{item.reflectionText}</Text>
-          ) : null}
+        <View style={styles.cardBody}>
+          <View style={styles.cardRow}>
+            {item.songArtworkUrl ? (
+              <Image source={{ uri: item.songArtworkUrl }} style={styles.artwork} />
+            ) : (
+              <View style={[styles.artwork, styles.artworkPlaceholder]} />
+            )}
+            <View style={styles.cardContent}>
+              <Text style={styles.songTitle} numberOfLines={1}>{item.songTitle}</Text>
+              {item.reflectionText ? (
+                <Text style={styles.reflection} numberOfLines={2}>{item.reflectionText}</Text>
+              ) : null}
+            </View>
+          </View>
           <View style={styles.cardMeta}>
             {mood ? (
               <View style={styles.moodChip}>
@@ -109,6 +119,18 @@ export default function ArtistScreen() {
             ) : null}
           </View>
         </View>
+        {thumbUrls.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.photoStrip}
+            contentContainerStyle={styles.photoStripContent}
+          >
+            {thumbUrls.map((url, i) => (
+              <Image key={i} source={{ uri: url }} style={styles.photoStripThumb} contentFit="cover" />
+            ))}
+          </ScrollView>
+        )}
       </TouchableOpacity>
     );
   }, [router, theme, styles, allMoods]);
@@ -197,11 +219,17 @@ function createStyles(theme: Theme) {
       paddingBottom: theme.spacing["4xl"],
     },
     card: {
-      flexDirection: "row",
       backgroundColor: theme.colors.cardBg,
-      padding: theme.spacing.md,
       borderRadius: theme.radii.md,
       marginBottom: theme.spacing.md,
+      overflow: "hidden",
+    },
+    cardBody: {
+      padding: theme.spacing.md,
+    },
+    cardRow: {
+      flexDirection: "row",
+      alignItems: "center",
     },
     artwork: {
       width: 56,
@@ -247,6 +275,16 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.xs,
       color: theme.colors.textTertiary,
       marginLeft: "auto",
+    },
+    photoStrip: {
+      height: 80,
+    },
+    photoStripContent: {
+      gap: 2,
+    },
+    photoStripThumb: {
+      width: 80,
+      height: 80,
     },
     empty: {
       flex: 1,

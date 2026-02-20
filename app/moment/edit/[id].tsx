@@ -21,7 +21,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { fetchPreviewUrl } from "@/lib/musickit";
-import { uploadMomentPhoto, getPublicPhotoUrl } from "@/lib/storage";
+import { uploadMomentPhotoWithThumbnail, getPublicPhotoUrl } from "@/lib/storage";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
 import { useTheme } from "@/hooks/useTheme";
@@ -53,6 +53,7 @@ export default function EditMomentScreen() {
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [people, setPeople] = useState<string[]>([]);
   const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
+  const [existingThumbnails, setExistingThumbnails] = useState<string[]>([]);
   const [newPhotos, setNewPhotos] = useState<string[]>([]);
   const [momentDate, setMomentDate] = useState<Date | null>(new Date());
   const [location, setLocation] = useState("");
@@ -91,6 +92,7 @@ export default function EditMomentScreen() {
     setSelectedMood(row.mood ?? null);
     setPeople(row.people ?? []);
     setExistingPhotos(row.photo_urls ?? []);
+    setExistingThumbnails(row.photo_thumbnails ?? []);
     setMomentDate(row.moment_date ? new Date(row.moment_date + "T00:00:00") : null);
     setLocation(row.location ?? "");
     setLoadingMoment(false);
@@ -161,6 +163,7 @@ export default function EditMomentScreen() {
 
   const handleRemoveExistingPhoto = (index: number) => {
     setExistingPhotos((prev) => prev.filter((_, i) => i !== index));
+    setExistingThumbnails((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleRemoveNewPhoto = (uri: string) => {
@@ -194,11 +197,11 @@ export default function EditMomentScreen() {
     try {
       const previewUrl = await fetchPreviewUrl(song!.appleMusicId);
 
-      const newPaths = await Promise.all(
-        newPhotos.map((uri) => uploadMomentPhoto(user.id, uri))
+      const results = await Promise.all(
+        newPhotos.map((uri) => uploadMomentPhotoWithThumbnail(user.id, uri))
       );
-
-      const allPhotoPaths = [...existingPhotos, ...newPaths];
+      const newPaths = results.map((r) => r.fullPath);
+      const newThumbPaths = results.map((r) => r.thumbnailPath);
 
       const { error: updateError } = await supabase
         .from("moments")
@@ -212,7 +215,8 @@ export default function EditMomentScreen() {
           reflection_text: reflection.trim(),
           mood: selectedMood,
           people,
-          photo_urls: allPhotoPaths,
+          photo_urls: [...existingPhotos, ...newPaths],
+          photo_thumbnails: [...existingThumbnails, ...newThumbPaths],
           location: location.trim() || null,
           moment_date: momentDate ? momentDate.toISOString().split("T")[0] : null,
         })
