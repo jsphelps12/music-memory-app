@@ -293,7 +293,7 @@ export default function CreateMomentScreen() {
       setSelectedMood(null);
       setPeople([]);
       setPhotos([]);
-      setMomentDate(null);
+      setMomentDate(new Date());
       setLocation("");
       setMetaSuggestion(null);
       setDismissedMetaSuggestion(false);
