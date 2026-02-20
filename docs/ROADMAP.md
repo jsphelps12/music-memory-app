@@ -19,51 +19,67 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 
 ---
 
-## Up Next: Beta Feedback & Polish
+## Up Next (ordered priority)
 
-Priorities based on real-world usage from first beta weekend. Ordered by impact.
+### 1. Smooth card-to-detail transition
+- [ ] Shared-element style expand animation from timeline card into moment detail modal
+- [ ] Card scales/expands into detail screen on tap; reverses on close
+- [ ] Coordinate with blurred backdrop already in place on detail screen
 
-### Photo & Media Performance
-- [ ] Photo compression on upload — resize to max 1920px, compress quality (expo-image-manipulator)
-- [ ] Thumbnail generation — create small thumbnails alongside originals for fast timeline loading
-- [ ] Full photo viewer — tap to open full-res with pinch-to-zoom and swipe-to-dismiss
-- [ ] Storage usage tracking — per-user storage counter to manage costs at scale
-
-### Moment Card Redesign
-- [ ] Larger, more immersive timeline cards — less list-like, more visual
-- [ ] Photo-first hierarchy — photos as card hero when available, artwork takes lesser role
-- [ ] Artwork-first fallback — album art prominent when no photos attached
-- [ ] Smooth card-to-detail transition — expand animation from timeline into moment detail
-- [ ] Blurred artwork/photo backgrounds for depth
-
-### Friends / Contacts
-- [ ] Friends list — `friends` table per user, CRUD management
-- [ ] People picker — replace comma-separated names with chip selector from friends list
-- [ ] "Moments with [person]" — filter/view moments by friend
-
-### Custom Moods
-- [ ] User-created mood tags — free text + emoji picker
-- [ ] Default mood suggestions with ability to add custom ones
-- [ ] Custom moods stored per-user (custom_moods table or JSON on profile)
-
-### Voice Notes
-- [ ] Record voice memos via expo-av
-- [ ] Upload to Supabase Storage alongside photos
-- [ ] Playback UI with waveform visualization on moment detail
-
-### Timeline Zoom & Calendar View
+### 2. Timeline calendar view
 - [ ] Pinch-to-zoom out on timeline to switch from list view to calendar grid view
 - [ ] Calendar grid (GitHub contributions / BeReal style) — shows days with moments, album art thumbnails
 - [ ] Toggle button as non-gesture fallback for switching views
 - [ ] Tap a day in calendar to zoom back into that month's moments
 - [ ] Animated crossfade transition between list and calendar views
 
-### Photo Metadata Auto-Detection
-- [ ] Extract EXIF date from photos added to moments (`expo-image-picker` exif option)
-- [ ] Extract GPS location from photo EXIF data and suggest as moment location
-- [ ] Suggestion banner — "Photo taken on [date] at [location]" with "Use" / "Dismiss" actions
-- [ ] Use earliest date when multiple photos have different dates
-- [ ] Reverse geocode GPS coordinates to human-readable location name
+### 3. Storage usage tracking
+- [ ] Per-user storage counter — track bytes used across moment-photos bucket
+- [ ] Display on profile screen (e.g. "12.4 MB used")
+- [ ] Manage costs at scale; foundation for future storage limits/upsell
+
+### 4. Quick capture flow
+- [ ] Song pre-filled from share extension or Now Playing suggestion
+- [ ] Minimal create screen (song + optional reflection, one tap save)
+- [ ] "More details" expand for mood, people, date, photos
+- [ ] Goal: < 15 seconds from intent to saved moment
+
+### 5. Auto-tag time of day & location
+- [ ] Stamp time-of-day on new moments (morning / afternoon / evening / late night) from device clock
+- [ ] Auto-detect device location on create (if permissions granted) — separate from photo EXIF geocoding
+- [ ] Show time-of-day label on moment detail and cards
+- [ ] Location suggestion banner on create screen ("Currently in Nashville — use as location?")
+
+### 6. "On This Day" & random resurfacing
+- [ ] "On This Day" tab or banner — surface moments from the same calendar date in past years
+- [ ] Random "rediscovery" button or card — tap to see a surprise moment from your history
+- [ ] Push notifications for On This Day moments (opt-in, 2-3x/week max)
+- [ ] Milestone notifications (10, 50, 100, 250, 500, 1000 moments)
+
+### 7. Swipe to dismiss / go back
+- [ ] Swipe left on moment detail modal to close (back-navigate)
+- [ ] Swipe left on timeline cards to trigger a quick action (e.g. delete or edit)
+- [ ] Consistent swipe-back gesture across all push screens (artist, song, album views)
+
+### 8. Song & album views
+- [ ] Song view — all moments tied to a specific song (similar to artist view)
+- [ ] Album view — all moments tied to a specific album, with album artwork header
+- [ ] Tappable song title and album name on moment detail navigate to respective views
+- [ ] Artist view already exists; song/album views follow the same pattern
+
+---
+
+## Backlog
+
+### Friends / Contacts
+- [ ] Friends list — `friends` table per user, CRUD management
+- [ ] People picker — replace comma-separated names with chip selector from friends list
+- [ ] "Moments with [person]" — filter/view moments by friend
+
+### Voice Notes
+- [ ] Record voice memos via expo-av
+- [ ] Upload to Supabase Storage alongside photos
+- [ ] Playback UI with waveform visualization on moment detail
 
 ### Video Support
 - [ ] Video capture/selection via expo-image-picker
@@ -71,7 +87,7 @@ Priorities based on real-world usage from first beta weekend. Ordered by impact.
 - [ ] Video playback on moment detail — option to layer with song audio
 - [ ] Video thumbnail generation for timeline cards
 
-### Previous Polish (Complete)
+### Previously Completed Polish
 - [x] Edit moments
 - [x] UI/UX overhaul — consistent design system, spacing, typography, colors
 - [x] Empty states ("No moments yet — create your first!")
@@ -83,6 +99,12 @@ Priorities based on real-world usage from first beta weekend. Ordered by impact.
 - [x] Apple Sign-In (alternative auth)
 - [x] Dark mode
 - [x] Photo loading optimization — switched to public bucket with synchronous URL generation
+- [x] Photo compression + thumbnails (expo-image-manipulator)
+- [x] Full photo viewer (pinch-to-zoom, swipe between photos)
+- [x] Photo EXIF date + GPS auto-detection with suggestion banner
+- [x] Blurred artwork backdrop on moment detail
+- [x] Card press spring animation (Reanimated)
+- [x] MomentCard shared component
 
 ---
 
@@ -93,10 +115,9 @@ Make logging effortless — goal is < 15 seconds to save a moment.
 - [x] Share extension — receive shared songs from Apple Music & Spotify via iOS share sheet
 - [x] Spotify cross-search — parse Spotify URLs via oEmbed API, cross-search Apple Music for a match with candidate picker
 - [x] "Now Playing" auto-fill — detect currently playing Apple Music song, real-time suggestion banner on create screen
-- [ ] Quick capture flow (song pre-filled, minimal fields, expand for details)
+- [ ] Quick capture flow — see Up Next #4
 - [ ] iOS home screen widget — show now playing with one-tap "save moment", or recent moment / "On This Day"
-- [ ] Auto-detect location (if permissions granted)
-- [ ] Auto-tag time of day
+- [ ] Auto-detect location / auto-tag time of day — see Up Next #5
 
 ---
 
@@ -106,9 +127,8 @@ Make logging effortless — goal is < 15 seconds to save a moment.
 - [ ] Custom player UI (album art, progress bar, controls)
 - [ ] Background playback
 - [ ] Auto-play on moment open (gentle fade-in)
-- [ ] "On This Day" resurfacing (time-based memories)
-- [ ] Push notifications for resurfaced moments (2-3x/week)
-- [ ] Milestone notifications (10, 50, 100, 250, 500, 1000 moments)
+- [ ] "On This Day" resurfacing — see Up Next #6
+- [ ] Push notifications for resurfaced moments / milestones — see Up Next #6
 - [ ] Notification preferences / quiet hours
 
 ---
@@ -121,7 +141,8 @@ Make logging effortless — goal is < 15 seconds to save a moment.
 - [ ] Filter by date range and location
 - [ ] Quick filter views (this week, this month, by mood, late night)
 - [ ] Sort options (chronological, by mood, by artist, random)
-- [ ] Artist view — browse moments grouped by artist (dedicated artist page with all moments for that artist)
+- [x] Artist view — browse moments grouped by artist (dedicated artist page with all moments for that artist)
+- [ ] Song view + Album view — see Up Next #8
 - [ ] Custom collections ("Summer 2024", "My healing era")
 
 ---
