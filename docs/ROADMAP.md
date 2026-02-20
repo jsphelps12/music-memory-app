@@ -121,6 +121,7 @@ Make logging effortless — goal is < 15 seconds to save a moment.
 - [ ] Filter by date range and location
 - [ ] Quick filter views (this week, this month, by mood, late night)
 - [ ] Sort options (chronological, by mood, by artist, random)
+- [ ] Artist view — browse moments grouped by artist (dedicated artist page with all moments for that artist)
 - [ ] Custom collections ("Summer 2024", "My healing era")
 
 ---
@@ -165,6 +166,7 @@ Premium tier: $7/month or $60/year.
 
 ## Other Ideas (Unscheduled)
 
+- [ ] Multiple songs per moment — attach more than one song to a single memory (e.g. a whole playlist or set of songs tied to an event); UI/data model changes needed
 - [ ] Spotify support (full integration — share extension cross-search is done, but no native Spotify playback/auth)
 - [ ] Accessibility (VoiceOver, dynamic type)
 - [ ] Offline support (queue uploads when offline)
