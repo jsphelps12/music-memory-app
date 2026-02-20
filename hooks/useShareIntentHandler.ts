@@ -85,5 +85,5 @@ export function useShareIntentHandler() {
         processingRef.current = false;
       }
     })();
-  }, [hasShareIntent, session]);
+  }, [hasShareIntent, session, router, resetShareIntent]);
 }

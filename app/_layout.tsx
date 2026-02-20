@@ -54,7 +54,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     } else if (session && inAuthGroup) {
       router.replace("/(tabs)");
     }
-  }, [session, loading, hasLaunched, segments]);
+  }, [session, loading, hasLaunched, segments, router]);
 
   if (loading || hasLaunched === null) return null;
 
@@ -113,6 +113,10 @@ function RootLayoutNav() {
           <Stack.Screen
             name="moment/edit/[id]"
             options={{ headerShown: false, presentation: "modal" }}
+          />
+          <Stack.Screen
+            name="artist"
+            options={{ headerShown: false }}
           />
         </Stack>
       </AuthGate>

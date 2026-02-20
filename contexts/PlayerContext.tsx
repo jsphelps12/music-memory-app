@@ -19,35 +19,43 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const unloadSound = useCallback(async () => {
     if (soundRef.current) {
-      await soundRef.current.unloadAsync();
+      try {
+        await soundRef.current.unloadAsync();
+      } catch {}
       soundRef.current = null;
     }
   }, []);
 
   const play = useCallback(async (song: Song, previewUrl: string) => {
     await unloadSound();
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: previewUrl },
+        { shouldPlay: true }
+      );
+      soundRef.current = sound;
+      setCurrentSong(song);
+      setIsPlaying(true);
 
-    const { sound } = await Audio.Sound.createAsync(
-      { uri: previewUrl },
-      { shouldPlay: true }
-    );
-    soundRef.current = sound;
-    setCurrentSong(song);
-    setIsPlaying(true);
-
-    sound.setOnPlaybackStatusUpdate((status) => {
-      if (status.isLoaded && status.didJustFinish) {
-        setIsPlaying(false);
-        setCurrentSong(null);
-        unloadSound();
-      }
-    });
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setIsPlaying(false);
+          setCurrentSong(null);
+          unloadSound();
+        }
+      });
+    } catch {
+      setIsPlaying(false);
+      setCurrentSong(null);
+    }
   }, [unloadSound]);
 
   const pause = useCallback(async () => {
-    if (soundRef.current) {
-      await soundRef.current.pauseAsync();
-    }
+    try {
+      if (soundRef.current) {
+        await soundRef.current.pauseAsync();
+      }
+    } catch {}
     setIsPlaying(false);
   }, []);
 

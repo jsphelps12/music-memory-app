@@ -64,7 +64,7 @@ export default function SignInScreen() {
       await signIn(email.trim(), password);
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError(e.message ?? "Something went wrong.");
+      setError(friendlyError(e));
     } finally {
       setLoading(false);
     }

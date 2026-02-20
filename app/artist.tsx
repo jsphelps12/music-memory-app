@@ -12,10 +12,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { mapRowToMoment } from "@/lib/moments";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
-import { Moment, MoodOption } from "@/types";
+import { Moment } from "@/types";
 import { SkeletonTimelineCard } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { friendlyError } from "@/lib/errors";
@@ -56,26 +57,7 @@ export default function ArtistScreen() {
         return;
       }
 
-      setMoments(
-        (data ?? []).map((row: any) => ({
-          id: row.id,
-          userId: row.user_id,
-          songTitle: row.song_title,
-          songArtist: row.song_artist,
-          songAlbumName: row.song_album_name,
-          songArtworkUrl: row.song_artwork_url,
-          songAppleMusicId: row.song_apple_music_id,
-          songPreviewUrl: row.song_preview_url ?? null,
-          reflectionText: row.reflection_text,
-          photoUrls: row.photo_urls ?? [],
-          mood: row.mood,
-          people: row.people ?? [],
-          location: row.location,
-          momentDate: row.moment_date,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-        }))
-      );
+      setMoments((data ?? []).map(mapRowToMoment));
       setLoading(false);
     },
     [user, name]
@@ -98,11 +80,8 @@ export default function ArtistScreen() {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   };
 
-  const getMood = (value: MoodOption | null) =>
-    value ? allMoods.find((m) => m.value === value) : undefined;
-
-  const renderItem = ({ item }: { item: Moment }) => {
-    const mood = getMood(item.mood);
+  const renderItem = useCallback(({ item }: { item: Moment }) => {
+    const mood = item.mood ? allMoods.find((m) => m.value === item.mood) : undefined;
     return (
       <TouchableOpacity
         style={[styles.card, !theme.isDark && theme.shadows.card]}
@@ -130,7 +109,7 @@ export default function ArtistScreen() {
         </View>
       </TouchableOpacity>
     );
-  };
+  }, [router, theme, styles, allMoods]);
 
   return (
     <View style={styles.container}>

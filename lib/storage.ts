@@ -86,6 +86,6 @@ export async function uploadAvatar(
  * No API call needed — the URL is deterministic.
  */
 export function getPublicPhotoUrl(path: string): string {
-  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-  return `${supabaseUrl}/storage/v1/object/public/${BUCKET}/${path}`;
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  return data.publicUrl;
 }

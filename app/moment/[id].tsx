@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
 import { getPublicPhotoUrl } from "@/lib/storage";
+import { mapRowToMoment } from "@/lib/moments";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -36,6 +37,7 @@ export default function MomentDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
 
@@ -54,25 +56,7 @@ export default function MomentDetailScreen() {
       return;
     }
 
-    const row: any = data;
-    setMoment({
-      id: row.id,
-      userId: row.user_id,
-      songTitle: row.song_title,
-      songArtist: row.song_artist,
-      songAlbumName: row.song_album_name,
-      songArtworkUrl: row.song_artwork_url,
-      songAppleMusicId: row.song_apple_music_id,
-      songPreviewUrl: row.song_preview_url ?? null,
-      reflectionText: row.reflection_text,
-      photoUrls: row.photo_urls ?? [],
-      mood: row.mood,
-      people: row.people ?? [],
-      location: row.location,
-      momentDate: row.moment_date,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    });
+    setMoment(mapRowToMoment(data));
     setLoading(false);
   }, [id]);
 
@@ -114,6 +98,7 @@ export default function MomentDetailScreen() {
   };
 
   const handleDelete = () => {
+    if (deleting) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     setMenuOpen(false);
     Alert.alert("Delete Moment", "Are you sure? This cannot be undone.", [
@@ -122,13 +107,15 @@ export default function MomentDetailScreen() {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
+          setDeleting(true);
           const { error: deleteError } = await supabase
             .from("moments")
             .delete()
             .eq("id", id);
 
           if (deleteError) {
-            Alert.alert("Error", deleteError.message);
+            setDeleting(false);
+            Alert.alert("Error", friendlyError(deleteError));
             return;
           }
 

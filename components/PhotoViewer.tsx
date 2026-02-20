@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import {
-  Dimensions,
   FlatList,
   Modal,
   SafeAreaView,
@@ -9,6 +8,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
 
@@ -19,9 +19,8 @@ interface Props {
   onClose: () => void;
 }
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-
 export function PhotoViewer({ photos, initialIndex, visible, onClose }: Props) {
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const listRef = useRef<FlatList>(null);
 
@@ -66,8 +65,8 @@ export function PhotoViewer({ photos, initialIndex, visible, onClose }: Props) {
           viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
           renderItem={({ item }) => (
             <ScrollView
-              style={styles.page}
-              contentContainerStyle={styles.pageContent}
+              style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}
+              contentContainerStyle={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, alignItems: "center", justifyContent: "center" }}
               maximumZoomScale={3}
               minimumZoomScale={1}
               bouncesZoom
@@ -77,7 +76,7 @@ export function PhotoViewer({ photos, initialIndex, visible, onClose }: Props) {
             >
               <Image
                 source={{ uri: item }}
-                style={styles.photo}
+                style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}
                 contentFit="contain"
               />
             </ScrollView>
@@ -113,20 +112,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#000",
-  },
-  page: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
-  },
-  pageContent: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  photo: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
   },
   overlay: {
     position: "absolute",

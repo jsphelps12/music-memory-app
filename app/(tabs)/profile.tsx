@@ -45,6 +45,7 @@ export default function ProfileScreen() {
   const lastFetchTime = useRef(0);
 
   const loadProfileData = useCallback(async (isInitial: boolean) => {
+    if (!user) return;
     try {
       if (isInitial) setLoadError("");
       setBannerError("");
@@ -54,7 +55,7 @@ export default function ProfileScreen() {
       const { count, error: countError } = await supabase
         .from("moments")
         .select("id", { count: "exact", head: true })
-        .eq("user_id", user!.id);
+        .eq("user_id", user.id);
 
       if (countError) throw countError;
 
@@ -135,13 +136,13 @@ export default function ProfileScreen() {
           });
         }
 
-        if (result && !result.canceled && result.assets[0]) {
+        if (result && !result.canceled && result.assets[0] && user) {
           setUploadingAvatar(true);
           try {
-            const storagePath = await uploadAvatar(user!.id, result.assets[0].uri);
+            const storagePath = await uploadAvatar(user.id, result.assets[0].uri);
             await updateProfile({ avatarUrl: storagePath });
-          } catch (e: any) {
-            Alert.alert("Upload failed", e.message ?? "Could not upload avatar.");
+          } catch (e) {
+            Alert.alert("Upload failed", friendlyError(e));
           } finally {
             setUploadingAvatar(false);
           }
@@ -162,9 +163,9 @@ export default function ProfileScreen() {
     try {
       await updateProfile({ displayName: trimmed || undefined });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e: any) {
+    } catch (e) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Error", e.message ?? "Could not update name.");
+      Alert.alert("Error", friendlyError(e));
     } finally {
       setSavingName(false);
       setEditingName(false);
@@ -382,7 +383,7 @@ function createStyles(theme: Theme) {
       color: theme.colors.textTertiary,
     },
     email: {
-      fontSize: 15,
+      fontSize: theme.fontSize.sm,
       color: theme.colors.textTertiary,
       marginTop: 6,
     },
@@ -400,7 +401,7 @@ function createStyles(theme: Theme) {
       color: theme.colors.text,
     },
     statLabel: {
-      fontSize: 13,
+      fontSize: theme.fontSize.xs,
       color: theme.colors.textTertiary,
       marginTop: 2,
     },

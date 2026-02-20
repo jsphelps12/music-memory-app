@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { mapRowToMoment } from "@/lib/moments";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -22,7 +23,7 @@ import { SkeletonTimelineCard } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
-import { Moment, MoodOption } from "@/types";
+import { Moment } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 2000;
 const DEBOUNCE_MS = 300;
@@ -129,24 +130,7 @@ export default function TimelineScreen() {
         return;
       }
 
-      const mapped: Moment[] = (data ?? []).map((row: any) => ({
-        id: row.id,
-        userId: row.user_id,
-        songTitle: row.song_title,
-        songArtist: row.song_artist,
-        songAlbumName: row.song_album_name,
-        songArtworkUrl: row.song_artwork_url,
-        songAppleMusicId: row.song_apple_music_id,
-        songPreviewUrl: row.song_preview_url ?? null,
-        reflectionText: row.reflection_text,
-        photoUrls: row.photo_urls ?? [],
-        mood: row.mood,
-        people: row.people ?? [],
-        location: row.location,
-        momentDate: row.moment_date,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      }));
+      const mapped: Moment[] = (data ?? []).map(mapRowToMoment);
 
       setMoments(mapped);
       setLoading(false);
@@ -219,11 +203,8 @@ export default function TimelineScreen() {
     [profile?.customMoods]
   );
 
-  const getMood = (value: MoodOption | null) =>
-    value ? allMoods.find((m) => m.value === value) : undefined;
-
-  const renderMoment = ({ item }: { item: Moment }) => {
-    const mood = getMood(item.mood);
+  const renderMoment = useCallback(({ item }: { item: Moment }) => {
+    const mood = item.mood ? allMoods.find((m) => m.value === item.mood) : undefined;
 
     return (
       <TouchableOpacity
@@ -264,7 +245,7 @@ export default function TimelineScreen() {
         </View>
       </TouchableOpacity>
     );
-  };
+  }, [router, theme, styles, allMoods]);
 
   const clearFilters = useCallback(() => {
     setSearchText("");

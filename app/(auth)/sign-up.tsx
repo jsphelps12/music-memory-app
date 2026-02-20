@@ -15,6 +15,7 @@ import { Link } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import { friendlyError } from "@/lib/errors";
 
 export default function SignUpScreen() {
   const { signUp } = useAuth();
@@ -41,7 +42,7 @@ export default function SignUpScreen() {
       router.replace("/(auth)/sign-in?registered=1");
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError(e.message ?? "Something went wrong.");
+      setError(friendlyError(e));
       setLoading(false);
     }
   };
