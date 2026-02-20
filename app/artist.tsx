@@ -6,15 +6,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
-  ScrollView,
 } from "react-native";
-import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
-import { getPublicPhotoUrl } from "@/lib/storage";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -22,6 +19,7 @@ import { Moment } from "@/types";
 import { SkeletonTimelineCard } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { friendlyError } from "@/lib/errors";
+import { MomentCard } from "@/components/MomentCard";
 
 export default function ArtistScreen() {
   const { name } = useLocalSearchParams<{ name: string }>();
@@ -77,63 +75,14 @@ export default function ArtistScreen() {
     setRefreshing(false);
   }, [fetchMoments]);
 
-  const formatDay = (dateStr: string | null) => {
-    if (!dateStr) return null;
-    return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  };
-
-  const renderItem = useCallback(({ item }: { item: Moment }) => {
-    const mood = item.mood ? allMoods.find((m) => m.value === item.mood) : undefined;
-    const thumbUrls = item.photoThumbnails.length > 0
-      ? item.photoThumbnails.map(getPublicPhotoUrl)
-      : item.photoUrls.map(getPublicPhotoUrl);
-
-    return (
-      <TouchableOpacity
-        style={[styles.card, !theme.isDark && theme.shadows.card]}
-        activeOpacity={0.8}
-        onPress={() => router.push(`/moment/${item.id}`)}
-      >
-        <View style={styles.cardBody}>
-          <View style={styles.cardRow}>
-            {item.songArtworkUrl ? (
-              <Image source={{ uri: item.songArtworkUrl }} style={styles.artwork} />
-            ) : (
-              <View style={[styles.artwork, styles.artworkPlaceholder]} />
-            )}
-            <View style={styles.cardContent}>
-              <Text style={styles.songTitle} numberOfLines={1}>{item.songTitle}</Text>
-              {item.reflectionText ? (
-                <Text style={styles.reflection} numberOfLines={2}>{item.reflectionText}</Text>
-              ) : null}
-            </View>
-          </View>
-          <View style={styles.cardMeta}>
-            {mood ? (
-              <View style={styles.moodChip}>
-                <Text style={styles.moodChipText}>{mood.emoji} {mood.label}</Text>
-              </View>
-            ) : null}
-            {formatDay(item.momentDate) ? (
-              <Text style={styles.date}>{formatDay(item.momentDate)}</Text>
-            ) : null}
-          </View>
-        </View>
-        {thumbUrls.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.photoStrip}
-            contentContainerStyle={styles.photoStripContent}
-          >
-            {thumbUrls.map((url, i) => (
-              <Image key={i} source={{ uri: url }} style={styles.photoStripThumb} contentFit="cover" />
-            ))}
-          </ScrollView>
-        )}
-      </TouchableOpacity>
-    );
-  }, [router, theme, styles, allMoods]);
+  const renderItem = useCallback(({ item }: { item: Moment }) => (
+    <MomentCard
+      item={item}
+      onPress={() => router.push(`/moment/${item.id}`)}
+      allMoods={allMoods}
+      showArtist={false}
+    />
+  ), [router, allMoods]);
 
   return (
     <View style={styles.container}>
@@ -217,74 +166,6 @@ function createStyles(theme: Theme) {
     listContent: {
       paddingHorizontal: theme.spacing.xl,
       paddingBottom: theme.spacing["4xl"],
-    },
-    card: {
-      backgroundColor: theme.colors.cardBg,
-      borderRadius: theme.radii.md,
-      marginBottom: theme.spacing.md,
-      overflow: "hidden",
-    },
-    cardBody: {
-      padding: theme.spacing.md,
-    },
-    cardRow: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    artwork: {
-      width: 56,
-      height: 56,
-      borderRadius: theme.radii.sm,
-    },
-    artworkPlaceholder: {
-      backgroundColor: theme.colors.artworkPlaceholder,
-    },
-    cardContent: {
-      flex: 1,
-      marginLeft: theme.spacing.md,
-    },
-    songTitle: {
-      fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
-      color: theme.colors.text,
-    },
-    reflection: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
-      marginTop: 6,
-      lineHeight: 20,
-    },
-    cardMeta: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginTop: theme.spacing.sm,
-      gap: theme.spacing.sm,
-      flex: 1,
-    },
-    moodChip: {
-      paddingHorizontal: 10,
-      paddingVertical: theme.spacing.xs,
-      borderRadius: theme.radii.md,
-      backgroundColor: theme.colors.chipBg,
-    },
-    moodChipText: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.chipText,
-    },
-    date: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textTertiary,
-      marginLeft: "auto",
-    },
-    photoStrip: {
-      height: 80,
-    },
-    photoStripContent: {
-      gap: 2,
-    },
-    photoStripThumb: {
-      width: 80,
-      height: 80,
     },
     empty: {
       flex: 1,

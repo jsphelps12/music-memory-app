@@ -161,6 +161,17 @@ export default function MomentDetailScreen() {
 
   return (
     <View style={styles.container}>
+      {moment?.songArtworkUrl ? (
+        <>
+          <Image
+            source={{ uri: moment.songArtworkUrl }}
+            style={StyleSheet.absoluteFill}
+            blurRadius={50}
+            contentFit="cover"
+          />
+          <View style={styles.backdrop} />
+        </>
+      ) : null}
       <View style={styles.headerRow}>
         {formatDate(moment.momentDate) ? (
           <Text style={styles.date}>{formatDate(moment.momentDate)}</Text>
@@ -329,7 +340,10 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.background,
+    },
+    backdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: theme.isDark ? "rgba(0,0,0,0.60)" : "rgba(255,255,255,0.55)",
     },
     headerRow: {
       paddingTop: 60,
@@ -338,7 +352,6 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      backgroundColor: theme.colors.background,
     },
     date: {
       fontSize: theme.fontSize.xl,
