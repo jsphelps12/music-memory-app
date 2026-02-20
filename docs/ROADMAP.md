@@ -21,10 +21,10 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 
 ## Up Next (ordered priority)
 
-### 1. Smooth card-to-detail transition
-- [ ] Shared-element style expand animation from timeline card into moment detail modal
-- [ ] Card scales/expands into detail screen on tap; reverses on close
-- [ ] Coordinate with blurred backdrop already in place on detail screen
+### 1. Smooth card-to-detail transition — COMPLETE
+- [x] Shared-element style expand animation from timeline card into moment detail modal
+- [x] Card scales/expands into detail screen on tap; reverses on close
+- [x] Coordinate with blurred backdrop already in place on detail screen
 
 ### 2. Timeline calendar view
 - [ ] Pinch-to-zoom out on timeline to switch from list view to calendar grid view
@@ -56,10 +56,11 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 - [ ] Push notifications for On This Day moments (opt-in, 2-3x/week max)
 - [ ] Milestone notifications (10, 50, 100, 250, 500, 1000 moments)
 
-### 7. Swipe to dismiss / go back
-- [ ] Swipe left on moment detail modal to close (back-navigate)
-- [ ] Swipe left on timeline cards to trigger a quick action (e.g. delete or edit)
-- [ ] Consistent swipe-back gesture across all push screens (artist, song, album views)
+### 7. Swipe to dismiss / go back — COMPLETE
+- [x] Swipe left on moment detail modal to close (back-navigate)
+- [x] Swipe left on timeline cards to reveal delete action
+- [x] Swipe left on artist screen cards to reveal delete action
+- [ ] Consistent swipe-back gesture across all push screens (artist, song, album views) — native iOS stack gesture already active
 
 ### 8. Song & album views
 - [ ] Song view — all moments tied to a specific song (similar to artist view)

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,16 @@ import {
   Alert,
   StyleSheet,
 } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  Easing,
+  runOnJS,
+} from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { consumeCardOrigin } from "@/lib/cardTransition";
+import { consumeCachedMoment } from "@/lib/momentCache";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -33,16 +43,69 @@ export default function MomentDetailScreen() {
   const { currentSong, isPlaying, play, pause, stop } = usePlayer();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [moment, setMoment] = useState<Moment | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [moment, setMoment] = useState<Moment | null>(() => consumeCachedMoment());
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
 
-  const fetchMoment = useCallback(async () => {
-    setLoading(true);
+  const [origin] = useState(() => consumeCardOrigin());
+  const translateX = useSharedValue(origin.active ? origin.x : 0);
+  const translateY = useSharedValue(origin.active ? origin.y : 0);
+  const scaleAnim = useSharedValue(origin.active ? origin.scale : 1);
+  const opacity = useSharedValue(origin.active ? 0 : 1);
+
+  useEffect(() => {
+    const config = { duration: 320, easing: Easing.out(Easing.cubic) };
+    opacity.value = withTiming(1, { duration: 180 });
+    translateX.value = withTiming(0, config);
+    translateY.value = withTiming(0, config);
+    scaleAnim.value = withTiming(1, config);
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scaleAnim.value },
+    ],
+  }));
+
+  const animateOut = useCallback((then: () => void) => {
+    opacity.value = withTiming(0, { duration: 120 });
+    scaleAnim.value = withTiming(0.95, { duration: 120 }, () => {
+      "worklet";
+      runOnJS(then)();
+    });
+  }, []);
+
+  const goBack = useCallback(() => router.back(), [router]);
+
+  const swipeGesture = Gesture.Pan()
+    .activeOffsetX([-15, 15])
+    .failOffsetY([-10, 10])
+    .onUpdate((e) => {
+      "worklet";
+      if (e.translationX > 0) {
+        translateX.value = e.translationX;
+        opacity.value = Math.max(0, 1 - e.translationX / 200);
+      }
+    })
+    .onEnd((e) => {
+      "worklet";
+      if (e.translationX > 60 || e.velocityX > 400) {
+        runOnJS(animateOut)(goBack);
+      } else {
+        translateX.value = withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) });
+        opacity.value = withTiming(1, { duration: 200 });
+      }
+    });
+
+  const fetchMoment = useCallback(async (showLoading: boolean) => {
+    if (showLoading) setLoading(true);
     setError("");
     const { data, error: fetchError } = await supabase
       .from("moments")
@@ -51,7 +114,7 @@ export default function MomentDetailScreen() {
       .single();
 
     if (fetchError) {
-      setError(friendlyError(fetchError));
+      if (showLoading) setError(friendlyError(fetchError));
       setLoading(false);
       return;
     }
@@ -62,7 +125,7 @@ export default function MomentDetailScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchMoment();
+      fetchMoment(moment === null);
       return () => {
         stop();
       };
@@ -119,48 +182,17 @@ export default function MomentDetailScreen() {
             return;
           }
 
-          router.back();
+          animateOut(() => router.back());
         },
       },
     ]);
   };
 
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.headerRow}>
-          <View style={{ flex: 1 }} />
-          <TouchableOpacity style={styles.closeButton} onPress={() => router.back()} activeOpacity={0.7}>
-            <Text style={styles.closeButtonText}>✕</Text>
-          </TouchableOpacity>
-        </View>
-        <SkeletonMomentDetail />
-      </View>
-    );
-  }
-
-  if (error || !moment) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.headerRow}>
-          <View style={{ flex: 1 }} />
-          <TouchableOpacity style={styles.closeButton} onPress={() => router.back()} activeOpacity={0.7}>
-            <Text style={styles.closeButtonText}>✕</Text>
-          </TouchableOpacity>
-        </View>
-        <ErrorState
-          message={error || "Moment not found"}
-          onRetry={fetchMoment}
-          onBack={() => router.back()}
-        />
-      </View>
-    );
-  }
-
-  const mood = getMood(moment.mood);
+  const mood = moment ? getMood(moment.mood) : undefined;
 
   return (
-    <View style={styles.container}>
+    <GestureDetector gesture={swipeGesture}>
+    <Animated.View style={[styles.container, animStyle]}>
       {moment?.songArtworkUrl ? (
         <>
           <Image
@@ -172,21 +204,34 @@ export default function MomentDetailScreen() {
           <View style={styles.backdrop} />
         </>
       ) : null}
+
       <View style={styles.headerRow}>
-        {formatDate(moment.momentDate) ? (
-          <Text style={styles.date}>{formatDate(moment.momentDate)}</Text>
+        {!loading && moment ? (
+          <>
+            {formatDate(moment.momentDate) ? (
+              <Text style={styles.date}>{formatDate(moment.momentDate)}</Text>
+            ) : (
+              <Text style={[styles.date, styles.dateAbsent]}>No date</Text>
+            )}
+            <View style={styles.headerActions}>
+              <TouchableOpacity style={styles.moreButton} onPress={openMenu} activeOpacity={0.7}>
+                <Text style={styles.moreButtonText}>{"\u22EF"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.closeButton} onPress={() => animateOut(() => router.back())} activeOpacity={0.7}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          </>
         ) : (
-          <Text style={[styles.date, styles.dateAbsent]}>No date</Text>
+          <>
+            <View style={{ flex: 1 }} />
+            <TouchableOpacity style={styles.closeButton} onPress={() => animateOut(() => router.back())} activeOpacity={0.7}>
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+          </>
         )}
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.moreButton} onPress={openMenu} activeOpacity={0.7}>
-            <Text style={styles.moreButtonText}>{"\u22EF"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.closeButton} onPress={() => router.back()} activeOpacity={0.7}>
-            <Text style={styles.closeButtonText}>✕</Text>
-          </TouchableOpacity>
-        </View>
       </View>
+
       {menuOpen && (
         <>
           <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)} />
@@ -202,129 +247,139 @@ export default function MomentDetailScreen() {
         </>
       )}
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-
-        {/* Song row: artwork + title/artist + play */}
-        <View style={styles.songRow}>
-          {moment.songArtworkUrl ? (
-            <Image
-              source={{ uri: moment.songArtworkUrl }}
-              style={styles.artwork}
-            />
-          ) : (
-            <View style={[styles.artwork, styles.artworkPlaceholder]} />
-          )}
-          <View style={styles.songInfo}>
-            <Text style={styles.songTitle} numberOfLines={2}>
-              {moment.songTitle}
-            </Text>
-            <TouchableOpacity
-              activeOpacity={0.6}
-              onPress={() => router.push({ pathname: "/artist", params: { name: moment.songArtist } })}
-            >
-              <Text style={[styles.songArtist, styles.songArtistLink]} numberOfLines={1}>
-                {moment.songArtist}
+      {loading ? (
+        <SkeletonMomentDetail />
+      ) : error || !moment ? (
+        <ErrorState
+          message={error || "Moment not found"}
+          onRetry={fetchMoment}
+          onBack={() => animateOut(() => router.back())}
+        />
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Song row: artwork + title/artist + play */}
+          <View style={styles.songRow}>
+            {moment.songArtworkUrl ? (
+              <Image
+                source={{ uri: moment.songArtworkUrl }}
+                style={styles.artwork}
+              />
+            ) : (
+              <View style={[styles.artwork, styles.artworkPlaceholder]} />
+            )}
+            <View style={styles.songInfo}>
+              <Text style={styles.songTitle} numberOfLines={2}>
+                {moment.songTitle}
               </Text>
-            </TouchableOpacity>
-            {moment.songAlbumName ? (
-              <Text style={styles.songAlbum} numberOfLines={1}>
-                {moment.songAlbumName}
-              </Text>
-            ) : null}
-          </View>
-          {moment.songPreviewUrl ? (
-            <TouchableOpacity
-              style={styles.playButton}
-              activeOpacity={0.7}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                const isCurrentSong =
-                  isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId;
-                if (isCurrentSong) {
-                  pause();
-                } else {
-                  play(
-                    {
-                      id: moment.songAppleMusicId,
-                      title: moment.songTitle,
-                      artistName: moment.songArtist,
-                      albumName: moment.songAlbumName,
-                      artworkUrl: moment.songArtworkUrl,
-                      appleMusicId: moment.songAppleMusicId,
-                      durationMs: 0,
-                    },
-                    moment.songPreviewUrl!
-                  );
-                }
-              }}
-            >
-              <Text style={styles.playButtonText}>
-                {isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId
-                  ? "Pause"
-                  : "Play"}
-              </Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
-        {/* Reflection — the main content */}
-        {moment.reflectionText ? (
-          <Text style={styles.reflection}>{moment.reflectionText}</Text>
-        ) : null}
-
-        {/* Photos */}
-        {photoUrls.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.photoGallery}
-            contentContainerStyle={styles.photoGalleryContent}
-          >
-            {photoUrls.map((url, index) => (
               <TouchableOpacity
-                key={index}
-                onPress={() => {
-                  setViewerIndex(index);
-                  setViewerVisible(true);
-                }}
-                activeOpacity={0.9}
+                activeOpacity={0.6}
+                onPress={() =>
+                  router.push({ pathname: "/artist", params: { name: moment.songArtist } })
+                }
               >
-                <Image
-                  source={{ uri: url }}
-                  style={styles.photoImage}
-                />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
-
-        {/* Metadata */}
-        {(mood || moment.people.length > 0) && (
-          <View style={styles.metaRow}>
-            {mood ? (
-              <View style={styles.moodChip}>
-                <Text style={styles.moodChipText}>
-                  {mood.emoji} {mood.label}
+                <Text style={[styles.songArtist, styles.songArtistLink]} numberOfLines={1}>
+                  {moment.songArtist}
                 </Text>
-              </View>
+              </TouchableOpacity>
+              {moment.songAlbumName ? (
+                <Text style={styles.songAlbum} numberOfLines={1}>
+                  {moment.songAlbumName}
+                </Text>
+              ) : null}
+            </View>
+            {moment.songPreviewUrl ? (
+              <TouchableOpacity
+                style={styles.playButton}
+                activeOpacity={0.7}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  const isCurrentSong =
+                    isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId;
+                  if (isCurrentSong) {
+                    pause();
+                  } else {
+                    play(
+                      {
+                        id: moment.songAppleMusicId,
+                        title: moment.songTitle,
+                        artistName: moment.songArtist,
+                        albumName: moment.songAlbumName,
+                        artworkUrl: moment.songArtworkUrl,
+                        appleMusicId: moment.songAppleMusicId,
+                        durationMs: 0,
+                      },
+                      moment.songPreviewUrl!
+                    );
+                  }
+                }}
+              >
+                <Text style={styles.playButtonText}>
+                  {isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId
+                    ? "Pause"
+                    : "Play"}
+                </Text>
+              </TouchableOpacity>
             ) : null}
-            {moment.people.map((person) => (
-              <View key={person} style={styles.personChip}>
-                <Text style={styles.personChipText}>{person}</Text>
-              </View>
-            ))}
           </View>
-        )}
 
-        {/* Location */}
-        {moment.location ? (
-          <Text style={styles.locationText}>{moment.location}</Text>
-        ) : null}
+          {/* Reflection — the main content */}
+          {moment.reflectionText ? (
+            <Text style={styles.reflection}>{moment.reflectionText}</Text>
+          ) : null}
 
-      </ScrollView>
+          {/* Photos */}
+          {photoUrls.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.photoGallery}
+              contentContainerStyle={styles.photoGalleryContent}
+            >
+              {photoUrls.map((url, index) => (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => {
+                    setViewerIndex(index);
+                    setViewerVisible(true);
+                  }}
+                  activeOpacity={0.9}
+                >
+                  <Image
+                    source={{ uri: url }}
+                    style={styles.photoImage}
+                  />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          {/* Metadata */}
+          {(mood || moment.people.length > 0) && (
+            <View style={styles.metaRow}>
+              {mood ? (
+                <View style={styles.moodChip}>
+                  <Text style={styles.moodChipText}>
+                    {mood.emoji} {mood.label}
+                  </Text>
+                </View>
+              ) : null}
+              {moment.people.map((person) => (
+                <View key={person} style={styles.personChip}>
+                  <Text style={styles.personChipText}>{person}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Location */}
+          {moment.location ? (
+            <Text style={styles.locationText}>{moment.location}</Text>
+          ) : null}
+        </ScrollView>
+      )}
 
       <PhotoViewer
         photos={photoUrls}
@@ -332,7 +387,8 @@ export default function MomentDetailScreen() {
         visible={viewerVisible}
         onClose={() => setViewerVisible(false)}
       />
-    </View>
+    </Animated.View>
+    </GestureDetector>
   );
 }
 
@@ -340,6 +396,7 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: {
       flex: 1,
+      backgroundColor: theme.colors.background,
     },
     backdrop: {
       ...StyleSheet.absoluteFillObject,

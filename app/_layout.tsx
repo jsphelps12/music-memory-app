@@ -1,4 +1,5 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
@@ -80,13 +81,15 @@ export default function RootLayout() {
   if (!loaded) return null;
 
   return (
-    <ShareIntentProvider>
-      <AuthProvider>
-        <PlayerProvider>
-          <RootLayoutNav />
-        </PlayerProvider>
-      </AuthProvider>
-    </ShareIntentProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ShareIntentProvider>
+        <AuthProvider>
+          <PlayerProvider>
+            <RootLayoutNav />
+          </PlayerProvider>
+        </AuthProvider>
+      </ShareIntentProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -99,7 +102,7 @@ function RootLayoutNav() {
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <StatusBar style="auto" />
       <AuthGate>
-        <Stack>
+        <Stack screenOptions={{ contentStyle: { backgroundColor: colorScheme === "dark" ? "#000" : "#FBF6F1" } }}>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen
@@ -108,7 +111,13 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="moment/[id]"
-            options={{ headerShown: false, presentation: "modal" }}
+            options={{
+              headerShown: false,
+              presentation: "transparentModal",
+              animation: "none",
+              gestureEnabled: false,
+              contentStyle: { backgroundColor: "transparent" },
+            }}
           />
           <Stack.Screen
             name="moment/edit/[id]"
@@ -116,7 +125,7 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="artist"
-            options={{ headerShown: false }}
+            options={{ headerShown: false, presentation: "fullScreenModal", gestureEnabled: false }}
           />
         </Stack>
       </AuthGate>

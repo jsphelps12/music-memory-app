@@ -1,11 +1,17 @@
-import { useMemo } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import { useCallback, useMemo } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  useAnimatedRef,
+  measure,
+  runOnUI,
+  runOnJS,
 } from "react-native-reanimated";
+import { setCardOrigin } from "@/lib/cardTransition";
+import { setCachedMoment } from "@/lib/momentCache";
 import { useTheme } from "@/hooks/useTheme";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { Theme } from "@/constants/theme";
@@ -22,6 +28,24 @@ export function MomentCard({ item, onPress, allMoods, showArtist = true }: Props
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const scale = useSharedValue(1);
+  const animatedRef = useAnimatedRef<Animated.View>();
+
+  const handlePress = useCallback(() => {
+    setCachedMoment(item);
+    const { width: sw, height: sh } = Dimensions.get("window");
+    runOnUI(() => {
+      "worklet";
+      const m = measure(animatedRef);
+      if (m) {
+        runOnJS(setCardOrigin)(
+          (m.pageX + m.width / 2) - sw / 2,
+          (m.pageY + m.height / 2) - sh / 2,
+          m.width / sw
+        );
+      }
+      runOnJS(onPress)();
+    })();
+  }, [item, onPress]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -41,7 +65,7 @@ export function MomentCard({ item, onPress, allMoods, showArtist = true }: Props
     : null;
 
   return (
-    <Animated.View style={[styles.wrapper, animatedStyle, !theme.isDark && theme.shadows.card]}>
+    <Animated.View ref={animatedRef} style={[styles.wrapper, animatedStyle, !theme.isDark && theme.shadows.card]}>
       <TouchableOpacity
         style={styles.card}
         activeOpacity={1}
@@ -51,7 +75,7 @@ export function MomentCard({ item, onPress, allMoods, showArtist = true }: Props
         onPressOut={() => {
           scale.value = withSpring(1, { damping: 15, stiffness: 300 });
         }}
-        onPress={onPress}
+        onPress={handlePress}
       >
         <View style={styles.cardBody}>
           <View style={styles.cardRow}>
