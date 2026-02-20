@@ -55,6 +55,7 @@ export default function EditMomentScreen() {
   const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
   const [newPhotos, setNewPhotos] = useState<string[]>([]);
   const [momentDate, setMomentDate] = useState(new Date());
+  const [location, setLocation] = useState("");
   const [loadingMoment, setLoadingMoment] = useState(true);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -91,6 +92,7 @@ export default function EditMomentScreen() {
     setPeople(row.people ?? []);
     setExistingPhotos(row.photo_urls ?? []);
     setMomentDate(new Date(row.moment_date + "T00:00:00"));
+    setLocation(row.location ?? "");
     setLoadingMoment(false);
   }, [params.id]);
 
@@ -153,12 +155,14 @@ export default function EditMomentScreen() {
           result = await ImagePicker.launchCameraAsync({
             mediaTypes: ["images"],
             quality: 0.8,
+            exif: true,
           });
         } else if (buttonIndex === 2) {
           result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ["images"],
             allowsMultipleSelection: true,
             quality: 0.8,
+            exif: true,
           });
         }
 
@@ -221,6 +225,7 @@ export default function EditMomentScreen() {
           mood: selectedMood,
           people,
           photo_urls: allPhotoPaths,
+          location: location.trim() || null,
           moment_date: momentDate.toISOString().split("T")[0],
         })
         .eq("id", params.id);
@@ -451,6 +456,20 @@ export default function EditMomentScreen() {
           themeVariant={theme.isDark ? "dark" : "light"}
           accentColor={theme.colors.accent}
           style={styles.datePicker}
+        />
+
+        {/* Location */}
+        <Text style={styles.sectionLabel}>Location</Text>
+        <TextInput
+          style={[styles.input, focusedField === "location" && { borderColor: theme.colors.accent }]}
+          placeholder="Where were you?"
+          placeholderTextColor={theme.colors.placeholder}
+          cursorColor={theme.colors.accent}
+          value={location}
+          onChangeText={setLocation}
+          onFocus={() => setFocusedField("location")}
+          onBlur={() => setFocusedField("")}
+          returnKeyType="done"
         />
 
         {/* Error */}

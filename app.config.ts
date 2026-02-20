@@ -26,6 +26,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "Tracks uses your photo library to attach photos to your moments.",
       NSCameraUsageDescription:
         "Tracks uses your camera to take photos for your moments.",
+      NSLocationWhenInUseUsageDescription:
+        "Tracks reads your photos' location data to suggest where your moment took place.",
       ITSAppUsesNonExemptEncryption: false,
     },
     entitlements: {
@@ -59,6 +61,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     "expo-sqlite",
     "@react-native-community/datetimepicker",
+    [
+      "expo-location",
+      {
+        locationWhenInUsePermission:
+          "Tracks reads your photos' location data to suggest where your moment took place.",
+      },
+    ],
     [
       "expo-share-intent",
       {

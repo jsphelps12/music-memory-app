@@ -312,6 +312,11 @@ export default function MomentDetailScreen() {
           </View>
         )}
 
+        {/* Location */}
+        {moment.location ? (
+          <Text style={styles.locationText}>{moment.location}</Text>
+        ) : null}
+
       </ScrollView>
 
       <PhotoViewer
@@ -506,6 +511,11 @@ function createStyles(theme: Theme) {
     personChipText: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.accentText,
+    },
+    locationText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+      marginBottom: theme.spacing["3xl"],
     },
   });
 }

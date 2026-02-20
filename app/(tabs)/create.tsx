@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import * as Location from "expo-location";
 import {
   View,
   Text,
@@ -28,6 +29,42 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { MoodOption, Song } from "@/types";
 import { friendlyError } from "@/lib/errors";
+
+async function extractPhotoMetadata(assets: ImagePicker.ImagePickerAsset[]) {
+  let earliestDate: Date | undefined;
+
+  for (const asset of assets) {
+    const exif = asset.exif as Record<string, any> | undefined;
+    if (!exif) continue;
+    const raw = exif.DateTimeOriginal ?? exif.DateTime;
+    if (raw) {
+      const normalized = (raw as string).replace(/^(\d{4}):(\d{2}):(\d{2})/, "$1-$2-$3");
+      const d = new Date(normalized);
+      if (!isNaN(d.getTime()) && (!earliestDate || d < earliestDate)) {
+        earliestDate = d;
+      }
+    }
+  }
+
+  let suggestedLocation: string | undefined;
+  for (const asset of assets) {
+    const exif = asset.exif as Record<string, any> | undefined;
+    if (!exif?.GPSLatitude || !exif?.GPSLongitude) continue;
+    const lat = exif.GPSLatitude * (exif.GPSLatitudeRef === "S" ? -1 : 1);
+    const lon = exif.GPSLongitude * (exif.GPSLongitudeRef === "W" ? -1 : 1);
+    try {
+      const [result] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
+      if (result) {
+        suggestedLocation = [result.city, result.region].filter(Boolean).join(", ") || undefined;
+      }
+    } catch {
+      // Geocoding failed — skip location suggestion
+    }
+    break; // Only geocode the first photo with GPS
+  }
+
+  return { date: earliestDate, location: suggestedLocation };
+}
 
 export default function CreateMomentScreen() {
   const router = useRouter();
@@ -129,6 +166,9 @@ export default function CreateMomentScreen() {
   const [people, setPeople] = useState<string[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
   const [momentDate, setMomentDate] = useState(new Date());
+  const [location, setLocation] = useState("");
+  const [metaSuggestion, setMetaSuggestion] = useState<{ date?: Date; location?: string } | null>(null);
+  const [dismissedMetaSuggestion, setDismissedMetaSuggestion] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focusedField, setFocusedField] = useState("");
@@ -185,18 +225,25 @@ export default function CreateMomentScreen() {
           result = await ImagePicker.launchCameraAsync({
             mediaTypes: ["images"],
             quality: 0.8,
+            exif: true,
           });
         } else if (buttonIndex === 2) {
           result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ["images"],
             allowsMultipleSelection: true,
             quality: 0.8,
+            exif: true,
           });
         }
 
         if (result && !result.canceled) {
           const uris = result.assets.map((a) => a.uri);
           setPhotos((prev) => [...prev, ...uris]);
+          const meta = await extractPhotoMetadata(result.assets);
+          if (meta.date || meta.location) {
+            setMetaSuggestion(meta);
+            setDismissedMetaSuggestion(false);
+          }
         }
       }
     );
@@ -246,7 +293,7 @@ export default function CreateMomentScreen() {
         mood: selectedMood,
         people,
         photo_urls: photoPaths,
-        location: null,
+        location: location.trim() || null,
         moment_date: momentDate.toISOString().split("T")[0],
       });
 
@@ -260,6 +307,9 @@ export default function CreateMomentScreen() {
       setPeople([]);
       setPhotos([]);
       setMomentDate(new Date());
+      setLocation("");
+      setMetaSuggestion(null);
+      setDismissedMetaSuggestion(false);
       setError("");
 
       router.replace("/(tabs)");
@@ -460,6 +510,36 @@ export default function CreateMomentScreen() {
           </ScrollView>
         )}
 
+        {/* Photo metadata suggestion banner */}
+        {metaSuggestion && !dismissedMetaSuggestion && (
+          <View style={styles.metaBanner}>
+            <View style={styles.metaBannerRow}>
+              <Text style={styles.metaBannerLabel}>From Photo</Text>
+              <TouchableOpacity onPress={() => setDismissedMetaSuggestion(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.metaBannerDismissText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.metaBannerBody}>
+              {[
+                metaSuggestion.date && `Taken ${metaSuggestion.date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`,
+                metaSuggestion.location && `in ${metaSuggestion.location}`,
+              ].filter(Boolean).join(" ")}
+            </Text>
+            <TouchableOpacity
+              style={styles.metaBannerUseButton}
+              activeOpacity={0.7}
+              onPress={() => {
+                if (metaSuggestion.date) setMomentDate(metaSuggestion.date);
+                if (metaSuggestion.location) setLocation(metaSuggestion.location);
+                setDismissedMetaSuggestion(true);
+                Haptics.selectionAsync();
+              }}
+            >
+              <Text style={styles.metaBannerUseText}>Use</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Date picker */}
         <Text style={styles.sectionLabel}>Date</Text>
         <DateTimePicker
@@ -471,6 +551,20 @@ export default function CreateMomentScreen() {
           themeVariant={theme.isDark ? "dark" : "light"}
           accentColor={theme.colors.accent}
           style={styles.datePicker}
+        />
+
+        {/* Location */}
+        <Text style={styles.sectionLabel}>Location</Text>
+        <TextInput
+          style={[styles.input, focusedField === "location" && { borderColor: theme.colors.accent }]}
+          placeholder="Where were you?"
+          placeholderTextColor={theme.colors.placeholder}
+          cursorColor={theme.colors.accent}
+          value={location}
+          onChangeText={setLocation}
+          onFocus={() => setFocusedField("location")}
+          onBlur={() => setFocusedField("")}
+          returnKeyType="done"
         />
 
         {/* Error */}
@@ -618,6 +712,48 @@ function createStyles(theme: Theme) {
       alignItems: "center",
     },
     nowPlayingUseText: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.semibold,
+      color: "#fff",
+    },
+    // Photo metadata suggestion banner
+    metaBanner: {
+      backgroundColor: theme.colors.backgroundSecondary,
+      borderRadius: theme.radii.md,
+      padding: theme.spacing.md,
+      marginTop: theme.spacing.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.accent,
+    },
+    metaBannerRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: theme.spacing.xs,
+    },
+    metaBannerLabel: {
+      fontSize: theme.fontSize.xs,
+      fontWeight: theme.fontWeight.semibold,
+      color: theme.colors.accent,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    metaBannerDismissText: {
+      fontSize: theme.fontSize.xs,
+      color: theme.colors.textTertiary,
+    },
+    metaBannerBody: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.text,
+      marginBottom: theme.spacing.sm,
+    },
+    metaBannerUseButton: {
+      backgroundColor: theme.colors.accent,
+      borderRadius: theme.radii.sm,
+      paddingVertical: theme.spacing.sm,
+      alignItems: "center",
+    },
+    metaBannerUseText: {
       fontSize: theme.fontSize.sm,
       fontWeight: theme.fontWeight.semibold,
       color: "#fff",
