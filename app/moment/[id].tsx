@@ -21,6 +21,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { SkeletonMomentDetail } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
+import { PhotoViewer } from "@/components/PhotoViewer";
 import { friendlyError } from "@/lib/errors";
 import { Moment, MoodOption } from "@/types";
 
@@ -35,6 +36,8 @@ export default function MomentDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
 
   const fetchMoment = useCallback(async () => {
     setLoading(true);
@@ -274,11 +277,19 @@ export default function MomentDetailScreen() {
             contentContainerStyle={styles.photoGalleryContent}
           >
             {photoUrls.map((url, index) => (
-              <Image
+              <TouchableOpacity
                 key={index}
-                source={{ uri: url }}
-                style={styles.photoImage}
-              />
+                onPress={() => {
+                  setViewerIndex(index);
+                  setViewerVisible(true);
+                }}
+                activeOpacity={0.9}
+              >
+                <Image
+                  source={{ uri: url }}
+                  style={styles.photoImage}
+                />
+              </TouchableOpacity>
             ))}
           </ScrollView>
         )}
@@ -302,6 +313,13 @@ export default function MomentDetailScreen() {
         )}
 
       </ScrollView>
+
+      <PhotoViewer
+        photos={photoUrls}
+        initialIndex={viewerIndex}
+        visible={viewerVisible}
+        onClose={() => setViewerVisible(false)}
+      />
     </View>
   );
 }

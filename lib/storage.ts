@@ -1,8 +1,32 @@
 import { File } from "expo-file-system";
 import * as Crypto from "expo-crypto";
+import * as ImageManipulator from "expo-image-manipulator";
 import { supabase } from "@/lib/supabase";
 
 const BUCKET = "moment-photos";
+
+const MAX_MOMENT_PHOTO_DIMENSION = 1920;
+const MAX_AVATAR_DIMENSION = 400;
+
+async function compressImage(uri: string, maxDimension: number): Promise<string> {
+  const info = await ImageManipulator.manipulateAsync(uri, []);
+
+  const actions: ImageManipulator.Action[] = [];
+  if (info.width > maxDimension || info.height > maxDimension) {
+    actions.push(
+      info.width >= info.height
+        ? { resize: { width: maxDimension } }
+        : { resize: { height: maxDimension } }
+    );
+  }
+
+  const result = await ImageManipulator.manipulateAsync(uri, actions, {
+    compress: 0.8,
+    format: ImageManipulator.SaveFormat.JPEG,
+  });
+
+  return result.uri;
+}
 
 /**
  * Upload a photo to Supabase Storage and return the storage path.
@@ -12,16 +36,16 @@ export async function uploadMomentPhoto(
   userId: string,
   uri: string
 ): Promise<string> {
-  const ext = uri.split(".").pop()?.toLowerCase() ?? "jpg";
-  const storagePath = `${userId}/${Crypto.randomUUID()}.${ext}`;
+  const compressed = await compressImage(uri, MAX_MOMENT_PHOTO_DIMENSION);
+  const storagePath = `${userId}/${Crypto.randomUUID()}.jpg`;
 
-  const file = new File(uri);
+  const file = new File(compressed);
   const arrayBuffer = await file.arrayBuffer();
 
   const { error } = await supabase.storage
     .from(BUCKET)
     .upload(storagePath, arrayBuffer, {
-      contentType: `image/${ext === "png" ? "png" : "jpeg"}`,
+      contentType: "image/jpeg",
       upsert: false,
     });
 
@@ -40,7 +64,8 @@ export async function uploadAvatar(
 ): Promise<string> {
   const storagePath = `${userId}/avatar.jpg`;
 
-  const file = new File(uri);
+  const compressed = await compressImage(uri, MAX_AVATAR_DIMENSION);
+  const file = new File(compressed);
   const arrayBuffer = await file.arrayBuffer();
 
   const { error } = await supabase.storage
