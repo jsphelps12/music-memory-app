@@ -27,6 +27,13 @@ import { friendlyError } from "@/lib/errors";
 
 const REFETCH_COOLDOWN_MS = 2000;
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
 export default function ProfileScreen() {
   const { user, profile, signOut, updateProfile, refreshProfile } = useAuth();
   const theme = useTheme();
@@ -38,6 +45,7 @@ export default function ProfileScreen() {
   const [nameInput, setNameInput] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [momentCount, setMomentCount] = useState<number | null>(null);
+  const [storageBytes, setStorageBytes] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -52,14 +60,22 @@ export default function ProfileScreen() {
 
       await refreshProfile();
 
-      const { count, error: countError } = await supabase
-        .from("moments")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id);
+      const [{ count, error: countError }, { data: files, error: storageError }] =
+        await Promise.all([
+          supabase
+            .from("moments")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", user.id),
+          supabase.storage.from("moment-photos").list(user.id, { limit: 1000 }),
+        ]);
 
       if (countError) throw countError;
 
       setMomentCount(count ?? 0);
+      if (!storageError && files) {
+        const total = files.reduce((sum, f) => sum + (f.metadata?.size ?? 0), 0);
+        setStorageBytes(total);
+      }
       lastFetchTime.current = Date.now();
       setInitialLoading(false);
     } catch (e) {
@@ -286,6 +302,12 @@ export default function ProfileScreen() {
             {momentCount !== null ? momentCount : "-"}
           </Text>
           <Text style={styles.statLabel}>Moments</Text>
+        </View>
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>
+            {storageBytes !== null ? formatBytes(storageBytes) : "-"}
+          </Text>
+          <Text style={styles.statLabel}>Storage used</Text>
         </View>
         {memberSince && (
           <View style={styles.statItem}>
