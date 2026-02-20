@@ -101,7 +101,7 @@ export default function TimelineScreen() {
         .from("moments")
         .select("*")
         .eq("user_id", user!.id)
-        .order("moment_date", { ascending: false });
+        .order("moment_date", { ascending: false, nullsFirst: false });
 
       if (currentSearch.length > 0) {
         const term = escapeLike(currentSearch);
@@ -182,20 +182,19 @@ export default function TimelineScreen() {
   const sections = useMemo(() => {
     const grouped: Record<string, Moment[]> = {};
     for (const m of moments) {
-      const date = new Date(m.momentDate + "T00:00:00");
-      const key = date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      const key = m.momentDate
+        ? new Date(m.momentDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })
+        : "No Date";
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(m);
     }
     return Object.entries(grouped).map(([title, data]) => ({ title, data }));
   }, [moments]);
 
-  const formatDay = (dateStr: string) => {
+  const formatDay = (dateStr: string | null) => {
+    if (!dateStr) return null;
     const date = new Date(dateStr + "T00:00:00");
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    });
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
   const allMoods = useMemo(
@@ -240,7 +239,9 @@ export default function TimelineScreen() {
                 </Text>
               </View>
             ) : null}
-            <Text style={styles.date}>{formatDay(item.momentDate)}</Text>
+            {formatDay(item.momentDate) ? (
+              <Text style={styles.date}>{formatDay(item.momentDate)}</Text>
+            ) : null}
           </View>
         </View>
       </TouchableOpacity>

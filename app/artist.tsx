@@ -75,9 +75,9 @@ export default function ArtistScreen() {
     setRefreshing(false);
   }, [fetchMoments]);
 
-  const formatDay = (dateStr: string) => {
-    const date = new Date(dateStr + "T00:00:00");
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const formatDay = (dateStr: string | null) => {
+    if (!dateStr) return null;
+    return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   };
 
   const renderItem = useCallback(({ item }: { item: Moment }) => {
@@ -104,7 +104,9 @@ export default function ArtistScreen() {
                 <Text style={styles.moodChipText}>{mood.emoji} {mood.label}</Text>
               </View>
             ) : null}
-            <Text style={styles.date}>{formatDay(item.momentDate)}</Text>
+            {formatDay(item.momentDate) ? (
+              <Text style={styles.date}>{formatDay(item.momentDate)}</Text>
+            ) : null}
           </View>
         </View>
       </TouchableOpacity>

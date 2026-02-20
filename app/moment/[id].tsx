@@ -74,9 +74,9 @@ export default function MomentDetailScreen() {
     [moment?.photoUrls]
   );
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr + "T00:00:00");
-    return date.toLocaleDateString("en-US", {
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return null;
+    return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
       month: "long",
       day: "numeric",
       year: "numeric",
@@ -162,7 +162,11 @@ export default function MomentDetailScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={styles.date}>{formatDate(moment.momentDate)}</Text>
+        {formatDate(moment.momentDate) ? (
+          <Text style={styles.date}>{formatDate(moment.momentDate)}</Text>
+        ) : (
+          <Text style={[styles.date, styles.dateAbsent]}>No date</Text>
+        )}
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.moreButton} onPress={openMenu} activeOpacity={0.7}>
             <Text style={styles.moreButtonText}>{"\u22EF"}</Text>
@@ -341,6 +345,10 @@ function createStyles(theme: Theme) {
       fontWeight: theme.fontWeight.bold,
       color: theme.colors.text,
       flex: 1,
+    },
+    dateAbsent: {
+      fontWeight: theme.fontWeight.normal,
+      color: theme.colors.textTertiary,
     },
     headerActions: {
       flexDirection: "row",

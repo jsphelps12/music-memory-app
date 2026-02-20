@@ -165,7 +165,7 @@ export default function CreateMomentScreen() {
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [people, setPeople] = useState<string[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
-  const [momentDate, setMomentDate] = useState(new Date());
+  const [momentDate, setMomentDate] = useState<Date | null>(new Date());
   const [location, setLocation] = useState("");
   const [metaSuggestion, setMetaSuggestion] = useState<{ date?: Date; location?: string } | null>(null);
   const [dismissedMetaSuggestion, setDismissedMetaSuggestion] = useState(false);
@@ -239,9 +239,7 @@ export default function CreateMomentScreen() {
   };
 
   const handleDateChange = (_event: DateTimePickerEvent, date?: Date) => {
-    if (date) {
-      setMomentDate(date);
-    }
+    if (date) setMomentDate(date);
   };
 
   const handleSave = async () => {
@@ -284,7 +282,7 @@ export default function CreateMomentScreen() {
         people,
         photo_urls: photoPaths,
         location: location.trim() || null,
-        moment_date: momentDate.toISOString().split("T")[0],
+        moment_date: momentDate ? momentDate.toISOString().split("T")[0] : null,
       });
 
       if (insertError) throw insertError;
@@ -295,7 +293,7 @@ export default function CreateMomentScreen() {
       setSelectedMood(null);
       setPeople([]);
       setPhotos([]);
-      setMomentDate(new Date());
+      setMomentDate(null);
       setLocation("");
       setMetaSuggestion(null);
       setDismissedMetaSuggestion(false);
@@ -484,17 +482,32 @@ export default function CreateMomentScreen() {
         )}
 
         {/* Date picker */}
-        <Text style={styles.sectionLabel}>Date</Text>
-        <DateTimePicker
-          value={momentDate}
-          mode="date"
-          display="compact"
-          maximumDate={new Date()}
-          onChange={handleDateChange}
-          themeVariant={theme.isDark ? "dark" : "light"}
-          accentColor={theme.colors.accent}
-          style={styles.datePicker}
-        />
+        <View style={styles.sectionLabelRow}>
+          <Text style={styles.sectionLabel}>Date</Text>
+          {momentDate ? (
+            <TouchableOpacity onPress={() => setMomentDate(null)} hitSlop={8}>
+              <Text style={styles.dateClearText}>Clear</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={() => setMomentDate(new Date())} hitSlop={8}>
+              <Text style={styles.dateSetText}>Set date</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        {momentDate ? (
+          <DateTimePicker
+            value={momentDate}
+            mode="date"
+            display="compact"
+            maximumDate={new Date()}
+            onChange={handleDateChange}
+            themeVariant={theme.isDark ? "dark" : "light"}
+            accentColor={theme.colors.accent}
+            style={styles.datePicker}
+          />
+        ) : (
+          <Text style={styles.noDateText}>No specific date</Text>
+        )}
 
         {/* Location */}
         <Text style={styles.sectionLabel}>Location</Text>
@@ -753,6 +766,26 @@ function createStyles(theme: Theme) {
       color: theme.colors.text,
       marginTop: theme.spacing["2xl"],
       marginBottom: theme.spacing.sm,
+    },
+    sectionLabelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginTop: theme.spacing["2xl"],
+      marginBottom: theme.spacing.sm,
+    },
+    dateClearText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.destructive,
+    },
+    dateSetText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.accent,
+    },
+    noDateText: {
+      fontSize: theme.fontSize.base,
+      color: theme.colors.placeholder,
+      paddingVertical: theme.spacing.sm,
     },
     reflectionInput: {
       height: 120,

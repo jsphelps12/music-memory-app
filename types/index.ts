@@ -30,7 +30,7 @@ export interface Moment {
   mood: MoodOption | null;
   people: string[];
   location: string | null;
-  momentDate: string;
+  momentDate: string | null;
   createdAt: string;
   updatedAt: string;
 }
