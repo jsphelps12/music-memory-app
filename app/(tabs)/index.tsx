@@ -9,6 +9,11 @@ import {
   TextInput,
   ScrollView,
 } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+} from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -23,6 +28,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
 import { MomentCard } from "@/components/MomentCard";
+import { CalendarView } from "@/components/CalendarView";
 import { Moment } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 2000;
@@ -61,6 +67,34 @@ export default function TimelineScreen() {
   const selectedPeopleRef = useRef(selectedPeople);
   selectedPeopleRef.current = selectedPeople;
 
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  const [pendingScrollId, setPendingScrollId] = useState<string | null>(null);
+  const sectionListRef = useRef<SectionList>(null);
+
+  const listOpacity = useSharedValue(1);
+  const calendarOpacity = useSharedValue(0);
+  const listAnimStyle = useAnimatedStyle(() => ({ opacity: listOpacity.value }));
+  const calendarAnimStyle = useAnimatedStyle(() => ({ opacity: calendarOpacity.value }));
+
+  const toggleView = useCallback(() => {
+    if (viewMode === "list") {
+      listOpacity.value = withTiming(0, { duration: 200 });
+      calendarOpacity.value = withTiming(1, { duration: 200 });
+      setViewMode("calendar");
+    } else {
+      calendarOpacity.value = withTiming(0, { duration: 200 });
+      listOpacity.value = withTiming(1, { duration: 200 });
+      setViewMode("list");
+    }
+  }, [viewMode]);
+
+  const handleDayPress = useCallback((momentId: string) => {
+    calendarOpacity.value = withTiming(0, { duration: 200 });
+    listOpacity.value = withTiming(1, { duration: 200 });
+    setViewMode("list");
+    setPendingScrollId(momentId);
+  }, []);
+
   const hasActiveFilters =
     debouncedSearch.length > 0 ||
     selectedMoods.length > 0 ||
@@ -81,6 +115,28 @@ export default function TimelineScreen() {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
     };
   }, [searchText]);
+
+  // Scroll to a specific moment after switching from calendar to list
+  useEffect(() => {
+    if (!pendingScrollId || sections.length === 0) return;
+    for (let s = 0; s < sections.length; s++) {
+      const idx = sections[s].data.findIndex((m) => m.id === pendingScrollId);
+      if (idx >= 0) {
+        setPendingScrollId(null);
+        setTimeout(() => {
+          try {
+            sectionListRef.current?.scrollToLocation({
+              sectionIndex: s,
+              itemIndex: idx,
+              viewPosition: 0.3,
+              animated: false,
+            });
+          } catch {}
+        }, 100);
+        return;
+      }
+    }
+  }, [pendingScrollId, sections]);
 
   const fetchMoments = useCallback(
     async (showLoading: boolean) => {
@@ -372,95 +428,115 @@ export default function TimelineScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Your Moments</Text>
-        <TouchableOpacity
-          onPress={() => setFiltersExpanded((v) => !v)}
-          hitSlop={8}
-          style={styles.filterToggle}
-        >
-          <Ionicons
-            name={filtersExpanded ? "options" : "options-outline"}
-            size={22}
-            color={theme.colors.text}
-          />
-          {hasActiveFilters && !filtersExpanded ? (
-            <View style={styles.filterBadge} />
+        <View style={styles.headerRight}>
+          <TouchableOpacity onPress={toggleView} hitSlop={8}>
+            <Ionicons
+              name={viewMode === "calendar" ? "list-outline" : "calendar-outline"}
+              size={22}
+              color={theme.colors.text}
+            />
+          </TouchableOpacity>
+          {viewMode === "list" ? (
+            <TouchableOpacity
+              onPress={() => setFiltersExpanded((v) => !v)}
+              hitSlop={8}
+              style={styles.filterToggle}
+            >
+              <Ionicons
+                name={filtersExpanded ? "options" : "options-outline"}
+                size={22}
+                color={theme.colors.text}
+              />
+              {hasActiveFilters && !filtersExpanded ? (
+                <View style={styles.filterBadge} />
+              ) : null}
+            </TouchableOpacity>
           ) : null}
-        </TouchableOpacity>
+        </View>
       </View>
 
-      {loading && moments.length === 0 && !hasActiveFilters ? (
-        <View style={styles.skeletonList}>
-          {[0, 1, 2, 3].map((i) => (
-            <SkeletonTimelineCard key={i} />
-          ))}
-        </View>
-      ) : error && !hasActiveFilters ? (
-        <ErrorState
-          message={error}
-          onRetry={() => fetchMoments(true)}
-        />
-      ) : !hasActiveFilters && moments.length === 0 && !loading ? (
-        <View style={styles.centered}>
-          <View style={styles.emptyIconContainer}>
-            <Ionicons
-              name="musical-notes"
-              size={40}
-              color={theme.colors.textTertiary}
+      <View style={styles.viewsContainer}>
+        <Animated.View style={[StyleSheet.absoluteFill, listAnimStyle]} pointerEvents={viewMode === "list" ? "auto" : "none"}>
+          {loading && moments.length === 0 && !hasActiveFilters ? (
+            <View style={styles.skeletonList}>
+              {[0, 1, 2, 3].map((i) => (
+                <SkeletonTimelineCard key={i} />
+              ))}
+            </View>
+          ) : error && !hasActiveFilters ? (
+            <ErrorState
+              message={error}
+              onRetry={() => fetchMoments(true)}
             />
-          </View>
-          <Text style={styles.emptyTitle}>No moments yet</Text>
-          <Text style={styles.emptySubtitle}>
-            A moment is a song paired with a memory —{"\n"}what you felt, who
-            you were with, and why it mattered.
-          </Text>
-          <TouchableOpacity
-            style={styles.ctaButton}
-            onPress={() => router.push("/(tabs)/create")}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.ctaButtonText}>Create Your First Moment</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <SectionList
-          sections={sections}
-          keyExtractor={(item) => item.id}
-          renderItem={renderMoment}
-          renderSectionHeader={({ section: { title } }) => (
-            <Text style={styles.sectionHeader}>{title}</Text>
-          )}
-          ListHeaderComponent={listHeader}
-          ListEmptyComponent={
-            showEmptyFilterState ? (
-              <View style={styles.emptyFilter}>
-                <Text style={styles.emptyFilterText}>
-                  No moments match your filters
-                </Text>
-                <TouchableOpacity
-                  style={styles.clearFiltersButton}
-                  onPress={clearFilters}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.clearFiltersButtonText}>
-                    Clear Filters
-                  </Text>
-                </TouchableOpacity>
+          ) : !hasActiveFilters && moments.length === 0 && !loading ? (
+            <View style={styles.centered}>
+              <View style={styles.emptyIconContainer}>
+                <Ionicons
+                  name="musical-notes"
+                  size={40}
+                  color={theme.colors.textTertiary}
+                />
               </View>
-            ) : null
-          }
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          stickySectionHeadersEnabled={false}
-          keyboardDismissMode="on-drag"
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={theme.colors.text}
-            />
-          }
-        />
-      )}
+              <Text style={styles.emptyTitle}>No moments yet</Text>
+              <Text style={styles.emptySubtitle}>
+                A moment is a song paired with a memory —{"\n"}what you felt, who
+                you were with, and why it mattered.
+              </Text>
+              <TouchableOpacity
+                style={styles.ctaButton}
+                onPress={() => router.push("/(tabs)/create")}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.ctaButtonText}>Create Your First Moment</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <SectionList
+              ref={sectionListRef}
+              sections={sections}
+              keyExtractor={(item) => item.id}
+              renderItem={renderMoment}
+              renderSectionHeader={({ section: { title } }) => (
+                <Text style={styles.sectionHeader}>{title}</Text>
+              )}
+              ListHeaderComponent={listHeader}
+              ListEmptyComponent={
+                showEmptyFilterState ? (
+                  <View style={styles.emptyFilter}>
+                    <Text style={styles.emptyFilterText}>
+                      No moments match your filters
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.clearFiltersButton}
+                      onPress={clearFilters}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.clearFiltersButtonText}>
+                        Clear Filters
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null
+              }
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+              stickySectionHeadersEnabled={false}
+              keyboardDismissMode="on-drag"
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  tintColor={theme.colors.text}
+                />
+            }
+          />
+          )}
+        </Animated.View>
+
+        <Animated.View style={[StyleSheet.absoluteFill, calendarAnimStyle]} pointerEvents={viewMode === "calendar" ? "auto" : "none"}>
+          <CalendarView moments={moments} onDayPress={handleDayPress} theme={theme} />
+        </Animated.View>
+      </View>
     </View>
   );
 }
@@ -483,6 +559,14 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize["2xl"],
       fontWeight: theme.fontWeight.bold,
       color: theme.colors.text,
+    },
+    headerRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md,
+    },
+    viewsContainer: {
+      flex: 1,
     },
     filterToggle: {
       position: "relative",

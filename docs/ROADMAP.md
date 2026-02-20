@@ -26,12 +26,13 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 - [x] Card scales/expands into detail screen on tap; reverses on close
 - [x] Coordinate with blurred backdrop already in place on detail screen
 
-### 2. Timeline calendar view
-- [ ] Pinch-to-zoom out on timeline to switch from list view to calendar grid view
-- [ ] Calendar grid (GitHub contributions / BeReal style) — shows days with moments, album art thumbnails
-- [ ] Toggle button as non-gesture fallback for switching views
-- [ ] Tap a day in calendar to zoom back into that month's moments
-- [ ] Animated crossfade transition between list and calendar views
+### 2. Timeline calendar view — COMPLETE
+- [x] Calendar grid (GitHub contributions / BeReal style) — shows days with moments, album art thumbnails
+- [x] Toggle button in header to switch between list and calendar views
+- [x] Tap a day in calendar → switches to list view and scrolls to that moment
+- [x] Animated crossfade transition between list and calendar views
+- [x] Undated moments shown in "No Date" section at the bottom of the calendar
+- [ ] Pinch-to-zoom gesture as alternative to toggle button (future polish)
 
 ### 3. Storage usage tracking — COMPLETE
 - [x] Per-user storage counter — track bytes used across moment-photos bucket
