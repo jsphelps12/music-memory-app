@@ -32,6 +32,7 @@ export interface Moment {
   people: string[];
   location: string | null;
   momentDate: string | null;
+  timeOfDay: string | null;
   createdAt: string;
   updatedAt: string;
 }

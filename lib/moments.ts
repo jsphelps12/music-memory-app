@@ -17,6 +17,7 @@ export function mapRowToMoment(row: any): Moment {
     people: row.people ?? [],
     location: row.location,
     momentDate: row.moment_date,
+    timeOfDay: row.time_of_day ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

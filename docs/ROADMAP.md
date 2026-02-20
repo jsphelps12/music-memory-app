@@ -33,22 +33,22 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 - [ ] Tap a day in calendar to zoom back into that month's moments
 - [ ] Animated crossfade transition between list and calendar views
 
-### 3. Storage usage tracking
-- [ ] Per-user storage counter — track bytes used across moment-photos bucket
-- [ ] Display on profile screen (e.g. "12.4 MB used")
-- [ ] Manage costs at scale; foundation for future storage limits/upsell
+### 3. Storage usage tracking — COMPLETE
+- [x] Per-user storage counter — track bytes used across moment-photos bucket
+- [x] Display on profile screen (e.g. "12.4 MB used")
+- [x] Manage costs at scale; foundation for future storage limits/upsell
 
-### 4. Quick capture flow
-- [ ] Song pre-filled from share extension or Now Playing suggestion
-- [ ] Minimal create screen (song + optional reflection, one tap save)
-- [ ] "More details" expand for mood, people, date, photos
-- [ ] Goal: < 15 seconds from intent to saved moment
+### 4. Quick capture flow — COMPLETE
+- [x] Song pre-filled from share extension or Now Playing suggestion
+- [x] Minimal create screen (song + optional reflection, one tap save)
+- [x] "Add details" expand for mood, people, date, photos
+- [x] Reflection made optional (no required validation)
 
-### 5. Auto-tag time of day & location
-- [ ] Stamp time-of-day on new moments (morning / afternoon / evening / late night) from device clock
-- [ ] Auto-detect device location on create (if permissions granted) — separate from photo EXIF geocoding
-- [ ] Show time-of-day label on moment detail and cards
-- [ ] Location suggestion banner on create screen ("Currently in Nashville — use as location?")
+### 5. Auto-tag time of day & location — COMPLETE
+- [x] Stamp time-of-day on new moments (morning / afternoon / evening / late night) from device clock
+- [x] Auto-detect device location on create (if permissions granted) — separate from photo EXIF geocoding
+- [x] Show time-of-day label on moment detail
+- [x] Location suggestion banner on create screen ("Currently in Nashville — use as location?")
 
 ### 6. "On This Day" & random resurfacing
 - [ ] "On This Day" tab or banner — surface moments from the same calendar date in past years
@@ -116,9 +116,9 @@ Make logging effortless — goal is < 15 seconds to save a moment.
 - [x] Share extension — receive shared songs from Apple Music & Spotify via iOS share sheet
 - [x] Spotify cross-search — parse Spotify URLs via oEmbed API, cross-search Apple Music for a match with candidate picker
 - [x] "Now Playing" auto-fill — detect currently playing Apple Music song, real-time suggestion banner on create screen
-- [ ] Quick capture flow — see Up Next #4
+- [x] Quick capture flow — see Up Next #4
 - [ ] iOS home screen widget — show now playing with one-tap "save moment", or recent moment / "On This Day"
-- [ ] Auto-detect location / auto-tag time of day — see Up Next #5
+- [x] Auto-detect location / auto-tag time of day — see Up Next #5
 
 ---
 

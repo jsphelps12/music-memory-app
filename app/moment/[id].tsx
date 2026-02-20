@@ -374,9 +374,16 @@ export default function MomentDetailScreen() {
             </View>
           )}
 
-          {/* Location */}
-          {moment.location ? (
-            <Text style={styles.locationText}>{moment.location}</Text>
+          {/* Location + time of day */}
+          {(moment.location || moment.timeOfDay) ? (
+            <View style={styles.locationRow}>
+              {moment.location ? (
+                <Text style={styles.locationText}>{moment.location}</Text>
+              ) : null}
+              {moment.timeOfDay ? (
+                <Text style={styles.timeOfDayText}>{moment.timeOfDay}</Text>
+              ) : null}
+            </View>
           ) : null}
         </ScrollView>
       )}
@@ -585,10 +592,21 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.sm,
       color: theme.colors.accentText,
     },
+    locationRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: theme.spacing["3xl"],
+    },
     locationText: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
-      marginBottom: theme.spacing["3xl"],
+      flex: 1,
+    },
+    timeOfDayText: {
+      fontSize: theme.fontSize.xs,
+      color: theme.colors.textTertiary,
+      marginLeft: theme.spacing.sm,
     },
   });
 }

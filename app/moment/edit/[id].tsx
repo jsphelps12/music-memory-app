@@ -181,12 +181,6 @@ export default function EditMomentScreen() {
       setError("Please select a song.");
       return;
     }
-    if (!reflection.trim()) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError("Please write a reflection.");
-      return;
-    }
-
     setError("");
     setLoading(true);
     if (!user) {
@@ -323,7 +317,7 @@ export default function EditMomentScreen() {
         <Text style={styles.sectionLabel}>Reflection</Text>
         <TextInput
           style={[styles.reflectionInput, focusedField === "reflection" && { borderColor: theme.colors.accent }]}
-          placeholder="What does this song remind you of?"
+          placeholder="What does this song remind you of? (optional)"
           placeholderTextColor={theme.colors.placeholder}
           cursorColor={theme.colors.accent}
           multiline

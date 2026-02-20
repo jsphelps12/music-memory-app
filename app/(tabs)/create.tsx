@@ -31,6 +31,14 @@ import { Theme } from "@/constants/theme";
 import { Song } from "@/types";
 import { friendlyError } from "@/lib/errors";
 
+function getTimeOfDay(): string {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return "Morning";
+  if (hour >= 12 && hour < 17) return "Afternoon";
+  if (hour >= 17 && hour < 21) return "Evening";
+  return "Late Night";
+}
+
 async function extractPhotoMetadata(assets: ImagePicker.ImagePickerAsset[]) {
   let earliestDate: Date | undefined;
 
@@ -159,6 +167,29 @@ export default function CreateMomentScreen() {
     };
   }, [song]);
 
+  // Auto-detect current location for suggestion banner
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted" || cancelled) return;
+      try {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const [result] = await Location.reverseGeocodeAsync({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        });
+        if (!cancelled && result) {
+          const suggestion = [result.city, result.region].filter(Boolean).join(", ");
+          if (suggestion) setLocationSuggestion(suggestion);
+        }
+      } catch {
+        // Location unavailable — skip suggestion
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const hasSong = !!song;
 
   const [reflection, setReflection] = useState("");
@@ -169,6 +200,9 @@ export default function CreateMomentScreen() {
   const [location, setLocation] = useState("");
   const [metaSuggestion, setMetaSuggestion] = useState<{ date?: Date; location?: string } | null>(null);
   const [dismissedMetaSuggestion, setDismissedMetaSuggestion] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [locationSuggestion, setLocationSuggestion] = useState("");
+  const [dismissedLocationSuggestion, setDismissedLocationSuggestion] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focusedField, setFocusedField] = useState("");
@@ -249,11 +283,6 @@ export default function CreateMomentScreen() {
       setError("Please select a song.");
       return;
     }
-    if (!reflection.trim()) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError("Please write a reflection.");
-      return;
-    }
 
     setError("");
     setLoading(true);
@@ -286,6 +315,7 @@ export default function CreateMomentScreen() {
         photo_thumbnails: thumbnailPaths,
         location: location.trim() || null,
         moment_date: momentDate ? momentDate.toISOString().split("T")[0] : null,
+        time_of_day: getTimeOfDay(),
       });
 
       if (insertError) throw insertError;
@@ -300,6 +330,8 @@ export default function CreateMomentScreen() {
       setLocation("");
       setMetaSuggestion(null);
       setDismissedMetaSuggestion(false);
+      setShowDetails(false);
+      setDismissedLocationSuggestion(false);
       setError("");
 
       router.replace("/(tabs)");
@@ -403,7 +435,7 @@ export default function CreateMomentScreen() {
         <Text style={styles.sectionLabel}>Reflection</Text>
         <TextInput
           style={[styles.reflectionInput, focusedField === "reflection" && { borderColor: theme.colors.accent }]}
-          placeholder="What does this song remind you of?"
+          placeholder="What does this song remind you of? (optional)"
           placeholderTextColor={theme.colors.placeholder}
           cursorColor={theme.colors.accent}
           multiline
@@ -414,117 +446,158 @@ export default function CreateMomentScreen() {
           onBlur={() => setFocusedField("")}
         />
 
-        {/* Mood selector */}
-        <Text style={styles.sectionLabel}>Mood</Text>
-        <MoodSelector
-          selectedMood={selectedMood}
-          onSelectMood={setSelectedMood}
-          customMoods={profile?.customMoods ?? []}
-          saveCustomMood={saveCustomMood}
-          deleteCustomMood={deleteCustomMood}
-        />
-
-        {/* People */}
-        <Text style={styles.sectionLabel}>People</Text>
-        <PeopleInput people={people} onChange={setPeople} />
-
-        {/* Photos */}
-        <Text style={styles.sectionLabel}>Photos</Text>
-        <TouchableOpacity style={styles.addPhotosButton} activeOpacity={0.7} onPress={handleAddPhotos}>
-          <Text style={styles.addPhotosButtonText}>Add Photos</Text>
+        {/* Details toggle */}
+        <TouchableOpacity
+          style={styles.detailsToggle}
+          activeOpacity={0.7}
+          onPress={() => {
+            setShowDetails((v) => !v);
+            Haptics.selectionAsync();
+          }}
+        >
+          <Text style={styles.detailsToggleText}>
+            {showDetails ? "Hide details ▲" : "Add details ▼"}
+          </Text>
         </TouchableOpacity>
-        {photos.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.photoScroll}
-            contentContainerStyle={styles.photoScrollContent}
-          >
-            {photos.map((uri) => (
-              <View key={uri} style={styles.photoThumbContainer}>
-                <Image source={{ uri }} style={styles.photoThumb} />
+
+        {showDetails && (
+          <>
+            {/* Mood selector */}
+            <Text style={styles.sectionLabel}>Mood</Text>
+            <MoodSelector
+              selectedMood={selectedMood}
+              onSelectMood={setSelectedMood}
+              customMoods={profile?.customMoods ?? []}
+              saveCustomMood={saveCustomMood}
+              deleteCustomMood={deleteCustomMood}
+            />
+
+            {/* People */}
+            <Text style={styles.sectionLabel}>People</Text>
+            <PeopleInput people={people} onChange={setPeople} />
+
+            {/* Photos */}
+            <Text style={styles.sectionLabel}>Photos</Text>
+            <TouchableOpacity style={styles.addPhotosButton} activeOpacity={0.7} onPress={handleAddPhotos}>
+              <Text style={styles.addPhotosButtonText}>Add Photos</Text>
+            </TouchableOpacity>
+            {photos.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.photoScroll}
+                contentContainerStyle={styles.photoScrollContent}
+              >
+                {photos.map((uri) => (
+                  <View key={uri} style={styles.photoThumbContainer}>
+                    <Image source={{ uri }} style={styles.photoThumb} />
+                    <TouchableOpacity
+                      style={styles.photoRemove}
+                      onPress={() => handleRemovePhoto(uri)}
+                    >
+                      <Text style={styles.photoRemoveText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
+            {/* Photo metadata suggestion banner */}
+            {metaSuggestion && !dismissedMetaSuggestion && (
+              <View style={styles.metaBanner}>
+                <View style={styles.metaBannerRow}>
+                  <Text style={styles.metaBannerLabel}>From Photo</Text>
+                  <TouchableOpacity onPress={() => setDismissedMetaSuggestion(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={styles.metaBannerDismissText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.metaBannerBody}>
+                  {[
+                    metaSuggestion.date && `Taken ${metaSuggestion.date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`,
+                    metaSuggestion.location && `in ${metaSuggestion.location}`,
+                  ].filter(Boolean).join(" ")}
+                </Text>
                 <TouchableOpacity
-                  style={styles.photoRemove}
-                  onPress={() => handleRemovePhoto(uri)}
+                  style={styles.metaBannerUseButton}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    if (metaSuggestion.date) setMomentDate(metaSuggestion.date);
+                    if (metaSuggestion.location) setLocation(metaSuggestion.location);
+                    setDismissedMetaSuggestion(true);
+                    Haptics.selectionAsync();
+                  }}
                 >
-                  <Text style={styles.photoRemoveText}>✕</Text>
+                  <Text style={styles.metaBannerUseText}>Use</Text>
                 </TouchableOpacity>
               </View>
-            ))}
-          </ScrollView>
-        )}
+            )}
 
-        {/* Photo metadata suggestion banner */}
-        {metaSuggestion && !dismissedMetaSuggestion && (
-          <View style={styles.metaBanner}>
-            <View style={styles.metaBannerRow}>
-              <Text style={styles.metaBannerLabel}>From Photo</Text>
-              <TouchableOpacity onPress={() => setDismissedMetaSuggestion(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={styles.metaBannerDismissText}>✕</Text>
-              </TouchableOpacity>
+            {/* Date picker */}
+            <View style={styles.sectionLabelRow}>
+              <Text style={styles.sectionLabel}>Date</Text>
+              {momentDate ? (
+                <TouchableOpacity onPress={() => setMomentDate(null)} hitSlop={8}>
+                  <Text style={styles.dateClearText}>Clear</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity onPress={() => setMomentDate(new Date())} hitSlop={8}>
+                  <Text style={styles.dateSetText}>Set date</Text>
+                </TouchableOpacity>
+              )}
             </View>
-            <Text style={styles.metaBannerBody}>
-              {[
-                metaSuggestion.date && `Taken ${metaSuggestion.date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`,
-                metaSuggestion.location && `in ${metaSuggestion.location}`,
-              ].filter(Boolean).join(" ")}
-            </Text>
-            <TouchableOpacity
-              style={styles.metaBannerUseButton}
-              activeOpacity={0.7}
-              onPress={() => {
-                if (metaSuggestion.date) setMomentDate(metaSuggestion.date);
-                if (metaSuggestion.location) setLocation(metaSuggestion.location);
-                setDismissedMetaSuggestion(true);
-                Haptics.selectionAsync();
-              }}
-            >
-              <Text style={styles.metaBannerUseText}>Use</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+            {momentDate ? (
+              <DateTimePicker
+                value={momentDate}
+                mode="date"
+                display="compact"
+                maximumDate={new Date()}
+                onChange={handleDateChange}
+                themeVariant={theme.isDark ? "dark" : "light"}
+                accentColor={theme.colors.accent}
+                style={styles.datePicker}
+              />
+            ) : (
+              <Text style={styles.noDateText}>No specific date</Text>
+            )}
 
-        {/* Date picker */}
-        <View style={styles.sectionLabelRow}>
-          <Text style={styles.sectionLabel}>Date</Text>
-          {momentDate ? (
-            <TouchableOpacity onPress={() => setMomentDate(null)} hitSlop={8}>
-              <Text style={styles.dateClearText}>Clear</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={() => setMomentDate(new Date())} hitSlop={8}>
-              <Text style={styles.dateSetText}>Set date</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        {momentDate ? (
-          <DateTimePicker
-            value={momentDate}
-            mode="date"
-            display="compact"
-            maximumDate={new Date()}
-            onChange={handleDateChange}
-            themeVariant={theme.isDark ? "dark" : "light"}
-            accentColor={theme.colors.accent}
-            style={styles.datePicker}
-          />
-        ) : (
-          <Text style={styles.noDateText}>No specific date</Text>
-        )}
+            {/* Location suggestion banner */}
+            {locationSuggestion && !dismissedLocationSuggestion && !location && (
+              <View style={styles.locationBanner}>
+                <View style={styles.locationBannerRow}>
+                  <Text style={styles.locationBannerLabel}>Currently in {locationSuggestion}</Text>
+                  <TouchableOpacity onPress={() => setDismissedLocationSuggestion(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={styles.locationBannerDismissText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  style={styles.locationBannerUseButton}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setLocation(locationSuggestion);
+                    setDismissedLocationSuggestion(true);
+                    Haptics.selectionAsync();
+                  }}
+                >
+                  <Text style={styles.locationBannerUseText}>Use as location</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
-        {/* Location */}
-        <Text style={styles.sectionLabel}>Location</Text>
-        <TextInput
-          style={[styles.input, focusedField === "location" && { borderColor: theme.colors.accent }]}
-          placeholder="Where were you?"
-          placeholderTextColor={theme.colors.placeholder}
-          cursorColor={theme.colors.accent}
-          value={location}
-          onChangeText={setLocation}
-          onFocus={() => setFocusedField("location")}
-          onBlur={() => setFocusedField("")}
-          returnKeyType="done"
-        />
+            {/* Location */}
+            <Text style={styles.sectionLabel}>Location</Text>
+            <TextInput
+              style={[styles.input, focusedField === "location" && { borderColor: theme.colors.accent }]}
+              placeholder="Where were you?"
+              placeholderTextColor={theme.colors.placeholder}
+              cursorColor={theme.colors.accent}
+              value={location}
+              onChangeText={setLocation}
+              onFocus={() => setFocusedField("location")}
+              onBlur={() => setFocusedField("")}
+              returnKeyType="done"
+            />
+          </>
+        )}
 
         {/* Error */}
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -674,6 +747,55 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.sm,
       fontWeight: theme.fontWeight.semibold,
       color: "#fff",
+    },
+    // Location suggestion banner
+    locationBanner: {
+      backgroundColor: theme.colors.backgroundSecondary,
+      borderRadius: theme.radii.md,
+      padding: theme.spacing.md,
+      marginTop: theme.spacing.xl,
+      marginBottom: theme.spacing.sm,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    locationBannerRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: theme.spacing.sm,
+    },
+    locationBannerLabel: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.text,
+      fontWeight: theme.fontWeight.medium,
+      flex: 1,
+    },
+    locationBannerDismissText: {
+      fontSize: theme.fontSize.xs,
+      color: theme.colors.textTertiary,
+    },
+    locationBannerUseButton: {
+      backgroundColor: theme.colors.buttonBg,
+      borderRadius: theme.radii.sm,
+      paddingVertical: theme.spacing.sm,
+      alignItems: "center",
+    },
+    locationBannerUseText: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.semibold,
+      color: theme.colors.buttonText,
+    },
+    // Details toggle
+    detailsToggle: {
+      marginTop: theme.spacing.xl,
+      alignSelf: "center",
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
+    },
+    detailsToggleText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.accent,
+      fontWeight: theme.fontWeight.medium,
     },
     // Photo metadata suggestion banner
     metaBanner: {
