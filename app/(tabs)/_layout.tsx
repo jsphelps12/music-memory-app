@@ -29,17 +29,15 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Timeline",
+          title: "Moments",
           tabBarIcon: ({ color }) => <TabBarIcon name="music" color={color} />,
         }}
       />
       <Tabs.Screen
-        name="create"
+        name="reflections"
         options={{
-          title: "New Moment",
-          tabBarIcon: ({ color }) => (
-            <TabBarIcon name="plus-circle" color={color} />
-          ),
+          title: "Reflections",
+          tabBarIcon: ({ color }) => <TabBarIcon name="star" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -47,6 +45,12 @@ export default function TabLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color }) => <TabBarIcon name="user" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="create"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

@@ -212,7 +212,9 @@ export default function EditMomentScreen() {
           photo_urls: [...existingPhotos, ...newPaths],
           photo_thumbnails: [...existingThumbnails, ...newThumbPaths],
           location: location.trim() || null,
-          moment_date: momentDate ? momentDate.toISOString().split("T")[0] : null,
+          moment_date: momentDate
+            ? `${momentDate.getFullYear()}-${String(momentDate.getMonth() + 1).padStart(2, "0")}-${String(momentDate.getDate()).padStart(2, "0")}`
+            : null,
         })
         .eq("id", params.id);
 

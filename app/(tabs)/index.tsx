@@ -429,6 +429,12 @@ export default function TimelineScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Your Moments</Text>
         <View style={styles.headerRight}>
+          <TouchableOpacity
+            onPress={() => router.push("/(tabs)/create")}
+            hitSlop={8}
+          >
+            <Ionicons name="add" size={28} color={theme.colors.accent} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={toggleView} hitSlop={8}>
             <Ionicons
               name={viewMode === "calendar" ? "list-outline" : "calendar-outline"}

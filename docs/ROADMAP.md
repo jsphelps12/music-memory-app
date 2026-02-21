@@ -51,9 +51,10 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 - [x] Show time-of-day label on moment detail
 - [x] Location suggestion banner on create screen ("Currently in Nashville — use as location?")
 
-### 6. "On This Day" & random resurfacing
-- [ ] "On This Day" tab or banner — surface moments from the same calendar date in past years
-- [ ] Random "rediscovery" button or card — tap to see a surprise moment from your history
+### 6. "On This Day" & random resurfacing — IN PROGRESS
+- [x] "On This Day" section — surface moments from the same calendar date in past years, grouped by year with "X years ago" labels (Reflections tab)
+- [x] Random "rediscovery" — tap shuffle to see a surprise moment from your history (Reflections tab)
+- [x] Reflections tab replaces Create in tab bar; Create moved to + button in Moments header
 - [ ] Push notifications for On This Day moments (opt-in, 2-3x/week max)
 - [ ] Milestone notifications (10, 50, 100, 250, 500, 1000 moments)
 

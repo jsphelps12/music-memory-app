@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
@@ -314,7 +315,9 @@ export default function CreateMomentScreen() {
         photo_urls: photoPaths,
         photo_thumbnails: thumbnailPaths,
         location: location.trim() || null,
-        moment_date: momentDate ? momentDate.toISOString().split("T")[0] : null,
+        moment_date: momentDate
+          ? `${momentDate.getFullYear()}-${String(momentDate.getMonth() + 1).padStart(2, "0")}-${String(momentDate.getDate()).padStart(2, "0")}`
+          : null,
         time_of_day: getTimeOfDay(),
       });
 
@@ -355,7 +358,12 @@ export default function CreateMomentScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Capture a Moment</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Capture a Moment</Text>
+          <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+            <Ionicons name="close" size={26} color={theme.colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
 
         {/* Now Playing suggestion banner */}
         {!hasSong && nowPlayingSong && (
@@ -683,11 +691,16 @@ function createStyles(theme: Theme) {
       paddingTop: 80,
       paddingBottom: theme.spacing["4xl"],
     },
+    titleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: theme.spacing["2xl"],
+    },
     title: {
       fontSize: theme.fontSize["2xl"],
       fontWeight: theme.fontWeight.bold,
       color: theme.colors.text,
-      marginBottom: theme.spacing["2xl"],
     },
     // Now Playing banner
     nowPlayingBanner: {
