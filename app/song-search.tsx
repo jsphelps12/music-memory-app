@@ -13,7 +13,7 @@ import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { requestMusicAuthorization, searchSongs } from "@/lib/musickit";
-import { setPendingSong } from "@/lib/songSelection";
+import { emitSongSelected } from "@/lib/songEvents";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import type { Song } from "@/types";
@@ -22,11 +22,7 @@ export default function SongSearchScreen() {
   const router = useRouter();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const { photos, returnTo, momentId } = useLocalSearchParams<{
-    photos?: string;
-    returnTo?: string;
-    momentId?: string;
-  }>();
+  const { photos } = useLocalSearchParams<{ photos?: string }>();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Song[]>([]);
   const [loading, setLoading] = useState(false);
@@ -71,25 +67,8 @@ export default function SongSearchScreen() {
 
   function handleSelect(song: Song) {
     Haptics.selectionAsync();
-    const songParams = {
-      songId: song.id,
-      songTitle: song.title,
-      songArtist: song.artistName,
-      songAlbum: song.albumName,
-      songArtwork: song.artworkUrl,
-      songAppleMusicId: song.appleMusicId,
-      songDurationMs: String(song.durationMs),
-    };
-
-    if (returnTo === "edit" && momentId) {
-      router.navigate({
-        pathname: "/moment/edit/[id]",
-        params: { id: momentId, ...songParams },
-      });
-    } else {
-      setPendingSong(song);
-      router.back();
-    }
+    emitSongSelected(song);
+    router.back();
   }
 
   if (!authorized) {

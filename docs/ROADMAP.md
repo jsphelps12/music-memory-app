@@ -180,6 +180,7 @@ Premium tier: $7/month or $60/year.
 - [ ] Shareable moment cards (beautiful exportable graphics, multiple templates)
 - [ ] Map view (moments by location, clusters, tap to explore)
 - [ ] Advanced visualizations (calendar heatmap, genre distribution, artist network)
+- [ ] Weekly Recap — in-app summary of the week's moments: top songs, moods, people, and a highlight card; shown in Reflections tab or as a push notification on Sunday evening
 - [ ] Yearly Recap ("Your 2024 in Moments" — Spotify Wrapped-style, shareable)
 - [ ] Playlist export to Spotify/Apple Music
 - [ ] Memory book creation (print-on-demand, QR codes linking to songs)

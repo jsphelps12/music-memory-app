@@ -30,6 +30,7 @@ import { Song } from "@/types";
 import { SkeletonMomentDetail } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { friendlyError } from "@/lib/errors";
+import { onSongSelected } from "@/lib/songEvents";
 
 export default function EditMomentScreen() {
   const router = useRouter();
@@ -62,6 +63,9 @@ export default function EditMomentScreen() {
   const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
   const [focusedField, setFocusedField] = useState("");
+
+  // Listen for song selected in song-search
+  useEffect(() => onSongSelected((s) => setSong(s)), []);
 
   const fetchMoment = useCallback(async () => {
     setLoadingMoment(true);

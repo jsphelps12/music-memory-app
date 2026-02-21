@@ -67,14 +67,14 @@ export function useShareIntentHandler() {
           }
 
           router.replace({
-            pathname: "/(tabs)/create",
+            pathname: "/create",
             params,
           });
         } else {
           // Lookup failed — navigate to create with search pre-filled
           // Use the URL as a hint that something was shared but couldn't resolve
           router.replace({
-            pathname: "/(tabs)/create",
+            pathname: "/create",
             params: { shareFailedUrl: url },
           });
         }

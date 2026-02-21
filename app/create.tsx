@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import * as Location from "expo-location";
 import {
   View,
@@ -18,7 +18,6 @@ import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,7 +25,7 @@ import { supabase } from "@/lib/supabase";
 import { fetchPreviewUrl } from "@/lib/musickit";
 import { uploadMomentPhotoWithThumbnail } from "@/lib/storage";
 import { getNowPlaying, onNowPlayingChange } from "@/lib/now-playing";
-import { consumePendingSong } from "@/lib/songSelection";
+import { onSongSelected } from "@/lib/songEvents";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
 import { useTheme } from "@/hooks/useTheme";
@@ -117,13 +116,8 @@ export default function CreateMomentScreen() {
     }
   }, [params.songId]);
 
-  // Pick up song selected from song-search (via module store + router.back)
-  useFocusEffect(
-    useCallback(() => {
-      const pending = consumePendingSong();
-      if (pending) setSong(pending);
-    }, [])
-  );
+  // Listen for song selected in song-search
+  useEffect(() => onSongSelected((s) => setSong(s)), []);
 
   // Handle Spotify cross-search candidates from share intent
   useEffect(() => {

@@ -430,7 +430,7 @@ export default function TimelineScreen() {
         <Text style={styles.title}>Your Moments</Text>
         <View style={styles.headerRight}>
           <TouchableOpacity
-            onPress={() => router.push("/(tabs)/create")}
+            onPress={() => router.push("/create")}
             hitSlop={8}
           >
             <Ionicons name="add" size={28} color={theme.colors.accent} />
@@ -490,7 +490,7 @@ export default function TimelineScreen() {
               </Text>
               <TouchableOpacity
                 style={styles.ctaButton}
-                onPress={() => router.push("/(tabs)/create")}
+                onPress={() => router.push("/create")}
                 activeOpacity={0.7}
               >
                 <Text style={styles.ctaButtonText}>Create Your First Moment</Text>
