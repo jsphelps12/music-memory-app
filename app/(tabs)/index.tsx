@@ -16,7 +16,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
@@ -75,6 +75,19 @@ export default function TimelineScreen() {
   const calendarOpacity = useSharedValue(0);
   const listAnimStyle = useAnimatedStyle(() => ({ opacity: listOpacity.value }));
   const calendarAnimStyle = useAnimatedStyle(() => ({ opacity: calendarOpacity.value }));
+
+  const navigation = useNavigation();
+
+  // Tapping the Moments tab while already on it switches back to list view
+  useEffect(() => {
+    return navigation.addListener("tabPress" as any, () => {
+      if (viewMode === "calendar") {
+        calendarOpacity.value = withTiming(0, { duration: 200 });
+        listOpacity.value = withTiming(1, { duration: 200 });
+        setViewMode("list");
+      }
+    });
+  }, [navigation, viewMode]);
 
   const toggleView = useCallback(() => {
     if (viewMode === "list") {
