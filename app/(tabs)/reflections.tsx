@@ -24,6 +24,30 @@ const REFETCH_COOLDOWN_MS = 2000;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
+function topValue(items: (string | null | undefined)[]): string | null {
+  const freq = new Map<string, number>();
+  for (const item of items) {
+    if (!item) continue;
+    freq.set(item, (freq.get(item) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [val, count] of freq) {
+    if (count > bestCount) {
+      bestCount = count;
+      best = val;
+    }
+  }
+  return best;
+}
+
+interface ThisMonthData {
+  count: number;
+  lastMonthCount: number;
+  topArtist: string | null;
+  topMood: string | null;
+}
+
 export default function ReflectionsScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
@@ -32,6 +56,7 @@ export default function ReflectionsScreen() {
 
   const [onThisDay, setOnThisDay] = useState<Moment[]>([]);
   const [randomMoment, setRandomMoment] = useState<Moment | null>(null);
+  const [thisMonth, setThisMonth] = useState<ThisMonthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [shuffling, setShuffling] = useState(false);
   const [error, setError] = useState("");
@@ -53,6 +78,22 @@ export default function ReflectionsScreen() {
     month: "long",
     day: "numeric",
   });
+
+  // This month date range helpers
+  const thisMonthLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const firstOfMonth = `${thisYear}-${month}-01`;
+  const lastOfMonth = (() => {
+    const d = new Date(thisYear, now.getMonth() + 1, 0);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  })();
+  const firstOfLastMonth = (() => {
+    const d = new Date(thisYear, now.getMonth() - 1, 1);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`;
+  })();
+  const lastOfLastMonth = (() => {
+    const d = new Date(thisYear, now.getMonth(), 0);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  })();
 
   const fetchOnThisDay = useCallback(async (): Promise<Moment[]> => {
     if (!user) return [];
@@ -88,21 +129,58 @@ export default function ReflectionsScreen() {
     return data?.[0] ? mapRowToMoment(data[0]) : null;
   }, [user]);
 
+  const fetchThisMonth = useCallback(async (): Promise<ThisMonthData> => {
+    if (!user) return { count: 0, lastMonthCount: 0, topArtist: null, topMood: null };
+    const [
+      { count: thisCount },
+      { count: lastCount },
+      { data: topRows },
+    ] = await Promise.all([
+      supabase
+        .from("moments")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .gte("moment_date", firstOfMonth)
+        .lte("moment_date", lastOfMonth),
+      supabase
+        .from("moments")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .gte("moment_date", firstOfLastMonth)
+        .lte("moment_date", lastOfLastMonth),
+      supabase
+        .from("moments")
+        .select("song_artist, mood")
+        .eq("user_id", user.id)
+        .gte("moment_date", firstOfMonth)
+        .lte("moment_date", lastOfMonth),
+    ]);
+    const rows = topRows ?? [];
+    return {
+      count: thisCount ?? 0,
+      lastMonthCount: lastCount ?? 0,
+      topArtist: topValue(rows.map((r: any) => r.song_artist)),
+      topMood: topValue(rows.map((r: any) => r.mood)),
+    };
+  }, [user, firstOfMonth, lastOfMonth, firstOfLastMonth, lastOfLastMonth]);
+
   const loadAll = useCallback(
     async (preserveRandom: boolean) => {
       if (!user) return;
       setLoading(true);
       setError("");
       try {
-        const [otd, rand] = await Promise.all([
+        const [otd, rand, tm] = await Promise.all([
           fetchOnThisDay(),
           preserveRandom && randomMomentRef.current
             ? Promise.resolve(randomMomentRef.current)
             : fetchRandom(),
+          fetchThisMonth(),
         ]);
         setOnThisDay(otd);
         setRandomMoment(rand);
         randomMomentRef.current = rand;
+        setThisMonth(tm);
       } catch (e: any) {
         setError(friendlyError(e));
       } finally {
@@ -110,7 +188,7 @@ export default function ReflectionsScreen() {
         lastFetchTime.current = Date.now();
       }
     },
-    [user, fetchOnThisDay, fetchRandom]
+    [user, fetchOnThisDay, fetchRandom, fetchThisMonth]
   );
 
   useFocusEffect(
@@ -148,6 +226,15 @@ export default function ReflectionsScreen() {
       .map((year) => ({ year, moments: map.get(year)! }));
   }, [onThisDay]);
 
+  // This month comparison label
+  const comparisonLabel = useMemo(() => {
+    if (!thisMonth) return null;
+    const diff = thisMonth.count - thisMonth.lastMonthCount;
+    if (diff === 0) return "Same as last month";
+    const sign = diff > 0 ? "↑" : "↓";
+    return `${sign} ${Math.abs(diff)} vs last month`;
+  }, [thisMonth]);
+
   if (loading) {
     return (
       <View style={[styles.container, styles.centered]}>
@@ -182,8 +269,58 @@ export default function ReflectionsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* On This Day */}
+        {/* This Month */}
         <View style={styles.sectionRow}>
+          <Text style={styles.sectionTitle}>This Month</Text>
+          <Text style={styles.sectionSubtitle}>{thisMonthLabel}</Text>
+        </View>
+
+        {thisMonth && thisMonth.count > 0 ? (
+          <View style={styles.thisMonthCard}>
+            <View style={styles.thisMonthStat}>
+              <Text style={styles.thisMonthBig}>{thisMonth.count}</Text>
+              <Text style={styles.thisMonthStatLabel}>
+                {thisMonth.count === 1 ? "moment" : "moments"}
+              </Text>
+            </View>
+            {comparisonLabel ? (
+              <View style={styles.thisMonthChip}>
+                <Text
+                  style={[
+                    styles.thisMonthChipText,
+                    thisMonth.count > thisMonth.lastMonthCount && styles.thisMonthChipUp,
+                    thisMonth.count < thisMonth.lastMonthCount && styles.thisMonthChipDown,
+                  ]}
+                >
+                  {comparisonLabel}
+                </Text>
+              </View>
+            ) : null}
+            {thisMonth.topArtist ? (
+              <View style={styles.thisMonthMeta}>
+                <Text style={styles.thisMonthMetaLabel}>🎵 </Text>
+                <Text style={styles.thisMonthMetaValue} numberOfLines={1}>
+                  {thisMonth.topArtist}
+                </Text>
+              </View>
+            ) : null}
+            {thisMonth.topMood ? (
+              <View style={styles.thisMonthMeta}>
+                <Text style={styles.thisMonthMetaLabel}>Top mood: </Text>
+                <Text style={styles.thisMonthMetaValue} numberOfLines={1}>
+                  {thisMonth.topMood}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : (
+          <View style={styles.emptySection}>
+            <Text style={styles.emptyText}>No moments logged this month yet.</Text>
+          </View>
+        )}
+
+        {/* On This Day */}
+        <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
           <Text style={styles.sectionTitle}>On This Day</Text>
           <Text style={styles.sectionSubtitle}>{todayLabel}</Text>
         </View>
@@ -291,6 +428,54 @@ function createStyles(theme: Theme) {
     sectionSubtitle: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
+    },
+    thisMonthCard: {
+      backgroundColor: theme.colors.cardBg,
+      borderRadius: theme.radii.md,
+      padding: theme.spacing.lg,
+      gap: theme.spacing.sm,
+    },
+    thisMonthStat: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      gap: 6,
+    },
+    thisMonthBig: {
+      fontSize: theme.fontSize["3xl"],
+      fontWeight: theme.fontWeight.bold,
+      color: theme.colors.text,
+    },
+    thisMonthStatLabel: {
+      fontSize: theme.fontSize.base,
+      color: theme.colors.textSecondary,
+    },
+    thisMonthChip: {
+      alignSelf: "flex-start",
+    },
+    thisMonthChipText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+      fontWeight: theme.fontWeight.medium,
+    },
+    thisMonthChipUp: {
+      color: theme.colors.success,
+    },
+    thisMonthChipDown: {
+      color: theme.colors.destructive,
+    },
+    thisMonthMeta: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    thisMonthMetaLabel: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+    },
+    thisMonthMetaValue: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.text,
+      fontWeight: theme.fontWeight.medium,
+      flex: 1,
     },
     yearGroup: {
       marginBottom: theme.spacing.xl,

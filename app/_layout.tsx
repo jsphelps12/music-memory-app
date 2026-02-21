@@ -131,6 +131,10 @@ function RootLayoutNav() {
             name="artist"
             options={{ headerShown: false, presentation: "fullScreenModal", gestureEnabled: false }}
           />
+          <Stack.Screen
+            name="profile-edit"
+            options={{ headerShown: false, presentation: "modal" }}
+          />
         </Stack>
       </AuthGate>
     </ThemeProvider>
