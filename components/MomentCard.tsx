@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions } from "react-native";
 import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -12,10 +13,11 @@ import Animated, {
 } from "react-native-reanimated";
 import { setCardOrigin } from "@/lib/cardTransition";
 import { setCachedMoment } from "@/lib/momentCache";
+import { usePlayer } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { Theme } from "@/constants/theme";
-import { Moment } from "@/types";
+import { Moment, Song } from "@/types";
 
 interface Props {
   item: Moment;
@@ -29,6 +31,28 @@ export function MomentCard({ item, onPress, allMoods, showArtist = true }: Props
   const styles = useMemo(() => createStyles(theme), [theme]);
   const scale = useSharedValue(1);
   const animatedRef = useAnimatedRef<Animated.View>();
+  const player = usePlayer();
+
+  const isThisPlaying =
+    player.currentSong?.appleMusicId === item.songAppleMusicId && player.isPlaying;
+
+  const handlePlayPress = useCallback(() => {
+    if (!item.songPreviewUrl) return;
+    if (isThisPlaying) {
+      player.pause();
+    } else {
+      const song: Song = {
+        id: item.songAppleMusicId,
+        title: item.songTitle,
+        artistName: item.songArtist,
+        albumName: item.songAlbumName,
+        artworkUrl: item.songArtworkUrl ?? "",
+        appleMusicId: item.songAppleMusicId,
+        durationMs: 0,
+      };
+      player.play(song, item.songPreviewUrl);
+    }
+  }, [item, isThisPlaying, player]);
 
   const handlePress = useCallback(() => {
     setCachedMoment(item);
@@ -131,6 +155,19 @@ export function MomentCard({ item, onPress, allMoods, showArtist = true }: Props
           </ScrollView>
         )}
       </TouchableOpacity>
+      {item.songPreviewUrl ? (
+        <TouchableOpacity
+          style={styles.playButton}
+          onPress={handlePlayPress}
+          hitSlop={8}
+        >
+          <Ionicons
+            name={isThisPlaying ? "pause" : "play"}
+            size={13}
+            color="#fff"
+          />
+        </TouchableOpacity>
+      ) : null}
     </Animated.View>
   );
 }
@@ -160,6 +197,18 @@ function createStyles(theme: Theme) {
     },
     artworkPlaceholder: {
       backgroundColor: theme.colors.artworkPlaceholder,
+    },
+    playButton: {
+      position: "absolute",
+      // artwork is at (cardBody padding, cardBody padding); button sits at its bottom-right
+      top: theme.spacing.md + 56 - 22 - 3,
+      left: theme.spacing.md + 56 - 22 - 3,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: "rgba(0,0,0,0.6)",
+      alignItems: "center",
+      justifyContent: "center",
     },
     cardContent: {
       flex: 1,

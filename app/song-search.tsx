@@ -13,6 +13,7 @@ import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { requestMusicAuthorization, searchSongs } from "@/lib/musickit";
+import { setPendingSong } from "@/lib/songSelection";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import type { Song } from "@/types";
@@ -86,10 +87,8 @@ export default function SongSearchScreen() {
         params: { id: momentId, ...songParams },
       });
     } else {
-      router.replace({
-        pathname: "/(tabs)/create",
-        params: { ...songParams, ...(photos ? { photos } : {}) },
-      });
+      setPendingSong(song);
+      router.back();
     }
   }
 
