@@ -159,6 +159,9 @@ Make logging effortless — goal is < 15 seconds to save a moment.
 - [x] Quick capture flow — see Up Next #4
 - [ ] iOS home screen widget — show now playing with one-tap "save moment", or recent moment / "On This Day"
 - [x] Auto-detect location / auto-tag time of day — see Up Next #5
+- [ ] Weather auto-tagging — silently attach weather conditions at moment creation; enables "rainy day songs" filter [Free]
+- [ ] Lyric anchoring — highlight a specific lyric as the emotional anchor for a moment [Free]
+- [ ] Apple Watch app — one tap on wrist logs current Apple Music song instantly [Free]
 
 ---
 
@@ -200,6 +203,7 @@ Conversion trigger: at 25–30 moments, show a locked Era card — not "upgrade 
 - [ ] Mood trajectory graph (mood over time, tap to jump to moment)
 - [ ] Music taste evolution (energy, genre, tempo trends)
 - [ ] Pattern recognition ("You log 3x more on weekends", "Bon Iver = processing emotions")
+- [ ] Mood gap analysis — see Phase 6
 - [ ] Relationship soundtracks (filter by person, stats, exportable playlist)
 - [ ] AI narrative summaries — "soft in tone, sharp in insight" interpretation of your data
 
@@ -210,6 +214,11 @@ Conversion trigger: at 25–30 moments, show a locked Era card — not "upgrade 
 - [ ] Mood-aware suggestions — detect current mood and suggest songs/moments to match or improve it
 - [ ] "Songs Like Your Moments" recommendations (audio feature analysis)
 - [ ] Smart resurfacing (mood-matched, pattern-based, relationship-based)
+- [ ] Forgotten songs — surface songs logged exactly once, never again ("You logged this once in March 2023 and never came back") [Free]
+- [ ] Song anniversaries — "One year ago today, you first logged this song" [Free]
+- [ ] Mood gap analysis — surface what's *absent*: "You almost never log joy. The last time was 8 months ago." [Premium]
+- [ ] Through-line songs — songs that appear across multiple distinct eras [Premium]
+- [ ] Personal charts — most-logged songs/artists ranked by year, shareable [Premium]
 - [ ] Rediscovery ("You loved this artist in 2023, then stopped")
 - [ ] Currently Playing prompt notification (gentle, once/day max)
 - [ ] Weekly digest email ("Your week in music")

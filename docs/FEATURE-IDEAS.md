@@ -2,11 +2,45 @@
 
 Non-AI feature ideas organized by conviction level. See `AI-FEATURES.md` for AI/ML-specific features.
 
+Features are marked **[Free]** or **[Premium]** based on the monetization philosophy in VISION.md: paywall meaning, not logging.
+
 ---
 
 ## High Conviction
 
 Features that would meaningfully increase retention, engagement, or organic growth.
+
+### Forgotten Songs **[Free]**
+
+- Surface songs logged exactly once and never again: "You logged this once in March 2023 and never came back to it."
+- Different emotional register from random resurfacing — there's something haunting about a song you apparently let go of
+- Reinforces logging habit: seeing a forgotten song makes users want to write a new moment about it
+- Could appear as a card in Reflections tab or as an occasional push notification
+- Simple to implement: query moments grouped by song, find songs with exactly one moment, surface randomly
+
+### Mood Gap Analysis **[Premium]**
+
+- Surface what's *absent* from the data, not just what's present
+- "You almost never log feeling joyful. The last time was 8 months ago."
+- "You log anxiety often, but rarely log relief after it passes."
+- The "seen" feeling from the emotional arc — the app noticed something true that the user didn't consciously realize
+- Fits the brand voice exactly: soft in tone, sharp in insight
+- Works best after 30+ moments; show as an occasional insight card, never a push notification
+
+### Lyric Anchoring **[Free]**
+
+- When logging a moment, highlight a specific lyric as the emotional anchor — not just the song, but *this line*
+- Years later, seeing the exact words that hit you is a different experience than just the song title
+- Could integrate with the lyrics API already noted in the Lyrics Integration feature
+- Stored as a `lyric_anchor` field on the moment; displayed prominently on moment detail
+- Low friction: optional, surfaced after the song is selected
+
+### Song Anniversaries **[Free]**
+
+- "One year ago today, you first logged this song." Then show what you wrote.
+- No AI required — pure date math, but feels deeply personal
+- Same category as On This Day; slot into the Reflections tab or as a notification
+- Most powerful for songs logged in emotionally significant moments ("one year ago today: [the day everything changed]")
 
 ### Era Clustering — THE differentiator
 
@@ -68,6 +102,37 @@ Features that would meaningfully increase retention, engagement, or organic grow
 ## Medium Conviction
 
 Worth exploring after the high-conviction features are in.
+
+### Personal Charts **[Premium]**
+
+- Most-logged songs and artists ranked by year — like Billboard but for your actual life
+- "Your #1 song of 2024: X — logged 7 times. Your #1 artist: Y with 23 moments."
+- Always-on view (not just a yearly event like Wrapped); shows per-year and all-time
+- Highly shareable — distinct from Yearly Recap because it's a live ranking, not a one-time summary
+- Tells a different story than mood data: pure taste, pure frequency, no interpretation needed
+
+### Through-Line Songs **[Premium]**
+
+- Songs that appear across multiple distinct eras of a user's life — the through-lines in their story
+- Not their most-logged song; specifically songs that *span chapters* ("this song shows up in 4 different periods of your life")
+- Emotionally powerful: some songs are who you always were, not just who you were then
+- Requires enough data + era clustering to be meaningful; surfaces in Era detail view or its own section
+- The opposite of Forgotten Songs — these are the ones that stayed
+
+### Weather Auto-Tagging **[Free]**
+
+- Silently pull weather conditions at moment creation (temperature, conditions) via a weather API
+- No permission required — uses device location already granted
+- Unlocks a filter nobody else has: "your rainy day songs," "what you listened to during that cold stretch"
+- Weirdly evocative; weather is deeply tied to emotional memory
+
+### Apple Watch App **[Free]**
+
+- One tap on the wrist → current Apple Music song logged instantly, no phone needed
+- The 30-second window before you forget a feeling is real; Watch removes all friction
+- Minimal UI: song detected, one "Save Moment" button, optional mood tap
+- Full reflection added later from the phone (moment saved as draft)
+- Lowest possible friction in the entire product
 
 ### Replay the Era
 
