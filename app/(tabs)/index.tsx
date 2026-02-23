@@ -32,12 +32,28 @@ import { friendlyError } from "@/lib/errors";
 import { MomentCard } from "@/components/MomentCard";
 import { CalendarView } from "@/components/CalendarView";
 import { Moment } from "@/types";
+import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 
 const REFETCH_COOLDOWN_MS = 2000;
 const DEBOUNCE_MS = 300;
 
 function escapeLike(str: string): string {
   return str.replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
+function dateToStr(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function formatDateLabel(dateStr: string): string {
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 export default function TimelineScreen() {
@@ -59,7 +75,12 @@ export default function TimelineScreen() {
   const [selectedPeople, setSelectedPeople] = useState<string[]>([]);
   const [allPeople, setAllPeople] = useState<string[]>([]);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [dateFrom, setDateFrom] = useState<string | null>(null);
+  const [dateTo, setDateTo] = useState<string | null>(null);
+  const [locationSearch, setLocationSearch] = useState("");
+  const [debouncedLocation, setDebouncedLocation] = useState("");
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const locationDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Refs to keep fetchMoments identity stable (avoids useFocusEffect loop)
   const debouncedSearchRef = useRef(debouncedSearch);
@@ -68,6 +89,12 @@ export default function TimelineScreen() {
   selectedMoodsRef.current = selectedMoods;
   const selectedPeopleRef = useRef(selectedPeople);
   selectedPeopleRef.current = selectedPeople;
+  const dateFromRef = useRef(dateFrom);
+  dateFromRef.current = dateFrom;
+  const dateToRef = useRef(dateTo);
+  dateToRef.current = dateTo;
+  const debouncedLocationRef = useRef(debouncedLocation);
+  debouncedLocationRef.current = debouncedLocation;
 
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [pendingScrollId, setPendingScrollId] = useState<string | null>(null);
@@ -146,9 +173,17 @@ export default function TimelineScreen() {
   const hasActiveFilters =
     debouncedSearch.length > 0 ||
     selectedMoods.length > 0 ||
-    selectedPeople.length > 0;
+    selectedPeople.length > 0 ||
+    dateFrom !== null ||
+    dateTo !== null ||
+    debouncedLocation.length > 0;
 
-  const hasChipFilters = selectedMoods.length > 0 || selectedPeople.length > 0;
+  const hasChipFilters =
+    selectedMoods.length > 0 ||
+    selectedPeople.length > 0 ||
+    dateFrom !== null ||
+    dateTo !== null ||
+    debouncedLocation.length > 0;
 
   // Debounce search text
   useEffect(() => {
@@ -160,6 +195,17 @@ export default function TimelineScreen() {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
     };
   }, [searchText]);
+
+  // Debounce location search
+  useEffect(() => {
+    if (locationDebounceTimer.current) clearTimeout(locationDebounceTimer.current);
+    locationDebounceTimer.current = setTimeout(() => {
+      setDebouncedLocation(locationSearch.trim());
+    }, DEBOUNCE_MS);
+    return () => {
+      if (locationDebounceTimer.current) clearTimeout(locationDebounceTimer.current);
+    };
+  }, [locationSearch]);
 
   // Scroll to a specific moment after switching from calendar to list
   useEffect(() => {
@@ -193,10 +239,16 @@ export default function TimelineScreen() {
       const currentSearch = debouncedSearchRef.current;
       const currentMoods = selectedMoodsRef.current;
       const currentPeople = selectedPeopleRef.current;
+      const currentDateFrom = dateFromRef.current;
+      const currentDateTo = dateToRef.current;
+      const currentLocation = debouncedLocationRef.current;
       const filtersActive =
         currentSearch.length > 0 ||
         currentMoods.length > 0 ||
-        currentPeople.length > 0;
+        currentPeople.length > 0 ||
+        currentDateFrom !== null ||
+        currentDateTo !== null ||
+        currentLocation.length > 0;
 
       let query = supabase
         .from("moments")
@@ -217,6 +269,18 @@ export default function TimelineScreen() {
 
       if (currentPeople.length > 0) {
         query = query.overlaps("people", currentPeople);
+      }
+
+      if (currentDateFrom) {
+        query = query.gte("moment_date", currentDateFrom);
+      }
+
+      if (currentDateTo) {
+        query = query.lte("moment_date", currentDateTo);
+      }
+
+      if (currentLocation.length > 0) {
+        query = query.ilike("location", `%${escapeLike(currentLocation)}%`);
       }
 
       const { data, error: fetchError } = await query;
@@ -254,7 +318,7 @@ export default function TimelineScreen() {
     if (lastFetchTime.current > 0) {
       fetchMoments(false);
     }
-  }, [debouncedSearch, selectedMoods, selectedPeople, fetchMoments]);
+  }, [debouncedSearch, selectedMoods, selectedPeople, dateFrom, dateTo, debouncedLocation, fetchMoments]);
 
   useFocusEffect(
     useCallback(() => {
@@ -263,6 +327,10 @@ export default function TimelineScreen() {
       setDebouncedSearch((prev) => (prev === "" ? prev : ""));
       setSelectedMoods((prev) => (prev.length === 0 ? prev : []));
       setSelectedPeople((prev) => (prev.length === 0 ? prev : []));
+      setDateFrom((prev) => (prev === null ? prev : null));
+      setDateTo((prev) => (prev === null ? prev : null));
+      setLocationSearch((prev) => (prev === "" ? prev : ""));
+      setDebouncedLocation((prev) => (prev === "" ? prev : ""));
       setFiltersExpanded(false);
 
       const elapsed = Date.now() - lastFetchTime.current;
@@ -310,6 +378,10 @@ export default function TimelineScreen() {
     setDebouncedSearch("");
     setSelectedMoods([]);
     setSelectedPeople([]);
+    setDateFrom(null);
+    setDateTo(null);
+    setLocationSearch("");
+    setDebouncedLocation("");
   }, []);
 
   const toggleMood = useCallback((mood: MoodOption) => {
@@ -442,6 +514,75 @@ export default function TimelineScreen() {
                 </ScrollView>
               </>
             ) : null}
+
+            <Text style={styles.filterLabel}>Date Range</Text>
+            <View style={styles.dateRangeRow}>
+              <View style={styles.dateRangeItem}>
+                <Text style={styles.dateRangeItemLabel}>From</Text>
+                {dateFrom ? (
+                  <View style={styles.datePickerRow}>
+                    <DateTimePicker
+                      value={new Date(dateFrom + "T00:00:00")}
+                      mode="date"
+                      display="compact"
+                      maximumDate={dateTo ? new Date(dateTo + "T00:00:00") : new Date()}
+                      onChange={(_: DateTimePickerEvent, date?: Date) => date && setDateFrom(dateToStr(date))}
+                      themeVariant={theme.isDark ? "dark" : "light"}
+                      accentColor={theme.colors.accent}
+                    />
+                    <TouchableOpacity onPress={() => setDateFrom(null)} hitSlop={8}>
+                      <Ionicons name="close-circle" size={16} color={theme.colors.placeholder} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity onPress={() => setDateFrom(dateToStr(new Date()))} activeOpacity={0.7}>
+                    <Text style={styles.dateAnyText}>Any</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <View style={styles.dateRangeItem}>
+                <Text style={styles.dateRangeItemLabel}>To</Text>
+                {dateTo ? (
+                  <View style={styles.datePickerRow}>
+                    <DateTimePicker
+                      value={new Date(dateTo + "T00:00:00")}
+                      mode="date"
+                      display="compact"
+                      minimumDate={dateFrom ? new Date(dateFrom + "T00:00:00") : undefined}
+                      maximumDate={new Date()}
+                      onChange={(_: DateTimePickerEvent, date?: Date) => date && setDateTo(dateToStr(date))}
+                      themeVariant={theme.isDark ? "dark" : "light"}
+                      accentColor={theme.colors.accent}
+                    />
+                    <TouchableOpacity onPress={() => setDateTo(null)} hitSlop={8}>
+                      <Ionicons name="close-circle" size={16} color={theme.colors.placeholder} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity onPress={() => setDateTo(dateToStr(new Date()))} activeOpacity={0.7}>
+                    <Text style={styles.dateAnyText}>Any</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            <Text style={styles.filterLabel}>Location</Text>
+            <View style={styles.locationFilterInput}>
+              <TextInput
+                style={styles.locationFilterText}
+                placeholder="Search by location..."
+                placeholderTextColor={theme.colors.placeholder}
+                cursorColor={theme.colors.accent}
+                value={locationSearch}
+                onChangeText={setLocationSearch}
+                returnKeyType="search"
+              />
+              {locationSearch.length > 0 ? (
+                <TouchableOpacity onPress={() => setLocationSearch("")} hitSlop={8}>
+                  <Ionicons name="close-circle" size={18} color={theme.colors.placeholder} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
         ) : null}
 
@@ -469,6 +610,24 @@ export default function TimelineScreen() {
                 <Text style={styles.activeChipText}>{person} ✕</Text>
               </TouchableOpacity>
             ))}
+            {(dateFrom || dateTo) ? (
+              <TouchableOpacity
+                style={styles.activeChip}
+                onPress={() => { setDateFrom(null); setDateTo(null); }}
+              >
+                <Text style={styles.activeChipText}>
+                  {dateFrom ? formatDateLabel(dateFrom) : "Any"} – {dateTo ? formatDateLabel(dateTo) : "Any"} ✕
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+            {debouncedLocation.length > 0 ? (
+              <TouchableOpacity
+                style={styles.activeChip}
+                onPress={() => { setLocationSearch(""); setDebouncedLocation(""); }}
+              >
+                <Text style={styles.activeChipText}>{debouncedLocation} ✕</Text>
+              </TouchableOpacity>
+            ) : null}
           </ScrollView>
         ) : null}
       </View>
@@ -665,6 +824,46 @@ function createStyles(theme: Theme) {
     },
     filterChipTextSelected: {
       color: theme.colors.chipSelectedText,
+    },
+    dateRangeRow: {
+      flexDirection: "row",
+      gap: theme.spacing.xl,
+      marginBottom: theme.spacing.md,
+    },
+    dateRangeItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+    },
+    dateRangeItemLabel: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+      fontWeight: theme.fontWeight.medium,
+    },
+    datePickerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+    },
+    dateAnyText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.accent,
+      fontWeight: theme.fontWeight.medium,
+    },
+    locationFilterInput: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.colors.backgroundInput,
+      borderRadius: theme.radii.sm,
+      paddingHorizontal: theme.spacing.md,
+      marginBottom: theme.spacing.md,
+      height: 36,
+    },
+    locationFilterText: {
+      flex: 1,
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.text,
+      padding: 0,
     },
     emptyFilter: {
       alignItems: "center",
