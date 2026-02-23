@@ -159,6 +159,14 @@ function RootLayoutNav() {
             options={{ headerShown: false, presentation: "fullScreenModal", gestureEnabled: false }}
           />
           <Stack.Screen
+            name="song"
+            options={{ headerShown: false, presentation: "fullScreenModal", gestureEnabled: false }}
+          />
+          <Stack.Screen
+            name="album"
+            options={{ headerShown: false, presentation: "fullScreenModal", gestureEnabled: false }}
+          />
+          <Stack.Screen
             name="profile-edit"
             options={{ headerShown: false, presentation: "modal" }}
           />

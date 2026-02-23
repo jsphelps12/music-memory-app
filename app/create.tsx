@@ -298,7 +298,7 @@ export default function CreateMomentScreen() {
       return;
     }
     try {
-      const previewUrl = await fetchPreviewUrl(song!.appleMusicId);
+      const { previewUrl, albumName: fetchedAlbumName } = await fetchPreviewUrl(song!.appleMusicId);
 
       const results = await Promise.all(
         photos.map((uri) => uploadMomentPhotoWithThumbnail(user.id, uri))
@@ -310,7 +310,7 @@ export default function CreateMomentScreen() {
         user_id: user.id,
         song_title: song!.title,
         song_artist: song!.artistName,
-        song_album_name: song!.albumName || null,
+        song_album_name: song!.albumName || fetchedAlbumName || null,
         song_artwork_url: song!.artworkUrl || null,
         song_apple_music_id: song!.appleMusicId,
         song_preview_url: previewUrl,

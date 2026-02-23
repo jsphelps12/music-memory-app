@@ -262,18 +262,31 @@ export default function MomentDetailScreen() {
         >
           {/* Song row: artwork + title/artist + play */}
           <View style={styles.songRow}>
-            {moment.songArtworkUrl ? (
-              <Image
-                source={{ uri: moment.songArtworkUrl }}
-                style={styles.artwork}
-              />
-            ) : (
-              <View style={[styles.artwork, styles.artworkPlaceholder]} />
-            )}
+            <TouchableOpacity
+              activeOpacity={moment.songAlbumName ? 0.7 : 1}
+              onPress={() => {
+                if (!moment.songAlbumName) return;
+                router.push({ pathname: "/album", params: { album: moment.songAlbumName, artist: moment.songArtist } });
+              }}
+            >
+              {moment.songArtworkUrl ? (
+                <Image
+                  source={{ uri: moment.songArtworkUrl }}
+                  style={styles.artwork}
+                />
+              ) : (
+                <View style={[styles.artwork, styles.artworkPlaceholder]} />
+              )}
+            </TouchableOpacity>
             <View style={styles.songInfo}>
-              <Text style={styles.songTitle} numberOfLines={2}>
-                {moment.songTitle}
-              </Text>
+              <TouchableOpacity
+                activeOpacity={0.6}
+                onPress={() => router.push({ pathname: "/song", params: { title: moment.songTitle, artist: moment.songArtist } })}
+              >
+                <Text style={[styles.songTitle, styles.songTitleLink]} numberOfLines={2}>
+                  {moment.songTitle}
+                </Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 activeOpacity={0.6}
                 onPress={() =>
@@ -285,9 +298,14 @@ export default function MomentDetailScreen() {
                 </Text>
               </TouchableOpacity>
               {moment.songAlbumName ? (
-                <Text style={styles.songAlbum} numberOfLines={1}>
-                  {moment.songAlbumName}
-                </Text>
+                <TouchableOpacity
+                  activeOpacity={0.6}
+                  onPress={() => router.push({ pathname: "/album", params: { album: moment.songAlbumName, artist: moment.songArtist } })}
+                >
+                  <Text style={[styles.songAlbum, styles.songAlbumLink]} numberOfLines={1}>
+                    {moment.songAlbumName}
+                  </Text>
+                </TouchableOpacity>
               ) : null}
             </View>
             {moment.songPreviewUrl ? (
@@ -527,6 +545,9 @@ function createStyles(theme: Theme) {
       color: theme.colors.textSecondary,
       marginTop: 1,
     },
+    songTitleLink: {
+      color: theme.colors.accent,
+    },
     songArtistLink: {
       textDecorationLine: "underline",
     },
@@ -534,6 +555,9 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.xs,
       color: theme.colors.textTertiary,
       marginTop: 1,
+    },
+    songAlbumLink: {
+      color: theme.colors.accent,
     },
     playButton: {
       backgroundColor: theme.colors.buttonBg,
