@@ -32,6 +32,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { Song } from "@/types";
 import { friendlyError } from "@/lib/errors";
+import { checkAndNotifyMilestone } from "@/lib/notifications";
 
 function getTimeOfDay(): string {
   const hour = new Date().getHours();
@@ -327,6 +328,7 @@ export default function CreateMomentScreen() {
 
       if (insertError) throw insertError;
 
+      checkAndNotifyMilestone(user.id).catch(() => {});
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setSong(null);
       setReflection("");

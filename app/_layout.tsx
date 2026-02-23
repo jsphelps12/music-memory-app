@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import "react-native-reanimated";
+import * as Notifications from "expo-notifications";
 
 import { ShareIntentProvider } from "expo-share-intent";
 
@@ -16,6 +17,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PlayerProvider } from "@/contexts/PlayerContext";
 import { useDeepLinkHandler } from "@/hooks/useDeepLinkHandler";
 import { useShareIntentHandler } from "@/hooks/useShareIntentHandler";
+import { registerForPushNotifications } from "@/lib/notifications";
 
 const HAS_LAUNCHED_KEY = "has_launched";
 
@@ -26,6 +28,14 @@ export const unstable_settings = {
 };
 
 SplashScreen.preventAutoHideAsync();
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
@@ -95,8 +105,25 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  const router = useRouter();
+  const { user } = useAuth();
   useDeepLinkHandler();
   useShareIntentHandler();
+
+  useEffect(() => {
+    if (!user) return;
+    registerForPushNotifications(user.id).catch(() => {});
+
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as Record<string, any> | undefined;
+      if (data?.momentId) {
+        router.push(`/moment/${data.momentId}`);
+      } else if (data?.type === "create") {
+        router.push("/create");
+      }
+    });
+    return () => sub.remove();
+  }, [user?.id]);
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>

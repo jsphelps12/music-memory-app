@@ -77,6 +77,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         },
       },
     ],
+    [
+      "expo-notifications",
+      {
+        icon: "./assets/images/app-icon.png",
+        color: "#E8825C",
+      },
+    ],
   ],
   updates: {
     url: "https://u.expo.dev/f0add7d9-3321-4ba3-a4c0-c91b97dc462b",
