@@ -73,7 +73,7 @@ export default function ArtistScreen() {
 
   const goBack = useCallback(() => router.back(), [router]);
 
-  const swipeGesture = Gesture.Pan()
+  const swipeDownGesture = Gesture.Pan()
     .activeOffsetY([-20, 20])
     .failOffsetX([-15, 15])
     .onEnd((e) => {
@@ -82,6 +82,18 @@ export default function ArtistScreen() {
         runOnJS(goBack)();
       }
     });
+
+  const swipeHorizGesture = Gesture.Pan()
+    .activeOffsetX([-20, 20])
+    .failOffsetY([-10, 10])
+    .onEnd((e) => {
+      "worklet";
+      if (Math.abs(e.translationX) > 80 || Math.abs(e.velocityX) > 500) {
+        runOnJS(goBack)();
+      }
+    });
+
+  const swipeGesture = Gesture.Race(swipeDownGesture, swipeHorizGesture);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);

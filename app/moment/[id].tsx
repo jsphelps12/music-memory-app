@@ -89,14 +89,12 @@ export default function MomentDetailScreen() {
     .failOffsetY([-10, 10])
     .onUpdate((e) => {
       "worklet";
-      if (e.translationX > 0) {
-        translateX.value = e.translationX;
-        opacity.value = Math.max(0, 1 - e.translationX / 200);
-      }
+      translateX.value = e.translationX;
+      opacity.value = Math.max(0, 1 - Math.abs(e.translationX) / 200);
     })
     .onEnd((e) => {
       "worklet";
-      if (e.translationX > 60 || e.velocityX > 400) {
+      if (Math.abs(e.translationX) > 60 || Math.abs(e.velocityX) > 400) {
         runOnJS(animateOut)(goBack);
       } else {
         translateX.value = withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) });
