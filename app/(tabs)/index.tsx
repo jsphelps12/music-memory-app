@@ -113,10 +113,7 @@ export default function TimelineScreen() {
     selectedMoods.length > 0 ||
     selectedPeople.length > 0;
 
-  const activeFilterCount =
-    (debouncedSearch.length > 0 ? 1 : 0) +
-    selectedMoods.length +
-    selectedPeople.length;
+  const hasChipFilters = selectedMoods.length > 0 || selectedPeople.length > 0;
 
   // Debounce search text
   useEffect(() => {
@@ -294,146 +291,13 @@ export default function TimelineScreen() {
     );
   }, []);
 
-  const listHeader = useMemo(
-    () => (
-      <>
-        {bannerError ? (
-          <ErrorBanner
-            message={bannerError}
-            onRetry={() => fetchMoments(false)}
-            onDismiss={() => setBannerError("")}
-          />
-        ) : null}
-
-        {/* Search bar */}
-        <View style={styles.searchBar}>
-          <Ionicons
-            name="search"
-            size={18}
-            color={theme.colors.placeholder}
-            style={styles.searchIcon}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search songs, reflections..."
-            placeholderTextColor={theme.colors.placeholder}
-            cursorColor={theme.colors.accent}
-            value={searchText}
-            onChangeText={setSearchText}
-            returnKeyType="search"
-          />
-          {searchText.length > 0 ? (
-            <TouchableOpacity
-              onPress={() => setSearchText("")}
-              hitSlop={8}
-            >
-              <Ionicons
-                name="close-circle"
-                size={18}
-                color={theme.colors.placeholder}
-              />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
-        {/* Expanded filter panel */}
-        {filtersExpanded ? (
-          <View style={styles.filterPanel}>
-            <Text style={styles.filterLabel}>Mood</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.chipRow}
-            >
-              {allMoods.map((mood) => {
-                const selected = selectedMoods.includes(mood.value);
-                return (
-                  <TouchableOpacity
-                    key={mood.value}
-                    style={[
-                      styles.filterChip,
-                      selected && styles.filterChipSelected,
-                    ]}
-                    onPress={() => toggleMood(mood.value)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.filterChipText,
-                        selected && styles.filterChipTextSelected,
-                      ]}
-                    >
-                      {mood.emoji} {mood.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
-            {allPeople.length > 0 ? (
-              <>
-                <Text style={styles.filterLabel}>People</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.chipRow}
-                >
-                  {allPeople.map((person) => {
-                    const selected = selectedPeople.includes(person);
-                    return (
-                      <TouchableOpacity
-                        key={person}
-                        style={[
-                          styles.filterChip,
-                          selected && styles.filterChipSelected,
-                        ]}
-                        onPress={() => togglePerson(person)}
-                        activeOpacity={0.7}
-                      >
-                        <Text
-                          style={[
-                            styles.filterChipText,
-                            selected && styles.filterChipTextSelected,
-                          ]}
-                        >
-                          {person}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </>
-            ) : null}
-          </View>
-        ) : null}
-
-        {/* Active filter summary */}
-        {hasActiveFilters ? (
-          <View style={styles.filterSummary}>
-            <Text style={styles.filterSummaryText}>
-              {activeFilterCount} {activeFilterCount === 1 ? "filter" : "filters"} active
-            </Text>
-            <TouchableOpacity onPress={clearFilters} hitSlop={8}>
-              <Text style={styles.clearFiltersText}>Clear</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-      </>
-    ),
-    [
-      bannerError,
-      searchText,
-      filtersExpanded,
-      selectedMoods,
-      selectedPeople,
-      allPeople,
-      allMoods,
-      hasActiveFilters,
-      activeFilterCount,
-      theme,
-      styles,
-    ]
-  );
+  const listHeader = bannerError ? (
+    <ErrorBanner
+      message={bannerError}
+      onRetry={() => fetchMoments(false)}
+      onDismiss={() => setBannerError("")}
+    />
+  ) : null;
 
   const showEmptyFilterState = hasActiveFilters && moments.length === 0 && !loading && !error;
 
@@ -472,6 +336,106 @@ export default function TimelineScreen() {
             </TouchableOpacity>
           ) : null}
         </View>
+      </View>
+
+      {/* Sticky search + filter zone */}
+      <View style={styles.stickyZone}>
+        {/* Search bar — always shown */}
+        <View style={styles.searchBar}>
+          <Ionicons
+            name="search"
+            size={18}
+            color={theme.colors.placeholder}
+            style={styles.searchIcon}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search songs, reflections..."
+            placeholderTextColor={theme.colors.placeholder}
+            cursorColor={theme.colors.accent}
+            value={searchText}
+            onChangeText={setSearchText}
+            returnKeyType="search"
+          />
+          {searchText.length > 0 ? (
+            <TouchableOpacity onPress={() => setSearchText("")} hitSlop={8}>
+              <Ionicons name="close-circle" size={18} color={theme.colors.placeholder} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        {/* Full filter panel — only when filtersExpanded */}
+        {filtersExpanded ? (
+          <View style={styles.filterPanel}>
+            <Text style={styles.filterLabel}>Mood</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+              {allMoods.map((mood) => {
+                const selected = selectedMoods.includes(mood.value);
+                return (
+                  <TouchableOpacity
+                    key={mood.value}
+                    style={[styles.filterChip, selected && styles.filterChipSelected]}
+                    onPress={() => toggleMood(mood.value)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.filterChipText, selected && styles.filterChipTextSelected]}>
+                      {mood.emoji} {mood.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            {allPeople.length > 0 ? (
+              <>
+                <Text style={styles.filterLabel}>People</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+                  {allPeople.map((person) => {
+                    const selected = selectedPeople.includes(person);
+                    return (
+                      <TouchableOpacity
+                        key={person}
+                        style={[styles.filterChip, selected && styles.filterChipSelected]}
+                        onPress={() => togglePerson(person)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.filterChipText, selected && styles.filterChipTextSelected]}>
+                          {person}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </>
+            ) : null}
+          </View>
+        ) : null}
+
+        {/* Active filter chips — only when panel closed and mood/people filters active */}
+        {!filtersExpanded && hasChipFilters ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.activeChipsRow}>
+            {selectedMoods.map((moodValue) => {
+              const mood = allMoods.find((m) => m.value === moodValue);
+              return (
+                <TouchableOpacity
+                  key={moodValue}
+                  style={styles.activeChip}
+                  onPress={() => toggleMood(moodValue)}
+                >
+                  <Text style={styles.activeChipText}>{mood?.emoji} {mood?.label} ✕</Text>
+                </TouchableOpacity>
+              );
+            })}
+            {selectedPeople.map((person) => (
+              <TouchableOpacity
+                key={person}
+                style={styles.activeChip}
+                onPress={() => togglePerson(person)}
+              >
+                <Text style={styles.activeChipText}>{person} ✕</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        ) : null}
       </View>
 
       <View style={styles.viewsContainer}>
@@ -600,6 +564,10 @@ function createStyles(theme: Theme) {
       borderRadius: 4,
       backgroundColor: theme.colors.accent,
     },
+    stickyZone: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingBottom: theme.spacing.sm,
+    },
     searchBar: {
       flexDirection: "row",
       alignItems: "center",
@@ -608,6 +576,20 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.md,
       marginBottom: theme.spacing.md,
       height: 40,
+    },
+    activeChipsRow: {
+      marginBottom: theme.spacing.sm,
+    },
+    activeChip: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 6,
+      borderRadius: theme.radii.md,
+      backgroundColor: theme.colors.chipSelectedBg,
+      marginRight: theme.spacing.sm,
+    },
+    activeChipText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.chipSelectedText,
     },
     searchIcon: {
       marginRight: theme.spacing.sm,
@@ -646,21 +628,6 @@ function createStyles(theme: Theme) {
     },
     filterChipTextSelected: {
       color: theme.colors.chipSelectedText,
-    },
-    filterSummary: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: theme.spacing.md,
-    },
-    filterSummaryText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
-    },
-    clearFiltersText: {
-      fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
-      color: theme.colors.accent,
     },
     emptyFilter: {
       alignItems: "center",
