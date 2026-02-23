@@ -13,7 +13,9 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  runOnJS,
 } from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
@@ -75,6 +77,39 @@ export default function TimelineScreen() {
   const calendarOpacity = useSharedValue(0);
   const listAnimStyle = useAnimatedStyle(() => ({ opacity: listOpacity.value }));
   const calendarAnimStyle = useAnimatedStyle(() => ({ opacity: calendarOpacity.value }));
+
+  // Stable ref so pinch worklet always reads current viewMode
+  const viewModeRef = useRef(viewMode);
+  viewModeRef.current = viewMode;
+
+  const switchToList = useCallback(() => {
+    if (viewModeRef.current !== "list") {
+      calendarOpacity.value = withTiming(0, { duration: 200 });
+      listOpacity.value = withTiming(1, { duration: 200 });
+      setViewMode("list");
+    }
+  }, []);
+
+  const switchToCalendar = useCallback(() => {
+    if (viewModeRef.current !== "calendar") {
+      listOpacity.value = withTiming(0, { duration: 200 });
+      calendarOpacity.value = withTiming(1, { duration: 200 });
+      setViewMode("calendar");
+    }
+  }, []);
+
+  const pinchGesture = useMemo(
+    () =>
+      Gesture.Pinch().onEnd((e) => {
+        "worklet";
+        if (e.scale < 0.75) {
+          runOnJS(switchToList)();
+        } else if (e.scale > 1.3) {
+          runOnJS(switchToCalendar)();
+        }
+      }),
+    [switchToList, switchToCalendar]
+  );
 
   const navigation = useNavigation();
 
@@ -438,6 +473,7 @@ export default function TimelineScreen() {
         ) : null}
       </View>
 
+      <GestureDetector gesture={pinchGesture}>
       <View style={styles.viewsContainer}>
         <Animated.View style={[StyleSheet.absoluteFill, listAnimStyle]} pointerEvents={viewMode === "list" ? "auto" : "none"}>
           {loading && moments.length === 0 && !hasActiveFilters ? (
@@ -520,6 +556,7 @@ export default function TimelineScreen() {
           <CalendarView moments={moments} onDayPress={handleDayPress} theme={theme} />
         </Animated.View>
       </View>
+      </GestureDetector>
     </View>
   );
 }

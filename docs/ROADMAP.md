@@ -32,7 +32,7 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 - [x] Tap a day in calendar → switches to list view and scrolls to that moment
 - [x] Animated crossfade transition between list and calendar views
 - [x] Undated moments shown in "No Date" section at the bottom of the calendar
-- [ ] Pinch-to-zoom gesture as alternative to toggle button (future polish)
+- [x] Pinch-to-zoom gesture as alternative to toggle button — pinch in on calendar → list, pinch out on list → calendar
 
 ### 3. Storage usage tracking — COMPLETE
 - [x] Per-user storage counter — track bytes used across moment-photos bucket
@@ -51,24 +51,24 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 - [x] Show time-of-day label on moment detail
 - [x] Location suggestion banner on create screen ("Currently in Nashville — use as location?")
 
-### 6. "On This Day" & random resurfacing — IN PROGRESS
+### 6. "On This Day" & random resurfacing — COMPLETE
 - [x] "On This Day" section — surface moments from the same calendar date in past years, grouped by year with "X years ago" labels (Reflections tab)
 - [x] Random "rediscovery" — tap shuffle to see a surprise moment from your history (Reflections tab)
 - [x] Reflections tab replaces Create in tab bar; Create moved to + button in Moments header
-- [ ] Push notifications for On This Day moments (opt-in, 2-3x/week max)
-- [ ] Milestone notifications (10, 50, 100, 250, 500, 1000 moments)
+- [x] Push notifications for On This Day moments (opt-in, 2-3x/week max)
+- [x] Milestone notifications (10, 50, 100, 250, 500, 1000 moments)
 
 ### 7. Swipe to dismiss / go back — COMPLETE
 - [x] Swipe left on moment detail modal to close (back-navigate)
 - [x] Swipe left on timeline cards to reveal delete action
 - [x] Swipe left on artist screen cards to reveal delete action
-- [ ] Consistent swipe-back gesture across all push screens (artist, song, album views) — native iOS stack gesture already active
+- [x] Consistent swipe-back gesture across all push screens (artist, song, album views) — custom swipe-down gesture on all three
 
-### 8. Song & album views
-- [ ] Song view — all moments tied to a specific song (similar to artist view)
-- [ ] Album view — all moments tied to a specific album, with album artwork header
-- [ ] Tappable song title and album name on moment detail navigate to respective views
-- [ ] Artist view already exists; song/album views follow the same pattern
+### 8. Song & album views — COMPLETE
+- [x] Song view — all moments tied to a specific song (similar to artist view)
+- [x] Album view — all moments tied to a specific album, with album artwork header
+- [x] Tappable song title and album name on moment detail navigate to respective views
+- [x] Artist view already exists; song/album views follow the same pattern
 
 ---
 
@@ -78,6 +78,14 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 - [ ] Friends list — `friends` table per user, CRUD management
 - [ ] People picker — replace comma-separated names with chip selector from friends list
 - [ ] "Moments with [person]" — filter/view moments by friend
+
+### Web Companion
+- [ ] Web app (Next.js + Supabase) — same auth, same data, desktop-first UI
+- [ ] Create / edit moments from a browser with a full keyboard
+- [ ] Timeline and search on web (read + write parity with iOS)
+- [ ] Rich text reflection editor (markdown or block-based)
+- [ ] Drag-and-drop photo uploads
+- [ ] Shareable public moment links (opt-in per moment)
 
 ### Voice Notes
 - [ ] Record voice memos via expo-av
@@ -90,11 +98,16 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 - [ ] Video playback on moment detail — option to layer with song audio
 - [ ] Video thumbnail generation for timeline cards
 
+### 9. Swipe tab navigation — COMPLETE
+- [x] Swipe left/right anywhere on a tab screen to navigate between Moments, Reflections, Profile
+- [x] Backed by react-native-pager-view via material-top-tabs; tab bar stays at bottom
+
 ### Previously Completed Polish
 - [x] Edit moments
 - [x] UI/UX overhaul — consistent design system, spacing, typography, colors
 - [x] Empty states ("No moments yet — create your first!")
 - [x] Loading skeletons / better loading states
+- [x] Sticky search bar and filters pinned above timeline (doesn't scroll away)
 - [x] Error states and retry patterns throughout
 - [x] Pull-to-refresh on timeline
 - [x] Onboarding flow (first-launch welcome screen)
