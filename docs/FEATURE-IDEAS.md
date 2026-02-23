@@ -8,6 +8,25 @@ Non-AI feature ideas organized by conviction level. See `AI-FEATURES.md` for AI/
 
 Features that would meaningfully increase retention, engagement, or organic growth.
 
+### Era Clustering — THE differentiator
+
+- AI groups moments into life chapters based on date, mood, artist, and reflection patterns
+- Each era gets a generated name: "Winter of Letting Go", "The Comeback Summer", "2024: Finding My Footing"
+- Era detail view: artwork collage, top songs, dominant moods, reflection excerpts, date range
+- This is the moat. Day One stores entries — Tracks structures emotional memory into chapters.
+- **Conversion trigger**: at 25–30 moments, show a locked Era card ("Unlock the chapter you just lived")
+- See `AI-FEATURES.md` for clustering approach
+
+### Shareable Era & Moment Cards — the growth engine
+
+- Every share is a word-of-mouth impression. This is how the app grows organically.
+- **Moment card**: beautiful graphic with album art, song title, a quote from the reflection, and the date
+- **Era card**: artwork collage, era name, date range, "X moments in this chapter"
+- Multiple visual templates — clean, filmic, retro
+- Exported via iOS share sheet → Instagram stories, Messages, Twitter/X, saved to Camera Roll
+- User shares something beautiful → their friends ask "what app is that?" → organic installs
+- Keep moment cards free; era cards are premium
+
 ### Lyrics Integration
 
 - Show lyrics alongside the reflection on moment detail view
@@ -49,6 +68,14 @@ Features that would meaningfully increase retention, engagement, or organic grow
 ## Medium Conviction
 
 Worth exploring after the high-conviction features are in.
+
+### Replay the Era
+
+- From any Era detail view, generate an Apple Music playlist of the songs from that era
+- One tap → playlist appears in Apple Music
+- Hearing those songs again in sequence triggers the emotional time travel that is the whole point of the app
+- Deep link via `music://` (no in-app playback needed)
+- Pairs naturally with era clustering — makes eras feel alive, not just a data view
 
 ### Listening History Import
 

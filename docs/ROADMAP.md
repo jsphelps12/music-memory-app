@@ -1,7 +1,5 @@
 # Tracks — Roadmap
 
-See `music-journal-roadmap.md` for the full original planning document with detailed specs, wireframes, and success metrics.
-
 This file tracks what's built, what's next, and the full feature roadmap organized by phase.
 
 ---
@@ -69,6 +67,33 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 - [x] Album view — all moments tied to a specific album, with album artwork header
 - [x] Tappable song title and album name on moment detail navigate to respective views
 - [x] Artist view already exists; song/album views follow the same pattern
+
+### 9. Auto-play on moment open
+- [ ] When opening a moment detail, gently fade in the 30-second preview
+- [ ] Play automatically without requiring the user to tap the play button
+- [ ] Respect system volume; don't interrupt other audio in a jarring way
+- [ ] Option to disable in settings if users find it disruptive
+
+### 10. Era clustering (AI) — THE core differentiator
+- [ ] Cluster moments into life chapters using date, mood, artist, and reflection patterns
+- [ ] Generate a name for each era (e.g. "Winter of Letting Go", "The Comeback Summer")
+- [ ] Show eras as a navigable timeline — see your life organized into chapters
+- [ ] Trigger paywall at 25–30 moments: "Unlock the chapter you just lived"
+- [ ] Era detail view: cover art collage, top songs, dominant moods, reflection excerpts
+- [ ] See `docs/AI-FEATURES.md` for implementation notes
+
+### 11. Shareable era & moment cards — the growth engine
+- [ ] Beautiful exportable graphic for a single moment (artwork, song, quote from reflection)
+- [ ] Era summary card (collage of artwork, era name, date range, key stats)
+- [ ] Multiple visual templates to choose from
+- [ ] Share via iOS share sheet to Instagram, Messages, etc.
+- [ ] Every share is a word-of-mouth impression — this is how the app spreads organically
+
+### 12. Custom collections
+- [ ] User-defined groupings ("Summer 2024", "My healing era", "Road trip playlist")
+- [ ] Add/remove moments from a collection
+- [ ] Collection detail view — same layout as artist/album views
+- [ ] Collections live on Reflections tab alongside On This Day
 
 ---
 
@@ -142,9 +167,9 @@ Make logging effortless — goal is < 15 seconds to save a moment.
 - [ ] Full song playback in-app (Spotify Premium / Apple Music subscribers)
 - [ ] Custom player UI (album art, progress bar, controls)
 - [ ] Background playback
-- [ ] Auto-play on moment open (gentle fade-in)
-- [ ] "On This Day" resurfacing — see Up Next #6
-- [ ] Push notifications for resurfaced moments / milestones — see Up Next #6
+- [ ] Auto-play on moment open (gentle fade-in) — see Up Next #9
+- [x] "On This Day" resurfacing — see Up Next #6
+- [x] Push notifications for resurfaced moments / milestones — see Up Next #6
 - [ ] Notification preferences / quiet hours
 
 ---
@@ -154,26 +179,29 @@ Make logging effortless — goal is < 15 seconds to save a moment.
 - [x] Search by song, artist, reflection text
 - [x] Filter by mood and people tags
 - [x] Combination filters (search + mood + people compose together)
-- [ ] Filter by date range and location
+- [x] Filter by date range and location
 - [ ] Quick filter views (this week, this month, by mood, late night)
 - [ ] Sort options (chronological, by mood, by artist, random)
 - [x] Artist view — browse moments grouped by artist (dedicated artist page with all moments for that artist)
-- [ ] Song view + Album view — see Up Next #8
-- [ ] Custom collections ("Summer 2024", "My healing era")
+- [x] Song view + Album view — see Up Next #8
+- [ ] Custom collections ("Summer 2024", "My healing era") — see Up Next #12
 
 ---
 
 ## Phase 5: Reflection & Insights (Premium)
 
-Premium tier: $7/month or $60/year.
+Premium tier: $4.99/month or $39.99/year. Break-even at ~120 annual subscribers.
+Paywall meaning, not logging. Free users keep all logging features forever.
+Conversion trigger: at 25–30 moments, show a locked Era card — not "upgrade for storage," but "unlock the chapter you just lived."
 
 - [ ] Paywall & subscription (RevenueCat)
+- [ ] Era clustering — see Up Next #10 (THE conversion trigger)
 - [ ] "How You're Evolving" dashboard (current era summary, comparison to past)
 - [ ] Mood trajectory graph (mood over time, tap to jump to moment)
 - [ ] Music taste evolution (energy, genre, tempo trends)
-- [ ] Era detection (AI clustering into life chapters with generated names)
 - [ ] Pattern recognition ("You log 3x more on weekends", "Bon Iver = processing emotions")
 - [ ] Relationship soundtracks (filter by person, stats, exportable playlist)
+- [ ] AI narrative summaries — "soft in tone, sharp in insight" interpretation of your data
 
 ---
 

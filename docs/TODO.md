@@ -22,10 +22,16 @@ Things to work on outside of coding sessions.
 
 ## Positioning & Messaging
 
-- [ ] Write a one-sentence pitch (if you can't explain it in one sentence, sharpen the concept)
-- [ ] Decide: is Tracks a "capture" app (speed, low friction) or a "reflect" app (journaling, depth)? Pick one to lead with
-- [ ] Write the App Store description (subtitle, promotional text, full description)
-- [ ] Identify 3 apps to position against — what does Tracks do that they don't?
+Core answers (from VISION.md — read that first):
+- **Category**: "Organizing nostalgia" — not journaling, not music, not wellness. Its own thing.
+- **Tagline**: "Every song holds a moment. Keep them somewhere that remembers."
+- **One-sentence pitch**: "Tracks is a nostalgia engine — it captures the emotional associations you already have with music and turns them into a structured, living record of who you've been."
+- **Not capture, not reflect**: the app is about *resurfacing* — logging is the investment, resurfacing is the dividend.
+- **Brand voice**: Soft in tone, sharp in insight. Like a thoughtful friend who read everything you wrote.
+
+Remaining work:
+- [ ] Write the App Store description using the tagline and category above (see VISION.md for brand voice reference)
+- [ ] 3 apps to position against: Day One (stores entries — Tracks structures emotional memory into eras), Spotify Wrapped (one-day event — Tracks is year-round), standard journaling apps (text-forward — Tracks is music-anchored)
 
 ## App Store Prep
 
@@ -37,10 +43,15 @@ Things to work on outside of coding sessions.
 
 ## Business Model
 
-- [ ] Decide if the premium tier ($7/month) is real or aspirational
-- [ ] If real: draw the free vs. paid line — what do free users get forever?
-- [ ] Research RevenueCat setup requirements so you're ready when the time comes
-- [ ] Look at how similar apps (Day One, Spotify, Finch) structure their paywalls
+Core decisions made (see VISION.md):
+- **Price**: $4.99/month or $39.99/year. Break-even at ~120 annual subscribers.
+- **Free forever**: unlimited logging, search, On This Day resurfacing, core features. Habit formation needs zero friction.
+- **Premium**: era clustering, pattern insights, shareable era/moment cards, AI narrative summaries, unlimited photos, yearly recap.
+- **Conversion trigger**: at 25–30 entries, show a locked Era card. Not "upgrade for storage" — "unlock the chapter you just lived."
+
+Remaining work:
+- [ ] Set up RevenueCat and define entitlements before building premium features
+- [ ] Decide which premium features ship at launch vs. added later (era clustering should be first)
 
 ## Growth & Distribution
 
@@ -50,6 +61,13 @@ Things to work on outside of coding sessions.
 
 ## Retention Thinking
 
-- [ ] Map out the day 1 → day 7 → day 30 user journey — what brings them back?
-- [ ] Prioritize "On This Day" resurfacing — it's probably the single highest-leverage retention feature
-- [ ] Think about notification strategy — what's helpful vs. annoying? How often?
+Blueprint (from VISION.md emotional arc — nostalgic → grateful → grounded → seen → shocked):
+- **Day 1–7**: frictionless logging builds the habit. On This Day starts working immediately if they have old moments.
+- **Day 7–30**: resurfacing moments they logged earlier creates the "it remembered!" moment. Push notifications (On This Day, streaks) keep them returning.
+- **Day 30+**: enough data for pattern insights and era clustering to feel meaningful. This is when premium converts.
+- **Year 1+**: yearly recap ("Your 2026 in Moments") creates an emotional event that brings them back and drives sharing.
+
+- [x] Prioritize "On This Day" resurfacing — push notifications implemented
+- [ ] First-week retention: ensure a new user sees a resurfacing prompt within 7 days (even if it's just the "start your timeline" prompt)
+- [ ] Notification tuning — 2–3x/week max for On This Day; don't spam
+- [ ] Consider a "welcome" push on day 3: "You've logged X moments. Keep going — the magic starts at 25."
