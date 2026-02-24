@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -64,6 +64,33 @@ export default function MomentDetailScreen() {
     translateY.value = withTiming(0, config);
     scaleAnim.value = withTiming(1, config);
   }, []);
+
+  const hasAutoPlayed = useRef(false);
+  const momentRef = useRef(moment);
+  momentRef.current = moment;
+  useEffect(() => {
+    if (hasAutoPlayed.current) return;
+    const m = momentRef.current;
+    if (!m?.songPreviewUrl) return;
+    hasAutoPlayed.current = true;
+    const timer = setTimeout(() => {
+      const current = momentRef.current;
+      if (!current?.songPreviewUrl) return;
+      play(
+        {
+          id: current.songAppleMusicId,
+          title: current.songTitle,
+          artistName: current.songArtist,
+          albumName: current.songAlbumName ?? "",
+          artworkUrl: current.songArtworkUrl,
+          appleMusicId: current.songAppleMusicId,
+          durationMs: 0,
+        },
+        current.songPreviewUrl!
+      );
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [moment?.id]);
 
   const animStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
