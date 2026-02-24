@@ -37,10 +37,9 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 
 ## Now Building
 
-### 1. Auto-play on moment open
-- [ ] When opening a moment detail, gently fade in the 30-second preview automatically
-- [ ] Respect system volume; don't interrupt other audio in a jarring way
-- [ ] Option to disable in settings
+### 1. Auto-play on moment open — COMPLETE
+- [x] When opening a moment detail, gently fade in the 30-second preview automatically
+- [x] Respect system volume; don't interrupt other audio in a jarring way
 
 ### 2. Era clustering (AI) — THE core differentiator
 - [ ] Cluster moments into life chapters using date, mood, artist, and reflection patterns
