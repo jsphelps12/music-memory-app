@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-brand-bg: #FBF6F1;
+  --color-brand-accent: #E8825C;
+  --color-brand-text: #2C2C3A;
+  --color-brand-card: #F3EDE6;
+  --color-brand-muted: #999999;
+}
+
+body {
+  background-color: #FBF6F1;
+  color: #2C2C3A;
+}
