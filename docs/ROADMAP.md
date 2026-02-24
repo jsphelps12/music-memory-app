@@ -4,77 +4,45 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 
 ---
 
-## Phase 1: Foundation & MVP — COMPLETE
+## Complete
 
-- [x] Auth screens (email/password sign-in/sign-up)
-- [x] Song search (MusicKit-powered)
-- [x] Create moment form (song, reflection, mood, people tags)
-- [x] Timeline feed (chronological, tap to open)
-- [x] Moment detail view (full data, artwork, delete)
-- [x] 30-second preview playback (iTunes preview clips via expo-av)
-- [x] Photo support (camera/library, Supabase Storage, display in detail)
-- [x] Profile screen (avatar upload, editable display name, stats, sign-out)
+### Phase 1: Foundation & MVP
+- [x] Auth (email/password + Apple Sign-In)
+- [x] Song search (MusicKit), 30-second preview playback
+- [x] Create / edit / delete moments (song, reflection, mood, people, date, photos)
+- [x] Timeline feed with SectionList grouped by month
+- [x] Moment detail view with blurred artwork backdrop
+- [x] Photo support — camera/library, compression, full photo viewer (pinch-to-zoom, swipe)
+- [x] Photo EXIF date + GPS auto-detection with suggestion banner
+- [x] Profile screen — avatar, display name, stats, storage usage, sign-out
+- [x] Dark mode, design system, loading skeletons, empty states, error states
+
+### Core Feature Additions (Complete)
+- [x] Share extension — receive shared songs from Apple Music & Spotify via iOS share sheet
+- [x] Spotify cross-search — oEmbed parse → Apple Music match with candidate picker
+- [x] Now Playing auto-fill — real-time suggestion banner on create screen
+- [x] Quick capture flow — song + optional reflection, one tap save, expandable details
+- [x] Auto-tag time of day & location — device clock + optional GPS location banner
+- [x] On This Day & random resurfacing — Reflections tab, grouped by year
+- [x] Push notifications — On This Day (2–3x/week), milestones (10, 50, 100, 250, 500, 1000)
+- [x] Smooth card-to-detail transition — shared-element style expand animation
+- [x] Calendar view — grid with album art thumbnails, tap day to jump, pinch-to-zoom toggle
+- [x] Swipe gestures — swipe to close moment detail, swipe to delete cards, swipe-back on all screens
+- [x] Swipe tab navigation — swipe left/right between Moments / Reflections / Profile tabs
+- [x] Song & album views — all moments for a specific song or album, tappable from moment detail
+- [x] Search by song, artist, reflection text; filter by mood, people, date range, location
+- [x] Onboarding flow, custom app icon
 
 ---
 
-## Up Next (ordered priority)
+## Now Building
 
-### 1. Smooth card-to-detail transition — COMPLETE
-- [x] Shared-element style expand animation from timeline card into moment detail modal
-- [x] Card scales/expands into detail screen on tap; reverses on close
-- [x] Coordinate with blurred backdrop already in place on detail screen
-
-### 2. Timeline calendar view — COMPLETE
-- [x] Calendar grid (GitHub contributions / BeReal style) — shows days with moments, album art thumbnails
-- [x] Toggle button in header to switch between list and calendar views
-- [x] Tap a day in calendar → switches to list view and scrolls to that moment
-- [x] Animated crossfade transition between list and calendar views
-- [x] Undated moments shown in "No Date" section at the bottom of the calendar
-- [x] Pinch-to-zoom gesture as alternative to toggle button — pinch in on calendar → list, pinch out on list → calendar
-
-### 3. Storage usage tracking — COMPLETE
-- [x] Per-user storage counter — track bytes used across moment-photos bucket
-- [x] Display on profile screen (e.g. "12.4 MB used")
-- [x] Manage costs at scale; foundation for future storage limits/upsell
-
-### 4. Quick capture flow — COMPLETE
-- [x] Song pre-filled from share extension or Now Playing suggestion
-- [x] Minimal create screen (song + optional reflection, one tap save)
-- [x] "Add details" expand for mood, people, date, photos
-- [x] Reflection made optional (no required validation)
-
-### 5. Auto-tag time of day & location — COMPLETE
-- [x] Stamp time-of-day on new moments (morning / afternoon / evening / late night) from device clock
-- [x] Auto-detect device location on create (if permissions granted) — separate from photo EXIF geocoding
-- [x] Show time-of-day label on moment detail
-- [x] Location suggestion banner on create screen ("Currently in Nashville — use as location?")
-
-### 6. "On This Day" & random resurfacing — COMPLETE
-- [x] "On This Day" section — surface moments from the same calendar date in past years, grouped by year with "X years ago" labels (Reflections tab)
-- [x] Random "rediscovery" — tap shuffle to see a surprise moment from your history (Reflections tab)
-- [x] Reflections tab replaces Create in tab bar; Create moved to + button in Moments header
-- [x] Push notifications for On This Day moments (opt-in, 2-3x/week max)
-- [x] Milestone notifications (10, 50, 100, 250, 500, 1000 moments)
-
-### 7. Swipe to dismiss / go back — COMPLETE
-- [x] Swipe left on moment detail modal to close (back-navigate)
-- [x] Swipe left on timeline cards to reveal delete action
-- [x] Swipe left on artist screen cards to reveal delete action
-- [x] Consistent swipe-back gesture across all push screens (artist, song, album views) — custom swipe-down gesture on all three
-
-### 8. Song & album views — COMPLETE
-- [x] Song view — all moments tied to a specific song (similar to artist view)
-- [x] Album view — all moments tied to a specific album, with album artwork header
-- [x] Tappable song title and album name on moment detail navigate to respective views
-- [x] Artist view already exists; song/album views follow the same pattern
-
-### 9. Auto-play on moment open
-- [ ] When opening a moment detail, gently fade in the 30-second preview
-- [ ] Play automatically without requiring the user to tap the play button
+### 1. Auto-play on moment open
+- [ ] When opening a moment detail, gently fade in the 30-second preview automatically
 - [ ] Respect system volume; don't interrupt other audio in a jarring way
-- [ ] Option to disable in settings if users find it disruptive
+- [ ] Option to disable in settings
 
-### 10. Era clustering (AI) — THE core differentiator
+### 2. Era clustering (AI) — THE core differentiator
 - [ ] Cluster moments into life chapters using date, mood, artist, and reflection patterns
 - [ ] Generate a name for each era (e.g. "Winter of Letting Go", "The Comeback Summer")
 - [ ] Show eras as a navigable timeline — see your life organized into chapters
@@ -82,124 +50,51 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 - [ ] Era detail view: cover art collage, top songs, dominant moods, reflection excerpts
 - [ ] See `docs/AI-FEATURES.md` for implementation notes
 
-### 11. Shareable era & moment cards — the growth engine
-- [ ] Beautiful exportable graphic for a single moment (artwork, song, quote from reflection)
-- [ ] Era summary card (collage of artwork, era name, date range, key stats)
-- [ ] Multiple visual templates to choose from
-- [ ] Share via iOS share sheet to Instagram, Messages, etc.
-- [ ] Every share is a word-of-mouth impression — this is how the app spreads organically
+### 3. Shareable era & moment cards — the viral surface
+- [ ] Moment card: artwork, song, quote from reflection, date — exportable graphic
+- [ ] Era summary card: collage of artwork, era name, date range, key stats
+- [ ] Vertical/story-format card designed for Instagram & TikTok
+- [ ] Multiple visual templates — clean, filmic, retro
+- [ ] Share via iOS share sheet; moment cards free, era cards premium
 
-### 12. Collections — personal and shared
-
-**Personal collections** (simpler, build first):
+### 4. Collections — personal and shared
+**Personal** (build first):
 - [ ] User-defined groupings ("Summer 2024", "My healing era", "Road trip playlist")
-- [ ] Add/remove moments from a collection
-- [ ] Collection detail view — name, cover photo, moment timeline
-- [ ] Collections live on Reflections tab alongside On This Day
+- [ ] Add/remove moments, collection detail view, lives in Reflections tab
 
-**Shared collections** (the social growth engine — see FEATURE-IDEAS.md for full spec):
-- [ ] Create a shared collection with invite link + QR code
-- [ ] Contributors add their own moments (also stays in personal timeline)
+**Shared** (the social growth engine — see FEATURE-IDEAS.md for full spec):
+- [ ] Invite link + QR code; contributors add their own moments
 - [ ] Same song logged by multiple people → side-by-side perspectives view
-- [ ] Wedding/event mode: open join via QR code at a venue; every guest contributes
-- [ ] Collection summary card — shareable artifact (top songs, contributor count, artwork collage)
+- [ ] Wedding/event mode: open-join QR at a venue
+- [ ] Collection summary card — shareable artifact after the event
 - [ ] Web read-only preview for non-app users (lowers invite friction)
-- [ ] Anniversary recap: "One year ago today, this collection started"
-- **Why this is urgent**: weddings alone — avg 150 guests, 20% join = 30 new users per event. One wedding can be a 30-person acquisition campaign.
+- [ ] Why urgent: 1 wedding = potentially 30 new users
 
 ---
 
-## Backlog
+## Phase 2: Frictionless Logging (Remaining)
 
-### Friends / Contacts
-- [ ] Friends list — `friends` table per user, CRUD management
-- [ ] People picker — replace comma-separated names with chip selector from friends list
-- [ ] "Moments with [person]" — filter/view moments by friend
-
-### Web Companion
-- [ ] Web app (Next.js + Supabase) — same auth, same data, desktop-first UI
-- [ ] Create / edit moments from a browser with a full keyboard
-- [ ] Timeline and search on web (read + write parity with iOS)
-- [ ] Rich text reflection editor (markdown or block-based)
-- [ ] Drag-and-drop photo uploads
-- [ ] Shareable public moment links (opt-in per moment)
-
-### Voice Notes
-- [ ] Record voice memos via expo-av
-- [ ] Upload to Supabase Storage alongside photos
-- [ ] Playback UI with waveform visualization on moment detail
-
-### Video Support
-- [ ] Video capture/selection via expo-image-picker
-- [ ] Video compression on upload (transcode to reasonable bitrate)
-- [ ] Video playback on moment detail — option to layer with song audio
-- [ ] Video thumbnail generation for timeline cards
-
-### 9. Swipe tab navigation — COMPLETE
-- [x] Swipe left/right anywhere on a tab screen to navigate between Moments, Reflections, Profile
-- [x] Backed by react-native-pager-view via material-top-tabs; tab bar stays at bottom
-
-### Previously Completed Polish
-- [x] Edit moments
-- [x] UI/UX overhaul — consistent design system, spacing, typography, colors
-- [x] Empty states ("No moments yet — create your first!")
-- [x] Loading skeletons / better loading states
-- [x] Sticky search bar and filters pinned above timeline (doesn't scroll away)
-- [x] Error states and retry patterns throughout
-- [x] Pull-to-refresh on timeline
-- [x] Onboarding flow (first-launch welcome screen)
-- [x] Custom app icon
-- [x] Apple Sign-In (alternative auth)
-- [x] Dark mode
-- [x] Photo loading optimization — switched to public bucket with synchronous URL generation
-- [x] Photo compression + thumbnails (expo-image-manipulator)
-- [x] Full photo viewer (pinch-to-zoom, swipe between photos)
-- [x] Photo EXIF date + GPS auto-detection with suggestion banner
-- [x] Blurred artwork backdrop on moment detail
-- [x] Card press spring animation (Reanimated)
-- [x] MomentCard shared component
-
----
-
-## Phase 2: Frictionless Logging
-
-Make logging effortless — goal is < 15 seconds to save a moment.
-
-- [x] Share extension — receive shared songs from Apple Music & Spotify via iOS share sheet
-- [x] Spotify cross-search — parse Spotify URLs via oEmbed API, cross-search Apple Music for a match with candidate picker
-- [x] "Now Playing" auto-fill — detect currently playing Apple Music song, real-time suggestion banner on create screen
-- [x] Quick capture flow — see Up Next #4
-- [ ] iOS home screen widget — show now playing with one-tap "save moment", or recent moment / "On This Day"
-- [x] Auto-detect location / auto-tag time of day — see Up Next #5
-- [ ] Weather auto-tagging — silently attach weather conditions at moment creation; enables "rainy day songs" filter [Free]
+- [ ] iOS home screen widget — now playing with one-tap "save moment", or On This Day
+- [ ] Weather auto-tagging — silently attach weather at moment creation; enables "rainy day songs" [Free]
 - [ ] Lyric anchoring — highlight a specific lyric as the emotional anchor for a moment [Free]
-- [ ] Apple Watch app — one tap on wrist logs current Apple Music song instantly [Free]
+- [ ] Apple Watch app — one tap on wrist logs current song instantly [Free]
 
 ---
 
-## Phase 3: Enhanced Playback & Engagement
+## Phase 3: Enhanced Playback
 
-- [ ] Full song playback in-app (Spotify Premium / Apple Music subscribers)
-- [ ] Custom player UI (album art, progress bar, controls)
+- [ ] Full song playback in-app (Apple Music / Spotify Premium subscribers)
+- [ ] Custom player UI — album art, progress bar, controls
 - [ ] Background playback
-- [ ] Auto-play on moment open (gentle fade-in) — see Up Next #9
-- [x] "On This Day" resurfacing — see Up Next #6
-- [x] Push notifications for resurfaced moments / milestones — see Up Next #6
 - [ ] Notification preferences / quiet hours
 
 ---
 
-## Phase 4: Search, Filter & Organization
+## Phase 4: Search & Organization (Remaining)
 
-- [x] Search by song, artist, reflection text
-- [x] Filter by mood and people tags
-- [x] Combination filters (search + mood + people compose together)
-- [x] Filter by date range and location
 - [ ] Quick filter views (this week, this month, by mood, late night)
 - [ ] Sort options (chronological, by mood, by artist, random)
-- [x] Artist view — browse moments grouped by artist (dedicated artist page with all moments for that artist)
-- [x] Song view + Album view — see Up Next #8
-- [ ] Custom collections ("Summer 2024", "My healing era") — see Up Next #12
+- [ ] Friends list — `friends` table, people picker chip selector, "Moments with [person]" view
 
 ---
 
@@ -207,50 +102,45 @@ Make logging effortless — goal is < 15 seconds to save a moment.
 
 Premium tier: $4.99/month or $39.99/year. Break-even at ~120 annual subscribers.
 Paywall meaning, not logging. Free users keep all logging features forever.
-Conversion trigger: at 25–30 moments, show a locked Era card — not "upgrade for storage," but "unlock the chapter you just lived."
+Conversion trigger: at 25–30 moments, show a locked Era card — "unlock the chapter you just lived."
 
 - [ ] Paywall & subscription (RevenueCat)
-- [ ] Era clustering — see Up Next #10 (THE conversion trigger)
+- [ ] Era clustering — see Now Building #2 (THE conversion trigger)
 - [ ] "How You're Evolving" dashboard (current era summary, comparison to past)
 - [ ] Mood trajectory graph (mood over time, tap to jump to moment)
 - [ ] Music taste evolution (energy, genre, tempo trends)
 - [ ] Pattern recognition ("You log 3x more on weekends", "Bon Iver = processing emotions")
-- [ ] Mood gap analysis — see Phase 6
+- [ ] Mood gap analysis — surface what's absent: "You almost never log joy. The last time was 8 months ago." [Premium]
 - [ ] Relationship soundtracks (filter by person, stats, exportable playlist)
 - [ ] AI narrative summaries — "soft in tone, sharp in insight" interpretation of your data
 
 ---
 
-## Phase 6: Discovery & Smart Resurfacing (Premium)
+## Phase 6: Discovery & Smart Resurfacing
 
-- [ ] Mood-aware suggestions — detect current mood and suggest songs/moments to match or improve it
-- [ ] "Songs Like Your Moments" recommendations (audio feature analysis)
-- [ ] Smart resurfacing (mood-matched, pattern-based, relationship-based)
-- [ ] Forgotten songs — surface songs logged exactly once, never again ("You logged this once in March 2023 and never came back") [Free]
+- [ ] Forgotten songs — surface songs logged exactly once, never again [Free]
 - [ ] Song anniversaries — "One year ago today, you first logged this song" [Free]
-- [ ] Mood gap analysis — surface what's *absent*: "You almost never log joy. The last time was 8 months ago." [Premium]
 - [ ] Through-line songs — songs that appear across multiple distinct eras [Premium]
-- [ ] Personal charts — most-logged songs/artists ranked by year, shareable [Premium]
+- [ ] Personal charts — most-logged songs/artists ranked by year, always-on [Premium]
+- [ ] Mood-aware suggestions — current mood → songs/moments that historically helped
+- [ ] Smart resurfacing (mood-matched, pattern-based, relationship-based)
 - [ ] Rediscovery ("You loved this artist in 2023, then stopped")
-- [ ] Currently Playing prompt notification (gentle, once/day max)
+- [ ] Currently playing prompt notification (gentle, once/day max)
 - [ ] Weekly digest email ("Your week in music")
 
 ---
 
 ## Phase 7: Sharing, Visualization & Legacy (Premium)
 
-- [ ] Shareable moment cards (beautiful exportable graphics, multiple templates) — see Up Next #11
-- [ ] Shareable era cards — see Up Next #11
-- [ ] Vertical/story-format card for Instagram & TikTok ("This song was my whole era") — the viral surface
 - [ ] Musical autobiography — AI-generated prose narrative about who you were during an era
-- [ ] Couples soundtrack — shared timeline with both perspectives; relationship era clustering
-- [ ] "You're Not Alone" — anonymous matched moments when two users log the same song with similar emotional context
-- [ ] Grief & memorial moments — dedicated moment type for songs tied to people who have passed; surfaces on significant dates
+- [ ] Couples soundtrack — shared timeline, both perspectives, relationship era clustering
+- [ ] "You're Not Alone" — anonymous matched moments when two users log same song with similar context
+- [ ] Grief & memorial moments — songs tied to people who have passed; surfaces on significant dates
 - [ ] Map view (moments by location, clusters, tap to explore)
-- [ ] Advanced visualizations (calendar heatmap, genre distribution, artist network)
-- [ ] Weekly Recap — in-app summary of the week's moments: top songs, moods, people, and a highlight card
-- [ ] Yearly Recap ("Your 2024 in Moments" — Spotify Wrapped-style, shareable)
-- [ ] Personal charts — most-logged songs/artists ranked by year, always-on (not just annual)
+- [ ] Weekly Recap — in-app summary of the week's moments
+- [ ] Yearly Recap ("Your 2026 in Moments" — Spotify Wrapped-style, shareable)
+- [ ] Voice notes — record via expo-av, transcribe for searchability, playback on detail
+- [ ] Video support — capture, compress, playback, thumbnail on timeline card
 - [ ] Playlist export to Spotify/Apple Music
 - [ ] Memory book creation (print-on-demand, QR codes linking to songs)
 - [ ] Time capsules ("Remind me of this in 5 years")
@@ -262,20 +152,19 @@ Conversion trigger: at 25–30 moments, show a locked Era card — not "upgrade 
 
 The shift from rearview mirror to windshield — using accumulated data to serve present and future needs.
 
-- [ ] Music as emotional regulation — "I'm feeling anxious" → your songs that helped before, not generic recommendations
-- [ ] Seasonal pattern anticipation — "Last October your mood dipped and music got heavy. It's October."
-- [ ] "You're in a transition" detection — when logging patterns shift, the app quietly notices and surfaces relevant past moments
+- [ ] Music as emotional regulation — "I'm feeling anxious" → your songs that helped before [Free basic, Premium full]
+- [ ] Seasonal pattern anticipation — "Last October your mood dipped. It's October." [Premium]
+- [ ] "You're in a transition" detection — when logging patterns shift, the app quietly notices [Premium]
 - [ ] Android app — doubles the addressable market
-- [ ] Web companion — shareable public links, full keyboard, the destination for shared cards
-- [ ] Apple Watch app — one tap logs current Apple Music song instantly
+- [ ] Web companion — read-only sharing destination, full keyboard create/edit, shareable public links
+- [ ] Apple Watch app — see Phase 2 remaining
 
 ---
 
-## Other Ideas (Unscheduled)
+## Unscheduled
 
-- [ ] Multiple songs per moment — attach more than one song to a single memory (e.g. a whole playlist or set of songs tied to an event); UI/data model changes needed
-- [ ] Spotify support (full integration — share extension cross-search is done, but no native Spotify playback/auth)
+- [ ] Multiple songs per moment (UI/data model changes needed)
+- [ ] Spotify full integration (native playback/auth; cross-search is done)
 - [ ] Accessibility (VoiceOver, dynamic type)
 - [ ] Offline support (queue uploads when offline)
 - [ ] Export/backup (download your data)
-
