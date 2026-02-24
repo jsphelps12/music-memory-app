@@ -9,7 +9,6 @@ import {
   TextInput,
   ScrollView,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -65,7 +64,7 @@ export default function TimelineScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
+
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -193,6 +192,15 @@ export default function TimelineScreen() {
     dateTo !== null ||
     debouncedLocation.length > 0 ||
     selectedCollection !== null;
+
+  // Dot only reflects manual filters — collection selection is a view mode, not a filter
+  const hasFilterDot =
+    debouncedSearch.length > 0 ||
+    selectedMoods.length > 0 ||
+    selectedPeople.length > 0 ||
+    dateFrom !== null ||
+    dateTo !== null ||
+    debouncedLocation.length > 0;
 
   const hasChipFilters =
     selectedMoods.length > 0 ||
@@ -512,7 +520,7 @@ export default function TimelineScreen() {
                 size={22}
                 color={theme.colors.text}
               />
-              {hasActiveFilters && !filtersExpanded ? (
+              {hasFilterDot && !filtersExpanded ? (
                 <View style={styles.filterBadge} />
               ) : null}
             </TouchableOpacity>
@@ -827,7 +835,7 @@ export default function TimelineScreen() {
           styles.fab,
           {
             backgroundColor: theme.colors.accent,
-            bottom: 49 + insets.bottom + 16,
+            bottom: 16,
           },
         ]}
         onPress={() => router.push("/create")}
