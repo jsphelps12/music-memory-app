@@ -298,27 +298,193 @@ Text fields accept unlimited input. Add `maxLength` props:
 
 ---
 
+---
+
+## UX Quality
+
+### What's Strong
+The app has genuinely good UX fundamentals:
+- **Loading states:** Skeleton screens on timeline, moment detail, and profile. Spinners on
+  save buttons. Nothing shows blank during data fetches.
+- **Error states:** Centralized `friendlyError()` converts raw errors to readable messages.
+  `ErrorState` for full-screen failures, `ErrorBanner` for background refresh failures.
+- **Empty states:** Every list has a helpful empty state with a CTA. Search with no results
+  shows "Clear Filters."
+- **Keyboard handling:** `KeyboardAvoidingView` on all forms, inputs scroll into view, keyboard
+  dismisses on list drag.
+- **Navigation:** No dead ends. Back navigation works everywhere. Deep links work.
+- **Haptics:** Used correctly — success on save, error on delete, selection on mood/people.
+- **Animations:** Reanimated v4, spring physics on card transitions, smooth view mode switch.
+  No jank detected.
+
+### 15. Accessibility — Critical Gap
+**Zero accessibility attributes in the entire codebase.**
+
+No `accessibilityLabel`, `accessibilityHint`, or `accessibilityRole` anywhere. Icon-only
+buttons (filter, calendar toggle, share, close) have no labels for VoiceOver. Font sizes
+are fixed — no Dynamic Type support.
+
+This is both a legal/ethical issue and an App Store consideration. Apple's guidelines
+encourage accessibility and reviewers occasionally test with VoiceOver.
+
+**Minimum viable fix before launch:**
+- Add `accessibilityLabel` to all icon-only buttons
+- Add `accessibilityRole="button"` to touchable elements that aren't `<Button>`
+- Test with VoiceOver enabled
+
+Full Dynamic Type support can come later, but the button labels are a quick win.
+
+---
+
+### 16. No Offline Handling
+No network detection library. When offline:
+- All Supabase calls fail silently or hang
+- No "You're offline" banner
+- Partially filled forms may appear to submit but fail without feedback
+
+This is acceptable for a TestFlight MVP. Add `@react-native-community/netinfo` before
+a wide launch and show a persistent banner when connectivity is lost.
+
+---
+
+### 17. Image Loading — No Placeholders
+Artwork and photos load in with no transition. On a slow connection the card shows a
+gray box until the image arrives, then snaps in. Adding a `blurhash` placeholder or a
+shimmer animation would make this feel more polished. Low priority but noticeable on
+slower connections.
+
+---
+
+### 18. No Onboarding for Key Features
+New users land on the empty timeline after sign-up. The empty state CTA is clear, but
+there's no guidance on:
+- The share extension (receiving songs from Apple Music)
+- What "Now Playing" auto-fill does
+- Collections
+
+These are non-obvious features that users may never discover. Consider a one-time
+tooltip or a "what's here" sheet on first launch. Not a blocker — but worth tracking.
+
+---
+
+## CI/CD and DevOps
+
+### 19. Zero Test Coverage
+No test files exist. No Jest config. No testing-library setup. `react-test-renderer`
+is in devDependencies but unused.
+
+**Risk:** Regressions reach TestFlight undetected. As the codebase grows this becomes
+painful to manage manually.
+
+**Pragmatic approach for a solo/small team:**
+- Don't try to retrofit unit tests everywhere
+- Write integration tests for the two or three flows where a bug would be catastrophic:
+  auth (sign-in, sign-out, token refresh), moment create, and the join-collection deep link
+- Add snapshot tests for components that change frequently
+
+---
+
+### 20. No CI Pipeline
+No `.github/workflows/` directory. No automated checks on pull requests or pushes.
+
+**Minimum useful CI (GitHub Actions, ~1 hour to set up):**
+```yaml
+# On every push/PR: type check + lint
+- run: npx tsc --noEmit
+- run: npx eslint .
+# On push to main: trigger EAS build for TestFlight
+- run: npx eas-cli build --platform ios --profile production --non-interactive
+```
+
+The Vercel web app auto-deploys on push to main already — that part is fine.
+
+---
+
+### 21. No Crash Reporting or Analytics
+Production crashes are currently invisible. There is no way to know if users are
+hitting errors, which screens they use most, or why they stop using the app.
+
+**Before App Store launch, add both:**
+- **Sentry** (`@sentry/react-native`) — crash reporting, error tracking, session replays.
+  Free tier is sufficient for early scale. Setup is ~2 hours.
+- **PostHog** (or Mixpanel) — product analytics. Track: moment created, collection shared,
+  invite link opened, join completed. Free tier is generous. Setup is ~2 hours.
+
+Without these you're flying blind after launch.
+
+---
+
+### 22. Single EAS Build Profile (No Staging)
+`eas.json` has only a `production` profile. Every test build goes directly to the same
+TestFlight track as release candidates.
+
+**Add a development profile:**
+```json
+{
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": { "simulator": true }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": { "buildConfiguration": "Release" }
+    },
+    "production": { ... }
+  }
+}
+```
+
+`preview` builds go to TestFlight for testing. `production` builds go to App Store Review.
+Keeps "work in progress" separate from "ready to test" separate from "shipping."
+
+---
+
+### 23. No Deployment Runbook
+No documented process for:
+- How to cut a TestFlight build
+- How to bump the version before App Store submission
+- What to check before submitting to review
+- How to roll back if a bad build ships
+
+Write this down — even a short checklist in `docs/` — before you submit to the App Store.
+Future you will thank present you at 11pm before a deadline.
+
+---
+
 ## Prioritized Fix List
 
 ### Before App Store Submission (Blockers)
 - [ ] Delete account feature (#1)
 - [ ] Privacy policy at `/privacy` (#2)
-- [ ] Declare location + other data in App Store Connect nutrition label (#3)
+- [ ] Declare data types in App Store Connect nutrition label (#3)
+- [ ] Add `accessibilityLabel` to all icon-only buttons (#15) — quick win
+- [ ] Add Sentry crash reporting (#21) — you need this day one
+- [ ] Write deployment runbook (#23)
 
-### Before Wide Marketing Push (Security)
+### Before Wide Marketing Push (Security + Stability)
 - [ ] Replace service role key in web app with anon key + RLS policies (#4, #6)
 - [ ] Clear push token on sign-out (#7)
 - [ ] Remove console.logs from edge function (#12)
+- [ ] Add PostHog/Mixpanel analytics (#21)
+- [ ] Add EAS preview build profile (#22)
 
 ### Before Significant User Growth (Scalability)
 - [ ] Add `.limit()` to timeline query as a quick fix (#9)
 - [ ] Add composite index on `moments(user_id, moment_date)` (#10)
 - [ ] Add index on `collection_moments(collection_id)` (#10)
 - [ ] Upgrade Supabase to Pro plan (#11)
+- [ ] Offline detection banner (#16)
 - [ ] Implement proper pagination (larger effort, plan separately)
+- [ ] Add CI pipeline — type check + lint on PRs (#20)
 
 ### Ongoing / Nice to Have
 - [ ] Fix silent failure in `loadCollections` (#8)
 - [ ] Fix race condition on moment + collection create (#13)
 - [ ] Add input length limits (#14)
-- [ ] Full-text search index when search performance is a complaint (#10)
+- [ ] Image loading placeholders / blurhash (#17)
+- [ ] First-run onboarding for non-obvious features (#18)
+- [ ] Integration tests for auth + moment create + join flow (#19)
+- [ ] Full-text search index when search performance becomes a complaint (#10)
+- [ ] Full Dynamic Type / accessibility audit (#15)
