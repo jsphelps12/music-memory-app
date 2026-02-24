@@ -46,25 +46,33 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 - [x] Add/remove moments from collections
 - [x] Tappable header selector on Moments tab (Day One-style)
 
-### 3. Web app (Next.js / Vercel) — read-only destination
-- [ ] Next.js project setup, deployed to Vercel
-- [ ] `/c/{invite_code}` — shared collection preview page (song, artwork, reflections, contributors)
-- [ ] "Add your moment" CTA → App Store
-- [ ] See docs/SOCIAL-ARCHITECTURE.md for full plan
+### 3. Web app (Next.js / Vercel) — COMPLETE
+- [x] Next.js 16 project in `web/`, deployed to Vercel at `https://music-memory-app.vercel.app`
+- [x] `/c/{invite_code}` — shared collection preview (song, artwork, reflection, photos, audio preview)
+- [x] Expandable moment cards with in-page audio playback
+- [x] Sticky "Add your moment → Download Tracks" CTA
+- [x] App: toggle collection public + share invite link via iOS share sheet
+- [x] FAB for creating moments (moved + out of header)
 
-### 4. Shared collections — the growth engine
-- [ ] DB: add `invite_code`, `is_shared`, `is_public` to `collections`; new `collection_members` table
-- [ ] App: create shared collection, generate invite link + QR code
-- [ ] Join via deep link (`tracks://c/{invite_code}`)
-- [ ] Contributor timeline — all members' moments in one view
-- [ ] Same song logged by multiple people → side-by-side perspectives view
-- [ ] Wedding/event mode: open-join QR at a venue
-- [ ] Collection summary card — shareable artifact after the event
-- [ ] Wire shared collection data into web app preview route
-- [ ] Why urgent: 1 wedding = potentially 30 new users
-- [ ] See docs/SOCIAL-ARCHITECTURE.md for full spec
+### 4. Shared collections — Phase B (TestFlight era)
+**Decided approach: link-based, no friend system yet.**
+Anyone with the invite link can join — like Google Docs sharing. No `collection_members`
+table or friends graph required yet. Revisit after App Store launch.
 
-### 5. Friends + social tagging
+- [ ] Handle `tracks://join/{invite_code}` deep link in the app
+- [ ] Join screen — collection name, owner, moment count, "Join" button
+- [ ] Add joiner to `collection_moments` as contributor (simple, no roles table yet)
+- [ ] Update web CTA to "Open in Tracks" linking to `tracks://join/{invite_code}`
+- [ ] Contributor attribution — show who added each moment in the collection view
+- [ ] See docs/SOCIAL-ARCHITECTURE.md for decisions and full spec
+
+**App Store launch gate (do before public launch):**
+- [ ] Deferred deep links (Branch.io or similar) — passes invite code through App Store install
+- [ ] Smart web CTA: try `tracks://` first, fall back to App Store with code stored for after install
+
+### 5. Friends + social tagging — DEFERRED
+Deferred until after App Store launch and real usage data. Link-based sharing covers the
+near-term social use case without needing a social graph.
 - [ ] `friendships` table — bidirectional request/accept model
 - [ ] Friend discovery (search by display name) + request/accept UI
 - [ ] Social tagging: when you tag a friend, creates a `tagged_moments` record
