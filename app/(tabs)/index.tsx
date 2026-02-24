@@ -9,6 +9,7 @@ import {
   TextInput,
   ScrollView,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -34,6 +35,7 @@ import { MomentCard } from "@/components/MomentCard";
 import { CalendarView } from "@/components/CalendarView";
 import { CollectionPicker } from "@/components/CollectionPicker";
 import { CreateCollectionModal } from "@/components/CreateCollectionModal";
+import { CollectionShareSheet } from "@/components/CollectionShareSheet";
 import { Collection, Moment, MoodOption } from "@/types";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 
@@ -63,6 +65,7 @@ export default function TimelineScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +79,7 @@ export default function TimelineScreen() {
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [createCollectionVisible, setCreateCollectionVisible] = useState(false);
+  const [shareSheetVisible, setShareSheetVisible] = useState(false);
   const selectedCollectionRef = useRef(selectedCollection);
   selectedCollectionRef.current = selectedCollection;
 
@@ -449,6 +453,11 @@ export default function TimelineScreen() {
     setCreateCollectionVisible(false);
   }, []);
 
+  const handleCollectionUpdated = useCallback((updated: Collection) => {
+    setCollections((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    setSelectedCollection(updated);
+  }, []);
+
   const listHeader = bannerError ? (
     <ErrorBanner
       message={bannerError}
@@ -477,12 +486,14 @@ export default function TimelineScreen() {
           />
         </TouchableOpacity>
         <View style={styles.headerRight}>
-          <TouchableOpacity
-            onPress={() => router.push("/create")}
-            hitSlop={8}
-          >
-            <Ionicons name="add" size={28} color={theme.colors.accent} />
-          </TouchableOpacity>
+          {selectedCollection ? (
+            <TouchableOpacity
+              onPress={() => setShareSheetVisible(true)}
+              hitSlop={8}
+            >
+              <Ionicons name="share-outline" size={22} color={theme.colors.text} />
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity onPress={toggleView} hitSlop={8}>
             <Ionicons
               name={viewMode === "calendar" ? "list-outline" : "calendar-outline"}
@@ -800,6 +811,30 @@ export default function TimelineScreen() {
           onClose={() => setCreateCollectionVisible(false)}
         />
       ) : null}
+
+      {selectedCollection && shareSheetVisible ? (
+        <CollectionShareSheet
+          visible={shareSheetVisible}
+          collection={selectedCollection}
+          onClose={() => setShareSheetVisible(false)}
+          onUpdated={handleCollectionUpdated}
+        />
+      ) : null}
+
+      {/* Floating action button */}
+      <TouchableOpacity
+        style={[
+          styles.fab,
+          {
+            backgroundColor: theme.colors.accent,
+            bottom: 49 + insets.bottom + 16,
+          },
+        ]}
+        onPress={() => router.push("/create")}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="add" size={30} color="#fff" />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -833,6 +868,20 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.md,
+    },
+    fab: {
+      position: "absolute",
+      right: 20,
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 6,
+      elevation: 5,
     },
     viewsContainer: {
       flex: 1,

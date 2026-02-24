@@ -43,6 +43,8 @@ export interface Collection {
   name: string;
   createdAt: string;
   momentCount?: number;
+  isPublic?: boolean;
+  inviteCode?: string;
 }
 
 export interface UserProfile {

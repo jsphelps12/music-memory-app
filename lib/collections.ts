@@ -4,7 +4,7 @@ import { Collection } from "@/types";
 export async function fetchCollections(userId: string): Promise<Collection[]> {
   const { data, error } = await supabase
     .from("collections")
-    .select("id, user_id, name, created_at, collection_moments(moment_id)")
+    .select("id, user_id, name, created_at, is_public, invite_code, collection_moments(moment_id)")
     .eq("user_id", userId)
     .order("created_at", { ascending: true });
 
@@ -16,6 +16,8 @@ export async function fetchCollections(userId: string): Promise<Collection[]> {
     name: row.name,
     createdAt: row.created_at,
     momentCount: (row.collection_moments ?? []).length,
+    isPublic: row.is_public ?? false,
+    inviteCode: row.invite_code ?? undefined,
   }));
 }
 
@@ -34,7 +36,17 @@ export async function createCollection(userId: string, name: string): Promise<Co
     name: data.name,
     createdAt: data.created_at,
     momentCount: 0,
+    isPublic: data.is_public ?? false,
+    inviteCode: data.invite_code ?? undefined,
   };
+}
+
+export async function setCollectionPublic(id: string, isPublic: boolean): Promise<void> {
+  const { error } = await supabase
+    .from("collections")
+    .update({ is_public: isPublic })
+    .eq("id", id);
+  if (error) throw error;
 }
 
 export async function deleteCollection(id: string): Promise<void> {
