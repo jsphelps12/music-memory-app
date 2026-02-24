@@ -94,11 +94,12 @@ function topValue(items: (string | null | undefined)[]): string | null {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, profile, signOut, refreshProfile } = useAuth();
+  const { user, profile, signOut, deleteAccount, refreshProfile } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [momentCount, setMomentCount] = useState<number | null>(null);
   const [storageBytes, setStorageBytes] = useState<number | null>(null);
   const [currentStreak, setCurrentStreak] = useState<number | null>(null);
@@ -196,6 +197,43 @@ export default function ProfileScreen() {
     await loadProfileData(false);
     setRefreshing(false);
   }, [loadProfileData]);
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "This will permanently delete your account and all your moments, photos, and collections. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            Alert.alert(
+              "Are you sure?",
+              "Your data cannot be recovered after deletion.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Delete My Account",
+                  style: "destructive",
+                  onPress: async () => {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                    setDeletingAccount(true);
+                    try {
+                      await deleteAccount();
+                    } catch (e) {
+                      setDeletingAccount(false);
+                      Alert.alert("Error", friendlyError(e));
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
 
   const handleSignOut = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -381,13 +419,27 @@ export default function ProfileScreen() {
       <TouchableOpacity
         style={[styles.signOutButton, signingOut && styles.buttonDisabled]}
         onPress={handleSignOut}
-        disabled={signingOut}
+        disabled={signingOut || deletingAccount}
         activeOpacity={0.7}
       >
         {signingOut ? (
           <ActivityIndicator color={theme.colors.destructive} />
         ) : (
           <Text style={styles.signOutText}>Sign Out</Text>
+        )}
+      </TouchableOpacity>
+
+      {/* Delete Account */}
+      <TouchableOpacity
+        style={[styles.deleteAccountButton, deletingAccount && styles.buttonDisabled]}
+        onPress={handleDeleteAccount}
+        disabled={signingOut || deletingAccount}
+        activeOpacity={0.7}
+      >
+        {deletingAccount ? (
+          <ActivityIndicator color={theme.colors.textTertiary} />
+        ) : (
+          <Text style={styles.deleteAccountText}>Delete Account</Text>
         )}
       </TouchableOpacity>
     </ScrollView>
@@ -553,6 +605,15 @@ function createStyles(theme: Theme) {
       color: theme.colors.destructive,
       fontSize: theme.fontSize.base,
       fontWeight: theme.fontWeight.semibold,
+    },
+    deleteAccountButton: {
+      paddingVertical: 14,
+      alignItems: "center",
+      marginTop: theme.spacing.sm,
+    },
+    deleteAccountText: {
+      color: theme.colors.textTertiary,
+      fontSize: theme.fontSize.sm,
     },
   });
 }

@@ -13,6 +13,7 @@ interface AuthState {
   signUp: (email: string, password: string) => Promise<void>;
   signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   updateProfile: (updates: { displayName?: string; avatarUrl?: string }) => Promise<void>;
   refreshProfile: () => Promise<void>;
   saveCustomMood: (mood: CustomMoodDefinition) => Promise<void>;
@@ -138,6 +139,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   };
 
+  const deleteAccount = async () => {
+    const { error } = await supabase.functions.invoke("delete-account");
+    if (error) throw error;
+    // Sign out locally — the auth state change will redirect to sign-in
+    await supabase.auth.signOut();
+  };
+
   const updateProfile = async (updates: { displayName?: string; avatarUrl?: string }) => {
     if (!session?.user) throw new Error("Not authenticated");
 
@@ -195,6 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signUp,
         signInWithApple,
         signOut,
+        deleteAccount,
         updateProfile,
         refreshProfile,
         saveCustomMood,
