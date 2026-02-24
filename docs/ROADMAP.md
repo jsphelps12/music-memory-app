@@ -46,22 +46,39 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 - [x] Add/remove moments from collections
 - [x] Tappable header selector on Moments tab (Day One-style)
 
-### 3. Shareable moment cards — the viral surface
+### 3. Web app (Next.js / Vercel) — read-only destination
+- [ ] Next.js project setup, deployed to Vercel
+- [ ] `/c/{invite_code}` — shared collection preview page (song, artwork, reflections, contributors)
+- [ ] "Add your moment" CTA → App Store
+- [ ] See docs/SOCIAL-ARCHITECTURE.md for full plan
+
+### 4. Shared collections — the growth engine
+- [ ] DB: add `invite_code`, `is_shared`, `is_public` to `collections`; new `collection_members` table
+- [ ] App: create shared collection, generate invite link + QR code
+- [ ] Join via deep link (`tracks://c/{invite_code}`)
+- [ ] Contributor timeline — all members' moments in one view
+- [ ] Same song logged by multiple people → side-by-side perspectives view
+- [ ] Wedding/event mode: open-join QR at a venue
+- [ ] Collection summary card — shareable artifact after the event
+- [ ] Wire shared collection data into web app preview route
+- [ ] Why urgent: 1 wedding = potentially 30 new users
+- [ ] See docs/SOCIAL-ARCHITECTURE.md for full spec
+
+### 5. Friends + social tagging
+- [ ] `friendships` table — bidirectional request/accept model
+- [ ] Friend discovery (search by display name) + request/accept UI
+- [ ] Social tagging: when you tag a friend, creates a `tagged_moments` record
+- [ ] Tagged moments inbox — friend sees it, chooses "Add to my timeline" or "Hide"
+- [ ] Auto-suggest shared collection when two friends have 3+ mutual moments
+- [ ] See docs/SOCIAL-ARCHITECTURE.md for full spec
+
+### 6. Shareable moment cards — the viral surface
 - [ ] Moment card: artwork, song, quote from reflection, date — exportable graphic
 - [ ] Vertical/story-format card designed for Instagram & TikTok
 - [ ] Multiple visual templates — clean, filmic, retro
 - [ ] Share via iOS share sheet; free feature
 
-### 4. Shared collections — the growth engine
-- [ ] Invite link + QR code; contributors add their own moments
-- [ ] Same song logged by multiple people → side-by-side perspectives view
-- [ ] Wedding/event mode: open-join QR at a venue
-- [ ] Collection summary card — shareable artifact after the event
-- [ ] Web read-only preview for non-app users (lowers invite friction)
-- [ ] Why urgent: 1 wedding = potentially 30 new users
-- [ ] See FEATURE-IDEAS.md for full spec
-
-### 5. Era clustering (AI) — premium, needs data first
+### 7. Era clustering (AI) — premium, needs data first
 - [ ] Requires users to have 25+ moments before it's meaningful — bad early conversion trigger
 - [ ] Cluster moments into life chapters using date, mood, artist, and reflection patterns
 - [ ] Generate a name for each era (e.g. "Winter of Letting Go", "The Comeback Summer")
