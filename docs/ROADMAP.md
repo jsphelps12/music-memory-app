@@ -227,15 +227,35 @@ Conversion trigger: at 25–30 moments, show a locked Era card — not "upgrade 
 
 ## Phase 7: Sharing, Visualization & Legacy (Premium)
 
-- [ ] Shareable moment cards (beautiful exportable graphics, multiple templates)
+- [ ] Shareable moment cards (beautiful exportable graphics, multiple templates) — see Up Next #11
+- [ ] Shareable era cards — see Up Next #11
+- [ ] Vertical/story-format card for Instagram & TikTok ("This song was my whole era") — the viral surface
+- [ ] Musical autobiography — AI-generated prose narrative about who you were during an era
+- [ ] Couples soundtrack — shared timeline with both perspectives; relationship era clustering
+- [ ] "You're Not Alone" — anonymous matched moments when two users log the same song with similar emotional context
+- [ ] Grief & memorial moments — dedicated moment type for songs tied to people who have passed; surfaces on significant dates
 - [ ] Map view (moments by location, clusters, tap to explore)
 - [ ] Advanced visualizations (calendar heatmap, genre distribution, artist network)
-- [ ] Weekly Recap — in-app summary of the week's moments: top songs, moods, people, and a highlight card; shown in Reflections tab or as a push notification on Sunday evening
+- [ ] Weekly Recap — in-app summary of the week's moments: top songs, moods, people, and a highlight card
 - [ ] Yearly Recap ("Your 2024 in Moments" — Spotify Wrapped-style, shareable)
+- [ ] Personal charts — most-logged songs/artists ranked by year, always-on (not just annual)
 - [ ] Playlist export to Spotify/Apple Music
 - [ ] Memory book creation (print-on-demand, QR codes linking to songs)
 - [ ] Time capsules ("Remind me of this in 5 years")
 - [ ] Legacy mode (designate someone to receive your collection)
+
+---
+
+## Phase 8: Predictive & Platform (Scale)
+
+The shift from rearview mirror to windshield — using accumulated data to serve present and future needs.
+
+- [ ] Music as emotional regulation — "I'm feeling anxious" → your songs that helped before, not generic recommendations
+- [ ] Seasonal pattern anticipation — "Last October your mood dipped and music got heavy. It's October."
+- [ ] "You're in a transition" detection — when logging patterns shift, the app quietly notices and surfaces relevant past moments
+- [ ] Android app — doubles the addressable market
+- [ ] Web companion — shareable public links, full keyboard, the destination for shared cards
+- [ ] Apple Watch app — one tap logs current Apple Music song instantly
 
 ---
 

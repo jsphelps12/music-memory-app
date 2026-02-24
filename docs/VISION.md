@@ -84,6 +84,14 @@ This arc is the product north star. Features that contribute to it are worth bui
 
 ---
 
+## The Positioning Line
+
+> **Spotify knows your music. Tracks knows what it means.**
+
+This sentence does the work. Every Spotify user instantly understands the gap it fills. No explanation needed. This is the sentence that travels.
+
+---
+
 ## The Differentiator From Day One
 
 Day One stores entries. Tracks structures emotional memory into eras and patterns.
@@ -145,11 +153,52 @@ That's the product. Everything else is in service of that.
 
 ---
 
+## The Growth Problem (and the answer)
+
+The app currently has no network effects. Every user's experience is completely independent of every other user. That is a ceiling.
+
+Every app that reached millions did it because using it made you want to bring someone else in, or because someone else using it made your experience better.
+
+**The answer is not a social network.** It's one mechanic that's better with two people than one:
+- The couples soundtrack — one partner pulls the other in
+- "You're Not Alone" — anonymous matched moments make the app feel alive and shared
+- "Share this moment with someone" — a message that's worth sending, which is an acquisition loop
+
+The viral surface is the shareable card — specifically a vertical, story-format card designed for Instagram and TikTok. "This song was my whole era" is already a cultural format. Tracks makes it real and personal. Every share is a free impression.
+
+---
+
+## The Rearview Mirror Problem
+
+The app is currently almost entirely backward-looking. That limits the daily reason to open it — the app is most useful *after* you've lived something.
+
+The shift to make: use accumulated past data to serve present and future emotional needs.
+
+- **Predictive comfort**: "I'm feeling anxious" → your songs that helped before, not Spotify's generic suggestions
+- **Seasonal anticipation**: "Last October your mood dipped and your music got heavy. It's October."
+- **Transition detection**: when logging patterns shift, the app quietly notices
+
+This turns Tracks from a journal into a personal intelligence layer. That's the difference between a nice app and an indispensable one.
+
+---
+
+## The Legacy Angle
+
+People are terrified of being forgotten. They're terrified of forgetting.
+
+Tracks could be the place you build your musical autobiography — not just for yourself, but for the people who come after you. Parents log moments with their kids. People facing illness document their soundtrack. Someone who loses a parent can go back and understand what music meant to them.
+
+This framing creates a different kind of user: one who pays forever, tells their family, and never churns. Not because of features — because they're building something that matters.
+
+---
+
 ## Feature Decision Filter
 
 Before building anything, ask:
 1. Does this serve the core loop (listen → log → resurface → reflect → share)?
 2. Does this contribute to the emotional arc (nostalgic → grateful → grounded → seen → shocked)?
 3. Does this make resurfacing more magical, or logging more frictionless?
+4. Does this create a reason to involve a second person?
+5. Does it serve the user *right now*, not just retrospectively?
 
 If none of the above: deprioritize.

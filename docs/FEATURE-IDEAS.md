@@ -10,6 +10,51 @@ Features are marked **[Free]** or **[Premium]** based on the monetization philos
 
 Features that would meaningfully increase retention, engagement, or organic growth.
 
+### "You're Not Alone" — anonymous shared experience **[Free]**
+
+- When two users independently log the same song with similar emotional context (mood, reflection tone, time of day), surface it anonymously: "Someone else has a moment with this song that sounds a lot like yours."
+- No names, no profiles, no social feed — just a single moment of human recognition
+- The most shareable thing the app could produce: people would screenshot it immediately because it's not about the app, it's about the human experience
+- This is the network effect mechanic the app currently lacks — it's better when more people use it
+- Opt-in; users can choose whether their moments participate in this matching
+- Implementation: semantic similarity on reflection text + matching mood tags + same song → threshold match triggers notification
+
+### Couples Soundtrack **[Free to start, Premium features]**
+
+- Both people in a relationship log moments; when they log the same song independently, show both reflections side by side
+- "Your song" but expanded — every shared memory, both perspectives, over the full arc of the relationship
+- Relationship timeline: see your shared musical history from first moment to now
+- This requires a second person, which is the acquisition mechanic — one partner pulls the other in
+- Premium: relationship stats, "your era together" clustering, shareable anniversary cards
+- Also works for close friendships, not just romantic relationships
+
+### Musical Autobiography **[Premium]**
+
+- AI generates a piece of prose about who you were during an era — not charts, not stats, actual writing
+- "In the winter of 2023, you kept returning to songs about distance. The reflection you wrote most often mentioned feeling stuck between who you were and who you were trying to become. By March, the music shifted."
+- People would read this and feel seen in a way no feature list accomplishes; they'd share it, they'd cry
+- Irreplaceable — no other service can produce it because it requires years of their own data
+- The premium feature that makes people pay without hesitation and never churn
+- Delivered as an era artifact: readable, shareable, printable
+
+### Legacy / Memorial **[Premium]**
+
+- Explicitly support building a musical autobiography for the people who come after you
+- Parents: "Here's what was playing when you were born. Here's the song playing on your first road trip."
+- People facing illness: document your soundtrack for the people you'll leave behind
+- Memorial: when someone passes, their family can access their Tracks archive as a tribute
+- Framing: "You're not just logging for yourself. You're building something that will outlast you."
+- Creates passionate, permanent users who never churn — they're building a legacy, not a habit
+- Generates press and word-of-mouth that no ad budget can buy
+
+### Music as Emotional Regulation — predictive comfort **[Free basic, Premium full]**
+
+- Flip from retrospective to forward-facing: "I'm feeling anxious right now" → app surfaces songs from *your own history* that helped you through that feeling before
+- Not Spotify recommendations (generic) — your songs, your proof that they worked
+- Free: basic "songs that helped" filtered by current mood selection
+- Premium: pattern-learned suggestions ("when you feel this way, these songs historically shifted things")
+- Genuinely useful in the moment, not just nostalgic — this is the daily-use hook the app currently lacks
+
 ### Forgotten Songs **[Free]**
 
 - Surface songs logged exactly once and never again: "You logged this once in March 2023 and never came back to it."
@@ -133,6 +178,30 @@ Worth exploring after the high-conviction features are in.
 - Minimal UI: song detected, one "Save Moment" button, optional mood tap
 - Full reflection added later from the phone (moment saved as draft)
 - Lowest possible friction in the entire product
+
+### Seasonal Pattern Anticipation **[Premium]**
+
+- With enough data, proactively surface patterns before the user falls into them again
+- "Last October you logged a lot of heavy music and your mood dipped. It's October."
+- Turns the app from a rearview mirror into a windshield — using the past to serve the future
+- Delivered as a gentle Reflections card or notification, never intrusive
+- The shift from descriptive to predictive is what separates a journaling app from a personal intelligence layer
+
+### "You're In A Transition" Detection **[Premium]**
+
+- When logging patterns shift — new artists appearing, mood changes, more late-night moments, shorter reflections — the app notices
+- "Something seems to be shifting for you lately." Soft in tone, sharp in insight
+- No diagnosis, no advice — just observation, like a friend who's been paying attention
+- Links to relevant past moments from similar transitions: "You've been through shifts like this before"
+- Requires ~3 months of data to be meaningful; shows up as an occasional insight card
+
+### Grief & Memorial Support **[Free]**
+
+- Surface the use case explicitly: songs tied to people who have passed
+- "Log a moment for someone you've lost — the song that makes you think of them."
+- A dedicated moment type: memorial moment, with a person tag that can be marked as "in memory of"
+- Surfaces these moments gently on significant dates (their birthday, anniversary of their passing)
+- Nothing else in the app market serves this need directly; deeply human, generates real word-of-mouth
 
 ### Replay the Era
 
