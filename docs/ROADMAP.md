@@ -89,11 +89,23 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 - [ ] Share via iOS share sheet to Instagram, Messages, etc.
 - [ ] Every share is a word-of-mouth impression — this is how the app spreads organically
 
-### 12. Custom collections
+### 12. Collections — personal and shared
+
+**Personal collections** (simpler, build first):
 - [ ] User-defined groupings ("Summer 2024", "My healing era", "Road trip playlist")
 - [ ] Add/remove moments from a collection
-- [ ] Collection detail view — same layout as artist/album views
+- [ ] Collection detail view — name, cover photo, moment timeline
 - [ ] Collections live on Reflections tab alongside On This Day
+
+**Shared collections** (the social growth engine — see FEATURE-IDEAS.md for full spec):
+- [ ] Create a shared collection with invite link + QR code
+- [ ] Contributors add their own moments (also stays in personal timeline)
+- [ ] Same song logged by multiple people → side-by-side perspectives view
+- [ ] Wedding/event mode: open join via QR code at a venue; every guest contributes
+- [ ] Collection summary card — shareable artifact (top songs, contributor count, artwork collage)
+- [ ] Web read-only preview for non-app users (lowers invite friction)
+- [ ] Anniversary recap: "One year ago today, this collection started"
+- **Why this is urgent**: weddings alone — avg 150 guests, 20% join = 30 new users per event. One wedding can be a 30-person acquisition campaign.
 
 ---
 

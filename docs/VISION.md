@@ -163,8 +163,11 @@ Every app that reached millions did it because using it made you want to bring s
 - The couples soundtrack — one partner pulls the other in
 - "You're Not Alone" — anonymous matched moments make the app feel alive and shared
 - "Share this moment with someone" — a message that's worth sending, which is an acquisition loop
+- **Shared collections** — the highest-leverage acquisition surface. A wedding collection with a QR code at the venue can bring in 20–30 new users from a single event. Couples, friend groups, families, concerts — every shared collection is a personalized invite campaign.
 
 The viral surface is the shareable card — specifically a vertical, story-format card designed for Instagram and TikTok. "This song was my whole era" is already a cultural format. Tracks makes it real and personal. Every share is a free impression.
+
+**The wedding insight**: weddings are cultural moments where music is already central and everyone wants to remember. A "Wedding Soundtrack" collection — where every guest logs what songs meant something during the day — becomes an artifact the couple treasures forever. It also introduces the app to 50–150 people at once. At scale, weddings could be the single largest acquisition channel.
 
 ---
 

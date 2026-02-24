@@ -10,6 +10,64 @@ Features are marked **[Free]** or **[Premium]** based on the monetization philos
 
 Features that would meaningfully increase retention, engagement, or organic growth.
 
+### Shared Collections — the social growth engine **[Free to join & contribute, Premium to create]**
+
+The most powerful social feature in the product. Every shared collection is a mini acquisition campaign — inviting someone to contribute means they download the app, and the personal logging habit follows.
+
+**What it is**
+A collaborative space where multiple people contribute moments around a shared experience — a relationship, a trip, an event, a season of life. Each contributor adds their own moments with their own reflections. Same song logged by multiple people shows both perspectives side by side.
+
+**Use cases**
+- **Weddings & events** — the highest-leverage acquisition surface. Host creates a collection, shares a QR code at the venue. Guests log what songs meant something during the day: the processional, the first dance, the song playing when the cake was cut, the last song of the night. The couple ends up with a collaborative soundtrack of their wedding from every guest's perspective. One event → potentially 50–100 new app installs.
+- **Couples** — "Our Songs." Both contribute moments, see each other's reflections on the same songs. The full arc of a relationship in music, both perspectives preserved.
+- **Friend groups** — that road trip, that summer living together, that era. Each person remembers differently. The collection holds all of it.
+- **Families** — holiday traditions, kids' milestones, moments with grandparents. A family archive that nobody would delete.
+- **Concert & festival crews** — log moments in real time at a live show. Everyone's experience of the same night, in one place.
+
+**How it works**
+
+*Creating a collection*
+- Name, optional cover photo, optional date range (e.g. "June 14, 2026 — our wedding day")
+- Optional description / context
+- Owner sets permissions: who can view, who can contribute
+- Generates a shareable invite link and QR code
+
+*Inviting contributors*
+- Share link or QR code — no account required to view (read-only web preview lowers friction)
+- Contributors tap link → prompted to download the app to add moments
+- Owner approves contributors or sets open join for events
+
+*Contributing*
+- Add existing moments from your personal timeline to the collection
+- Or log a new moment directly into the collection (also saves to personal timeline)
+- Moments stay in the contributor's personal feed — they're referenced, not moved
+
+*Viewing*
+- Chronological timeline of all contributed moments across all contributors
+- Each moment shows the contributor's name and their reflection
+- Songs logged by multiple people are highlighted: "3 people have a moment with this song" → tap to see all perspectives side by side
+- Filter by contributor, by mood, by date
+
+**The wedding card**
+After the event, generate a shareable "Wedding Soundtrack" artifact: the top songs from the collection, the number of contributors, a collage of album artwork. Beautiful, printable, giftable. The couple shares it → their guests see it → more people discover the app.
+
+**Data model sketch**
+- `collections` table: id, name, owner_id, cover_photo_url, date_from, date_to, invite_code, is_public
+- `collection_members`: collection_id, user_id, role (owner / contributor / viewer)
+- `collection_moments`: collection_id, moment_id, user_id, added_at
+- Moments remain in the contributor's personal timeline — no duplication, just a reference
+
+**Free vs Premium**
+- Free: join and contribute to any collection you're invited to; view the collection timeline
+- Premium: create shared collections (up to 3 free, unlimited premium); wedding/event QR code; "multiple perspectives" side-by-side view; collection summary card export; anniversary recap ("One year ago today, this collection started")
+
+**Why this is the growth engine**
+- Weddings alone: average 150 guests. If 20% join the collection, that's 30 new users from one wedding. At scale, weddings could be the single largest acquisition channel.
+- Every invite link is a personalized ad — "your friend added you to their wedding soundtrack on Tracks"
+- Emotional lock-in: once a family has 3 years of holiday collections, they never leave
+
+---
+
 ### "You're Not Alone" — anonymous shared experience **[Free]**
 
 - When two users independently log the same song with similar emotional context (mood, reflection tone, time of day), surface it anonymously: "Someone else has a moment with this song that sounds a lot like yours."
