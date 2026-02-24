@@ -37,6 +37,14 @@ export interface Moment {
   updatedAt: string;
 }
 
+export interface Collection {
+  id: string;
+  userId: string;
+  name: string;
+  createdAt: string;
+  momentCount?: number;
+}
+
 export interface UserProfile {
   id: string;
   displayName: string | null;

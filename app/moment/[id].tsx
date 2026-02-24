@@ -7,6 +7,12 @@ import {
   Pressable,
   Alert,
   StyleSheet,
+  Modal,
+  FlatList,
+  Platform,
+  ActivityIndicator,
+  TextInput,
+  KeyboardAvoidingView,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -27,6 +33,13 @@ import { usePlayer } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { mapRowToMoment } from "@/lib/moments";
+import {
+  fetchCollections,
+  fetchMomentCollectionIds,
+  addMomentToCollection,
+  removeMomentFromCollection,
+  createCollection,
+} from "@/lib/collections";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -34,7 +47,7 @@ import { SkeletonMomentDetail } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { friendlyError } from "@/lib/errors";
-import { Moment, MoodOption } from "@/types";
+import { Collection, Moment, MoodOption } from "@/types";
 
 export default function MomentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -50,6 +63,15 @@ export default function MomentDetailScreen() {
   const [deleting, setDeleting] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+
+  // Collection membership state
+  const [collectionModalVisible, setCollectionModalVisible] = useState(false);
+  const [allCollections, setAllCollections] = useState<Collection[]>([]);
+  const [memberIds, setMemberIds] = useState<string[]>([]);
+  const [collectionLoading, setCollectionLoading] = useState(false);
+  const [newCollectionName, setNewCollectionName] = useState("");
+  const [showingNewInput, setShowingNewInput] = useState(false);
+  const [creatingCollection, setCreatingCollection] = useState(false);
 
   const [origin] = useState(() => consumeCardOrigin());
   const translateX = useSharedValue(origin.active ? origin.x : 0);
@@ -185,6 +207,58 @@ export default function MomentDetailScreen() {
     if (moment) router.push(`/moment/edit/${moment.id}`);
   };
 
+  const handleAddToCollection = async () => {
+    Haptics.selectionAsync();
+    setMenuOpen(false);
+    setCollectionLoading(true);
+    setCollectionModalVisible(true);
+    setShowingNewInput(false);
+    setNewCollectionName("");
+    try {
+      const [cols, ids] = await Promise.all([
+        fetchCollections(user!.id),
+        fetchMomentCollectionIds(id),
+      ]);
+      setAllCollections(cols);
+      setMemberIds(ids);
+    } catch {}
+    setCollectionLoading(false);
+  };
+
+  const toggleCollection = async (collection: Collection) => {
+    const isMember = memberIds.includes(collection.id);
+    if (isMember) {
+      setMemberIds((prev) => prev.filter((cid) => cid !== collection.id));
+      try {
+        await removeMomentFromCollection(collection.id, id);
+      } catch {
+        setMemberIds((prev) => [...prev, collection.id]);
+      }
+    } else {
+      setMemberIds((prev) => [...prev, collection.id]);
+      try {
+        await addMomentToCollection(collection.id, id);
+      } catch {
+        setMemberIds((prev) => prev.filter((cid) => cid !== collection.id));
+      }
+    }
+  };
+
+  const handleCreateCollection = async () => {
+    const trimmed = newCollectionName.trim();
+    if (!trimmed || creatingCollection) return;
+    setCreatingCollection(true);
+    try {
+      const collection = await createCollection(user!.id, trimmed);
+      await addMomentToCollection(collection.id, id);
+      setAllCollections((prev) => [...prev, collection]);
+      setMemberIds((prev) => [...prev, collection.id]);
+      setNewCollectionName("");
+      setShowingNewInput(false);
+    } catch {}
+    setCreatingCollection(false);
+  };
+
   const handleDelete = () => {
     if (deleting) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -263,6 +337,10 @@ export default function MomentDetailScreen() {
           <View style={styles.menuContainer}>
             <TouchableOpacity style={styles.menuItem} onPress={handleEdit} activeOpacity={0.7}>
               <Text style={styles.menuItemText}>Edit Moment</Text>
+            </TouchableOpacity>
+            <View style={styles.menuDivider} />
+            <TouchableOpacity style={styles.menuItem} onPress={handleAddToCollection} activeOpacity={0.7}>
+              <Text style={styles.menuItemText}>Add to Collection</Text>
             </TouchableOpacity>
             <View style={styles.menuDivider} />
             <TouchableOpacity style={styles.menuItem} onPress={handleDelete} activeOpacity={0.7}>
@@ -437,10 +515,231 @@ export default function MomentDetailScreen() {
         visible={viewerVisible}
         onClose={() => setViewerVisible(false)}
       />
+
+      {/* Collection membership modal */}
+      <Modal
+        visible={collectionModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCollectionModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={collectionStyles.flex}
+        >
+        <Pressable
+          style={[
+            collectionStyles.backdrop,
+            { backgroundColor: theme.isDark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.3)" },
+          ]}
+          onPress={() => setCollectionModalVisible(false)}
+        />
+        <View style={[collectionStyles.sheet, { backgroundColor: theme.colors.cardBg }]}>
+          <View style={[collectionStyles.handle, { backgroundColor: theme.colors.border }]} />
+          <Text style={[collectionStyles.sheetTitle, { color: theme.colors.textSecondary }]}>
+            Add to Collection
+          </Text>
+
+          {collectionLoading ? (
+            <View style={collectionStyles.loadingRow}>
+              <ActivityIndicator color={theme.colors.textSecondary} />
+            </View>
+          ) : (
+            <FlatList
+              data={allCollections}
+              keyExtractor={(item) => item.id}
+              style={collectionStyles.list}
+              ListEmptyComponent={
+                <Text style={[collectionStyles.emptyText, { color: theme.colors.textTertiary }]}>
+                  No collections yet
+                </Text>
+              }
+              renderItem={({ item }) => {
+                const isMember = memberIds.includes(item.id);
+                return (
+                  <TouchableOpacity
+                    style={collectionStyles.row}
+                    onPress={() => toggleCollection(item)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[collectionStyles.rowName, { color: theme.colors.text }]}>
+                      {item.name}
+                    </Text>
+                    {isMember ? (
+                      <View style={[collectionStyles.checkmark, { backgroundColor: theme.colors.accent }]}>
+                        <Text style={collectionStyles.checkmarkText}>✓</Text>
+                      </View>
+                    ) : (
+                      <View style={[collectionStyles.checkmarkEmpty, { borderColor: theme.colors.border }]} />
+                    )}
+                  </TouchableOpacity>
+                );
+              }}
+              ItemSeparatorComponent={() => (
+                <View style={[collectionStyles.divider, { backgroundColor: theme.colors.border }]} />
+              )}
+            />
+          )}
+
+          <View style={[collectionStyles.divider, { backgroundColor: theme.colors.border }]} />
+
+          {showingNewInput ? (
+            <View style={[collectionStyles.newInputRow, collectionStyles.newInputInner]}>
+              <TextInput
+                style={[collectionStyles.newInputField, {
+                  backgroundColor: theme.colors.backgroundInput,
+                  color: theme.colors.text,
+                }]}
+                placeholder="Collection name..."
+                placeholderTextColor={theme.colors.placeholder}
+                cursorColor={theme.colors.accent}
+                value={newCollectionName}
+                onChangeText={setNewCollectionName}
+                returnKeyType="done"
+                onSubmitEditing={handleCreateCollection}
+                maxLength={60}
+                autoFocus
+              />
+              <TouchableOpacity
+                style={[collectionStyles.createBtn, {
+                  backgroundColor: theme.colors.buttonBg,
+                  opacity: !newCollectionName.trim() || creatingCollection ? 0.5 : 1,
+                }]}
+                onPress={handleCreateCollection}
+                disabled={!newCollectionName.trim() || creatingCollection}
+                activeOpacity={0.7}
+              >
+                <Text style={[collectionStyles.createBtnText, { color: theme.colors.buttonText }]}>
+                  {creatingCollection ? "..." : "Create"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={collectionStyles.row}
+              onPress={() => setShowingNewInput(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={[collectionStyles.newCollectionText, { color: theme.colors.accent }]}>
+                + New Collection
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </Animated.View>
     </GestureDetector>
   );
 }
+
+const collectionStyles = StyleSheet.create({
+  flex: { flex: 1 },
+  backdrop: {
+    flex: 1,
+  },
+  sheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: Platform.OS === "ios" ? 36 : 20,
+    maxHeight: "60%",
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  sheetTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  list: {
+    flexGrow: 0,
+    maxHeight: 280,
+  },
+  loadingRow: {
+    paddingVertical: 24,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: "center",
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  rowName: {
+    fontSize: 16,
+    fontWeight: "500",
+    flex: 1,
+  },
+  checkmark: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkmarkText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  checkmarkEmpty: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: 20,
+  },
+  newCollectionText: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  newInputRow: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  newInputField: {
+    flex: 1,
+    height: 40,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 15,
+  },
+  newInputInner: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "center",
+  },
+  createBtn: {
+    height: 40,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  createBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+});
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({

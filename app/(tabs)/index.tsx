@@ -22,6 +22,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
+import { fetchCollections } from "@/lib/collections";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -31,7 +32,9 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
 import { MomentCard } from "@/components/MomentCard";
 import { CalendarView } from "@/components/CalendarView";
-import { Moment } from "@/types";
+import { CollectionPicker } from "@/components/CollectionPicker";
+import { CreateCollectionModal } from "@/components/CreateCollectionModal";
+import { Collection, Moment, MoodOption } from "@/types";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 
 const REFETCH_COOLDOWN_MS = 2000;
@@ -67,6 +70,14 @@ export default function TimelineScreen() {
   const [error, setError] = useState("");
   const [bannerError, setBannerError] = useState("");
   const lastFetchTime = useRef(0);
+
+  // Collections state
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [createCollectionVisible, setCreateCollectionVisible] = useState(false);
+  const selectedCollectionRef = useRef(selectedCollection);
+  selectedCollectionRef.current = selectedCollection;
 
   // Search & filter state
   const [searchText, setSearchText] = useState("");
@@ -176,7 +187,8 @@ export default function TimelineScreen() {
     selectedPeople.length > 0 ||
     dateFrom !== null ||
     dateTo !== null ||
-    debouncedLocation.length > 0;
+    debouncedLocation.length > 0 ||
+    selectedCollection !== null;
 
   const hasChipFilters =
     selectedMoods.length > 0 ||
@@ -242,13 +254,15 @@ export default function TimelineScreen() {
       const currentDateFrom = dateFromRef.current;
       const currentDateTo = dateToRef.current;
       const currentLocation = debouncedLocationRef.current;
+      const currentCollection = selectedCollectionRef.current;
       const filtersActive =
         currentSearch.length > 0 ||
         currentMoods.length > 0 ||
         currentPeople.length > 0 ||
         currentDateFrom !== null ||
         currentDateTo !== null ||
-        currentLocation.length > 0;
+        currentLocation.length > 0 ||
+        currentCollection !== null;
 
       let query = supabase
         .from("moments")
@@ -283,6 +297,21 @@ export default function TimelineScreen() {
         query = query.ilike("location", `%${escapeLike(currentLocation)}%`);
       }
 
+      if (currentCollection) {
+        const { data: cm } = await supabase
+          .from("collection_moments")
+          .select("moment_id")
+          .eq("collection_id", currentCollection.id);
+        const ids = (cm ?? []).map((r: any) => r.moment_id);
+        if (ids.length === 0) {
+          setMoments([]);
+          setLoading(false);
+          lastFetchTime.current = Date.now();
+          return;
+        }
+        query = query.in("id", ids);
+      }
+
       const { data, error: fetchError } = await query;
 
       if (fetchError) {
@@ -313,12 +342,20 @@ export default function TimelineScreen() {
     [user]
   );
 
+  const loadCollections = useCallback(async () => {
+    if (!user) return;
+    try {
+      const data = await fetchCollections(user.id);
+      setCollections(data);
+    } catch {}
+  }, [user]);
+
   // Re-fetch when filters change
   useEffect(() => {
     if (lastFetchTime.current > 0) {
       fetchMoments(false);
     }
-  }, [debouncedSearch, selectedMoods, selectedPeople, dateFrom, dateTo, debouncedLocation, fetchMoments]);
+  }, [debouncedSearch, selectedMoods, selectedPeople, dateFrom, dateTo, debouncedLocation, selectedCollection, fetchMoments]);
 
   useFocusEffect(
     useCallback(() => {
@@ -333,13 +370,15 @@ export default function TimelineScreen() {
       setDebouncedLocation((prev) => (prev === "" ? prev : ""));
       setFiltersExpanded(false);
 
+      loadCollections();
+
       const elapsed = Date.now() - lastFetchTime.current;
       if (lastFetchTime.current === 0) {
         fetchMoments(true);
       } else if (elapsed >= REFETCH_COOLDOWN_MS) {
         fetchMoments(false);
       }
-    }, [fetchMoments])
+    }, [fetchMoments, loadCollections])
   );
 
   const handleRefresh = useCallback(async () => {
@@ -382,6 +421,7 @@ export default function TimelineScreen() {
     setDateTo(null);
     setLocationSearch("");
     setDebouncedLocation("");
+    setSelectedCollection(null);
   }, []);
 
   const toggleMood = useCallback((mood: MoodOption) => {
@@ -398,6 +438,17 @@ export default function TimelineScreen() {
     );
   }, []);
 
+  const handleRequestCreate = useCallback(() => {
+    setPickerVisible(false);
+    setCreateCollectionVisible(true);
+  }, []);
+
+  const handleCollectionCreated = useCallback((collection: Collection) => {
+    setCollections((prev) => [...prev, collection]);
+    setSelectedCollection(collection);
+    setCreateCollectionVisible(false);
+  }, []);
+
   const listHeader = bannerError ? (
     <ErrorBanner
       message={bannerError}
@@ -411,7 +462,20 @@ export default function TimelineScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Your Moments</Text>
+        <TouchableOpacity
+          onPress={() => setPickerVisible(true)}
+          activeOpacity={0.7}
+          style={styles.collectionSelector}
+        >
+          <Text style={styles.title}>
+            {selectedCollection?.name ?? "All Moments"}
+          </Text>
+          <Ionicons
+            name="chevron-down"
+            size={16}
+            color={theme.colors.textSecondary}
+          />
+        </TouchableOpacity>
         <View style={styles.headerRight}>
           <TouchableOpacity
             onPress={() => router.push("/create")}
@@ -682,7 +746,9 @@ export default function TimelineScreen() {
                 showEmptyFilterState ? (
                   <View style={styles.emptyFilter}>
                     <Text style={styles.emptyFilterText}>
-                      No moments match your filters
+                      {selectedCollection
+                        ? `No moments in "${selectedCollection.name}"`
+                        : "No moments match your filters"}
                     </Text>
                     <TouchableOpacity
                       style={styles.clearFiltersButton}
@@ -706,8 +772,8 @@ export default function TimelineScreen() {
                   onRefresh={handleRefresh}
                   tintColor={theme.colors.text}
                 />
-            }
-          />
+              }
+            />
           )}
         </Animated.View>
 
@@ -716,6 +782,24 @@ export default function TimelineScreen() {
         </Animated.View>
       </View>
       </GestureDetector>
+
+      <CollectionPicker
+        visible={pickerVisible}
+        collections={collections}
+        selectedId={selectedCollection?.id ?? null}
+        onSelect={(c) => setSelectedCollection(c)}
+        onClose={() => setPickerVisible(false)}
+        onRequestCreate={handleRequestCreate}
+      />
+
+      {user ? (
+        <CreateCollectionModal
+          visible={createCollectionVisible}
+          userId={user.id}
+          onCreated={handleCollectionCreated}
+          onClose={() => setCreateCollectionVisible(false)}
+        />
+      ) : null}
     </View>
   );
 }
@@ -733,6 +817,12 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.xl,
       paddingTop: 80,
       paddingBottom: theme.spacing.lg,
+    },
+    collectionSelector: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      flex: 1,
     },
     title: {
       fontSize: theme.fontSize["2xl"],
@@ -873,6 +963,7 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.base,
       color: theme.colors.textSecondary,
       marginBottom: theme.spacing.lg,
+      textAlign: "center",
     },
     clearFiltersButton: {
       paddingVertical: 10,
@@ -939,5 +1030,4 @@ function createStyles(theme: Theme) {
       paddingBottom: theme.spacing["4xl"],
     },
   });
-
 }
