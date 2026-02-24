@@ -28,9 +28,12 @@ import { getNowPlaying, onNowPlayingChange } from "@/lib/now-playing";
 import { onSongSelected } from "@/lib/songEvents";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
+import { CollectionPicker } from "@/components/CollectionPicker";
+import { CreateCollectionModal } from "@/components/CreateCollectionModal";
+import { fetchCollections, addMomentToCollection } from "@/lib/collections";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
-import { Song } from "@/types";
+import { Song, Collection } from "@/types";
 import { friendlyError } from "@/lib/errors";
 import { checkAndNotifyMilestone } from "@/lib/notifications";
 
@@ -209,9 +212,19 @@ export default function CreateMomentScreen() {
   const [showDetails, setShowDetails] = useState(false);
   const [locationSuggestion, setLocationSuggestion] = useState("");
   const [dismissedLocationSuggestion, setDismissedLocationSuggestion] = useState(false);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
+  const [collectionPickerVisible, setCollectionPickerVisible] = useState(false);
+  const [createCollectionVisible, setCreateCollectionVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focusedField, setFocusedField] = useState("");
+
+  useEffect(() => {
+    if (showDetails && user && collections.length === 0) {
+      fetchCollections(user.id).then(setCollections).catch(() => {});
+    }
+  }, [showDetails, user]);
 
   const handleUseNowPlaying = () => {
     if (nowPlayingSong) {
@@ -306,27 +319,35 @@ export default function CreateMomentScreen() {
       const photoPaths = results.map((r) => r.fullPath);
       const thumbnailPaths = results.map((r) => r.thumbnailPath);
 
-      const { error: insertError } = await supabase.from("moments").insert({
-        user_id: user.id,
-        song_title: song!.title,
-        song_artist: song!.artistName,
-        song_album_name: song!.albumName || fetchedAlbumName || null,
-        song_artwork_url: song!.artworkUrl || null,
-        song_apple_music_id: song!.appleMusicId,
-        song_preview_url: previewUrl,
-        reflection_text: reflection.trim(),
-        mood: selectedMood,
-        people,
-        photo_urls: photoPaths,
-        photo_thumbnails: thumbnailPaths,
-        location: location.trim() || null,
-        moment_date: momentDate
-          ? `${momentDate.getFullYear()}-${String(momentDate.getMonth() + 1).padStart(2, "0")}-${String(momentDate.getDate()).padStart(2, "0")}`
-          : null,
-        time_of_day: getTimeOfDay(),
-      });
+      const { data: inserted, error: insertError } = await supabase
+        .from("moments")
+        .insert({
+          user_id: user.id,
+          song_title: song!.title,
+          song_artist: song!.artistName,
+          song_album_name: song!.albumName || fetchedAlbumName || null,
+          song_artwork_url: song!.artworkUrl || null,
+          song_apple_music_id: song!.appleMusicId,
+          song_preview_url: previewUrl,
+          reflection_text: reflection.trim(),
+          mood: selectedMood,
+          people,
+          photo_urls: photoPaths,
+          photo_thumbnails: thumbnailPaths,
+          location: location.trim() || null,
+          moment_date: momentDate
+            ? `${momentDate.getFullYear()}-${String(momentDate.getMonth() + 1).padStart(2, "0")}-${String(momentDate.getDate()).padStart(2, "0")}`
+            : null,
+          time_of_day: getTimeOfDay(),
+        })
+        .select("id")
+        .single();
 
       if (insertError) throw insertError;
+
+      if (selectedCollection && inserted?.id) {
+        await addMomentToCollection(selectedCollection.id, inserted.id).catch(() => {});
+      }
 
       checkAndNotifyMilestone(user.id).catch(() => {});
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -337,6 +358,7 @@ export default function CreateMomentScreen() {
       setPhotos([]);
       setMomentDate(new Date());
       setLocation("");
+      setSelectedCollection(null);
       setMetaSuggestion(null);
       setDismissedMetaSuggestion(false);
       setShowDetails(false);
@@ -490,6 +512,33 @@ export default function CreateMomentScreen() {
             <Text style={styles.sectionLabel}>People</Text>
             <PeopleInput people={people} onChange={setPeople} />
 
+            {/* Collection */}
+            <Text style={styles.sectionLabel}>Collection</Text>
+            {selectedCollection ? (
+              <View style={styles.collectionChipRow}>
+                <TouchableOpacity
+                  style={styles.collectionChip}
+                  onPress={() => setCollectionPickerVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="folder-outline" size={14} color={theme.colors.accentText} />
+                  <Text style={styles.collectionChipText}>{selectedCollection.name}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setSelectedCollection(null)} hitSlop={8}>
+                  <Ionicons name="close-circle" size={18} color={theme.colors.placeholder} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.collectionEmpty}
+                onPress={() => setCollectionPickerVisible(true)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="folder-outline" size={16} color={theme.colors.placeholder} />
+                <Text style={styles.collectionEmptyText}>Add to collection</Text>
+              </TouchableOpacity>
+            )}
+
             {/* Photos */}
             <Text style={styles.sectionLabel}>Photos</Text>
             <TouchableOpacity style={styles.addPhotosButton} activeOpacity={0.7} onPress={handleAddPhotos}>
@@ -630,6 +679,31 @@ export default function CreateMomentScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      <CollectionPicker
+        visible={collectionPickerVisible}
+        collections={collections}
+        selectedId={selectedCollection?.id ?? null}
+        onSelect={(c) => setSelectedCollection(c)}
+        onClose={() => setCollectionPickerVisible(false)}
+        onRequestCreate={() => {
+          setCollectionPickerVisible(false);
+          setCreateCollectionVisible(true);
+        }}
+      />
+
+      {user ? (
+        <CreateCollectionModal
+          visible={createCollectionVisible}
+          userId={user.id}
+          onCreated={(collection) => {
+            setCollections((prev) => [...prev, collection]);
+            setSelectedCollection(collection);
+            setCreateCollectionVisible(false);
+          }}
+          onClose={() => setCreateCollectionVisible(false)}
+        />
+      ) : null}
 
       {/* Spotify candidate selection modal */}
       <Modal
@@ -1022,6 +1096,38 @@ function createStyles(theme: Theme) {
       color: theme.colors.buttonText,
       fontSize: theme.fontSize.base,
       fontWeight: theme.fontWeight.semibold,
+    },
+    // Collection picker UI
+    collectionChipRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing.md,
+    },
+    collectionChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 8,
+      borderRadius: theme.radii.md,
+      backgroundColor: theme.colors.accentBg,
+    },
+    collectionChipText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.accentText,
+      fontWeight: theme.fontWeight.medium,
+    },
+    collectionEmpty: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      paddingVertical: 8,
+      marginBottom: theme.spacing.md,
+    },
+    collectionEmptyText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.placeholder,
     },
     // Candidate selection modal
     candidateModal: {
