@@ -41,33 +41,35 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 - [x] When opening a moment detail, gently fade in the 30-second preview automatically
 - [x] Respect system volume; don't interrupt other audio in a jarring way
 
-### 2. Era clustering (AI) — THE core differentiator
-- [ ] Cluster moments into life chapters using date, mood, artist, and reflection patterns
-- [ ] Generate a name for each era (e.g. "Winter of Letting Go", "The Comeback Summer")
-- [ ] Show eras as a navigable timeline — see your life organized into chapters
-- [ ] Trigger paywall at 25–30 moments: "Unlock the chapter you just lived"
-- [ ] Era detail view: cover art collage, top songs, dominant moods, reflection excerpts
-- [ ] See `docs/AI-FEATURES.md` for implementation notes
+### 2. Personal collections — COMPLETE
+- [x] User-defined groupings ("Summer 2024", "My healing era", "Road trip playlist")
+- [x] Add/remove moments from collections
+- [x] Tappable header selector on Moments tab (Day One-style)
 
-### 3. Shareable era & moment cards — the viral surface
+### 3. Shareable moment cards — the viral surface
 - [ ] Moment card: artwork, song, quote from reflection, date — exportable graphic
-- [ ] Era summary card: collage of artwork, era name, date range, key stats
 - [ ] Vertical/story-format card designed for Instagram & TikTok
 - [ ] Multiple visual templates — clean, filmic, retro
-- [ ] Share via iOS share sheet; moment cards free, era cards premium
+- [ ] Share via iOS share sheet; free feature
 
-### 4. Collections — personal and shared
-**Personal** (build first):
-- [ ] User-defined groupings ("Summer 2024", "My healing era", "Road trip playlist")
-- [ ] Add/remove moments, collection detail view, lives in Reflections tab
-
-**Shared** (the social growth engine — see FEATURE-IDEAS.md for full spec):
+### 4. Shared collections — the growth engine
 - [ ] Invite link + QR code; contributors add their own moments
 - [ ] Same song logged by multiple people → side-by-side perspectives view
 - [ ] Wedding/event mode: open-join QR at a venue
 - [ ] Collection summary card — shareable artifact after the event
 - [ ] Web read-only preview for non-app users (lowers invite friction)
 - [ ] Why urgent: 1 wedding = potentially 30 new users
+- [ ] See FEATURE-IDEAS.md for full spec
+
+### 5. Era clustering (AI) — premium, needs data first
+- [ ] Requires users to have 25+ moments before it's meaningful — bad early conversion trigger
+- [ ] Cluster moments into life chapters using date, mood, artist, and reflection patterns
+- [ ] Generate a name for each era (e.g. "Winter of Letting Go", "The Comeback Summer")
+- [ ] Show eras as a navigable timeline — see your life organized into chapters
+- [ ] Paywall: "Unlock the chapter you just lived"
+- [ ] Era detail view: cover art collage, top songs, dominant moods, reflection excerpts
+- [ ] Shareable era summary card (pairs with #3 above)
+- [ ] See `docs/AI-FEATURES.md` for implementation notes
 
 ---
 
