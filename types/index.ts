@@ -54,6 +54,7 @@ export interface Collection {
 export interface CollectionPreview {
   id: string;
   name: string;
+  ownerId: string;
   ownerName: string | null;
   momentCount: number;
   isPublic: boolean;

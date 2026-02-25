@@ -23,6 +23,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { fetchCollections, fetchSharedCollectionMoments } from "@/lib/collections";
+import { consumePendingCollectionId } from "@/lib/pendingCollection";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -310,8 +311,8 @@ export default function TimelineScreen() {
       }
 
       if (currentCollection) {
-        if (currentCollection.role === "member") {
-          // Shared collection: fetch all contributors' moments (not just ours)
+        if (currentCollection.isPublic) {
+          // Shared collection: fetch all contributors' moments (owner and members)
           const shared = await fetchSharedCollectionMoments(currentCollection.id);
           setMoments(shared);
           setLoading(false);
@@ -368,6 +369,11 @@ export default function TimelineScreen() {
     try {
       const data = await fetchCollections(user.id);
       setCollections(data);
+      const pendingId = consumePendingCollectionId();
+      if (pendingId) {
+        const col = data.find((c) => c.id === pendingId);
+        if (col) setSelectedCollection(col);
+      }
     } catch {}
   }, [user]);
 
@@ -513,7 +519,11 @@ export default function TimelineScreen() {
               onPress={() => setShareSheetVisible(true)}
               hitSlop={8}
             >
-              <Ionicons name="share-outline" size={22} color={theme.colors.text} />
+              <Ionicons
+                name={selectedCollection.role === "owner" ? "share-outline" : "ellipsis-horizontal"}
+                size={22}
+                color={theme.colors.text}
+              />
             </TouchableOpacity>
           ) : null}
           <TouchableOpacity onPress={toggleView} hitSlop={8}>

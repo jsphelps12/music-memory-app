@@ -2,19 +2,25 @@ import {
   View,
   Text,
   Modal,
-  Switch,
   Share,
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
   Platform,
   Alert,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import * as Haptics from "expo-haptics";
 import { Collection } from "@/types";
-import { setCollectionPublic, leaveCollection } from "@/lib/collections";
+import {
+  convertCollectionToShared,
+  leaveCollection,
+  fetchCollectionMembers,
+  removeCollectionMember,
+  CollectionMember,
+} from "@/lib/collections";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { friendlyError } from "@/lib/errors";
@@ -32,27 +38,56 @@ interface Props {
 export function CollectionShareSheet({ visible, collection, onClose, onUpdated, onLeft }: Props) {
   const theme = useTheme();
   const { user } = useAuth();
-  const [saving, setSaving] = useState(false);
+  const [converting, setConverting] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState("");
+  const [members, setMembers] = useState<CollectionMember[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
   const isOwner = collection.role === "owner";
+
+  useEffect(() => {
+    if (visible && isOwner) {
+      setLoadingMembers(true);
+      fetchCollectionMembers(collection.id)
+        .then(setMembers)
+        .catch(() => {})
+        .finally(() => setLoadingMembers(false));
+    }
+    if (!visible) {
+      setMembers([]);
+      setError("");
+    }
+  }, [visible, isOwner, collection.id]);
 
   const inviteUrl = collection.inviteCode
     ? `${WEB_BASE_URL}/c/${collection.inviteCode}`
     : null;
 
-  async function handleToggle(value: boolean) {
-    setSaving(true);
-    setError("");
-    try {
-      await setCollectionPublic(collection.id, value);
-      onUpdated({ ...collection, isPublic: value });
-    } catch (e: any) {
-      setError(friendlyError(e));
-    } finally {
-      setSaving(false);
-    }
+  function handleConvert() {
+    Alert.alert(
+      "Make Shared?",
+      "Anyone with the invite link can join and add moments. This can't be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Make Shared",
+          onPress: async () => {
+            setConverting(true);
+            setError("");
+            try {
+              await convertCollectionToShared(collection.id);
+              onUpdated({ ...collection, isPublic: true });
+            } catch (e: any) {
+              setError(friendlyError(e));
+            } finally {
+              setConverting(false);
+            }
+          },
+        },
+      ]
+    );
   }
 
   async function handleShare() {
@@ -64,6 +99,32 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
           : { message: inviteUrl }
       );
     } catch {}
+  }
+
+  function handleRemoveMember(member: CollectionMember) {
+    Alert.alert(
+      "Remove Member",
+      `Remove ${member.displayName ?? "this member"} from "${collection.name}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            setRemovingMemberId(member.userId);
+            setError("");
+            try {
+              await removeCollectionMember(collection.id, member.userId);
+              setMembers((prev) => prev.filter((m) => m.userId !== member.userId));
+            } catch (e: any) {
+              setError(friendlyError(e));
+            } finally {
+              setRemovingMemberId(null);
+            }
+          },
+        },
+      ]
+    );
   }
 
   function handleLeave() {
@@ -111,7 +172,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
         <View style={[styles.handle, { backgroundColor: theme.colors.textSecondary }]} />
 
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingHorizontal: 20 }]}>
           <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
             {collection.name}
           </Text>
@@ -121,28 +182,26 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
         </View>
 
         {isOwner ? (
-          <>
-            {/* Public toggle — only for owner */}
+          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            {/* Info row */}
             <View style={[styles.row, { borderBottomColor: theme.colors.backgroundInput }]}>
               <View style={styles.rowLeft}>
-                <Ionicons name="globe-outline" size={20} color={theme.colors.text} />
+                <Ionicons
+                  name={collection.isPublic ? "people-outline" : "lock-closed-outline"}
+                  size={20}
+                  color={theme.colors.text}
+                />
                 <View style={styles.rowText}>
-                  <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Make Public</Text>
+                  <Text style={[styles.rowLabel, { color: theme.colors.text }]}>
+                    {collection.isPublic ? "Shared Collection" : "Personal Collection"}
+                  </Text>
                   <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
-                    Anyone with the link can view this collection
+                    {collection.isPublic
+                      ? "Anyone with the link can join and add moments."
+                      : "Just for you — private and not shareable."}
                   </Text>
                 </View>
               </View>
-              {saving ? (
-                <ActivityIndicator size="small" color={theme.colors.accent} />
-              ) : (
-                <Switch
-                  value={collection.isPublic ?? false}
-                  onValueChange={handleToggle}
-                  trackColor={{ true: theme.colors.accent }}
-                  thumbColor="#fff"
-                />
-              )}
             </View>
 
             {error ? (
@@ -151,8 +210,8 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
               </Text>
             ) : null}
 
-            {/* Share section — only when public */}
             {collection.isPublic && inviteUrl ? (
+              /* Shared: show invite link + share button */
               <View style={styles.shareSection}>
                 <View style={[styles.urlBox, { backgroundColor: theme.colors.backgroundInput }]}>
                   <Text
@@ -169,13 +228,78 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                   activeOpacity={0.8}
                 >
                   <Ionicons name="share-outline" size={18} color="#fff" />
-                  <Text style={styles.shareButtonText}>Share Link</Text>
+                  <Text style={styles.shareButtonText}>Share Invite Link</Text>
                 </TouchableOpacity>
               </View>
-            ) : null}
-          </>
+            ) : (
+              /* Personal: one-way convert button */
+              <View style={styles.shareSection}>
+                <TouchableOpacity
+                  style={[
+                    styles.convertButton,
+                    { borderColor: theme.colors.accent },
+                    converting && styles.buttonDisabled,
+                  ]}
+                  onPress={handleConvert}
+                  disabled={converting}
+                  activeOpacity={0.8}
+                >
+                  {converting ? (
+                    <ActivityIndicator color={theme.colors.accent} />
+                  ) : (
+                    <>
+                      <Ionicons name="people-outline" size={16} color={theme.colors.accent} />
+                      <Text style={[styles.convertButtonText, { color: theme.colors.accent }]}>
+                        Convert to Shared
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Members section */}
+            <View style={styles.membersSection}>
+              <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+                MEMBERS
+              </Text>
+              {loadingMembers ? (
+                <ActivityIndicator size="small" color={theme.colors.accent} style={{ marginVertical: 12 }} />
+              ) : members.length === 0 ? (
+                <Text style={[styles.emptyMembers, { color: theme.colors.textTertiary }]}>
+                  No one has joined yet.
+                </Text>
+              ) : (
+                members.map((member) => (
+                  <View
+                    key={member.userId}
+                    style={[styles.memberRow, { borderBottomColor: theme.colors.backgroundInput }]}
+                  >
+                    <Text style={[styles.memberName, { color: theme.colors.text }]}>
+                      {member.displayName ?? "Unknown"}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => handleRemoveMember(member)}
+                      disabled={removingMemberId === member.userId}
+                      hitSlop={8}
+                    >
+                      {removingMemberId === member.userId ? (
+                        <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                      ) : (
+                        <Ionicons
+                          name="person-remove-outline"
+                          size={18}
+                          color={theme.colors.destructive ?? "#E53E3E"}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+            </View>
+          </ScrollView>
         ) : (
-          <>
+          <View style={styles.memberViewContent}>
             {/* Member view */}
             <View style={[styles.row, { borderBottomColor: theme.colors.backgroundInput }]}>
               <View style={styles.rowLeft}>
@@ -217,7 +341,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                 )}
               </TouchableOpacity>
             </View>
-          </>
+          </View>
         )}
       </View>
     </Modal>
@@ -232,8 +356,11 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingBottom: 40,
+    maxHeight: "85%",
+  },
+  scrollContent: {
     paddingHorizontal: 20,
+    paddingBottom: 40,
   },
   handle: {
     width: 36,
@@ -324,5 +451,45 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  convertButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  convertButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  memberViewContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  membersSection: {
+    marginTop: 24,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  emptyMembers: {
+    fontSize: 14,
+    marginVertical: 12,
+  },
+  memberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  memberName: {
+    fontSize: 15,
   },
 });

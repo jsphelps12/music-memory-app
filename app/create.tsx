@@ -365,7 +365,7 @@ export default function CreateMomentScreen() {
       setDismissedLocationSuggestion(false);
       setError("");
 
-      router.replace("/(tabs)");
+      router.back();
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(friendlyError(e));

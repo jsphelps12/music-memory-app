@@ -12,14 +12,13 @@ export function useDeepLinkHandler() {
   const { user } = useAuth();
 
   const handleUrl = useCallback(async (url: string) => {
-    // Join link: tracks://join/{invite_code}
-    const joinMatch = url.match(/^tracks:\/\/join\/([a-zA-Z0-9]+)/);
+    // Join link: tracks://join?inviteCode={code}
+    // Expo Router routes this directly to app/join.tsx when the user is logged in,
+    // so we only need to save the code for the unauthenticated case.
+    const joinMatch = url.match(/^tracks:\/\/join\?inviteCode=([a-zA-Z0-9]+)/);
     if (joinMatch) {
       const inviteCode = joinMatch[1];
-      if (user) {
-        router.push({ pathname: "/join" as any, params: { inviteCode } });
-      } else {
-        // Save for after sign-in — AuthGate will pick it up
+      if (!user) {
         await AsyncStorage.setItem(PENDING_INVITE_CODE_KEY, inviteCode);
       }
       return;
@@ -27,7 +26,7 @@ export function useDeepLinkHandler() {
 
     // Auth deep link (email confirmation, PKCE)
     handleAuthDeepLink(url);
-  }, [user, router]);
+  }, [user]);
 
   useEffect(() => {
     // Cold start: app opened via deep link

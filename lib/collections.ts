@@ -2,6 +2,12 @@ import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { Collection, CollectionPreview, Moment } from "@/types";
 
+export interface CollectionMember {
+  userId: string;
+  displayName: string | null;
+  joinedAt: string;
+}
+
 export async function fetchCollections(userId: string): Promise<Collection[]> {
   // Owned collections
   const { data: owned, error: ownedError } = await supabase
@@ -69,10 +75,10 @@ export async function fetchCollections(userId: string): Promise<Collection[]> {
   return [...ownedCollections, ...joinedCollections];
 }
 
-export async function createCollection(userId: string, name: string): Promise<Collection> {
+export async function createCollection(userId: string, name: string, isShared = false): Promise<Collection> {
   const { data, error } = await supabase
     .from("collections")
-    .insert({ user_id: userId, name })
+    .insert({ user_id: userId, name, is_public: isShared })
     .select()
     .single();
 
@@ -90,10 +96,10 @@ export async function createCollection(userId: string, name: string): Promise<Co
   };
 }
 
-export async function setCollectionPublic(id: string, isPublic: boolean): Promise<void> {
+export async function convertCollectionToShared(id: string): Promise<void> {
   const { error } = await supabase
     .from("collections")
-    .update({ is_public: isPublic })
+    .update({ is_public: true })
     .eq("id", id);
   if (error) throw error;
 }
@@ -153,6 +159,7 @@ export async function fetchCollectionByInviteCode(inviteCode: string): Promise<C
   return {
     id: collection.id,
     name: collection.name,
+    ownerId: collection.user_id,
     ownerName: profile?.display_name ?? null,
     momentCount: (collection.collection_moments ?? []).length,
     isPublic: collection.is_public,
@@ -187,6 +194,42 @@ export async function joinCollection(inviteCode: string, userId: string): Promis
 
 // Remove the current user from a shared collection
 export async function leaveCollection(collectionId: string, userId: string): Promise<void> {
+  const { error } = await supabase
+    .from("collection_members")
+    .delete()
+    .eq("collection_id", collectionId)
+    .eq("user_id", userId);
+  if (error) throw error;
+}
+
+// Fetch all members of a collection (owner use only)
+export async function fetchCollectionMembers(collectionId: string): Promise<CollectionMember[]> {
+  const { data, error } = await supabase
+    .from("collection_members")
+    .select("user_id, joined_at")
+    .eq("collection_id", collectionId)
+    .order("joined_at", { ascending: true });
+
+  if (error) throw error;
+  if (!data || data.length === 0) return [];
+
+  const userIds = data.map((r: any) => r.user_id);
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, display_name")
+    .in("id", userIds);
+
+  const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p.display_name]));
+
+  return data.map((r: any) => ({
+    userId: r.user_id,
+    displayName: profileMap.get(r.user_id) ?? null,
+    joinedAt: r.joined_at,
+  }));
+}
+
+// Remove a specific member from a collection (owner use only)
+export async function removeCollectionMember(collectionId: string, userId: string): Promise<void> {
   const { error } = await supabase
     .from("collection_members")
     .delete()

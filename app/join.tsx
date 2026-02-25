@@ -12,12 +12,13 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchCollectionByInviteCode, joinCollection } from "@/lib/collections";
+import { setPendingCollectionId } from "@/lib/pendingCollection";
 import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/hooks/useTheme";
 import { friendlyError } from "@/lib/errors";
 import { CollectionPreview } from "@/types";
 
-type ScreenState = "loading" | "not_found" | "already_member" | "ready" | "joining";
+type ScreenState = "loading" | "not_found" | "already_owner" | "already_member" | "ready" | "joining";
 
 export default function JoinScreen() {
   const { inviteCode } = useLocalSearchParams<{ inviteCode: string }>();
@@ -45,6 +46,12 @@ export default function JoinScreen() {
       }
       setCollection(data);
 
+      // Owner can't join their own collection
+      if (data.ownerId === user!.id) {
+        setState("already_owner");
+        return;
+      }
+
       // Check if already a member
       const { data: membership } = await supabase
         .from("collection_members")
@@ -64,9 +71,10 @@ export default function JoinScreen() {
     setState("joining");
     setError("");
     try {
-      await joinCollection(inviteCode, user.id);
+      const joined = await joinCollection(inviteCode, user.id);
+      setPendingCollectionId(joined.id);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.back();
+      router.replace("/(tabs)");
     } catch (e) {
       setError(friendlyError(e));
       setState("ready");
@@ -102,6 +110,28 @@ export default function JoinScreen() {
             activeOpacity={0.8}
           >
             <Text style={styles.primaryButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {state === "already_owner" && collection && (
+        <View style={styles.centered}>
+          <Ionicons name="star" size={48} color={theme.colors.accent} />
+          <Text style={[styles.title, { color: theme.colors.text, marginTop: 20 }]}>
+            This is your collection
+          </Text>
+          <Text style={[styles.collectionName, { color: theme.colors.text }]}>
+            {collection.name}
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            Share the invite link with friends so they can join.
+          </Text>
+          <TouchableOpacity
+            style={[styles.primaryButton, { backgroundColor: theme.colors.accent }]}
+            onPress={() => router.back()}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.primaryButtonText}>Got it</Text>
           </TouchableOpacity>
         </View>
       )}
