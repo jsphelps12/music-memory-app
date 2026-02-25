@@ -369,13 +369,18 @@ export default function TimelineScreen() {
     try {
       const data = await fetchCollections(user.id);
       setCollections(data);
-      const pendingId = consumePendingCollectionId();
-      if (pendingId) {
-        const col = data.find((c) => c.id === pendingId);
-        if (col) setSelectedCollection(col);
-      }
     } catch {}
   }, [user]);
+
+  // Auto-select a collection after joining via invite link
+  useEffect(() => {
+    if (collections.length === 0) return;
+    const pendingId = consumePendingCollectionId();
+    if (pendingId) {
+      const col = collections.find((c) => c.id === pendingId);
+      if (col) setSelectedCollection(col);
+    }
+  }, [collections]);
 
   // Re-fetch when filters change
   useEffect(() => {

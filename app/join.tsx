@@ -85,7 +85,7 @@ export default function JoinScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Handle + close */}
       <View style={[styles.handle, { backgroundColor: theme.colors.textTertiary }]} />
-      <TouchableOpacity style={styles.closeButton} onPress={() => router.back()} hitSlop={8}>
+      <TouchableOpacity style={styles.closeButton} onPress={() => router.replace("/(tabs)")} hitSlop={8}>
         <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
       </TouchableOpacity>
 
@@ -106,7 +106,7 @@ export default function JoinScreen() {
           </Text>
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: theme.colors.accent }]}
-            onPress={() => router.back()}
+            onPress={() => router.replace("/(tabs)")}
             activeOpacity={0.8}
           >
             <Text style={styles.primaryButtonText}>Go Back</Text>
@@ -128,7 +128,7 @@ export default function JoinScreen() {
           </Text>
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: theme.colors.accent }]}
-            onPress={() => router.back()}
+            onPress={() => router.replace("/(tabs)")}
             activeOpacity={0.8}
           >
             <Text style={styles.primaryButtonText}>Got it</Text>
@@ -152,7 +152,7 @@ export default function JoinScreen() {
           ) : null}
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: theme.colors.accent }]}
-            onPress={() => router.back()}
+            onPress={() => router.replace("/(tabs)")}
             activeOpacity={0.8}
           >
             <Text style={styles.primaryButtonText}>Got it</Text>
@@ -206,7 +206,7 @@ export default function JoinScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.cancelButton}>
+          <TouchableOpacity onPress={() => router.replace("/(tabs)")} activeOpacity={0.7} style={styles.cancelButton}>
             <Text style={[styles.cancelText, { color: theme.colors.textSecondary }]}>
               Not now
             </Text>
