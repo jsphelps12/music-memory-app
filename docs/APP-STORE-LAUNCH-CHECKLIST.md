@@ -288,13 +288,53 @@ Intentionally deferred. Do the above first, then revisit based on real usage dat
   Cross-search Spotify → Apple Music is already done. Full integration requires Spotify SDK
   and separate entitlement/review process. Investigate before starting.
 
-### Social / Sharing
-- [ ] **Friends + social tagging** (Phase C/D) — `friendships` table, request/accept UI,
-  social tagging → `tagged_moments`, inbox. Revisit post-launch with real usage data.
-  See `docs/SOCIAL-ARCHITECTURE.md`.
+### Social / Sharing (Phase C — Friends, Tagging & Social Feed)
 
-- [ ] **Shareable moment cards** — Exportable graphic: artwork + song + reflection quote + date.
-  Vertical/story format for Instagram & TikTok. Multiple templates.
+The app has three layers of content:
+1. **My Timeline** — all moments you've logged (existing)
+2. **Collections** — shared collections you own or have joined (existing)
+3. **Social Feed** *(new)* — moments added to collections you're in + moments friends have
+   tagged you in. Not a follower feed — every item in the feed involves you explicitly.
+   This drives network effects: being tagged is a reason to open the app.
+
+#### Friends
+- [ ] **`friendships` table** — `(user_id, friend_id, status: pending|accepted, created_at)`.
+  Bidirectional: one row per direction once accepted.
+- [ ] **Friend invite link** — `tracks://add-friend?userId={id}`. Same deep link pattern as
+  join. Cheapest discovery method, ship first.
+- [ ] **Username search** — Requires unique `username` column on `profiles`. User can search
+  by username to find and add friends.
+- [ ] **QR code** — Generate from user ID, scan via `expo-camera`. Ship after link + username.
+- [ ] **Friend request UI** — Send, accept, decline. Notification when someone requests.
+- [ ] **Friends list** — In profile tab. See who you're friends with, remove friends.
+  _Effort: 1 week (link + username + request UI)_
+
+#### Tagging Friends on Moments
+- [ ] **`moment_tags` table** — `(moment_id, tagged_user_id, tagged_by_user_id, created_at)`.
+  Replaces/extends current free-text `people` array on moments.
+- [ ] **Tag picker in create + edit screens** — Search friends by name/username, select to tag.
+  Free-text people tags still supported for non-friends.
+- [ ] **Push notification when tagged** — "Josh tagged you in *Sufjan Stevens - Death With Dignity*"
+- [ ] **Tagged moments visible to tagged user** — Privacy model: tagged moments appear in the
+  tagged user's Social Feed. Not visible on a public profile.
+  _Effort: 3–4 days_
+
+#### Social Feed (new tab or section)
+- [ ] **Feed screen** — Shows two streams merged by timestamp:
+  - Moments friends have tagged you in (`moment_tags WHERE tagged_user_id = me`)
+  - New moments added to collections you're in (`collection_moments` for your collections,
+    excluding your own additions)
+- [ ] **Feed navigation** — New tab in the tab bar (between Moments and Reflections?),
+  or a section on the Reflections tab. TBD based on design.
+- [ ] **Feed item UI** — Same MomentCard style + context line: "Josh tagged you" or
+  "Josh added to Road Trip 2024"
+- [ ] **Empty state** — "Add friends and join shared collections to see moments here."
+  _Effort: 3–4 days once friends + tagging exist_
+
+#### Shareable Moment Cards
+- [ ] **Image export** — Exportable graphic: artwork + song + reflection quote + date.
+  Vertical/story format for Instagram & TikTok. No backend needed.
+  _Effort: 2 days_
 
 - [ ] **Web app enrichment** (Phase E) — Profile pages, shareable moment cards on web,
   full web companion (keyboard create/edit). See `docs/SOCIAL-ARCHITECTURE.md`.
@@ -340,7 +380,10 @@ Post-approval  → Milestone 4 (scalability): indexes, pagination, Supabase Pro,
 Ongoing        → Milestone 5 (UX polish): accessibility, error handling,
                  image placeholders
 
-Post-launch    → Android, full music integrations, friends/social, premium,
+Post-launch    → Phase C (friends + tagging + social feed) — ship once you
+                 have real users to validate the social patterns
+
+Post-Phase C   → Android, full music integrations, premium, era clustering,
                  engagement features
 ```
 
@@ -352,6 +395,10 @@ Post-launch    → Android, full music integrations, friends/social, premium,
 |----------|--------|
 | Phase B.5: Branch.io vs custom deferred deep link? | Undecided |
 | Getting Started: completion state in DB (synced) or AsyncStorage (local)? | Undecided |
+| Social Feed: new tab vs section in Reflections tab? | Undecided |
+| Friends discovery: ship link first, then username — skip phone? | Tentative: yes |
+| Tagging: migrate existing free-text people to user refs, or keep both? | Undecided |
+| `people` free-text tags: keep alongside friend tags or deprecate? | Undecided |
 | Onboarding: how many screens before first moment? | Tentative: 2 max |
 | Design refresh: scope + designer engagement? | Undecided |
 | Android: MusicKit alternative for song search? | Needs investigation |
