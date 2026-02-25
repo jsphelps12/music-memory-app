@@ -22,7 +22,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
-import { fetchCollections } from "@/lib/collections";
+import { fetchCollections, fetchSharedCollectionMoments } from "@/lib/collections";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -310,6 +310,15 @@ export default function TimelineScreen() {
       }
 
       if (currentCollection) {
+        if (currentCollection.role === "member") {
+          // Shared collection: fetch all contributors' moments (not just ours)
+          const shared = await fetchSharedCollectionMoments(currentCollection.id);
+          setMoments(shared);
+          setLoading(false);
+          lastFetchTime.current = Date.now();
+          return;
+        }
+        // Owned collection: filter own moments by collection membership
         const { data: cm } = await supabase
           .from("collection_moments")
           .select("moment_id")
@@ -464,6 +473,11 @@ export default function TimelineScreen() {
   const handleCollectionUpdated = useCallback((updated: Collection) => {
     setCollections((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
     setSelectedCollection(updated);
+  }, []);
+
+  const handleCollectionLeft = useCallback((collectionId: string) => {
+    setCollections((prev) => prev.filter((c) => c.id !== collectionId));
+    setSelectedCollection(null);
   }, []);
 
   const listHeader = bannerError ? (
@@ -826,6 +840,7 @@ export default function TimelineScreen() {
           collection={selectedCollection}
           onClose={() => setShareSheetVisible(false)}
           onUpdated={handleCollectionUpdated}
+          onLeft={handleCollectionLeft}
         />
       ) : null}
 

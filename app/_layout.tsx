@@ -15,7 +15,7 @@ import { ShareIntentProvider } from "expo-share-intent";
 import { useColorScheme } from "@/components/useColorScheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PlayerProvider } from "@/contexts/PlayerContext";
-import { useDeepLinkHandler } from "@/hooks/useDeepLinkHandler";
+import { useDeepLinkHandler, PENDING_INVITE_CODE_KEY } from "@/hooks/useDeepLinkHandler";
 import { useShareIntentHandler } from "@/hooks/useShareIntentHandler";
 import { registerForPushNotifications } from "@/lib/notifications";
 
@@ -63,7 +63,14 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         router.replace("/(auth)/sign-in");
       }
     } else if (session && inAuthGroup) {
-      router.replace("/(tabs)");
+      // Check for a pending invite code saved before the user was signed in
+      AsyncStorage.getItem(PENDING_INVITE_CODE_KEY).then((code) => {
+        AsyncStorage.removeItem(PENDING_INVITE_CODE_KEY);
+        router.replace("/(tabs)");
+        if (code) {
+          setTimeout(() => router.push({ pathname: "/join" as any, params: { inviteCode: code } }), 300);
+        }
+      });
     }
   }, [session, loading, hasLaunched, segments, router]);
 
@@ -168,6 +175,10 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="profile-edit"
+            options={{ headerShown: false, presentation: "modal" }}
+          />
+          <Stack.Screen
+            name="join"
             options={{ headerShown: false, presentation: "modal" }}
           />
         </Stack>

@@ -237,7 +237,7 @@ export default function MomentDetailScreen() {
     } else {
       setMemberIds((prev) => [...prev, collection.id]);
       try {
-        await addMomentToCollection(collection.id, id);
+        await addMomentToCollection(collection.id, id, user!.id);
       } catch {
         setMemberIds((prev) => prev.filter((cid) => cid !== collection.id));
       }
@@ -250,7 +250,7 @@ export default function MomentDetailScreen() {
     setCreatingCollection(true);
     try {
       const collection = await createCollection(user!.id, trimmed);
-      await addMomentToCollection(collection.id, id);
+      await addMomentToCollection(collection.id, id, user!.id);
       setAllCollections((prev) => [...prev, collection]);
       setMemberIds((prev) => [...prev, collection.id]);
       setNewCollectionName("");

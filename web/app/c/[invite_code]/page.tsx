@@ -130,11 +130,11 @@ export default async function CollectionPage({ params }: PageProps) {
         style={{ backgroundColor: "#FBF6F1", borderTop: "1px solid #E8D8CC" }}
       >
         <a
-          href="#"
+          href={`tracks://join/${invite_code}`}
           className="w-full max-w-xl block text-center py-3 rounded-full text-white font-semibold text-base transition-opacity hover:opacity-90"
           style={{ backgroundColor: "#E8825C" }}
         >
-          Add your moment → Download Tracks
+          Open in Tracks
         </a>
       </div>
     </div>

@@ -117,6 +117,11 @@ export function MomentCard({ item, onPress, allMoods, showArtist = true }: Props
                   {item.songArtist}
                 </Text>
               )}
+              {item.contributorName ? (
+                <Text style={styles.contributor} numberOfLines={1}>
+                  by {item.contributorName}
+                </Text>
+              ) : null}
               {item.reflectionText ? (
                 <Text style={styles.reflection} numberOfLines={2}>
                   {item.reflectionText}
@@ -223,6 +228,12 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
       marginTop: 1,
+    },
+    contributor: {
+      fontSize: theme.fontSize.xs,
+      color: theme.colors.accent,
+      marginTop: 2,
+      fontWeight: theme.fontWeight.medium,
     },
     reflection: {
       fontSize: theme.fontSize.sm,

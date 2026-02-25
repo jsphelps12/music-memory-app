@@ -346,7 +346,7 @@ export default function CreateMomentScreen() {
       if (insertError) throw insertError;
 
       if (selectedCollection && inserted?.id) {
-        await addMomentToCollection(selectedCollection.id, inserted.id).catch(() => {});
+        await addMomentToCollection(selectedCollection.id, inserted.id, user.id).catch(() => {});
       }
 
       checkAndNotifyMilestone(user.id).catch(() => {});

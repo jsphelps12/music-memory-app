@@ -35,6 +35,8 @@ export interface Moment {
   timeOfDay: string | null;
   createdAt: string;
   updatedAt: string;
+  // Set when viewing a shared collection — display name of who added this moment
+  contributorName?: string | null;
 }
 
 export interface Collection {
@@ -45,6 +47,17 @@ export interface Collection {
   momentCount?: number;
   isPublic?: boolean;
   inviteCode?: string;
+  role: "owner" | "member";
+  ownerName?: string; // only set for role === "member"
+}
+
+export interface CollectionPreview {
+  id: string;
+  name: string;
+  ownerName: string | null;
+  momentCount: number;
+  isPublic: boolean;
+  inviteCode: string;
 }
 
 export interface UserProfile {

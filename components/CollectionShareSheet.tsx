@@ -8,11 +8,14 @@ import {
   ActivityIndicator,
   StyleSheet,
   Platform,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
+import * as Haptics from "expo-haptics";
 import { Collection } from "@/types";
-import { setCollectionPublic } from "@/lib/collections";
+import { setCollectionPublic, leaveCollection } from "@/lib/collections";
+import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { friendlyError } from "@/lib/errors";
 
@@ -23,12 +26,17 @@ interface Props {
   collection: Collection;
   onClose: () => void;
   onUpdated: (updated: Collection) => void;
+  onLeft: (collectionId: string) => void;
 }
 
-export function CollectionShareSheet({ visible, collection, onClose, onUpdated }: Props) {
+export function CollectionShareSheet({ visible, collection, onClose, onUpdated, onLeft }: Props) {
   const theme = useTheme();
+  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState("");
+
+  const isOwner = collection.role === "owner";
 
   const inviteUrl = collection.inviteCode
     ? `${WEB_BASE_URL}/c/${collection.inviteCode}`
@@ -58,6 +66,34 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated }
     } catch {}
   }
 
+  function handleLeave() {
+    Alert.alert(
+      "Leave Collection",
+      `Leave "${collection.name}"? You can rejoin later with the invite link.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Leave",
+          style: "destructive",
+          onPress: async () => {
+            if (!user) return;
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setLeaving(true);
+            setError("");
+            try {
+              await leaveCollection(collection.id, user.id);
+              onClose();
+              onLeft(collection.id);
+            } catch (e: any) {
+              setError(friendlyError(e));
+              setLeaving(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   return (
     <Modal
       visible={visible}
@@ -84,57 +120,105 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated }
           </TouchableOpacity>
         </View>
 
-        {/* Public toggle row */}
-        <View style={[styles.row, { borderBottomColor: theme.colors.backgroundInput }]}>
-          <View style={styles.rowLeft}>
-            <Ionicons name="globe-outline" size={20} color={theme.colors.text} />
-            <View style={styles.rowText}>
-              <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Make Public</Text>
-              <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
-                Anyone with the link can view this collection
-              </Text>
+        {isOwner ? (
+          <>
+            {/* Public toggle — only for owner */}
+            <View style={[styles.row, { borderBottomColor: theme.colors.backgroundInput }]}>
+              <View style={styles.rowLeft}>
+                <Ionicons name="globe-outline" size={20} color={theme.colors.text} />
+                <View style={styles.rowText}>
+                  <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Make Public</Text>
+                  <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
+                    Anyone with the link can view this collection
+                  </Text>
+                </View>
+              </View>
+              {saving ? (
+                <ActivityIndicator size="small" color={theme.colors.accent} />
+              ) : (
+                <Switch
+                  value={collection.isPublic ?? false}
+                  onValueChange={handleToggle}
+                  trackColor={{ true: theme.colors.accent }}
+                  thumbColor="#fff"
+                />
+              )}
             </View>
-          </View>
-          {saving ? (
-            <ActivityIndicator size="small" color={theme.colors.accent} />
-          ) : (
-            <Switch
-              value={collection.isPublic ?? false}
-              onValueChange={handleToggle}
-              trackColor={{ true: theme.colors.accent }}
-              thumbColor="#fff"
-            />
-          )}
-        </View>
 
-        {error ? (
-          <Text style={[styles.error, { color: theme.colors.destructive ?? "#E53E3E" }]}>
-            {error}
-          </Text>
-        ) : null}
+            {error ? (
+              <Text style={[styles.error, { color: theme.colors.destructive ?? "#E53E3E" }]}>
+                {error}
+              </Text>
+            ) : null}
 
-        {/* Share section — only when public */}
-        {collection.isPublic && inviteUrl ? (
-          <View style={styles.shareSection}>
-            <View style={[styles.urlBox, { backgroundColor: theme.colors.backgroundInput }]}>
-              <Text
-                style={[styles.urlText, { color: theme.colors.textSecondary }]}
-                numberOfLines={1}
-                ellipsizeMode="middle"
+            {/* Share section — only when public */}
+            {collection.isPublic && inviteUrl ? (
+              <View style={styles.shareSection}>
+                <View style={[styles.urlBox, { backgroundColor: theme.colors.backgroundInput }]}>
+                  <Text
+                    style={[styles.urlText, { color: theme.colors.textSecondary }]}
+                    numberOfLines={1}
+                    ellipsizeMode="middle"
+                  >
+                    {inviteUrl}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.shareButton, { backgroundColor: theme.colors.accent }]}
+                  onPress={handleShare}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="share-outline" size={18} color="#fff" />
+                  <Text style={styles.shareButtonText}>Share Link</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+          </>
+        ) : (
+          <>
+            {/* Member view */}
+            <View style={[styles.row, { borderBottomColor: theme.colors.backgroundInput }]}>
+              <View style={styles.rowLeft}>
+                <Ionicons name="people-outline" size={20} color={theme.colors.text} />
+                <View style={styles.rowText}>
+                  <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Shared Collection</Text>
+                  {collection.ownerName ? (
+                    <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
+                      Created by {collection.ownerName}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+
+            {error ? (
+              <Text style={[styles.error, { color: theme.colors.destructive ?? "#E53E3E" }]}>
+                {error}
+              </Text>
+            ) : null}
+
+            <View style={styles.shareSection}>
+              <TouchableOpacity
+                style={[
+                  styles.leaveButton,
+                  { borderColor: theme.colors.destructive ?? "#E53E3E" },
+                  leaving && styles.buttonDisabled,
+                ]}
+                onPress={handleLeave}
+                disabled={leaving}
+                activeOpacity={0.8}
               >
-                {inviteUrl}
-              </Text>
+                {leaving ? (
+                  <ActivityIndicator color={theme.colors.destructive} />
+                ) : (
+                  <Text style={[styles.leaveButtonText, { color: theme.colors.destructive ?? "#E53E3E" }]}>
+                    Leave Collection
+                  </Text>
+                )}
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={[styles.shareButton, { backgroundColor: theme.colors.accent }]}
-              onPress={handleShare}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="share-outline" size={18} color="#fff" />
-              <Text style={styles.shareButtonText}>Share Link</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
+          </>
+        )}
       </View>
     </Modal>
   );
@@ -226,5 +310,19 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  leaveButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  leaveButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });
