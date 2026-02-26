@@ -86,7 +86,13 @@ near-term social use case without needing a social graph.
 - [ ] Multiple visual templates — clean, filmic, retro
 - [ ] Share via iOS share sheet; free feature
 
-### 7. Era clustering (AI) — premium, needs data first
+### 7. Gift a Memory
+- [ ] Log a moment and send it directly to one person — not a collection, a private one-to-one share
+- [ ] Recipient gets a notification; opens via web link (no account required to view)
+- [ ] To reply with their own memory of that song, they download the app — acquisition through intimacy
+- [ ] No new data model needed beyond a share token on the moment; free feature
+
+### 9. Era clustering (AI) — premium, needs data first
 - [ ] Requires users to have 25+ moments before it's meaningful — bad early conversion trigger
 - [ ] Cluster moments into life chapters using date, mood, artist, and reflection patterns
 - [ ] Generate a name for each era (e.g. "Winter of Letting Go", "The Comeback Summer")
@@ -100,10 +106,12 @@ near-term social use case without needing a social graph.
 
 ## Phase 2: Frictionless Logging (Remaining)
 
-- [ ] iOS home screen widget — now playing with one-tap "save moment", or On This Day
+- [ ] iOS home screen widget + Dynamic Island — Now Playing one-tap save, On This Day; ShazamKit "identify" button captures ambient audio (concerts, parties, someone else's speakers — anything MPMusicPlayerController misses) [Free]
+- [ ] ShazamKit native module — wraps Apple's ShazamKit framework for ambient audio fingerprinting; same pattern as existing NowPlaying module; cross-references result against MusicKit for full song metadata [Free]
 - [ ] Weather auto-tagging — silently attach weather at moment creation; enables "rainy day songs" [Free]
 - [ ] Lyric anchoring — highlight a specific lyric as the emotional anchor for a moment [Free]
 - [ ] Apple Watch app — one tap on wrist logs current song instantly [Free]
+- [ ] Apple Shortcuts integration — app intents for "log current song," automation triggers (e.g. "when I add a song to my Library, prompt me to log a memory") [Free]
 
 ---
 
@@ -146,6 +154,7 @@ Conversion trigger: at 25–30 moments, show a locked Era card — "unlock the c
 
 - [ ] Forgotten songs — surface songs logged exactly once, never again [Free]
 - [ ] Song anniversaries — "One year ago today, you first logged this song" [Free]
+- [ ] Memory prompts — rotating contextual starters ("Songs my parents played," "Song from your first heartbreak," "Song that defined a specific summer") shown in empty states and low-logging periods; universal emotional hooks that drive logging without requiring existing data [Free]
 - [ ] Through-line songs — songs that appear across multiple distinct eras [Premium]
 - [ ] Personal charts — most-logged songs/artists ranked by year, always-on [Premium]
 - [ ] Mood-aware suggestions — current mood → songs/moments that historically helped
@@ -160,14 +169,15 @@ Conversion trigger: at 25–30 moments, show a locked Era card — "unlock the c
 
 - [ ] Musical autobiography — AI-generated prose narrative about who you were during an era
 - [ ] Couples soundtrack — shared timeline, both perspectives, relationship era clustering
-- [ ] "You're Not Alone" — anonymous matched moments when two users log same song with similar context
+- [ ] "You're Not Alone" + Discover — anonymous matched moments shown inside moment detail ("83 people logged this during a breakup"); global Discover surface showing top songs this week, top songs by mood, trending now — aggregate and anonymous, no social graph needed [Free]
 - [ ] Grief & memorial moments — songs tied to people who have passed; surfaces on significant dates
 - [ ] Map view (moments by location, clusters, tap to explore)
 - [ ] Weekly Recap — in-app summary of the week's moments
 - [ ] Yearly Recap ("Your 2026 in Moments" — Spotify Wrapped-style, shareable)
 - [ ] Voice notes — record via expo-av, transcribe for searchability, playback on detail
 - [ ] Video support — capture, compress, playback, thumbnail on timeline card
-- [ ] Playlist export to Spotify/Apple Music
+- [ ] Mood-based playlist export — "songs I logged as 'peaceful'" → Apple Music playlist; built from your own tagged data, something no other app can generate [Free]
+- [ ] Playlist export to Spotify/Apple Music from any collection or era
 - [ ] Memory book creation (print-on-demand, QR codes linking to songs)
 - [ ] Time capsules ("Remind me of this in 5 years")
 - [ ] Legacy mode (designate someone to receive your collection)
@@ -194,3 +204,4 @@ The shift from rearview mirror to windshield — using accumulated data to serve
 - [ ] Accessibility (VoiceOver, dynamic type)
 - [ ] Offline support (queue uploads when offline)
 - [ ] Export/backup (download your data)
+- [ ] Referral program — give a friend 3 months Plus free, get a month free; ship once paying subscriber base exists; frame as a gift not a discount
