@@ -24,6 +24,7 @@ import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { fetchCollections, fetchSharedCollectionMoments } from "@/lib/collections";
 import { consumePendingCollectionId } from "@/lib/pendingCollection";
+import { consumeTimelineStale } from "@/lib/timelineRefresh";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -39,7 +40,7 @@ import { CollectionShareSheet } from "@/components/CollectionShareSheet";
 import { Collection, Moment, MoodOption } from "@/types";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 
-const REFETCH_COOLDOWN_MS = 2000;
+const REFETCH_COOLDOWN_MS = 30_000;
 const DEBOUNCE_MS = 300;
 
 function escapeLike(str: string): string {
@@ -404,10 +405,11 @@ export default function TimelineScreen() {
 
       loadCollections();
 
+      const stale = consumeTimelineStale();
       const elapsed = Date.now() - lastFetchTime.current;
       if (lastFetchTime.current === 0) {
         fetchMoments(true);
-      } else if (elapsed >= REFETCH_COOLDOWN_MS) {
+      } else if (stale || elapsed >= REFETCH_COOLDOWN_MS) {
         fetchMoments(false);
       }
     }, [fetchMoments, loadCollections])

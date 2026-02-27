@@ -36,6 +36,7 @@ import { Theme } from "@/constants/theme";
 import { Song, Collection } from "@/types";
 import { friendlyError } from "@/lib/errors";
 import { checkAndNotifyMilestone } from "@/lib/notifications";
+import { markTimelineStale } from "@/lib/timelineRefresh";
 
 function getTimeOfDay(): string {
   const hour = new Date().getHours();
@@ -365,6 +366,7 @@ export default function CreateMomentScreen() {
       setDismissedLocationSuggestion(false);
       setError("");
 
+      markTimelineStale();
       router.back();
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

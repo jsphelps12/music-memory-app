@@ -48,6 +48,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { friendlyError } from "@/lib/errors";
 import { Collection, Moment, MoodOption } from "@/types";
+import { markTimelineStale } from "@/lib/timelineRefresh";
 
 export default function MomentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -281,6 +282,7 @@ export default function MomentDetailScreen() {
             return;
           }
 
+          markTimelineStale();
           animateOut(() => router.back());
         },
       },

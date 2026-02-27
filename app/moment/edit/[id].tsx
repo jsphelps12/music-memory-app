@@ -31,6 +31,7 @@ import { SkeletonMomentDetail } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { friendlyError } from "@/lib/errors";
 import { onSongSelected } from "@/lib/songEvents";
+import { markTimelineStale } from "@/lib/timelineRefresh";
 
 export default function EditMomentScreen() {
   const router = useRouter();
@@ -225,6 +226,7 @@ export default function EditMomentScreen() {
       if (updateError) throw updateError;
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      markTimelineStale();
       router.back();
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
