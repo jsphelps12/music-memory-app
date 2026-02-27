@@ -8,6 +8,7 @@ import {
   StyleSheet,
   TextInput,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -71,9 +72,12 @@ export default function TimelineScreen() {
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState("");
   const [bannerError, setBannerError] = useState("");
   const lastFetchTime = useRef(0);
+  const pageRef = useRef(0);
 
   // Collections state
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -255,9 +259,12 @@ export default function TimelineScreen() {
     }
   }, [pendingScrollId, sections]);
 
+  const PAGE_SIZE = 30;
+
   const fetchMoments = useCallback(
-    async (showLoading: boolean) => {
+    async (showLoading: boolean, append = false) => {
       if (!user) return;
+      if (!append) pageRef.current = 0;
       if (showLoading) setLoading(true);
       setBannerError("");
       if (showLoading) setError("");
@@ -316,6 +323,7 @@ export default function TimelineScreen() {
           // Shared collection: fetch all contributors' moments (owner and members)
           const shared = await fetchSharedCollectionMoments(currentCollection.id);
           setMoments(shared);
+          setHasMore(false);
           setLoading(false);
           lastFetchTime.current = Date.now();
           return;
@@ -328,11 +336,18 @@ export default function TimelineScreen() {
         const ids = (cm ?? []).map((r: any) => r.moment_id);
         if (ids.length === 0) {
           setMoments([]);
+          setHasMore(false);
           setLoading(false);
           lastFetchTime.current = Date.now();
           return;
         }
         query = query.in("id", ids);
+      }
+
+      // Paginate only on the unfiltered "All Moments" view
+      if (!filtersActive) {
+        const from = pageRef.current * PAGE_SIZE;
+        query = query.range(from, from + PAGE_SIZE - 1);
       }
 
       const { data, error: fetchError } = await query;
@@ -349,21 +364,40 @@ export default function TimelineScreen() {
 
       const mapped: Moment[] = (data ?? []).map(mapRowToMoment);
 
-      setMoments(mapped);
+      if (append) {
+        setMoments((prev) => [...prev, ...mapped]);
+      } else {
+        setMoments(mapped);
+      }
+      setHasMore(!filtersActive && mapped.length === PAGE_SIZE);
       setLoading(false);
       lastFetchTime.current = Date.now();
 
-      // Populate allPeople from unfiltered fetches
+      // Populate allPeople — accumulates across pages
       if (!filtersActive) {
         const peopleSet = new Set<string>();
-        for (const m of mapped) {
-          for (const p of m.people) peopleSet.add(p);
+        if (append) {
+          setAllPeople((prev) => {
+            for (const p of prev) peopleSet.add(p);
+            for (const m of mapped) for (const p of m.people) peopleSet.add(p);
+            return Array.from(peopleSet).sort();
+          });
+        } else {
+          for (const m of mapped) for (const p of m.people) peopleSet.add(p);
+          setAllPeople(Array.from(peopleSet).sort());
         }
-        setAllPeople(Array.from(peopleSet).sort());
       }
     },
     [user]
   );
+
+  const handleLoadMore = useCallback(async () => {
+    if (!hasMore || loadingMore) return;
+    setLoadingMore(true);
+    pageRef.current += 1;
+    await fetchMoments(false, true);
+    setLoadingMore(false);
+  }, [hasMore, loadingMore, fetchMoments]);
 
   const loadCollections = useCallback(async () => {
     if (!user) return;
@@ -792,6 +826,16 @@ export default function TimelineScreen() {
                 <Text style={styles.sectionHeader}>{title}</Text>
               )}
               ListHeaderComponent={listHeader}
+              onEndReached={handleLoadMore}
+              onEndReachedThreshold={0.3}
+              ListFooterComponent={
+                loadingMore ? (
+                  <ActivityIndicator
+                    style={{ paddingVertical: 20 }}
+                    color={theme.colors.textSecondary}
+                  />
+                ) : null
+              }
               ListEmptyComponent={
                 showEmptyFilterState ? (
                   <View style={styles.emptyFilter}>
