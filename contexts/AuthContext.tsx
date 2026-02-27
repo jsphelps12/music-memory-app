@@ -3,6 +3,7 @@ import { Session, User } from "@supabase/supabase-js";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { supabase } from "@/lib/supabase";
 import { CustomMoodDefinition, UserProfile } from "@/types";
+import { prefetchTimeline } from "@/lib/timelinePrefetch";
 
 interface AuthState {
   session: Session | null;
@@ -56,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session);
         if (session?.user) {
           await fetchProfile(session.user.id);
+          prefetchTimeline(session.user.id);
         }
       } finally {
         setLoading(false);

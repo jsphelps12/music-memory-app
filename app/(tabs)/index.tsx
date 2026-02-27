@@ -26,6 +26,7 @@ import { mapRowToMoment } from "@/lib/moments";
 import { fetchCollections, fetchSharedCollectionMoments } from "@/lib/collections";
 import { consumePendingCollectionId } from "@/lib/pendingCollection";
 import { consumeTimelineStale } from "@/lib/timelineRefresh";
+import { consumePrefetchPromise, TIMELINE_PAGE_SIZE } from "@/lib/timelinePrefetch";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -259,13 +260,30 @@ export default function TimelineScreen() {
     }
   }, [pendingScrollId, sections]);
 
-  const PAGE_SIZE = 30;
-
   const fetchMoments = useCallback(
     async (showLoading: boolean, append = false) => {
       if (!user) return;
       if (!append) pageRef.current = 0;
       if (showLoading) setLoading(true);
+
+      // On first load, consume the prefetch started at auth — avoids a duplicate
+      // round trip and makes the initial render feel instant
+      if (showLoading && !append) {
+        const prefetchPromise = consumePrefetchPromise();
+        if (prefetchPromise) {
+          const prefetched = await prefetchPromise.catch(() => null);
+          if (prefetched) {
+            const peopleSet = new Set<string>();
+            for (const m of prefetched) for (const p of m.people) peopleSet.add(p);
+            setMoments(prefetched);
+            setHasMore(prefetched.length === TIMELINE_PAGE_SIZE);
+            setAllPeople(Array.from(peopleSet).sort());
+            setLoading(false);
+            lastFetchTime.current = Date.now();
+            return;
+          }
+        }
+      }
       setBannerError("");
       if (showLoading) setError("");
 
@@ -346,8 +364,8 @@ export default function TimelineScreen() {
 
       // Paginate only on the unfiltered "All Moments" view
       if (!filtersActive) {
-        const from = pageRef.current * PAGE_SIZE;
-        query = query.range(from, from + PAGE_SIZE - 1);
+        const from = pageRef.current * TIMELINE_PAGE_SIZE;
+        query = query.range(from, from + TIMELINE_PAGE_SIZE - 1);
       }
 
       const { data, error: fetchError } = await query;
@@ -369,7 +387,7 @@ export default function TimelineScreen() {
       } else {
         setMoments(mapped);
       }
-      setHasMore(!filtersActive && mapped.length === PAGE_SIZE);
+      setHasMore(!filtersActive && mapped.length === TIMELINE_PAGE_SIZE);
       setLoading(false);
       lastFetchTime.current = Date.now();
 
