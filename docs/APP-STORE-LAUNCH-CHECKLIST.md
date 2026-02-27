@@ -1,8 +1,7 @@
 # Tracks — App Store Launch Checklist
 
 Last updated: February 2026. This is the single source of truth for everything that needs
-to happen before and after launch. Cross-reference `PRODUCTION-READINESS.md` for deep
-context on technical items.
+to happen before and after launch.
 
 ---
 
@@ -11,20 +10,12 @@ context on technical items.
 These are non-negotiable. Apple will reject without them.
 
 ### Features
-- [ ] **Delete Account** — Button in profile/settings, confirmation dialog, Supabase edge
-  function (service role) that deletes all moments, photos, collections, profile row, and
-  auth.users entry. Cascading deletes already set up on most tables; verify storage cleanup.
-  _Effort: 2–3 days_
+- [x] **Delete Account** — Button in profile/settings, confirmation dialog, Supabase edge
+  function that deletes all moments, photos, collections, profile row, and auth.users entry.
 
-- [ ] **Phase B: Shared Collections Join Flow** — Anyone with the invite link can join.
-  Required before launch so the viral/acquisition loop is closed.
-  - [ ] `collection_members` table migration (collection_id, user_id, joined_at — no roles yet)
-  - [ ] Handle `tracks://join/{invite_code}` deep link in root `_layout.tsx`
-  - [ ] Join screen — collection name, owner display name, moment count, "Join" button
-  - [ ] Contributor attribution — who added each moment in the collection view
-  - [ ] Update web CTA to "Open in Tracks →" linking to `tracks://join/{invite_code}`
-  - See `docs/SOCIAL-ARCHITECTURE.md` for the full spec
-  _Effort: 3–4 days_
+- [x] **Phase B: Shared Collections Join Flow** — Complete. Deep link, join screen,
+  `collection_members` table, contributor attribution, collection auto-select after joining.
+  See `docs/SOCIAL-ARCHITECTURE.md` for spec.
 
 ### Legal / App Store Admin
 - [ ] **Privacy Policy** — Write or generate a policy covering: data collected (email, name,
@@ -49,12 +40,7 @@ These are non-negotiable. Apple will reject without them.
   _Effort: 2–3 hours_
 
 ### Process
-- [ ] **Deployment Runbook** — Write `docs/DEPLOY.md`:
-  - How to bump version + build number in `app.json`
-  - How to cut a preview vs production EAS build
-  - What to manually test before submitting to review
-  - How to roll back if a bad build ships
-  _Effort: 1–2 hours_
+- [x] **Deployment Runbook** — `docs/DEPLOY.md` exists with full build/submit/rollback process.
 
 ---
 

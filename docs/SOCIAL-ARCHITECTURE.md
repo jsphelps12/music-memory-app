@@ -10,7 +10,7 @@ tagging features. Update it as decisions change. Reference it before starting ea
 | Phase | Description | Status |
 |-------|-------------|--------|
 | A | Next.js web app + collection preview page | ✅ Complete |
-| B | Shared collections join flow (TestFlight era) | 🔨 Next |
+| B | Shared collections join flow (TestFlight era) | ✅ Complete |
 | B.5 | Deferred deep links for App Store launch | ⏳ Before public launch |
 | C | Friends: discovery, request/accept | ⏳ Deferred — post App Store |
 | D | Social tagging: tagged_moments, inbox | ⏳ Deferred — post App Store |

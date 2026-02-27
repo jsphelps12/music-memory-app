@@ -54,17 +54,12 @@ This file tracks what's built, what's next, and the full feature roadmap organiz
 - [x] App: toggle collection public + share invite link via iOS share sheet
 - [x] FAB for creating moments (moved + out of header)
 
-### 4. Shared collections — Phase B (TestFlight era)
-**Decided approach: link-based, no friend system yet.**
-Anyone with the invite link can join — like Google Docs sharing. No `collection_members`
-table or friends graph required yet. Revisit after App Store launch.
-
-- [ ] Handle `tracks://join/{invite_code}` deep link in the app
-- [ ] Join screen — collection name, owner, moment count, "Join" button
-- [ ] Add joiner to `collection_moments` as contributor (simple, no roles table yet)
-- [ ] Update web CTA to "Open in Tracks" linking to `tracks://join/{invite_code}`
-- [ ] Contributor attribution — show who added each moment in the collection view
-- [ ] See docs/SOCIAL-ARCHITECTURE.md for decisions and full spec
+### 4. Shared collections — Phase B — COMPLETE
+- [x] Handle `tracks://join?inviteCode={code}` deep link in the app
+- [x] Join screen — collection name, owner display name, moment count, "Join" button
+- [x] `collection_members` table — collection_id, user_id, joined_at (no roles)
+- [x] Contributor attribution — who added each moment in the collection view
+- [x] Collection auto-select after joining via `lib/pendingCollection.ts`
 
 **App Store launch gate (do before public launch):**
 - [ ] Deferred deep links (Branch.io or similar) — passes invite code through App Store install
@@ -169,7 +164,8 @@ Conversion trigger: at 25–30 moments, show a locked Era card — "unlock the c
 
 - [ ] Musical autobiography — AI-generated prose narrative about who you were during an era
 - [ ] Couples soundtrack — shared timeline, both perspectives, relationship era clustering
-- [ ] "You're Not Alone" + Discover — anonymous matched moments shown inside moment detail ("83 people logged this during a breakup"); global Discover surface showing top songs this week, top songs by mood, trending now — aggregate and anonymous, no social graph needed [Free]
+- [ ] **Anonymous stats + Discover** — "You're Not Alone" callout inside moment detail ("83 people logged this song during a breakup"); global Discover surface: top songs this week, top songs by mood, trending now — aggregate and anonymous, no social graph needed; data moat: intentional emotional annotations at scale that no competitor can replicate. Requires `birth_year` on profiles for generation cuts and a daily pre-compute cron writing to `song_stats` table; minimum 50+ logs per song before showing percentages [Free]
+- [ ] `birth_year` on profiles — optional field at onboarding ("helps us show how your generation connects with music"); seed this now, data compounds — enables generation-demographic stats once user base grows [Free]
 - [ ] Grief & memorial moments — songs tied to people who have passed; surfaces on significant dates
 - [ ] Map view (moments by location, clusters, tap to explore)
 - [ ] Weekly Recap — in-app summary of the week's moments
