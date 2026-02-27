@@ -201,18 +201,41 @@ The bottleneck is `select("*")` with no pagination on the moments table.
 
 ---
 
-### 9. Timeline Fetches All Moments with No Limit
+### 9. Timeline Performance — Nav Reload + Slow Initial Load
 **File:** `app/(tabs)/index.tsx`
 
 Every timeline load fetches every moment for the user with all columns, including
 `photo_urls`, `photo_thumbnails`, `reflection_text`, `people` (all potentially large).
-There is no pagination, limit, or cursor.
+There is no pagination, limit, or cursor. Worse: the full fetch re-runs every time the
+user navigates back to the tab, causing a visible reload flash.
 
-Short-term fix: add `.limit(200)` to get under control quickly.
-Proper fix: implement pagination (load the most recent 50, fetch more on scroll).
+**Fix strategy (in priority order):**
 
-Also: `select("*")` fetches columns the timeline card never uses. Change to explicit
-column list for the list view; fetch full data only when opening a moment.
+**1. Cache in context — stop refetching on nav back**
+Store fetched moments in a ref/state that persists across navigation. Only invalidate when:
+- A moment is created, edited, or deleted (mutation)
+- User explicitly pulls to refresh
+- App returns from background (optional)
+This alone eliminates the reload flash.
+
+**2. Optimistic updates on mutations**
+When a moment is created/edited/deleted, update local state immediately — don't wait for
+a DB round-trip. Timeline reflects changes instantly; background sync confirms.
+
+**3. Pagination — load 30, fetch more on scroll**
+Fetch the 30 most recent moments. Use `SectionList`'s `onEndReached` to load more.
+Fixes both the UX lag and the 500+ moment scalability problem simultaneously.
+
+**4. Select only what the card needs**
+`select("*")` fetches full reflection text, all photo URLs, people arrays — most of which
+the timeline card never renders. Switch to explicit column list for list view; fetch full
+data only when a moment is opened.
+
+**5. React Query (ties it all together)**
+Handles caching, stale-while-revalidate, and mutation invalidation with minimal custom
+code. `invalidateQueries(['timeline'])` after any mutation. Shows cached data instantly
+on nav back while background-refreshing. Worth adding if rolling custom cache logic
+becomes complex.
 
 ---
 
