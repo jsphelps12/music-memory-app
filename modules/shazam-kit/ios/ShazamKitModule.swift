@@ -5,13 +5,16 @@ import AVFoundation
 // SHSessionDelegate requires NSObject — keep it in a separate class.
 private class ShazamDelegate: NSObject, SHSessionDelegate {
   var onFound: ((SHMatch) -> Void)?
+  var onError: ((Error) -> Void)?
 
   func session(_ session: SHSession, didFind match: SHMatch) {
     onFound?(match)
   }
 
   func session(_ session: SHSession, didNotFindMatchFor signature: SHSignature, error: Error?) {
-    // Keep accumulating audio — only fail on timeout
+    if let error = error {
+      onError?(error)
+    }
   }
 }
 
@@ -53,6 +56,21 @@ public class ShazamKitModule: Module {
   // MARK: - Private
 
   private func startListening() {
+    AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
+      DispatchQueue.main.async {
+        guard let self = self else { return }
+        if granted {
+          self.startListeningWithPermission()
+        } else {
+          let promise = self.pendingPromise
+          self.pendingPromise = nil
+          promise?.reject("PERMISSION_DENIED", "Microphone access is required to identify songs.")
+        }
+      }
+    }
+  }
+
+  private func startListeningWithPermission() {
     signatureGenerator = SHSignatureGenerator()
 
     let delegate = ShazamDelegate()
@@ -70,11 +88,27 @@ public class ShazamKitModule: Module {
         ] as [String: Any])
       }
     }
+    delegate.onError = { _ in
+      // Keep accumulating audio on no-match errors — only fail on timeout
+    }
     shazamDelegate = delegate
 
     let session = SHSession()
     session.delegate = delegate
     shazamSession = session
+
+    // Configure audio session BEFORE accessing inputNode — accessing inputNode
+    // before the session is active returns an invalid format and crashes.
+    do {
+      let audioSession = AVAudioSession.sharedInstance()
+      try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
+      try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+    } catch {
+      let promise = pendingPromise
+      pendingPromise = nil
+      promise?.reject("AUDIO_ERROR", error.localizedDescription)
+      return
+    }
 
     let engine = AVAudioEngine()
     let inputNode = engine.inputNode
@@ -83,14 +117,15 @@ public class ShazamKitModule: Module {
     inputNode.installTap(onBus: 0, bufferSize: 8192, format: format) { [weak self] buffer, _ in
       guard let self = self else { return }
       self.genQueue.async {
-        try? self.signatureGenerator.append(buffer, at: nil)
+        do {
+          try self.signatureGenerator.append(buffer, at: nil)
+        } catch {
+          NSLog("[ShazamKit] append error: \(error.localizedDescription)")
+        }
       }
     }
 
     do {
-      let audioSession = AVAudioSession.sharedInstance()
-      try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
-      try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
       try engine.start()
     } catch {
       let promise = pendingPromise
@@ -106,8 +141,12 @@ public class ShazamKitModule: Module {
     matchTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
       guard let self = self else { return }
       self.genQueue.async {
-        guard let sig = try? self.signatureGenerator.signature() else { return }
-        DispatchQueue.main.async { self.shazamSession?.match(sig) }
+        do {
+          let sig = try self.signatureGenerator.signature()
+          DispatchQueue.main.async { self.shazamSession?.match(sig) }
+        } catch {
+          // Not enough audio yet — keep accumulating
+        }
       }
     }
 
