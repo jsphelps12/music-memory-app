@@ -39,6 +39,7 @@ import { Song, Collection } from "@/types";
 import { friendlyError } from "@/lib/errors";
 import { checkAndNotifyMilestone } from "@/lib/notifications";
 import { markTimelineStale } from "@/lib/timelineRefresh";
+import { PromptPickerModal } from "@/components/PromptPickerModal";
 
 function getTimeOfDay(): string {
   const hour = new Date().getHours();
@@ -383,6 +384,7 @@ export default function CreateMomentScreen() {
   const [error, setError] = useState("");
   const [focusedField, setFocusedField] = useState("");
   const [peopleSuggestions, setPeopleSuggestions] = useState<string[]>([]);
+  const [promptPickerVisible, setPromptPickerVisible] = useState(false);
 
   useEffect(() => {
     if (showDetails && user && collections.length === 0) {
@@ -767,6 +769,15 @@ export default function CreateMomentScreen() {
           onBlur={() => setFocusedField("")}
         />
 
+        {/* Prompt picker */}
+        <TouchableOpacity
+          style={styles.promptButton}
+          activeOpacity={0.7}
+          onPress={() => setPromptPickerVisible(true)}
+        >
+          <Text style={styles.promptButtonText}>Need a nudge? ✦</Text>
+        </TouchableOpacity>
+
         {/* Details toggle */}
         <TouchableOpacity
           style={styles.detailsToggle}
@@ -990,6 +1001,12 @@ export default function CreateMomentScreen() {
         />
       ) : null}
 
+      <PromptPickerModal
+        visible={promptPickerVisible}
+        onSelect={(prompt) => setReflection(prompt)}
+        onClose={() => setPromptPickerVisible(false)}
+      />
+
       {/* Spotify candidate selection modal */}
       <Modal
         visible={showCandidateModal}
@@ -1164,8 +1181,17 @@ function createStyles(theme: Theme) {
       color: theme.colors.buttonText,
     },
     // Details toggle
+    promptButton: {
+      marginTop: theme.spacing.sm,
+      alignSelf: "flex-start",
+      paddingVertical: theme.spacing.xs,
+    },
+    promptButtonText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textTertiary,
+    },
     detailsToggle: {
-      marginTop: theme.spacing.xl,
+      marginTop: theme.spacing.md,
       alignSelf: "center",
       paddingVertical: theme.spacing.sm,
       paddingHorizontal: theme.spacing.lg,
