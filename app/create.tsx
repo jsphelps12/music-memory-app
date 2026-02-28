@@ -240,7 +240,7 @@ export default function CreateMomentScreen() {
     photos?: string;
     shareCandidates?: string;
     shareFailedUrl?: string;
-    sharedPhotoPath?: string;
+    sharedPhotoPaths?: string;
   }>();
 
   const [song, setSong] = useState<Song | null>(null);
@@ -299,18 +299,22 @@ export default function CreateMomentScreen() {
     }
   }, [params.photos]);
 
-  // Shared photo from share extension — pre-fill photos, open details, and extract EXIF
+  // Shared photos from share extension — pre-fill photos, open details, extract EXIF from first
   useEffect(() => {
-    if (!params.sharedPhotoPath) return;
-    setPhotos([params.sharedPhotoPath]);
-    setShowDetails(true);
-    extractExifFromPath(params.sharedPhotoPath).then((meta) => {
-      if (meta.date || meta.location) {
-        setMetaSuggestion(meta);
-        setDismissedMetaSuggestion(false);
-      }
-    });
-  }, [params.sharedPhotoPath]);
+    if (!params.sharedPhotoPaths) return;
+    try {
+      const paths = JSON.parse(params.sharedPhotoPaths) as string[];
+      if (paths.length === 0) return;
+      setPhotos(paths);
+      setShowDetails(true);
+      extractExifFromPath(paths[0]).then((meta) => {
+        if (meta.date || meta.location) {
+          setMetaSuggestion(meta);
+          setDismissedMetaSuggestion(false);
+        }
+      });
+    } catch {}
+  }, [params.sharedPhotoPaths]);
 
   // Now Playing detection — check on mount and listen for song changes
   useEffect(() => {

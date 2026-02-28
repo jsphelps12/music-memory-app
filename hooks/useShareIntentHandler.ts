@@ -28,16 +28,16 @@ export function useShareIntentHandler() {
     (async () => {
       try {
         // Handle image shares — navigate to create with the photo pre-filled
-        const imageFile = shareIntent.files?.find((f) =>
+        const imageFiles = shareIntent.files?.filter((f) =>
           f.mimeType?.startsWith("image/")
         );
-        if (imageFile) {
-          const photoPath = imageFile.path.startsWith("file://")
-            ? imageFile.path
-            : `file://${imageFile.path}`;
+        if (imageFiles && imageFiles.length > 0) {
+          const photoPaths = imageFiles.slice(0, 5).map((f) =>
+            f.path.startsWith("file://") ? f.path : `file://${f.path}`
+          );
           router.replace({
             pathname: "/create",
-            params: { sharedPhotoPath: photoPath },
+            params: { sharedPhotoPaths: JSON.stringify(photoPaths) },
           });
           resetShareIntent();
           processingRef.current = false;

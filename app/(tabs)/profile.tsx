@@ -138,7 +138,8 @@ export default function ProfileScreen() {
           .select("moment_date")
           .eq("user_id", user.id)
           .not("moment_date", "is", null)
-          .order("moment_date", { ascending: false }),
+          .order("moment_date", { ascending: false })
+        .order("created_at", { ascending: false }),
         supabase
           .from("moments")
           .select("song_artist, song_title, mood")

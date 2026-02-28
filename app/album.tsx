@@ -53,7 +53,8 @@ export default function AlbumScreen() {
         .eq("user_id", user.id)
         .eq("song_album_name", album)
         .eq("song_artist", artist)
-        .order("moment_date", { ascending: false });
+        .order("moment_date", { ascending: false })
+        .order("created_at", { ascending: false });
 
       if (fetchError) {
         setError(friendlyError(fetchError));

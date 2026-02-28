@@ -107,7 +107,8 @@ export default function ReflectionsScreen() {
       .select("*")
       .eq("user_id", user.id)
       .in("moment_date", matchingDates)
-      .order("moment_date", { ascending: false });
+      .order("moment_date", { ascending: false })
+        .order("created_at", { ascending: false });
     if (fetchError) throw fetchError;
     return (data ?? []).map(mapRowToMoment);
   }, [user, month, day, thisYear]);

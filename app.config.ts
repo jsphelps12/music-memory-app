@@ -76,7 +76,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         iosActivationRules: {
           NSExtensionActivationSupportsWebURLWithMaxCount: 1,
           NSExtensionActivationSupportsText: true,
-          NSExtensionActivationSupportsImageWithMaxCount: 1,
+          NSExtensionActivationSupportsImageWithMaxCount: 5,
         },
       },
     ],

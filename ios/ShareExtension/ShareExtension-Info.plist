@@ -27,7 +27,7 @@
           <key>NSExtensionActivationSupportsText</key>
           <true/>
           <key>NSExtensionActivationSupportsImageWithMaxCount</key>
-          <integer>1</integer>
+          <integer>5</integer>
         </dict>
         <key>NSExtensionJavaScriptPreprocessingFile</key>
         <string>ShareExtensionPreprocessor</string>

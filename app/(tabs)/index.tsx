@@ -307,7 +307,8 @@ export default function TimelineScreen() {
         .from("moments")
         .select("*")
         .eq("user_id", user!.id)
-        .order("moment_date", { ascending: false, nullsFirst: false });
+        .order("moment_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false });
 
       if (currentSearch.length > 0) {
         const term = escapeLike(currentSearch);

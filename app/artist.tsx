@@ -51,7 +51,8 @@ export default function ArtistScreen() {
         .select("*")
         .eq("user_id", user.id)
         .eq("song_artist", name)
-        .order("moment_date", { ascending: false });
+        .order("moment_date", { ascending: false })
+        .order("created_at", { ascending: false });
 
       if (fetchError) {
         setError(friendlyError(fetchError));

@@ -18,6 +18,7 @@ export function prefetchTimeline(userId: string): void {
       .select("*")
       .eq("user_id", userId)
       .order("moment_date", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
       .range(0, TIMELINE_PAGE_SIZE - 1)
   ).then(({ data }) => (data ?? []).map(mapRowToMoment));
 }
