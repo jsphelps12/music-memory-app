@@ -16,8 +16,8 @@ class ShareViewController: UIViewController {
   var sharedMedia: [SharedMediaFile] = []
   var sharedWebUrl: [WebUrl] = []
   var sharedText: [String] = []
-  var expectedItemCount = 0
-  var handledItemCount = 0
+  var expectedItemCount: Int = 0
+  var handledItemCount: Int = 0
   let imageContentType: String = UTType.image.identifier
   let videoContentType: String = UTType.movie.identifier
   let textContentType: String = UTType.text.identifier
@@ -233,68 +233,60 @@ class ShareViewController: UIViewController {
     Task.detached {
       do {
         let item = try await attachment.loadItem(forTypeIdentifier: self.imageContentType)
-        
-        Task { @MainActor in
-          var url: URL? = nil
-          
-          if let dataURL = item as? URL {
-            url = dataURL
-          } else if let imageData = item as? UIImage {
-            url = self.saveScreenshot(imageData)
-            if url == nil {
-              NSLog("[ERROR] handleImages: saveScreenshot returned nil")
-            }
-          } else if let data = item as? Data {
-            if let image = UIImage(data: data) {
-              url = self.saveScreenshot(image)
-            } else {
-              NSLog("[ERROR] handleImages: Failed to create UIImage from Data")
-            }
-          } else {
-            NSLog("[ERROR] handleImages: Item is unexpected type: \(type(of: item))")
-          }
 
-          guard let safeURL = url else {
-            NSLog("[ERROR] handleImages: Failed to get URL for image item")
+        // Resolve source URL — still in detached task so temp URLs haven't been cleaned up
+        var sourceURL: URL? = nil
+        if let dataURL = item as? URL {
+          sourceURL = dataURL
+        } else if let imageData = item as? UIImage {
+          sourceURL = self.saveScreenshot(imageData)
+        } else if let data = item as? Data, let image = UIImage(data: data) {
+          sourceURL = self.saveScreenshot(image)
+        } else {
+          NSLog("[ERROR] handleImages: Item is unexpected type: \(type(of: item))")
+        }
+
+        guard let safeURL = sourceURL else {
+          NSLog("[ERROR] handleImages: Failed to get URL for image item")
+          Task { @MainActor in
+            self.handledItemCount += 1
             self.dismissWithError(message: "Failed to process image")
-            return
           }
+          return
+        }
 
-          var pixelWidth: Int? = nil
-          var pixelHeight: Int? = nil
-          if let imageSource = CGImageSourceCreateWithURL(safeURL as CFURL, nil) {
-            if let imageProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil)
-              as Dictionary?
-            {
-              pixelWidth = imageProperties[kCGImagePropertyPixelWidth] as? Int
-              pixelHeight = imageProperties[kCGImagePropertyPixelHeight] as? Int
-              // Check orientation and flip size if required
-              if let orientationNumber = imageProperties[kCGImagePropertyOrientation] as! CFNumber?
-              {
-                var orientation: Int = 0
-                CFNumberGetValue(orientationNumber, .intType, &orientation)
-                if orientation > 4 {
-                  let temp: Int? = pixelWidth
-                  pixelWidth = pixelHeight
-                  pixelHeight = temp
-                }
-              }
+        // Copy the file immediately while the temp URL is still valid
+        let fileName = self.getFileName(from: safeURL, type: .image)
+        let fileExtension = self.getExtension(from: safeURL, type: .image)
+        let fileSize = self.getFileSize(from: safeURL)
+        let mimeType = safeURL.mimeType(ext: fileExtension)
+        let newName = "\(UUID().uuidString).\(fileExtension)"
+        let newPath = FileManager.default
+          .containerURL(forSecurityApplicationGroupIdentifier: self.hostAppGroupIdentifier)!
+          .appendingPathComponent(newName)
+        let copied = self.copyFile(at: safeURL, to: newPath)
+
+        // Read dimensions from the stable copy
+        var pixelWidth: Int? = nil
+        var pixelHeight: Int? = nil
+        if copied, let imageSource = CGImageSourceCreateWithURL(newPath as CFURL, nil),
+          let imageProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as Dictionary?
+        {
+          pixelWidth = imageProperties[kCGImagePropertyPixelWidth] as? Int
+          pixelHeight = imageProperties[kCGImagePropertyPixelHeight] as? Int
+          if let orientationNumber = imageProperties[kCGImagePropertyOrientation] as! CFNumber? {
+            var orientation: Int = 0
+            CFNumberGetValue(orientationNumber, .intType, &orientation)
+            if orientation > 4 {
+              let temp = pixelWidth
+              pixelWidth = pixelHeight
+              pixelHeight = temp
             }
           }
+        }
 
-          // Always copy
-          let fileName = self.getFileName(from: safeURL, type: .image)
-          let fileExtension = self.getExtension(from: safeURL, type: .image)
-          let fileSize = self.getFileSize(from: safeURL)
-          let mimeType = safeURL.mimeType(ext: fileExtension)
-          let newName = "\(UUID().uuidString).\(fileExtension)"
-          let newPath = FileManager.default
-            .containerURL(
-              forSecurityApplicationGroupIdentifier: self.hostAppGroupIdentifier)!
-            .appendingPathComponent(newName)
-          
-          let copied = self.copyFile(at: safeURL, to: newPath)
-
+        // Update shared state and check completion on MainActor
+        Task { @MainActor in
           if copied {
             self.sharedMedia.append(
               SharedMediaFile(
@@ -302,9 +294,6 @@ class ShareViewController: UIViewController {
                 fileSize: fileSize, width: pixelWidth, height: pixelHeight, duration: nil,
                 mimeType: mimeType, type: .image))
           }
-
-          // Use a completion counter instead of index comparison — image loads are concurrent
-          // so the last-indexed photo can finish before earlier ones, triggering a premature redirect.
           self.handledItemCount += 1
           if self.handledItemCount == self.expectedItemCount {
             let userDefaults = UserDefaults(suiteName: self.hostAppGroupIdentifier)
@@ -317,11 +306,15 @@ class ShareViewController: UIViewController {
         NSLog("[ERROR] handleImages: Exception loading image item: \(error)")
         Task { @MainActor in
           self.handledItemCount += 1
-          if self.handledItemCount == self.expectedItemCount, !self.sharedMedia.isEmpty {
-            let userDefaults = UserDefaults(suiteName: self.hostAppGroupIdentifier)
-            userDefaults?.set(self.toData(data: self.sharedMedia), forKey: self.sharedKey)
-            userDefaults?.synchronize()
-            self.redirectToHostApp(type: .media)
+          if self.handledItemCount == self.expectedItemCount {
+            if !self.sharedMedia.isEmpty {
+              let userDefaults = UserDefaults(suiteName: self.hostAppGroupIdentifier)
+              userDefaults?.set(self.toData(data: self.sharedMedia), forKey: self.sharedKey)
+              userDefaults?.synchronize()
+              self.redirectToHostApp(type: .media)
+            } else {
+              self.dismissWithError(message: "Cannot load image content: \(error.localizedDescription)")
+            }
           }
         }
       }
