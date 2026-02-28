@@ -196,7 +196,7 @@ function _parseJpegExif(bytes: Uint8Array): { date?: Date; lat?: number; lon?: n
 async function extractExifFromPath(uri: string): Promise<{ date?: Date; location?: string }> {
   try {
     const base64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
+      encoding: "base64" as any,
       position: 0,
       length: 65536,
     });
