@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
+import { PreviewPlayer } from "@/components/PreviewPlayer";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export default async function GiftedMomentPage({ params }: PageProps) {
       song_artist,
       song_album_name,
       song_artwork_url,
+      song_preview_url,
       reflection_text,
       mood,
       photo_urls,
@@ -82,6 +84,7 @@ export default async function GiftedMomentPage({ params }: PageProps) {
         {formattedDate && (
           <p className="text-sm mt-1" style={{ color: "#999" }}>{formattedDate}</p>
         )}
+        {row.song_preview_url && <PreviewPlayer url={row.song_preview_url} />}
 
         {/* Reflection */}
         {row.reflection_text && (
