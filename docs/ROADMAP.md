@@ -1,203 +1,391 @@
 # Tracks — Roadmap
 
-This file tracks what's built, what's next, and the full feature roadmap organized by phase.
+> "It's wild how certain songs can immediately take you back to a totally different time in your life."
+> — Instagram comment, 2,962 likes
+
+That's the product. Everything on this roadmap exists to make that feeling capturable, revisitable, and shareable.
 
 ---
 
-## Complete
+## SHIPPED
 
-### Phase 1: Foundation & MVP
+### Foundation & MVP
 - [x] Auth (email/password + Apple Sign-In)
 - [x] Song search (MusicKit), 30-second preview playback
 - [x] Create / edit / delete moments (song, reflection, mood, people, date, photos)
-- [x] Timeline feed with SectionList grouped by month
-- [x] Moment detail view with blurred artwork backdrop
-- [x] Photo support — camera/library, compression, full photo viewer (pinch-to-zoom, swipe)
+- [x] Timeline feed — SectionList grouped by month, pagination, prefetch on auth
+- [x] Moment detail — blurred artwork backdrop, auto-play preview, swipe to close
+- [x] Photo support — camera/library, compression, full viewer (pinch-to-zoom, swipe paging)
 - [x] Photo EXIF date + GPS auto-detection with suggestion banner
-- [x] Profile screen — avatar, display name, stats, storage usage, sign-out
+- [x] Profile — avatar, display name, stats, storage usage
 - [x] Dark mode, design system, loading skeletons, empty states, error states
 
-### Core Feature Additions (Complete)
-- [x] Share extension — receive shared songs from Apple Music & Spotify via iOS share sheet
+### Core Features
+- [x] Share extension — receive shared songs from Apple Music & Spotify
 - [x] Spotify cross-search — oEmbed parse → Apple Music match with candidate picker
-- [x] Now Playing auto-fill — real-time suggestion banner on create screen
-- [x] Quick capture flow — song + optional reflection, one tap save, expandable details
-- [x] Auto-tag time of day & location — device clock + optional GPS location banner
-- [x] On This Day & random resurfacing — Reflections tab, grouped by year
-- [x] Push notifications — On This Day (2–3x/week), milestones (10, 50, 100, 250, 500, 1000)
-- [x] Smooth card-to-detail transition — shared-element style expand animation
-- [x] Calendar view — grid with album art thumbnails, tap day to jump, pinch-to-zoom toggle
-- [x] Swipe gestures — swipe to close moment detail, swipe to delete cards, swipe-back on all screens
-- [x] Swipe tab navigation — swipe left/right between Moments / Reflections / Profile tabs
-- [x] Song & album views — all moments for a specific song or album, tappable from moment detail
-- [x] Search by song, artist, reflection text; filter by mood, people, date range, location
+- [x] Now Playing auto-fill — banner on create screen when something is playing
+- [x] Quick capture flow — song + optional reflection, expandable details
+- [x] Auto-tag time of day + location banner
+- [x] On This Day + random resurfacing — Reflections tab, grouped by year
+- [x] Push notifications — On This Day, milestones
+- [x] Card-to-detail transition animation
+- [x] Calendar view — grid with album art thumbnails, pinch-to-zoom toggle
+- [x] Swipe gestures throughout (close detail, delete cards, swipe between tabs)
+- [x] Song, album, artist views — all moments for a given song/album/artist
+- [x] Search + filter — song, artist, reflection text, mood, people, date range, location
+- [x] Personal collections — user-defined groupings, header selector on Moments tab
+- [x] Shared collections Phase A+B — join flow, contributor attribution, deep link, web preview
+- [x] Web app — Next.js / Vercel, `/c/{invite_code}` shared collection page with audio preview
+- [x] Shareable moment cards — dark portrait card with photo/artwork hero, iOS share sheet
 - [x] Onboarding flow, custom app icon
 
 ---
 
-## Now Building
+## NOW — Before App Store Launch
 
-### 1. Auto-play on moment open — COMPLETE
-- [x] When opening a moment detail, gently fade in the 30-second preview automatically
-- [x] Respect system volume; don't interrupt other audio in a jarring way
+These are not optional. Ship these before pushing for real users.
 
-### 2. Personal collections — COMPLETE
-- [x] User-defined groupings ("Summer 2024", "My healing era", "Road trip playlist")
-- [x] Add/remove moments from collections
-- [x] Tappable header selector on Moments tab (Day One-style)
+### Deferred Deep Links (Branch.io) **[Free]**
+- [ ] Without this, shared collection invites break after App Store install — the invite code is lost
+- [ ] Smart CTA: try `tracks://` first, fall back to App Store with code stored for after install
+- [ ] Without this, the entire shared collections growth loop is broken for cold users
 
-### 3. Web app (Next.js / Vercel) — COMPLETE
-- [x] Next.js 16 project in `web/`, deployed to Vercel at `https://music-memory-app.vercel.app`
-- [x] `/c/{invite_code}` — shared collection preview (song, artwork, reflection, photos, audio preview)
-- [x] Expandable moment cards with in-page audio playback
-- [x] Sticky "Add your moment → Download Tracks" CTA
-- [x] App: toggle collection public + share invite link via iOS share sheet
-- [x] FAB for creating moments (moved + out of header)
+### Onboarding Tightening **[Free]**
+- [ ] Current flow exists but the activation moment — first saved moment — must be guaranteed
+- [ ] Onboarding should not end until the user has logged at least one memory
+- [ ] Collection-origin users (wedding, event) get a different flow: "This moment is yours now. Not just theirs. Let's build on it."
+- [ ] Show their personal timeline immediately after first save — not the collection view
+- [ ] Plant the hook: "On This Day next year, we'll remind you of this moment."
 
-### 4. Shared collections — Phase B — COMPLETE
-- [x] Handle `tracks://join?inviteCode={code}` deep link in the app
-- [x] Join screen — collection name, owner display name, moment count, "Join" button
-- [x] `collection_members` table — collection_id, user_id, joined_at (no roles)
-- [x] Contributor attribution — who added each moment in the collection view
-- [x] Collection auto-select after joining via `lib/pendingCollection.ts`
+### Memory Prompts **[Free]**
+- [ ] Rotating contextual starters that surface when the user doesn't know what to log
+- [ ] Organized into categories; user picks a prompt then it pre-fills the reflection placeholder
+- [ ] Lives in 4 places: create screen (when opened blank), Reflections tab (below On This Day), timeline empty state, weekly push notification
 
-**App Store launch gate (do before public launch):**
-- [ ] Deferred deep links (Branch.io or similar) — passes invite code through App Store install
-- [ ] Smart web CTA: try `tracks://` first, fall back to App Store with code stored for after install
+**Prompt Library — organized by type:**
 
-### 5. Friends + social tagging — DEFERRED
-Deferred until after App Store launch and real usage data. Link-based sharing covers the
-near-term social use case without needing a social graph.
-- [ ] `friendships` table — bidirectional request/accept model
-- [ ] Friend discovery (search by display name) + request/accept UI
-- [ ] Social tagging: when you tag a friend, creates a `tagged_moments` record
-- [ ] Tagged moments inbox — friend sees it, chooses "Add to my timeline" or "Hide"
-- [ ] Auto-suggest shared collection when two friends have 3+ mutual moments
-- [ ] See docs/SOCIAL-ARCHITECTURE.md for full spec
+*People*
+- "A song your parent played that you didn't understand until later"
+- "The song that was yours and one specific friend's"
+- "A song that makes you think of someone you've lost"
+- "A song someone dedicated to you, or that you dedicated to someone"
+- "The song playing during your relationship's best moment"
 
-### 6. Shareable moment cards — the viral surface
-- [ ] Moment card: artwork, song, quote from reflection, date — exportable graphic
-- [ ] Vertical/story-format card designed for Instagram & TikTok
-- [ ] Multiple visual templates — clean, filmic, retro
-- [ ] Share via iOS share sheet; free feature
+*Place & Time*
+- "The song that takes you back to a specific summer"
+- "A song you associate with one room, one apartment, one city"
+- "The song you heard in another country that stuck with you"
+- "The song from your first road trip"
+- "A song that always plays in your head when you think of where you grew up"
 
-### 7. Gift a Memory
-- [ ] Log a moment and send it directly to one person — not a collection, a private one-to-one share
-- [ ] Recipient gets a notification; opens via web link (no account required to view)
-- [ ] To reply with their own memory of that song, they download the app — acquisition through intimacy
-- [ ] No new data model needed beyond a share token on the moment; free feature
+*Firsts*
+- "The first song you chose for yourself — not something you heard, something you found"
+- "The first concert you ever went to"
+- "The song playing during your first drive alone"
+- "The first song that made you cry"
+- "A song you remember discovering and immediately sending to someone"
 
-### 9. Era clustering (AI) — premium, needs data first
-- [ ] Requires users to have 25+ moments before it's meaningful — bad early conversion trigger
-- [ ] Cluster moments into life chapters using date, mood, artist, and reflection patterns
-- [ ] Generate a name for each era (e.g. "Winter of Letting Go", "The Comeback Summer")
-- [ ] Show eras as a navigable timeline — see your life organized into chapters
-- [ ] Paywall: "Unlock the chapter you just lived"
-- [ ] Era detail view: cover art collage, top songs, dominant moods, reflection excerpts
-- [ ] Shareable era summary card (pairs with #3 above)
-- [ ] See `docs/AI-FEATURES.md` for implementation notes
+*Loss & Endings*
+- "A song you played when something ended"
+- "The song playing the last time you saw someone"
+- "A song you can't listen to anymore because of who it reminds you of"
+- "A song you wish you could share with someone who's gone"
+- "The song from the hardest season you've lived through"
 
----
+*Becoming*
+- "A song that got you through something you couldn't explain"
+- "The song playing when you realized you were becoming someone different"
+- "A song that felt like it was written for a version of you that no longer exists"
+- "A song from a chapter of your life you've never fully written about"
+- "The song you played when you made a decision that changed everything"
 
-## Phase 2: Frictionless Logging (Remaining)
+*Late Night*
+- "A song you played at 2am when you couldn't sleep"
+- "The song that hit differently when you were driving alone at night"
+- "A song that only makes sense after midnight"
+- "The song you played when the party was over and you were the last one awake"
+- "A song you've cried to in a car alone"
 
-- [ ] iOS home screen widget + Dynamic Island — Now Playing one-tap save, On This Day; ShazamKit "identify" button captures ambient audio (concerts, parties, someone else's speakers — anything MPMusicPlayerController misses) [Free]
-- [ ] ShazamKit native module — wraps Apple's ShazamKit framework for ambient audio fingerprinting; same pattern as existing NowPlaying module; cross-references result against MusicKit for full song metadata [Free]
-- [ ] Weather auto-tagging — silently attach weather at moment creation; enables "rainy day songs" [Free]
-- [ ] Lyric anchoring — highlight a specific lyric as the emotional anchor for a moment [Free]
-- [ ] Apple Watch app — one tap on wrist logs current song instantly [Free]
-- [ ] Apple Shortcuts integration — app intents for "log current song," automation triggers (e.g. "when I add a song to my Library, prompt me to log a memory") [Free]
+*Joy*
+- "The song playing when you got news that changed everything (in the best way)"
+- "A song that makes you feel invincible"
+- "The song from the best summer you can remember"
+- "A song you put on when you need to feel like yourself again"
+- "The song you played on repeat when something finally worked out"
 
----
+*Rediscovery*
+- "A song you haven't thought about in years that just came back"
+- "A song that meant something completely different to you at different ages"
+- "A song you ignored when it first came out, then fell in love with later"
+- "A song that will always take you back even though you try to move on"
+- "A song from a playlist you forgot you made"
 
-## Phase 3: Enhanced Playback
+### Early Resurfacing **[Free]**
+- [ ] On This Day requires a year of data — dangerous gap in early retention
+- [ ] "A month ago, you logged this" — resurfaces after just 30 days
+- [ ] "Your earliest memory in Tracks" — works from day 1 if they have any moments
+- [ ] "A moment you haven't revisited in a while" — works after a few weeks
+- [ ] "From a year like this one" — surfaces moments from the same month in past years
+- [ ] These live in the Reflections tab alongside On This Day as cards
 
-- [ ] Full song playback in-app (Apple Music / Spotify Premium subscribers)
-- [ ] Custom player UI — album art, progress bar, controls
-- [ ] Background playback
-- [ ] Notification preferences / quiet hours
-
----
-
-## Phase 4: Search & Organization (Remaining)
-
-- [ ] Quick filter views (this week, this month, by mood, late night)
-- [ ] Sort options (chronological, by mood, by artist, random)
-- [ ] Friends list — `friends` table, people picker chip selector, "Moments with [person]" view
-
----
-
-## Phase 5: Reflection & Insights (Premium)
-
-Premium tier: $4.99/month or $39.99/year. Break-even at ~120 annual subscribers.
-Paywall meaning, not logging. Free users keep all logging features forever.
-Conversion trigger: at 25–30 moments, show a locked Era card — "unlock the chapter you just lived."
-
-- [ ] Paywall & subscription (RevenueCat)
-- [ ] Era clustering — see Now Building #2 (THE conversion trigger)
-- [ ] "How You're Evolving" dashboard (current era summary, comparison to past)
-- [ ] Mood trajectory graph (mood over time, tap to jump to moment)
-- [ ] Music taste evolution (energy, genre, tempo trends)
-- [ ] Pattern recognition ("You log 3x more on weekends", "Bon Iver = processing emotions")
-- [ ] Mood gap analysis — surface what's absent: "You almost never log joy. The last time was 8 months ago." [Premium]
-- [ ] Relationship soundtracks (filter by person, stats, exportable playlist)
-- [ ] AI narrative summaries — "soft in tone, sharp in insight" interpretation of your data
+### 30-Day Retention Plan
+| Day | Hook |
+|-----|------|
+| 0 | First moment saved before leaving onboarding |
+| 0 | Collection users: "This moment is yours forever" reframe |
+| 1 | Push: "What song have you had in your head this week?" |
+| 3 | Prompt push: category from their likely entry point (e.g. wedding → People prompts) |
+| 7 | "You've logged X moments" + a prompt to continue |
+| 14 | Forgotten song (if any) or another contextual prompt |
+| 30 | Mini recap card: "Your first month in Tracks" |
 
 ---
 
-## Phase 6: Discovery & Smart Resurfacing
+## WEDDING READY
 
-- [ ] Forgotten songs — surface songs logged exactly once, never again [Free]
-- [ ] Song anniversaries — "One year ago today, you first logged this song" [Free]
-- [ ] Memory prompts — rotating contextual starters ("Songs my parents played," "Song from your first heartbreak," "Song that defined a specific summer") shown in empty states and low-logging periods; universal emotional hooks that drive logging without requiring existing data [Free]
-- [ ] Through-line songs — songs that appear across multiple distinct eras [Premium]
-- [ ] Personal charts — most-logged songs/artists ranked by year, always-on [Premium]
-- [ ] Mood-aware suggestions — current mood → songs/moments that historically helped
-- [ ] Smart resurfacing (mood-matched, pattern-based, relationship-based)
-- [ ] Rediscovery ("You loved this artist in 2023, then stopped")
-- [ ] Currently playing prompt notification (gentle, once/day max)
-- [ ] Weekly digest email ("Your week in music")
+The wedding is a Trojan horse. Guest scans QR → contributes a memory → gets prompted to download → their contribution becomes their first personal moment. One event, potentially 50–150 installs.
+
+### Web Contribution Form (no account required) **[Free to contribute / Events tier to unlock]**
+- [ ] Guest navigates to `music-memory-app.vercel.app/c/{invite_code}/contribute`
+- [ ] Song search via iTunes Search API (public, no auth needed)
+- [ ] Reflection text, optional photo upload
+- [ ] Submits without an account — guest UUID stored in browser localStorage
+- [ ] Web server inserts via service role key (RLS doesn't block it)
+- [ ] After submit: "Want to keep this memory on your own timeline? Download Tracks — this will be your first moment."
+- [ ] After sign-up: claim flow links guest token's moments to new user_id
+- [ ] RLS update: allow guest inserts to collections with valid invite code
+
+### QR Code Generation **[Events tier]**
+- [ ] Collection owner taps "Get QR Code" → generates QR pointing to `/c/{code}/contribute`
+- [ ] Full-screen display for easy scanning at venue
+- [ ] Downloadable as image for printing on table cards, programs, venue signage
+
+### ShazamKit Native Module **[Free]**
+- [ ] Custom native module (same pattern as existing NowPlaying module)
+- [ ] Wraps Apple's ShazamKit framework — microphone → 3-second audio fingerprint
+- [ ] Identifies music playing *anywhere near the device*: band, DJ, bar speaker, TV
+- [ ] Cross-references `SHMediaItem` result against MusicKit for full song metadata
+- [ ] Microphone permission, used from create screen and eventually widget
+- [ ] The killer feature for live event capture — guest identifies the first dance song in real time
+
+| | Now Playing | ShazamKit |
+|---|---|---|
+| Detects | Music through the device | Music anywhere near the device |
+| Wedding use | You're playing it yourself | DJ drops it, band plays it |
+
+### Share from Photos **[Free]**
+- [ ] User is in camera roll → old photo inspires a memory → taps Share → selects Tracks
+- [ ] Share extension updated to accept image file types (NSExtensionActivationSupportsImageWithMaxCount)
+- [ ] Create screen opens with photo pre-filled, EXIF date + location auto-populated
+- [ ] User adds the song → moment saved
+- [ ] Closes the gap: a visual trigger (old photo) pairs with a musical memory
+
+### Playlist Export from Collections **[Free]**
+- [ ] Any collection (personal or shared) can be exported as an Apple Music playlist
+- [ ] One tap → playlist created via MusicKit `MusicLibrary.shared.add()`
+- [ ] Shared collection export: "The Wedding Soundtrack" playlist with all contributed songs
+- [ ] Personal collection export: "My Road Trip Playlist" — a playlist you actually remember making
+- [ ] Every export is shareable as a playlist → more impressions for Tracks
+
+### Physical Book **[Events / Book tier — design conversation TBD]**
+- [ ] Requires public individual moment pages on web (`/m/{moment_id}`) for QR codes to link to
+- [ ] Each page spread: contributor name, reflection, song + artist, photo, QR code that plays the song
+- [ ] Back of book: every song in the collection, each with a QR code → Apple Music
+- [ ] Cover: tiled collage of every album artwork from songs in the collection
+- [ ] PDF generation server-side; sent to print-on-demand partner (Artifact Uprising, Blurb)
+- [ ] $80 softcover / $130 hardcover pricing — pure margin after print cost
+- [ ] Dependency: public moment pages must exist first
 
 ---
 
-## Phase 7: Sharing, Visualization & Legacy (Premium)
+## GROWTH — Closes the Acquisition Loop
 
-- [ ] Musical autobiography — AI-generated prose narrative about who you were during an era
-- [ ] Couples soundtrack — shared timeline, both perspectives, relationship era clustering
-- [ ] **Anonymous stats + Discover** — "You're Not Alone" callout inside moment detail ("83 people logged this song during a breakup"); global Discover surface: top songs this week, top songs by mood, trending now — aggregate and anonymous, no social graph needed; data moat: intentional emotional annotations at scale that no competitor can replicate. Requires `birth_year` on profiles for generation cuts and a daily pre-compute cron writing to `song_stats` table; minimum 50+ logs per song before showing percentages [Free]
-- [ ] `birth_year` on profiles — optional field at onboarding ("helps us show how your generation connects with music"); seed this now, data compounds — enables generation-demographic stats once user base grows [Free]
-- [ ] Grief & memorial moments — songs tied to people who have passed; surfaces on significant dates
-- [ ] Map view (moments by location, clusters, tap to explore)
-- [ ] Weekly Recap — in-app summary of the week's moments
-- [ ] Yearly Recap ("Your 2026 in Moments" — Spotify Wrapped-style, shareable)
-- [ ] Voice notes — record via expo-av, transcribe for searchability, playback on detail
-- [ ] Video support — capture, compress, playback, thumbnail on timeline card
-- [ ] Mood-based playlist export — "songs I logged as 'peaceful'" → Apple Music playlist; built from your own tagged data, something no other app can generate [Free]
-- [ ] Playlist export to Spotify/Apple Music from any collection or era
-- [ ] Memory book creation (print-on-demand, QR codes linking to songs)
-- [ ] Time capsules ("Remind me of this in 5 years")
-- [ ] Legacy mode (designate someone to receive your collection)
+Features that turn users into acquisition channels.
+
+### Gift a Memory **[Free]**
+- [ ] Log a moment and send it privately to one person — not a collection, a direct gift
+- [ ] Recipient gets a web link (no account required to view): song + your reflection
+- [ ] To reply with their own memory of that song: download the app
+- [ ] Acquisition through emotional resonance — the highest quality install you can get
+- [ ] No new data model beyond a share token on the moment
+- [ ] Requires public individual moment pages on web (`/m/{moment_id}`)
+
+### Lyric Anchoring **[Free]**
+- [ ] When logging, optionally highlight a specific lyric as the emotional anchor
+- [ ] Stored as `lyric_anchor` field on the moment
+- [ ] Displayed prominently on detail view — the exact line that hit you
+- [ ] Years later, the lyric is more specific and powerful than just the song title
+- [ ] Surfaced after song is selected; optional, zero friction
+
+### Voice Notes **[Free]**
+- [ ] Record a voice note alongside (or instead of) typed reflection — expo-av already installed
+- [ ] Record to local file → upload to Supabase Storage (same pattern as photos)
+- [ ] `audio_url` field on moments; playback on detail view
+- [ ] Your actual voice, from that moment in time — photos and text can't replicate this
+- [ ] Optional: pipe through OpenAI Whisper edge function for transcription + searchability
+- [ ] Hear your own voice from the past — deeply personal, no other app does this
+
+### Plant Seeds for Anonymous Stats / Discover **[Free — data-seeding tasks]**
+- [ ] `birth_year` — optional field on profiles at onboarding ("helps us show how your generation connects with music"); seed now, data compounds over time
+- [ ] `song_stats` table — pre-compute daily: song_id, mood, log_count, week; start accumulating before the UI exists
+- [ ] Minimum threshold: 50+ logs per song before any percentages are shown
+- [ ] These are infrastructure tasks; the UI comes in the Social phase once data exists
+
+### Forgotten Songs **[Free]**
+- [ ] Surface songs logged exactly once and never revisited
+- [ ] "You logged this once in March 2024 and never came back to it."
+- [ ] Haunting in a good way — reinforces the logging habit
+- [ ] Simple query: moments grouped by song, count = 1, surface randomly in Reflections tab
+
+### Song Anniversaries **[Free]**
+- [ ] "One year ago today, you first logged this song."
+- [ ] Pure date math, deeply personal
+- [ ] Lives in Reflections tab alongside On This Day
+
+### Mood Streaks / Gentle Gamification **[Free]**
+- [ ] "You've reflected 4 days this week" — warm, not competitive
+- [ ] Monthly recap card ("You saved 12 moments in February")
+- [ ] Seasonal milestones; keep it journal-toned, not fitness-toned
 
 ---
 
-## Phase 8: Predictive & Platform (Scale)
+## PREMIUM — Paywall + Insights
 
-The shift from rearview mirror to windshield — using accumulated data to serve present and future needs.
+Build the infrastructure now, launch the paywall when users have 25+ moments. Don't rush this.
 
-- [ ] Music as emotional regulation — "I'm feeling anxious" → your songs that helped before [Free basic, Premium full]
-- [ ] Seasonal pattern anticipation — "Last October your mood dipped. It's October." [Premium]
-- [ ] "You're in a transition" detection — when logging patterns shift, the app quietly notices [Premium]
-- [ ] Android app — doubles the addressable market
-- [ ] Web companion — read-only sharing destination, full keyboard create/edit, shareable public links
-- [ ] Apple Watch app — see Phase 2 remaining
+### RevenueCat + Paywall **[prerequisite for everything in this section]**
+- [ ] $4.99/month or $39.99/year (Plus tier)
+- [ ] Events tier: $39.99 one-time per event (extended collections, QR, book export)
+- [ ] Conversion trigger: at 25–30 moments, show a locked Era card
+- [ ] "Paywall meaning, not logging" — free users keep all capture features forever
+
+### Era Clustering **[Premium — THE conversion trigger]**
+- [ ] Cluster moments into life chapters using date, mood, artist, reflection patterns
+- [ ] Generate an era name: "Winter of Letting Go", "The Comeback Summer"
+- [ ] Era detail: artwork collage, top songs, dominant moods, reflection excerpts, date range
+- [ ] At 25–30 moments, locked Era card appears: "Unlock the chapter you just lived"
+- [ ] See `AI-FEATURES.md` for clustering approach
+
+### Musical Autobiography **[Premium — the crown jewel]**
+- [ ] AI-generated prose about who you were during an era — not stats, actual writing
+- [ ] "In the winter of 2023, you kept returning to songs about distance..."
+- [ ] People read this and feel seen in a way no feature list accomplishes
+- [ ] Requires years of data to be meaningful; ship after era clustering is proven
+- [ ] The feature that makes people pay without hesitation and never churn
+
+### Insights Dashboard **[Premium]**
+- [ ] "How You're Evolving" — current era summary vs. past eras
+- [ ] Mood trajectory graph — mood over time, tap to jump to moment
+- [ ] Music taste evolution — energy, genre, tempo trends over months
+- [ ] Pattern recognition — "You log 3x more on weekends", "Bon Iver = processing emotions"
+- [ ] Mood gap analysis — "You almost never log joy. The last time was 8 months ago."
+- [ ] Relationship soundtracks — filter by person, stats, exportable playlist
+- [ ] Mood prediction pre-fill — suggest mood based on song + your history
+- [ ] See `AI-FEATURES.md` for full AI spec
+
+### Yearly Recap **[Premium]**
+- [ ] "Your 2026 in Moments" — Spotify Wrapped-style, emotionally rich
+- [ ] Top songs, dominant moods, most-logged people, era name for the year
+- [ ] Shareable card; run as a cultural moment every December
+- [ ] Wrapped tells you what you played 32,000 times. Tracks tells you why the 4th listen of one song changed everything.
+
+### Personal Charts **[Premium]**
+- [ ] Most-logged songs and artists ranked by year — like Billboard but for your actual life
+- [ ] Per-year and all-time views; always-on (not just annual)
 
 ---
 
-## Unscheduled
+## SOCIAL — Highest Priority Among "Laters"
 
-- [ ] Multiple songs per moment (UI/data model changes needed)
-- [ ] Spotify full integration (native playback/auth; cross-search is done)
-- [ ] Accessibility (VoiceOver, dynamic type)
-- [ ] Offline support (queue uploads when offline)
-- [ ] Export/backup (download your data)
-- [ ] Referral program — give a friend 3 months Plus free, get a month free; ship once paying subscriber base exists; frame as a gift not a discount
+These are lower priority than Premium but higher than anything below. They're growth multipliers.
+
+### Anonymous Stats + "You're Not Alone" **[Free]**
+- [ ] Inside moment detail: "83 people logged this song during a breakup"
+- [ ] Anonymous, no social graph, opt-in only
+- [ ] The most shareable thing the app could produce — it's not about the app, it's about the human experience
+- [ ] Requires `song_stats` table (seeded in Growth phase) + 50+ log threshold per song
+- [ ] Turns a private journal into something that makes you feel connected to something larger
+
+### Discover Surface **[Free]**
+- [ ] Global top songs this week — most logged across all users
+- [ ] Top songs by mood — "most logged as 'heartbroken' this month"
+- [ ] Trending now — songs spiking in logs (correlates with album drops, world events)
+- [ ] "On repeat" — songs logged by the same users multiple times across eras
+- [ ] Entirely aggregate and anonymous; makes the app feel alive even when you're not logging
+- [ ] Requires meaningful user base before this surface is interesting (~1,000+ active users)
+
+### Friends + Social Tagging **[Free]**
+- [ ] `friendships` table — bidirectional request/accept
+- [ ] Friend discovery by display name
+- [ ] When you tag a friend, creates a `tagged_moments` record; they see it in an inbox
+- [ ] "Add to my timeline" or "Hide" — they control what appears in their history
+- [ ] Auto-suggest shared collection when two friends have 3+ mutual song moments
+- [ ] Side-by-side perspectives view: same song logged by multiple people, both reflections shown
+- [ ] See `SOCIAL-ARCHITECTURE.md` for full spec
+
+### Artist + Event Collections **[Free to join / Premium to create]**
+- [ ] Artist creates a collection for an album release: "Log your first listen to [Album]"
+- [ ] Fans contribute → artist gets a genuine emotional artifact from their fanbase
+- [ ] Concert/festival collections — log moments from each show in real time
+- [ ] Merch table integration — QR code on a card in the merch bag joins the tour collection
+- [ ] Acquisition channel: one artist post → thousands of new users
+
+---
+
+## LATER
+
+Worth building, not urgent.
+
+- [ ] Handoff to Apple Music — from any moment, one tap to play the full song via `music://` deep link [Free, easy]
+- [ ] Concert mode — set context once (venue, date, people), tap songs to log them quickly; auto-suggest setlist from setlist.fm API [Free]
+- [ ] Full lyrics display — Apple Music MusicKit lyrics API alongside the reflection [Free]
+- [ ] Listening history import — surface songs played heavily in past months, "log why?" [Free]
+- [ ] Music as emotional regulation — "I'm feeling anxious" → songs from your history that helped [Free basic / Premium full]
+- [ ] Through-line songs — songs that appear across multiple distinct eras [Premium, needs era clustering]
+- [ ] "You're in a transition" detection — when logging patterns shift, the app notices [Premium, needs 3mo data]
+- [ ] Seasonal pattern anticipation — "Last October your mood dipped. It's October." [Premium, needs 1yr data]
+- [ ] Smart resurfacing — mood-matched, context-aware (not random) [Premium]
+- [ ] Weekly digest email — "Your week in music" [Free]
+- [ ] Grief & memorial moments — songs tied to people who have passed, surfaces on significant dates [Free]
+- [ ] Mood-to-playlist export — "songs I logged as peaceful" → Apple Music playlist [Free]
+- [ ] Time capsules — "Remind me of this in 5 years" [Free]
+- [ ] Map view — moments by location, clustered, tap to explore [Premium]
+- [ ] AI reflection prompts — "You've saved 3 moments with this artist before. What's different this time?" [Premium]
+- [ ] Moment templates — concert, road trip, late night, heartbreak; pre-fill mood + prompts [Free]
+- [ ] Import from Notes / Day One — parse entries, match song references, create moments [Free]
+- [ ] Apple Shortcuts integration — "log current song," automation triggers [Free]
+- [ ] Lock screen widget + Dynamic Island — Now Playing one-tap save, ShazamKit identify button [Free]
+- [ ] Weather auto-tagging — silently attach weather at creation; enables "rainy day songs" [Free]
+- [ ] Legacy mode — designate someone to receive your collection [Premium]
+- [ ] Referral program — gift 3 months Plus, get 1 month free; ship once paying base exists [Free mechanic]
+
+---
+
+## SOMEDAY
+
+If the product is healthy and the team grows.
+
+- [ ] Android — doubles the addressable market; not soon
+- [ ] Apple Watch app — one tap on wrist logs current Apple Music song; minimal UI; draft saved for later
+- [ ] Full in-app playback (Apple Music / Spotify Premium) — 30s previews are fine for now
+- [ ] Multiple songs per moment — requires data model + UX changes
+- [ ] Offline support — queue uploads when offline
+- [ ] Export / backup — download your data
+- [ ] Accessibility — VoiceOver, dynamic type
+- [ ] Spotify full integration — native playback/auth (cross-search is done)
+- [ ] Physical book (print-on-demand) — the long-term events revenue play; needs public moment pages first
+- [ ] QR codes on individual moments — physical-digital bridge for journals, gifts, photo walls
+- [ ] Playlist journals — create a playlist where each song has a reflection; export to Apple Music
+
+---
+
+## Monetization Tiers (TBD — see discussion)
+
+| Tier | Price | Core benefit |
+|------|-------|-------------|
+| **Free** | $0 | Log forever; all capture features; personal timeline |
+| **Tracks Plus** | $4.99/mo / $39.99/yr | Era clustering, insights, premium resurfacing |
+| **Tracks Events** | $39.99 one-time | Shared collection creation, QR code, extended capacity |
+| **Tracks Book** | $80–130 per book | Print-on-demand hardcover with QR-linked songs |
+
+*Free vs Premium philosophy: paywall meaning, not logging. The person logging their first moment at a wedding should never hit a paywall.*
