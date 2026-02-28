@@ -4,6 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  ScrollView,
   StyleSheet,
 } from "react-native";
 import { useTheme } from "@/hooks/useTheme";
@@ -12,13 +13,16 @@ import { Theme } from "@/constants/theme";
 interface Props {
   people: string[];
   onChange: (people: string[]) => void;
+  suggestions?: string[];
 }
 
-export function PeopleInput({ people, onChange }: Props) {
+export function PeopleInput({ people, onChange, suggestions = [] }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [input, setInput] = useState("");
   const [focused, setFocused] = useState(false);
+
+  const availableSuggestions = suggestions.filter((s) => !people.includes(s));
 
   const handleAdd = () => {
     const names = input
@@ -46,6 +50,23 @@ export function PeopleInput({ people, onChange }: Props) {
         onSubmitEditing={handleAdd}
         returnKeyType="done"
       />
+      {availableSuggestions.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.suggestions}
+        >
+          {availableSuggestions.map((name) => (
+            <TouchableOpacity
+              key={name}
+              style={styles.suggestion}
+              onPress={() => onChange([...people, name])}
+            >
+              <Text style={styles.suggestionText}>{name}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
       {people.length > 0 && (
         <View style={styles.tags}>
           {people.map((name) => (
@@ -98,6 +119,23 @@ function createStyles(theme: Theme) {
     tagRemove: {
       fontSize: theme.fontSize.xs,
       color: theme.colors.textTertiary,
+    },
+    suggestions: {
+      flexDirection: "row",
+      gap: theme.spacing.sm,
+      paddingVertical: theme.spacing.sm,
+    },
+    suggestion: {
+      backgroundColor: theme.colors.backgroundInput,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 6,
+      borderRadius: theme.spacing.lg,
+    },
+    suggestionText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
     },
   });
 }

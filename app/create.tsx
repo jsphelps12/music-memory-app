@@ -382,10 +382,26 @@ export default function CreateMomentScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focusedField, setFocusedField] = useState("");
+  const [peopleSuggestions, setPeopleSuggestions] = useState<string[]>([]);
 
   useEffect(() => {
     if (showDetails && user && collections.length === 0) {
       fetchCollections(user.id).then(setCollections).catch(() => {});
+    }
+  }, [showDetails, user]);
+
+  useEffect(() => {
+    if (showDetails && user && peopleSuggestions.length === 0) {
+      supabase
+        .from("moments")
+        .select("people")
+        .eq("user_id", user.id)
+        .not("people", "is", null)
+        .then(({ data }) => {
+          if (!data) return;
+          const names = [...new Set(data.flatMap((m) => m.people as string[]))].sort();
+          setPeopleSuggestions(names);
+        });
     }
   }, [showDetails, user]);
 
@@ -779,7 +795,7 @@ export default function CreateMomentScreen() {
 
             {/* People */}
             <Text style={styles.sectionLabel}>People</Text>
-            <PeopleInput people={people} onChange={setPeople} />
+            <PeopleInput people={people} onChange={setPeople} suggestions={peopleSuggestions} />
 
             {/* Collection */}
             <Text style={styles.sectionLabel}>Collection</Text>
