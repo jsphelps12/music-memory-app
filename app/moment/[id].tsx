@@ -49,6 +49,7 @@ import { PhotoViewer } from "@/components/PhotoViewer";
 import { friendlyError } from "@/lib/errors";
 import { Collection, Moment, MoodOption } from "@/types";
 import { markTimelineStale } from "@/lib/timelineRefresh";
+import { ShareCardModal } from "@/components/ShareCardModal";
 
 export default function MomentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -64,6 +65,7 @@ export default function MomentDetailScreen() {
   const [deleting, setDeleting] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
 
   // Collection membership state
   const [collectionModalVisible, setCollectionModalVisible] = useState(false);
@@ -337,6 +339,18 @@ export default function MomentDetailScreen() {
         <>
           <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)} />
           <View style={styles.menuContainer}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                Haptics.selectionAsync();
+                setMenuOpen(false);
+                setShareModalVisible(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.menuItemText}>Share Moment</Text>
+            </TouchableOpacity>
+            <View style={styles.menuDivider} />
             <TouchableOpacity style={styles.menuItem} onPress={handleEdit} activeOpacity={0.7}>
               <Text style={styles.menuItemText}>Edit Moment</Text>
             </TouchableOpacity>
@@ -517,6 +531,15 @@ export default function MomentDetailScreen() {
         visible={viewerVisible}
         onClose={() => setViewerVisible(false)}
       />
+
+      {moment && (
+        <ShareCardModal
+          visible={shareModalVisible}
+          moment={moment}
+          photoUrls={photoUrls}
+          onClose={() => setShareModalVisible(false)}
+        />
+      )}
 
       {/* Collection membership modal */}
       <Modal
