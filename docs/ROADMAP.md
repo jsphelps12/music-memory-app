@@ -88,9 +88,9 @@ Everything here ships before App Store marketing push. Estimated 3–4 weeks tot
 
 **Product analytics — PostHog**
 - [ ] Install `posthog-react-native`, configure project key
-- [ ] Track: first moment logged, session length, feature usage, retention cohorts, funnel drop-off
-- [ ] Requires native rebuild; free tier up to 1M events/month
-- [ ] Essential for making data-driven decisions about what to build next
+- [ ] Free tier: up to 1M events/month
+- [ ] Key events to wire up: `onboarding_started`, `first_moment_created` (the activation event), `onboarding_completed`, `moment_created`, `shazam_identify_tapped`, `shazam_success`, `prompt_used` (+category), `share_card_shared`, `collection_joined`, `gift_sent`, `reflections_tab_opened`, `on_this_day_tapped`, `notification_opened` (+type), `paywall_shown`, `subscription_started`
+- [ ] Primary funnel: `onboarding_started → first_moment_created → moment_created (7 days later)` — this tells you activation + early retention at a glance
 
 **In-app feedback**
 - [ ] "Send Feedback" option on Profile screen → opens Mail with pre-filled subject "Tracks Feedback"
@@ -114,6 +114,27 @@ Everything here ships before App Store marketing push. Estimated 3–4 weeks tot
 - [ ] Data used to track you: none (don't check this unless you're running cross-app tracking)
 - [ ] Data linked to you: email address, name, photos, user content (reflections, moods), usage data
 - [ ] Data not linked to you: crash data (Sentry), diagnostics (PostHog if anonymized)
+
+**Sentry alerts**
+- [ ] Configure Slack or email alerts for new error types hitting production — without this you're blind between App Store review sessions
+
+**Supabase Pro — upgrade before launch**
+- [ ] Free tier: 1 day log retention, no automated backups
+- [ ] Pro ($25/month): 7-day logs, daily automated backups — non-negotiable for an app storing personal emotional data
+
+**RLS security audit — before launch**
+- [ ] Manually verify: can User A read User B's moments? Can unauthenticated requests read anything private?
+- [ ] Audit every policy in Supabase dashboard — a data leak on emotional/personal content is catastrophic
+- [ ] Not a tool — an hour of careful review
+
+**Infrastructure notes — AWS not needed**
+- [ ] Storage: Supabase Storage (S3-compatible, CDN built in) covers photos, voice notes, video
+- [ ] Serverless: Supabase Edge Functions cover all backend logic
+- [ ] Cron jobs: `pg_cron` via Supabase for `song_stats` daily pre-compute
+- [ ] Vector search: `pgvector` built into Supabase — no Pinecone needed for AI features
+- [ ] Email: Resend or Loops for transactional/digest email (simpler than SES)
+- [ ] Video (when built): Cloudflare Stream — no AWS MediaConvert complexity
+- [ ] AI: Anthropic API (narratives) + OpenAI Whisper (transcription) via Edge Functions
 
 **Screenshots**
 - [ ] Required: iPhone 6.7" (Pro Max size)
