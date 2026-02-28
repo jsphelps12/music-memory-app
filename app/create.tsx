@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import * as Location from "expo-location";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import {
   View,
   Text,
