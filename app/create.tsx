@@ -143,8 +143,9 @@ function _parseJpegExif(bytes: Uint8Array): { date?: Date; lat?: number; lon?: n
       let gpsOff: number | undefined;
       for (const e of ifd0) {
         if (e.tag === 0x0132) dateStr = _str(bytes, base + e.valOff, e.count);
-        if (e.tag === 0x8769) exifOff = e.valOff;
-        if (e.tag === 0x8825) gpsOff = e.valOff;
+        // Sub-IFD pointers are 4-byte LONG values — read the value, not store the location
+        if (e.tag === 0x8769) exifOff = _u32(bytes, base + e.valOff, le);
+        if (e.tag === 0x8825) gpsOff = _u32(bytes, base + e.valOff, le);
       }
 
       // DateTimeOriginal overrides DateTime
