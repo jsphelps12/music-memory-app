@@ -41,21 +41,86 @@ That's the product. Everything on this roadmap exists to make that feeling captu
 
 ---
 
-## NOW — Before App Store Launch
+## NOW — Pre-Launch Checklist (9 items)
 
-These are not optional. Ship these before pushing for real users.
+Everything here ships before App Store marketing push. Estimated 3–4 weeks total.
 
-### Deferred Deep Links (Branch.io) **[Free]**
+| # | Item | Effort | Notes |
+|---|------|--------|-------|
+| 1 | Privacy policy + Terms | 1 day | Required for submission |
+| 2 | Deferred deep links | 2 days | Launch blocker |
+| 3 | Onboarding tightening | 2 days | Determines activation rate |
+| 4 | App Store listing + assets | 2–3 days | Screenshots, copy, Sentry, PostHog |
+| 5 | Memory prompts | 2 days | Day 3–30 retention bridge |
+| 6 | Early resurfacing | 1 day | Works after 30 days, not a year |
+| 7 | Gift a Memory | 3–4 days | Warm acquisition loop |
+| 8 | ShazamKit | 3–4 days | Closes ambient capture gap |
+| 9 | Share from Photos | 2 days | Camera roll → memory trigger |
+
+---
+
+### 1. Privacy Policy + Terms of Use
+- [ ] Hosted at `music-memory-app.vercel.app/privacy` and `/terms`
+- [ ] Privacy policy must cover: email/Apple ID, reflection text, mood data, photos, location (EXIF), voice notes (future), push notification tokens, anonymous analytics
+- [ ] Explicitly address: what goes to third parties (Supabase, Branch.io, PostHog, Sentry, Apple), data retention, account deletion (already built), user rights
+- [ ] Emotional data deserves honest language — not just legal boilerplate
+- [ ] Terms of Use: acceptable use, content ownership (user owns their reflections), no liability for data loss
+- [ ] Both documents need a "last updated" date and contact email
+
+### 2. Deferred Deep Links (Branch.io)
 - [ ] Without this, shared collection invites break after App Store install — the invite code is lost
 - [ ] Smart CTA: try `tracks://` first, fall back to App Store with code stored for after install
 - [ ] Without this, the entire shared collections growth loop is broken for cold users
 
-### Onboarding Tightening **[Free]**
+### 3. Onboarding Tightening
 - [ ] Current flow exists but the activation moment — first saved moment — must be guaranteed
 - [ ] Onboarding should not end until the user has logged at least one memory
 - [ ] Collection-origin users (wedding, event) get a different flow: "This moment is yours now. Not just theirs. Let's build on it."
 - [ ] Show their personal timeline immediately after first save — not the collection view
 - [ ] Plant the hook: "On This Day next year, we'll remind you of this moment."
+
+### 4. App Store Listing + Assets
+
+**Crash reporting — Sentry**
+- [ ] Install `@sentry/react-native`, configure DSN, wire up in app entry point
+- [ ] Captures crashes, JS errors, network failures with full stack traces
+- [ ] Requires native rebuild; free tier is sufficient
+
+**Product analytics — PostHog**
+- [ ] Install `posthog-react-native`, configure project key
+- [ ] Track: first moment logged, session length, feature usage, retention cohorts, funnel drop-off
+- [ ] Requires native rebuild; free tier up to 1M events/month
+- [ ] Essential for making data-driven decisions about what to build next
+
+**In-app feedback**
+- [ ] "Send Feedback" option on Profile screen → opens Mail with pre-filled subject "Tracks Feedback"
+- [ ] Use a dedicated email address (not personal): `hello@tracks.app` or similar
+- [ ] Separate from crash reporting — captures qualitative input, feature requests, complaints
+
+**App Store Connect — required fields**
+- [ ] App name (max 30 chars): "Tracks"
+- [ ] Subtitle (max 30 chars): "Music Memory Journal" or "Your Songs. Your Memories."
+- [ ] Description (max 4,000 chars) — lead with the emotional hook, not the feature list
+- [ ] Keywords (max 100 chars total) — music journal, memory, songs, moments, music diary, reflection, Apple Music
+- [ ] Support URL — the feedback email or a simple web page
+- [ ] Privacy policy URL — `/privacy` (see item 1)
+- [ ] Category: Music (primary), Lifestyle (secondary)
+- [ ] Age rating — complete questionnaire (no mature content, no user-generated sharing to public)
+- [ ] Copyright: "© 2026 [Your Name]"
+- [ ] Demo account credentials for App Review team (they need to log in and use the app)
+- [ ] Review notes — explain Now Playing, share extension, any non-obvious flows
+
+**App Privacy nutrition labels (App Store Connect)**
+- [ ] Data used to track you: none (don't check this unless you're running cross-app tracking)
+- [ ] Data linked to you: email address, name, photos, user content (reflections, moods), usage data
+- [ ] Data not linked to you: crash data (Sentry), diagnostics (PostHog if anonymized)
+
+**Screenshots**
+- [ ] Required: iPhone 6.7" (Pro Max size)
+- [ ] Recommended: iPhone 6.5" and 5.5"
+- [ ] 3–6 screenshots; first one is the most important — show the emotional moment, not the feature
+- [ ] Caption each screenshot with benefit language, not feature names ("Songs that take you back" not "Timeline View")
+- [ ] Optional: 30-second App Preview video — significantly improves conversion
 
 ### Memory Prompts **[Free]**
 - [ ] Rotating contextual starters that surface when the user doesn't know what to log
