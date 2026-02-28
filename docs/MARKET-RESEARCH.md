@@ -1,5 +1,5 @@
 # Tracks — Market Research
-*Last updated: February 2026*
+*Last updated: February 2026 — revised to reflect full platform scope (iOS + Android, Apple Music + Spotify)*
 
 ---
 
@@ -10,19 +10,29 @@
 - **Digital journaling apps**: $5.5–6.5B in 2024, projected $10.5–13.6B by 2032 (~10% CAGR)
 - Both markets have strong tailwinds: mental health awareness, nostalgia content surge, streaming growth
 
+### Platform Context
+- **Tracks does not require an Apple Music subscription** — any user can create moments; Apple Music/Spotify accounts enhance the experience (full playback) but are not required
+- **iOS**: ~1B+ active devices globally
+- **Android**: ~72% of global smartphone market share; Spotify is the dominant streaming platform there
+- **Spotify**: 675M+ monthly active users, majority on Android — fully reachable via Spotify App Remote SDK (no Web API quota limits apply to playback)
+- **Apple Music**: ~88M global subscribers, iOS-dominant
+- Combined streaming audience: Apple Music + Spotify alone cover ~80%+ of global music streaming
+
 ### Tracks' TAM/SAM/SOM
 
 | Layer | Size | Rationale |
 |---|---|---|
-| TAM | ~88M global Apple Music subscribers | Anyone who listens to Apple Music on iOS |
-| SAM | ~20–25M | Apple Music iOS users 18–45 who journal or self-reflect (~20–25% of that base) |
-| SOM (yr 3) | 60–80K active users | ~1% of SAM; conservative early milestone |
+| TAM | ~4–5B smartphone users globally | Anyone with a smartphone; no streaming subscription required to use the app |
+| SAM | ~150–200M | Smartphone users 18–45 on iOS or Android who use a major streaming service and show journaling/self-reflection behaviors (~5–10% of streaming audience) |
+| SOM (yr 3, iOS only) | 500K–1M active users | Achievable with one breakout moment (TikTok, Product Hunt, Wrapped season push); <0.1% of iOS user base |
+| SOM (yr 3, iOS + Android) | 1–2M active users | Android launch expands reach significantly given Spotify's Android-dominant user base |
 
 ### Long-Term Goal
-**10M total users** is a legitimate long-term aspiration.
+**10M total users** is a legitimate and **conservative** long-term goal given full platform scope.
 - Math: 10M users × 4% conversion × $50/year = **$20M ARR**
-- Constraint: Apple Music has ~88M global subscribers — reaching 10M users requires ~11% penetration of the entire global base, or expansion to Spotify (currently blocked by their API restrictions unless Tracks reaches 250K MAU)
-- Timeline: realistically a 5–10 year horizon, requiring a breakout moment (TikTok virality, App Store featuring, press) and likely multi-platform support
+- 10M users = ~0.5% of the combined iOS + Android streaming audience — not 11% of Apple Music alone
+- Timeline: 5–10 year horizon; accelerated by Android launch and social/viral mechanics
+- Spotify Web API extended quota (250K MAU required) is only needed for data features (listening history, recommendations) — **not for playback**, which uses the App Remote SDK
 
 ### 5-Year Tailwinds
 - Music streaming: ~10% annual subscriber growth
@@ -34,20 +44,20 @@
 
 ## Target Audience
 
-### Primary: Millennials (25–38) on Apple Music
-- Largest Apple Music cohort (23% of users)
+### Primary: Millennials (25–38)
 - Strongest music-as-identity relationship; came of age during the iPod/early streaming era
 - Primary journaling app demographic with highest willingness to pay
 - Have lived distinct "music eras" (high school, college, first relationship) they actively want to revisit
+- Span both iOS (Apple Music) and Android (Spotify) — platform-agnostic target
 
 ### Secondary: Gen Z (18–24)
-- 17% of Apple Music users; Apple-device dominant
 - 81% enjoy nostalgia-based products
 - Identity-driven music behavior — Wrapped 2025 drove 500M shares, largely Gen Z
 - Already create "song = memory" content on TikTok organically
+- Heavy Spotify users on Android — a key growth segment once Android ships
 
 ### Who Will Pay
-Highest-intent payers: **Millennial Apple Music subscribers who already pay for Day One or similar** — they have established "pay for self-expression software" behavior. Secondary: Gen Z heavy Wrapped engagers.
+Highest-intent payers: **Millennials who already pay for Day One or similar** — they have established "pay for self-expression software" behavior. Secondary: Gen Z heavy Wrapped engagers across both platforms.
 
 ---
 
@@ -146,13 +156,15 @@ Product Hunt, The Ringer, Pitchfork, NME. "The app that lets you journal your mu
 Apple has the distribution and integration to add a "music moment" feature to native Journal. iOS 27/28 could ship "Journal with Song" as a first-class feature. Medium probability, high impact within 3 years.
 - **Mitigation**: go deeper on social/shared collections and cross-temporal discovery that Apple will never prioritize
 
-### Spotify API Closure (Secondary Risk)
-Since Nov 2024, Spotify has aggressively restricted its API:
+### Spotify Web API Restrictions (Narrow Risk)
+Since Nov 2024, Spotify has aggressively restricted its Web API:
 - Cut recommendation endpoints for new apps
 - March 2025: Required 250K MAU for extended access (effectively blocks new indie apps)
 - Feb 2026: Developer mode requires Premium; test users cut from 25 → 5
 
-Tracks uses Apple Music so direct impact is limited, but future Spotify expansion requires hitting 250K MAU first.
+**Impact on Tracks is limited**: full playback uses the **Spotify App Remote SDK** (not the Web API) — no quota limits apply. The 250K MAU wall only blocks data features (listening history, recommendations, play counts), which are not core to the current roadmap. The share extension's Spotify → Apple Music cross-search uses oEmbed, also unaffected.
+
+**Other streaming services (Tidal, SoundCloud, Amazon Music, YouTube Music):** Not worth integrating early. Apple Music + Spotify covers ~80%+ of global streaming. Tidal (~7M subscribers) and SoundCloud (indie/DJ niche) are diminishing returns. Reassess at scale.
 
 ### Retention (Most Significant Business Risk)
 - 71% of app users stop within 90 days
@@ -170,7 +182,7 @@ A "Spotify Memories" feature is plausible given Wrapped's success. However, plat
 ### What Makes Tracks Defensible
 1. **Data moat** — after 50–100 moments, a user's musical autobiography lives in Tracks; switching cost is high
 2. **Emotional attachment** — apps tied to personal memories have the highest reactivation rates of any app category
-3. **Apple Music ecosystem depth** — Now Playing detection via `MPMusicPlayerController.systemMusicPlayer`, deep MusicKit integration; hard for a Spotify-first competitor to replicate
+3. **Dual-platform playback** — Apple Music full playback via MusicKit `ApplicationMusicPlayer`; Spotify full playback via App Remote SDK. Neither requires proprietary licensing deals — both piggyback on the user's existing subscription. Hard for a new entrant to replicate quickly on both platforms simultaneously.
 4. **Shared collections network effect** — each additional member increases retention for all members
 
 ### Key Differentiating Features to Prioritize
@@ -189,7 +201,7 @@ A "Spotify Memories" feature is plausible given Wrapped's success. However, plat
 
 | Dimension | Rating | Notes |
 |---|---|---|
-| Market size | ★★★★☆ | Large adjacents; Tracks' niche is early but growing |
+| Market size | ★★★★★ | iOS + Android + Spotify users = billions; 10M users is ~0.5% of addressable base |
 | Timing | ★★★★★ | Genuinely uncrowded at meaningful scale |
 | Target user | ★★★★★ | Clear, reachable, high-intent |
 | Competition | ★★★★☆ | No direct at-scale competitor; indirect non-overlapping |
