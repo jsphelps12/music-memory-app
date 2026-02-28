@@ -261,9 +261,9 @@ Features that turn users into acquisition channels.
 Build the infrastructure now, launch the paywall when users have 25+ moments. Don't rush this.
 
 ### RevenueCat + Paywall **[prerequisite for everything in this section]**
-- [ ] $4.99/month or $39.99/year (Plus tier)
+- [ ] $6/month or $50/year (Plus tier)
 - [ ] Events tier: $39.99 one-time per event (extended collections, QR, book export)
-- [ ] Conversion trigger: at 25–30 moments, show a locked Era card
+- [ ] Conversion trigger: at 25–30 moments, show a locked "Take Me Back" era card
 - [ ] "Paywall meaning, not logging" — free users keep all capture features forever
 
 ### "Take Me Back to This Era" **[Premium — THE conversion trigger]**
@@ -278,15 +278,33 @@ Build the infrastructure now, launch the paywall when users have 25+ moments. Do
 - [ ] Shareable era card: artwork collage + era name — "This was my whole personality for 6 months"
 - [ ] See `AI-FEATURES.md` for clustering approach
 
+### Data Moat Features **[Premium — each requires intentional emotional annotation; Spotify can't replicate any of these]**
+
+*The filter: could a streaming service produce this from play counts alone? If no, it's a moat.*
+
+- [ ] **Emotional fingerprint of a song** — for any song, aggregate how all users emotionally tagged it: "73% nostalgic, 18% heartbreak, 9% joy." Surfaces in moment detail and song views. The first time anyone has measured what a song *means* rather than how often it was played.
+- [ ] **"What kind of music person are you"** — based on your annotation patterns, a personality-style insight: *"You're an emotional processor — you log most heavily when working through something, not when celebrating."* *"You're a memory keeper — you log when a song takes you back, not when you discover something new."* Requires annotated history. Shareable. Strong Plus conversion hook.
+- [ ] **Reflection theme clustering** — NLP on your reflection text, no manual tagging. Surface recurring themes you didn't consciously notice: *"The word 'letting go' appears in 23% of your reflections."* *"You mention driving in 31 moments."* Completely irreplicable without free-text emotional writing.
+- [ ] **"Songs that actually helped"** — when in a low mood, surface songs from your history that you logged when feeling similar AND then logged something more positive within the following week. Your personal proof a song helped, not a generic recommendation. The music therapy feature built from your own data.
+- [ ] **Cross-moment pattern recognition** — things the data shows that you didn't notice: *"You log 3x more on Sunday nights."* *"Every time your people tags drop off, your mood tags shift darker within 2 weeks."* *"You have 14 moments with Alex — 12 are tagged peaceful."* Patterns from annotated data over time.
+- [ ] **Emotional DNA of an artist** — aggregate the emotional fingerprint for any artist across all users. *"Phoebe Bridgers: 64% processing grief, 22% healing, 14% nostalgia — from 4,200 annotated moments."* What an artist's catalog means to listeners, not streams. Press-worthy. Could drive artist pages publicly.
+- [ ] **Trending by emotional tag** — "songs spiking in 'heartbreak' logs this week" is a Tracks-exclusive chart that Spotify cannot produce. This is the moat version of trending. Tie to cultural moments: when an album drops, show how people are emotionally logging it in real time.
+
 ### Insights Dashboard **[Premium]**
-- [ ] "How You're Evolving" — current era summary vs. past eras
+- [ ] "How You're Evolving" — current era vs. past eras
 - [ ] Mood trajectory graph — mood over time, tap to jump to moment
 - [ ] Music taste evolution — energy, genre, tempo trends over months
-- [ ] Pattern recognition — "You log 3x more on weekends", "Bon Iver = processing emotions"
 - [ ] Mood gap analysis — "You almost never log joy. The last time was 8 months ago."
 - [ ] Relationship soundtracks — filter by person, stats, exportable playlist
 - [ ] Mood prediction pre-fill — suggest mood based on song + your history
 - [ ] See `AI-FEATURES.md` for full AI spec
+
+### **Portfolio Centerpiece: "Take Me Back to This Era" + Emotional Intelligence System**
+*This is the feature that demonstrates serious AI/ML engineering and produces something emotionally beautiful.*
+- Era clustering uses feature engineering (audio features + mood + sentiment + time patterns) → unsupervised clustering (K-means / DBSCAN) → LLM integration (Claude API for era naming + narrative prose)
+- Emotional fingerprint + "what kind of music person are you" demonstrates aggregate analytics + personalization + NLP
+- Together: a full AI pipeline from raw annotated data → insight → beautiful output
+- The demo moment: *"Here's what the system produced for my own life data."*
 
 ### Yearly Recap **[Premium]**
 - [ ] "Your 2026 in Moments" — Spotify Wrapped-style, emotionally rich
@@ -332,12 +350,13 @@ These are lower priority than Premium but higher than anything below. They're gr
 - [ ] Side-by-side perspectives view: same song logged by multiple people, both reflections shown
 - [ ] See `SOCIAL-ARCHITECTURE.md` for full spec
 
-### Artist + Event Collections **[Free to join / Premium to create]**
+### Artist + Event Collections **[Free to join / Premium to create — way later, needs user base first]**
 - [ ] Artist creates a collection for an album release: "Log your first listen to [Album]"
-- [ ] Fans contribute → artist gets a genuine emotional artifact from their fanbase
+- [ ] Fans contribute → artist gets a genuine emotional artifact from their fanbase (emotional DNA of their album, not streams)
 - [ ] Concert/festival collections — log moments from each show in real time
 - [ ] Merch table integration — QR code on a card in the merch bag joins the tour collection
 - [ ] Acquisition channel: one artist post → thousands of new users
+- [ ] *Note: this requires enough user base to make the proposition meaningful for artists. Don't pitch this until 10,000+ users.*
 
 ---
 
@@ -414,7 +433,7 @@ Get users first. Let usage data and user feedback drive exactly what to charge f
 | **Free** | $0 | Everything above; the full logging experience |
 | **Tracks Plus** | $6/mo or $50/yr | Everything below |
 | **Tracks Events** | $39.99 one-time per event | Extended collection (500+ contributors), QR code generation, event analytics, book export eligibility |
-| **Tracks Book** | $80 softcover / $130 hardcover | Print-on-demand with QR-linked songs; ordered per collection |
+| **Tracks Book** | $89 softcover / $149 hardcover | Print-on-demand with QR-linked songs; ordered per collection |
 
 **Tracks Plus includes:**
 - Unlimited photos per moment
@@ -439,7 +458,7 @@ Get users first. Let usage data and user feedback drive exactly what to charge f
 
 **B2B music therapy** — therapists assign music journaling between sessions. Therapist-tier ($15–25/month): assign prompts, view client engagement (with consent). AMTA has 4,000+ members. Low acquisition cost, high LTV, zero consumer marketing needed.
 
-**Physical book margin** — $130 hardcover at ~$45 print cost = $85 gross margin per book. No recurring cost. One wedding photographer partner who recommends it to every client makes this meaningful.
+**Physical book margin** — $149 hardcover at ~$45–55 print cost = ~$95 gross margin per book. Artifact Uprising charges $200 for a beautiful-but-silent book. Tracks books play music — point your phone at any page, the song from that moment plays. That's a genuinely different product category, not just a photo book with better paper. Positioned below Artifact Uprising on price, above Chatbooks on intention. The QR audio + emotional reflections + playlist page at the back is the differentiator. One wedding photographer who recommends it to every client makes this revenue meaningful.
 
 **Aggregated data licensing** — anonymized, explicitly consented emotional music data is valuable to labels, streaming services, and music researchers. Plant this flag now in the privacy policy. Years out, but the data moat is real and accumulates from day one.
 
