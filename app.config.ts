@@ -28,6 +28,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "Tracks uses your camera to take photos for your moments.",
       NSLocationWhenInUseUsageDescription:
         "Tracks reads your photos' location data to suggest where your moment took place.",
+      NSMicrophoneUsageDescription:
+        "Tracks uses the microphone to identify songs playing around you with ShazamKit.",
       ITSAppUsesNonExemptEncryption: false,
     },
     entitlements: {
@@ -74,6 +76,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         iosActivationRules: {
           NSExtensionActivationSupportsWebURLWithMaxCount: 1,
           NSExtensionActivationSupportsText: true,
+          NSExtensionActivationSupportsImageWithMaxCount: 1,
         },
       },
     ],

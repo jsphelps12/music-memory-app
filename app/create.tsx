@@ -25,6 +25,7 @@ import { supabase } from "@/lib/supabase";
 import { fetchPreviewUrl } from "@/lib/musickit";
 import { uploadMomentPhotoWithThumbnail } from "@/lib/storage";
 import { getNowPlaying, onNowPlayingChange } from "@/lib/now-playing";
+import { identifyAudio, stopShazamListening, type ShazamResult } from "@/modules/shazam-kit";
 import { onSongSelected } from "@/lib/songEvents";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
@@ -99,10 +100,14 @@ export default function CreateMomentScreen() {
     photos?: string;
     shareCandidates?: string;
     shareFailedUrl?: string;
+    sharedPhotoPath?: string;
   }>();
 
   const [song, setSong] = useState<Song | null>(null);
   const [nowPlayingSong, setNowPlayingSong] = useState<Song | null>(null);
+  const [shazamResult, setShazamResult] = useState<ShazamResult | null>(null);
+  const [isShazaming, setIsShazaming] = useState(false);
+  const [shazamError, setShazamError] = useState("");
   const [candidates, setCandidates] = useState<Song[]>([]);
   const [showCandidateModal, setShowCandidateModal] = useState(false);
 
@@ -153,6 +158,14 @@ export default function CreateMomentScreen() {
       } catch {}
     }
   }, [params.photos]);
+
+  // Shared photo from share extension — pre-fill photos and open details
+  useEffect(() => {
+    if (params.sharedPhotoPath) {
+      setPhotos([params.sharedPhotoPath]);
+      setShowDetails(true);
+    }
+  }, [params.sharedPhotoPath]);
 
   // Now Playing detection — check on mount and listen for song changes
   useEffect(() => {
@@ -237,6 +250,50 @@ export default function CreateMomentScreen() {
 
   const handleDismissNowPlaying = () => {
     setNowPlayingSong(null);
+  };
+
+  const handleIdentify = async () => {
+    if (isShazaming) {
+      stopShazamListening().catch(() => {});
+      setIsShazaming(false);
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsShazaming(true);
+    setShazamError("");
+    setShazamResult(null);
+    try {
+      const result = await identifyAudio();
+      setShazamResult(result);
+    } catch (e: any) {
+      const code = e?.code ?? "";
+      if (code !== "CANCELLED") {
+        setShazamError(code === "TIMEOUT" ? "Couldn't identify the song. Try again." : "Microphone error. Check permissions.");
+      }
+    } finally {
+      setIsShazaming(false);
+    }
+  };
+
+  const handleUseShazamResult = () => {
+    if (!shazamResult) return;
+    Haptics.selectionAsync();
+    setSong({
+      id: shazamResult.appleMusicId,
+      title: shazamResult.title,
+      artistName: shazamResult.artist,
+      albumName: "",
+      artworkUrl: shazamResult.artworkUrl,
+      appleMusicId: shazamResult.appleMusicId,
+      durationMs: 0,
+    });
+    setShazamResult(null);
+    setShazamError("");
+  };
+
+  const handleDismissShazam = () => {
+    setShazamResult(null);
+    setShazamError("");
   };
 
   const handleSelectCandidate = (selected: Song) => {
@@ -364,6 +421,8 @@ export default function CreateMomentScreen() {
       setDismissedMetaSuggestion(false);
       setShowDetails(false);
       setDismissedLocationSuggestion(false);
+      setShazamResult(null);
+      setShazamError("");
       setError("");
 
       markTimelineStale();
@@ -460,13 +519,68 @@ export default function CreateMomentScreen() {
             <Text style={styles.changeText}>Change</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity
-            style={styles.selectSongButton}
-            activeOpacity={0.7}
-            onPress={() => router.push({ pathname: "/song-search", params: { photos: JSON.stringify(photos) } })}
-          >
-            <Text style={styles.selectSongButtonText}>Select Song</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={styles.selectSongButton}
+              activeOpacity={0.7}
+              onPress={() => router.push({ pathname: "/song-search", params: { photos: JSON.stringify(photos) } })}
+            >
+              <Text style={styles.selectSongButtonText}>Select Song</Text>
+            </TouchableOpacity>
+
+            {/* Identify button */}
+            <TouchableOpacity
+              style={[styles.identifyButton, isShazaming && { borderColor: theme.colors.accent }]}
+              activeOpacity={0.7}
+              onPress={handleIdentify}
+            >
+              {isShazaming ? (
+                <View style={styles.identifyRow}>
+                  <ActivityIndicator size="small" color={theme.colors.accent} style={{ marginRight: 8 }} />
+                  <Text style={[styles.identifyButtonText, { color: theme.colors.accent }]}>Listening… Tap to cancel</Text>
+                </View>
+              ) : (
+                <Text style={styles.identifyButtonText}>Identify Song</Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Shazam result banner */}
+            {shazamResult && (
+              <View style={styles.shazamBanner}>
+                <View style={styles.nowPlayingContent}>
+                  {shazamResult.artworkUrl ? (
+                    <Image source={{ uri: shazamResult.artworkUrl }} style={styles.nowPlayingArtwork} />
+                  ) : (
+                    <View style={[styles.nowPlayingArtwork, styles.artworkPlaceholder]} />
+                  )}
+                  <View style={styles.nowPlayingInfo}>
+                    <Text style={styles.shazamLabel}>Found</Text>
+                    <Text style={styles.nowPlayingTitle} numberOfLines={1}>{shazamResult.title}</Text>
+                    <Text style={styles.nowPlayingArtist} numberOfLines={1}>{shazamResult.artist}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.nowPlayingDismiss}
+                    onPress={handleDismissShazam}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={styles.nowPlayingDismissText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  style={styles.nowPlayingUseButton}
+                  activeOpacity={0.7}
+                  onPress={handleUseShazamResult}
+                >
+                  <Text style={styles.nowPlayingUseText}>Use this song</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Shazam error */}
+            {shazamError ? (
+              <Text style={styles.shazamError}>{shazamError}</Text>
+            ) : null}
+          </>
         )}
 
         {/* Reflection */}
@@ -1187,6 +1301,46 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
       marginTop: 2,
+    },
+    // Identify / ShazamKit
+    identifyButton: {
+      marginTop: theme.spacing.sm,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radii.md,
+      paddingVertical: theme.spacing.md,
+      alignItems: "center",
+      backgroundColor: theme.colors.backgroundInput,
+    },
+    identifyRow: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    identifyButtonText: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.medium,
+      color: theme.colors.textSecondary,
+    },
+    shazamBanner: {
+      marginTop: theme.spacing.md,
+      backgroundColor: theme.colors.backgroundSecondary,
+      borderRadius: theme.radii.md,
+      padding: theme.spacing.md,
+      borderWidth: 1,
+      borderColor: theme.colors.accent,
+    },
+    shazamLabel: {
+      fontSize: theme.fontSize.xs,
+      fontWeight: theme.fontWeight.semibold,
+      color: theme.colors.accent,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    shazamError: {
+      marginTop: theme.spacing.sm,
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.destructive,
+      textAlign: "center",
     },
   });
 }

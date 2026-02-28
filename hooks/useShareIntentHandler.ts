@@ -27,6 +27,23 @@ export function useShareIntentHandler() {
 
     (async () => {
       try {
+        // Handle image shares — navigate to create with the photo pre-filled
+        const imageFile = shareIntent.files?.find((f) =>
+          f.mimeType?.startsWith("image/")
+        );
+        if (imageFile) {
+          const photoPath = imageFile.path.startsWith("file://")
+            ? imageFile.path
+            : `file://${imageFile.path}`;
+          router.replace({
+            pathname: "/create",
+            params: { sharedPhotoPath: photoPath },
+          });
+          resetShareIntent();
+          processingRef.current = false;
+          return;
+        }
+
         // Extract URL from share intent
         let url = shareIntent.webUrl;
 
