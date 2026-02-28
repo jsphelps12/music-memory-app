@@ -242,6 +242,13 @@ Features that turn users into acquisition channels.
 - [ ] Pure date math, deeply personal
 - [ ] Lives in Reflections tab alongside On This Day
 
+### "Log With Others" Nudge Strategy **[Free]**
+- [ ] After logging a moment, soft prompt: "Who were you with when this song hit you?"
+- [ ] If they tag a person: next session, "You have 3 moments with Jordan — want to share them?"
+- [ ] Tagging people is the first step of the social loop; it feels like meaningful metadata, not a feature
+- [ ] People who log moments with others are more likely to invite those people → shared collections → installs
+- [ ] Track: moments with people tagged vs. not — if correlation with retention is strong, make the prompt more prominent
+
 ### Mood Streaks / Gentle Gamification **[Free]**
 - [ ] "You've reflected 4 days this week" — warm, not competitive
 - [ ] Monthly recap card ("You saved 12 moments in February")
@@ -259,19 +266,17 @@ Build the infrastructure now, launch the paywall when users have 25+ moments. Do
 - [ ] Conversion trigger: at 25–30 moments, show a locked Era card
 - [ ] "Paywall meaning, not logging" — free users keep all capture features forever
 
-### Era Clustering **[Premium — THE conversion trigger]**
-- [ ] Cluster moments into life chapters using date, mood, artist, reflection patterns
-- [ ] Generate an era name: "Winter of Letting Go", "The Comeback Summer"
-- [ ] Era detail: artwork collage, top songs, dominant moods, reflection excerpts, date range
-- [ ] At 25–30 moments, locked Era card appears: "Unlock the chapter you just lived"
+### "Take Me Back to This Era" **[Premium — THE conversion trigger]**
+- [ ] The experience, not just the analysis — you're not showing data, you're returning someone to a chapter of their life
+- [ ] At 25–30 moments, a locked era card appears in Reflections: generated name, blurred preview, "Unlock the chapter you just lived"
+- [ ] Era detection: cluster moments by date, mood, artist, reflection patterns; generate a name ("Winter of Letting Go", "The Comeback Summer")
+- [ ] Era experience — four surfaces working together:
+  - **Artsy album art collage** — mosaic of every artwork from that period, like a visual fingerprint
+  - **Auto-generated playlist** — all songs from the era, one tap to open in Apple Music
+  - **Photo collage** — all photos from moments in that era
+  - **AI narrative** — prose about who you were during this chapter: "In this season, you kept returning to songs about distance. Your reflections mentioned letting go 7 times."
+- [ ] Shareable era card: artwork collage + era name — "This was my whole personality for 6 months"
 - [ ] See `AI-FEATURES.md` for clustering approach
-
-### Musical Autobiography **[Premium — the crown jewel]**
-- [ ] AI-generated prose about who you were during an era — not stats, actual writing
-- [ ] "In the winter of 2023, you kept returning to songs about distance..."
-- [ ] People read this and feel seen in a way no feature list accomplishes
-- [ ] Requires years of data to be meaningful; ship after era clustering is proven
-- [ ] The feature that makes people pay without hesitation and never churn
 
 ### Insights Dashboard **[Premium]**
 - [ ] "How You're Evolving" — current era summary vs. past eras
@@ -306,13 +311,17 @@ These are lower priority than Premium but higher than anything below. They're gr
 - [ ] Requires `song_stats` table (seeded in Growth phase) + 50+ log threshold per song
 - [ ] Turns a private journal into something that makes you feel connected to something larger
 
-### Discover Surface **[Free]**
-- [ ] Global top songs this week — most logged across all users
-- [ ] Top songs by mood — "most logged as 'heartbroken' this month"
-- [ ] Trending now — songs spiking in logs (correlates with album drops, world events)
-- [ ] "On repeat" — songs logged by the same users multiple times across eras
+### Discover Surface **[Free basic / Premium generational cuts]**
+- [ ] Global top songs this week — most logged across all users [Free]
+- [ ] Top songs by mood — "most logged as 'heartbroken' this month" [Free]
+- [ ] Trending now — songs spiking in logs (correlates with album drops, world events) [Free]
+- [ ] "On repeat" — songs logged by the same users multiple times across eras [Free]
 - [ ] Entirely aggregate and anonymous; makes the app feel alive even when you're not logging
 - [ ] Requires meaningful user base before this surface is interesting (~1,000+ active users)
+- [ ] **Generational cuts [Premium]** — demographic comparisons using `birth_year`:
+  - "83% of people your age tagged this song as heartbreak. You tagged it hopeful."
+  - "Your generation logs this artist more than any other right now."
+  - Turns anonymous stats into personal identity — deeply shareable, worth paying for
 
 ### Friends + Social Tagging **[Free]**
 - [ ] `friendships` table — bidirectional request/accept
@@ -336,6 +345,7 @@ These are lower priority than Premium but higher than anything below. They're gr
 
 Worth building, not urgent.
 
+- [ ] Web companion (full account access) — auth, timeline, moment detail, create via iTunes API; for users who want to write longer reflections on a keyboard or browse on desktop [Free]
 - [ ] Handoff to Apple Music — from any moment, one tap to play the full song via `music://` deep link [Free, easy]
 - [ ] Concert mode — set context once (venue, date, people), tap songs to log them quickly; auto-suggest setlist from setlist.fm API [Free]
 - [ ] Full lyrics display — Apple Music MusicKit lyrics API alongside the reflection [Free]
@@ -379,13 +389,58 @@ If the product is healthy and the team grows.
 
 ---
 
-## Monetization Tiers (TBD — see discussion)
+## Monetization
 
-| Tier | Price | Core benefit |
+### Philosophy
+Paywall meaning, not logging. The person scanning a QR code at a wedding and logging their first memory should never see a paywall. The person who discovers they've built a coherent emotional chapter of their life — that's when you ask for money.
+
+Get users first. Let usage data and user feedback drive exactly what to charge for. The free tier must be genuinely good or none of this works.
+
+### Free Tier Limits
+| Feature | Free limit |
+|---------|-----------|
+| Moments | Unlimited forever |
+| Photos per moment | 3 |
+| Video | Not available (Premium) |
+| Shared collections you *create* | 3 |
+| Shared collections you *join* | Unlimited |
+| All capture features | Unlimited |
+| Timeline, resurfacing, prompts | Unlimited |
+
+### Subscription Tiers
+
+| Tier | Price | What you get |
 |------|-------|-------------|
-| **Free** | $0 | Log forever; all capture features; personal timeline |
-| **Tracks Plus** | $4.99/mo / $39.99/yr | Era clustering, insights, premium resurfacing |
-| **Tracks Events** | $39.99 one-time | Shared collection creation, QR code, extended capacity |
-| **Tracks Book** | $80–130 per book | Print-on-demand hardcover with QR-linked songs |
+| **Free** | $0 | Everything above; the full logging experience |
+| **Tracks Plus** | $6/mo or $50/yr | Everything below |
+| **Tracks Events** | $39.99 one-time per event | Extended collection (500+ contributors), QR code generation, event analytics, book export eligibility |
+| **Tracks Book** | $80 softcover / $130 hardcover | Print-on-demand with QR-linked songs; ordered per collection |
 
-*Free vs Premium philosophy: paywall meaning, not logging. The person logging their first moment at a wedding should never hit a paywall.*
+**Tracks Plus includes:**
+- Unlimited photos per moment
+- Video moments
+- Unlimited shared collection creation
+- "Take Me Back to This Era" — the full era experience (collage, playlist, photos, AI narrative)
+- Generational Discover cuts — how your generation connects with songs vs. everyone else
+- Insights dashboard (mood trajectory, taste evolution, pattern recognition, mood gap analysis)
+- AI narrative summaries and musical autobiography
+- Smart resurfacing (context-aware, not random)
+- Yearly Recap ("Your 2026 in Moments")
+- Personal Charts (most-logged songs/artists by year, all-time)
+- Through-line songs (songs that span multiple eras)
+
+**Conversion trigger:** at 25–30 moments, a locked "Take Me Back" era card appears in Reflections. User can see the generated era name and blurred collage. They can't unlock it without Plus. That's the moment.
+
+### Additional Revenue Streams
+
+**Gift subscriptions** — buy someone a year of Plus. Especially powerful at Valentine's Day, birthdays, anniversaries. *"I want you to have somewhere to put this."* High emotional fit. RevenueCat supports this natively.
+
+**Artist & label partnerships** — artists create official collections for album releases; they pay for analytics ("here's how fans emotionally responded to each track") and the cultural artifact. Indie artists free to drive adoption; major label campaigns paid placement.
+
+**B2B music therapy** — therapists assign music journaling between sessions. Therapist-tier ($15–25/month): assign prompts, view client engagement (with consent). AMTA has 4,000+ members. Low acquisition cost, high LTV, zero consumer marketing needed.
+
+**Physical book margin** — $130 hardcover at ~$45 print cost = $85 gross margin per book. No recurring cost. One wedding photographer partner who recommends it to every client makes this meaningful.
+
+**Aggregated data licensing** — anonymized, explicitly consented emotional music data is valuable to labels, streaming services, and music researchers. Plant this flag now in the privacy policy. Years out, but the data moat is real and accumulates from day one.
+
+**Premium share card templates** — additional visual styles beyond the default card. Small unlock, adds perceived value to Plus.
