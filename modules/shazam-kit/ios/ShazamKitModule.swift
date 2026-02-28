@@ -2,9 +2,23 @@ import ExpoModulesCore
 import ShazamKit
 import AVFoundation
 
+// SHSessionDelegate requires NSObject — keep it in a separate class.
+private class ShazamDelegate: NSObject, SHSessionDelegate {
+  var onFound: ((SHMatch) -> Void)?
+
+  func session(_ session: SHSession, didFind match: SHMatch) {
+    onFound?(match)
+  }
+
+  func session(_ session: SHSession, didNotFindMatchFor signature: SHSignature, error: Error?) {
+    // Keep accumulating audio — only fail on timeout
+  }
+}
+
 public class ShazamKitModule: Module {
   private var audioEngine: AVAudioEngine?
   private var shazamSession: SHSession?
+  private var shazamDelegate: ShazamDelegate?
   private var signatureGenerator = SHSignatureGenerator()
   private var pendingPromise: Promise?
   private var matchTimer: Timer?
@@ -41,8 +55,25 @@ public class ShazamKitModule: Module {
   private func startListening() {
     signatureGenerator = SHSignatureGenerator()
 
+    let delegate = ShazamDelegate()
+    delegate.onFound = { [weak self] match in
+      guard let self = self, let item = match.mediaItems.first else { return }
+      DispatchQueue.main.async {
+        let promise = self.pendingPromise
+        self.pendingPromise = nil
+        self.cleanUpAudio()
+        promise?.resolve([
+          "title": item.title ?? "",
+          "artist": item.artist ?? "",
+          "artworkUrl": item.artworkURL?.absoluteString ?? "",
+          "appleMusicId": item.appleMusicID ?? "",
+        ] as [String: Any])
+      }
+    }
+    shazamDelegate = delegate
+
     let session = SHSession()
-    session.delegate = self
+    session.delegate = delegate
     shazamSession = session
 
     let engine = AVAudioEngine()
@@ -101,32 +132,7 @@ public class ShazamKitModule: Module {
     audioEngine = nil
     shazamSession?.delegate = nil
     shazamSession = nil
+    shazamDelegate = nil
     try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-  }
-}
-
-// MARK: - SHSessionDelegate
-
-extension ShazamKitModule: SHSessionDelegate {
-  public func session(_ session: SHSession, didFind match: SHMatch) {
-    guard let item = match.mediaItems.first else { return }
-
-    DispatchQueue.main.async { [weak self] in
-      guard let self = self else { return }
-      let promise = self.pendingPromise
-      self.pendingPromise = nil
-      self.cleanUpAudio()
-
-      promise?.resolve([
-        "title": item.title ?? "",
-        "artist": item.artist ?? "",
-        "artworkUrl": item.artworkURL?.absoluteString ?? "",
-        "appleMusicId": item.appleMusicID ?? "",
-      ] as [String: Any])
-    }
-  }
-
-  public func session(_ session: SHSession, didNotFindMatchFor signature: SHSignature, error: Error?) {
-    // Keep accumulating audio — only stop on a match or timeout
   }
 }
