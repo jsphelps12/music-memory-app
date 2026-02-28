@@ -160,6 +160,8 @@ The wedding is a Trojan horse. Guest scans QR → contributes a memory → gets 
 - [ ] Full-screen display for easy scanning at venue
 - [ ] Downloadable as image for printing on table cards, programs, venue signage
 
+*ShazamKit moved to Growth — it's a core everyday capture feature, not event-specific. See Growth section.*
+
 ### ShazamKit Native Module **[Free]**
 - [ ] Custom native module (same pattern as existing NowPlaying module)
 - [ ] Wraps Apple's ShazamKit framework — microphone → 3-second audio fingerprint
@@ -170,8 +172,6 @@ The wedding is a Trojan horse. Guest scans QR → contributes a memory → gets 
 
 **The use case that defines this feature:**
 You're walking down the street. A restaurant is playing a song that immediately takes you back. You tap Identify — 3 seconds — the song resolves. You write the memory right there on the sidewalk. That moment would have been lost. That *is* the Instagram comment with 2,962 likes. ShazamKit captures it.
-
-**Not the same as concert mode.** Concert mode is a structured multi-song experience at a live show. ShazamKit is a core capture mechanism for ambient music in everyday life — more frequent, more spontaneous, and often the most emotionally charged moments because the song found you rather than the other way around.
 
 | | Now Playing | ShazamKit |
 |---|---|---|
