@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import * as Location from "expo-location";
+import * as FileSystem from "expo-file-system";
+import { parse as exifrParse } from "exifr";
 import {
   View,
   Text,
@@ -83,6 +85,51 @@ async function extractPhotoMetadata(assets: ImagePicker.ImagePickerAsset[]) {
   return { date: earliestDate, location: suggestedLocation };
 }
 
+// Extracts EXIF date + GPS from a bare file path (e.g. shared via share extension).
+// Reads the file via expo-file-system and parses with exifr.
+async function extractExifFromPath(uri: string): Promise<{ date?: Date; location?: string }> {
+  try {
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+    const exif = await exifrParse(bytes, {
+      pick: ["DateTimeOriginal", "DateTime", "GPSLatitude", "GPSLongitude", "GPSLatitudeRef", "GPSLongitudeRef"],
+    });
+    if (!exif) return {};
+
+    let date: Date | undefined;
+    const rawDate = exif.DateTimeOriginal ?? exif.DateTime;
+    if (rawDate instanceof Date) {
+      date = rawDate;
+    } else if (typeof rawDate === "string") {
+      const d = new Date(rawDate.replace(/^(\d{4}):(\d{2}):(\d{2})/, "$1-$2-$3"));
+      if (!isNaN(d.getTime())) date = d;
+    }
+
+    let location: string | undefined;
+    if (exif.GPSLatitude != null && exif.GPSLongitude != null) {
+      const lat = exif.GPSLatitude * (exif.GPSLatitudeRef === "S" ? -1 : 1);
+      const lon = exif.GPSLongitude * (exif.GPSLongitudeRef === "W" ? -1 : 1);
+      try {
+        const [result] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
+        if (result) {
+          location = [result.city, result.region].filter(Boolean).join(", ") || undefined;
+        }
+      } catch {
+        // Geocoding failed — skip location
+      }
+    }
+
+    return { date, location };
+  } catch {
+    return {};
+  }
+}
+
 export default function CreateMomentScreen() {
   const router = useRouter();
   const { user, profile, saveCustomMood, deleteCustomMood } = useAuth();
@@ -159,12 +206,17 @@ export default function CreateMomentScreen() {
     }
   }, [params.photos]);
 
-  // Shared photo from share extension — pre-fill photos and open details
+  // Shared photo from share extension — pre-fill photos, open details, and extract EXIF
   useEffect(() => {
-    if (params.sharedPhotoPath) {
-      setPhotos([params.sharedPhotoPath]);
-      setShowDetails(true);
-    }
+    if (!params.sharedPhotoPath) return;
+    setPhotos([params.sharedPhotoPath]);
+    setShowDetails(true);
+    extractExifFromPath(params.sharedPhotoPath).then((meta) => {
+      if (meta.date || meta.location) {
+        setMetaSuggestion(meta);
+        setDismissedMetaSuggestion(false);
+      }
+    });
   }, [params.sharedPhotoPath]);
 
   // Now Playing detection — check on mount and listen for song changes
