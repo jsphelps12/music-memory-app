@@ -205,6 +205,7 @@ async function extractExifFromPath(uri: string): Promise<{ date?: Date; location
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
     const { date, lat, lon } = _parseJpegExif(bytes);
+    console.log("[EXIF] parsed:", { date, lat, lon });
 
     let location: string | undefined;
     if (lat != null && lon != null) {
@@ -217,7 +218,8 @@ async function extractExifFromPath(uri: string): Promise<{ date?: Date; location
     }
 
     return { date, location };
-  } catch {
+  } catch (e) {
+    console.log("[EXIF] extractExifFromPath error:", e);
     return {};
   }
 }
@@ -300,10 +302,12 @@ export default function CreateMomentScreen() {
 
   // Shared photo from share extension — pre-fill photos, open details, and extract EXIF
   useEffect(() => {
+    console.log("[SharedPhoto] sharedPhotoPath param:", params.sharedPhotoPath);
     if (!params.sharedPhotoPath) return;
     setPhotos([params.sharedPhotoPath]);
     setShowDetails(true);
     extractExifFromPath(params.sharedPhotoPath).then((meta) => {
+      console.log("[SharedPhoto] extractExifFromPath result:", meta);
       if (meta.date || meta.location) {
         setMetaSuggestion(meta);
         setDismissedMetaSuggestion(false);
