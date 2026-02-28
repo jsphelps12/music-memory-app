@@ -426,7 +426,11 @@ export default function CreateMomentScreen() {
       setError("");
 
       markTimelineStale();
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace("/(tabs)");
+      }
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(friendlyError(e));
@@ -449,7 +453,7 @@ export default function CreateMomentScreen() {
       >
         <View style={styles.titleRow}>
           <Text style={styles.title}>Capture a Moment</Text>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)")} hitSlop={8}>
             <Ionicons name="close" size={26} color={theme.colors.textSecondary} />
           </TouchableOpacity>
         </View>
