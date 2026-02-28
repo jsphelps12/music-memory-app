@@ -35,6 +35,7 @@ export interface Moment {
   timeOfDay: string | null;
   createdAt: string;
   updatedAt: string;
+  shareToken?: string | null;
   // Set when viewing a shared collection — display name of who added this moment
   contributorName?: string | null;
 }

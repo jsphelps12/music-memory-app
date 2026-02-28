@@ -7,12 +7,15 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
+  Share,
   StyleSheet,
   Platform,
 } from "react-native";
 import ViewShot from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
+import { supabase } from "@/lib/supabase";
+import * as Crypto from "expo-crypto";
 import { Image } from "expo-image";
 import { ShareCard, CARD_WIDTH, CARD_HEIGHT } from "@/components/ShareCard";
 import { Moment } from "@/types";
@@ -30,8 +33,31 @@ export function ShareCardModal({ visible, moment, photoUrls, onClose }: Props) {
   const viewShotRef = useRef<ViewShot>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [sharing, setSharing] = useState(false);
+  const [sendingLink, setSendingLink] = useState(false);
 
   const selectedPhotoUrl = photoUrls.length > 0 ? photoUrls[selectedIndex] : null;
+
+  const handleSendLink = async () => {
+    if (sendingLink) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSendingLink(true);
+    try {
+      let token = moment.shareToken;
+      if (!token) {
+        token = Crypto.randomUUID();
+        await supabase
+          .from("moments")
+          .update({ share_token: token })
+          .eq("id", moment.id);
+      }
+      const url = `https://music-memory-app.vercel.app/m/${token}`;
+      await Share.share({ message: url, url });
+    } catch {
+      // User cancelled or error — silent
+    } finally {
+      setSendingLink(false);
+    }
+  };
 
   const handleShare = async () => {
     if (sharing) return;
@@ -124,7 +150,7 @@ export function ShareCardModal({ visible, moment, photoUrls, onClose }: Props) {
             </View>
           )}
 
-          {/* Share button */}
+          {/* Share image button */}
           <TouchableOpacity
             style={[
               styles.shareButton,
@@ -139,6 +165,26 @@ export function ShareCardModal({ visible, moment, photoUrls, onClose }: Props) {
             ) : (
               <Text style={[styles.shareButtonText, { color: theme.colors.buttonText }]}>
                 Share Image
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Gift link button */}
+          <TouchableOpacity
+            style={[
+              styles.shareButton,
+              styles.linkButton,
+              { borderColor: theme.colors.accent, opacity: sendingLink ? 0.7 : 1 },
+            ]}
+            onPress={handleSendLink}
+            activeOpacity={0.8}
+            disabled={sendingLink}
+          >
+            {sendingLink ? (
+              <ActivityIndicator color={theme.colors.accent} />
+            ) : (
+              <Text style={[styles.shareButtonText, { color: theme.colors.accent }]}>
+                Gift a Memory
               </Text>
             )}
           </TouchableOpacity>
@@ -234,5 +280,10 @@ const styles = StyleSheet.create({
   shareButtonText: {
     fontSize: 16,
     fontWeight: "700",
+  },
+  linkButton: {
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    marginTop: 10,
   },
 });
