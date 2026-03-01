@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from "r
 import { Session, User } from "@supabase/supabase-js";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { supabase } from "@/lib/supabase";
-import { CustomMoodDefinition, UserProfile } from "@/types";
+import { CustomMoodDefinition, CustomPromptCategory, UserProfile } from "@/types";
 import { prefetchTimeline } from "@/lib/timelinePrefetch";
 
 interface AuthState {
@@ -19,6 +19,8 @@ interface AuthState {
   refreshProfile: () => Promise<void>;
   saveCustomMood: (mood: CustomMoodDefinition) => Promise<void>;
   deleteCustomMood: (value: string) => Promise<void>;
+  saveCustomPromptCategory: (category: CustomPromptCategory) => Promise<void>;
+  deleteCustomPromptCategory: (id: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -46,6 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       displayName: data.display_name,
       avatarUrl: data.avatar_url,
       customMoods: data.custom_moods ?? [],
+      customPromptCategories: data.custom_prompt_categories ?? [],
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     });
@@ -194,6 +197,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await fetchProfile(session.user.id);
   };
 
+  const saveCustomPromptCategory = async (category: CustomPromptCategory) => {
+    if (!session?.user) throw new Error("Not authenticated");
+    const current = profile?.customPromptCategories ?? [];
+    const updated = [...current.filter((c) => c.id !== category.id), category];
+    const { error } = await supabase
+      .from("profiles")
+      .update({ custom_prompt_categories: updated })
+      .eq("id", session.user.id);
+    if (error) throw error;
+    await fetchProfile(session.user.id);
+  };
+
+  const deleteCustomPromptCategory = async (id: string) => {
+    if (!session?.user) throw new Error("Not authenticated");
+    const updated = (profile?.customPromptCategories ?? []).filter((c) => c.id !== id);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ custom_prompt_categories: updated })
+      .eq("id", session.user.id);
+    if (error) throw error;
+    await fetchProfile(session.user.id);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -210,6 +236,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refreshProfile,
         saveCustomMood,
         deleteCustomMood,
+        saveCustomPromptCategory,
+        deleteCustomPromptCategory,
       }}
     >
       {children}

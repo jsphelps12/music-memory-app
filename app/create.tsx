@@ -1005,6 +1005,7 @@ export default function CreateMomentScreen() {
         visible={promptPickerVisible}
         onSelect={(prompt) => setReflection(prompt)}
         onClose={() => setPromptPickerVisible(false)}
+        customCategories={profile?.customPromptCategories ?? []}
       />
 
       {/* Spotify candidate selection modal */}

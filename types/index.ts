@@ -16,6 +16,12 @@ export interface CustomMoodDefinition {
   emoji: string;
 }
 
+export interface CustomPromptCategory {
+  id: string;
+  label: string;
+  starters: string[];
+}
+
 export interface Moment {
   id: string;
   userId: string;
@@ -67,6 +73,7 @@ export interface UserProfile {
   displayName: string | null;
   avatarUrl: string | null;
   customMoods: CustomMoodDefinition[];
+  customPromptCategories: CustomPromptCategory[];
   createdAt: string;
   updatedAt: string;
 }

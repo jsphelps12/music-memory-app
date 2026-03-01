@@ -19,20 +19,29 @@ import Animated, {
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { PROMPT_CATEGORIES } from "@/constants/Prompts";
+import { CustomPromptCategory } from "@/types";
 
 interface Props {
   visible: boolean;
   onSelect: (prompt: string) => void;
   onClose: () => void;
+  customCategories?: CustomPromptCategory[];
 }
 
-export function PromptPickerModal({ visible, onSelect, onClose }: Props) {
+export function PromptPickerModal({ visible, onSelect, onClose, customCategories = [] }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [selectedCategory, setSelectedCategory] = useState(0);
   const translateY = useSharedValue(0);
 
-  const category = PROMPT_CATEGORIES[selectedCategory];
+  const allCategories = [
+    ...PROMPT_CATEGORIES,
+    ...customCategories.map((c) => ({
+      label: c.label,
+      prompts: c.starters.map((s) => ({ question: s, starter: s })),
+    })),
+  ];
+  const category = allCategories[selectedCategory] ?? allCategories[0];
 
   const panGesture = Gesture.Pan()
     .onUpdate((e) => {
@@ -75,7 +84,7 @@ export function PromptPickerModal({ visible, onSelect, onClose }: Props) {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.tabs}
           >
-            {PROMPT_CATEGORIES.map((cat, i) => (
+            {allCategories.map((cat, i) => (
               <TouchableOpacity
                 key={cat.label}
                 style={[styles.tab, i === selectedCategory && styles.tabActive]}
@@ -90,7 +99,7 @@ export function PromptPickerModal({ visible, onSelect, onClose }: Props) {
           </ScrollView>
 
           {/* Prompts */}
-          <ScrollView contentContainerStyle={styles.prompts}>
+          <ScrollView style={styles.promptsScroll} contentContainerStyle={styles.prompts}>
             {category.prompts.map((prompt) => (
               <TouchableOpacity
                 key={prompt.question}
@@ -124,7 +133,11 @@ function createStyles(theme: Theme) {
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       paddingBottom: Platform.OS === "ios" ? 36 : 24,
+      minHeight: "55%",
       maxHeight: "65%",
+    },
+    promptsScroll: {
+      flex: 1,
     },
     handle: {
       width: 36,

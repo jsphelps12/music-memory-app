@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/contexts/AuthContext";
+import { PromptsSection } from "@/components/PromptsSection";
 import { supabase } from "@/lib/supabase";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { useTheme } from "@/hooks/useTheme";
@@ -94,7 +95,7 @@ function topValue(items: (string | null | undefined)[]): string | null {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, profile, signOut, deleteAccount, refreshProfile } = useAuth();
+  const { user, profile, signOut, deleteAccount, refreshProfile, saveCustomPromptCategory, deleteCustomPromptCategory } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [signingOut, setSigningOut] = useState(false);
@@ -108,6 +109,7 @@ export default function ProfileScreen() {
   const [topArtist, setTopArtist] = useState<string | null | undefined>(undefined);
   const [topSong, setTopSong] = useState<string | null | undefined>(undefined);
   const [topMood, setTopMood] = useState<string | null | undefined>(undefined);
+  const [showPrompts, setShowPrompts] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -413,6 +415,31 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* Prompts */}
+      <View style={[styles.promptsCard, showPrompts && styles.promptsCardOpen]}>
+        <TouchableOpacity
+          style={styles.promptsRow}
+          onPress={() => setShowPrompts((v) => !v)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.promptsRowLabel}>Prompts</Text>
+          <Ionicons
+            name={showPrompts ? "chevron-up" : "chevron-down"}
+            size={16}
+            color={theme.colors.textTertiary}
+          />
+        </TouchableOpacity>
+        {showPrompts && (
+          <View style={styles.promptsBody}>
+            <PromptsSection
+              customCategories={profile?.customPromptCategories ?? []}
+              onSave={saveCustomPromptCategory}
+              onDelete={deleteCustomPromptCategory}
+            />
+          </View>
+        )}
+      </View>
+
       {/* Sign Out */}
       {signOutError ? (
         <Text style={styles.signOutErrorText}>{signOutError}</Text>
@@ -585,6 +612,33 @@ function createStyles(theme: Theme) {
       color: theme.colors.text,
       marginTop: 1,
     },
+    promptsCard: {
+      backgroundColor: theme.colors.cardBg,
+      borderRadius: theme.radii.md,
+      overflow: "hidden",
+      marginBottom: theme.spacing["2xl"],
+    },
+    promptsCardOpen: {
+      // no extra style needed — overflow hidden keeps it clean
+    },
+    promptsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 14,
+      paddingHorizontal: theme.spacing.lg,
+    },
+    promptsRowLabel: {
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.medium,
+      color: theme.colors.text,
+    },
+    promptsBody: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.border,
+      paddingHorizontal: theme.spacing.lg,
+      paddingBottom: theme.spacing.lg,
+    },
     signOutErrorText: {
       color: theme.colors.destructive,
       fontSize: theme.fontSize.sm,
@@ -592,6 +646,7 @@ function createStyles(theme: Theme) {
       textAlign: "center",
     },
     signOutButton: {
+      marginTop: theme.spacing["2xl"],
       paddingVertical: 14,
       paddingHorizontal: theme.spacing["3xl"],
       borderRadius: theme.radii.sm,

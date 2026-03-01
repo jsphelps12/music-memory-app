@@ -79,6 +79,20 @@ Everything here ships before App Store marketing push. Estimated 3–4 weeks tot
 - [ ] Show their personal timeline immediately after first save — not the collection view
 - [ ] Plant the hook: "On This Day next year, we'll remind you of this moment."
 
+**Signup Questionnaire (3–4 screens, Twitter-style — before seeing the app):**
+- [ ] Birth year — year picker; drives formative era calculation (ages 13–25 = highest memory density)
+- [ ] Country — picker with search; drives regional chart data for song suggestions
+- [ ] Favorite artists (1–2) — search-as-you-type using Apple Music catalog; stored as `favorite_artists[]` on profile
+- [ ] Favorite songs (1–2) — same Apple Music search; stored as `favorite_songs[]`; optional but high signal
+- [ ] Genre preferences — multi-select chips (Rock / Pop / R&B / Hip-Hop / Country / Electronic / Latin / Jazz / Folk); optional
+- [ ] Keep it short: birth year + country are required; everything else is optional but nudged
+- [ ] All data stored on `profiles` table; feeds directly into the Music Memory Engine
+
+**"How to capture a memory" screen in Profile:**
+- [ ] Always-visible section in Profile (not just onboarding) showing all capture methods
+- [ ] Manual search, Now Playing auto-fill, Share from Apple Music/Spotify, Share from Photos, ShazamKit
+- [ ] Each method with a one-line description; helps users discover features they missed
+
 ### 4. App Store Listing + Assets
 
 **Crash reporting — Sentry**
@@ -220,10 +234,12 @@ Everything here ships before App Store marketing push. Estimated 3–4 weeks tot
 | 0 | First moment saved before leaving onboarding |
 | 0 | Collection users: "This moment is yours forever" reframe |
 | 1 | Push: "What song have you had in your head this week?" |
-| 3 | Prompt push: category from their likely entry point (e.g. wedding → People prompts) |
-| 7 | "You've logged X moments" + a prompt to continue |
-| 14 | Forgotten song (if any) or another contextual prompt |
-| 30 | Mini recap card: "Your first month in Tracks" |
+| 3 | Music Memory Engine fires first prompted song: "What does '[Song]' remind you of?" |
+| 7 | "You've logged X moments" + streak acknowledgment |
+| 14 | Second prompted song or forgotten song if applicable |
+| 30 | "A Month Ago" appears in Reflections; mini recap card: "Your first month in Tracks" |
+
+**Notification coalescing rule:** max 1 notification per day; priority order: On This Day > streak at risk > weekly prompted song > weekly prompt text. Weekly cadence for resurfacing — never daily.
 
 ---
 
@@ -317,8 +333,83 @@ Features that turn users into acquisition channels.
 - [ ] Optional: pipe through OpenAI Whisper edge function for transcription + searchability
 - [ ] Hear your own voice from the past — deeply personal, no other app does this
 
+### Music Memory Engine **[Free — the engagement core]**
+> Full algorithm design, data model, and phased build plan: see `docs/MUSIC-MEMORY-ENGINE.md`
+
+
+The highest-leverage retention feature in the product. A push notification saying "What does 'Lady in Red' remind you of?" — with a tap that opens the create screen with that song pre-filled — is not a nudge. It's a direct invitation to relive something. No other journaling app can send this because no other app knows which songs are loaded with meaning for each specific person.
+
+**The core loop:**
+```
+birth year + country + favorite artists → formative era → candidate songs
+→ score + rank → filter already-logged → pick 1 song/week
+→ push: "What does '[Song]' remind you of?"
+→ tap → create screen opens with song pre-filled
+→ user writes reflection → moment saved
+→ song marked as prompted+logged; loop repeats with richer signal
+```
+
+**Data model:**
+- [ ] `profiles`: add `birth_year int`, `country text`, `favorite_artists jsonb[]`, `favorite_songs jsonb[]`, `genre_preferences text[]` — collected at signup questionnaire
+- [ ] `suggested_songs` table: `(id, title, artist, apple_music_id, release_year, country_codes text[], genres text[], cultural_weight float)` — the curated seed dataset
+- [ ] `prompted_songs` table: `(user_id, song_id, prompted_at, tapped bool, logged bool)` — tracks what was sent and whether user engaged
+
+**Song dataset — hybrid approach:**
+- [ ] Curated seed dataset (~500–1,000 songs) in `suggested_songs` table: Billboard/chart hits by era + region that reliably trigger memories — think "Lady in Red," "Wonderwall," "Mr. Brightside," "Lose Yourself," etc.; one-time build, maintained manually
+- [ ] Apple Music catalog enrichment: for each `favorite_artist` the user provides, use the existing MusicKit integration to pull their top songs + related artists → dynamic expansion of candidates beyond the curated set; no extra API key needed
+- [ ] Over time, collaborative signal (see Phase 3 below) can surface long-tail songs the curated set would miss
+
+**Notification types and cadence:**
+
+| Type | Cadence | Default | Notes |
+|---|---|---|---|
+| Prompted Song | Once/week | On | Core engine output — "What does '[Song]' remind you of?" |
+| On This Day | Day-of, conditional | On | Only fires when there's an actual match |
+| Streak at risk | Daily if active | On | Haven't logged today + active streak |
+| Weekly Prompt (text) | Once/week | Off | Rotating writing prompt, no song |
+| Collection activity | Real-time | Off | Member adds to your shared collection |
+
+Preferences UI in Profile → Notifications settings screen (new screen, accordion in profile).
+
+**The Algorithm — three phases:**
+
+*Phase 1: Rule-based scoring (cold start — day 1)*
+Every candidate song gets a score against the user profile:
+```
+score(song, user) =
+  era_weight(song.release_year, user.birth_year)      // peaks at ages 13–25; Gaussian decay beyond
+  × country_weight(song.countries, user.country)       // 1.0 match, 0.7 English-adjacent, 0.4 global
+  × genre_weight(song.genres, user.genre_preferences)  // cosine similarity on genre vectors
+  × artist_affinity(song.artist, user.favorite_artists) // 1.5× if exact match, 1.2× if Apple Music "related"
+  × (0 if already logged or recently prompted)
+```
+Era weight uses a Gaussian curve peaked at birth_year + 18, capturing the reminiscence bump. A user born in 1985 gets maximum weight for songs from 1998–2003, tapering toward 1990 and 2010.
+
+*Phase 2: Content-based filtering / VSM (weeks 2+)*
+Represent each song as a feature vector in a shared space:
+```
+song_vector = [year_normalized, genre_one_hot[], country_one_hot[], cultural_weight]
+```
+As the user logs moments, build a user preference vector from their logged songs using TF-IDF-style weighting (rare genre preferences get higher weight than common ones — same logic as VSM document retrieval). Cosine similarity between the user vector and each candidate song vector gives a ranked list that gets more accurate with every moment logged. This is content-based filtering using Vector Space Model — computationally cheap, interpretable, no cold start problem.
+
+*Phase 3: Collaborative filtering (months 2+, needs user base)*
+Build a user × song affinity matrix from logged moments. Apply SVD (or ALS for sparsity) to factorize into latent feature space. Users with similar latent vectors (similar birth year, country, genre, logging patterns) surface songs their neighbors logged that the current user hasn't. "Users born in 1985 in the US who logged these 5 songs also had memories to [Song X]." This is where the Netflix analogy becomes real — not just "songs from your era" but "songs people exactly like you carry."
+
+*Phase 4: Hybrid + contextual bandits (when data is rich)*
+Blend Phase 1 score with Phase 3 CF score, weighted by how much data the user has generated. Use contextual bandits (explore/exploit) on notification timing and song selection — track which prompted songs get tapped vs. ignored; optimize the selection policy over time. Engagement signal (tap → created moment) is the reward function.
+
+**pgvector in Supabase** handles Phase 2 and 4 natively — no Pinecone, no external ML infrastructure. The full recommendation pipeline runs inside Supabase.
+
+**Why this is a moat:**
+Spotify knows you played "Lady in Red" 47 times. Tracks knows it was your parents' wedding song and you played it at your dad's funeral. The annotation is the moat. The recommendation engine trained on annotated emotional data is categorically different from one trained on play counts — and the more moments users log, the better it gets for everyone.
+
+- [ ] Phase 1 (build now): signup questionnaire + `suggested_songs` table (curated seed) + Edge Function that scores + sends weekly notification
+- [ ] Phase 2 (build at 100+ active users): VSM scoring layer using pgvector, replace/augment Phase 1 scoring
+- [ ] Phase 3 (build at 1,000+ users): collaborative filtering via SVD in Edge Function or external Python job writing results back to Supabase
+- [ ] Phase 4 (build at 10,000+ users): full hybrid + bandit optimization
+
 ### Plant Seeds for Anonymous Stats / Discover **[Free — data-seeding tasks]**
-- [ ] `birth_year` — optional field on profiles at onboarding ("helps us show how your generation connects with music"); seed now, data compounds over time
+- [ ] `birth_year`, `country`, `favorite_artists`, `genre_preferences` — collected at signup (see Music Memory Engine above); also feeds generational Discover cuts; seed now, data compounds over time
 - [ ] `song_stats` table — pre-compute daily: song_id, mood, log_count, week; start accumulating before the UI exists
 - [ ] Minimum threshold: 50+ logs per song before any percentages are shown
 - [ ] These are infrastructure tasks; the UI comes in the Social phase once data exists
