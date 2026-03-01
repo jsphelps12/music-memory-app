@@ -34,6 +34,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     entitlements: {
       "com.apple.developer.applesignin": ["Default"],
+      "com.apple.developer.associated-domains": [
+        `applinks:${process.env.EXPO_PUBLIC_BRANCH_DOMAIN ?? "tracks.app.link"}`,
+        `applinks:${(process.env.EXPO_PUBLIC_BRANCH_DOMAIN ?? "tracks.app.link").replace(".app.link", "-alternate.app.link")}`,
+      ],
     },
   },
   android: {
@@ -85,6 +89,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         icon: "./assets/images/app-icon.png",
         color: "#E8825C",
+      },
+    ],
+    [
+      "react-native-branch",
+      {
+        apiKey: process.env.EXPO_PUBLIC_BRANCH_KEY,
+        iosAppDomain: process.env.EXPO_PUBLIC_BRANCH_DOMAIN ?? "tracks.app.link",
       },
     ],
   ],

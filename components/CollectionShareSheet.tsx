@@ -26,6 +26,20 @@ import { useTheme } from "@/hooks/useTheme";
 import { friendlyError } from "@/lib/errors";
 
 const WEB_BASE_URL = "https://music-memory-app.vercel.app";
+const BRANCH_DOMAIN = process.env.EXPO_PUBLIC_BRANCH_DOMAIN ?? "tracks.app.link";
+
+function buildInviteLink(inviteCode: string, collectionName: string): string {
+  // Branch long link: tries to open app if installed, deferred deep link after fresh install,
+  // falls back to the web collection preview page otherwise.
+  const params = [
+    `inviteCode=${encodeURIComponent(inviteCode)}`,
+    `%24deeplink_path=${encodeURIComponent(`join?inviteCode=${inviteCode}`)}`,
+    `%24fallback_url=${encodeURIComponent(`${WEB_BASE_URL}/c/${inviteCode}`)}`,
+    `%24og_title=${encodeURIComponent(`Join "${collectionName}" on Tracks`)}`,
+    `%24og_description=${encodeURIComponent("A shared music memory collection")}`,
+  ].join("&");
+  return `https://${BRANCH_DOMAIN}/?${params}`;
+}
 
 interface Props {
   visible: boolean;
@@ -62,7 +76,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
   }, [visible, isOwner, collection.id]);
 
   const inviteUrl = collection.inviteCode
-    ? `${WEB_BASE_URL}/c/${collection.inviteCode}`
+    ? buildInviteLink(collection.inviteCode, collection.name)
     : null;
 
   function handleConvert() {
