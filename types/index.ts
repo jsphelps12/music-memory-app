@@ -68,12 +68,30 @@ export interface CollectionPreview {
   inviteCode: string;
 }
 
+export interface FavoriteArtist {
+  id: string;
+  name: string;
+  artworkUrl: string | null;
+}
+
+export interface FavoriteSong {
+  id: string;
+  title: string;
+  artist: string;
+  artworkUrl: string | null;
+}
+
 export interface UserProfile {
   id: string;
   displayName: string | null;
   avatarUrl: string | null;
   customMoods: CustomMoodDefinition[];
   customPromptCategories: CustomPromptCategory[];
+  birthYear: number | null;
+  country: string | null;
+  favoriteArtists: FavoriteArtist[];
+  favoriteSongs: FavoriteSong[];
+  onboardingCompleted: boolean;
   createdAt: string;
   updatedAt: string;
 }

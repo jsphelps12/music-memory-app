@@ -18,6 +18,7 @@ import { PlayerProvider } from "@/contexts/PlayerContext";
 import { useDeepLinkHandler, PENDING_INVITE_CODE_KEY } from "@/hooks/useDeepLinkHandler";
 import { useShareIntentHandler } from "@/hooks/useShareIntentHandler";
 import { registerForPushNotifications } from "@/lib/notifications";
+import { ONBOARDING_DONE_KEY } from "@/lib/onboarding";
 
 const HAS_LAUNCHED_KEY = "has_launched";
 
@@ -38,21 +39,27 @@ Notifications.setNotificationHandler({
 });
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { session, loading } = useAuth();
+  const { session, loading, profile } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const [hasLaunched, setHasLaunched] = useState<boolean | null>(null);
+  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
 
   useEffect(() => {
-    AsyncStorage.getItem(HAS_LAUNCHED_KEY).then((value) => {
-      setHasLaunched(value === "true");
+    Promise.all([
+      AsyncStorage.getItem(HAS_LAUNCHED_KEY),
+      AsyncStorage.getItem(ONBOARDING_DONE_KEY),
+    ]).then(([launched, onboarded]) => {
+      setHasLaunched(launched === "true");
+      setOnboardingDone(onboarded === "true");
     });
   }, []);
 
   useEffect(() => {
-    if (loading || hasLaunched === null) return;
+    if (loading || hasLaunched === null || onboardingDone === null) return;
 
     const inAuthGroup = segments[0] === "(auth)";
+    const inOnboarding = segments[0] === "onboarding";
 
     if (!session && !inAuthGroup) {
       if (!hasLaunched) {
@@ -62,19 +69,34 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       } else {
         router.replace("/(auth)/sign-in");
       }
-    } else if (session && inAuthGroup) {
-      // Check for a pending invite code saved before the user was signed in
-      AsyncStorage.getItem(PENDING_INVITE_CODE_KEY).then((code) => {
-        AsyncStorage.removeItem(PENDING_INVITE_CODE_KEY);
-        router.replace("/(tabs)");
-        if (code) {
-          setTimeout(() => router.push({ pathname: "/join" as any, params: { inviteCode: code } }), 300);
+    } else if (session && (inAuthGroup || inOnboarding)) {
+      // Use AsyncStorage OR the DB profile flag (handles existing users on reinstall)
+      const effectivelyOnboarded = onboardingDone || profile?.onboardingCompleted === true;
+      if (!effectivelyOnboarded) {
+        router.replace("/onboarding" as any);
+      } else {
+        if (!onboardingDone) {
+          // Sync local flag so future launches are instant
+          AsyncStorage.setItem(ONBOARDING_DONE_KEY, "true");
+          setOnboardingDone(true);
         }
-      });
+        AsyncStorage.getItem(PENDING_INVITE_CODE_KEY).then((code) => {
+          AsyncStorage.removeItem(PENDING_INVITE_CODE_KEY);
+          router.replace("/(tabs)");
+          if (code) {
+            setTimeout(() => router.push({ pathname: "/join" as any, params: { inviteCode: code } }), 300);
+          }
+        });
+      }
+    } else if (session && !inAuthGroup && !inOnboarding) {
+      const effectivelyOnboarded = onboardingDone || profile?.onboardingCompleted === true;
+      if (!effectivelyOnboarded) {
+        router.replace("/onboarding" as any);
+      }
     }
-  }, [session, loading, hasLaunched, segments, router]);
+  }, [session, loading, hasLaunched, onboardingDone, segments, router]);
 
-  if (loading || hasLaunched === null) return null;
+  if (loading || hasLaunched === null || onboardingDone === null) return null;
 
   return <>{children}</>;
 }
@@ -138,6 +160,8 @@ function RootLayoutNav() {
       <AuthGate>
         <Stack screenOptions={{ contentStyle: { backgroundColor: colorScheme === "dark" ? "#000" : "#FBF6F1" } }}>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
+          <Stack.Screen name="celebration" options={{ headerShown: false, gestureEnabled: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen
             name="create"

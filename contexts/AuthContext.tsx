@@ -2,8 +2,16 @@ import React, { createContext, useContext, useEffect, useRef, useState } from "r
 import { Session, User } from "@supabase/supabase-js";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { supabase } from "@/lib/supabase";
-import { CustomMoodDefinition, CustomPromptCategory, UserProfile } from "@/types";
+import { CustomMoodDefinition, CustomPromptCategory, FavoriteArtist, FavoriteSong, UserProfile } from "@/types";
 import { prefetchTimeline } from "@/lib/timelinePrefetch";
+
+export interface OnboardingData {
+  displayName: string;
+  birthYear: number | null;
+  country: string | null;
+  favoriteArtists: FavoriteArtist[];
+  favoriteSongs: FavoriteSong[];
+}
 
 interface AuthState {
   session: Session | null;
@@ -17,6 +25,7 @@ interface AuthState {
   deleteAccount: () => Promise<void>;
   updateProfile: (updates: { displayName?: string; avatarUrl?: string }) => Promise<void>;
   refreshProfile: () => Promise<void>;
+  completeOnboarding: (data: OnboardingData) => Promise<void>;
   saveCustomMood: (mood: CustomMoodDefinition) => Promise<void>;
   deleteCustomMood: (value: string) => Promise<void>;
   saveCustomPromptCategory: (category: CustomPromptCategory) => Promise<void>;
@@ -49,6 +58,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       avatarUrl: data.avatar_url,
       customMoods: data.custom_moods ?? [],
       customPromptCategories: data.custom_prompt_categories ?? [],
+      birthYear: data.birth_year ?? null,
+      country: data.country ?? null,
+      favoriteArtists: data.favorite_artists ?? [],
+      favoriteSongs: data.favorite_songs ?? [],
+      onboardingCompleted: data.onboarding_completed ?? false,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     });
@@ -174,6 +188,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const completeOnboarding = async (data: OnboardingData) => {
+    if (!session?.user) throw new Error("Not authenticated");
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        display_name: data.displayName,
+        birth_year: data.birthYear,
+        country: data.country,
+        favorite_artists: data.favoriteArtists,
+        favorite_songs: data.favoriteSongs,
+        onboarding_completed: true,
+      })
+      .eq("id", session.user.id);
+    if (error) throw error;
+    await fetchProfile(session.user.id);
+  };
+
   const saveCustomMood = async (mood: CustomMoodDefinition) => {
     if (!session?.user) throw new Error("Not authenticated");
     const current = profile?.customMoods ?? [];
@@ -234,6 +265,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         deleteAccount,
         updateProfile,
         refreshProfile,
+        completeOnboarding,
         saveCustomMood,
         deleteCustomMood,
         saveCustomPromptCategory,

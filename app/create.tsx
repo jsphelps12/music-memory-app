@@ -39,6 +39,9 @@ import { Song, Collection } from "@/types";
 import { friendlyError } from "@/lib/errors";
 import { checkAndNotifyMilestone } from "@/lib/notifications";
 import { markTimelineStale } from "@/lib/timelineRefresh";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const FIRST_MOMENT_DONE_KEY = "first_moment_saved";
 import { PromptPickerModal } from "@/components/PromptPickerModal";
 
 function getTimeOfDay(): string {
@@ -593,7 +596,12 @@ export default function CreateMomentScreen() {
       setError("");
 
       markTimelineStale();
-      if (router.canGoBack()) {
+
+      const firstMomentDone = await AsyncStorage.getItem(FIRST_MOMENT_DONE_KEY);
+      if (!firstMomentDone) {
+        await AsyncStorage.setItem(FIRST_MOMENT_DONE_KEY, "true");
+        router.replace("/celebration" as any);
+      } else if (router.canGoBack()) {
         router.back();
       } else {
         router.replace("/(tabs)");
