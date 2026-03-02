@@ -5,10 +5,11 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
+  Modal,
+  Keyboard,
   Platform,
 } from "react-native";
 import { Image } from "expo-image";
@@ -24,6 +25,20 @@ import { searchItunesArtists, searchItunesSongs } from "@/lib/musicSearch";
 
 const TOTAL_STEPS = 4;
 
+const BIRTH_YEARS = Array.from({ length: 86 }, (_, i) => 2015 - i); // 2015 → 1930
+
+const COUNTRIES = [
+  "United States", "United Kingdom", "Canada", "Australia", "Ireland",
+  "New Zealand", "Germany", "France", "Spain", "Italy", "Portugal",
+  "Netherlands", "Belgium", "Switzerland", "Austria", "Sweden", "Norway",
+  "Denmark", "Finland", "Poland", "Russia", "Ukraine", "Brazil", "Mexico",
+  "Argentina", "Colombia", "Chile", "Peru", "Jamaica", "Trinidad and Tobago",
+  "India", "China", "Japan", "South Korea", "Philippines", "Indonesia",
+  "Malaysia", "Thailand", "Vietnam", "Singapore", "Pakistan", "Bangladesh",
+  "Nigeria", "South Africa", "Kenya", "Egypt", "Ghana", "Ethiopia",
+  "Saudi Arabia", "United Arab Emirates", "Israel", "Turkey", "Greece",
+];
+
 export default function OnboardingScreen() {
   const router = useRouter();
   const { completeOnboarding } = useAuth();
@@ -38,8 +53,15 @@ export default function OnboardingScreen() {
   const [displayName, setDisplayName] = useState("");
 
   // Step 2
-  const [birthYear, setBirthYear] = useState("");
+  const [birthYear, setBirthYear] = useState<number | null>(null);
   const [country, setCountry] = useState("");
+  const [yearPickerVisible, setYearPickerVisible] = useState(false);
+  const [countryPickerVisible, setCountryPickerVisible] = useState(false);
+  const [countrySearch, setCountrySearch] = useState("");
+  const filteredCountries = useMemo(
+    () => COUNTRIES.filter((c) => c.toLowerCase().includes(countrySearch.toLowerCase())),
+    [countrySearch]
+  );
 
   // Step 3 — Artists
   const [artistQuery, setArtistQuery] = useState("");
@@ -84,10 +106,10 @@ export default function OnboardingScreen() {
   const toggleArtist = useCallback((artist: FavoriteArtist) => {
     Haptics.selectionAsync();
     setSelectedArtists((prev) => {
-      if (prev.find((a) => a.id === artist.id)) {
-        return prev.filter((a) => a.id !== artist.id);
-      }
+      if (prev.find((a) => a.id === artist.id)) return prev.filter((a) => a.id !== artist.id);
       if (prev.length >= 5) return prev;
+      setArtistQuery("");
+      setArtistResults([]);
       return [...prev, artist];
     });
   }, []);
@@ -95,10 +117,10 @@ export default function OnboardingScreen() {
   const toggleSong = useCallback((song: FavoriteSong) => {
     Haptics.selectionAsync();
     setSelectedSongs((prev) => {
-      if (prev.find((s) => s.id === song.id)) {
-        return prev.filter((s) => s.id !== song.id);
-      }
+      if (prev.find((s) => s.id === song.id)) return prev.filter((s) => s.id !== song.id);
       if (prev.length >= 5) return prev;
+      setSongQuery("");
+      setSongResults([]);
       return [...prev, song];
     });
   }, []);
@@ -113,6 +135,7 @@ export default function OnboardingScreen() {
   }
 
   async function handleNext() {
+    Keyboard.dismiss();
     if (!canAdvance()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       if (step === 1) setError("Please enter your name.");
@@ -131,11 +154,10 @@ export default function OnboardingScreen() {
     // Final step — save and go
     setSaving(true);
     try {
-      const parsedYear = parseInt(birthYear, 10);
       const data: OnboardingData = {
         displayName: displayName.trim(),
-        birthYear: parsedYear >= 1920 && parsedYear <= 2015 ? parsedYear : null,
-        country: country.trim() || null,
+        birthYear,
+        country: country || null,
         favoriteArtists: selectedArtists,
         favoriteSongs: selectedSongs,
       };
@@ -150,6 +172,7 @@ export default function OnboardingScreen() {
 
   function handleBack() {
     if (step > 1) {
+      Keyboard.dismiss();
       setError("");
       setStep((s) => s - 1);
     }
@@ -173,7 +196,7 @@ export default function OnboardingScreen() {
               value={displayName}
               onChangeText={(t) => { setDisplayName(t); setError(""); }}
               autoFocus
-              returnKeyType="next"
+              returnKeyType="done"
               onSubmitEditing={handleNext}
               maxLength={40}
             />
@@ -187,27 +210,28 @@ export default function OnboardingScreen() {
             <Text style={styles.stepSub}>Helps us surface songs that match your era and background.</Text>
 
             <Text style={styles.fieldLabel}>Birth year</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. 1990"
-              placeholderTextColor={theme.colors.placeholder}
-              value={birthYear}
-              onChangeText={setBirthYear}
-              keyboardType="number-pad"
-              maxLength={4}
-              returnKeyType="next"
-            />
+            <TouchableOpacity
+              style={styles.pickerRow}
+              onPress={() => setYearPickerVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.pickerRowText, !birthYear && { color: theme.colors.placeholder }]}>
+                {birthYear ? String(birthYear) : "Select year"}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
 
-            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Country you grew up in</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. United States"
-              placeholderTextColor={theme.colors.placeholder}
-              value={country}
-              onChangeText={setCountry}
-              autoCapitalize="words"
-              returnKeyType="done"
-            />
+            <Text style={[styles.fieldLabel, { marginTop: 20 }]}>Country you grew up in</Text>
+            <TouchableOpacity
+              style={styles.pickerRow}
+              onPress={() => { setCountrySearch(""); setCountryPickerVisible(true); }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.pickerRowText, !country && { color: theme.colors.placeholder }]}>
+                {country || "Select country"}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
 
             <Text style={styles.optionalHint}>Both optional — you can update these anytime in your profile.</Text>
           </View>
@@ -241,23 +265,30 @@ export default function OnboardingScreen() {
               </View>
             )}
 
-            <View style={styles.searchRow}>
+            <View style={[styles.searchRow, { borderColor: theme.colors.border }]}>
               <Ionicons name="search" size={16} color={theme.colors.textSecondary} style={styles.searchIcon} />
               <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, { color: theme.colors.text }]}
                 placeholder="Search artists…"
                 placeholderTextColor={theme.colors.placeholder}
                 value={artistQuery}
                 onChangeText={handleArtistQuery}
                 returnKeyType="search"
               />
-              {artistSearching && <ActivityIndicator size="small" color={theme.colors.accent} />}
+              {artistSearching ? (
+                <ActivityIndicator size="small" color={theme.colors.accent} />
+              ) : artistQuery.length > 0 ? (
+                <TouchableOpacity onPress={() => { setArtistQuery(""); setArtistResults([]); }} hitSlop={8}>
+                  <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
+                </TouchableOpacity>
+              ) : null}
             </View>
 
             <FlatList
               data={artistResults}
               keyExtractor={(item) => item.id}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
               style={styles.resultsList}
               renderItem={({ item }) => {
                 const selected = !!selectedArtists.find((a) => a.id === item.id);
@@ -306,23 +337,30 @@ export default function OnboardingScreen() {
               </View>
             )}
 
-            <View style={styles.searchRow}>
+            <View style={[styles.searchRow, { borderColor: theme.colors.border }]}>
               <Ionicons name="search" size={16} color={theme.colors.textSecondary} style={styles.searchIcon} />
               <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, { color: theme.colors.text }]}
                 placeholder="Search songs…"
                 placeholderTextColor={theme.colors.placeholder}
                 value={songQuery}
                 onChangeText={handleSongQuery}
                 returnKeyType="search"
               />
-              {songSearching && <ActivityIndicator size="small" color={theme.colors.accent} />}
+              {songSearching ? (
+                <ActivityIndicator size="small" color={theme.colors.accent} />
+              ) : songQuery.length > 0 ? (
+                <TouchableOpacity onPress={() => { setSongQuery(""); setSongResults([]); }} hitSlop={8}>
+                  <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
+                </TouchableOpacity>
+              ) : null}
             </View>
 
             <FlatList
               data={songResults}
               keyExtractor={(item) => item.id}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
               style={styles.resultsList}
               renderItem={({ item }) => {
                 const selected = !!selectedSongs.find((s) => s.id === item.id);
@@ -400,7 +438,7 @@ export default function OnboardingScreen() {
           )}
         </TouchableOpacity>
 
-        {(step === 2) && (
+        {step === 2 && (
           <TouchableOpacity
             onPress={() => { setError(""); setStep((s) => s + 1); }}
             activeOpacity={0.7}
@@ -410,6 +448,95 @@ export default function OnboardingScreen() {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* ── Year picker modal ── */}
+      <Modal visible={yearPickerVisible} transparent animationType="slide" onRequestClose={() => setYearPickerVisible(false)}>
+        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setYearPickerVisible(false)} />
+        <View style={[styles.pickerSheet, { backgroundColor: theme.colors.background }]}>
+          <View style={[styles.pickerSheetHandle, { backgroundColor: theme.colors.border }]} />
+          <View style={styles.pickerSheetHeader}>
+            <Text style={[styles.pickerSheetTitle, { color: theme.colors.text }]}>Birth Year</Text>
+            <TouchableOpacity onPress={() => setYearPickerVisible(false)} hitSlop={8}>
+              <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={BIRTH_YEARS}
+            keyExtractor={(y) => String(y)}
+            showsVerticalScrollIndicator={false}
+            initialScrollIndex={birthYear ? BIRTH_YEARS.indexOf(birthYear) : 0}
+            getItemLayout={(_, index) => ({ length: 52, offset: 52 * index, index })}
+            renderItem={({ item }) => {
+              const selected = item === birthYear;
+              return (
+                <TouchableOpacity
+                  style={[styles.pickerItem, selected && { backgroundColor: theme.colors.chipBg }]}
+                  onPress={() => { Haptics.selectionAsync(); setBirthYear(item); setYearPickerVisible(false); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.pickerItemText, { color: selected ? theme.colors.accent : theme.colors.text }, selected && { fontWeight: "700" }]}>
+                    {item}
+                  </Text>
+                  {selected && <Ionicons name="checkmark" size={18} color={theme.colors.accent} />}
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </View>
+      </Modal>
+
+      {/* ── Country picker modal ── */}
+      <Modal visible={countryPickerVisible} transparent animationType="slide" onRequestClose={() => setCountryPickerVisible(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setCountryPickerVisible(false)} />
+          <View style={[styles.pickerSheet, { backgroundColor: theme.colors.background }]}>
+            <View style={[styles.pickerSheetHandle, { backgroundColor: theme.colors.border }]} />
+            <View style={styles.pickerSheetHeader}>
+              <Text style={[styles.pickerSheetTitle, { color: theme.colors.text }]}>Country</Text>
+              <TouchableOpacity onPress={() => setCountryPickerVisible(false)} hitSlop={8}>
+                <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.countrySearch, { borderColor: theme.colors.border }]}>
+              <Ionicons name="search" size={15} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
+              <TextInput
+                style={[styles.countrySearchInput, { color: theme.colors.text }]}
+                placeholder="Search…"
+                placeholderTextColor={theme.colors.placeholder}
+                value={countrySearch}
+                onChangeText={setCountrySearch}
+                autoFocus
+              />
+              {countrySearch.length > 0 && (
+                <TouchableOpacity onPress={() => setCountrySearch("")} hitSlop={8}>
+                  <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+            <FlatList
+              data={filteredCountries}
+              keyExtractor={(c) => c}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => {
+                const selected = item === country;
+                return (
+                  <TouchableOpacity
+                    style={[styles.pickerItem, selected && { backgroundColor: theme.colors.chipBg }]}
+                    onPress={() => { Haptics.selectionAsync(); setCountry(item); setCountryPickerVisible(false); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.pickerItemText, { color: selected ? theme.colors.accent : theme.colors.text }, selected && { fontWeight: "700" }]}>
+                      {item}
+                    </Text>
+                    {selected && <Ionicons name="checkmark" size={18} color={theme.colors.accent} />}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -476,10 +603,25 @@ function createStyles(theme: Theme) {
       color: theme.colors.text,
       backgroundColor: theme.colors.backgroundInput,
     },
+    pickerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      height: 48,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 12,
+      paddingHorizontal: theme.spacing.lg,
+      backgroundColor: theme.colors.backgroundInput,
+    },
+    pickerRowText: {
+      fontSize: theme.fontSize.base,
+      color: theme.colors.text,
+    },
     optionalHint: {
       fontSize: theme.fontSize.xs,
       color: theme.colors.textTertiary,
-      marginTop: 12,
+      marginTop: 16,
     },
     chips: {
       flexDirection: "row",
@@ -506,7 +648,6 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.backgroundInput,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: theme.colors.border,
       paddingHorizontal: 12,
       height: 44,
       marginBottom: 8,
@@ -517,7 +658,6 @@ function createStyles(theme: Theme) {
     searchInput: {
       flex: 1,
       fontSize: theme.fontSize.base,
-      color: theme.colors.text,
     },
     resultsList: {
       flex: 1,
@@ -579,6 +719,62 @@ function createStyles(theme: Theme) {
     skipText: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
+    },
+    // Picker modals
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.4)",
+    },
+    pickerSheet: {
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      maxHeight: "60%",
+      paddingBottom: Platform.OS === "ios" ? 34 : 20,
+    },
+    pickerSheetHandle: {
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      alignSelf: "center",
+      marginTop: 12,
+      marginBottom: 4,
+      opacity: 0.4,
+    },
+    pickerSheetHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+    },
+    pickerSheetTitle: {
+      fontSize: 17,
+      fontWeight: "600",
+    },
+    pickerItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      height: 52,
+      paddingHorizontal: 20,
+    },
+    pickerItemText: {
+      fontSize: theme.fontSize.base,
+    },
+    countrySearch: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginHorizontal: 16,
+      marginBottom: 8,
+      paddingHorizontal: 12,
+      height: 40,
+      borderRadius: 10,
+      borderWidth: 1,
+      backgroundColor: "transparent",
+    },
+    countrySearchInput: {
+      flex: 1,
+      fontSize: theme.fontSize.base,
     },
   });
 }
