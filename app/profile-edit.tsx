@@ -93,19 +93,24 @@ export default function ProfileEditScreen() {
     : user?.email?.[0]?.toUpperCase() ?? "?";
 
   // Scroll to results when they appear so keyboard doesn't cover them
+  // measureLayout gives position relative to the ScrollView content — not screen coords
   useEffect(() => {
-    if (artistResults.length > 0) {
-      artistSectionRef.current?.measureInWindow((_x, y) => {
-        scrollRef.current?.scrollTo({ y: y - 120, animated: true });
-      });
+    if (artistResults.length > 0 && artistSectionRef.current && scrollRef.current) {
+      artistSectionRef.current.measureLayout(
+        scrollRef.current as any,
+        (_x, y) => { scrollRef.current?.scrollTo({ y: y - 20, animated: true }); },
+        () => {}
+      );
     }
   }, [artistResults]);
 
   useEffect(() => {
-    if (songResults.length > 0) {
-      songSectionRef.current?.measureInWindow((_x, y) => {
-        scrollRef.current?.scrollTo({ y: y - 120, animated: true });
-      });
+    if (songResults.length > 0 && songSectionRef.current && scrollRef.current) {
+      songSectionRef.current.measureLayout(
+        scrollRef.current as any,
+        (_x, y) => { scrollRef.current?.scrollTo({ y: y - 20, animated: true }); },
+        () => {}
+      );
     }
   }, [songResults]);
 
@@ -505,6 +510,11 @@ export default function ProfileEditScreen() {
                 onChangeText={setCountrySearch}
                 autoFocus
               />
+              {countrySearch.length > 0 && (
+                <TouchableOpacity onPress={() => setCountrySearch("")} hitSlop={8}>
+                  <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />
+                </TouchableOpacity>
+              )}
             </View>
             <FlatList
               data={filteredCountries}
