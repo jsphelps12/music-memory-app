@@ -23,7 +23,14 @@ interface AuthState {
   signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
-  updateProfile: (updates: { displayName?: string; avatarUrl?: string }) => Promise<void>;
+  updateProfile: (updates: {
+    displayName?: string;
+    avatarUrl?: string;
+    birthYear?: number | null;
+    country?: string | null;
+    favoriteArtists?: FavoriteArtist[];
+    favoriteSongs?: FavoriteSong[];
+  }) => Promise<void>;
   refreshProfile: () => Promise<void>;
   completeOnboarding: (data: OnboardingData) => Promise<void>;
   saveCustomMood: (mood: CustomMoodDefinition) => Promise<void>;
@@ -165,12 +172,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
-  const updateProfile = async (updates: { displayName?: string; avatarUrl?: string }) => {
+  const updateProfile = async (updates: {
+    displayName?: string;
+    avatarUrl?: string;
+    birthYear?: number | null;
+    country?: string | null;
+    favoriteArtists?: FavoriteArtist[];
+    favoriteSongs?: FavoriteSong[];
+  }) => {
     if (!session?.user) throw new Error("Not authenticated");
 
-    const dbUpdates: Record<string, string> = {};
+    const dbUpdates: Record<string, any> = {};
     if (updates.displayName !== undefined) dbUpdates.display_name = updates.displayName;
     if (updates.avatarUrl !== undefined) dbUpdates.avatar_url = updates.avatarUrl;
+    if (updates.birthYear !== undefined) dbUpdates.birth_year = updates.birthYear;
+    if (updates.country !== undefined) dbUpdates.country = updates.country;
+    if (updates.favoriteArtists !== undefined) dbUpdates.favorite_artists = updates.favoriteArtists;
+    if (updates.favoriteSongs !== undefined) dbUpdates.favorite_songs = updates.favoriteSongs;
 
     const { error } = await supabase
       .from("profiles")

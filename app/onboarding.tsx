@@ -22,44 +22,9 @@ import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { FavoriteArtist, FavoriteSong } from "@/types";
 import { ONBOARDING_DONE_KEY } from "@/lib/onboarding";
+import { searchItunesArtists, searchItunesSongs } from "@/lib/musicSearch";
 
 const TOTAL_STEPS = 4;
-
-// iTunes Search API — no MusicKit auth required
-async function searchItunesArtists(query: string): Promise<FavoriteArtist[]> {
-  if (!query.trim()) return [];
-  try {
-    const res = await fetch(
-      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=musicArtist&limit=10`
-    );
-    const json = await res.json();
-    return (json.results ?? []).map((r: any) => ({
-      id: String(r.artistId),
-      name: r.artistName,
-      artworkUrl: null, // iTunes artist search doesn't return artwork
-    }));
-  } catch {
-    return [];
-  }
-}
-
-async function searchItunesSongs(query: string): Promise<FavoriteSong[]> {
-  if (!query.trim()) return [];
-  try {
-    const res = await fetch(
-      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=10`
-    );
-    const json = await res.json();
-    return (json.results ?? []).map((r: any) => ({
-      id: String(r.trackId),
-      title: r.trackName,
-      artist: r.artistName,
-      artworkUrl: r.artworkUrl100?.replace("100x100", "200x200") ?? null,
-    }));
-  } catch {
-    return [];
-  }
-}
 
 export default function OnboardingScreen() {
   const router = useRouter();
