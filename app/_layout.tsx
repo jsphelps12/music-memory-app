@@ -80,6 +80,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
           AsyncStorage.setItem(ONBOARDING_DONE_KEY, "true");
           setOnboardingDone(true);
         }
+        // Pre-set first-moment flag for existing users so they don't see the celebration screen
+        AsyncStorage.getItem("first_moment_saved").then((v) => {
+          if (!v) AsyncStorage.setItem("first_moment_saved", "true");
+        });
         AsyncStorage.getItem(PENDING_INVITE_CODE_KEY).then((code) => {
           AsyncStorage.removeItem(PENDING_INVITE_CODE_KEY);
           router.replace("/(tabs)");
