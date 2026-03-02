@@ -1,12 +1,28 @@
 import { useCallback, useEffect } from "react";
 import { Linking } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { handleAuthDeepLink } from "@/lib/auth-linking";
-import branch from "react-native-branch";
 
 export const PENDING_INVITE_CODE_KEY = "pending_invite_code";
+
+// Prefix written to clipboard on web when user taps "Download" from an invite link.
+// App reads this on first launch to recover the invite code (deferred deep link).
+const CLIPBOARD_INVITE_PREFIX = "soundtracks-invite:";
+
+export async function checkClipboardForInvite(): Promise<string | null> {
+  try {
+    const text = await Clipboard.getStringAsync();
+    if (text.startsWith(CLIPBOARD_INVITE_PREFIX)) {
+      const code = text.replace(CLIPBOARD_INVITE_PREFIX, "").trim();
+      await Clipboard.setStringAsync(""); // clear so it doesn't fire again
+      return code || null;
+    }
+  } catch {}
+  return null;
+}
 
 export function useDeepLinkHandler() {
   const router = useRouter();
@@ -21,8 +37,8 @@ export function useDeepLinkHandler() {
   }, [user, router]);
 
   const handleUrl = useCallback(async (url: string) => {
-    // Join link: tracks://join?inviteCode={code}
-    const joinMatch = url.match(/^tracks:\/\/join\?inviteCode=([a-zA-Z0-9]+)/);
+    // Join link: soundtracks://join?inviteCode={code}
+    const joinMatch = url.match(/^[a-z]+:\/\/join\?inviteCode=([a-zA-Z0-9]+)/);
     if (joinMatch) {
       await handleInviteCode(joinMatch[1]);
       return;
@@ -32,25 +48,14 @@ export function useDeepLinkHandler() {
     handleAuthDeepLink(url);
   }, [handleInviteCode]);
 
-  // Branch SDK — handles deferred deep links (cold install) and Branch universal links
+  // Clipboard check — deferred deep link fallback for cold installs via web invite page
   useEffect(() => {
-    const unsubscribe = branch.subscribe(({ error, params }) => {
-      if (error || !params) return;
-      // +non_branch_link means it's a regular URI scheme link — already handled by Linking below
-      if (params["+non_branch_link"]) return;
-      // +clicked_branch_link is false on the initial session check when no Branch link was clicked
-      if (!params["+clicked_branch_link"]) return;
-
-      const inviteCode = params.inviteCode as string | undefined;
-      if (inviteCode) {
-        handleInviteCode(inviteCode);
-      }
+    checkClipboardForInvite().then((code) => {
+      if (code) handleInviteCode(code);
     });
+  }, []);
 
-    return () => unsubscribe();
-  }, [handleInviteCode]);
-
-  // Expo Linking — handles direct URI scheme deep links when app is already installed
+  // URI scheme deep links — app already installed
   useEffect(() => {
     Linking.getInitialURL().then((url) => {
       if (url) handleUrl(url);

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
 import CollectionMomentList, { type MomentItem } from "@/components/CollectionMomentList";
+import InviteCTA from "@/components/InviteCTA";
 
 export const dynamic = "force-dynamic";
 
@@ -129,13 +130,7 @@ export default async function CollectionPage({ params }: PageProps) {
         className="fixed bottom-0 left-0 right-0 px-6 py-4 flex justify-center"
         style={{ backgroundColor: "#FBF6F1", borderTop: "1px solid #E8D8CC" }}
       >
-        <a
-          href={`tracks://join?inviteCode=${invite_code}`}
-          className="w-full max-w-xl block text-center py-3 rounded-full text-white font-semibold text-base transition-opacity hover:opacity-90"
-          style={{ backgroundColor: "#E8825C" }}
-        >
-          Open in Tracks
-        </a>
+        <InviteCTA inviteCode={invite_code} />
       </div>
     </div>
   );

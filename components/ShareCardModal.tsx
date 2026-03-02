@@ -50,7 +50,7 @@ export function ShareCardModal({ visible, moment, photoUrls, onClose }: Props) {
           .update({ share_token: token })
           .eq("id", moment.id);
       }
-      const url = `https://music-memory-app.vercel.app/m/${token}`;
+      const url = `https://soundtracks.app/m/${token}`;
       await Share.share({ message: url, url });
     } catch {
       // User cancelled or error — silent
