@@ -15,13 +15,11 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth, OnboardingData } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { FavoriteArtist, FavoriteSong } from "@/types";
-import { ONBOARDING_DONE_KEY } from "@/lib/onboarding";
 import { searchItunesArtists, searchItunesSongs } from "@/lib/musicSearch";
 
 const TOTAL_STEPS = 4;
@@ -136,13 +134,12 @@ export default function OnboardingScreen() {
       const parsedYear = parseInt(birthYear, 10);
       const data: OnboardingData = {
         displayName: displayName.trim(),
-        birthYear: parsedYear >= 1920 && parsedYear <= 2010 ? parsedYear : null,
+        birthYear: parsedYear >= 1920 && parsedYear <= 2015 ? parsedYear : null,
         country: country.trim() || null,
         favoriteArtists: selectedArtists,
         favoriteSongs: selectedSongs,
       };
       await completeOnboarding(data);
-      await AsyncStorage.setItem(ONBOARDING_DONE_KEY, "true");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace("/(tabs)");
     } catch (e: any) {

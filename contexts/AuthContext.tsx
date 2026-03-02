@@ -18,6 +18,7 @@ interface AuthState {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
+  profileReady: boolean; // true once first profile fetch has completed
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signInWithApple: () => Promise<void>;
@@ -45,6 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileReady, setProfileReady] = useState(false);
   const suppressAuth = useRef(false);
 
   async function fetchProfile(userId: string) {
@@ -56,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (error || !data) {
       setProfile(null);
+      setProfileReady(true);
       return;
     }
 
@@ -73,6 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     });
+    setProfileReady(true);
   }
 
   useEffect(() => {
@@ -97,6 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           fetchProfile(session.user.id);
         } else {
           setProfile(null);
+          setProfileReady(false);
         }
       }
     });
@@ -276,6 +281,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: session?.user ?? null,
         profile,
         loading,
+        profileReady,
         signIn,
         signUp,
         signInWithApple,

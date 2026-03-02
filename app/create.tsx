@@ -41,7 +41,7 @@ import { checkAndNotifyMilestone } from "@/lib/notifications";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const FIRST_MOMENT_DONE_KEY = "first_moment_saved";
+const firstMomentKey = (userId: string) => `first_moment_saved_${userId}`;
 import { PromptPickerModal } from "@/components/PromptPickerModal";
 
 function getTimeOfDay(): string {
@@ -597,9 +597,10 @@ export default function CreateMomentScreen() {
 
       markTimelineStale();
 
-      const firstMomentDone = await AsyncStorage.getItem(FIRST_MOMENT_DONE_KEY);
-      if (!firstMomentDone) {
-        await AsyncStorage.setItem(FIRST_MOMENT_DONE_KEY, "true");
+      const key = user ? firstMomentKey(user.id) : null;
+      const firstMomentDone = key ? await AsyncStorage.getItem(key) : "true";
+      if (!firstMomentDone && key) {
+        await AsyncStorage.setItem(key, "true");
         router.replace("/celebration" as any);
       } else if (router.canGoBack()) {
         router.back();

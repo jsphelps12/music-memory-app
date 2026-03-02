@@ -18,7 +18,6 @@ import { PlayerProvider } from "@/contexts/PlayerContext";
 import { useDeepLinkHandler, PENDING_INVITE_CODE_KEY } from "@/hooks/useDeepLinkHandler";
 import { useShareIntentHandler } from "@/hooks/useShareIntentHandler";
 import { registerForPushNotifications } from "@/lib/notifications";
-import { ONBOARDING_DONE_KEY } from "@/lib/onboarding";
 
 const HAS_LAUNCHED_KEY = "has_launched";
 
@@ -39,24 +38,21 @@ Notifications.setNotificationHandler({
 });
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { session, loading, profile } = useAuth();
+  const { session, loading, profile, profileReady } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const [hasLaunched, setHasLaunched] = useState<boolean | null>(null);
-  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      AsyncStorage.getItem(HAS_LAUNCHED_KEY),
-      AsyncStorage.getItem(ONBOARDING_DONE_KEY),
-    ]).then(([launched, onboarded]) => {
+    AsyncStorage.getItem(HAS_LAUNCHED_KEY).then((launched) => {
       setHasLaunched(launched === "true");
-      setOnboardingDone(onboarded === "true");
     });
   }, []);
 
   useEffect(() => {
-    if (loading || hasLaunched === null || onboardingDone === null) return;
+    // Wait until auth load is done and (if logged in) profile has been fetched
+    if (loading || hasLaunched === null) return;
+    if (session && !profileReady) return;
 
     const inAuthGroup = segments[0] === "(auth)";
     const inOnboarding = segments[0] === "onboarding";
@@ -70,19 +66,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         router.replace("/(auth)/sign-in");
       }
     } else if (session && (inAuthGroup || inOnboarding)) {
-      // Use AsyncStorage OR the DB profile flag (handles existing users on reinstall)
-      const effectivelyOnboarded = onboardingDone || profile?.onboardingCompleted === true;
-      if (!effectivelyOnboarded) {
+      if (!profile?.onboardingCompleted) {
         router.replace("/onboarding" as any);
       } else {
-        if (!onboardingDone) {
-          // Sync local flag so future launches are instant
-          AsyncStorage.setItem(ONBOARDING_DONE_KEY, "true");
-          setOnboardingDone(true);
-        }
         // Pre-set first-moment flag for existing users so they don't see the celebration screen
-        AsyncStorage.getItem("first_moment_saved").then((v) => {
-          if (!v) AsyncStorage.setItem("first_moment_saved", "true");
+        AsyncStorage.getItem(`first_moment_saved_${session.user.id}`).then((v) => {
+          if (!v) AsyncStorage.setItem(`first_moment_saved_${session.user.id}`, "true");
         });
         AsyncStorage.getItem(PENDING_INVITE_CODE_KEY).then((code) => {
           AsyncStorage.removeItem(PENDING_INVITE_CODE_KEY);
@@ -93,14 +82,13 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         });
       }
     } else if (session && !inAuthGroup && !inOnboarding) {
-      const effectivelyOnboarded = onboardingDone || profile?.onboardingCompleted === true;
-      if (!effectivelyOnboarded) {
+      if (!profile?.onboardingCompleted) {
         router.replace("/onboarding" as any);
       }
     }
-  }, [session, loading, hasLaunched, onboardingDone, segments, router]);
+  }, [session, loading, profileReady, hasLaunched, segments, router, profile?.onboardingCompleted]);
 
-  if (loading || hasLaunched === null || onboardingDone === null) return null;
+  if (loading || hasLaunched === null || (session && !profileReady)) return null;
 
   return <>{children}</>;
 }
