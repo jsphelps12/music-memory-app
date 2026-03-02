@@ -56,6 +56,7 @@ export default function ReflectionsScreen() {
 
   const [onThisDay, setOnThisDay] = useState<Moment[]>([]);
   const [randomMoment, setRandomMoment] = useState<Moment | null>(null);
+  const [aMonthAgo, setAMonthAgo] = useState<Moment | null>(null);
   const [thisMonth, setThisMonth] = useState<ThisMonthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [shuffling, setShuffling] = useState(false);
@@ -93,6 +94,18 @@ export default function ReflectionsScreen() {
   const lastOfLastMonth = (() => {
     const d = new Date(thisYear, now.getMonth(), 0);
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  })();
+
+  // "A Month Ago" window: 25–35 days back
+  const aMonthAgoFrom = (() => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 35);
+    return d.toISOString().slice(0, 10);
+  })();
+  const aMonthAgoTo = (() => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 25);
+    return d.toISOString().slice(0, 10);
   })();
 
   const fetchOnThisDay = useCallback(async (): Promise<Moment[]> => {
@@ -165,23 +178,38 @@ export default function ReflectionsScreen() {
     };
   }, [user, firstOfMonth, lastOfMonth, firstOfLastMonth, lastOfLastMonth]);
 
+  const fetchAMonthAgo = useCallback(async (): Promise<Moment | null> => {
+    if (!user) return null;
+    const { data } = await supabase
+      .from("moments")
+      .select("*")
+      .eq("user_id", user.id)
+      .gte("moment_date", aMonthAgoFrom)
+      .lte("moment_date", aMonthAgoTo)
+      .order("moment_date", { ascending: false })
+      .limit(1);
+    return data?.[0] ? mapRowToMoment(data[0]) : null;
+  }, [user, aMonthAgoFrom, aMonthAgoTo]);
+
   const loadAll = useCallback(
     async (preserveRandom: boolean) => {
       if (!user) return;
       setLoading(true);
       setError("");
       try {
-        const [otd, rand, tm] = await Promise.all([
+        const [otd, rand, tm, ama] = await Promise.all([
           fetchOnThisDay(),
           preserveRandom && randomMomentRef.current
             ? Promise.resolve(randomMomentRef.current)
             : fetchRandom(),
           fetchThisMonth(),
+          fetchAMonthAgo(),
         ]);
         setOnThisDay(otd);
         setRandomMoment(rand);
         randomMomentRef.current = rand;
         setThisMonth(tm);
+        setAMonthAgo(ama);
       } catch (e: any) {
         setError(friendlyError(e));
       } finally {
@@ -189,7 +217,7 @@ export default function ReflectionsScreen() {
         lastFetchTime.current = Date.now();
       }
     },
-    [user, fetchOnThisDay, fetchRandom, fetchThisMonth]
+    [user, fetchOnThisDay, fetchRandom, fetchThisMonth, fetchAMonthAgo]
   );
 
   useFocusEffect(
@@ -353,6 +381,28 @@ export default function ReflectionsScreen() {
               </View>
             );
           })
+        )}
+
+        {/* A Month Ago */}
+        {aMonthAgo && (
+          <>
+            <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
+              <Text style={styles.sectionTitle}>A Month Ago</Text>
+              {aMonthAgo.momentDate && (
+                <Text style={styles.sectionSubtitle}>
+                  {new Date(aMonthAgo.momentDate + "T00:00:00").toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </Text>
+              )}
+            </View>
+            <MomentCard
+              item={aMonthAgo}
+              onPress={() => router.push(`/moment/${aMonthAgo.id}`)}
+              allMoods={allMoods}
+            />
+          </>
         )}
 
         {/* A Random Memory */}
