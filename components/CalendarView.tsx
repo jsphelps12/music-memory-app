@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { Theme } from "@/constants/theme";
+import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Moment } from "@/types";
 
 const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
@@ -162,7 +163,7 @@ export function CalendarView({ moments, onDayPress, theme }: Props) {
               {m.songArtworkUrl ? (
                 <Image source={{ uri: m.songArtworkUrl }} style={styles.undatedArt} />
               ) : (
-                <View style={[styles.undatedArt, styles.artworkPlaceholder]} />
+                <ArtworkPlaceholder style={styles.undatedArt} />
               )}
               <View style={styles.undatedInfo}>
                 <Text style={styles.undatedTitle} numberOfLines={1}>{m.songTitle}</Text>
@@ -280,9 +281,6 @@ function createStyles(theme: Theme) {
       width: 40,
       height: 40,
       borderRadius: theme.radii.sm,
-    },
-    artworkPlaceholder: {
-      backgroundColor: theme.colors.artworkPlaceholder,
     },
     undatedInfo: {
       flex: 1,

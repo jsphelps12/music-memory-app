@@ -17,6 +17,7 @@ import { usePlayer } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { Theme } from "@/constants/theme";
+import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Moment, Song } from "@/types";
 
 interface Props {
@@ -106,7 +107,7 @@ export function MomentCard({ item, onPress, allMoods, showArtist = true }: Props
             {item.songArtworkUrl ? (
               <Image source={{ uri: item.songArtworkUrl }} style={styles.artwork} />
             ) : (
-              <View style={[styles.artwork, styles.artworkPlaceholder]} />
+              <ArtworkPlaceholder style={styles.artwork} />
             )}
             <View style={styles.cardContent}>
               <Text style={styles.songTitle} numberOfLines={1}>
@@ -199,9 +200,6 @@ function createStyles(theme: Theme) {
       width: 56,
       height: 56,
       borderRadius: theme.radii.sm,
-    },
-    artworkPlaceholder: {
-      backgroundColor: theme.colors.artworkPlaceholder,
     },
     playButton: {
       position: "absolute",

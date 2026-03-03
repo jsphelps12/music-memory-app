@@ -26,6 +26,7 @@ import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Song } from "@/types";
 import { SkeletonMomentDetail } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
@@ -294,7 +295,7 @@ export default function EditMomentScreen() {
                 style={styles.artwork}
               />
             ) : (
-              <View style={[styles.artwork, styles.artworkPlaceholder]} />
+              <ArtworkPlaceholder style={styles.artwork} />
             )}
             <View style={styles.songInfo}>
               <Text style={styles.songTitle} numberOfLines={1}>
@@ -500,9 +501,6 @@ function createStyles(theme: Theme) {
       width: 56,
       height: 56,
       borderRadius: theme.radii.sm,
-    },
-    artworkPlaceholder: {
-      backgroundColor: theme.colors.artworkPlaceholder,
     },
     songInfo: {
       flex: 1,

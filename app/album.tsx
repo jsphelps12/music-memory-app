@@ -18,6 +18,7 @@ import { mapRowToMoment } from "@/lib/moments";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Moment } from "@/types";
 import { SkeletonTimelineCard } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
@@ -128,7 +129,7 @@ export default function AlbumScreen() {
         {artworkUrl ? (
           <Image source={{ uri: artworkUrl }} style={styles.albumArtwork} />
         ) : (
-          <View style={[styles.albumArtwork, styles.albumArtworkPlaceholder]} />
+          <ArtworkPlaceholder style={styles.albumArtwork} />
         )}
         <View style={styles.albumMeta}>
           <Text style={styles.albumName} numberOfLines={2}>{album}</Text>
@@ -203,9 +204,6 @@ function createStyles(theme: Theme) {
       width: 60,
       height: 60,
       borderRadius: theme.radii.sm,
-    },
-    albumArtworkPlaceholder: {
-      backgroundColor: theme.colors.artworkPlaceholder,
     },
     albumMeta: {
       flex: 1,

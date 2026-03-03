@@ -35,6 +35,7 @@ import { CreateCollectionModal } from "@/components/CreateCollectionModal";
 import { fetchCollections, addMomentToCollection } from "@/lib/collections";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Song, Collection } from "@/types";
 import { friendlyError } from "@/lib/errors";
 import { checkAndNotifyMilestone } from "@/lib/notifications";
@@ -644,7 +645,7 @@ export default function CreateMomentScreen() {
                   style={styles.nowPlayingArtwork}
                 />
               ) : (
-                <View style={[styles.nowPlayingArtwork, styles.artworkPlaceholder]} />
+                <ArtworkPlaceholder style={styles.nowPlayingArtwork} />
               )}
               <View style={styles.nowPlayingInfo}>
                 <Text style={styles.nowPlayingLabel}>Now Playing</Text>
@@ -686,7 +687,7 @@ export default function CreateMomentScreen() {
                 style={styles.artwork}
               />
             ) : (
-              <View style={[styles.artwork, styles.artworkPlaceholder]} />
+              <ArtworkPlaceholder style={styles.artwork} />
             )}
             <View style={styles.songInfo}>
               <Text style={styles.songTitle} numberOfLines={1}>
@@ -731,7 +732,7 @@ export default function CreateMomentScreen() {
                   {shazamResult.artworkUrl ? (
                     <Image source={{ uri: shazamResult.artworkUrl }} style={styles.nowPlayingArtwork} />
                   ) : (
-                    <View style={[styles.nowPlayingArtwork, styles.artworkPlaceholder]} />
+                    <ArtworkPlaceholder style={styles.nowPlayingArtwork} />
                   )}
                   <View style={styles.nowPlayingInfo}>
                     <Text style={styles.shazamLabel}>Found</Text>
@@ -1050,7 +1051,7 @@ export default function CreateMomentScreen() {
                     style={styles.candidateArtwork}
                   />
                 ) : (
-                  <View style={[styles.candidateArtwork, styles.artworkPlaceholder]} />
+                  <ArtworkPlaceholder style={styles.candidateArtwork} />
                 )}
                 <View style={styles.candidateInfo}>
                   <Text style={styles.candidateSongTitle} numberOfLines={1}>
@@ -1265,9 +1266,6 @@ function createStyles(theme: Theme) {
       width: 56,
       height: 56,
       borderRadius: theme.radii.sm,
-    },
-    artworkPlaceholder: {
-      backgroundColor: theme.colors.artworkPlaceholder,
     },
     songInfo: {
       flex: 1,

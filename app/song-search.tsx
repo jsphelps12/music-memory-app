@@ -16,6 +16,7 @@ import { requestMusicAuthorization, searchSongs } from "@/lib/musickit";
 import { emitSongSelected } from "@/lib/songEvents";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import type { Song } from "@/types";
 
 export default function SongSearchScreen() {
@@ -158,7 +159,7 @@ export default function SongSearchScreen() {
                   style={styles.artwork}
                 />
               ) : (
-                <View style={[styles.artwork, styles.artworkPlaceholder]} />
+                <ArtworkPlaceholder style={styles.artwork} />
               )}
               <View style={styles.songInfo}>
                 <Text style={styles.songTitle} numberOfLines={1}>
@@ -262,9 +263,6 @@ function createStyles(theme: Theme) {
       width: 48,
       height: 48,
       borderRadius: 6,
-    },
-    artworkPlaceholder: {
-      backgroundColor: theme.colors.artworkPlaceholder,
     },
     songInfo: {
       flex: 1,

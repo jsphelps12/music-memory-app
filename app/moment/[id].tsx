@@ -43,6 +43,7 @@ import {
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { SkeletonMomentDetail } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { PhotoViewer } from "@/components/PhotoViewer";
@@ -391,7 +392,7 @@ export default function MomentDetailScreen() {
                   style={styles.artwork}
                 />
               ) : (
-                <View style={[styles.artwork, styles.artworkPlaceholder]} />
+                <ArtworkPlaceholder style={styles.artwork} />
               )}
             </TouchableOpacity>
             <View style={styles.songInfo}>
@@ -860,9 +861,6 @@ function createStyles(theme: Theme) {
       width: 56,
       height: 56,
       borderRadius: theme.radii.sm,
-    },
-    artworkPlaceholder: {
-      backgroundColor: theme.colors.artworkPlaceholder,
     },
     songInfo: {
       flex: 1,
