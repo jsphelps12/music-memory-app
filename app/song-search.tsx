@@ -198,7 +198,7 @@ function createStyles(theme: Theme) {
       marginBottom: theme.spacing.md,
       paddingHorizontal: theme.spacing.lg,
       paddingVertical: theme.spacing.md,
-      borderRadius: 10,
+      borderRadius: theme.radii.md,
       backgroundColor: theme.colors.backgroundTertiary,
       fontSize: theme.fontSize.base,
       color: theme.colors.text,

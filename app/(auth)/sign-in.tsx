@@ -189,10 +189,10 @@ function createStyles(theme: Theme) {
       marginBottom: theme.spacing["3xl"],
     },
     input: {
-      height: 48,
+      height: 52,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: 10,
+      borderRadius: theme.radii.md,
       paddingHorizontal: theme.spacing.lg,
       fontSize: theme.fontSize.base,
       color: theme.colors.text,
@@ -201,7 +201,7 @@ function createStyles(theme: Theme) {
     },
     successBox: {
       backgroundColor: theme.colors.backgroundSecondary,
-      borderRadius: 10,
+      borderRadius: theme.radii.md,
       padding: theme.spacing.lg,
       marginBottom: theme.spacing.lg,
       borderWidth: 1,
@@ -224,9 +224,9 @@ function createStyles(theme: Theme) {
       marginBottom: 14,
     },
     button: {
-      height: 48,
+      height: 52,
       backgroundColor: theme.colors.buttonBg,
-      borderRadius: 10,
+      borderRadius: theme.radii.button,
       alignItems: "center",
       justifyContent: "center",
       marginTop: theme.spacing.xs,
@@ -268,7 +268,7 @@ function createStyles(theme: Theme) {
       marginHorizontal: theme.spacing.md,
     },
     appleButton: {
-      height: 48,
+      height: 52,
       width: "100%",
     },
   });

@@ -31,8 +31,16 @@ export const fontWeight = {
 export const radii = {
   sm: 8,
   md: 12,
+  button: 14,
   lg: 20,
   full: 9999,
+} as const;
+
+// App icon gradient: warm orange (#E8825C) → muted slate-purple
+// Use with expo-linear-gradient for brand moments
+export const gradients = {
+  brand: ["#E8825C", "#6B5F8C"] as const,
+  brandDark: ["#E8825C", "#9888C8"] as const,
 } as const;
 
 export const shadows = {
@@ -57,6 +65,9 @@ export interface ThemeColors {
   accent: string;
   accentBg: string;
   accentText: string;
+  accentSecondary: string;
+  accentSecondaryBg: string;
+  accentSecondaryText: string;
   buttonBg: string;
   buttonText: string;
   border: string;
@@ -89,6 +100,9 @@ const lightColors: ThemeColors = {
   accent: "#E8825C",
   accentBg: "#fdf0eb",
   accentText: "#c96840",
+  accentSecondary: "#6B5F8C",
+  accentSecondaryBg: "#F0EDF7",
+  accentSecondaryText: "#4A3E6A",
   buttonBg: "#2C2C3A",
   buttonText: "#fff",
   border: "#ddd",
@@ -121,6 +135,9 @@ const darkColors: ThemeColors = {
   accent: "#E8825C",
   accentBg: "#3a2820",
   accentText: "#F0A080",
+  accentSecondary: "#9888C8",
+  accentSecondaryBg: "#251F38",
+  accentSecondaryText: "#C0AEE8",
   buttonBg: "#fff",
   buttonText: "#000",
   border: "#333",

@@ -50,7 +50,7 @@ export function CollectionPicker({
         <Ionicons
           name={item.role === "member" ? "people-outline" : "folder-outline"}
           size={20}
-          color={theme.colors.textSecondary}
+          color={item.role === "member" ? theme.colors.accentSecondary : theme.colors.textSecondary}
           style={styles.rowIcon}
         />
         <View style={{ flex: 1 }}>
@@ -127,7 +127,7 @@ export function CollectionPicker({
           {shared.length > 0 ? (
             <>
               <View style={[styles.sectionDivider, { borderTopColor: theme.colors.border }]}>
-                <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>
+                <Text style={[styles.sectionLabel, { color: theme.colors.accentSecondary }]}>
                   SHARED WITH ME
                 </Text>
               </View>

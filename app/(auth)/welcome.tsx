@@ -168,7 +168,7 @@ function createStyles(theme: Theme) {
       paddingBottom: 50,
     },
     appleButton: {
-      height: 48,
+      height: 52,
       width: "100%",
       marginBottom: theme.spacing.md,
     },
@@ -179,9 +179,9 @@ function createStyles(theme: Theme) {
       marginBottom: theme.spacing.md,
     },
     button: {
-      height: 48,
+      height: 52,
       backgroundColor: theme.colors.buttonBg,
-      borderRadius: 10,
+      borderRadius: theme.radii.button,
       alignItems: "center",
       justifyContent: "center",
     },

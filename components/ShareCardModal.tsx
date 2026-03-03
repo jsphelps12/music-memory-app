@@ -20,6 +20,7 @@ import { Image } from "expo-image";
 import { ShareCard, CARD_WIDTH, CARD_HEIGHT } from "@/components/ShareCard";
 import { Moment } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
+import { CloseButton } from "@/components/CloseButton";
 
 interface Props {
   visible: boolean;
@@ -96,9 +97,7 @@ export function ShareCardModal({ visible, moment, photoUrls, onClose }: Props) {
           <View style={[styles.handle, { backgroundColor: theme.colors.border }]} />
           <View style={styles.header}>
             <Text style={[styles.title, { color: theme.colors.text }]}>Share Moment</Text>
-            <TouchableOpacity onPress={onClose} activeOpacity={0.7}>
-              <Text style={[styles.closeText, { color: theme.colors.textSecondary }]}>✕</Text>
-            </TouchableOpacity>
+            <CloseButton onPress={onClose} />
           </View>
 
           {/* Card preview */}
@@ -222,10 +221,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   title: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  closeText: {
     fontSize: 16,
     fontWeight: "600",
   },

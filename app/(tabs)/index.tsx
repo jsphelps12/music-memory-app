@@ -564,6 +564,14 @@ export default function TimelineScreen() {
           activeOpacity={0.7}
           style={styles.collectionSelector}
         >
+          {selectedCollection?.role === "member" && (
+            <Ionicons
+              name="people-outline"
+              size={15}
+              color={theme.colors.accentSecondary}
+              style={{ marginRight: 5 }}
+            />
+          )}
           <Text style={styles.title}>
             {selectedCollection?.name ?? "All Moments"}
           </Text>

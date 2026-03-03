@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect } from "react";
+import { CloseButton } from "@/components/CloseButton";
 import * as Haptics from "expo-haptics";
 import { Collection } from "@/types";
 import {
@@ -176,9 +177,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
           <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
             {collection.name}
           </Text>
-          <TouchableOpacity onPress={onClose} hitSlop={8}>
-            <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
-          </TouchableOpacity>
+          <CloseButton onPress={onClose} />
         </View>
 
         {isOwner ? (

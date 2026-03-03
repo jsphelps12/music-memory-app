@@ -19,6 +19,7 @@ import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
+import { CloseButton } from "@/components/CloseButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { uploadAvatar, getPublicPhotoUrl } from "@/lib/storage";
 import { useTheme } from "@/hooks/useTheme";
@@ -459,9 +460,7 @@ export default function ProfileEditScreen() {
           <View style={[styles.pickerSheetHandle, { backgroundColor: theme.colors.border }]} />
           <View style={styles.pickerSheetHeader}>
             <Text style={[styles.pickerSheetTitle, { color: theme.colors.text }]}>Birth Year</Text>
-            <TouchableOpacity onPress={() => setYearPickerVisible(false)} hitSlop={8}>
-              <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
+            <CloseButton onPress={() => setYearPickerVisible(false)} />
           </View>
           <FlatList
             data={BIRTH_YEARS}
@@ -496,9 +495,7 @@ export default function ProfileEditScreen() {
             <View style={[styles.pickerSheetHandle, { backgroundColor: theme.colors.border }]} />
             <View style={styles.pickerSheetHeader}>
               <Text style={[styles.pickerSheetTitle, { color: theme.colors.text }]}>Country</Text>
-              <TouchableOpacity onPress={() => setCountryPickerVisible(false)} hitSlop={8}>
-                <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
+              <CloseButton onPress={() => setCountryPickerVisible(false)} />
             </View>
             <View style={[styles.countrySearch, { borderColor: theme.colors.border }]}>
               <Ionicons name="search" size={15} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
@@ -765,7 +762,7 @@ function createStyles(theme: Theme) {
       marginBottom: 8,
       paddingHorizontal: 12,
       height: 40,
-      borderRadius: 10,
+      borderRadius: theme.radii.md,
       borderWidth: StyleSheet.hairlineWidth,
       backgroundColor: "transparent",
     },

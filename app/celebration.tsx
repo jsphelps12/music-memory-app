@@ -11,16 +11,19 @@ import { useAuth } from "@/contexts/AuthContext";
 const NEXT_STEPS = [
   {
     icon: "musical-notes" as const,
+    accent: "primary" as const,
     title: "Keep capturing",
     body: "The more moments you log, the richer your timeline gets.",
   },
   {
     icon: "people-outline" as const,
+    accent: "secondary" as const,
     title: "Start a shared collection",
     body: "Invite friends or family to add memories to the same playlist.",
   },
   {
     icon: "gift-outline" as const,
+    accent: "primary" as const,
     title: "Gift a memory",
     body: "Share any moment as a link — no app required to view it.",
   },
@@ -66,8 +69,14 @@ export default function CelebrationScreen() {
         <View style={styles.steps}>
           {NEXT_STEPS.map((step) => (
             <View key={step.title} style={styles.step}>
-              <View style={[styles.stepIcon, { backgroundColor: theme.colors.chipBg }]}>
-                <Ionicons name={step.icon} size={20} color={theme.colors.accent} />
+              <View style={[styles.stepIcon, {
+                backgroundColor: step.accent === "secondary" ? theme.colors.accentSecondaryBg : theme.colors.accentBg,
+              }]}>
+                <Ionicons
+                  name={step.icon}
+                  size={20}
+                  color={step.accent === "secondary" ? theme.colors.accentSecondary : theme.colors.accent}
+                />
               </View>
               <View style={styles.stepText}>
                 <Text style={styles.stepTitle}>{step.title}</Text>

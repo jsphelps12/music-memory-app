@@ -20,6 +20,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { PROMPT_CATEGORIES } from "@/constants/Prompts";
 import { CustomPromptCategory } from "@/types";
+import { CloseButton } from "@/components/CloseButton";
 
 interface Props {
   visible: boolean;
@@ -73,9 +74,7 @@ export function PromptPickerModal({ visible, onSelect, onClose, customCategories
 
           <View style={styles.header}>
             <Text style={styles.title}>Need a nudge?</Text>
-            <TouchableOpacity onPress={onClose} activeOpacity={0.7}>
-              <Text style={styles.close}>✕</Text>
-            </TouchableOpacity>
+            <CloseButton onPress={onClose} />
           </View>
 
           {/* Category tabs */}
@@ -159,10 +158,6 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.base,
       fontWeight: theme.fontWeight.semibold,
       color: theme.colors.text,
-    },
-    close: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.textSecondary,
     },
     tabs: {
       flexDirection: "row",

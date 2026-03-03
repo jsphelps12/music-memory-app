@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
+import { CloseButton } from "@/components/CloseButton";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useAuth, OnboardingData } from "@/contexts/AuthContext";
@@ -461,9 +462,7 @@ export default function OnboardingScreen() {
           <View style={[styles.pickerSheetHandle, { backgroundColor: theme.colors.border }]} />
           <View style={styles.pickerSheetHeader}>
             <Text style={[styles.pickerSheetTitle, { color: theme.colors.text }]}>Birth Year</Text>
-            <TouchableOpacity onPress={() => setYearPickerVisible(false)} hitSlop={8}>
-              <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
+            <CloseButton onPress={() => setYearPickerVisible(false)} />
           </View>
           <FlatList
             data={BIRTH_YEARS}
@@ -498,9 +497,7 @@ export default function OnboardingScreen() {
             <View style={[styles.pickerSheetHandle, { backgroundColor: theme.colors.border }]} />
             <View style={styles.pickerSheetHeader}>
               <Text style={[styles.pickerSheetTitle, { color: theme.colors.text }]}>Country</Text>
-              <TouchableOpacity onPress={() => setCountryPickerVisible(false)} hitSlop={8}>
-                <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
+              <CloseButton onPress={() => setCountryPickerVisible(false)} />
             </View>
             <View style={[styles.countrySearch, { borderColor: theme.colors.border }]}>
               <Ionicons name="search" size={15} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
@@ -599,7 +596,7 @@ function createStyles(theme: Theme) {
       marginBottom: 6,
     },
     input: {
-      height: 48,
+      height: 52,
       borderWidth: 1,
       borderColor: theme.colors.border,
       borderRadius: 12,
@@ -612,7 +609,7 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      height: 48,
+      height: 52,
       borderWidth: 1,
       borderColor: theme.colors.border,
       borderRadius: 12,
@@ -773,7 +770,7 @@ function createStyles(theme: Theme) {
       marginBottom: 8,
       paddingHorizontal: 12,
       height: 40,
-      borderRadius: 10,
+      borderRadius: theme.radii.md,
       borderWidth: 1,
       backgroundColor: "transparent",
     },

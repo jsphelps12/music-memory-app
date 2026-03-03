@@ -10,6 +10,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { CloseButton } from "@/components/CloseButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchCollectionByInviteCode, joinCollection } from "@/lib/collections";
 import { setPendingCollectionId } from "@/lib/pendingCollection";
@@ -85,9 +86,7 @@ export default function JoinScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Handle + close */}
       <View style={[styles.handle, { backgroundColor: theme.colors.textTertiary }]} />
-      <TouchableOpacity style={styles.closeButton} onPress={() => router.replace("/(tabs)")} hitSlop={8}>
-        <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
-      </TouchableOpacity>
+      <CloseButton style={styles.closeButton} onPress={() => router.replace("/(tabs)")} />
 
       {state === "loading" && (
         <View style={styles.centered}>
@@ -162,7 +161,7 @@ export default function JoinScreen() {
 
       {(state === "ready" || state === "joining") && collection && (
         <View style={styles.content}>
-          <View style={styles.collectionIcon}>
+          <View style={[styles.collectionIcon, { backgroundColor: theme.colors.accentBg }]}>
             <Ionicons name="people" size={36} color={theme.colors.accent} />
           </View>
 
@@ -254,7 +253,7 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(232, 130, 92, 0.12)",
+    // backgroundColor applied inline via theme.colors.accentBg
     marginBottom: 24,
   },
   label: {

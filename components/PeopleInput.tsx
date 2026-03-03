@@ -88,10 +88,10 @@ export function PeopleInput({ people, onChange, suggestions = [] }: Props) {
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     input: {
-      height: 48,
+      height: 52,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: 10,
+      borderRadius: theme.radii.md,
       paddingHorizontal: theme.spacing.lg,
       fontSize: theme.fontSize.base,
       color: theme.colors.text,

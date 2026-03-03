@@ -50,6 +50,7 @@ import { friendlyError } from "@/lib/errors";
 import { Collection, Moment, MoodOption } from "@/types";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { ShareCardModal } from "@/components/ShareCardModal";
+import { CloseButton } from "@/components/CloseButton";
 
 export default function MomentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -320,17 +321,13 @@ export default function MomentDetailScreen() {
               <TouchableOpacity style={styles.moreButton} onPress={openMenu} activeOpacity={0.7}>
                 <Text style={styles.moreButtonText}>{"\u22EF"}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.closeButton} onPress={() => animateOut(() => router.back())} activeOpacity={0.7}>
-                <Text style={styles.closeButtonText}>✕</Text>
-              </TouchableOpacity>
+              <CloseButton onPress={() => animateOut(() => router.back())} />
             </View>
           </>
         ) : (
           <>
             <View style={{ flex: 1 }} />
-            <TouchableOpacity style={styles.closeButton} onPress={() => animateOut(() => router.back())} activeOpacity={0.7}>
-              <Text style={styles.closeButtonText}>✕</Text>
-            </TouchableOpacity>
+            <CloseButton onPress={() => animateOut(() => router.back())} />
           </>
         )}
       </View>
@@ -846,19 +843,6 @@ function createStyles(theme: Theme) {
     menuDivider: {
       height: StyleSheet.hairlineWidth,
       backgroundColor: theme.colors.border,
-    },
-    closeButton: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: theme.colors.closeButtonBg,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    closeButtonText: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.textSecondary,
-      fontWeight: theme.fontWeight.semibold,
     },
     scrollContent: {
       paddingHorizontal: theme.spacing.xl,
