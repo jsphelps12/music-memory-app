@@ -80,17 +80,22 @@ export default function CelebrationScreen() {
 
       <View style={styles.footer}>
         {notifState !== "done" ? (
-          <TouchableOpacity
-            style={[styles.notifButton, { borderColor: theme.colors.accent }]}
-            onPress={handleEnableNotifications}
-            activeOpacity={0.8}
-            disabled={notifState === "asking"}
-          >
-            <Ionicons name="notifications-outline" size={18} color={theme.colors.accent} />
-            <Text style={[styles.notifButtonText, { color: theme.colors.accent }]}>
-              Turn on memory reminders
+          <>
+            <TouchableOpacity
+              style={[styles.notifButton, { borderColor: theme.colors.accent }]}
+              onPress={handleEnableNotifications}
+              activeOpacity={0.8}
+              disabled={notifState === "asking"}
+            >
+              <Ionicons name="notifications-outline" size={18} color={theme.colors.accent} />
+              <Text style={[styles.notifButtonText, { color: theme.colors.accent }]}>
+                Turn on memory reminders
+              </Text>
+            </TouchableOpacity>
+            <Text style={[styles.notifHint, { color: theme.colors.textSecondary }]}>
+              We'll notify you when a song anniversary comes up — like "3 years ago you were listening to this."
             </Text>
-          </TouchableOpacity>
+          </>
         ) : (
           <View style={styles.notifDone}>
             <Ionicons name="checkmark-circle" size={18} color={theme.colors.success ?? theme.colors.accent} />
@@ -193,6 +198,12 @@ function createStyles(theme: Theme) {
     notifButtonText: {
       fontSize: theme.fontSize.base,
       fontWeight: theme.fontWeight.semibold,
+    },
+    notifHint: {
+      fontSize: theme.fontSize.xs,
+      textAlign: "center",
+      lineHeight: 18,
+      marginTop: -4,
     },
     notifDone: {
       flexDirection: "row",

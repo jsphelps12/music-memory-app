@@ -5,6 +5,7 @@ import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
+import { View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import "react-native-reanimated";
@@ -41,6 +42,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { session, loading, profile, profileReady } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const colorScheme = useColorScheme();
   const [hasLaunched, setHasLaunched] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -88,13 +90,29 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     } else if (session && !inAuthGroup && !inOnboarding) {
       if (!profile?.onboardingCompleted) {
         router.replace("/onboarding" as any);
+      } else if (!hasLaunched) {
+        // Backfill the key for users who were already signed in on first open
+        // and never hit the !session path that normally writes it.
+        AsyncStorage.setItem(HAS_LAUNCHED_KEY, "true");
+        setHasLaunched(true);
       }
     }
   }, [session, loading, profileReady, hasLaunched, segments, router, profile?.onboardingCompleted]);
 
-  if (loading || hasLaunched === null || (session && !profileReady)) return null;
+  // Keep children always mounted so the navigation Stack is never torn down.
+  // An opaque overlay covers everything during the loading window, preventing
+  // any flash of the wrong screen (e.g. welcome) before routing resolves.
+  const isBlocking = loading || hasLaunched === null || (session && !profileReady);
+  const bg = colorScheme === "dark" ? "#000000" : "#FBF6F1";
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {isBlocking && (
+        <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: bg }} />
+      )}
+    </>
+  );
 }
 
 export default function RootLayout() {

@@ -4,6 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   ActivityIndicator,
   FlatList,
@@ -186,21 +187,25 @@ export default function OnboardingScreen() {
     switch (step) {
       case 1:
         return (
-          <View style={styles.stepContent}>
-            <Text style={styles.stepHeading}>What should we call you?</Text>
-            <Text style={styles.stepSub}>This shows up on shared collections and gifted memories.</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Your name"
-              placeholderTextColor={theme.colors.placeholder}
-              value={displayName}
-              onChangeText={(t) => { setDisplayName(t); setError(""); }}
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={handleNext}
-              maxLength={40}
-            />
-          </View>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.stepContent}>
+              <Text style={styles.stepHeading}>What should we call you?</Text>
+              <Text style={styles.stepSub}>This shows up on shared collections and gifted memories.</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Your name"
+                placeholderTextColor={theme.colors.placeholder}
+                value={displayName}
+                onChangeText={(t) => { setDisplayName(t); setError(""); }}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={handleNext}
+                textContentType="name"
+                autoComplete="name"
+                maxLength={40}
+              />
+            </View>
+          </TouchableWithoutFeedback>
         );
 
       case 2:

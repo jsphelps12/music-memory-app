@@ -19,29 +19,24 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Decode the JWT to get the user ID.
-  // The Supabase relay has already verified the JWT signature, so we can
-  // trust the payload without making a redundant auth.getUser() API call.
-  let userId: string;
-  try {
-    const jwt = authHeader.replace(/^Bearer\s+/i, "");
-    const payloadBase64 = jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-    const payload = JSON.parse(atob(payloadBase64));
-    userId = payload.sub;
-    if (!userId) throw new Error("No sub claim");
-  } catch {
-    return new Response(JSON.stringify({ error: "Invalid token" }), {
-      status: 401,
-      headers: corsHeaders,
-    });
-  }
-
-  // Admin client for storage deletion and auth.admin.deleteUser
+  // Admin client uses the service role key for privileged operations.
   const adminClient = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
+
+  // Validate the caller's JWT via the Auth API — this verifies signature,
+  // expiry, and all other claims. Never trust the raw payload alone.
+  const token = authHeader.replace(/^Bearer\s+/i, "");
+  const { data: { user }, error: authError } = await adminClient.auth.getUser(token);
+  if (authError || !user) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: corsHeaders,
+    });
+  }
+  const userId = user.id;
 
   // Delete all storage files under moment-photos/{user_id}/
   // This covers both moment photos and the avatar (stored at {user_id}/avatar.jpg)

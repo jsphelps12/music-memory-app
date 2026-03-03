@@ -288,6 +288,16 @@ You're walking down the street. A restaurant is playing a song that immediately 
 - [ ] User adds the song → moment saved
 - [ ] Closes the gap: a visual trigger (old photo) pairs with a musical memory
 
+### Smart Playlists **[Free basic / Premium full]**
+- [ ] Auto-generated playlists from your logged moments, organized by dimension — not manually curated, built from your data
+- [ ] **By time period** — "My 2021," "Summer 2019," "Last Winter" — date-bounded song lists, one tap to open in Apple Music [Free]
+- [ ] **By mood** — "Songs I logged as peaceful," "My heartbreak playlist" — the honest version, not an algorithmic recommendation [Free]
+- [ ] **By person** — "Moments with Jordan" as a playlist — the relationship soundtrack, listenable [Free with export, Premium for insights]
+- [ ] **By location** — "Songs from New York," "Road trip moments" — requires location data on moments [Premium]
+- [ ] **By era** — auto-detected clusters ("The Comeback Summer") rather than calendar year [Premium, needs era clustering]
+- [ ] These are distinct from personal collections (which are manually curated) — smart playlists are generated, not assembled
+- [ ] Playlist Export from Collections handles the Apple Music side; smart playlists use the same export mechanism
+
 ### Playlist Export from Collections **[Free]**
 - [ ] Any collection (personal or shared) can be exported as an Apple Music playlist
 - [ ] One tap → playlist created via MusicKit `MusicLibrary.shared.add()`
@@ -318,12 +328,21 @@ Features that turn users into acquisition channels.
 - [ ] No new data model beyond a share token on the moment
 - [ ] Requires public individual moment pages on web (`/m/{moment_id}`)
 
-### Lyric Anchoring **[Free]**
-- [ ] When logging, optionally highlight a specific lyric as the emotional anchor
+### Resurfacing Weight Control **[Free]**
+- [ ] After a moment surfaces in Reflections, let the user explicitly signal: "Show this more" / "Not now" / "Bury this"
+- [ ] Implicit version: if you engage with a resurfaced moment (tap into detail, add a new reflection, or share it), it gets upweighted automatically; if you swipe past it three times, it gets downweighted
+- [ ] Explicit version: long-press on any moment card → "Resurface often" / "Leave it in the past"
+- [ ] Some memories people want back constantly. Others they logged to process and don't need to relive. The app should learn the difference.
+- [ ] This is essentially spaced repetition for emotional memories — the Anki model applied to your past
+- [ ] Builds trust: users who feel in control of what surfaces stay longer
+
+### Lyric Anchoring + Cross-Era Lyric Connections **[Free anchor / Premium connections]**
+- [ ] When logging, optionally highlight a specific lyric as the emotional anchor [Free]
 - [ ] Stored as `lyric_anchor` field on the moment
 - [ ] Displayed prominently on detail view — the exact line that hit you
 - [ ] Years later, the lyric is more specific and powerful than just the song title
 - [ ] Surfaced after song is selected; optional, zero friction
+- [ ] **Cross-era lyric connections [Premium]** — when a lyric or theme reappears across multiple moments in different eras, the app surfaces it: *"This line from Bon Iver shows up in 3 different phases of your life. Here's who you were each time."* Requires NLP matching on lyric text + reflection text. The most poetic feature in the product — the idea that certain words follow you through life.
 
 ### Voice Notes **[Free]**
 - [ ] Record a voice note alongside (or instead of) typed reflection — expo-av already installed
@@ -414,6 +433,16 @@ Spotify knows you played "Lady in Red" 47 times. Tracks knows it was your parent
 - [ ] Minimum threshold: 50+ logs per song before any percentages are shown
 - [ ] These are infrastructure tasks; the UI comes in the Social phase once data exists
 
+### Pattern-Based Resurfacing **[Free basic / Premium deep patterns]**
+- [ ] Time-based resurfacing (On This Day, A Month Ago) is table stakes — the more interesting angle is *behavioral* patterns
+- [ ] **Artist drift** — "You logged 8 moments with Phoebe Bridgers but haven't touched her in 6 months. Here's one." Low query complexity, high emotional hit.
+- [ ] **Day-of-week patterns** — "You save a lot on Sunday nights — here's one from last month." Detect over-indexed days from moment timestamps; serve on that day.
+- [ ] **Mood resonance** — "Your mood was similar then to how you're feeling now." Match current session mood tag (from the last moment logged) against historical moments with same or adjacent tag. Show the moment + reflection as a mirror.
+- [ ] **Listening rhythm** — "You tend to log more in winter. Here's what you were listening to last February." Seasonal pattern without needing a full year of data — just same-month-last-year if it exists, or same-season average.
+- [ ] All of these surface as cards in the Reflections tab, slotted between On This Day and the prompt cards
+- [ ] Basic variants (artist drift, day-of-week, mood resonance) are Free; deeper statistical patterns (multi-variable correlations, predictive surfacing) are Premium
+- [ ] These compound — the more moments logged, the more pattern signal, the better the cards get; makes long-term retention self-reinforcing
+
 ### Forgotten Songs **[Free]**
 - [ ] Surface songs logged exactly once and never revisited
 - [ ] "You logged this once in March 2024 and never came back to it."
@@ -432,6 +461,18 @@ Spotify knows you played "Lady in Red" 47 times. Tracks knows it was your parent
 - [ ] People who log moments with others are more likely to invite those people → shared collections → installs
 - [ ] Track: moments with people tagged vs. not — if correlation with retention is strong, make the prompt more prominent
 
+### Community Entrenchment **[Free — the stickiness layer]**
+
+*The strongest retention mechanic is artifacts that feel like loss to abandon. Each of these creates something that doesn't exist anywhere else and can't be reconstructed if the user leaves.*
+
+- [ ] **Shared histories as exit barriers** — once two people have built a shared collection together (wedding, road trip, friendship), that history lives in Tracks. Leaving means losing it. Not manipulative — just the natural weight of something real being built. The job is to make the artifact feel valuable enough that this exit cost registers.
+- [ ] **"You both have a memory here"** — when two friends have independently logged the same song, the app notices: *"You and Alex both have a moment tied to this song — for completely different reasons."* No explicit sharing required; just the recognition that your history and someone else's overlap. Creates an impulse to share your reflection and see theirs.
+- [ ] **Memorial collections** — collections dedicated to someone who has passed, maintained by multiple people contributing their memories of that person's soundtrack. Deeply personal, practically impossible to replicate elsewhere, and the kind of thing families maintain for years. This is one of the most emotionally significant things the product could enable.
+- [ ] **Community challenges with temporal anchoring** — weekly or monthly prompts the whole community responds to together: *"Log the song from your best summer."* *"What were you listening to the week everything changed?"* Individual responses are private; the aggregate result (most common eras, moods, artists) is shared. Creates shared temporal experience — the feeling of doing something together — without a social graph.
+- [ ] **"The Tracks 100"** — annual list of the 100 most emotionally significant songs logged by the community, ranked by annotation depth (not play count). Different from every other chart because it's based on what songs *meant*, not how often they were played. Released each December alongside Yearly Recaps. Press-worthy. Something users look forward to.
+- [ ] **Collaborative era naming** — community votes on what to call shared musical eras: *"What do you call the post-pandemic music moment?"* *"Name the 2010s indie folk era."* Users who participate feel ownership over the product's language. Small feature, high community investment.
+- [ ] **First Tracks anniversary** — *"One year ago today, you logged your first memory here."* The app becomes part of your personal history. Leaving means the anniversary disappears.
+
 ### Mood Streaks / Gentle Gamification **[Free]**
 - [ ] "You've reflected 4 days this week" — warm, not competitive
 - [ ] Monthly recap card ("You saved 12 moments in February")
@@ -448,6 +489,24 @@ Build the infrastructure now, launch the paywall when users have 25+ moments. Do
 - [ ] Events tier: $39.99 one-time per event (extended collections, QR, book export)
 - [ ] Conversion trigger: at 25–30 moments, show a locked "Take Me Back" era card
 - [ ] "Paywall meaning, not logging" — free users keep all capture features forever
+
+### Data-Gated Feature Progression **[Premium retention mechanic]**
+- [ ] Premium features unlock not on an arbitrary calendar but when the user's *data is mature enough for them to be meaningful* — this feels earned, not withheld
+- [ ] The unlock moments create genuine "wow" beats that justify staying subscribed
+- [ ] Framing matters: never say "this feature unlocks in 7 days." Say "you're close — log 5 more moments and your first pattern will emerge."
+
+| Milestone | What unlocks | Why it requires this |
+|-----------|-------------|---------------------|
+| 5 moments | Early resurfacing cards (A Month Ago, Forgotten Songs) | Needs enough material to resurface anything |
+| 15 moments | Mood trajectory begins — first draft of your emotional arc | Needs enough variance to be meaningful |
+| 25 moments | "Take Me Back" era card appears (locked preview → conversion trigger) | Era clustering needs density |
+| 50 moments | Full predictive insights, pattern-based resurfacing | Statistical patterns need volume |
+| 100 moments | "What kind of music person are you" — personality insight | Needs rich annotation history |
+| 1 year active | On This Day with real historical data | Literally requires a year |
+| Dec 31 | Yearly Recap — "Your 2026 in Moments" | Calendar-gated, not data-gated |
+
+- [ ] **Weekly Premium discovery** (separate from unlocking) — every Monday, a push or in-app card highlights a Plus feature the user hasn't tried yet, with a one-line explanation of why *now* is a good time to try it. Not withholding, not marketing — just guided exploration of a product that's easy to under-use.
+- [ ] Progress indicator in Profile: "Your Tracks journey — X/8 chapters unlocked" — shows users how much is still ahead, makes the subscription feel like it compounds over time rather than plateauing
 
 ### "Take Me Back to This Era" **[Premium — THE conversion trigger]**
 - [ ] The experience, not just the analysis — you're not showing data, you're returning someone to a chapter of their life
@@ -524,6 +583,17 @@ These are lower priority than Premium but higher than anything below. They're gr
   - "Your generation logs this artist more than any other right now."
   - Turns anonymous stats into personal identity — deeply shareable, worth paying for
 
+### "With Others" Tab / Feed **[Free]**
+- [ ] A fourth tab (or a section within Reflections) that aggregates everything that isn't purely personal: moments you've been tagged in + recent activity across shared collections you're a member of
+- [ ] Distinct from your personal timeline — this is the social layer, the stuff that connects your memories to other people's
+- [ ] **Tagged view** — moments where someone tagged you; you see their reflection + song, with an option to "add to my timeline" (creates a linked copy) or just view
+- [ ] **Collections feed** — recent activity in all shared collections you belong to, newest first; shows contributor name, song, and a snippet of their reflection
+- [ ] Keeps shared collections alive without requiring you to manually check each one; the feed comes to you
+- [ ] No algorithmic ranking — pure chronological; the right model for an intimate product at this scale
+- [ ] Empty state: "When friends tag you in a memory, or someone adds to a shared collection you're in, it shows up here." Clear value prop, no pressure to have friends yet.
+- [ ] This is the feature that makes shared collections feel like a living thing rather than a static list
+- [ ] Prerequisite: tagging requires the friendships system (below); collections feed can ship independently before that
+
 ### Friends + Social Tagging **[Free]**
 - [ ] `friendships` table — bidirectional request/accept
 - [ ] Friend discovery by display name
@@ -532,6 +602,16 @@ These are lower priority than Premium but higher than anything below. They're gr
 - [ ] Auto-suggest shared collection when two friends have 3+ mutual song moments
 - [ ] Side-by-side perspectives view: same song logged by multiple people, both reflections shown
 - [ ] See `SOCIAL-ARCHITECTURE.md` for full spec
+
+### Memory Guessing Game **[Free — social, viral potential]**
+- [ ] "Here's the memory, what song do you think they chose?" — a guessing game built entirely from real logged moments
+- [ ] One player's reflection is shown to friends (song hidden); friends guess the song from a multiple-choice list of 4 candidates (1 correct + 3 plausible same-era/mood songs)
+- [ ] Scoring: points for correct guess, bonus for fast answer; the moment's author sees what everyone guessed
+- [ ] Works in two modes: **async** (send a challenge to a friend, they answer whenever) and **live** (real-time with multiple people, like a party game)
+- [ ] The loop: "I want to know if my friends really know me" → share a challenge → they play → you see results → conversation starts → they log their own memories
+- [ ] Acquisition mechanic: non-users can play a challenge via web link (like Gift a Memory) — to see the full answer and play back, download the app
+- [ ] Content constraint: only moments the user opts into for the game (not every memory is game material; some are private); a "make this gameable" toggle on the moment
+- [ ] *Opinion: this is the most genuinely novel idea in the social section. It turns your actual memories into social currency without making the product feel gamey — the reflection is still real and personal, the game mechanic is just the delivery method. High viral coefficient if the async challenge flow works well on web. Don't build this early — needs a friend graph first — but it should be on the horizon.*
 
 ### Artist + Event Collections **[Free to join / Premium to create — way later, needs user base first]**
 - [ ] Artist creates a collection for an album release: "Log your first listen to [Album]"
@@ -635,13 +715,34 @@ Get users first. Let usage data and user feedback drive exactly what to charge f
 
 ### Additional Revenue Streams
 
-**Gift subscriptions** — buy someone a year of Plus. Especially powerful at Valentine's Day, birthdays, anniversaries. *"I want you to have somewhere to put this."* High emotional fit. RevenueCat supports this natively.
+**Gift subscriptions — with pre-seeding** — buy someone a year of Plus, but with a twist: the giver can add 3–5 songs when purchasing the gift ("songs I think of when I think of you / them"). Recipient opens the app to a pre-populated set of songs waiting for them with a note: "Josh added these for you. What do they remind you of?" Forces the first moment in a way a blank app never would. Especially powerful for gifting to a parent or grandparent — you can pre-configure their generational era and seed their favorite songs so day 1 is immediately personal, not cold. Primary gifting occasions: Mother's Day, Father's Day, milestone birthdays (50th, 60th), anniversaries. *"Give your mom somewhere to put all those songs she keeps mentioning."* RevenueCat supports gift subs natively; the pre-seeding is a lightweight custom flow on top.
 
 **Artist & label partnerships** — artists create official collections for album releases; they pay for analytics ("here's how fans emotionally responded to each track") and the cultural artifact. Indie artists free to drive adoption; major label campaigns paid placement.
 
 **B2B music therapy** — therapists assign music journaling between sessions. Therapist-tier ($15–25/month): assign prompts, view client engagement (with consent). AMTA has 4,000+ members. Low acquisition cost, high LTV, zero consumer marketing needed.
 
 **Physical book margin** — $149 hardcover at ~$45–55 print cost = ~$95 gross margin per book. Artifact Uprising charges $200 for a beautiful-but-silent book. Tracks books play music — point your phone at any page, the song from that moment plays. That's a genuinely different product category, not just a photo book with better paper. Positioned below Artifact Uprising on price, above Chatbooks on intention. The QR audio + emotional reflections + playlist page at the back is the differentiator. One wedding photographer who recommends it to every client makes this revenue meaningful.
+
+**Growth levers — acquisition channels worth thinking about now even if not built yet:**
+
+*Organic / content*
+- **Spotify Wrapped counter-programming** — every December, people are in active music reflection mode. A campaign timed to Wrapped costs nothing: *"Wrapped tells you what you played 32,000 times. Tracks tells you why the 4th listen of one song changed everything."* Moment cards are already shareable; the cultural moment exists once a year, use it.
+- **The "100 songs" challenge** — structured prompt: log 100 songs that defined your life. Share the collection publicly. Creates massive shareable content, each piece links back to the app. Seeded by a handful of users with audiences, spreads from there.
+- **Shareable moment cards as organic ads** — every card shared on Instagram/TikTok is a free impression with emotional context attached. The card format is already built. The job is to make the card beautiful enough that sharing feels like self-expression, not promotion.
+- **"What song takes you back" trend format** — the Instagram comment with 2,962 likes is the thesis. This emotional reaction is already happening in comments on music posts. Tracks is where it lives permanently. Seed a TikTok/Reels format, let it find its own energy.
+
+*Earned media*
+- **Press / editorial** — *"Emotional music journal"* is a distinctive angle in music tech, which is otherwise dominated by streaming. Music publications (Pitchfork, The Ringer, NME), journaling publications, lifestyle. One good feature article changes the install trajectory at this stage more than any paid channel. Write the pitch around the Instagram comment quote — it's the hook.
+- **Music therapy angle** — music therapy is a real clinical discipline (AMTA: 4,000+ certified therapists). A therapist recommending Tracks as between-session homework = multiple installs per therapist referral, high-LTV users. Email outreach to a small number of therapists costs nothing. If it works, it's a channel. Write a one-page explainer on what the app does for emotional reflection.
+
+*Gifting occasions as acquisition events*
+- **Milestone birthdays** — turning 40, 50, 60, 70 is a natural "reflect on your life's soundtrack" moment. The gift pitch writes itself: *"Forty years of songs. Here's somewhere to put them."* Different from a generic gift sub — it's positioned as a life-archive tool, not an app subscription.
+- **Mother's Day / Father's Day** — the highest-signal gifting occasion for this product. "Give your mom somewhere to put all those songs she keeps mentioning." The intergenerational angle (pre-seed their era + songs) is uniquely Tracks; no other journaling app can do this.
+- **Anniversaries** — *"It's your 10th anniversary. What was your first dance song? What were you listening to the week you met?"* Time-boxed gifting trigger with a specific emotional prompt. Could be a landing page.
+
+*Community channels*
+- **Playlist communities** — people who build playlists on Spotify, rate music on RateYourMusic, participate in music subreddits already annotate music. They're the ideal early user. Tracks is the next step from a playlist with descriptions. Seeding in these communities (genuinely, not spammy) finds the users who will log the most.
+- **Musicians as users** — musicians who publicly journal about songs that influenced them have audiences of people with the same taste and emotional relationship to music. One musician who uses Tracks publicly = their fans as the highest-quality possible leads.
 
 **Aggregated data licensing** — anonymized, explicitly consented emotional music data is valuable to labels, streaming services, and music researchers. Plant this flag now in the privacy policy. Years out, but the data moat is real and accumulates from day one.
 

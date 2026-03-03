@@ -179,6 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: "POST",
       headers: {
         Authorization: `Bearer ${currentSession.access_token}`,
+        apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
         "Content-Type": "application/json",
       },
     });
