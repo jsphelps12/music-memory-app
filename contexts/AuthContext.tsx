@@ -171,16 +171,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteAccount = async () => {
-    const { error } = await supabase.functions.invoke("delete-account");
-    if (error) {
-      // Extract the actual error message from the JSON body if present
-      let message = error.message;
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    if (!currentSession) throw new Error("Not authenticated");
+
+    const fnUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`;
+    const res = await fetch(fnUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${currentSession.access_token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!res.ok) {
+      let message = "Delete failed";
       try {
-        const parsed = JSON.parse(message);
-        if (parsed.error) message = parsed.error;
+        const body = await res.json();
+        message = body.error ?? message;
       } catch {}
       throw new Error(message);
     }
+
     // Sign out locally only — the auth user no longer exists server-side
     await supabase.auth.signOut({ scope: "local" });
   };
