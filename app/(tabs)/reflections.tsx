@@ -287,6 +287,12 @@ export default function ReflectionsScreen() {
     );
   }
 
+  const hasAnyContent =
+    byYear.length > 0 ||
+    aMonthAgo !== null ||
+    (thisMonth !== null && thisMonth.count > 0) ||
+    randomMoment !== null;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -298,95 +304,39 @@ export default function ReflectionsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* This Month */}
-        <View style={styles.sectionRow}>
-          <Text style={styles.sectionTitle}>This Month</Text>
-          <Text style={styles.sectionSubtitle}>{thisMonthLabel}</Text>
-        </View>
-
-        {thisMonth && thisMonth.count > 0 ? (
-          <View style={styles.thisMonthCard}>
-            <View style={styles.thisMonthStat}>
-              <Text style={styles.thisMonthBig}>{thisMonth.count}</Text>
-              <Text style={styles.thisMonthStatLabel}>
-                {thisMonth.count === 1 ? "moment" : "moments"}
-              </Text>
+        {/* On This Day — hidden when empty */}
+        {byYear.length > 0 && (
+          <>
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionTitle}>On This Day</Text>
+              <Text style={styles.sectionSubtitle}>{todayLabel}</Text>
             </View>
-            {comparisonLabel ? (
-              <View style={styles.thisMonthChip}>
-                <Text
-                  style={[
-                    styles.thisMonthChipText,
-                    thisMonth.count > thisMonth.lastMonthCount && styles.thisMonthChipUp,
-                    thisMonth.count < thisMonth.lastMonthCount && styles.thisMonthChipDown,
-                  ]}
-                >
-                  {comparisonLabel}
-                </Text>
-              </View>
-            ) : null}
-            {thisMonth.topArtist ? (
-              <View style={styles.thisMonthMeta}>
-                <Text style={styles.thisMonthMetaLabel}>🎵 </Text>
-                <Text style={styles.thisMonthMetaValue} numberOfLines={1}>
-                  {thisMonth.topArtist}
-                </Text>
-              </View>
-            ) : null}
-            {thisMonth.topMood ? (
-              <View style={styles.thisMonthMeta}>
-                <Text style={styles.thisMonthMetaLabel}>Top mood: </Text>
-                <Text style={styles.thisMonthMetaValue} numberOfLines={1}>
-                  {thisMonth.topMood}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-        ) : (
-          <View style={styles.emptySection}>
-            <Text style={styles.emptyText}>No moments logged this month yet.</Text>
-          </View>
+            {byYear.map(({ year, moments }) => {
+              const yearsAgo = thisYear - year;
+              const label = yearsAgo === 1 ? "1 year ago" : `${yearsAgo} years ago`;
+              return (
+                <View key={year} style={styles.yearGroup}>
+                  <Text style={styles.yearLabel}>
+                    {label} · {year}
+                  </Text>
+                  {moments.map((m) => (
+                    <MomentCard
+                      key={m.id}
+                      item={m}
+                      onPress={() => router.push(`/moment/${m.id}`)}
+                      allMoods={allMoods}
+                    />
+                  ))}
+                </View>
+              );
+            })}
+          </>
         )}
 
-        {/* On This Day */}
-        <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
-          <Text style={styles.sectionTitle}>On This Day</Text>
-          <Text style={styles.sectionSubtitle}>{todayLabel}</Text>
-        </View>
-
-        {byYear.length === 0 ? (
-          <View style={styles.emptySection}>
-            <Text style={styles.emptyText}>
-              No moments from this date in past years yet.
-            </Text>
-          </View>
-        ) : (
-          byYear.map(({ year, moments }) => {
-            const yearsAgo = thisYear - year;
-            const label =
-              yearsAgo === 1 ? "1 year ago" : `${yearsAgo} years ago`;
-            return (
-              <View key={year} style={styles.yearGroup}>
-                <Text style={styles.yearLabel}>
-                  {label} · {year}
-                </Text>
-                {moments.map((m) => (
-                  <MomentCard
-                    key={m.id}
-                    item={m}
-                    onPress={() => router.push(`/moment/${m.id}`)}
-                    allMoods={allMoods}
-                  />
-                ))}
-              </View>
-            );
-          })
-        )}
-
-        {/* A Month Ago */}
+        {/* A Month Ago — hidden when empty */}
         {aMonthAgo && (
           <>
-            <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
+            <View style={[styles.sectionRow, byYear.length > 0 && styles.sectionRowSpaced]}>
               <Text style={styles.sectionTitle}>A Month Ago</Text>
               {aMonthAgo.momentDate && (
                 <Text style={styles.sectionSubtitle}>
@@ -405,31 +355,84 @@ export default function ReflectionsScreen() {
           </>
         )}
 
-        {/* A Random Memory */}
-        <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
-          <Text style={styles.sectionTitle}>A Random Memory</Text>
-          <TouchableOpacity
-            onPress={handleShuffle}
-            disabled={shuffling}
-            hitSlop={8}
-          >
-            {shuffling ? (
-              <ActivityIndicator size="small" color={theme.colors.accent} />
-            ) : (
-              <Ionicons name="shuffle" size={20} color={theme.colors.accent} />
-            )}
-          </TouchableOpacity>
-        </View>
+        {/* This Month — hidden when no moments logged yet */}
+        {thisMonth !== null && thisMonth.count > 0 && (
+          <>
+            <View style={[styles.sectionRow, (byYear.length > 0 || aMonthAgo) && styles.sectionRowSpaced]}>
+              <Text style={styles.sectionTitle}>This Month</Text>
+              <Text style={styles.sectionSubtitle}>{thisMonthLabel}</Text>
+            </View>
+            <View style={styles.thisMonthCard}>
+              <View style={styles.thisMonthStat}>
+                <Text style={styles.thisMonthBig}>{thisMonth.count}</Text>
+                <Text style={styles.thisMonthStatLabel}>
+                  {thisMonth.count === 1 ? "moment" : "moments"}
+                </Text>
+              </View>
+              {comparisonLabel ? (
+                <View style={styles.thisMonthChip}>
+                  <Text
+                    style={[
+                      styles.thisMonthChipText,
+                      thisMonth.count > thisMonth.lastMonthCount && styles.thisMonthChipUp,
+                      thisMonth.count < thisMonth.lastMonthCount && styles.thisMonthChipDown,
+                    ]}
+                  >
+                    {comparisonLabel}
+                  </Text>
+                </View>
+              ) : null}
+              {thisMonth.topArtist ? (
+                <View style={styles.thisMonthMeta}>
+                  <Text style={styles.thisMonthMetaLabel}>🎵 </Text>
+                  <Text style={styles.thisMonthMetaValue} numberOfLines={1}>
+                    {thisMonth.topArtist}
+                  </Text>
+                </View>
+              ) : null}
+              {thisMonth.topMood ? (
+                <View style={styles.thisMonthMeta}>
+                  <Text style={styles.thisMonthMetaLabel}>Top mood: </Text>
+                  <Text style={styles.thisMonthMetaValue} numberOfLines={1}>
+                    {thisMonth.topMood}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </>
+        )}
 
-        {randomMoment ? (
-          <MomentCard
-            item={randomMoment}
-            onPress={() => router.push(`/moment/${randomMoment.id}`)}
-            allMoods={allMoods}
-          />
-        ) : (
-          <View style={styles.emptySection}>
-            <Text style={styles.emptyText}>No moments yet.</Text>
+        {/* A Random Memory — always visible as the anchor section */}
+        {randomMoment && (
+          <>
+            <View style={[styles.sectionRow, (byYear.length > 0 || aMonthAgo || thisMonth?.count) && styles.sectionRowSpaced]}>
+              <Text style={styles.sectionTitle}>A Random Memory</Text>
+              <TouchableOpacity
+                onPress={handleShuffle}
+                disabled={shuffling}
+                hitSlop={8}
+              >
+                {shuffling ? (
+                  <ActivityIndicator size="small" color={theme.colors.accent} />
+                ) : (
+                  <Ionicons name="shuffle" size={20} color={theme.colors.accent} />
+                )}
+              </TouchableOpacity>
+            </View>
+            <MomentCard
+              item={randomMoment}
+              onPress={() => router.push(`/moment/${randomMoment.id}`)}
+              allMoods={allMoods}
+            />
+          </>
+        )}
+
+        {/* Empty state — shown only when user has no moments at all */}
+        {!hasAnyContent && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>
+              Log some moments and they'll resurface here.
+            </Text>
           </View>
         )}
       </ScrollView>
@@ -537,11 +540,13 @@ function createStyles(theme: Theme) {
       color: theme.colors.textSecondary,
       marginBottom: theme.spacing.sm,
     },
-    emptySection: {
-      paddingVertical: theme.spacing.xl,
+    emptyState: {
+      flex: 1,
       alignItems: "center",
+      justifyContent: "center",
+      paddingTop: 80,
     },
-    emptyText: {
+    emptyStateText: {
       fontSize: theme.fontSize.base,
       color: theme.colors.textTertiary,
       textAlign: "center",
