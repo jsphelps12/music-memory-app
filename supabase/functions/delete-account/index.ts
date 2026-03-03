@@ -4,6 +4,7 @@ Deno.serve(async (req) => {
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "authorization, content-type",
+    "Content-Type": "application/json",
   };
 
   if (req.method === "OPTIONS") {
@@ -36,7 +37,8 @@ Deno.serve(async (req) => {
   // Admin client for storage deletion and auth.admin.deleteUser
   const adminClient = createClient(
     Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
   // Delete all storage files under moment-photos/{user_id}/

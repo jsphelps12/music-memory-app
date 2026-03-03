@@ -69,10 +69,14 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       if (!profile?.onboardingCompleted) {
         router.replace("/onboarding" as any);
       } else {
-        // Pre-set first-moment flag for existing users so they don't see the celebration screen
-        AsyncStorage.getItem(`first_moment_saved_${session.user.id}`).then((v) => {
-          if (!v) AsyncStorage.setItem(`first_moment_saved_${session.user.id}`, "true");
-        });
+        // Only pre-set first-moment flag for existing users signing in from the auth group.
+        // Do NOT pre-set when coming from inOnboarding — that means a new user just finished
+        // onboarding and should see the celebration after their first moment.
+        if (inAuthGroup) {
+          AsyncStorage.getItem(`first_moment_saved_${session.user.id}`).then((v) => {
+            if (!v) AsyncStorage.setItem(`first_moment_saved_${session.user.id}`, "true");
+          });
+        }
         AsyncStorage.getItem(PENDING_INVITE_CODE_KEY).then((code) => {
           AsyncStorage.removeItem(PENDING_INVITE_CODE_KEY);
           router.replace("/(tabs)");

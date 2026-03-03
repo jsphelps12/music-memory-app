@@ -172,9 +172,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const deleteAccount = async () => {
     const { error } = await supabase.functions.invoke("delete-account");
-    if (error) throw error;
-    // Sign out locally — the auth state change will redirect to sign-in
-    await supabase.auth.signOut();
+    if (error) {
+      // Extract the actual error message from the JSON body if present
+      let message = error.message;
+      try {
+        const parsed = JSON.parse(message);
+        if (parsed.error) message = parsed.error;
+      } catch {}
+      throw new Error(message);
+    }
+    // Sign out locally only — the auth user no longer exists server-side
+    await supabase.auth.signOut({ scope: "local" });
   };
 
   const updateProfile = async (updates: {
