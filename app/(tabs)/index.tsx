@@ -118,7 +118,7 @@ export default function TimelineScreen() {
   debouncedLocationRef.current = debouncedLocation;
 
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
-  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarLoading, setCalendarLoading] = useState(true);
   const [calendarMoments, setCalendarMoments] = useState<Moment[]>([]);
   const calendarFetchedRef = useRef(false);
   const [pendingScrollId, setPendingScrollId] = useState<string | null>(null);
@@ -494,12 +494,13 @@ export default function TimelineScreen() {
       const stale = consumeTimelineStale();
       const elapsed = Date.now() - lastFetchTime.current;
       if (stale) calendarFetchedRef.current = false;
+      if (!calendarFetchedRef.current) fetchCalendarMoments();
       if (lastFetchTime.current === 0) {
         fetchMoments(true);
       } else if (stale || elapsed >= REFETCH_COOLDOWN_MS) {
         fetchMoments(false);
       }
-    }, [fetchMoments, loadCollections])
+    }, [fetchMoments, loadCollections, fetchCalendarMoments])
   );
 
   const handleRefresh = useCallback(async () => {
