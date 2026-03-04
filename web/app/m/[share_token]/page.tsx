@@ -112,7 +112,7 @@ export default async function GiftedMomentPage({ params }: PageProps) {
               {formattedDate ? (
                 <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{formattedDate}</p>
               ) : <span />}
-              <p className="text-sm font-bold tracking-wide" style={{ color: "#E8825C" }}>Tracks</p>
+              <p className="text-sm font-bold tracking-wide" style={{ color: "#E8825C" }}>Soundtracks</p>
             </div>
           </div>
         </div>
@@ -153,7 +153,7 @@ export default async function GiftedMomentPage({ params }: PageProps) {
             className="block text-center py-3 rounded-full text-white font-semibold text-base transition-opacity hover:opacity-90"
             style={{ backgroundColor: "#E8825C" }}
           >
-            Capture your own memories in Tracks
+            Capture your own memories in Soundtracks
           </a>
         </div>
       </div>

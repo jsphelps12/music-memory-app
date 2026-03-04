@@ -58,7 +58,7 @@ export default function WelcomeScreen() {
       <View style={styles.content}>
         <Image source={ICON} style={styles.icon} contentFit="contain" />
 
-        <Text style={styles.title}>Tracks</Text>
+        <Text style={styles.title}>Soundtracks</Text>
         <Text style={styles.tagline}>
           Capture the songs behind your memories
         </Text>

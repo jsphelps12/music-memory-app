@@ -77,7 +77,7 @@ export default function SignInScreen() {
     >
       <View style={styles.inner}>
         <Text style={styles.title}>Sign In</Text>
-        <Text style={styles.subtitle}>Welcome to Tracks</Text>
+        <Text style={styles.subtitle}>Welcome to Soundtracks</Text>
 
         {registered ? (
           <View style={styles.successBox}>

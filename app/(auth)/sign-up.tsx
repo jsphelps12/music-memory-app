@@ -54,7 +54,7 @@ export default function SignUpScreen() {
     >
       <View style={styles.inner}>
         <Text style={styles.title}>Sign Up</Text>
-        <Text style={styles.subtitle}>Create your Tracks account</Text>
+        <Text style={styles.subtitle}>Create your Soundtracks account</Text>
 
         <TextInput
           style={[styles.input, focusedField === "email" && { borderColor: theme.colors.accent }]}

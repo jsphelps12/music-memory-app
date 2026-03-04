@@ -2,12 +2,12 @@ import { ExpoConfig, ConfigContext } from "expo/config";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: "Tracks",
+  name: "Soundtracks",
   slug: "music-memory",
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/images/app-icon.png",
-  scheme: "tracks",
+  scheme: "soundtracks",
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
   splash: {
@@ -21,15 +21,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     usesAppleSignIn: true,
     infoPlist: {
       NSAppleMusicUsageDescription:
-        "Tracks uses Apple Music to search and play songs linked to your moments.",
+        "Soundtracks uses Apple Music to search and play songs linked to your moments.",
       NSPhotoLibraryUsageDescription:
-        "Tracks uses your photo library to attach photos to your moments.",
+        "Soundtracks uses your photo library to attach photos to your moments.",
       NSCameraUsageDescription:
-        "Tracks uses your camera to take photos for your moments.",
+        "Soundtracks uses your camera to take photos for your moments.",
       NSLocationWhenInUseUsageDescription:
         "Tracks reads your photos' location data to suggest where your moment took place.",
       NSMicrophoneUsageDescription:
-        "Tracks uses the microphone to identify songs playing around you with ShazamKit.",
+        "Soundtracks uses the microphone to identify songs playing around you with ShazamKit.",
       ITSAppUsesNonExemptEncryption: false,
     },
     entitlements: {
@@ -64,9 +64,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-image-picker",
       {
         photosPermission:
-          "Tracks uses your photo library to attach photos to your moments.",
+          "Soundtracks uses your photo library to attach photos to your moments.",
         cameraPermission:
-          "Tracks uses your camera to take photos for your moments.",
+          "Soundtracks uses your camera to take photos for your moments.",
       },
     ],
     "expo-sqlite",

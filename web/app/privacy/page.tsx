@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Tracks",
+  title: "Privacy Policy — Soundtracks",
 };
 
 export default function PrivacyPolicy() {
@@ -12,7 +12,7 @@ export default function PrivacyPolicy() {
           href="/"
           style={{ fontSize: 14, color: "#E8825C", textDecoration: "none", display: "inline-block", marginBottom: 40 }}
         >
-          ← Tracks
+          ← Soundtracks
         </a>
 
         <h1 style={{ fontSize: 36, fontWeight: 700, color: "#2C2C3A", marginBottom: 8 }}>
@@ -22,13 +22,13 @@ export default function PrivacyPolicy() {
 
         <Section>
           <p>
-            Tracks is a personal music memory journal. You write down what songs mean to you —
+            Soundtracks is a personal music memory journal. You write down what songs mean to you —
             moments, places, feelings. That&apos;s intimate data. We take that seriously, and we want
             to be straightforward about what we collect, why, and how it&apos;s handled.
           </p>
           <p>
-            Tracks is operated by <strong>[Your Name]</strong>. If you have any questions, email us
-            at <a href="mailto:hello@tracks.app" style={{ color: "#E8825C" }}>hello@tracks.app</a>.
+            Soundtracks is operated by <strong>[Your Name]</strong>. If you have any questions, email us
+            at <a href="mailto:founder@soundtracks.app" style={{ color: "#E8825C" }}>founder@soundtracks.app</a>.
           </p>
         </Section>
 
@@ -46,11 +46,11 @@ export default function PrivacyPolicy() {
         <H3>Your moments</H3>
         <Section>
           <p>
-            Everything you log in Tracks is yours. We store it so you can access it across devices
+            Everything you log in Soundtracks is yours. We store it so you can access it across devices
             and revisit it over time.
           </p>
           <ul>
-            <li><strong>Reflection text</strong> — the free-form writing you attach to a moment. This is the most personal data in Tracks. It is never read by us, never used for advertising, and never sold.</li>
+            <li><strong>Reflection text</strong> — the free-form writing you attach to a moment. This is the most personal data in Soundtracks. It is never read by us, never used for advertising, and never sold.</li>
             <li><strong>Song metadata</strong> — title, artist, album, and Apple Music ID for songs you attach to moments. Sourced from Apple&apos;s catalog.</li>
             <li><strong>Photos</strong> — photos you choose to attach to moments, stored securely.</li>
             <li><strong>Mood tags, people tags, location, and date</strong> — optional fields you fill in to give your moments more context.</li>
@@ -71,7 +71,7 @@ export default function PrivacyPolicy() {
           </ul>
           <p>
             This information is optional (except birth year and country, which improve suggestions significantly).
-            It is never shared with third parties and is only used to personalize your experience inside Tracks.
+            It is never shared with third parties and is only used to personalize your experience inside Soundtracks.
           </p>
         </Section>
 
@@ -91,7 +91,7 @@ export default function PrivacyPolicy() {
             <li><strong>Notification preferences</strong> — which notification types you&apos;ve enabled or disabled.</li>
             <li><strong>App usage data</strong> — anonymous events like &quot;moment created&quot; or &quot;notification opened&quot; to help us understand how the app is used. Collected via PostHog. No personally identifiable information is attached.</li>
             <li><strong>Crash reports</strong> — anonymized technical data when the app crashes, collected via Sentry. Helps us fix bugs.</li>
-            <li><strong>Deep link data</strong> — if you arrive at Tracks via an invite link, Branch.io temporarily holds the invite code so it can be retrieved after app install. See Branch&apos;s privacy policy for their data handling.</li>
+            <li><strong>Deep link data</strong> — if you arrive at Soundtracks via an invite link, the invite code is temporarily stored in your device clipboard so it can be retrieved after app install. This data never leaves your device.</li>
           </ul>
         </Section>
 
@@ -125,7 +125,7 @@ export default function PrivacyPolicy() {
                 ["Supabase", "Database, authentication, and photo storage"],
                 ["Apple (Sign In with Apple, MusicKit, APNs)", "Authentication, song catalog, push notification delivery"],
                 ["Expo / Expo Push Notifications", "Push notification infrastructure"],
-                ["Branch.io", "Deferred deep links for invite codes"],
+                ["Clipboard (device)", "Deferred deep links for invite codes (no external service)"],
                 ["PostHog", "Anonymous usage analytics"],
                 ["Sentry", "Crash reporting"],
                 ["Vercel", "Web app hosting"],
@@ -158,14 +158,14 @@ export default function PrivacyPolicy() {
             <li><strong>Access</strong> — you can view all your data inside the app at any time.</li>
             <li><strong>Correction</strong> — you can edit or update any moment, your display name, and your profile photo.</li>
             <li><strong>Deletion</strong> — you can delete your account from the Profile screen. This permanently removes your account, all moments, all photos, and all associated data from our systems. This cannot be undone.</li>
-            <li><strong>Data portability</strong> — we plan to add an export feature. In the meantime, email us at <a href="mailto:hello@tracks.app" style={{ color: "#E8825C" }}>hello@tracks.app</a> and we can provide a data export.</li>
+            <li><strong>Data portability</strong> — we plan to add an export feature. In the meantime, email us at <a href="mailto:founder@soundtracks.app" style={{ color: "#E8825C" }}>founder@soundtracks.app</a> and we can provide a data export.</li>
           </ul>
         </Section>
 
         <H2>Children</H2>
         <Section>
           <p>
-            Tracks is not intended for children under 13. We do not knowingly collect personal
+            Soundtracks is not intended for children under 13. We do not knowingly collect personal
             information from anyone under 13. If you believe we have inadvertently collected data
             from a child, please contact us and we will delete it.
           </p>
@@ -174,9 +174,9 @@ export default function PrivacyPolicy() {
         <H2>Changes to this policy</H2>
         <Section>
           <p>
-            We will update this policy as Tracks grows — new features may involve collecting
+            We will update this policy as Soundtracks grows — new features may involve collecting
             additional data. When we make material changes, we will notify you in the app and
-            update the &quot;Last updated&quot; date above. Continued use of Tracks after a change constitutes
+            update the &quot;Last updated&quot; date above. Continued use of Soundtracks after a change constitutes
             acceptance of the updated policy.
           </p>
         </Section>
@@ -185,12 +185,12 @@ export default function PrivacyPolicy() {
         <Section>
           <p>
             Questions, concerns, or requests:{" "}
-            <a href="mailto:hello@tracks.app" style={{ color: "#E8825C" }}>hello@tracks.app</a>
+            <a href="mailto:founder@soundtracks.app" style={{ color: "#E8825C" }}>founder@soundtracks.app</a>
           </p>
         </Section>
 
         <footer style={{ marginTop: 64, paddingTop: 24, borderTop: "1px solid #e5e0d8", fontSize: 13, color: "#aaa", display: "flex", justifyContent: "space-between" }}>
-          <span>© {new Date().getFullYear()} Tracks</span>
+          <span>© {new Date().getFullYear()} Soundtracks</span>
           <a href="/terms" style={{ color: "#aaa" }}>Terms of Use</a>
         </footer>
       </div>

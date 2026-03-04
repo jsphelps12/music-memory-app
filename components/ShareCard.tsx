@@ -82,7 +82,7 @@ export function ShareCard({ moment, photoUrl }: Props) {
 
         <View style={styles.footer}>
           {date ? <Text style={styles.date}>{date}</Text> : <View />}
-          <Text style={styles.wordmark}>Tracks</Text>
+          <Text style={styles.wordmark}>Soundtracks</Text>
         </View>
       </View>
     </View>

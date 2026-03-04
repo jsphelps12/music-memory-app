@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Tracks — an iOS app for capturing and revisiting music-linked memories ("moments"). Users attach a song (via Apple Music), a reflection, photos, mood tags, and people to each moment, building a personal timeline of musical memories.
+Soundtracks — an iOS app for capturing and revisiting music-linked memories ("moments"). Users attach a song (via Apple Music), a reflection, photos, mood tags, and people to each moment, building a personal timeline of musical memories.
 
 ## Tech Stack
 
@@ -43,7 +43,7 @@ Copy `.env.example` to `.env` and fill in:
 - Row Level Security enforces per-user data isolation in Supabase
 - Photo storage uses public `moment-photos` bucket with `{user_id}/` folder prefixes; avatars stored at `{user_id}/avatar.jpg`
 - Photo/avatar URLs are generated synchronously via `getPublicPhotoUrl()` — no API calls needed (bucket is public for reads; RLS still protects uploads/deletes)
-- Deep link scheme is `tracks://`; used for email confirmation redirects via PKCE auth flow
+- Deep link scheme is `soundtracks://`; used for email confirmation redirects via PKCE auth flow
 - Profile data (display_name, avatar_url) lives in `profiles` table; AuthContext fetches and exposes it
 - Error handling uses `friendlyError()` from `lib/errors.ts` — never show raw Supabase/network errors to users
 - Use `ErrorState` for full-screen errors (load failures) and `ErrorBanner` for inline errors (background refresh failures that shouldn't replace existing content)

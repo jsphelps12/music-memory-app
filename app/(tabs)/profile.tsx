@@ -489,8 +489,8 @@ export default function ProfileScreen() {
             {([
               { icon: "search-outline", label: "Search", desc: "Find any song by title or artist" },
               { icon: "musical-note-outline", label: "Now Playing", desc: "Auto-fills when Apple Music is playing" },
-              { icon: "share-outline", label: "Share from Apple Music / Spotify", desc: "Tap Share → Tracks in any music app" },
-              { icon: "image-outline", label: "Share from Photos", desc: "Tap Share → Tracks from camera roll" },
+              { icon: "share-outline", label: "Share from Apple Music / Spotify", desc: "Tap Share → Soundtracks in any music app" },
+              { icon: "image-outline", label: "Share from Photos", desc: "Tap Share → Soundtracks from camera roll" },
               { icon: "ear-outline", label: "ShazamKit", desc: "Hear a song anywhere — identify it in-app" },
             ] as const).map(({ icon, label, desc }, idx) => (
               <View key={label} style={[styles.captureRow, idx > 0 && styles.captureRowBorder]}>
