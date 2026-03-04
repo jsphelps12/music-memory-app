@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { usePostHog } from "posthog-react-native";
 import {
   View,
@@ -28,6 +29,7 @@ export default function SignUpScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focusedField, setFocusedField] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSignUp = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -73,18 +75,23 @@ export default function SignUpScreen() {
           onBlur={() => setFocusedField("")}
         />
 
-        <TextInput
-          style={[styles.input, focusedField === "password" && { borderColor: theme.colors.accent }]}
-          placeholder="Password"
-          placeholderTextColor={theme.colors.placeholder}
-          cursorColor={theme.colors.accent}
-          secureTextEntry
-          autoComplete="new-password"
-          value={password}
-          onChangeText={setPassword}
-          onFocus={() => setFocusedField("password")}
-          onBlur={() => setFocusedField("")}
-        />
+        <View style={[styles.inputRow, focusedField === "password" && { borderColor: theme.colors.accent }]}>
+          <TextInput
+            style={styles.inputInner}
+            placeholder="Password"
+            placeholderTextColor={theme.colors.placeholder}
+            cursorColor={theme.colors.accent}
+            secureTextEntry={!showPassword}
+            autoComplete="new-password"
+            value={password}
+            onChangeText={setPassword}
+            onFocus={() => setFocusedField("password")}
+            onBlur={() => setFocusedField("")}
+          />
+          <TouchableOpacity onPress={() => setShowPassword(v => !v)} hitSlop={8}>
+            <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={theme.colors.textTertiary} />
+          </TouchableOpacity>
+        </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -145,6 +152,22 @@ function createStyles(theme: Theme) {
       color: theme.colors.text,
       marginBottom: 14,
       backgroundColor: theme.colors.backgroundInput,
+    },
+    inputRow: {
+      height: 52,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radii.md,
+      paddingHorizontal: theme.spacing.lg,
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 14,
+      backgroundColor: theme.colors.backgroundInput,
+    },
+    inputInner: {
+      flex: 1,
+      fontSize: theme.fontSize.base,
+      color: theme.colors.text,
     },
     error: {
       color: theme.colors.destructive,

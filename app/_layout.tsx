@@ -177,7 +177,7 @@ function RootLayoutNav() {
   }, [pathname, params]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !profile?.onboardingCompleted) return;
     registerForPushNotifications(user.id).catch(() => {});
 
     function handleNotificationData(data: Record<string, any> | undefined) {
@@ -208,7 +208,7 @@ function RootLayoutNav() {
       );
     });
     return () => sub.remove();
-  }, [user?.id]);
+  }, [user?.id, profile?.onboardingCompleted]);
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>

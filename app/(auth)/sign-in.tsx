@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePostHog } from "posthog-react-native";
 import {
   View,
@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import { Ionicons } from "@expo/vector-icons";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { Link, useLocalSearchParams } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,6 +30,7 @@ export default function SignInScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focusedField, setFocusedField] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [appleAvailable, setAppleAvailable] = useState(false);
 
   useEffect(() => {
@@ -108,18 +110,23 @@ export default function SignInScreen() {
           onBlur={() => setFocusedField("")}
         />
 
-        <TextInput
-          style={[styles.input, focusedField === "password" && { borderColor: theme.colors.accent }]}
-          placeholder="Password"
-          placeholderTextColor={theme.colors.placeholder}
-          cursorColor={theme.colors.accent}
-          secureTextEntry
-          autoComplete="password"
-          value={password}
-          onChangeText={setPassword}
-          onFocus={() => setFocusedField("password")}
-          onBlur={() => setFocusedField("")}
-        />
+        <View style={[styles.inputRow, focusedField === "password" && { borderColor: theme.colors.accent }]}>
+          <TextInput
+            style={styles.inputInner}
+            placeholder="Password"
+            placeholderTextColor={theme.colors.placeholder}
+            cursorColor={theme.colors.accent}
+            secureTextEntry={!showPassword}
+            autoComplete="password"
+            value={password}
+            onChangeText={setPassword}
+            onFocus={() => setFocusedField("password")}
+            onBlur={() => setFocusedField("")}
+          />
+          <TouchableOpacity onPress={() => setShowPassword(v => !v)} hitSlop={8}>
+            <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={theme.colors.textTertiary} />
+          </TouchableOpacity>
+        </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -202,6 +209,22 @@ function createStyles(theme: Theme) {
       color: theme.colors.text,
       marginBottom: 14,
       backgroundColor: theme.colors.backgroundInput,
+    },
+    inputRow: {
+      height: 52,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radii.md,
+      paddingHorizontal: theme.spacing.lg,
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 14,
+      backgroundColor: theme.colors.backgroundInput,
+    },
+    inputInner: {
+      flex: 1,
+      fontSize: theme.fontSize.base,
+      color: theme.colors.text,
     },
     successBox: {
       backgroundColor: theme.colors.backgroundSecondary,
