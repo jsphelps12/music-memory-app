@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react-native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
@@ -23,6 +24,11 @@ import { registerForPushNotifications } from "@/lib/notifications";
 const HAS_LAUNCHED_KEY = "has_launched";
 
 export { ErrorBoundary } from "expo-router";
+
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  debug: false,
+});
 
 export const unstable_settings = {
   initialRouteName: "(tabs)",
@@ -115,7 +121,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
     ...FontAwesome.font,
@@ -145,6 +151,8 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+export default Sentry.wrap(RootLayout);
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
