@@ -191,83 +191,69 @@ This should log the error and optionally show a subtle retry.
 
 ## Scalability
 
-### Honest Assessment
+### Current State (March 2026)
 
-At **< 200 moments per user**, the app performs fine as-is.
-At **200–1000 moments**, it gets noticeably slower (especially search and initial load).
-At **1000+ moments**, the timeline load becomes a real problem.
-
-The bottleneck is `select("*")` with no pagination on the moments table.
-
----
-
-### 9. Timeline Performance — Nav Reload + Slow Initial Load
-**File:** `app/(tabs)/index.tsx`
-
-Every timeline load fetches every moment for the user with all columns, including
-`photo_urls`, `photo_thumbnails`, `reflection_text`, `people` (all potentially large).
-There is no pagination, limit, or cursor. Worse: the full fetch re-runs every time the
-user navigates back to the tab, causing a visible reload flash.
-
-**Fix strategy (in priority order):**
-
-**1. Cache in context — stop refetching on nav back**
-Store fetched moments in a ref/state that persists across navigation. Only invalidate when:
-- A moment is created, edited, or deleted (mutation)
-- User explicitly pulls to refresh
-- App returns from background (optional)
-This alone eliminates the reload flash.
-
-**2. Optimistic updates on mutations**
-When a moment is created/edited/deleted, update local state immediately — don't wait for
-a DB round-trip. Timeline reflects changes instantly; background sync confirms.
-
-**3. Pagination — load 30, fetch more on scroll**
-Fetch the 30 most recent moments. Use `SectionList`'s `onEndReached` to load more.
-Fixes both the UX lag and the 500+ moment scalability problem simultaneously.
-
-**4. Select only what the card needs**
-`select("*")` fetches full reflection text, all photo URLs, people arrays — most of which
-the timeline card never renders. Switch to explicit column list for list view; fetch full
-data only when a moment is opened.
-
-**5. React Query (ties it all together)**
-Handles caching, stale-while-revalidate, and mutation invalidation with minimal custom
-code. `invalidateQueries(['timeline'])` after any mutation. Shows cached data instantly
-on nav back while background-refreshing. Worth adding if rolling custom cache logic
-becomes complex.
+- ✅ Timeline paginated (30 items/page, infinite scroll via `onEndReached`)
+- ✅ AsyncStorage stale-while-revalidate cache for instant startup
+- ✅ Calendar decoupled from list — its own lightweight query (id, date, artwork only)
+- ✅ All critical DB indexes added (see below)
 
 ---
 
-### 10. Missing Database Indexes
+### 9. Database Indexes — Done ✅
 
-**Exists:**
-- `moments(user_id)` ✓
-- `moments(moment_date DESC)` ✓
-- `collections(user_id)` ✓
+All indexes applied March 2026 via SQL Editor:
 
-**Missing:**
 ```sql
--- Optimizes the core timeline query (WHERE user_id AND ORDER BY moment_date)
-CREATE INDEX moments_user_date_idx ON moments(user_id, moment_date DESC);
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
--- Optimizes collection filtering
+CREATE INDEX moments_user_date_idx ON moments(user_id, moment_date DESC NULLS LAST, created_at DESC);
+CREATE INDEX moments_moment_date_idx ON moments(moment_date);
+CREATE INDEX moments_people_gin ON moments USING GIN(people);
+CREATE INDEX moments_title_trgm ON moments USING GIN(song_title gin_trgm_ops);
+CREATE INDEX moments_artist_trgm ON moments USING GIN(song_artist gin_trgm_ops);
+CREATE INDEX moments_reflection_trgm ON moments USING GIN(reflection_text gin_trgm_ops);
+CREATE INDEX moments_location_trgm ON moments USING GIN(location gin_trgm_ops);
+CREATE INDEX moments_share_token_idx ON moments(share_token);
+CREATE INDEX collections_user_id_idx ON collections(user_id);
+CREATE INDEX collections_invite_code_idx ON collections(invite_code);
+CREATE INDEX collection_members_user_id_idx ON collection_members(user_id);
+CREATE INDEX collection_members_collection_id_idx ON collection_members(collection_id);
 CREATE INDEX collection_moments_collection_id_idx ON collection_moments(collection_id);
-
--- Optimizes search (currently full table scan via ilike)
--- Add when search performance becomes a real complaint
-CREATE INDEX moments_search_idx ON moments
-  USING GIN(to_tsvector('english', coalesce(song_title, '') || ' ' ||
-                                    coalesce(song_artist, '') || ' ' ||
-                                    coalesce(reflection_text, '')));
+CREATE INDEX collection_moments_moment_id_idx ON collection_moments(moment_id);
 ```
 
-The composite index and collection_moments index are worth adding now. The full-text
-search index can wait until search is a pain point.
+---
+
+### 10. Notification Edge Function — Needs Batching at Scale
+
+**File:** `supabase/functions/send-notifications/index.ts`
+
+Currently queries all profiles and all today's moments in a single shot. At 100k+ users
+this will timeout or OOM.
+
+**Fix:** Process users in batches of 500 using `.range()` pagination inside the function,
+loop until all users are processed. Each batch runs independently so a failure doesn't
+kill the whole job.
+
+**Priority:** Address before any significant marketing push.
 
 ---
 
-### 11. Supabase Plan Limits
+### 11. No CDN in Front of Image Storage
+
+Supabase Storage serves photos and artwork directly from S3 with no CDN layer. At high
+traffic (many users loading the same collection or shared moment), latency increases and
+egress costs grow.
+
+**Fix:** Put Cloudflare (free) or CloudFront in front of the `moment-photos` bucket URL.
+Rewrite stored photo URLs to use the CDN hostname, or proxy at the edge.
+
+**Priority:** Low until you see actual latency complaints or bill shock.
+
+---
+
+### 12. Supabase Plan Limits
 
 At 1000 users with ~50 moments and 3 photos each:
 - ~150,000 photos × ~300KB avg = ~45 GB storage
@@ -494,12 +480,13 @@ Future you will thank present you at 11pm before a deadline.
 - [ ] Add EAS preview build profile (#22)
 
 ### Before Significant User Growth (Scalability)
-- [ ] Add `.limit()` to timeline query as a quick fix (#9)
-- [ ] Add composite index on `moments(user_id, moment_date)` (#10)
-- [ ] Add index on `collection_moments(collection_id)` (#10)
-- [ ] Upgrade Supabase to Pro plan (#11)
+- [x] Pagination (30 items/page, infinite scroll) ✅
+- [x] AsyncStorage startup cache ✅
+- [x] All DB indexes ✅
+- [ ] Batch notification edge function (#10)
+- [ ] Upgrade Supabase to Pro plan (#12)
+- [ ] CDN in front of image storage (#11)
 - [ ] Offline detection banner (#16)
-- [ ] Implement proper pagination (larger effort, plan separately)
 - [ ] Add CI pipeline — type check + lint on PRs (#20)
 
 ### Ongoing / Nice to Have
