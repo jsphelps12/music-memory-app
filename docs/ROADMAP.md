@@ -27,7 +27,7 @@ That's the product. Everything on this roadmap exists to make that feeling captu
 - [x] Quick capture flow — song + optional reflection, expandable details
 - [x] Auto-tag time of day + location banner
 - [x] On This Day + random resurfacing — Reflections tab, grouped by year
-- [x] Push notifications — On This Day, milestones
+- [x] Push notifications — On This Day, streak, prompts, resurfacing; per-type toggles in Profile; cold-launch deep link fix
 - [x] Card-to-detail transition animation
 - [x] Calendar view — grid with album art thumbnails, pinch-to-zoom toggle
 - [x] Swipe gestures throughout (close detail, delete cards, swipe between tabs)
@@ -38,60 +38,57 @@ That's the product. Everything on this roadmap exists to make that feeling captu
 - [x] Web app — Next.js / Vercel, `/c/{invite_code}` shared collection page with audio preview
 - [x] Shareable moment cards — dark portrait card with photo/artwork hero, iOS share sheet
 - [x] Onboarding flow, custom app icon
+- [x] ShazamKit — native module; ambient song identification → create screen pre-fill
+- [x] Share from Photos — share extension handles image files; EXIF date + location auto-populated
+- [x] Gift a Memory — web page at `/m/{share_token}`; app generates + shares URL; no account required to view
+- [x] Memory prompts — 8 categories × 5 prompts in create screen, Reflections tab, empty states
+- [x] Early resurfacing — "A Month Ago" section (25–35 day window) in Reflections tab
+- [x] Privacy policy + Terms — hosted on web app at `/privacy` and `/terms`
+- [x] Deferred deep links — clipboard method; web writes invite code, app reads on first launch
+- [x] Design system v2 — accentSecondary (purple), brand gradient artwork placeholders, CloseButton, standardized button/input sizing
+- [x] Reflections tab reorganization — all sections conditional (hidden when empty), reordered: On This Day → A Month Ago → This Month → Random
 
 ---
 
-## NOW — Pre-Launch Checklist (9 items)
+## NOW — Pre-Launch Checklist (9 items, 7 done)
 
-Everything here ships before App Store marketing push. Estimated 3–4 weeks total.
+Everything here ships before App Store marketing push.
 
-| # | Item | Effort | Notes |
+| # | Item | Status | Notes |
 |---|------|--------|-------|
-| 1 | Privacy policy + Terms | 1 day | Required for submission |
-| 2 | Deferred deep links | 2 days | Launch blocker |
-| 3 | Onboarding tightening | 2 days | Determines activation rate |
-| 4 | App Store listing + assets | 2–3 days | Screenshots, copy, Sentry, PostHog |
-| 5 | Memory prompts | 2 days | Day 3–30 retention bridge |
-| 6 | Early resurfacing | 1 day | Works after 30 days, not a year |
-| 7 | Gift a Memory | 3–4 days | Warm acquisition loop |
-| 8 | ShazamKit | 3–4 days | Closes ambient capture gap |
-| 9 | Share from Photos | 2 days | Camera roll → memory trigger |
+| 1 | Privacy policy + Terms | ✅ Done | Hosted at `/privacy` and `/terms` |
+| 2 | Deferred deep links | ✅ Done | Clipboard method; invite code survives install |
+| 3 | Onboarding tightening | ⬜ Remaining | Signup questionnaire + "how to capture" in Profile |
+| 4 | App Store listing + assets | ⬜ Remaining | Sentry, PostHog, screenshots, App Store Connect |
+| 5 | Memory prompts | ✅ Done | 8 categories × 5 prompts wired throughout app |
+| 6 | Early resurfacing | ✅ Done | "A Month Ago" in Reflections tab |
+| 7 | Gift a Memory | ✅ Done | Web page + share URL; no account to view |
+| 8 | ShazamKit | ✅ Done | Native module; ambient capture → create screen |
+| 9 | Share from Photos | ✅ Done | Share extension + EXIF auto-fill |
 
 ---
 
-### 1. Privacy Policy + Terms of Use
-- [ ] Hosted at `music-memory-app.vercel.app/privacy` and `/terms`
-- [ ] Privacy policy must cover: email/Apple ID, reflection text, mood data, photos, location (EXIF), voice notes (future), push notification tokens, anonymous analytics
-- [ ] Explicitly address: what goes to third parties (Supabase, Branch.io, PostHog, Sentry, Apple), data retention, account deletion (already built), user rights
-- [ ] Emotional data deserves honest language — not just legal boilerplate
-- [ ] Terms of Use: acceptable use, content ownership (user owns their reflections), no liability for data loss
-- [ ] Both documents need a "last updated" date and contact email
+### 1. Privacy Policy + Terms of Use ✅
+- [x] Hosted at `music-memory-app.vercel.app/privacy` and `/terms`
+- [x] Covers email/Apple ID, reflection text, mood data, photos, location (EXIF), push notification tokens
+- [x] Addresses third parties, data retention, account deletion, user rights
+- [x] Terms: acceptable use, content ownership, no liability for data loss
 
-### 2. Deferred Deep Links (Branch.io)
-- [ ] Without this, shared collection invites break after App Store install — the invite code is lost
-- [ ] Smart CTA: try `tracks://` first, fall back to App Store with code stored for after install
-- [ ] Without this, the entire shared collections growth loop is broken for cold users
+### 2. Deferred Deep Links ✅
+- [x] Clipboard method — web writes `soundtracks-invite:{code}`, app reads on first launch
+- [x] Invite code survives App Store install; auto-presented join flow after sign-up
 
-### 3. Onboarding Tightening
-- [ ] Current flow exists but the activation moment — first saved moment — must be guaranteed
-- [ ] Onboarding should not end until the user has logged at least one memory
-- [ ] Collection-origin users (wedding, event) get a different flow: "This moment is yours now. Not just theirs. Let's build on it."
-- [ ] Show their personal timeline immediately after first save — not the collection view
-- [ ] Plant the hook: "On This Day next year, we'll remind you of this moment."
+### 3. Onboarding Tightening ⬜ (partially done)
+**Done:**
+- [x] Celebration screen — single "Turn on notifications" button, no skip; notification cold-launch deep link fixed
+- [x] Notification permission: full-screen transparent ask, trust-building framing, manage in Settings
+- [x] Per-type notification toggles in Profile (On This Day, streak, prompts, resurfacing)
 
-**Signup Questionnaire (3–4 screens, Twitter-style — before seeing the app):**
-- [ ] Birth year — year picker; drives formative era calculation (ages 13–25 = highest memory density)
-- [ ] Country — picker with search; drives regional chart data for song suggestions
-- [ ] Favorite artists (1–2) — search-as-you-type using Apple Music catalog; stored as `favorite_artists[]` on profile
-- [ ] Favorite songs (1–2) — same Apple Music search; stored as `favorite_songs[]`; optional but high signal
-- [ ] Genre preferences — multi-select chips (Rock / Pop / R&B / Hip-Hop / Country / Electronic / Latin / Jazz / Folk); optional
-- [ ] Keep it short: birth year + country are required; everything else is optional but nudged
-- [ ] All data stored on `profiles` table; feeds directly into the Music Memory Engine
-
-**"How to capture a memory" screen in Profile:**
-- [ ] Always-visible section in Profile (not just onboarding) showing all capture methods
-- [ ] Manual search, Now Playing auto-fill, Share from Apple Music/Spotify, Share from Photos, ShazamKit
-- [ ] Each method with a one-line description; helps users discover features they missed
+**Remaining:**
+- [ ] Signup questionnaire — birth year + country (required), favorite artists/songs (1–2 each), genre prefs (optional chips); Twitter-style screens before seeing the app; feeds Music Memory Engine
+- [ ] Gate: onboarding should not complete until first moment is saved — currently user can skip past create screen
+- [ ] Collection-origin users: "This moment is yours now. Not just theirs." reframe after joining
+- [ ] "How to capture a memory" card in Profile — always-visible, shows all 5 capture methods (search, Now Playing, Share from Apple Music/Spotify, Share from Photos, ShazamKit) with one-line descriptions
 
 ### 4. App Store Listing + Assets
 
@@ -157,10 +154,10 @@ Everything here ships before App Store marketing push. Estimated 3–4 weeks tot
 - [ ] Caption each screenshot with benefit language, not feature names ("Songs that take you back" not "Timeline View")
 - [ ] Optional: 30-second App Preview video — significantly improves conversion
 
-### Memory Prompts **[Free]**
-- [ ] Rotating contextual starters that surface when the user doesn't know what to log
-- [ ] Organized into categories; user picks a prompt then it pre-fills the reflection placeholder
-- [ ] Lives in 4 places: create screen (when opened blank), Reflections tab (below On This Day), timeline empty state, weekly push notification
+### Memory Prompts ✅
+- [x] Rotating contextual starters — 8 categories × 5 prompts
+- [x] Lives in create screen, Reflections tab, empty states; user picks a prompt → pre-fills reflection placeholder
+- [ ] Weekly push notification with a prompt (not yet wired to edge function)
 
 **Prompt Library — organized by type:**
 
@@ -220,13 +217,12 @@ Everything here ships before App Store marketing push. Estimated 3–4 weeks tot
 - "A song that will always take you back even though you try to move on"
 - "A song from a playlist you forgot you made"
 
-### Early Resurfacing **[Free]**
-- [ ] On This Day requires a year of data — dangerous gap in early retention
-- [ ] "A month ago, you logged this" — resurfaces after just 30 days
-- [ ] "Your earliest memory in Tracks" — works from day 1 if they have any moments
-- [ ] "A moment you haven't revisited in a while" — works after a few weeks
-- [ ] "From a year like this one" — surfaces moments from the same month in past years
-- [ ] These live in the Reflections tab alongside On This Day as cards
+### Early Resurfacing ✅
+- [x] "A Month Ago" section in Reflections tab — 25–35 day window, bridges the On This Day gap
+- [x] "On This Day" grouped by year (existing)
+- [x] Random memory resurfacing in Reflections tab
+- [ ] "Your earliest memory in Tracks" card — works from day 1
+- [ ] "From a year like this one" — same month in past years
 
 ### 30-Day Retention Plan
 | Day | Hook |
@@ -264,13 +260,12 @@ The wedding is a Trojan horse. Guest scans QR → contributes a memory → gets 
 
 *ShazamKit moved to Growth — it's a core everyday capture feature, not event-specific. See Growth section.*
 
-### ShazamKit Native Module **[Free]**
-- [ ] Custom native module (same pattern as existing NowPlaying module)
-- [ ] Wraps Apple's ShazamKit framework — microphone → 3-second audio fingerprint
-- [ ] Identifies ambient audio *anywhere*: restaurant, street, bar, store, someone else's car, a wedding DJ, a concert stage
-- [ ] Cross-references `SHMediaItem` result against MusicKit for full song metadata
-- [ ] Microphone permission; "Identify" button on the create screen alongside search
-- [ ] Eventually: lock screen widget "Identify" tap for zero-friction ambient capture
+### ShazamKit Native Module ✅
+- [x] Custom native module at `modules/shazam-kit/` (same pattern as NowPlaying module)
+- [x] Wraps Apple's ShazamKit — microphone → 3-second audio fingerprint → song ID
+- [x] Cross-references `SHMediaItem` against MusicKit for full song metadata
+- [x] "Identify" button on create screen; wired into create flow
+- [ ] Lock screen widget "Identify" tap — zero-friction ambient capture (future)
 
 **The use case that defines this feature:**
 You're walking down the street. A restaurant is playing a song that immediately takes you back. You tap Identify — 3 seconds — the song resolves. You write the memory right there on the sidewalk. That moment would have been lost. That *is* the Instagram comment with 2,962 likes. ShazamKit captures it.
@@ -281,12 +276,10 @@ You're walking down the street. A restaurant is playing a song that immediately 
 | Trigger | You chose to play it | It found you |
 | Examples | Your own Spotify, Apple Music | Restaurant, street, friend's speakers, wedding, concert |
 
-### Share from Photos **[Free]**
-- [ ] User is in camera roll → old photo inspires a memory → taps Share → selects Tracks
-- [ ] Share extension updated to accept image file types (NSExtensionActivationSupportsImageWithMaxCount)
-- [ ] Create screen opens with photo pre-filled, EXIF date + location auto-populated
-- [ ] User adds the song → moment saved
-- [ ] Closes the gap: a visual trigger (old photo) pairs with a musical memory
+### Share from Photos ✅
+- [x] Share extension accepts image file types
+- [x] Create screen opens with photo pre-filled, EXIF date + location auto-populated
+- [x] Visual trigger (old photo) → musical memory captured
 
 ### Smart Playlists **[Free basic / Premium full]**
 - [ ] Auto-generated playlists from your logged moments, organized by dimension — not manually curated, built from your data
@@ -320,13 +313,10 @@ You're walking down the street. A restaurant is playing a song that immediately 
 
 Features that turn users into acquisition channels.
 
-### Gift a Memory **[Free]**
-- [ ] Log a moment and send it privately to one person — not a collection, a direct gift
-- [ ] Recipient gets a web link (no account required to view): song + your reflection
-- [ ] To reply with their own memory of that song: download the app
-- [ ] Acquisition through emotional resonance — the highest quality install you can get
-- [ ] No new data model beyond a share token on the moment
-- [ ] Requires public individual moment pages on web (`/m/{moment_id}`)
+### Gift a Memory ✅
+- [x] Web page at `web/app/m/[share_token]/page.tsx` — song + reflection, no account required to view
+- [x] App generates share token and surfaces iOS share sheet from moment detail
+- [x] Acquisition through emotional resonance — recipient sees your memory, CTA to download
 
 ### Resurfacing Weight Control **[Free]**
 - [ ] After a moment surfaces in Reflections, let the user explicitly signal: "Show this more" / "Not now" / "Bury this"
