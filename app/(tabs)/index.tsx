@@ -119,6 +119,8 @@ export default function TimelineScreen() {
 
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarMoments, setCalendarMoments] = useState<Moment[]>([]);
+  const calendarFetchedRef = useRef(false);
   const [pendingScrollId, setPendingScrollId] = useState<string | null>(null);
   const sectionListRef = useRef<SectionList>(null);
 
@@ -144,10 +146,9 @@ export default function TimelineScreen() {
       listOpacity.value = withTiming(0, { duration: 200 });
       calendarOpacity.value = withTiming(1, { duration: 200 });
       setViewMode("calendar");
-      setCalendarLoading(true);
-      fetchMoments(false, false, true).finally(() => setCalendarLoading(false));
+      if (!calendarFetchedRef.current) fetchCalendarMoments();
     }
-  }, [fetchMoments]);
+  }, [fetchCalendarMoments]);
 
   const pinchGesture = useMemo(
     () =>
@@ -180,14 +181,13 @@ export default function TimelineScreen() {
       listOpacity.value = withTiming(0, { duration: 200 });
       calendarOpacity.value = withTiming(1, { duration: 200 });
       setViewMode("calendar");
-      setCalendarLoading(true);
-      fetchMoments(false, false, true).finally(() => setCalendarLoading(false));
+      if (!calendarFetchedRef.current) fetchCalendarMoments();
     } else {
       calendarOpacity.value = withTiming(0, { duration: 200 });
       listOpacity.value = withTiming(1, { duration: 200 });
       setViewMode("list");
     }
-  }, [viewMode, fetchMoments]);
+  }, [viewMode, fetchCalendarMoments]);
 
   const handleDayPress = useCallback((momentId: string) => {
     calendarOpacity.value = withTiming(0, { duration: 200 });
@@ -266,7 +266,7 @@ export default function TimelineScreen() {
   }, [pendingScrollId, sections]);
 
   const fetchMoments = useCallback(
-    async (showLoading: boolean, append = false, fetchAll = false) => {
+    async (showLoading: boolean, append = false) => {
       if (!user) return;
       if (!append) pageRef.current = 0;
       if (showLoading) setLoading(true);
@@ -368,8 +368,8 @@ export default function TimelineScreen() {
         query = query.in("id", ids);
       }
 
-      // Paginate only on the unfiltered "All Moments" list view
-      if (!filtersActive && !fetchAll) {
+      // Paginate only on the unfiltered "All Moments" view
+      if (!filtersActive) {
         const from = pageRef.current * TIMELINE_PAGE_SIZE;
         query = query.range(from, from + TIMELINE_PAGE_SIZE - 1);
       }
@@ -393,7 +393,7 @@ export default function TimelineScreen() {
       } else {
         setMoments(mapped);
       }
-      setHasMore(!filtersActive && !fetchAll && mapped.length === TIMELINE_PAGE_SIZE);
+      setHasMore(!filtersActive && mapped.length === TIMELINE_PAGE_SIZE);
       setLoading(false);
       lastFetchTime.current = Date.now();
 
@@ -414,6 +414,34 @@ export default function TimelineScreen() {
     },
     [user]
   );
+
+  const fetchCalendarMoments = useCallback(async () => {
+    if (!user) return;
+    setCalendarLoading(true);
+    const { data } = await supabase
+      .from("moments")
+      .select("id, moment_date, song_artwork_url, song_title, song_artist")
+      .eq("user_id", user.id)
+      .order("moment_date", { ascending: false, nullsFirst: false });
+    if (data) {
+      setCalendarMoments(
+        data.map((r: any) => ({
+          id: r.id,
+          momentDate: r.moment_date ?? null,
+          songArtworkUrl: r.song_artwork_url ?? "",
+          songTitle: r.song_title ?? "",
+          songArtist: r.song_artist ?? "",
+          // unused fields required by type
+          userId: "", reflectionText: "", photoUrls: [], photoThumbnails: [],
+          mood: null, people: [], location: null, timeOfDay: null,
+          createdAt: "", updatedAt: "", songAlbumName: "", songAppleMusicId: "",
+          songPreviewUrl: null,
+        } as Moment))
+      );
+      calendarFetchedRef.current = true;
+    }
+    setCalendarLoading(false);
+  }, [user]);
 
   const handleLoadMore = useCallback(async () => {
     if (!hasMore || loadingMore) return;
@@ -465,6 +493,7 @@ export default function TimelineScreen() {
 
       const stale = consumeTimelineStale();
       const elapsed = Date.now() - lastFetchTime.current;
+      if (stale) calendarFetchedRef.current = false;
       if (lastFetchTime.current === 0) {
         fetchMoments(true);
       } else if (stale || elapsed >= REFETCH_COOLDOWN_MS) {
@@ -904,7 +933,7 @@ export default function TimelineScreen() {
         </Animated.View>
 
         <Animated.View style={[StyleSheet.absoluteFill, calendarAnimStyle]} pointerEvents={viewMode === "calendar" ? "auto" : "none"}>
-          <CalendarView moments={moments} onDayPress={handleDayPress} theme={theme} loading={calendarLoading} />
+          <CalendarView moments={calendarMoments} onDayPress={handleDayPress} theme={theme} loading={calendarLoading} />
         </Animated.View>
       </View>
       </GestureDetector>
