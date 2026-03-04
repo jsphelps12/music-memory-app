@@ -18,28 +18,11 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { MomentCard } from "@/components/MomentCard";
 import { friendlyError } from "@/lib/errors";
+import { pad } from "@/lib/dateUtils";
+import { topValue } from "@/lib/utils";
 import { Moment } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 2000;
-
-const pad = (n: number) => String(n).padStart(2, "0");
-
-function topValue(items: (string | null | undefined)[]): string | null {
-  const freq = new Map<string, number>();
-  for (const item of items) {
-    if (!item) continue;
-    freq.set(item, (freq.get(item) ?? 0) + 1);
-  }
-  let best: string | null = null;
-  let bestCount = 0;
-  for (const [val, count] of freq) {
-    if (count > bestCount) {
-      bestCount = count;
-      best = val;
-    }
-  }
-  return best;
-}
 
 interface ThisMonthData {
   count: number;

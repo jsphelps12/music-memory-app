@@ -12,13 +12,12 @@ import { Image } from "expo-image";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Moment } from "@/types";
+import { pad } from "@/lib/dateUtils";
 
 const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
 const { width: SW } = Dimensions.get("window");
 const H_PAD = 16;
 const CELL = Math.floor((SW - H_PAD * 2) / 7);
-
-const pad = (n: number) => String(n).padStart(2, "0");
 
 interface Props {
   moments: Moment[];

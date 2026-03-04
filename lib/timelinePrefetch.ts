@@ -53,6 +53,10 @@ export function prefetchTimeline(userId: string): void {
     .then((moments) => {
       writeCache(userId, moments);
       return moments;
+    })
+    .catch((err) => {
+      if (__DEV__) console.warn("[timelinePrefetch] network fetch failed:", err);
+      return [] as typeof err;
     });
 
   // Race: return cache immediately if available, else wait for network

@@ -27,6 +27,7 @@ import { SkeletonProfile } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
+import { topValue } from "@/lib/utils";
 
 const REFETCH_COOLDOWN_MS = 2000;
 const AVATAR_SIZE = 80;
@@ -79,22 +80,6 @@ function computeStreaks(dates: string[]): { current: number; longest: number; da
   return { current, longest, daysLogged };
 }
 
-function topValue(items: (string | null | undefined)[]): string | null {
-  const freq = new Map<string, number>();
-  for (const item of items) {
-    if (!item) continue;
-    freq.set(item, (freq.get(item) ?? 0) + 1);
-  }
-  let best: string | null = null;
-  let bestCount = 0;
-  for (const [val, count] of freq) {
-    if (count > bestCount) {
-      bestCount = count;
-      best = val;
-    }
-  }
-  return best;
-}
 
 export default function ProfileScreen() {
   const router = useRouter();

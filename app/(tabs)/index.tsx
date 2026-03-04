@@ -34,6 +34,7 @@ import { SkeletonTimelineCard } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
+import { dateToStr } from "@/lib/dateUtils";
 import { MomentCard } from "@/components/MomentCard";
 import { CalendarView } from "@/components/CalendarView";
 import { CollectionPicker } from "@/components/CollectionPicker";
@@ -49,12 +50,6 @@ function escapeLike(str: string): string {
   return str.replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
 
-function dateToStr(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
 
 function formatDateLabel(dateStr: string): string {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
