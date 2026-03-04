@@ -23,7 +23,7 @@ export default function TermsOfUse() {
         <Section>
           <p>
             These Terms of Use govern your use of the Soundtracks app and website (collectively, the
-            &quot;Service&quot;), operated by <strong>[Your Name]</strong> (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;).
+            &quot;Service&quot;), operated by <strong>Joshua Phelps</strong> (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;).
             By using Soundtracks, you agree to these terms. If you don&apos;t agree, please don&apos;t use the Service.
           </p>
         </Section>
@@ -154,7 +154,7 @@ export default function TermsOfUse() {
         <H2>Governing law</H2>
         <Section>
           <p>
-            These terms are governed by the laws of the State of [Your State], United States, without
+            These terms are governed by the laws of the State of Oregon, United States, without
             regard to conflict of law principles.
           </p>
         </Section>

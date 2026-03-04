@@ -27,7 +27,7 @@ export default function PrivacyPolicy() {
             to be straightforward about what we collect, why, and how it&apos;s handled.
           </p>
           <p>
-            Soundtracks is operated by <strong>[Your Name]</strong>. If you have any questions, email us
+            Soundtracks is operated by <strong>Joshua Phelps</strong>. If you have any questions, email us
             at <a href="mailto:founder@soundtracks.app" style={{ color: "#E8825C" }}>founder@soundtracks.app</a>.
           </p>
         </Section>
