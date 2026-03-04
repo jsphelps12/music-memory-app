@@ -32,6 +32,11 @@ const AVATAR_SIZE = 100;
 
 const BIRTH_YEARS = Array.from({ length: 86 }, (_, i) => 2015 - i); // 2015 → 1930
 
+const GENRES = [
+  "Rock", "Pop", "Hip-Hop", "R&B/Soul", "Country", "Electronic",
+  "Latin", "Jazz", "Folk/Indie", "Classical", "Reggae", "Metal",
+];
+
 const COUNTRIES = [
   "United States", "United Kingdom", "Canada", "Australia", "Ireland",
   "New Zealand", "Germany", "France", "Spain", "Italy", "Portugal",
@@ -66,6 +71,18 @@ export default function ProfileEditScreen() {
     () => COUNTRIES.filter((c) => c.toLowerCase().includes(countrySearch.toLowerCase())),
     [countrySearch]
   );
+
+  // ── Genre preferences ───────────────────────────────────────────────────
+  const [selectedGenres, setSelectedGenres] = useState<string[]>(
+    profile?.genrePreferences ?? []
+  );
+
+  const toggleGenre = useCallback((genre: string) => {
+    Haptics.selectionAsync();
+    setSelectedGenres((prev) =>
+      prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre]
+    );
+  }, []);
 
   // ── Favorite artists ────────────────────────────────────────────────────
   const [selectedArtists, setSelectedArtists] = useState<FavoriteArtist[]>(
@@ -209,6 +226,7 @@ export default function ProfileEditScreen() {
         country: country.trim() || null,
         favoriteArtists: selectedArtists,
         favoriteSongs: selectedSongs,
+        genrePreferences: selectedGenres,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
@@ -450,6 +468,28 @@ export default function ProfileEditScreen() {
               })}
             </View>
           )}
+        </View>
+        {/* ── Genre preferences ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>GENRE PREFERENCES</Text>
+          <Text style={styles.sectionSub}>Select any that resonate with you.</Text>
+          <View style={styles.genreGrid}>
+            {GENRES.map((genre) => {
+              const selected = selectedGenres.includes(genre);
+              return (
+                <TouchableOpacity
+                  key={genre}
+                  style={[styles.genreChip, selected && styles.genreChipSelected]}
+                  onPress={() => toggleGenre(genre)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.genreChipText, selected && styles.genreChipTextSelected]}>
+                    {genre}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
       </ScrollView>
 
@@ -769,6 +809,32 @@ function createStyles(theme: Theme) {
     countrySearchInput: {
       flex: 1,
       fontSize: theme.fontSize.base,
+    },
+    genreGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginTop: 4,
+    },
+    genreChip: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.backgroundInput,
+    },
+    genreChipSelected: {
+      backgroundColor: theme.colors.accent,
+      borderColor: theme.colors.accent,
+    },
+    genreChipText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.text,
+      fontWeight: theme.fontWeight.medium,
+    },
+    genreChipTextSelected: {
+      color: "#fff",
     },
   });
 }

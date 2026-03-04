@@ -32,6 +32,7 @@ interface AuthState {
     country?: string | null;
     favoriteArtists?: FavoriteArtist[];
     favoriteSongs?: FavoriteSong[];
+    genrePreferences?: string[];
   }) => Promise<void>;
   refreshProfile: () => Promise<void>;
   completeOnboarding: (data: OnboardingData) => Promise<void>;
@@ -210,6 +211,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     country?: string | null;
     favoriteArtists?: FavoriteArtist[];
     favoriteSongs?: FavoriteSong[];
+    genrePreferences?: string[];
   }) => {
     if (!session?.user) throw new Error("Not authenticated");
 
@@ -220,6 +222,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (updates.country !== undefined) dbUpdates.country = updates.country;
     if (updates.favoriteArtists !== undefined) dbUpdates.favorite_artists = updates.favoriteArtists;
     if (updates.favoriteSongs !== undefined) dbUpdates.favorite_songs = updates.favoriteSongs;
+    if (updates.genrePreferences !== undefined) dbUpdates.genre_preferences = updates.genrePreferences;
 
     const { error } = await supabase
       .from("profiles")
