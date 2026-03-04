@@ -161,7 +161,7 @@ export default Sentry.wrap(RootLayout);
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   useDeepLinkHandler();
   useShareIntentHandler();
 
