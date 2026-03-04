@@ -27,7 +27,7 @@ export { ErrorBoundary } from "expo-router";
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
-  debug: false,
+  debug: __DEV__,
 });
 
 export const unstable_settings = {
