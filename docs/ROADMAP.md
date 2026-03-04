@@ -58,7 +58,7 @@ Everything here ships before App Store marketing push.
 |---|------|--------|-------|
 | 1 | Privacy policy + Terms | ✅ Done | Hosted at `/privacy` and `/terms` |
 | 2 | Deferred deep links | ✅ Done | Clipboard method; invite code survives install |
-| 3 | Onboarding tightening | ⬜ Remaining | Collection-origin variant only — everything else done |
+| 3 | Onboarding tightening | ✅ Done | Collection-origin variant deferred to post-launch |
 | 4 | App Store listing + assets | ⬜ Remaining | Sentry, PostHog, screenshots, App Store Connect |
 | 5 | Memory prompts | ✅ Done | 8 categories × 5 prompts wired throughout app |
 | 6 | Early resurfacing | ✅ Done | "A Month Ago" in Reflections tab |
@@ -88,7 +88,7 @@ Everything here ships before App Store marketing push.
 - [x] "How to capture a memory" collapsible card in Profile — all 5 capture methods with descriptions
 - [x] Genre preferences editable post-onboarding in Edit Profile
 
-**Remaining:**
+**Remaining (post-launch):**
 - [ ] Collection-origin users: "This moment is yours now. Not just theirs." reframe after joining
 
 ### 4. App Store Listing + Assets
