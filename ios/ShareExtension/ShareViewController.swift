@@ -11,8 +11,8 @@ import UIKit
 
 class ShareViewController: UIViewController {
   let hostAppGroupIdentifier = "group.com.joshuaphelps.musicmemory"
-  let shareProtocol = "tracks"
-  let sharedKey = "tracksShareKey"
+  let shareProtocol = "soundtracks"
+  let sharedKey = "soundtracksShareKey"
   var sharedMedia: [SharedMediaFile] = []
   var sharedWebUrl: [WebUrl] = []
   var sharedText: [String] = []
