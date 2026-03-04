@@ -473,10 +473,66 @@ Spotify knows you played "Lady in Red" 47 times. Tracks knows it was your parent
 - [ ] **Collaborative era naming** — community votes on what to call shared musical eras: *"What do you call the post-pandemic music moment?"* *"Name the 2010s indie folk era."* Users who participate feel ownership over the product's language. Small feature, high community investment.
 - [ ] **First Tracks anniversary** — *"One year ago today, you logged your first memory here."* The app becomes part of your personal history. Leaving means the anniversary disappears.
 
-### Mood Streaks / Gentle Gamification **[Free]**
-- [ ] "You've reflected 4 days this week" — warm, not competitive
-- [ ] Monthly recap card ("You saved 12 moments in February")
-- [ ] Seasonal milestones; keep it journal-toned, not fitness-toned
+### Save for Later — Song Inbox **[Free]**
+- [ ] One-tap intent capture: user hears a song but doesn't have time to write a reflection; saves song metadata to a personal inbox to complete later
+- [ ] Reduces the most common source of missed memories: "I was going to log that but forgot"
+- [ ] Entry points (in order of build effort):
+  - **Share extension** — add "Save for Later" option alongside "Log Now"; saves song metadata without opening the create screen; lowest effort, reuses existing infrastructure
+  - **Widget** — "Save what's playing" single-tap button using App Intents (iOS 17+); triggers background action without opening the app; reads now-playing from shared UserDefaults, writes to drafts
+  - **Siri Shortcut** — "Hey Siri, save this to Tracks"; same App Intent as the widget, free once that infra exists
+- [ ] Storage: `drafts` table — `user_id`, `song_name`, `artist`, `apple_music_id`, `artwork_url`, `saved_at`
+- [ ] Inbox UI: "To Log" section at top of timeline (dismissable), or a badge on the create button; tapping a draft pre-fills the create screen with that song; draft disappears once logged or explicitly dismissed
+- [ ] Optional: push reminder after 48h — "You saved '[Song]' to log later. Still want to?"
+- [ ] Build order: (1) share extension "Save for Later" path + `drafts` table + inbox UI; (2) widget action after the widget ships
+
+### Milestone Tracker + Progress Counter **[Free — engagement layer]**
+- [ ] **Milestone counter** — a running count of logged moments, shown prominently in Profile as part of identity ("You've built 47 memories"), not buried in a stats section
+- [ ] **Milestone celebrations** — in-app moment that fires when the user crosses a threshold; not a badge, a felt beat: subtle animation, a personalized message, and a sneak peek of what's coming next
+
+  | Milestone | Message | Sneak peek |
+  |-----------|---------|------------|
+  | 1st moment | "Your first memory. This is the beginning." | "Log 4 more and early resurfacing unlocks." |
+  | 5 moments | "You've got something going." | Blurred Reflections card: "Your earliest memory will start surfacing here" |
+  | 10 moments | "10 memories. You're building a real archive." | "At 25, your first era will start to take shape." |
+  | 25 moments | "Something is forming." | Locked era card preview in Reflections — the Premium conversion moment |
+  | 50 moments | "50 moments. This is a real body of work." | Blurred pattern insight teaser |
+  | 100 moments | "100 memories. That's a life in music." | "What kind of music person are you" insight unlocked |
+  | 365 days active | "A full year. On This Day is now fully alive." | Yearly Recap unlocked |
+
+- [ ] **Sneak peeks at upcoming unlocks** — below each milestone celebration, show a blurred/locked preview of exactly what unlocks next and how many moments away it is: "8 moments away from your first pattern insight" with a soft preview behind it; creates anticipation instead of a hard wall
+- [ ] **Progress strip in Profile** — a horizontal milestone timeline showing the user's current position and the next 2–3 upcoming unlocks; feels like a journey being assembled, not a game with levels
+- [ ] **Sneak peeks at upcoming unlocks** — below each milestone celebration, show a blurred/locked preview of exactly what unlocks next and how many moments away it is: "8 moments away from your first pattern insight" with a soft preview behind it; creates anticipation instead of a hard wall
+- [ ] **Progress strip in Profile** — a horizontal milestone timeline showing the user's current position and the next 2–3 upcoming unlocks; feels like a journey being assembled, not a game with levels
+- [ ] **Tone: journal, not fitness app** — language like "You've built...", "Something is forming...", "This is becoming real" — never streaks broken, never XP, never badges; the metaphor is an archive growing, not a game being played
+- [ ] **Streaks (secondary, gentle)** — "You've logged 4 days this week" as a warm acknowledgment, not a pressure mechanism; no streak-breaking push notifications; logging every day should feel natural, not guilted
+- [ ] Monthly recap card: "You saved 12 moments in February" — surfaces in Reflections as a warm summary, shareable as an image
+- [ ] Seasonal milestones: "You've been logging since winter. Here's what spring sounds like for you." — crosses into Pattern Resurfacing when enough data exists
+
+### Mini-Achievements — Feature Discovery Layer **[Free]**
+> One-time "first time you did X" moments. Not a badge wall — each fires once, in-context, as a warm acknowledgment. Never shown as a checklist to complete; discovered naturally as the user explores.
+
+- [ ] **Implementation:** a `user_achievements` table — `(user_id, achievement_key, earned_at)`; check on relevant actions; fire a celebration sheet when a new key is inserted; never re-fire
+- [ ] **Achievement set:**
+
+  | Key | Trigger | Message |
+  |-----|---------|---------|
+  | `first_photo` | Attached a photo to a moment | "A face to go with the feeling." |
+  | `first_person_tag` | Tagged someone in a moment | "Music sounds different with people in it." |
+  | `first_shazam` | Identified a song with ShazamKit | "Caught in the wild." |
+  | `first_share` | Shared a moment card | "You just gave someone a memory." |
+  | `first_share_extension` | Captured via share from Apple Music/Spotify | "Straight from the source." |
+  | `first_now_playing` | Used Now Playing auto-fill | "No searching. Just feeling." |
+  | `first_voice_note` | Added a voice note | "Your voice, from this exact moment." |
+  | `first_location` | A moment with a location tagged | "Somewhere specific." |
+  | `first_collection` | Created or joined a shared collection | "Music is better shared." |
+  | `first_prompt_used` | Logged a moment from a memory prompt | "The prompt found something real." |
+  | `first_gift` | Sent a Gift a Memory | "That's going to mean something to them." |
+  | `first_save_for_later` | Used Save for Later | "You'll come back to this." |
+  | `first_reflections_tab` | Opened the Reflections tab | "Here's where it all starts to add up." |
+  | `first_calendar_view` | Opened the calendar view | "Your life, mapped." |
+
+- [ ] **Sharing nudge tied to `first_share`** — after 3+ moments logged without sharing, a soft in-app card: "Your moments are worth sharing. Here's one that might resonate." Tapping opens the share sheet for that moment; not a notification, just a card in the timeline or Reflections
+- [ ] **"You've unlocked everything" state** — if a user earns all achievements, a quiet acknowledgment: "You've found everything Tracks has to offer. Now it just compounds." No fanfare — just recognition that they've explored deeply; reinforces that the value is in the archive, not the features
 
 ---
 
