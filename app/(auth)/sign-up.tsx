@@ -101,7 +101,7 @@ export default function SignUpScreen() {
           )}
         </TouchableOpacity>
 
-        <Link href="/(auth)/sign-in" asChild>
+        <Link href="/(auth)/sign-in" replace asChild>
           <TouchableOpacity style={styles.linkContainer}>
             <Text style={styles.linkText}>
               Already have an account? <Text style={styles.linkBold}>Sign In</Text>
