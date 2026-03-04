@@ -143,8 +143,9 @@ export default function TimelineScreen() {
       listOpacity.value = withTiming(0, { duration: 200 });
       calendarOpacity.value = withTiming(1, { duration: 200 });
       setViewMode("calendar");
+      fetchMoments(false, false, true);
     }
-  }, []);
+  }, [fetchMoments]);
 
   const pinchGesture = useMemo(
     () =>
@@ -177,12 +178,13 @@ export default function TimelineScreen() {
       listOpacity.value = withTiming(0, { duration: 200 });
       calendarOpacity.value = withTiming(1, { duration: 200 });
       setViewMode("calendar");
+      fetchMoments(false, false, true);
     } else {
       calendarOpacity.value = withTiming(0, { duration: 200 });
       listOpacity.value = withTiming(1, { duration: 200 });
       setViewMode("list");
     }
-  }, [viewMode]);
+  }, [viewMode, fetchMoments]);
 
   const handleDayPress = useCallback((momentId: string) => {
     calendarOpacity.value = withTiming(0, { duration: 200 });
@@ -261,7 +263,7 @@ export default function TimelineScreen() {
   }, [pendingScrollId, sections]);
 
   const fetchMoments = useCallback(
-    async (showLoading: boolean, append = false) => {
+    async (showLoading: boolean, append = false, fetchAll = false) => {
       if (!user) return;
       if (!append) pageRef.current = 0;
       if (showLoading) setLoading(true);
@@ -363,8 +365,8 @@ export default function TimelineScreen() {
         query = query.in("id", ids);
       }
 
-      // Paginate only on the unfiltered "All Moments" view
-      if (!filtersActive) {
+      // Paginate only on the unfiltered "All Moments" list view
+      if (!filtersActive && !fetchAll) {
         const from = pageRef.current * TIMELINE_PAGE_SIZE;
         query = query.range(from, from + TIMELINE_PAGE_SIZE - 1);
       }
@@ -388,7 +390,7 @@ export default function TimelineScreen() {
       } else {
         setMoments(mapped);
       }
-      setHasMore(!filtersActive && mapped.length === TIMELINE_PAGE_SIZE);
+      setHasMore(!filtersActive && !fetchAll && mapped.length === TIMELINE_PAGE_SIZE);
       setLoading(false);
       lastFetchTime.current = Date.now();
 
