@@ -73,6 +73,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       favoriteArtists: data.favorite_artists ?? [],
       favoriteSongs: data.favorite_songs ?? [],
       onboardingCompleted: data.onboarding_completed ?? false,
+      notifOnThisDay: data.notif_on_this_day ?? true,
+      notifStreak: data.notif_streak ?? true,
+      notifPrompts: data.notif_prompts ?? true,
+      notifResurfacing: data.notif_resurfacing ?? true,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     });

@@ -157,13 +157,29 @@ function RootLayoutNav() {
     if (!user) return;
     registerForPushNotifications(user.id).catch(() => {});
 
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as Record<string, any> | undefined;
-      if (data?.momentId) {
+    function handleNotificationData(data: Record<string, any> | undefined) {
+      if (!data) return;
+      if (data.momentId) {
         router.push(`/moment/${data.momentId}`);
-      } else if (data?.type === "create") {
+      } else if (data.type === "create") {
         router.push("/create");
       }
+    }
+
+    // Handle tap when app was cold-launched from a notification
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        handleNotificationData(
+          response.notification.request.content.data as Record<string, any> | undefined
+        );
+      }
+    });
+
+    // Handle tap when app is foregrounded or backgrounded
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      handleNotificationData(
+        response.notification.request.content.data as Record<string, any> | undefined
+      );
     });
     return () => sub.remove();
   }, [user?.id]);

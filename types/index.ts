@@ -92,6 +92,10 @@ export interface UserProfile {
   favoriteArtists: FavoriteArtist[];
   favoriteSongs: FavoriteSong[];
   onboardingCompleted: boolean;
+  notifOnThisDay: boolean;
+  notifStreak: boolean;
+  notifPrompts: boolean;
+  notifResurfacing: boolean;
   createdAt: string;
   updatedAt: string;
 }

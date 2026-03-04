@@ -35,22 +35,18 @@ export default function CelebrationScreen() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const [notifState, setNotifState] = useState<"idle" | "asking" | "done">("idle");
+  const [continuing, setContinuing] = useState(false);
 
   useEffect(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, []);
 
-  async function handleEnableNotifications() {
-    if (!user) return;
-    setNotifState("asking");
+  async function handleContinue() {
+    if (!user || continuing) return;
+    setContinuing(true);
     try {
       await registerForPushNotifications(user.id);
     } catch {}
-    setNotifState("done");
-  }
-
-  function handleContinue() {
     router.replace("/(tabs)");
   }
 
@@ -88,41 +84,20 @@ export default function CelebrationScreen() {
       </View>
 
       <View style={styles.footer}>
-        {notifState !== "done" ? (
-          <>
-            <TouchableOpacity
-              style={[styles.notifButton, { borderColor: theme.colors.accent }]}
-              onPress={handleEnableNotifications}
-              activeOpacity={0.8}
-              disabled={notifState === "asking"}
-            >
-              <Ionicons name="notifications-outline" size={18} color={theme.colors.accent} />
-              <Text style={[styles.notifButtonText, { color: theme.colors.accent }]}>
-                Turn on memory reminders
-              </Text>
-            </TouchableOpacity>
-            <Text style={[styles.notifHint, { color: theme.colors.textSecondary }]}>
-              We'll notify you when a song anniversary comes up — like "3 years ago you were listening to this."
-            </Text>
-          </>
-        ) : (
-          <View style={styles.notifDone}>
-            <Ionicons name="checkmark-circle" size={18} color={theme.colors.success ?? theme.colors.accent} />
-            <Text style={[styles.notifDoneText, { color: theme.colors.textSecondary }]}>
-              You'll be notified about On This Day memories
-            </Text>
-          </View>
-        )}
-
         <TouchableOpacity
           style={[styles.continueButton, { backgroundColor: theme.colors.buttonBg }]}
           onPress={handleContinue}
           activeOpacity={0.8}
+          disabled={continuing}
         >
+          <Ionicons name="notifications-outline" size={18} color={theme.colors.buttonText} style={{ marginRight: 8 }} />
           <Text style={[styles.continueButtonText, { color: theme.colors.buttonText }]}>
-            Go to my timeline
+            Turn on notifications
           </Text>
         </TouchableOpacity>
+        <Text style={[styles.notifHint, { color: theme.colors.textTertiary }]}>
+          We'll remind you when a song anniversary comes up. You can manage this in Settings anytime.
+        </Text>
       </View>
     </View>
   );
@@ -195,38 +170,15 @@ function createStyles(theme: Theme) {
       paddingBottom: Platform.OS === "ios" ? 44 : 24,
       gap: 12,
     },
-    notifButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-      height: 52,
-      borderRadius: 14,
-      borderWidth: 1.5,
-    },
-    notifButtonText: {
-      fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
-    },
     notifHint: {
       fontSize: theme.fontSize.xs,
       textAlign: "center",
       lineHeight: 18,
-      marginTop: -4,
-    },
-    notifDone: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 6,
-      height: 52,
-    },
-    notifDoneText: {
-      fontSize: theme.fontSize.sm,
     },
     continueButton: {
       height: 52,
-      borderRadius: 14,
+      borderRadius: theme.radii.button,
+      flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
     },

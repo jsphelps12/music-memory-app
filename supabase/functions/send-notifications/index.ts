@@ -40,10 +40,10 @@ Deno.serve(async (_req) => {
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   const yesterdayStr = yesterday.toISOString().slice(0, 10);
 
-  // Step 1: get all users with a push token
+  // Step 1: get all users with a push token + their notification prefs
   const { data: tokenUsers, error: tokenErr } = await supabase
     .from("profiles")
-    .select("id, push_token")
+    .select("id, push_token, notif_on_this_day, notif_streak, notif_prompts, notif_resurfacing")
     .not("push_token", "is", null);
 
   console.log("tokenUsers:", JSON.stringify(tokenUsers));
@@ -58,6 +58,9 @@ Deno.serve(async (_req) => {
   const userIds = tokenUsers.map((u) => u.id);
   const tokenByUserId: Record<string, string> = Object.fromEntries(
     tokenUsers.map((u) => [u.id, u.push_token])
+  );
+  const prefsByUserId: Record<string, typeof tokenUsers[0]> = Object.fromEntries(
+    tokenUsers.map((u) => [u.id, u])
   );
 
   const messages: ExpoPushMessage[] = [];
@@ -94,6 +97,7 @@ Deno.serve(async (_req) => {
     }
 
     for (const [userId, { momentId, songTitle, songArtist, momentYear }] of byUser) {
+      if (prefsByUserId[userId]?.notif_on_this_day === false) continue;
       const yearsAgo = todayYear - momentYear;
       messages.push({
         to: tokenByUserId[userId],
@@ -129,6 +133,7 @@ Deno.serve(async (_req) => {
 
   for (const { id: userId } of tokenUsers) {
     if (assignedUserIds.has(userId)) continue;
+    if (prefsByUserId[userId]?.notif_streak === false) continue;
     if (loggedYesterday.has(userId) && !loggedToday.has(userId)) {
       messages.push({
         to: tokenByUserId[userId],
@@ -145,6 +150,7 @@ Deno.serve(async (_req) => {
   // ── Priority 3: Journal prompt (Tue=2 or Thu=4) ──────────────────────────
   if (todayDow === 2 || todayDow === 4) {
     for (const { id: userId } of remaining) {
+      if (prefsByUserId[userId]?.notif_prompts === false) continue;
       messages.push({
         to: tokenByUserId[userId],
         title: "What are you listening to? 🎶",
@@ -160,6 +166,7 @@ Deno.serve(async (_req) => {
     const randomCandidates = tokenUsers.filter((u) => !assignedUserIds.has(u.id));
 
     for (const { id: userId } of randomCandidates) {
+      if (prefsByUserId[userId]?.notif_resurfacing === false) continue;
       const { count: total } = await supabase
         .from("moments")
         .select("id", { count: "exact", head: true })

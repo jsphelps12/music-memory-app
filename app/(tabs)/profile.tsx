@@ -8,9 +8,12 @@ import {
   Alert,
   ScrollView,
   RefreshControl,
+  Switch,
+  Linking,
 } from "react-native";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
+import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -116,6 +119,12 @@ export default function ProfileScreen() {
   const [bannerError, setBannerError] = useState("");
   const lastFetchTime = useRef(0);
 
+  const [notifPermission, setNotifPermission] = useState<"granted" | "denied" | "undetermined">("undetermined");
+  const [notifOnThisDay, setNotifOnThisDay] = useState(true);
+  const [notifStreak, setNotifStreak] = useState(true);
+  const [notifPrompts, setNotifPrompts] = useState(true);
+  const [notifResurfacing, setNotifResurfacing] = useState(true);
+
   const loadProfileData = useCallback(async (isInitial: boolean) => {
     if (!user) return;
     try {
@@ -123,6 +132,10 @@ export default function ProfileScreen() {
       setBannerError("");
 
       await refreshProfile();
+
+      // Load notification permission status
+      const { status } = await Notifications.getPermissionsAsync();
+      setNotifPermission(status === "granted" ? "granted" : status === "denied" ? "denied" : "undetermined");
 
       const [
         { count, error: countError },
@@ -172,6 +185,7 @@ export default function ProfileScreen() {
 
       lastFetchTime.current = Date.now();
       setInitialLoading(false);
+
     } catch (e) {
       if (isInitial) {
         setLoadError(friendlyError(e));
@@ -191,6 +205,17 @@ export default function ProfileScreen() {
         loadProfileData(false);
       }
     }, [loadProfileData])
+  );
+
+  // Sync notif prefs from profile into local toggle state
+  useFocusEffect(
+    useCallback(() => {
+      if (!profile) return;
+      setNotifOnThisDay(profile.notifOnThisDay);
+      setNotifStreak(profile.notifStreak);
+      setNotifPrompts(profile.notifPrompts);
+      setNotifResurfacing(profile.notifResurfacing);
+    }, [profile])
   );
 
   const avatarUri = profile?.avatarUrl ? getPublicPhotoUrl(profile.avatarUrl) : null;
@@ -237,6 +262,18 @@ export default function ProfileScreen() {
       ]
     );
   };
+
+  const handleNotifToggle = useCallback(async (
+    field: "notif_on_this_day" | "notif_streak" | "notif_prompts" | "notif_resurfacing",
+    value: boolean
+  ) => {
+    if (!user) return;
+    if (field === "notif_on_this_day") setNotifOnThisDay(value);
+    if (field === "notif_streak") setNotifStreak(value);
+    if (field === "notif_prompts") setNotifPrompts(value);
+    if (field === "notif_resurfacing") setNotifResurfacing(value);
+    await supabase.from("profiles").update({ [field]: value }).eq("id", user.id);
+  }, [user]);
 
   const handleSignOut = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -440,6 +477,44 @@ export default function ProfileScreen() {
         )}
       </View>
 
+      {/* Notifications */}
+      <View style={styles.notifCard}>
+        <Text style={styles.sectionTitle}>Notifications</Text>
+        {notifPermission !== "granted" ? (
+          <TouchableOpacity
+            style={styles.notifSettingsRow}
+            onPress={() => Linking.openSettings()}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="notifications-off-outline" size={18} color={theme.colors.textSecondary} />
+            <Text style={styles.notifSettingsText}>Notifications are disabled</Text>
+            <Text style={styles.notifSettingsLink}>Open Settings →</Text>
+          </TouchableOpacity>
+        ) : (
+          <>
+            {([
+              { field: "notif_on_this_day", label: "On This Day", sub: "When a song anniversary comes up", value: notifOnThisDay },
+              { field: "notif_resurfacing", label: "Random memories", sub: "A random moment from your past", value: notifResurfacing },
+              { field: "notif_streak", label: "Streak reminders", sub: "Keep your logging streak going", value: notifStreak },
+              { field: "notif_prompts", label: "Journal prompts", sub: "Occasional nudges to capture a moment", value: notifPrompts },
+            ] as const).map(({ field, label, sub, value }, idx) => (
+              <View key={field} style={[styles.notifRow, idx > 0 && styles.notifRowBorder]}>
+                <View style={styles.notifRowText}>
+                  <Text style={styles.notifRowLabel}>{label}</Text>
+                  <Text style={styles.notifRowSub}>{sub}</Text>
+                </View>
+                <Switch
+                  value={value}
+                  onValueChange={(v) => handleNotifToggle(field, v)}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+                  thumbColor="#fff"
+                />
+              </View>
+            ))}
+          </>
+        )}
+      </View>
+
       {/* Sign Out */}
       {signOutError ? (
         <Text style={styles.signOutErrorText}>{signOutError}</Text>
@@ -638,6 +713,51 @@ function createStyles(theme: Theme) {
       borderTopColor: theme.colors.border,
       paddingHorizontal: theme.spacing.lg,
       paddingBottom: theme.spacing.lg,
+    },
+    notifCard: {
+      backgroundColor: theme.colors.cardBg,
+      borderRadius: theme.radii.md,
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
+      marginBottom: theme.spacing["2xl"],
+    },
+    notifSettingsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      paddingVertical: theme.spacing.sm,
+    },
+    notifSettingsText: {
+      flex: 1,
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+    },
+    notifSettingsLink: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.accent,
+    },
+    notifRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 10,
+      gap: theme.spacing.md,
+    },
+    notifRowBorder: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.border,
+    },
+    notifRowText: {
+      flex: 1,
+    },
+    notifRowLabel: {
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.medium,
+      color: theme.colors.text,
+    },
+    notifRowSub: {
+      fontSize: theme.fontSize.xs,
+      color: theme.colors.textTertiary,
+      marginTop: 2,
     },
     signOutErrorText: {
       color: theme.colors.destructive,
