@@ -3,7 +3,7 @@ import { Session, User } from "@supabase/supabase-js";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { supabase } from "@/lib/supabase";
 import { CustomMoodDefinition, CustomPromptCategory, FavoriteArtist, FavoriteSong, UserProfile } from "@/types";
-import { prefetchTimeline } from "@/lib/timelinePrefetch";
+import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
 
 export interface OnboardingData {
   displayName: string;
@@ -173,8 +173,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    const userId = session?.user?.id;
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    if (userId) clearTimelineCache(userId);
   };
 
   const deleteAccount = async () => {

@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { Theme } from "@/constants/theme";
@@ -23,9 +24,10 @@ interface Props {
   moments: Moment[];
   onDayPress: (momentId: string) => void;
   theme: Theme;
+  loading?: boolean;
 }
 
-export function CalendarView({ moments, onDayPress, theme }: Props) {
+export function CalendarView({ moments, onDayPress, theme, loading }: Props) {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const byDate = useMemo(() => {
@@ -61,6 +63,14 @@ export function CalendarView({ moments, onDayPress, theme }: Props) {
 
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={theme.colors.accent} />
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -179,6 +189,11 @@ export function CalendarView({ moments, onDayPress, theme }: Props) {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
+    loadingContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     scroll: { flex: 1 },
     content: {
       paddingHorizontal: H_PAD,

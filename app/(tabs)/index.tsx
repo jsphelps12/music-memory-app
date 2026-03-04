@@ -118,6 +118,7 @@ export default function TimelineScreen() {
   debouncedLocationRef.current = debouncedLocation;
 
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  const [calendarLoading, setCalendarLoading] = useState(false);
   const [pendingScrollId, setPendingScrollId] = useState<string | null>(null);
   const sectionListRef = useRef<SectionList>(null);
 
@@ -143,7 +144,8 @@ export default function TimelineScreen() {
       listOpacity.value = withTiming(0, { duration: 200 });
       calendarOpacity.value = withTiming(1, { duration: 200 });
       setViewMode("calendar");
-      fetchMoments(false, false, true);
+      setCalendarLoading(true);
+      fetchMoments(false, false, true).finally(() => setCalendarLoading(false));
     }
   }, [fetchMoments]);
 
@@ -178,7 +180,8 @@ export default function TimelineScreen() {
       listOpacity.value = withTiming(0, { duration: 200 });
       calendarOpacity.value = withTiming(1, { duration: 200 });
       setViewMode("calendar");
-      fetchMoments(false, false, true);
+      setCalendarLoading(true);
+      fetchMoments(false, false, true).finally(() => setCalendarLoading(false));
     } else {
       calendarOpacity.value = withTiming(0, { duration: 200 });
       listOpacity.value = withTiming(1, { duration: 200 });
@@ -901,7 +904,7 @@ export default function TimelineScreen() {
         </Animated.View>
 
         <Animated.View style={[StyleSheet.absoluteFill, calendarAnimStyle]} pointerEvents={viewMode === "calendar" ? "auto" : "none"}>
-          <CalendarView moments={moments} onDayPress={handleDayPress} theme={theme} />
+          <CalendarView moments={moments} onDayPress={handleDayPress} theme={theme} loading={calendarLoading} />
         </Animated.View>
       </View>
       </GestureDetector>
