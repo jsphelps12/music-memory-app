@@ -166,12 +166,15 @@ function RootLayoutNav() {
       }
     }
 
-    // Handle tap when app was cold-launched from a notification
+    // Handle tap when app was cold-launched from a notification.
+    // Delay to let AuthGate finish routing to /(tabs) before we push on top.
     Notifications.getLastNotificationResponseAsync().then((response) => {
       if (response) {
-        handleNotificationData(
-          response.notification.request.content.data as Record<string, any> | undefined
-        );
+        setTimeout(() => {
+          handleNotificationData(
+            response.notification.request.content.data as Record<string, any> | undefined
+          );
+        }, 600);
       }
     });
 
