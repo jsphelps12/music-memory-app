@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -22,7 +22,7 @@ import { pad } from "@/lib/dateUtils";
 import { topValue } from "@/lib/utils";
 import { Moment } from "@/types";
 
-const REFETCH_COOLDOWN_MS = 2000;
+const REFETCH_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
 interface ThisMonthData {
   count: number;
@@ -175,10 +175,9 @@ export default function ReflectionsScreen() {
   }, [user, aMonthAgoFrom, aMonthAgoTo]);
 
   const loadAll = useCallback(
-    async (preserveRandom: boolean) => {
+    async (preserveRandom: boolean, silent = false) => {
       if (!user) return;
-      setLoading(true);
-      setError("");
+      if (!silent) { setLoading(true); setError(""); }
       try {
         const [otd, rand, tm, ama] = await Promise.all([
           fetchOnThisDay(),
@@ -194,22 +193,29 @@ export default function ReflectionsScreen() {
         setThisMonth(tm);
         setAMonthAgo(ama);
       } catch (e: any) {
-        setError(friendlyError(e));
+        if (!silent) setError(friendlyError(e));
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
         lastFetchTime.current = Date.now();
       }
     },
     [user, fetchOnThisDay, fetchRandom, fetchThisMonth, fetchAMonthAgo]
   );
 
+  // Initial fetch — starts on mount (before tab gains focus) so data is ready when navigated to
+  const initialFetchDoneRef = useRef(false);
+  useEffect(() => {
+    if (initialFetchDoneRef.current) return;
+    initialFetchDoneRef.current = true;
+    loadAll(false);
+  }, [loadAll]);
+
+  // Silent background refresh when returning to tab after cooldown
   useFocusEffect(
     useCallback(() => {
       const elapsed = Date.now() - lastFetchTime.current;
-      if (lastFetchTime.current === 0) {
-        loadAll(false);
-      } else if (elapsed >= REFETCH_COOLDOWN_MS) {
-        loadAll(true);
+      if (lastFetchTime.current > 0 && elapsed >= REFETCH_COOLDOWN_MS) {
+        loadAll(true, true);
       }
     }, [loadAll])
   );

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -29,7 +29,7 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
 import { topValue } from "@/lib/utils";
 
-const REFETCH_COOLDOWN_MS = 2000;
+const REFETCH_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes
 const AVATAR_SIZE = 80;
 
 function formatBytes(bytes: number): string {
@@ -182,12 +182,19 @@ export default function ProfileScreen() {
     }
   }, [user?.id]);
 
+  // Initial fetch — starts on mount (before tab gains focus) so data is ready when navigated to
+  const initialFetchDoneRef = useRef(false);
+  useEffect(() => {
+    if (initialFetchDoneRef.current) return;
+    initialFetchDoneRef.current = true;
+    loadProfileData(true);
+  }, [loadProfileData]);
+
+  // Background refresh (non-blocking banner) when returning to tab after cooldown
   useFocusEffect(
     useCallback(() => {
       const elapsed = Date.now() - lastFetchTime.current;
-      if (lastFetchTime.current === 0) {
-        loadProfileData(true);
-      } else if (elapsed >= REFETCH_COOLDOWN_MS) {
+      if (lastFetchTime.current > 0 && elapsed >= REFETCH_COOLDOWN_MS) {
         loadProfileData(false);
       }
     }, [loadProfileData])
