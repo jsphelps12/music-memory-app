@@ -11,6 +11,7 @@ export interface OnboardingData {
   country: string | null;
   favoriteArtists: FavoriteArtist[];
   favoriteSongs: FavoriteSong[];
+  genrePreferences: string[];
 }
 
 interface AuthState {
@@ -73,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       favoriteArtists: data.favorite_artists ?? [],
       favoriteSongs: data.favorite_songs ?? [],
       onboardingCompleted: data.onboarding_completed ?? false,
+      genrePreferences: data.genre_preferences ?? [],
       notifOnThisDay: data.notif_on_this_day ?? true,
       notifStreak: data.notif_streak ?? true,
       notifPrompts: data.notif_prompts ?? true,
@@ -245,6 +247,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         country: data.country,
         favorite_artists: data.favoriteArtists,
         favorite_songs: data.favoriteSongs,
+        genre_preferences: data.genrePreferences,
         onboarding_completed: true,
       })
       .eq("id", session.user.id);

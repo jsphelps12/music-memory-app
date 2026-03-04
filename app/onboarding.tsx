@@ -25,7 +25,12 @@ import { friendlyError } from "@/lib/errors";
 import { FavoriteArtist, FavoriteSong } from "@/types";
 import { searchItunesArtists, searchItunesSongs } from "@/lib/musicSearch";
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
+
+const GENRES = [
+  "Rock", "Pop", "Hip-Hop", "R&B / Soul", "Country", "Electronic",
+  "Latin", "Jazz", "Folk / Indie", "Classical", "Reggae", "Metal",
+];
 
 const BIRTH_YEARS = Array.from({ length: 86 }, (_, i) => 2015 - i); // 2015 → 1930
 
@@ -78,6 +83,9 @@ export default function OnboardingScreen() {
   const [songSearching, setSongSearching] = useState(false);
   const [selectedSongs, setSelectedSongs] = useState<FavoriteSong[]>([]);
   const songDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Step 5 — Genres
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
 
   // ── Search handlers ────────────────────────────────────────────────────
 
@@ -162,10 +170,13 @@ export default function OnboardingScreen() {
         country: country || null,
         favoriteArtists: selectedArtists,
         favoriteSongs: selectedSongs,
+        genrePreferences: selectedGenres,
       };
       await completeOnboarding(data);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Gate: go to tabs, then immediately open create so first moment is captured
       router.replace("/(tabs)");
+      setTimeout(() => router.push("/create" as any), 600);
     } catch (e: any) {
       setError(friendlyError(e));
       setSaving(false);
@@ -315,6 +326,36 @@ export default function OnboardingScreen() {
           </KeyboardAvoidingView>
         );
 
+      case 5:
+        return (
+          <View style={styles.stepContent}>
+            <Text style={styles.stepHeading}>Your genres</Text>
+            <Text style={styles.stepSub}>What kind of music shaped you? Pick any that apply — or skip.</Text>
+            <View style={styles.genreGrid}>
+              {GENRES.map((genre) => {
+                const selected = selectedGenres.includes(genre);
+                return (
+                  <TouchableOpacity
+                    key={genre}
+                    style={[styles.genreChip, selected && styles.genreChipSelected]}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setSelectedGenres((prev) =>
+                        selected ? prev.filter((g) => g !== genre) : [...prev, genre]
+                      );
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.genreChipText, selected && styles.genreChipTextSelected]}>
+                      {genre}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        );
+
       case 4:
         return (
           <KeyboardAvoidingView
@@ -439,14 +480,21 @@ export default function OnboardingScreen() {
             <ActivityIndicator color={theme.colors.buttonText} />
           ) : (
             <Text style={[styles.nextButtonText, { color: theme.colors.buttonText }]}>
-              {step === TOTAL_STEPS ? "Let's go" : "Continue"}
+              {step === TOTAL_STEPS ? "Capture my first memory" : "Continue"}
             </Text>
           )}
         </TouchableOpacity>
 
-        {step === 2 && (
+        {(step === 2 || step === 5) && (
           <TouchableOpacity
-            onPress={() => { setError(""); setStep((s) => s + 1); }}
+            onPress={() => {
+              setError("");
+              if (step < TOTAL_STEPS) {
+                setStep((s) => s + 1);
+              } else {
+                handleNext();
+              }
+            }}
             activeOpacity={0.7}
             style={styles.skipLink}
           >
@@ -721,6 +769,32 @@ function createStyles(theme: Theme) {
     skipText: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
+    },
+    genreGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+    },
+    genreChip: {
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 20,
+      backgroundColor: theme.colors.backgroundInput,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    genreChipSelected: {
+      backgroundColor: theme.colors.accentBg,
+      borderColor: theme.colors.accent,
+    },
+    genreChipText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+      fontWeight: theme.fontWeight.medium,
+    },
+    genreChipTextSelected: {
+      color: theme.colors.accent,
+      fontWeight: theme.fontWeight.semibold,
     },
     // Picker modals
     modalBackdrop: {

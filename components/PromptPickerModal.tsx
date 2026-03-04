@@ -161,6 +161,7 @@ function createStyles(theme: Theme) {
     },
     tabs: {
       flexDirection: "row",
+      alignItems: "center",
       gap: theme.spacing.sm,
       paddingHorizontal: 24,
       paddingBottom: 12,

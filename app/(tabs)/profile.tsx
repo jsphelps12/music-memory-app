@@ -113,6 +113,7 @@ export default function ProfileScreen() {
   const [topSong, setTopSong] = useState<string | null | undefined>(undefined);
   const [topMood, setTopMood] = useState<string | null | undefined>(undefined);
   const [showPrompts, setShowPrompts] = useState(false);
+  const [showCaptureMethods, setShowCaptureMethods] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -477,6 +478,41 @@ export default function ProfileScreen() {
         )}
       </View>
 
+      {/* How to capture */}
+      <View style={[styles.promptsCard, showCaptureMethods && styles.promptsCardOpen]}>
+        <TouchableOpacity
+          style={styles.promptsRow}
+          onPress={() => setShowCaptureMethods((v) => !v)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.promptsRowLabel}>How to capture a memory</Text>
+          <Ionicons
+            name={showCaptureMethods ? "chevron-up" : "chevron-down"}
+            size={16}
+            color={theme.colors.textTertiary}
+          />
+        </TouchableOpacity>
+        {showCaptureMethods && (
+          <View style={[styles.promptsBody, { gap: 0 }]}>
+            {([
+              { icon: "search-outline", label: "Search", desc: "Find any song by title or artist" },
+              { icon: "musical-note-outline", label: "Now Playing", desc: "Auto-fills when Apple Music is playing" },
+              { icon: "share-outline", label: "Share from Apple Music / Spotify", desc: "Tap Share → Tracks in any music app" },
+              { icon: "image-outline", label: "Share from Photos", desc: "Tap Share → Tracks from camera roll" },
+              { icon: "ear-outline", label: "ShazamKit", desc: "Hear a song anywhere — identify it in-app" },
+            ] as const).map(({ icon, label, desc }, idx) => (
+              <View key={label} style={[styles.captureRow, idx > 0 && styles.captureRowBorder]}>
+                <Ionicons name={icon} size={18} color={theme.colors.accent} style={styles.captureIcon} />
+                <View style={styles.captureText}>
+                  <Text style={styles.captureLabel}>{label}</Text>
+                  <Text style={styles.captureDesc}>{desc}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
       {/* Notifications */}
       <View style={styles.notifCard}>
         <Text style={styles.sectionTitle}>Notifications</Text>
@@ -713,6 +749,32 @@ function createStyles(theme: Theme) {
       borderTopColor: theme.colors.border,
       paddingHorizontal: theme.spacing.lg,
       paddingBottom: theme.spacing.lg,
+    },
+    captureRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 10,
+    },
+    captureRowBorder: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.border,
+    },
+    captureIcon: {
+      width: 28,
+      marginRight: theme.spacing.sm,
+    },
+    captureText: {
+      flex: 1,
+    },
+    captureLabel: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.semibold,
+      color: theme.colors.text,
+    },
+    captureDesc: {
+      fontSize: theme.fontSize.xs,
+      color: theme.colors.textTertiary,
+      marginTop: 1,
     },
     notifCard: {
       backgroundColor: theme.colors.cardBg,
