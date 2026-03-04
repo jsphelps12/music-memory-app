@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { usePostHog } from "posthog-react-native";
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -34,6 +35,7 @@ export default function CelebrationScreen() {
   const { user } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const posthog = usePostHog();
 
   const [continuing, setContinuing] = useState(false);
 
@@ -46,6 +48,7 @@ export default function CelebrationScreen() {
     setContinuing(true);
     try {
       await registerForPushNotifications(user.id);
+      posthog.capture("notifications_enabled");
     } catch {}
     router.replace("/(tabs)");
   }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePostHog } from "posthog-react-native";
 import {
   View,
   Text,
@@ -23,6 +24,7 @@ export default function SongSearchScreen() {
   const router = useRouter();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const posthog = usePostHog();
   const { photos } = useLocalSearchParams<{ photos?: string }>();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Song[]>([]);
@@ -53,6 +55,7 @@ export default function SongSearchScreen() {
       try {
         const songs = await searchSongs(trimmed);
         setResults(songs);
+        posthog.capture("song_searched", { query_length: trimmed.length, result_count: songs.length });
       } catch {
         setResults([]);
         setError("Something went wrong. Try again.");
@@ -68,6 +71,7 @@ export default function SongSearchScreen() {
 
   function handleSelect(song: Song) {
     Haptics.selectionAsync();
+    posthog.capture("song_selected", { song_title: song.title, song_artist: song.artistName });
     emitSongSelected(song);
     router.back();
   }

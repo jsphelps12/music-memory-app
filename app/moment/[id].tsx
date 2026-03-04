@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePostHog } from "posthog-react-native";
 import {
   View,
   Text,
@@ -59,6 +60,7 @@ export default function MomentDetailScreen() {
   const { user, profile } = useAuth();
   const { currentSong, isPlaying, play, pause, stop } = usePlayer();
   const theme = useTheme();
+  const posthog = usePostHog();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [moment, setMoment] = useState<Moment | null>(() => consumeCachedMoment());
   const [loading, setLoading] = useState(false);
@@ -286,6 +288,7 @@ export default function MomentDetailScreen() {
             return;
           }
 
+          posthog.capture("moment_deleted", { song_title: moment?.songTitle, song_artist: moment?.songArtist });
           markTimelineStale();
           animateOut(() => router.back());
         },
@@ -343,6 +346,7 @@ export default function MomentDetailScreen() {
                 Haptics.selectionAsync();
                 setMenuOpen(false);
                 setShareModalVisible(true);
+                posthog.capture("moment_shared", { song_title: moment?.songTitle, song_artist: moment?.songArtist });
               }}
               activeOpacity={0.7}
             >

@@ -3,9 +3,11 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, useRouter, useSegments, usePathname, useGlobalSearchParams } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { PostHogProvider } from "posthog-react-native";
+import { posthog } from "@/lib/posthog";
 import { View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -141,13 +143,15 @@ function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ShareIntentProvider>
-        <AuthProvider>
-          <PlayerProvider>
-            <RootLayoutNav />
-          </PlayerProvider>
-        </AuthProvider>
-      </ShareIntentProvider>
+      <PostHogProvider client={posthog} autocapture={{ captureScreens: false, captureTouches: true }}>
+        <ShareIntentProvider>
+          <AuthProvider>
+            <PlayerProvider>
+              <RootLayoutNav />
+            </PlayerProvider>
+          </AuthProvider>
+        </ShareIntentProvider>
+      </PostHogProvider>
     </GestureHandlerRootView>
   );
 }
@@ -160,6 +164,17 @@ function RootLayoutNav() {
   const { user } = useAuth();
   useDeepLinkHandler();
   useShareIntentHandler();
+
+  const pathname = usePathname();
+  const params = useGlobalSearchParams();
+  const previousPathname = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (previousPathname.current !== pathname) {
+      posthog.screen(pathname, { previous_screen: previousPathname.current ?? null, ...params });
+      previousPathname.current = pathname;
+    }
+  }, [pathname, params]);
 
   useEffect(() => {
     if (!user) return;

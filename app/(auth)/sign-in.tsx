@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { usePostHog } from "posthog-react-native";
 import {
   View,
   Text,
@@ -21,6 +22,7 @@ export default function SignInScreen() {
   const { signIn, signInWithApple } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const posthog = usePostHog();
   const { registered } = useLocalSearchParams<{ registered?: string }>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,6 +41,7 @@ export default function SignInScreen() {
     setLoading(true);
     try {
       await signInWithApple();
+      posthog.capture("signed_in", { method: "apple" });
     } catch (e: any) {
       const message = friendlyError(e);
       if (message) {
@@ -62,6 +65,7 @@ export default function SignInScreen() {
     setLoading(true);
     try {
       await signIn(email.trim(), password);
+      posthog.capture("signed_in", { method: "email" });
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(friendlyError(e));

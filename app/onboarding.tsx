@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
+import { usePostHog } from "posthog-react-native";
 import {
   View,
   Text,
@@ -48,9 +49,10 @@ const COUNTRIES = [
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { completeOnboarding } = useAuth();
+  const { completeOnboarding, user } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const posthog = usePostHog();
 
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
@@ -173,6 +175,8 @@ export default function OnboardingScreen() {
         genrePreferences: selectedGenres,
       };
       await completeOnboarding(data);
+      if (user) posthog.identify(user.id, { $set: { display_name: data.displayName, birth_year: data.birthYear, country: data.country, genre_preferences: data.genrePreferences } });
+      posthog.capture("onboarding_completed", { has_birth_year: Boolean(data.birthYear), has_country: Boolean(data.country), genre_count: data.genrePreferences.length, artist_count: data.favoriteArtists.length, song_count: data.favoriteSongs.length });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // Gate: go to tabs, then immediately open create so first moment is captured
       router.replace("/(tabs)");

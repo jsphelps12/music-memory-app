@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePostHog } from "posthog-react-native";
 import {
   View,
   Text,
@@ -86,6 +87,7 @@ export default function ProfileScreen() {
   const { user, profile, signOut, deleteAccount, refreshProfile, saveCustomPromptCategory, deleteCustomPromptCategory } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const posthog = usePostHog();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
@@ -265,8 +267,9 @@ export default function ProfileScreen() {
     if (field === "notif_streak") setNotifStreak(value);
     if (field === "notif_prompts") setNotifPrompts(value);
     if (field === "notif_resurfacing") setNotifResurfacing(value);
+    posthog.capture("notification_preferences_changed", { notification_type: field, enabled: value });
     await supabase.from("profiles").update({ [field]: value }).eq("id", user.id);
-  }, [user]);
+  }, [user, posthog]);
 
   const handleSignOut = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

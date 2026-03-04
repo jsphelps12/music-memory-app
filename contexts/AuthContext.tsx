@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from "r
 import { Session, User } from "@supabase/supabase-js";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { supabase } from "@/lib/supabase";
+import { posthog } from "@/lib/posthog";
 import { CustomMoodDefinition, CustomPromptCategory, FavoriteArtist, FavoriteSong, UserProfile } from "@/types";
 import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
 
@@ -91,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         setSession(session);
         if (session?.user) {
+          posthog.identify(session.user.id, { $set: { email: session.user.email } });
           await fetchProfile(session.user.id);
           prefetchTimeline(session.user.id);
         }
@@ -105,8 +107,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!suppressAuth.current) {
         setSession(session);
         if (session?.user) {
+          posthog.identify(session.user.id, { $set: { email: session.user.email } });
           fetchProfile(session.user.id);
         } else {
+          posthog.reset();
           setProfile(null);
           setProfileReady(false);
         }

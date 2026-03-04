@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { usePostHog } from "posthog-react-native";
 import {
   View,
   Text,
@@ -21,6 +22,7 @@ export default function SignUpScreen() {
   const { signUp } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const posthog = usePostHog();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -39,6 +41,7 @@ export default function SignUpScreen() {
     setLoading(true);
     try {
       await signUp(email.trim(), password);
+      posthog.capture("signed_up", { method: "email" });
       router.replace("/(auth)/sign-in?registered=1");
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { usePostHog } from "posthog-react-native";
 import * as Location from "expo-location";
 import * as FileSystem from "expo-file-system/legacy";
 import {
@@ -233,6 +234,7 @@ export default function CreateMomentScreen() {
   const { user, profile, saveCustomMood, deleteCustomMood } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const posthog = usePostHog();
   const scrollViewRef = useRef<ScrollView>(null);
   const params = useLocalSearchParams<{
     songId?: string;
@@ -429,6 +431,7 @@ export default function CreateMomentScreen() {
       setIsShazaming(false);
       return;
     }
+    posthog.capture("shazam_used");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsShazaming(true);
     setShazamError("");
@@ -573,6 +576,17 @@ export default function CreateMomentScreen() {
         .single();
 
       if (insertError) throw insertError;
+
+      posthog.capture("moment_created", {
+        song_title: song!.title,
+        song_artist: song!.artistName,
+        has_reflection: reflection.trim().length > 0,
+        has_mood: Boolean(selectedMood),
+        photo_count: photos.length,
+        has_location: location.trim().length > 0,
+        has_people: people.length > 0,
+        has_collection: Boolean(selectedCollection),
+      });
 
       if (selectedCollection && inserted?.id) {
         await addMomentToCollection(selectedCollection.id, inserted.id, user.id).catch(() => {});

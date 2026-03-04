@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { usePostHog } from "posthog-react-native";
 import {
   View,
   Text,
@@ -26,6 +27,7 @@ export default function JoinScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const theme = useTheme();
+  const posthog = usePostHog();
 
   const [state, setState] = useState<ScreenState>("loading");
   const [collection, setCollection] = useState<CollectionPreview | null>(null);
@@ -74,6 +76,7 @@ export default function JoinScreen() {
     try {
       const joined = await joinCollection(inviteCode, user.id);
       setPendingCollectionId(joined.id);
+      posthog.capture("collection_joined", { collection_name: collection?.name });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace("/(tabs)");
     } catch (e) {
