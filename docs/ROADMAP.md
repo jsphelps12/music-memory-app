@@ -58,7 +58,7 @@ That's the product. Everything on this roadmap exists to make that feeling captu
 
 ---
 
-## NOW — Pre-Launch Checklist (9 items, 8 done)
+## NOW — Pre-Launch Checklist (9 items, all done ✅)
 
 Everything here ships before App Store marketing push.
 
@@ -74,13 +74,14 @@ Everything here ships before App Store marketing push.
 | 8 | ShazamKit | ✅ Done | Native module; ambient capture → create screen |
 | 9 | Share from Photos | ✅ Done | Share extension + EXIF auto-fill |
 
-### App Store Review — Remaining Steps
-- [ ] Add demo account credentials in App Store Connect (App Review Information section)
-- [ ] Add review notes: explain Now Playing, share extension, Apple Sign-In available but demo uses email/password
-- [ ] Complete Age Rating questionnaire (expect 12+ due to UGC)
-- [ ] Complete App Privacy labels
-- [ ] Attach completed EAS build to version in App Store Connect
-- [ ] Submit for review
+### App Store Review — ✅ Submitted (awaiting review)
+- [x] Age rating questionnaire — 12+ (UGC present)
+- [x] App Privacy labels — completed
+- [x] Demo account credentials added
+- [x] Review notes added
+- [x] 6.5" screenshots (1284×2778) uploaded
+- [x] EAS production build attached
+- [x] Submitted for review — awaiting Apple approval
 
 ---
 
@@ -137,12 +138,12 @@ Everything here ships before App Store marketing push.
 - [x] Keywords set
 - [x] Privacy policy URL: `/privacy`
 - [x] Category: Music (primary), Lifestyle (secondary)
-- [x] 9 screenshots uploaded
-- [ ] Age rating questionnaire (expect 12+ due to UGC)
-- [ ] App Privacy labels
-- [ ] Demo account credentials
-- [ ] Review notes
-- [ ] Attach EAS build + submit
+- [x] 9 screenshots uploaded (6.5" slot: resized to 1284×2778)
+- [x] Age rating: 12+ (UGC present)
+- [x] App Privacy labels completed
+- [x] Demo account credentials added
+- [x] Review notes added
+- [x] EAS production build attached + submitted for review
 
 **EAS Build** ✅
 - [x] `eas.json` configured with production profile, auto-increment build number
