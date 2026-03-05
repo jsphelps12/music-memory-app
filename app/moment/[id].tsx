@@ -370,7 +370,7 @@ export default function MomentDetailScreen() {
                     Haptics.selectionAsync();
                     setMenuOpen(false);
                     const subject = encodeURIComponent(`Report: ${moment.songTitle} by ${moment.songArtist}`);
-                    const body = encodeURIComponent("Please describe what you'd like to report about this moment:\n\n");
+                    const body = encodeURIComponent(`Please describe what you'd like to report about this moment:\n\n\n\n---\nMoment ID: ${moment.id}\nContributor: ${moment.contributorName ?? "unknown"}`);
                     Linking.openURL(`mailto:founder@soundtracks.app?subject=${subject}&body=${body}`);
                   }}
                   activeOpacity={0.7}
