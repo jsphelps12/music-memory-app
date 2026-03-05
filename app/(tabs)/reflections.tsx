@@ -49,6 +49,16 @@ export default function ReflectionsScreen() {
   // Preserve the random moment when returning to tab — only re-pick on explicit shuffle
   const randomMomentRef = useRef<Moment | null>(null);
 
+  // Clear all data immediately when the user changes (e.g. sign out → sign in as different user)
+  useEffect(() => {
+    setOnThisDay([]);
+    setRandomMoment(null);
+    setAMonthAgo(null);
+    setThisMonth(null);
+    randomMomentRef.current = null;
+    lastFetchTime.current = 0;
+  }, [user?.id]);
+
   const allMoods = useMemo(
     () => [...MOODS, ...(profile?.customMoods ?? [])],
     [profile?.customMoods]

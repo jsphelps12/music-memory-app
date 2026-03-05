@@ -117,6 +117,16 @@ export default function TimelineScreen() {
   const [calendarMoments, setCalendarMoments] = useState<Moment[]>([]);
   const calendarFetchedRef = useRef(false);
   const [pendingScrollId, setPendingScrollId] = useState<string | null>(null);
+
+  // Clear all data immediately when the user changes (e.g. sign out → sign in as different user)
+  useEffect(() => {
+    setMoments([]);
+    setCalendarMoments([]);
+    setCollections([]);
+    setSelectedCollection(null);
+    calendarFetchedRef.current = false;
+    lastFetchTime.current = 0;
+  }, [user?.id]);
   const sectionListRef = useRef<SectionList>(null);
 
   const listOpacity = useSharedValue(1);
