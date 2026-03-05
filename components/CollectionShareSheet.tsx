@@ -17,6 +17,7 @@ import * as Haptics from "expo-haptics";
 import { Collection } from "@/types";
 import {
   convertCollectionToShared,
+  deleteCollection,
   leaveCollection,
   fetchCollectionMembers,
   removeCollectionMember,
@@ -41,6 +42,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
   const { user } = useAuth();
   const [converting, setConverting] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
   const [members, setMembers] = useState<CollectionMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
@@ -156,6 +158,36 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
     );
   }
 
+  function handleDelete() {
+    const memberWarning = members.length > 0
+      ? ` ${members.length} member${members.length === 1 ? "" : "s"} will be removed.`
+      : "";
+    Alert.alert(
+      "Delete Collection",
+      `Permanently delete "${collection.name}"?${memberWarning} Moments added by members will remain on their timelines. This can't be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setDeleting(true);
+            setError("");
+            try {
+              await deleteCollection(collection.id);
+              onClose();
+              onLeft(collection.id);
+            } catch (e: any) {
+              setError(friendlyError(e));
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   return (
     <Modal
       visible={visible}
@@ -256,6 +288,22 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                 </TouchableOpacity>
               </View>
             )}
+
+            {/* Delete collection */}
+            <TouchableOpacity
+              style={[styles.deleteButton, deleting && styles.buttonDisabled]}
+              onPress={handleDelete}
+              disabled={deleting}
+              activeOpacity={0.8}
+            >
+              {deleting ? (
+                <ActivityIndicator color={theme.colors.destructive} />
+              ) : (
+                <Text style={[styles.deleteButtonText, { color: theme.colors.destructive ?? "#E53E3E" }]}>
+                  Delete Collection
+                </Text>
+              )}
+            </TouchableOpacity>
 
             {/* Members section */}
             <View style={styles.membersSection}>
@@ -461,6 +509,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   convertButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  deleteButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E53E3E",
+    marginTop: 20,
+  },
+  deleteButtonText: {
     fontSize: 16,
     fontWeight: "600",
   },
