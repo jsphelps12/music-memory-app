@@ -82,18 +82,13 @@ export default function TermsOfUse() {
           </p>
         </Section>
 
-        <H2>Subscriptions and payments</H2>
+        <H2>Pricing</H2>
         <Section>
           <p>
-            Some features of Soundtracks require a paid subscription (&quot;Soundtracks Plus&quot;). Subscriptions are
-            managed through Apple&apos;s in-app purchase system and are subject to Apple&apos;s terms and
-            conditions. We do not process payment information directly.
+            Soundtracks is currently free to use. Paid features may be introduced in the future.
+            If and when paid features are added, they will be managed through Apple&apos;s in-app
+            purchase system and clearly disclosed before purchase.
           </p>
-          <ul>
-            <li>Subscriptions renew automatically unless cancelled at least 24 hours before the end of the current period.</li>
-            <li>Cancellation takes effect at the end of the current billing period — you retain access until then.</li>
-            <li>Refunds are handled by Apple. Contact Apple Support for refund requests.</li>
-          </ul>
         </Section>
 
         <H2>Acceptable use</H2>

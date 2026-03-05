@@ -54,7 +54,6 @@ export default function PrivacyPolicy() {
             <li><strong>Song metadata</strong> — title, artist, album, and Apple Music ID for songs you attach to moments. Sourced from Apple&apos;s catalog.</li>
             <li><strong>Photos</strong> — photos you choose to attach to moments, stored securely.</li>
             <li><strong>Mood tags, people tags, location, and date</strong> — optional fields you fill in to give your moments more context.</li>
-            <li><strong>Voice notes</strong> — if you record a voice note with a moment, it is stored securely and only accessible to you.</li>
           </ul>
         </Section>
 

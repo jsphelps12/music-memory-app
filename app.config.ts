@@ -27,7 +27,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       NSCameraUsageDescription:
         "Soundtracks uses your camera to take photos for your moments.",
       NSLocationWhenInUseUsageDescription:
-        "Tracks reads your photos' location data to suggest where your moment took place.",
+        "Soundtracks reads your photos' location data to suggest where your moment took place.",
       NSMicrophoneUsageDescription:
         "Soundtracks uses the microphone to identify songs playing around you with ShazamKit.",
       ITSAppUsesNonExemptEncryption: false,
@@ -75,7 +75,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-location",
       {
         locationWhenInUsePermission:
-          "Tracks reads your photos' location data to suggest where your moment took place.",
+          "Soundtracks reads your photos' location data to suggest where your moment took place.",
       },
     ],
     [
