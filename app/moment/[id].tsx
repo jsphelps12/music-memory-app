@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   TextInput,
   KeyboardAvoidingView,
+  Linking,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -361,6 +362,24 @@ export default function MomentDetailScreen() {
               <Text style={styles.menuItemText}>Add to Collection</Text>
             </TouchableOpacity>
             <View style={styles.menuDivider} />
+            {moment.userId !== user?.id && (
+              <>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setMenuOpen(false);
+                    const subject = encodeURIComponent(`Report: ${moment.songTitle} by ${moment.songArtist}`);
+                    const body = encodeURIComponent("Please describe what you'd like to report about this moment:\n\n");
+                    Linking.openURL(`mailto:founder@soundtracks.app?subject=${subject}&body=${body}`);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.menuItemTextDestructive}>Report Moment</Text>
+                </TouchableOpacity>
+                <View style={styles.menuDivider} />
+              </>
+            )}
             <TouchableOpacity style={styles.menuItem} onPress={handleDelete} activeOpacity={0.7}>
               <Text style={styles.menuItemTextDestructive}>Delete Moment</Text>
             </TouchableOpacity>

@@ -546,6 +546,18 @@ export default function ProfileScreen() {
         )}
       </View>
 
+      {/* Feedback */}
+      <TouchableOpacity
+        style={styles.feedbackButton}
+        onPress={() => {
+          Haptics.selectionAsync();
+          Linking.openURL("mailto:founder@soundtracks.app?subject=Soundtracks%20Feedback");
+        }}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.feedbackText}>Share Feedback</Text>
+      </TouchableOpacity>
+
       {/* Sign Out */}
       {signOutError ? (
         <Text style={styles.signOutErrorText}>{signOutError}</Text>
@@ -822,8 +834,22 @@ function createStyles(theme: Theme) {
       marginBottom: theme.spacing.sm,
       textAlign: "center",
     },
-    signOutButton: {
+    feedbackButton: {
       marginTop: theme.spacing["2xl"],
+      paddingVertical: 14,
+      paddingHorizontal: theme.spacing["3xl"],
+      borderRadius: theme.radii.sm,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      alignItems: "center",
+    },
+    feedbackText: {
+      color: theme.colors.textSecondary,
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    signOutButton: {
+      marginTop: theme.spacing.md,
       paddingVertical: 14,
       paddingHorizontal: theme.spacing["3xl"],
       borderRadius: theme.radii.sm,
