@@ -1,4 +1,4 @@
-# Tracks — Roadmap
+# Soundtracks — Roadmap
 
 > "It's wild how certain songs can immediately take you back to a totally different time in your life."
 > — Instagram comment, 2,962 likes
@@ -47,24 +47,40 @@ That's the product. Everything on this roadmap exists to make that feeling captu
 - [x] Deferred deep links — clipboard method; web writes invite code, app reads on first launch
 - [x] Design system v2 — accentSecondary (purple), brand gradient artwork placeholders, CloseButton, standardized button/input sizing
 - [x] Reflections tab reorganization — all sections conditional (hidden when empty), reordered: On This Day → A Month Ago → This Month → Random
+- [x] App renamed Tracks → Soundtracks everywhere (app name, bundle ID display, share extension, privacy/terms)
+- [x] Password visibility toggle on sign-in + sign-up screens
+- [x] Notification prompt gated behind `onboardingCompleted` — no premature iOS dialog
+- [x] Sign-in ↔ sign-up navigation uses `replace` — no screen stacking on back swipe
+- [x] Report Moment — UGC moderation via mailto; appears for other users' moments in shared collections
+- [x] Share Feedback button on Profile screen
+- [x] Data isolation — timeline + reflections clear on user change; no flash of previous account's data
+- [x] Sentry crash reporting + PostHog analytics integrated and shipping in production build
 
 ---
 
-## NOW — Pre-Launch Checklist (9 items, 7 done)
+## NOW — Pre-Launch Checklist (9 items, 8 done)
 
 Everything here ships before App Store marketing push.
 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
-| 1 | Privacy policy + Terms | ✅ Done | Hosted at `/privacy` and `/terms` |
+| 1 | Privacy policy + Terms | ✅ Done | Hosted at `/privacy` and `/terms`; cleaned up pre-submission |
 | 2 | Deferred deep links | ✅ Done | Clipboard method; invite code survives install |
 | 3 | Onboarding tightening | ✅ Done | Collection-origin variant deferred to post-launch |
-| 4 | App Store listing + assets | ⬜ Remaining | Sentry, PostHog, screenshots, App Store Connect |
+| 4 | App Store listing + assets | ✅ Done | Screenshots, metadata, Sentry, PostHog, EAS build complete |
 | 5 | Memory prompts | ✅ Done | 8 categories × 5 prompts wired throughout app |
 | 6 | Early resurfacing | ✅ Done | "A Month Ago" in Reflections tab |
 | 7 | Gift a Memory | ✅ Done | Web page + share URL; no account to view |
 | 8 | ShazamKit | ✅ Done | Native module; ambient capture → create screen |
 | 9 | Share from Photos | ✅ Done | Share extension + EXIF auto-fill |
+
+### App Store Review — Remaining Steps
+- [ ] Add demo account credentials in App Store Connect (App Review Information section)
+- [ ] Add review notes: explain Now Playing, share extension, Apple Sign-In available but demo uses email/password
+- [ ] Complete Age Rating questionnaire (expect 12+ due to UGC)
+- [ ] Complete App Privacy labels
+- [ ] Attach completed EAS build to version in App Store Connect
+- [ ] Submit for review
 
 ---
 
@@ -91,69 +107,54 @@ Everything here ships before App Store marketing push.
 **Remaining (post-launch):**
 - [ ] Collection-origin users: "This moment is yours now. Not just theirs." reframe after joining
 
-### 4. App Store Listing + Assets
+### 4. App Store Listing + Assets ✅
 
-**Crash reporting — Sentry**
-- [ ] Install `@sentry/react-native`, configure DSN, wire up in app entry point
-- [ ] Captures crashes, JS errors, network failures with full stack traces
-- [ ] Requires native rebuild; free tier is sufficient
+**Crash reporting — Sentry** ✅
+- [x] `@sentry/react-native` installed, DSN configured, `Sentry.wrap(RootLayout)` in app entry point
+- [x] `SENTRY_AUTH_TOKEN` added as EAS secret (Project R&W + Release R&W + Org Read scopes)
+- [x] Source maps upload automatically on EAS build
 
-**Product analytics — PostHog**
-- [ ] Install `posthog-react-native`, configure project key
-- [ ] Free tier: up to 1M events/month
-- [ ] Key events to wire up: `onboarding_started`, `first_moment_created` (the activation event), `onboarding_completed`, `moment_created`, `shazam_identify_tapped`, `shazam_success`, `prompt_used` (+category), `share_card_shared`, `collection_joined`, `gift_sent`, `reflections_tab_opened`, `on_this_day_tapped`, `notification_opened` (+type), `paywall_shown`, `subscription_started`
-- [ ] Primary funnel: `onboarding_started → first_moment_created → moment_created (7 days later)` — this tells you activation + early retention at a glance
+**Product analytics — PostHog** ✅
+- [x] `posthog-react-native` installed, `PostHogProvider` wraps app in `_layout.tsx`
+- [x] `posthog.identify()` on sign-in, `posthog.reset()` on sign-out
+- [x] Events tracked: `signed_up`, `signed_in`, `onboarding_completed`, `moment_created`, `shazam_used`, `moment_deleted`, `moment_shared`, `song_searched`, `song_selected`, `collection_joined`, `notifications_enabled`, `notification_preferences_changed`
+- [x] Dashboard: https://us.posthog.com/project/331689/dashboard/1331385
 
-**In-app feedback**
-- [ ] "Send Feedback" option on Profile screen → opens Mail with pre-filled subject "Tracks Feedback"
-- [ ] Use a dedicated email address (not personal): `hello@tracks.app` or similar
-- [ ] Separate from crash reporting — captures qualitative input, feature requests, complaints
+**In-app feedback** ✅
+- [x] "Share Feedback" button on Profile screen (above Sign Out) → mailto to `founder@soundtracks.app`
 
-**App Store Connect — required fields**
-- [ ] App name (max 30 chars): "Tracks"
-- [ ] Subtitle (max 30 chars): "Music Memory Journal" or "Your Songs. Your Memories."
-- [ ] Description (max 4,000 chars) — lead with the emotional hook, not the feature list
-- [ ] Keywords (max 100 chars total) — music journal, memory, songs, moments, music diary, reflection, Apple Music
-- [ ] Support URL — the feedback email or a simple web page
-- [ ] Privacy policy URL — `/privacy` (see item 1)
-- [ ] Category: Music (primary), Lifestyle (secondary)
-- [ ] Age rating — complete questionnaire (no mature content, no user-generated sharing to public)
-- [ ] Copyright: "© 2026 [Your Name]"
-- [ ] Demo account credentials for App Review team (they need to log in and use the app)
-- [ ] Review notes — explain Now Playing, share extension, any non-obvious flows
+**UGC moderation** ✅
+- [x] Report Moment — in `...` menu on moments by other users; mailto pre-filled with moment ID + contributor name
+- [x] Collection owners can remove moments and kick members
 
-**App Privacy nutrition labels (App Store Connect)**
-- [ ] Data used to track you: none (don't check this unless you're running cross-app tracking)
-- [ ] Data linked to you: email address, name, photos, user content (reflections, moods), usage data
-- [ ] Data not linked to you: crash data (Sentry), diagnostics (PostHog if anonymized)
+**Data integrity fix** ✅
+- [x] Timeline + Reflections state cleared immediately on `user.id` change — prevents data flash between accounts
+
+**App Store Connect — required fields** ✅
+- [x] App name: "Soundtracks"
+- [x] Subtitle: "Your music. Your memories."
+- [x] Description + promotional text written
+- [x] Keywords set
+- [x] Privacy policy URL: `/privacy`
+- [x] Category: Music (primary), Lifestyle (secondary)
+- [x] 9 screenshots uploaded
+- [ ] Age rating questionnaire (expect 12+ due to UGC)
+- [ ] App Privacy labels
+- [ ] Demo account credentials
+- [ ] Review notes
+- [ ] Attach EAS build + submit
+
+**EAS Build** ✅
+- [x] `eas.json` configured with production profile, auto-increment build number
+- [x] All secrets added to EAS: Supabase URL/key, Sentry DSN, PostHog key/host, Sentry auth token
+- [x] Production build completed successfully
 
 **Sentry alerts**
-- [ ] Configure Slack or email alerts for new error types hitting production — without this you're blind between App Store review sessions
+- [ ] Configure email alerts for new error types hitting production
 
 **Supabase Pro — upgrade before launch**
 - [ ] Free tier: 1 day log retention, no automated backups
-- [ ] Pro ($25/month): 7-day logs, daily automated backups — non-negotiable for an app storing personal emotional data
-
-**RLS security audit — before launch**
-- [ ] Manually verify: can User A read User B's moments? Can unauthenticated requests read anything private?
-- [ ] Audit every policy in Supabase dashboard — a data leak on emotional/personal content is catastrophic
-- [ ] Not a tool — an hour of careful review
-
-**Infrastructure notes — AWS not needed**
-- [ ] Storage: Supabase Storage (S3-compatible, CDN built in) covers photos, voice notes, video
-- [ ] Serverless: Supabase Edge Functions cover all backend logic
-- [ ] Cron jobs: `pg_cron` via Supabase for `song_stats` daily pre-compute
-- [ ] Vector search: `pgvector` built into Supabase — no Pinecone needed for AI features
-- [ ] Email: Resend or Loops for transactional/digest email (simpler than SES)
-- [ ] Video (when built): Cloudflare Stream — no AWS MediaConvert complexity
-- [ ] AI: Anthropic API (narratives) + OpenAI Whisper (transcription) via Edge Functions
-
-**Screenshots**
-- [ ] Required: iPhone 6.7" (Pro Max size)
-- [ ] Recommended: iPhone 6.5" and 5.5"
-- [ ] 3–6 screenshots; first one is the most important — show the emotional moment, not the feature
-- [ ] Caption each screenshot with benefit language, not feature names ("Songs that take you back" not "Timeline View")
-- [ ] Optional: 30-second App Preview video — significantly improves conversion
+- [ ] Pro ($25/month): 7-day logs, daily automated backups — non-negotiable for personal emotional data
 
 ### Memory Prompts ✅
 - [x] Rotating contextual starters — 8 categories × 5 prompts
