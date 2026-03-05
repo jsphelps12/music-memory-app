@@ -6,6 +6,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "ios:device": "expo run:ios --device",
+    "ios:clean": "expo prebuild --clean && rm -rf ios/Tracks.xcodeproj && cd ios && pod install --repo-update && cd .. && expo run:ios --device",
     "web": "expo start --web",
     "postinstall": "patch-package"
   },
