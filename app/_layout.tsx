@@ -178,7 +178,10 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (!user || !profile?.onboardingCompleted) return;
-    registerForPushNotifications(user.id).catch(() => {});
+    registerForPushNotifications(user.id).catch((err) => {
+      Sentry.captureException(err);
+      if (__DEV__) console.warn("[push-notifications] registration failed:", err);
+    });
 
     function handleNotificationData(data: Record<string, any> | undefined) {
       if (!data) return;

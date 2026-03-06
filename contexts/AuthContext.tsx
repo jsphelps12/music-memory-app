@@ -51,13 +51,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileReady, setProfileReady] = useState(false);
   const suppressAuth = useRef(false);
+  const isMountedRef = useRef(true);
+  const currentFetchUserIdRef = useRef<string | null>(null);
 
   async function fetchProfile(userId: string) {
+    currentFetchUserIdRef.current = userId;
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
       .single();
+
+    // Discard result if user changed while fetch was in-flight
+    if (currentFetchUserIdRef.current !== userId) return;
 
     if (error || !data) {
       setProfile(null);
@@ -89,6 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!isMountedRef.current) return;
       try {
         setSession(session);
         if (session?.user) {
@@ -97,18 +104,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           prefetchTimeline(session.user.id);
         }
       } finally {
-        setLoading(false);
+        if (isMountedRef.current) setLoading(false);
       }
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!suppressAuth.current) {
         setSession(session);
         if (session?.user) {
           posthog.identify(session.user.id, { $set: { email: session.user.email } });
-          fetchProfile(session.user.id);
+          await fetchProfile(session.user.id);
         } else {
           posthog.reset();
           setProfile(null);
@@ -117,7 +124,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMountedRef.current = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
