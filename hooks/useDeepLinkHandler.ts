@@ -38,7 +38,7 @@ export function useDeepLinkHandler() {
 
   const handleUrl = useCallback(async (url: string) => {
     // Join link: soundtracks://join?inviteCode={code}
-    const joinMatch = url.match(/^[a-z]+:\/\/join\?inviteCode=([a-zA-Z0-9]+)/);
+    const joinMatch = url.match(/^soundtracks:\/\/join\?inviteCode=([a-zA-Z0-9]+)/);
     if (joinMatch) {
       await handleInviteCode(joinMatch[1]);
       return;

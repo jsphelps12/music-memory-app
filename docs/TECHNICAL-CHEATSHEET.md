@@ -257,6 +257,90 @@ Uses React Native's `SectionList` (virtualized) instead of `ScrollView` + `.map(
 
 ---
 
+## Scalability Considerations
+
+Good to know for system design questions — the app is built correctly for current scale, but here's where it breaks and how to fix it.
+
+| Component | Breaks at | Why | Fix |
+|-----------|-----------|-----|-----|
+| Notification edge function | ~10K users | N×2 Supabase queries in a loop (one COUNT + one range query per user) | Batch with `IN` clause + local randomization, or use `TABLESAMPLE` |
+| Timeline prefetch | N/A (per-user) | Module-level promise doesn't track userId — fast sign-out/sign-in can serve wrong user's data | Track userId alongside promise |
+| Photo storage bandwidth | ~5K active users | All photos served directly from Supabase Storage (S3) with no CDN | Add Cloudflare or CloudFront in front |
+| `ilike %term%` search | ~50K moments/user | No full-text index | Add `pg_trgm` GIN index or `tsvector` column |
+| NowPlaying native bridge | Immediate (any user) | Album artwork converted to base64 (~1MB) and passed across bridge on every track change | Return URL or omit artwork; fetch separately |
+| Supabase free tier queries | ~100 users | Cold starts (520 errors) on shared infrastructure — global retry added as mitigation | Upgrade to Supabase Pro |
+
+---
+
+## Production Hardening — Issues Found & Fixed
+
+This section documents real bugs and trade-offs found during a production audit. Good interview material — shows you know how to think about edge cases.
+
+### Race condition: timeline prefetch userId mismatch
+**File:** `lib/timelinePrefetch.ts`
+**Issue:** Module stores a `Promise<Moment[]>` at the module level without tracking which user it belongs to. If User A authenticates and prefetch starts, then User A signs out and User B signs in before the prefetch resolves, `consumePrefetchPromise()` returns User A's data to User B's timeline.
+**Fix:** Store `{ promise, userId }` together; `consume()` validates userId before returning.
+**Interview angle:** Classic TOCTOU (time-of-check to time-of-use) bug. Module-level mutable state + async operations = race condition surface.
+
+### Logic bug: extra fetch in retry loop
+**File:** `lib/supabase.ts`
+**Issue:** The retry function loops 3 times, but has a `return fetch(input, init)` after the loop — making 4 requests instead of 3 on cold start. Simple off-by-one in control flow.
+**Fix:** Remove the trailing fetch; the loop's final iteration handles the last attempt.
+**Interview angle:** Shows the value of unit testing retry logic with a mock fetch. Easy to miss in code review.
+
+### Native bridge: base64 artwork string
+**File:** `modules/now-playing/ios/NowPlayingModule.swift`
+**Issue:** Album artwork is fetched at 600×600px, converted to PNG, base64-encoded, and passed across the React Native bridge as a string on every track change. A 600×600 PNG can be ~800KB–1.5MB as base64. This causes jank on track changes and is unnecessary — the app already has the album artwork URL from MusicKit.
+**Fix:** Remove artwork from the bridge payload; use the MusicKit artwork URL already available in the JS layer.
+**Interview angle:** The React Native bridge is synchronous for serialization — large payloads block the JS thread. Always minimize what crosses the bridge.
+
+### URL scheme validation gap
+**File:** `hooks/useDeepLinkHandler.ts`
+**Issue:** Deep link regex `/^[a-z]+:\/\/join\?inviteCode=.../` matches any lowercase protocol. A crafted `http://join?inviteCode=...` link would be treated as a valid join request.
+**Fix:** Hardcode `soundtracks://` in the regex.
+**Interview angle:** Input validation on security boundaries. Even with RLS protecting the actual data, trusting untrusted URL inputs is a bad pattern.
+
+### Silent error swallowing
+**Multiple files**
+**Issue:** Several catch blocks silently swallow errors: shuffle in `reflections.tsx`, push registration in `_layout.tsx`, prefetch failure in `timelinePrefetch.ts`. Users hit broken state with no feedback.
+**Fix:** At minimum, log to Sentry + capture to PostHog. Show inline error where UX warrants it.
+**Interview angle:** Error handling is a first-class feature. "We'll fix it if it happens" means you won't know when it happens.
+
+### Notification edge function: unbounded per-user queries
+**File:** `supabase/functions/send-notifications/index.ts`
+**Issue:** For random moment resurfacing, runs two Supabase queries per user (a COUNT then an offset range query). At 10K users this is 20K queries per function invocation. Supabase bills per query.
+**Fix:** Fetch all candidate moments with `IN (user_ids)` in a single query, then group and randomize in memory.
+**Interview angle:** N+1 query problem. Classic ORM/BaaS pitfall — always look at total query count, not just per-operation cost.
+
+---
+
+## Strong Patterns Worth Highlighting in Interviews
+
+### `friendlyError()` — centralized error UX
+**File:** `lib/errors.ts`
+Maps Supabase/network errors to human-readable messages in one place. Shows: centralized error handling, separation of concerns, user-first thinking. "Never show a raw database error to a user" is a professional instinct.
+
+### Stale-while-revalidate timeline caching
+**File:** `lib/timelinePrefetch.ts`
+On auth, prefetch the timeline before the user navigates to it. On navigation, return cached data immediately, revalidate in background. Pattern: render fast → update silently. Used by every major consumer app. Shows understanding of perceived vs. actual performance.
+
+### Consume-once module pattern
+**Files:** `lib/pendingCollection.ts`, `lib/timelineRefresh.ts`
+Module-level mutable state with a consume-once getter. Solves cross-navigation data passing without React Context, props drilling, or URL params. Simple and effective for low-frequency, one-way data handoff.
+
+### Custom EXIF parser — zero dependencies
+**File:** `app/create.tsx`
+Binary JPEG parsing from scratch: reads JPEG markers, IFD entries, GPS rational numbers, timezone normalization. No library. Shows: low-level binary protocol knowledge, deliberate dependency avoidance, awareness of bundle size.
+
+### Auth state nuance: `suppressAuth` + `profileReady`
+**File:** `contexts/AuthContext.tsx`
+`suppressAuth` ref prevents the `onAuthStateChange` listener from firing during the signup flow (which has its own state machine). `profileReady` prevents routing until profile data is loaded. These solve real race conditions that you only hit in production, not dev. Shows experience with async auth edge cases.
+
+### RLS as the real security boundary
+Supabase RLS policies enforce per-user data isolation at the database level — not in application code. Even if there's a bug in the JS, the database won't return another user's rows. The explicit state cleanup on user change (`useEffect` on `user?.id`) is defense-in-depth: belt + suspenders. Shows understanding that client-side state and server-side auth are separate layers.
+
+---
+
 ## Things to Study Deeper
 
 These are concepts that come up in interviews and are directly relevant to this project:

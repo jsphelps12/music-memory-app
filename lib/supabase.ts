@@ -15,6 +15,7 @@ async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Pro
     await new Promise((r) => setTimeout(r, delay));
     delay *= 2;
   }
+  // Unreachable — loop always returns on final attempt
   return fetch(input, init);
 }
 
