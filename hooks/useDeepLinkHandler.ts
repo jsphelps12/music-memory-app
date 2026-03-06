@@ -53,7 +53,7 @@ export function useDeepLinkHandler() {
     checkClipboardForInvite().then((code) => {
       if (code) handleInviteCode(code);
     });
-  }, []);
+  }, [handleInviteCode]);
 
   // URI scheme deep links — app already installed
   useEffect(() => {

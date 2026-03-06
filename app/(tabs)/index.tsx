@@ -279,7 +279,7 @@ export default function TimelineScreen() {
       // On first load, consume the prefetch started at auth — avoids a duplicate
       // round trip and makes the initial render feel instant
       if (showLoading && !append) {
-        const prefetchPromise = consumePrefetchPromise();
+        const prefetchPromise = consumePrefetchPromise(user.id);
         if (prefetchPromise) {
           const prefetched = await prefetchPromise.catch(() => null);
           if (prefetched) {

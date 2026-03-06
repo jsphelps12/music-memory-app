@@ -16,7 +16,7 @@ export const TIMELINE_PAGE_SIZE = 30;
 
 const CACHE_KEY_PREFIX = "timeline_cache_v1_";
 
-let _promise: Promise<Moment[]> | null = null;
+let _prefetch: { promise: Promise<Moment[]>; userId: string } | null = null;
 
 function cacheKey(userId: string) {
   return `${CACHE_KEY_PREFIX}${userId}`;
@@ -39,7 +39,7 @@ async function writeCache(userId: string, moments: Moment[]): Promise<void> {
 }
 
 export function prefetchTimeline(userId: string): void {
-  if (_promise) return; // already in flight
+  if (_prefetch?.userId === userId) return; // already in flight for this user
 
   // Fire network fetch immediately (runs in background)
   const networkFetch = supabase
@@ -60,22 +60,27 @@ export function prefetchTimeline(userId: string): void {
     });
 
   // Race: return cache immediately if available, else wait for network
-  _promise = readCache(userId).then((cached) => {
-    if (cached && cached.length > 0) {
-      // Return cached data instantly; network fetch updates cache in background
-      return cached;
-    }
-    return networkFetch;
-  });
+  _prefetch = {
+    userId,
+    promise: readCache(userId).then((cached) => {
+      if (cached && cached.length > 0) {
+        // Return cached data instantly; network fetch updates cache in background
+        return cached;
+      }
+      return networkFetch;
+    }),
+  };
 }
 
-export function consumePrefetchPromise(): Promise<Moment[]> | null {
-  const p = _promise;
-  _promise = null;
+export function consumePrefetchPromise(userId: string): Promise<Moment[]> | null {
+  if (_prefetch?.userId !== userId) return null; // wrong user — discard
+  const p = _prefetch.promise;
+  _prefetch = null;
   return p;
 }
 
 export async function clearTimelineCache(userId: string): Promise<void> {
+  if (_prefetch?.userId === userId) _prefetch = null;
   try {
     await AsyncStorage.removeItem(cacheKey(userId));
   } catch {}
