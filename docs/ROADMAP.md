@@ -97,24 +97,43 @@ Ordered by impact across growth (new users), retention (keep existing), and reve
 | Priority | Feature | Drives | Complexity | Notes |
 |----------|---------|--------|-----------|-------|
 | 1 | Music Memory Engine Phase 1 | Retention | 🟡 | Edge function + seed dataset + existing notification infra. Questionnaire already built. |
-| 2 | Wedding feature | Growth | 🟡 | Web contribution form (no account) + QR code generation. Claim flow is the hard part. |
-| 3 | Friends (Phase C) | Growth + Retention | 🟡 | Request/accept, display name search, notifications. Unlocks game + social features. |
-| 4 | Era Clustering | Revenue | 🔴 | Premium conversion trigger at 25–30 moments. Hardest feature on the list. |
-| 5 | Yearly Recap | Growth + Revenue | 🟡 | Must ship before December. Annual press moment. Free card + Premium full version. |
-| 6 | Song Anniversaries + Forgotten Songs | Retention | 🟢 | Ship alongside Music Memory Engine work. Date math + simple query. |
-| 7 | Save for Later (Song Inbox) | Retention | 🟡 | Share Extension "Save" path + drafts table + inbox UI. |
-| 8 | Memory Game | Growth + Retention | 🟡–🔴 | Async version first (Wordle-style). Needs friends. Killer viral mechanic. |
-| 9 | Smart Playlists (basic) | Retention + Growth | 🟡 | Time-period + mood playlists → Apple Music export. Shareable. |
-| 10 | QR Code Framed Print | Revenue | 🟡 | Needs public moment pages first. Printful API. High-volume gift product. |
-| 11 | Lock Screen Widget | Retention | 🔴 | App Intents, App Groups, Live Activities. Gets tech press. |
-| 12 | Spotify integration | Growth | 🟡 | Store Spotify ID + deep link out. Expands addressable market significantly. |
-| 13 | Physical Book (Wedding) | Revenue | 🔴 | PDF generation + print partner API + public moment pages dependency. |
-| 14 | Musical Autobiography | Revenue | 🔴 | LLM prose on personal data. Needs 2+ years of user data to be moving. Plant seeds now. |
-| 15 | "You're Not Alone" | Retention | 🟡 | Needs scale (1K+ users) for meaningful numbers. |
-| 16 | Community features | Retention | 🔴 | Tracks 100, memorial collections, community challenges. 5K+ users. |
+| 2 | Notification refinement | Retention | 🟡 | Tap-rate tracking per type, timing optimization, unengaged user suppression, deep link targets, A/B copy. |
+| 3 | Wedding feature | Growth | 🟡 | Web contribution form (no account) + QR code generation. Claim flow is the hard part. |
+| 4 | Friends (Phase C) | Growth + Retention | 🟡 | Request/accept, display name search, notifications. Unlocks game + social features. |
+| 5 | Era Clustering | Revenue | 🔴 | Premium conversion trigger at 25–30 moments. Hardest feature on the list. |
+| 6 | Yearly Recap | Growth + Revenue | 🟡 | Must ship before December. Annual press moment. Free card + Premium full version. |
+| 7 | Song Anniversaries + Forgotten Songs | Retention | 🟢 | Ship alongside Music Memory Engine work. Date math + simple query. |
+| 8 | Save for Later (Song Inbox) | Retention | 🟡 | Share Extension "Save" path + drafts table + inbox UI. |
+| 9 | Memory Game | Growth + Retention | 🟡–🔴 | Async version first (Wordle-style). Needs friends. Killer viral mechanic. |
+| 10 | Smart Playlists (basic) | Retention + Growth | 🟡 | Time-period + mood playlists → Apple Music export. Shareable. |
+| 11 | QR Code Framed Print | Revenue | 🟡 | Needs public moment pages first. Printful API. High-volume gift product. |
+| 12 | Lock Screen Widget | Retention | 🔴 | App Intents, App Groups, Live Activities. Gets tech press. |
+| 13 | Spotify integration (iOS) | Growth | 🟡 | Store Spotify ID + deep link out. Expands addressable market significantly. |
+| 14 | Android port | Growth | 🔴 | 4–6 weeks. Swap points are clear: musickit.ts rewrite, new Kotlin modules for NowPlaying + ShazamKit → ACRCloud, Google Sign-In. Everything else cross-platform already. |
+| 15 | Physical Book (Wedding) | Revenue | 🔴 | PDF generation + print partner API + public moment pages dependency. |
+| 16 | Musical Autobiography | Revenue | 🔴 | LLM prose on personal data. Needs 2+ years of user data to be moving. Plant seeds now. |
+| 17 | "You're Not Alone" | Retention | 🟡 | Needs scale (1K+ users) for meaningful numbers. |
+| 18 | Community features | Retention | 🔴 | Tracks 100, memorial collections, community challenges. 5K+ users. |
+
+### Notification refinement — what's missing
+Current state: infrastructure exists (edge function, per-type prefs, cold-launch fix, scheduling). What's not done:
+- [ ] Tap-rate tracking per notification type (are On This Day taps higher than streak taps?)
+- [ ] Timing optimization — send at each user's historically active hour, not a fixed UTC time
+- [ ] Unengaged user suppression — don't send to users who haven't opened in 30+ days; re-engagement campaign instead
+- [ ] Deep link targets — each notification type should deep link to the right screen, not just open the app
+- [ ] A/B testing notification copy — small copy changes drive significant tap-rate differences
+- [ ] Weekly prompted song (Music Memory Engine) — not yet wired to edge function
+- [ ] Weekly text prompt — not yet wired to edge function
+- [ ] Collection activity notifications — member adds to your shared collection (real-time, not batched)
 
 ### Platform expansion
-- **Android**: Not before 1,000+ active iOS users + revenue. Music layer (MusicKit, ShazamKit, NowPlaying) is iOS-only — Android requires rebuilding the core. ShazamKit → ACRCloud/AudD. Apple Music → Spotify SDK.
+- **Android**: Not before 1,000+ active iOS users + revenue. Abstraction is reasonable — swap points are clean:
+  - `lib/musickit.ts` → full rewrite for Spotify SDK (one file)
+  - `modules/now-playing/` → new Kotlin native module via MediaSession API (same TS interface)
+  - `modules/shazam-kit/` → new Kotlin native module via ACRCloud API (same TS interface)
+  - `expo-apple-authentication` → add Google Sign-In
+  - Everything else (UI, Supabase, navigation, photos, notifications) is already cross-platform
+  - Estimated effort: 4–6 weeks focused work, not a full rewrite
 - **Spotify integration on iOS**: Before Android. Store `spotify_track_id`, search Spotify catalog, deep link out. 6–12 months out.
 
 ### Onboarding questionnaire — decision
