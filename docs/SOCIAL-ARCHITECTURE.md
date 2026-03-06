@@ -123,6 +123,60 @@ Phase E    ⏳  Web app enrichment (profile pages, shareable cards)
 | Tagged moments inbox | Separate inbox — NOT auto-added to timeline |
 | Web reads Supabase via | Service role key, server components only |
 
+---
+
+## Phase F — Memory Game *(post-friends)*
+
+A social game that uses real logged memories as content. Requires friends (Phase C) to be meaningful.
+
+### The Core Loop
+
+Friends opt-in moments to a shared "pool." The game draws from that pool and creates rounds:
+
+**Game modes:**
+
+| Mode | How it plays |
+|------|-------------|
+| **Guess the Song** | Read a friend's reflection → pick the song from 4 choices. The more personal the reflection, the harder the guess. |
+| **Whose Memory?** | See a reflection → guess which friend wrote it. Gets funnier the better you know each other. |
+| **Mood Match** | See a moment → guess the mood tag. Reveals how differently people feel about the same song. |
+| **True or False** | "Did [friend] log this song?" Fast-paced, high energy. |
+| **Timeline** | Put a set of memories in chronological order. |
+
+### Why It Works for the Product
+
+- **Forces friend invites** — you need 3+ people to play; the game is the reason to recruit friends
+- **Makes reflections worth writing well** — people will write interesting/funny reflections knowing they'll appear in the game
+- **Shareable results** — "My friends couldn't guess a single one of mine 😂" → screenshot → organic acquisition
+- **Only possible with Soundtracks data** — Spotify/Apple Music can't make this game because they don't have the reflections
+
+### Async vs. Real-Time
+
+**Async (lower engineering lift, ship first):**
+- Wordle-style: one "memory of the day" from your group; everyone guesses independently; results revealed together
+- No real-time infrastructure needed; Supabase is enough
+- Can be a daily ritual — "today's memory is from Josh"
+
+**Real-time (higher lift, Kahoot feel):**
+- One player hosts, others join via a code
+- Live rounds, live leaderboard
+- Requires Supabase Realtime channels or similar
+- More exciting but more infra; build the async version first
+
+### Technical Notes
+
+- Moments need a new `pool_opt_in` boolean or a "game-visible" privacy setting (moments are private by default; users explicitly add to pool)
+- Multiple choice answers generated from: other songs the player has logged + random songs from Apple Music catalog (prevents trivially easy questions)
+- Leaderboard: simple `game_sessions` + `game_guesses` tables
+- Dependency: requires friends graph (Phase C) to be meaningful; can prototype with shared collection members first
+
+### Monetization
+
+- Basic game: Free (drives friend acquisition and retention)
+- Host unlimited sessions: Plus
+- Custom game settings (time limits, question types, round count): Plus
+- Results card (shareable summary of who won): Free (acquisition mechanic)
+
 ## Open Questions (decide before building each phase)
 
 - **Phase B**: Should joining a collection require creating an account, or can web users
