@@ -85,6 +85,51 @@ Everything here ships before App Store marketing push.
 
 ---
 
+## PRIORITY STACK — Post-Launch Build Order
+
+Ordered by impact across growth (new users), retention (keep existing), and revenue (conversion to paid). Updated March 2026.
+
+### Complexity reference
+- 🟢 Straightforward (days)
+- 🟡 Moderate (1–2 weeks)
+- 🔴 Hard (3–6+ weeks)
+
+| Priority | Feature | Drives | Complexity | Notes |
+|----------|---------|--------|-----------|-------|
+| 1 | Music Memory Engine Phase 1 | Retention | 🟡 | Edge function + seed dataset + existing notification infra. Questionnaire already built. |
+| 2 | Wedding feature | Growth | 🟡 | Web contribution form (no account) + QR code generation. Claim flow is the hard part. |
+| 3 | Friends (Phase C) | Growth + Retention | 🟡 | Request/accept, display name search, notifications. Unlocks game + social features. |
+| 4 | Era Clustering | Revenue | 🔴 | Premium conversion trigger at 25–30 moments. Hardest feature on the list. |
+| 5 | Yearly Recap | Growth + Revenue | 🟡 | Must ship before December. Annual press moment. Free card + Premium full version. |
+| 6 | Song Anniversaries + Forgotten Songs | Retention | 🟢 | Ship alongside Music Memory Engine work. Date math + simple query. |
+| 7 | Save for Later (Song Inbox) | Retention | 🟡 | Share Extension "Save" path + drafts table + inbox UI. |
+| 8 | Memory Game | Growth + Retention | 🟡–🔴 | Async version first (Wordle-style). Needs friends. Killer viral mechanic. |
+| 9 | Smart Playlists (basic) | Retention + Growth | 🟡 | Time-period + mood playlists → Apple Music export. Shareable. |
+| 10 | QR Code Framed Print | Revenue | 🟡 | Needs public moment pages first. Printful API. High-volume gift product. |
+| 11 | Lock Screen Widget | Retention | 🔴 | App Intents, App Groups, Live Activities. Gets tech press. |
+| 12 | Spotify integration | Growth | 🟡 | Store Spotify ID + deep link out. Expands addressable market significantly. |
+| 13 | Physical Book (Wedding) | Revenue | 🔴 | PDF generation + print partner API + public moment pages dependency. |
+| 14 | Musical Autobiography | Revenue | 🔴 | LLM prose on personal data. Needs 2+ years of user data to be moving. Plant seeds now. |
+| 15 | "You're Not Alone" | Retention | 🟡 | Needs scale (1K+ users) for meaningful numbers. |
+| 16 | Community features | Retention | 🔴 | Tracks 100, memorial collections, community challenges. 5K+ users. |
+
+### Platform expansion
+- **Android**: Not before 1,000+ active iOS users + revenue. Music layer (MusicKit, ShazamKit, NowPlaying) is iOS-only — Android requires rebuilding the core. ShazamKit → ACRCloud/AudD. Apple Music → Spotify SDK.
+- **Spotify integration on iOS**: Before Android. Store `spotify_track_id`, search Spotify catalog, deep link out. 6–12 months out.
+
+### Onboarding questionnaire — decision
+Keep birth year + country in onboarding (required — Music Memory Engine needs it). Cut favorite artists, songs, genre prefs from onboarding; move to Profile → Taste as optional enrichment surfaced after 3rd logged moment. Reduces drop-off while preserving cold-start data.
+
+### Known technical debt
+- Notification edge function: queries all profiles at once — needs pagination at 10K+ users
+- Spotify oEmbed cross-search: fragile, no fallback if format changes
+- No offline support: moments can't be logged without network
+- No per-request timeout/retry (global 520 retry added, but not per-request)
+- RLS policies: one gap already found and fixed; edge cases in shared collections may exist
+- Invalid/expired invite code handling: not gracefully surfaced to user
+
+---
+
 ### 1. Privacy Policy + Terms of Use ✅
 - [x] Hosted at `music-memory-app.vercel.app/privacy` and `/terms`
 - [x] Covers email/Apple ID, reflection text, mood data, photos, location (EXIF), push notification tokens
