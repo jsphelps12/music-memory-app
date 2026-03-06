@@ -18,11 +18,15 @@ Tracks is a **React Native iOS app** built with Expo (managed workflow + custom 
 │  │  ├── expo-share-intent (share extension)   │   │
 │  │  └── expo-av (audio playback)              │   │
 │  ├───────────────────────────────────────────┤   │
-│  │  Native Modules                            │   │
-│  │  ├── @lomray/react-native-apple-music      │   │
-│  │  │   (MusicKit: search, auth, playback)    │   │
-│  │  └── NowPlaying (custom Expo module)       │   │
-│  │      (MPMusicPlayerController)             │   │
+│  │  Custom Native Modules (Swift)             │   │
+│  │  ├── NowPlaying                            │   │
+│  │  │   (MPMusicPlayerController)             │   │
+│  │  └── ShazamKit                             │   │
+│  │      (AVAudioEngine + SHSession)           │   │
+│  ├───────────────────────────────────────────┤   │
+│  │  Third-Party Native                        │   │
+│  │  └── @lomray/react-native-apple-music      │   │
+│  │      (MusicKit: search, auth, playback)    │   │
 │  └───────────────────────────────────────────┘   │
 └──────────────────────┬──────────────────────────┘
                        │ HTTPS
@@ -30,13 +34,22 @@ Tracks is a **React Native iOS app** built with Expo (managed workflow + custom 
          │  Supabase                  │
          │  ├── Auth (PKCE + Apple)   │
          │  ├── Postgres (RLS)        │
-         │  └── Storage (public)      │
+         │  ├── Storage (public)      │
+         │  └── Edge Functions (Deno) │
+         │      + pg_cron (scheduler) │
+         └───────────────────────────┘
+         ┌───────────────────────────┐
+         │  Web (Next.js + Vercel)    │
+         │  ├── /m/{token} — Gift     │
+         │  └── /c/{code} — Invite    │
          └───────────────────────────┘
          ┌───────────────────────────┐
          │  External APIs             │
          │  ├── iTunes Lookup API     │
          │  ├── Spotify oEmbed API    │
-         │  └── Apple MusicKit        │
+         │  ├── Apple MusicKit        │
+         │  └── Expo Push Service     │
+         │      (→ APNs proxy)        │
          └───────────────────────────┘
 ```
 
@@ -235,6 +248,377 @@ Photos moved from signed URLs (pre-authenticated, time-limited) to a public buck
 
 ---
 
+## ShazamKit Native Module
+
+The second custom Expo native module. More complex than NowPlaying — involves audio capture, thread safety, and timeout management.
+
+### What It Does
+
+Captures audio from the device microphone, generates an audio fingerprint, and identifies the song via Apple's ShazamKit framework — the same engine as the Shazam app. Returns `{title, artist, artworkUrl, appleMusicId}` to JS as a Promise.
+
+### Architecture
+
+```
+JS: identifyAudio()
+  → AsyncFunction (Expo bridge)
+    → AVAudioSession.setCategory(.record)   // configure for mic input
+    → AVAudioEngine.inputNode.installTap()  // start capturing raw PCM buffers
+    → SHSession.match(signature:)           // send buffer to ShazamKit
+      → matchTimer fires every 3s           // attempt match
+      → timeoutTimer fires after 15s        // give up
+    → SHSessionDelegate callback            // match found
+      → sendEvent("onIdentified", {...})    // bridge back to JS
+```
+
+### Thread Safety
+
+Audio buffer appending is NOT thread-safe. A dedicated `DispatchQueue` (`com.tracks.shazam.gen`) serializes all signature generator operations:
+
+```swift
+private let genQueue = DispatchQueue(label: "com.tracks.shazam.gen")
+
+inputNode.installTap(...) { [weak self] buffer, _ in
+  self?.genQueue.async {
+    try? self?.signatureGen.append(buffer, at: nil)
+  }
+}
+```
+
+Without this, concurrent buffer appends cause crashes or corrupted audio data.
+
+### Why a Separate Delegate Class
+
+`SHSessionDelegate` requires `NSObject` inheritance. Modern Expo modules use Swift classes that can't also inherit from `NSObject`. Solution: a separate `ShazamDelegate: NSObject, SHSessionDelegate` class that receives callbacks and forwards them to the module via a closure.
+
+### Teardown Order Matters
+
+```swift
+matchTimer?.invalidate()
+timeoutTimer?.invalidate()
+inputNode.removeTap(onBus: 0)    // must remove BEFORE stopping engine
+audioEngine.stop()
+try AVAudioSession.sharedInstance().setActive(false,
+  options: .notifyOthersOnDeactivation)  // return audio focus to system Music app
+```
+
+If you stop the engine before removing the tap, or deactivate the session before stopping the engine, you get audio framework crashes.
+
+### Error Codes (Bridge-level)
+
+Rejects the JS Promise with typed codes: `ALREADY_RUNNING`, `PERMISSION_DENIED`, `AUDIO_ERROR`, `NO_MATCH`, `TIMEOUT`. Each maps to a specific user-facing message in the UI.
+
+**Be ready to explain**: How this differs from NowPlaying (NowPlaying reads what the device is already playing; ShazamKit actively listens to the room). Why thread safety matters in audio (buffers arrive on a real-time audio thread — any blocking or data races cause glitches or crashes).
+
+---
+
+## Notification Pipeline
+
+End-to-end: device registration → Supabase → Edge Function → pg_cron → Expo push service → device.
+
+### Client-Side Registration (`lib/notifications.ts`)
+
+1. `Notifications.requestPermissionsAsync()` — iOS permission prompt
+2. `Notifications.getExpoPushTokenAsync({ projectId })` — Expo generates a device-specific push token
+3. Store token in `profiles.push_token` column via Supabase upsert
+4. On every app open (not just first): re-check and re-register in case token rotated
+
+Expo acts as a push proxy — your server sends to Expo's API, Expo translates to APNs (Apple) or FCM (Android). You never deal with APNs certificates directly.
+
+### Server-Side: Edge Function + pg_cron
+
+**Scheduling:**
+```sql
+SELECT cron.schedule('daily-notifications', '0 14 * * *',
+  'SELECT net.http_post(url := ..., ...)');
+```
+Runs at 14:00 UTC (10am EDT) daily. The Edge Function is a Deno HTTP server deployed to Supabase's edge infrastructure.
+
+**Priority queue logic** — one notification per user per day, in priority order:
+
+| Priority | Type | Condition | Cadence |
+|----------|------|-----------|---------|
+| 1 | On This Day | Moments exist on this date in prior years | Daily if match |
+| 2 | Streak | Logged yesterday, not today | Daily if streak |
+| 3 | Journal prompt | No higher priority match | Tue + Thu |
+| 4 | Resurfacing | Random past moment | Mon |
+
+**Batch send to Expo:**
+```typescript
+// 100 messages per HTTP call to avoid timeouts
+for (let i = 0; i < messages.length; i += 100) {
+  await fetch("https://exp.host/--/api/v2/push/send", {
+    body: JSON.stringify(messages.slice(i, i + 100))
+  });
+}
+```
+
+### Cold-Launch vs Foreground Handling
+
+Two separate code paths for notification taps:
+
+```typescript
+// Cold launch (app was killed)
+Notifications.getLastNotificationResponseAsync().then(response => {
+  if (response) setTimeout(() => handleTap(response), 600);
+  // 600ms delay — let AuthGate finish routing before pushing new screen
+});
+
+// Foreground/background (app was running)
+Notifications.addNotificationResponseReceivedListener(handleTap);
+```
+
+Without `getLastNotificationResponseAsync()`, cold-launch taps are silently dropped — the listener fires before it's registered.
+
+**Be ready to explain**: Why Expo push tokens rotate (APNs periodically invalidates tokens; stale tokens cause silent delivery failures). Why the 600ms delay exists (the router hasn't mounted yet when cold launch fires). Why per-type prefs are on the profile table (one query gets everything; no separate prefs table join needed).
+
+---
+
+## Stale-While-Revalidate Timeline Caching
+
+**File:** `lib/timelinePrefetch.ts`
+
+Classic SWR pattern: show cached data instantly, update silently in background.
+
+### The Flow
+
+```
+Auth completes → prefetchTimeline(userId) called
+  1. Check AsyncStorage for "timeline_cache_v1_{userId}"
+  2. If cache hit → return cached data immediately (zero latency)
+  3. Meanwhile: fire Supabase query in parallel
+  4. When query resolves → write new data to AsyncStorage + return
+
+Tab navigates to timeline → consumePrefetchPromise()
+  → Gets the in-flight or resolved promise
+  → User sees data instantly (either cached or freshly fetched)
+  → No loading spinner on warm launch
+```
+
+### Query Design
+
+```typescript
+.select("*")
+.eq("user_id", userId)
+.order("moment_date", { ascending: false, nullsFirst: false })
+.order("created_at", { ascending: false })
+.range(0, 29)  // first 30 moments only
+```
+
+Double `order()`: primary by `moment_date` (the memory date), secondary by `created_at` (tie-break when multiple moments on the same day). `nullsFirst: false` pushes undated moments to the bottom.
+
+**Be ready to explain**: Why you don't just show a loading spinner (perceived performance — the gap between interaction and content is the metric that matters, not actual load time). When SWR fails (stale data is shown too long if cache TTL is too high; resolved by checking `lastFetchTime` before re-fetching).
+
+---
+
+## Shared Collections Architecture
+
+### Data Model
+
+```
+collections
+  id, name, user_id (owner), invite_code, is_public, cover_photo_url
+
+collection_members           ← members ONLY (owner is NOT here)
+  collection_id, user_id, joined_at
+
+collection_moments           ← which moments are in which collection
+  collection_id, moment_id, added_by_user_id, added_at
+```
+
+**Key design decision**: owners are NOT in `collection_members` — they're identified by `collections.user_id`. This means ownership queries are different from membership queries. A bug here (checking only `collection_members`) will miss the owner's moments.
+
+### Batching Pattern
+
+Fetching collections avoids N+1 by batching profile lookups:
+
+```typescript
+// BAD: N queries
+for (const collection of collections) {
+  const owner = await fetchProfile(collection.user_id); // N hits
+}
+
+// GOOD: 1 query
+const ownerIds = [...new Set(collections.map(c => c.user_id))];
+const { data: profiles } = await supabase
+  .from("profiles").select("id, display_name").in("id", ownerIds);
+const profileMap = new Map(profiles.map(p => [p.id, p.display_name]));
+```
+
+`new Set()` deduplicates owner IDs (multiple collections might have the same owner).
+
+### Invite Flow
+
+```
+Web: soundtracks.app/c/{invite_code} → "Open in App" button
+  → Deep link: soundtracks://join?inviteCode={code}      ← query param (NOT path segment)
+  → app/join.tsx: validates code → shows preview → inserts collection_member
+
+First install (no app): clipboard method
+  Web writes "soundtracks-invite:{code}" to clipboard
+  App reads clipboard on first launch → extracts code → join flow
+```
+
+**The query param detail matters**: `soundtracks://join/{code}` (path segment) causes an "Oops" screen because Expo Router tries to match it as a nested route. `soundtracks://join?inviteCode={code}` (query param) routes correctly to `app/join.tsx`.
+
+**Be ready to explain**: How RLS handles this — members can read moments in their collections, but owners need a separate policy to read member-contributed moments (one was initially missing and had to be added in production).
+
+---
+
+## Root Layout Auth State Machine
+
+**File:** `app/_layout.tsx`
+
+The most complex routing logic in the app. Prevents navigation before auth resolves and handles 6 distinct states.
+
+```
+Loading (initial)
+  └─ show blocking overlay (prevents flash of wrong screen)
+
+Not authenticated
+  ├─ First launch → /(auth)/welcome
+  └─ Returning user → /(auth)/sign-in
+
+Authenticated, onboarding incomplete
+  └─ /onboarding
+
+Authenticated, onboarding complete
+  ├─ Pending invite code? → /(tabs) then → /join
+  └─ No invite → /(tabs)
+```
+
+### Key Flags
+
+| Flag | Storage | Purpose |
+|------|---------|---------|
+| `HAS_LAUNCHED_KEY` | AsyncStorage | welcome vs sign-in screen |
+| `onboardingCompleted` | profiles table | gate to main tabs |
+| `PENDING_INVITE_CODE_KEY` | AsyncStorage | deferred join after auth |
+| `first_moment_saved_{userId}` | AsyncStorage | celebration screen once |
+| `profileReady` | React state | don't route until profile loaded |
+| `suppressAuth` | ref | prevent listener firing during signup |
+
+**Be ready to explain**: Why `profileReady` exists (session resolves before profile data — routing on session alone causes flash of wrong content). Why `suppressAuth` is a ref not state (refs don't cause re-renders; state would cause the auth listener to re-subscribe).
+
+---
+
+## Web App Architecture
+
+**Stack**: Next.js 14 (App Router) + Vercel + Supabase
+
+### Two Page Types
+
+**Shared Collection** (`/c/{invite_code}`):
+- Server component — reads Supabase directly using service role key
+- Bypasses RLS (service role ignores policies) — necessary because web visitors aren't authenticated
+- Renders collection metadata + moment list
+- Sticky CTA: "Add your moment" → deep link → App Store fallback
+
+**Gift a Memory** (`/m/{share_token}`):
+- Server component — fetches moment by `share_token` UUID column
+- Constructs photo URLs from storage bucket prefix (no API call needed — public bucket)
+- Includes audio preview player (HTML5 `<audio>` element with iTunes preview URL)
+- Dynamic OG meta tags — `og:title`, `og:image`, `og:description` populated from moment data so social link previews show the album art and song name
+
+### Why Server Components
+
+The web pages are read-only previews, not interactive apps. Server components:
+- Direct DB access (no API layer needed)
+- HTML rendered server-side (good for social link previews — crawlers see full content)
+- No client-side JS bundle for the initial render (fast on slow connections)
+
+**Be ready to explain**: Service role key vs anon key (service role bypasses RLS — only safe in server contexts where the key is never exposed to the browser). Why OG tags matter (Slack, iMessage, Twitter unfurl previews from these tags — every shared moment link shows a rich preview with album art).
+
+---
+
+## Photo Compression Pipeline
+
+**File:** `lib/storage.ts`
+
+### Two-Pass Manipulation
+
+```typescript
+// Pass 1: get actual dimensions (no transforms)
+const info = await ImageManipulator.manipulateAsync(uri, []);
+
+// Pass 2: resize if needed + compress
+const actions = info.width > maxDimension
+  ? [{ resize: { width: maxDimension } }]   // maintain aspect ratio
+  : [];
+
+const result = await ImageManipulator.manipulateAsync(uri, actions, {
+  compress: 0.8,
+  format: SaveFormat.JPEG,   // always JPEG regardless of source format
+});
+```
+
+Always outputs JPEG for consistent format. PNG, HEIC, WebP inputs all become JPEG outputs — predictable URLs, predictable storage costs.
+
+### Parallel Upload
+
+```typescript
+const [fullPath, thumbPath] = await Promise.all([
+  uploadToStorage(fullUri, `${userId}/${uuid}.jpg`),
+  uploadToStorage(thumbUri, `${userId}/${uuid}_thumb.jpg`),
+]);
+```
+
+Same UUID for both — deterministic relationship between full and thumbnail path without a DB column for thumbnails.
+
+**Be ready to explain**: Why two-pass (can't know dimensions without reading the file; can't resize proportionally without knowing the original dimensions). Why JPEG not WebP (React Native's `expo-image` supports WebP, but HEIC from the camera on older iOS versions doesn't always convert cleanly — JPEG is safest baseline).
+
+---
+
+## Observability: Sentry + PostHog
+
+### Sentry (Crash Reporting)
+
+- `@sentry/react-native` initialized with `Sentry.wrap(RootLayout)` in `app/entry.tsx`
+- Source maps uploaded automatically by EAS Build via `SENTRY_AUTH_TOKEN`
+- Symbolicated stack traces in production — line numbers map to original TypeScript source
+
+**Why source maps matter**: React Native JS bundles are minified. Without source maps, a crash at `bundle.js:1:47832` is useless. With them, Sentry resolves to the exact TypeScript file and line.
+
+### PostHog (Product Analytics)
+
+- `PostHogProvider` wraps the app in `_layout.tsx`
+- Screen tracking: `posthog.screen(pathname)` on every route change via `usePathname()`
+- User identity: `posthog.identify(user.id)` on auth, `posthog.reset()` on sign-out
+- SDK disabled if env var not set (safe for dev without analytics configured)
+
+**Identify vs anonymous**: Before sign-in, events are recorded anonymously. `posthog.identify()` retroactively links pre-auth events (like onboarding steps) to the authenticated user.
+
+**Be ready to explain**: Why reset on sign-out (PostHog would otherwise attribute the next user's actions to the previous user's identity — critical in a multi-user app).
+
+---
+
+## OTA Updates (expo-updates + EAS)
+
+### What Can Be OTA Updated
+
+Any JS/TS code change. What can't:
+- Native module changes (Swift/Kotlin)
+- New native dependencies (anything with a podspec)
+- `app.config.ts` changes that affect native config
+
+### The Deploy Flow
+
+```
+Code change (JS only)
+  → npx eas-cli update --branch production --message "..."
+  → New JS bundle uploaded to EAS servers
+  → App checks for update on next launch
+  → Downloads and applies on subsequent launch
+  → No App Store review required
+```
+
+For native changes: full EAS Build → TestFlight → App Store review.
+
+**The 520 retry fix** was shipped as an OTA update — `lib/supabase.ts` is pure JS, no native changes needed. Deployed in minutes, not days.
+
+**Be ready to explain**: How expo-updates checks for updates (polls EAS servers on launch, downloads in background, applies on next launch). Why this is powerful (critical bugs fixed in minutes; Apple review bypassed for JS changes). The limitation (Apple's guidelines technically require app behavior to stay consistent — don't use OTA to add substantial new features without review).
+
+---
+
 ## Performance Patterns
 
 ### Debounced Search
@@ -282,11 +666,11 @@ This section documents real bugs and trade-offs found during a production audit.
 **Fix:** Store `{ promise, userId }` together; `consume()` validates userId before returning.
 **Interview angle:** Classic TOCTOU (time-of-check to time-of-use) bug. Module-level mutable state + async operations = race condition surface.
 
-### Logic bug: extra fetch in retry loop
+### Apparent bug: trailing fetch after retry loop
 **File:** `lib/supabase.ts`
-**Issue:** The retry function loops 3 times, but has a `return fetch(input, init)` after the loop — making 4 requests instead of 3 on cold start. Simple off-by-one in control flow.
-**Fix:** Remove the trailing fetch; the loop's final iteration handles the last attempt.
-**Interview angle:** Shows the value of unit testing retry logic with a mock fetch. Easy to miss in code review.
+**Issue:** The retry function loops 3 times, then has a `return fetch(input, init)` after the loop — looks like a 4th request. In a code review, this jumps out as an off-by-one error.
+**Reality:** The loop always returns on its final iteration. The trailing line is unreachable dead code, required only because TypeScript's control flow analysis doesn't prove that a `for` loop with an early return inside always terminates via that return. Added an `// Unreachable` comment to document intent.
+**Interview angle:** Code review catches things that look wrong but aren't. Knowing when to add clarifying comments vs. restructure code is a judgment call. TypeScript's control flow analysis has limits — it can't prove all loop termination cases.
 
 ### Native bridge: base64 artwork string
 **File:** `modules/now-playing/ios/NowPlayingModule.swift`
@@ -353,12 +737,17 @@ These are concepts that come up in interviews and are directly relevant to this 
 - [ ] WebSocket vs. polling vs. SSE — Supabase Realtime uses WebSockets
 
 ### Mobile-Specific
-- [ ] React Native bridge architecture — how JS talks to native code
+- [ ] React Native bridge architecture — how JS talks to native code, serialization overhead, why large payloads (base64 images) cause jank
 - [ ] iOS app lifecycle (foreground, background, suspended, terminated)
-- [ ] Deep linking and universal links — how `tracks://` URLs route to your app
-- [ ] iOS share extension lifecycle and memory constraints
+- [ ] Deep linking and universal links — how `soundtracks://` URLs route to your app, query params vs path segments
+- [ ] iOS share extension lifecycle and memory constraints (~120MB limit)
 - [ ] CocoaPods dependency management — what a podspec actually does
 - [ ] App Transport Security and HTTPS requirements on iOS
+- [ ] AVAudioEngine + AVAudioSession — audio capture pipeline, session categories, `setActive(false)` to return audio focus
+- [ ] DispatchQueue and GCD — serial vs concurrent queues, why audio buffer appending requires serialization
+- [ ] Core Audio real-time thread constraints — what you can and cannot do on a real-time audio thread
+- [ ] ShazamKit / audio fingerprinting — how SHSession generates acoustic signatures and matches against Apple's catalog
+- [ ] OTA updates with expo-updates — what can be updated without App Store review, how EAS channels work
 
 ### React / React Native
 - [ ] React Context and the re-render problem
@@ -367,11 +756,24 @@ These are concepts that come up in interviews and are directly relevant to this 
 - [ ] Navigation patterns (stack, tabs, modals) and how Expo Router maps to React Navigation
 - [ ] File-based routing — how the filesystem becomes the route table
 
+### Backend / Serverless
+- [ ] pg_cron — Postgres-native job scheduler, cron syntax, how it calls `net.http_post` to trigger Edge Functions
+- [ ] Supabase Edge Functions — Deno runtime, deploying, environment variables, invocation via HTTP
+- [ ] N+1 query problem — classic ORM/BaaS pitfall; how `IN` clauses and in-memory grouping eliminate it
+- [ ] Serverless cold starts — why free-tier Supabase has 520 errors, how retries with backoff mitigate them
+
+### Web / Next.js
+- [ ] Server Components vs Client Components — when each is appropriate, what can't run on the server
+- [ ] Next.js App Router — file-based routing, layouts, loading states
+- [ ] Service role key vs anon key — why service role bypasses RLS, when it's safe (server-only) vs dangerous (exposed to browser)
+- [ ] Open Graph meta tags — `og:title`, `og:image`, `og:description`; how Slack/iMessage/Twitter build link previews from them
+
 ### System Design (Interview Prep)
 - [ ] "Design a music journaling app" — you literally built one, walk through the schema, API design, and scaling considerations
 - [ ] How would you scale this beyond Supabase? (Dedicated Postgres, Redis caching, CDN for photos, separate auth service)
 - [ ] How would you add real-time features? (Supabase Realtime, WebSocket subscriptions for collaborative moments)
 - [ ] How would you handle offline support? (Local SQLite queue, sync on reconnect, conflict resolution)
+- [ ] "Design a push notification system" — you built one: client token registration, server priority queue, Expo proxy to APNs, cold-launch handling
 
 ### AI/ML (If Asked)
 - [ ] Content-based vs. collaborative filtering — know the difference and when to use each
@@ -386,14 +788,23 @@ These are concepts that come up in interviews and are directly relevant to this 
 Tailor these to the job you're applying for:
 
 **Full-stack / Mobile**:
-- Built an iOS music journaling app with React Native (Expo), Supabase (Postgres + RLS), and Apple MusicKit, distributed via TestFlight
+- Built and shipped an iOS music journaling app (Soundtracks) with React Native (Expo), Supabase (Postgres + RLS), and Apple MusicKit, live on the App Store
 - Implemented iOS share extension for cross-app song sharing with Spotify-to-Apple Music cross-search via oEmbed API
-- Created a custom Expo native module in Swift bridging MPMusicPlayerController for real-time now-playing detection with event-driven updates
+- Created two custom Expo native modules in Swift: real-time now-playing detection (MPMusicPlayerController + MediaPlayer framework) and audio-fingerprint song identification (AVAudioEngine + ShazamKit) with thread-safe buffer serialization
+- Built shared collections feature end-to-end: invite code deep links, deferred clipboard-based deep links for new installs, RLS policies for cross-user data access, and member management UI
+- Shipped a Next.js web preview layer (server components, Supabase service role, dynamic OG meta tags) so shared moments generate rich social link previews
 
 **Backend / Systems**:
 - Designed a Postgres schema with Row Level Security policies eliminating the need for a custom API layer while maintaining per-user data isolation
 - Implemented PKCE OAuth2 flow with deep link handling for secure mobile authentication without client secrets
+- Built a prioritized push notification pipeline: client-side Expo token registration, Supabase Edge Function (Deno) with priority queue logic (On This Day > Streak > Prompt > Resurfacing), pg_cron scheduling, and cold-launch tap handling
 - Built a public storage architecture with RLS-protected uploads, achieving zero-latency photo loading vs. signed URL approach
+- Shipped critical bug fixes as OTA updates via EAS (expo-updates) — no App Store review cycle required for JS-only changes
+
+**Performance / Reliability**:
+- Implemented stale-while-revalidate timeline caching (AsyncStorage + parallel Supabase fetch) — users see data on first frame, no loading spinner on warm launch
+- Audited production codebase for race conditions (TOCTOU prefetch bug, auth listener state-after-unmount), silent error swallowing, and N+1 query patterns; documented all findings with reproduction steps and fixes
+- Added Sentry crash reporting with symbolicated stack traces (source maps via EAS) and PostHog product analytics with identify/reset pattern for correct multi-user attribution
 
 **AI/ML (once built)**:
 - Developed on-device sentiment analysis pipeline using Apple's NaturalLanguage framework for privacy-preserving reflection analysis
