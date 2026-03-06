@@ -261,3 +261,77 @@ Differentiating features that aren't urgent but could add unique value later.
 
 - Parse existing entries from Apple Notes or Day One, match song references, create moments
 - Good onboarding hook for journaling-app converts
+
+---
+
+## Premium Monetization — Additional Ideas
+
+Features and mechanics not yet captured above.
+
+### Yearly Recap **[Free card / Premium full]**
+
+- Annual "Your Year in Music Memories" — most captured song, most active month, emotional arc, defining moment
+- Free: simple shareable card (acquisition mechanic — people post it)
+- Premium: full visual breakdown, month-by-month timeline, mood patterns, "your defining song of [year]"
+- Physical print add-on ($20, mailed in January)
+- See GROWTH-STRATEGY.md — this is also the Spotify Wrapped counter-programming play
+
+### Relationship Timeline **[Premium]**
+
+- All moments tagged with a specific person, shown as a chronological timeline
+- How the musical relationship with that person evolved: first shared song, most emotional moment, current
+- "Your soundtrack with Jordan" — the relationship arc in music
+- Works for romantic partners, best friends, family members
+- Deeply personal; essentially impossible for any other app to replicate without the tagging data
+
+### Family Plan **[Premium — $12–15/month for 5 members]**
+
+- Shared family subscription with individual timelines that can optionally overlap
+- Parents share music memories with adult kids; siblings build a shared family archive
+- One family member who loves the app pulls in 4 more
+- The 30-50 demographic is the target: they have kids old enough to appreciate it and aging parents worth capturing memories from
+- Shared "Family Soundtrack" collection included as a default
+
+### Export & Backup **[Premium]**
+
+- Download all your moments as a structured archive: JSON, PDF, or ZIP with photos
+- People with 200+ logged memories will pay for this peace of mind
+- "Your memories, yours forever" — especially resonant after years of use
+- Also positions Soundtracks as trustworthy: we let you take your data with you
+
+### "What Kind of Music Person Are You" **[Premium — shareable card free]**
+
+- Personality insight derived from logged moments
+- *"You're a loss processor who finds hope in unexpected places. You reach for indie folk in winter and euphoric pop in summer. 73% of your moments involve other people."*
+- Shareable card version is free (word-of-mouth); full written profile is Premium
+- Works after 25+ moments
+- People pay for mirrors that feel accurate — same psychology as MBTI, Spotify's music personality, etc.
+
+### Unlimited Caps **[Free tier limits → Premium unlimited]**
+
+Clear free/premium content limits to drive conversion without frustrating early users:
+
+| Feature | Free | Plus |
+|---------|------|------|
+| Shared collections (create) | 2 | Unlimited |
+| Photos per moment | 3 | Unlimited |
+| Collections you can create | 3 | Unlimited |
+| Era insights | First era only | All eras |
+| Export / backup | — | ✓ |
+
+These limits should feel natural, not punishing. The goal is the user hits the limit right when they care about the product enough to pay.
+
+### "Your Earliest Memory" Artifact **[Premium]**
+
+- The first moment ever logged, permanently featured in Profile
+- A small ritual: "This is where it started."
+- Anniversary notification each year: "X years ago today, you logged your first memory here."
+- Makes the app part of the user's personal history — leaving means that artifact disappears
+
+### Gift a Subscription **[Premium distribution mechanic]**
+
+- Buy a 3-month or 12-month Plus subscription as a gift
+- Recipient gets a link with a personal note; activates when they sign up, no credit card required
+- Gift card equivalent; marketed at life event moments (birthday, graduation, milestone anniversary)
+- Valentine's Day, Mother's Day, Father's Day seasonal pushes
+- The gift framing outperforms the discount framing for emotional products

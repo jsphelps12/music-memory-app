@@ -306,7 +306,53 @@ DM 50 of them with a personal note and a free Plus subscription. One authentic p
 
 ---
 
+### Reaching the 30–50 Demographic
 
+This demographic is underserved by most apps and has more money and more nostalgia than any other. Different channels than the younger demo:
+
+- **Facebook nostalgia groups** — "I grew up in the 90s," "80s/90s Music Memories," decade-specific groups with millions of members. Post the question, not the ad. "What song immediately takes you back to high school?" with a genuine response and a soft app mention.
+- **Reddit** — r/nostalgia, r/GenX, r/malelivingspace, r/AskReddit music threads. These drive real installs when the content is authentic and personal.
+- **Podcasts** — music and nostalgia podcasts (Switched on Pop, My Favorite Album, Disgraceland, etc.) are small enough that cold outreach or a cheap sponsorship reaches exactly the right audience. This demo listens to podcasts more than TikTok.
+- **LinkedIn** — counterintuitive but works. "What song takes you back to your first job?" type content performs. The 35-45 demo scrolls LinkedIn daily.
+- **Life events targeting** — 30-50 is peak life events: second weddings, milestone anniversaries, kids going to college, losing parents. All are nostalgia trigger points. Content that meets people at these moments ("the songs your parent always played") earns organic shares.
+- **Gift economy** — this demo buys meaningful gifts. The physical products (QR frame print, couples' soundtrack, memorial book) are naturally targeted at people buying for life events. "The most meaningful gift you'll give this year" performs here.
+
+---
+
+### Yearly Recap *(Wrapped counter-programming, but personal)*
+
+Every December, produce a "Your Year in Music Memories" for every user — their most captured song, most active month, defining moment, emotional arc of the year.
+
+- Free users get a simple in-app card
+- Plus users get a full visual breakdown + shareable card
+- Shareable card is beautiful and emotional — people post it, friends ask what app that is
+- Physical print available as a January add-on ($20)
+- Pitch to The Ringer, Pitchfork, The Atlantic, The Cut every November: *"Spotify Wrapped tells you what you played. This tells you what it meant."*
+- This is a press story that writes itself every year. No ad spend required. Do it every December without fail.
+
+---
+
+### "What Kind of Music Person Are You"
+
+A personality insight derived from logged moments: *"You're a loss processor who finds hope in unexpected places. Your most-logged genre is indie folk, but you reach for it in winter more than any other season."*
+
+- Premium feature, but the shareable card version is free (acquisition loop)
+- People pay for mirrors that feel accurate — same psychology as Myers-Briggs or Spotify's music personality features, but trained on their own data
+- Works after 25+ moments; shown as an insight card in Reflections
+
+---
+
+### The Gift Economy
+
+Soundtracks is a natural gift — both as a subscription and as a physical product. Lean into this:
+
+- **"Give Soundtracks"** gift flow: buy a 3-month or 12-month Plus subscription as a gift, delivered via a link with a personal note
+- Gift card mechanic: no credit card required for the recipient; they activate when they sign up
+- Physical products marketed explicitly as gifts for people who are hard to shop for
+- Valentine's Day, Father's Day, Mother's Day, Christmas: seasonal pushes with the gift framing
+- See PHYSICAL-PRODUCTS.md for full physical product lineup
+
+---
 
 Tracks sits at an intersection nobody else owns:
 
