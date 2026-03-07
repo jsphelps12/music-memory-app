@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["J9X5GR82CZ.com.joshuaphelps.musicmemory"],
+        "components": [
+          {
+            "/": "/confirm",
+            "comment": "Email confirmation"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -34,6 +34,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     entitlements: {
       "com.apple.developer.applesignin": ["Default"],
+      "com.apple.developer.associated-domains": ["applinks:soundtracks.app"],
     },
   },
   android: {
