@@ -144,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: "soundtracks://" },
+        options: { emailRedirectTo: "https://soundtracks.app/confirm" },
       });
       if (error) throw error;
       await supabase.auth.signOut();
