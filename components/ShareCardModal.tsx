@@ -10,6 +10,7 @@ import {
   Share,
   StyleSheet,
   Platform,
+  Alert,
 } from "react-native";
 import ViewShot from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
@@ -46,15 +47,19 @@ export function ShareCardModal({ visible, moment, photoUrls, onClose }: Props) {
       let token = moment.shareToken;
       if (!token) {
         token = Crypto.randomUUID();
-        await supabase
+        const { error } = await supabase
           .from("moments")
           .update({ share_token: token })
           .eq("id", moment.id);
+        if (error) throw error;
       }
       const url = `https://soundtracks.app/m/${token}`;
       await Share.share({ message: url, url });
-    } catch {
-      // User cancelled or error — silent
+    } catch (err: any) {
+      // Share sheet cancelled by user — no message needed
+      if (err?.code !== "ECANCELLED" && err?.message !== "Share action cancelled") {
+        Alert.alert("Couldn't create link", "Please try again.");
+      }
     } finally {
       setSendingLink(false);
     }
