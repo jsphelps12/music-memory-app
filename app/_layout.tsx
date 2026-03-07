@@ -178,9 +178,16 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (!user || !profile?.onboardingCompleted) return;
-    registerForPushNotifications(user.id).catch((err) => {
-      Sentry.captureException(err);
-      if (__DEV__) console.warn("[push-notifications] registration failed:", err);
+    // Only register for push notifications if the user has already been through the
+    // celebration screen (i.e. has saved at least one moment). For brand-new users,
+    // the celebration screen owns the permission request so the iOS dialog appears
+    // in context, not immediately after onboarding.
+    AsyncStorage.getItem(`first_moment_saved_${user.id}`).then((saved) => {
+      if (!saved) return;
+      registerForPushNotifications(user.id).catch((err) => {
+        Sentry.captureException(err);
+        if (__DEV__) console.warn("[push-notifications] registration failed:", err);
+      });
     });
 
     function handleNotificationData(data: Record<string, any> | undefined) {
