@@ -248,6 +248,8 @@ export default function CreateMomentScreen() {
     shareCandidates?: string;
     shareFailedUrl?: string;
     sharedPhotoPaths?: string;
+    promptQuestion?: string;
+    promptStarter?: string;
   }>();
 
   const [song, setSong] = useState<Song | null>(null);
@@ -372,6 +374,14 @@ export default function CreateMomentScreen() {
   const hasSong = !!song;
 
   const [reflection, setReflection] = useState("");
+
+  // Pre-fill reflection from a journal prompt (navigated from Reflections tab)
+  useEffect(() => {
+    if (params.promptStarter) {
+      setReflection(params.promptStarter);
+    }
+  }, [params.promptStarter]);
+
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [people, setPeople] = useState<string[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);

@@ -99,6 +99,10 @@ export default function ProfileScreen() {
   const [topArtist, setTopArtist] = useState<string | null | undefined>(undefined);
   const [topSong, setTopSong] = useState<string | null | undefined>(undefined);
   const [topMood, setTopMood] = useState<string | null | undefined>(undefined);
+  const [thisMonthCount, setThisMonthCount] = useState<number | null>(null);
+  const [lastMonthCount, setLastMonthCount] = useState<number | null>(null);
+  const [thisMonthTopArtist, setThisMonthTopArtist] = useState<string | null | undefined>(undefined);
+  const [thisMonthTopMood, setThisMonthTopMood] = useState<string | null | undefined>(undefined);
   const [showPrompts, setShowPrompts] = useState(false);
   const [showCaptureMethods, setShowCaptureMethods] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -119,6 +123,15 @@ export default function ProfileScreen() {
       if (isInitial) setLoadError("");
       setBannerError("");
 
+      const _now = new Date();
+      const _pad = (n: number) => String(n).padStart(2, "0");
+      const _y = _now.getFullYear();
+      const _m = _pad(_now.getMonth() + 1);
+      const firstOfMonth = `${_y}-${_m}-01`;
+      const lastOfMonth = new Date(_y, _now.getMonth() + 1, 0).toISOString().slice(0, 10);
+      const firstOfLastMonth = new Date(_y, _now.getMonth() - 1, 1).toISOString().slice(0, 10);
+      const lastOfLastMonth = new Date(_y, _now.getMonth(), 0).toISOString().slice(0, 10);
+
       await refreshProfile();
 
       // Load notification permission status
@@ -130,6 +143,9 @@ export default function ProfileScreen() {
         { data: files, error: storageError },
         { data: dateRows, error: dateError },
         { data: topRows, error: topError },
+        { count: thisMonthCountResult },
+        { count: lastMonthCountResult },
+        { data: thisMonthRows },
       ] = await Promise.all([
         supabase
           .from("moments")
@@ -147,6 +163,24 @@ export default function ProfileScreen() {
           .from("moments")
           .select("song_artist, song_title, mood")
           .eq("user_id", user.id),
+        supabase
+          .from("moments")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .gte("moment_date", firstOfMonth)
+          .lte("moment_date", lastOfMonth),
+        supabase
+          .from("moments")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .gte("moment_date", firstOfLastMonth)
+          .lte("moment_date", lastOfLastMonth),
+        supabase
+          .from("moments")
+          .select("song_artist, mood")
+          .eq("user_id", user.id)
+          .gte("moment_date", firstOfMonth)
+          .lte("moment_date", lastOfMonth),
       ]);
 
       if (countError) throw countError;
@@ -170,6 +204,12 @@ export default function ProfileScreen() {
       setTopArtist(topValue(rows.map((r: any) => r.song_artist)));
       setTopSong(topValue(rows.map((r: any) => r.song_title)));
       setTopMood(topValue(rows.map((r: any) => r.mood)));
+
+      setThisMonthCount(thisMonthCountResult ?? 0);
+      setLastMonthCount(lastMonthCountResult ?? 0);
+      const tmRows = thisMonthRows ?? [];
+      setThisMonthTopArtist(topValue(tmRows.map((r: any) => r.song_artist)));
+      setThisMonthTopMood(topValue(tmRows.map((r: any) => r.mood)));
 
       lastFetchTime.current = Date.now();
       setInitialLoading(false);
@@ -447,6 +487,49 @@ export default function ProfileScreen() {
           </View>
         </View>
       </View>
+
+      {/* This Month */}
+      {thisMonthCount !== null && thisMonthCount > 0 && (() => {
+        const diff = lastMonthCount !== null ? thisMonthCount - lastMonthCount : 0;
+        const compLabel = lastMonthCount === null
+          ? null
+          : diff === 0
+          ? "same as last month"
+          : `${diff > 0 ? "↑" : "↓"}${Math.abs(diff)} vs last month`;
+        return (
+          <View style={styles.topStatsSection}>
+            <Text style={styles.sectionTitle}>This Month</Text>
+            <View style={styles.topStatRow}>
+              <Text style={styles.topStatIcon}>📅</Text>
+              <View style={styles.topStatText}>
+                <Text style={styles.topStatLabel}>Moments logged</Text>
+                <Text style={styles.topStatValue}>
+                  {thisMonthCount} {thisMonthCount === 1 ? "moment" : "moments"}
+                  {compLabel ? `  ·  ${compLabel}` : ""}
+                </Text>
+              </View>
+            </View>
+            {thisMonthTopArtist ? (
+              <View style={styles.topStatRow}>
+                <Text style={styles.topStatIcon}>🎵</Text>
+                <View style={styles.topStatText}>
+                  <Text style={styles.topStatLabel}>Top Artist</Text>
+                  <Text style={styles.topStatValue} numberOfLines={1}>{thisMonthTopArtist}</Text>
+                </View>
+              </View>
+            ) : null}
+            {thisMonthTopMood ? (
+              <View style={styles.topStatRow}>
+                <Text style={styles.topStatIcon}>😊</Text>
+                <View style={styles.topStatText}>
+                  <Text style={styles.topStatLabel}>Top Mood</Text>
+                  <Text style={styles.topStatValue} numberOfLines={1}>{thisMonthTopMood}</Text>
+                </View>
+              </View>
+            ) : null}
+          </View>
+        );
+      })()}
 
       {/* Prompts */}
       <View style={[styles.promptsCard, showPrompts && styles.promptsCardOpen]}>

@@ -14,22 +14,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOODS } from "@/constants/Moods";
+import { ALL_PROMPTS } from "@/constants/Prompts";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { MomentCard } from "@/components/MomentCard";
 import { friendlyError } from "@/lib/errors";
 import { pad } from "@/lib/dateUtils";
-import { topValue } from "@/lib/utils";
 import { Moment } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
-interface ThisMonthData {
-  count: number;
-  lastMonthCount: number;
-  topArtist: string | null;
-  topMood: string | null;
-}
+type HeroType = "onThisDay" | "aMonthAgo" | "random";
 
 export default function ReflectionsScreen() {
   const router = useRouter();
@@ -40,7 +35,8 @@ export default function ReflectionsScreen() {
   const [onThisDay, setOnThisDay] = useState<Moment[]>([]);
   const [randomMoment, setRandomMoment] = useState<Moment | null>(null);
   const [aMonthAgo, setAMonthAgo] = useState<Moment | null>(null);
-  const [thisMonth, setThisMonth] = useState<ThisMonthData | null>(null);
+  const [aYearAgo, setAYearAgo] = useState<Moment | null>(null);
+  const [forgottenMoment, setForgottenMoment] = useState<Moment | null>(null);
   const [loading, setLoading] = useState(true);
   const [shuffling, setShuffling] = useState(false);
   const [error, setError] = useState("");
@@ -49,12 +45,13 @@ export default function ReflectionsScreen() {
   // Preserve the random moment when returning to tab — only re-pick on explicit shuffle
   const randomMomentRef = useRef<Moment | null>(null);
 
-  // Clear all data immediately when the user changes (e.g. sign out → sign in as different user)
+  // Clear all data immediately when the user changes
   useEffect(() => {
     setOnThisDay([]);
     setRandomMoment(null);
     setAMonthAgo(null);
-    setThisMonth(null);
+    setAYearAgo(null);
+    setForgottenMoment(null);
     randomMomentRef.current = null;
     lastFetchTime.current = 0;
   }, [user?.id]);
@@ -73,22 +70,6 @@ export default function ReflectionsScreen() {
     day: "numeric",
   });
 
-  // This month date range helpers
-  const thisMonthLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-  const firstOfMonth = `${thisYear}-${month}-01`;
-  const lastOfMonth = (() => {
-    const d = new Date(thisYear, now.getMonth() + 1, 0);
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  })();
-  const firstOfLastMonth = (() => {
-    const d = new Date(thisYear, now.getMonth() - 1, 1);
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`;
-  })();
-  const lastOfLastMonth = (() => {
-    const d = new Date(thisYear, now.getMonth(), 0);
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  })();
-
   // "A Month Ago" window: 25–35 days back
   const aMonthAgoFrom = (() => {
     const d = new Date(now);
@@ -101,9 +82,27 @@ export default function ReflectionsScreen() {
     return d.toISOString().slice(0, 10);
   })();
 
+  // "A Year Ago" window: 350–380 days back
+  const aYearAgoFrom = (() => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 380);
+    return d.toISOString().slice(0, 10);
+  })();
+  const aYearAgoTo = (() => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 350);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  // Daily rotating prompt — deterministic per calendar day
+  const dailyPrompt = useMemo(() => {
+    const start = new Date(now.getFullYear(), 0, 0);
+    const dayOfYear = Math.floor((now.getTime() - start.getTime()) / 86400000);
+    return ALL_PROMPTS[dayOfYear % ALL_PROMPTS.length];
+  }, []);
+
   const fetchOnThisDay = useCallback(async (): Promise<Moment[]> => {
     if (!user) return [];
-    // moment_date is a date column — build explicit year-date strings instead of LIKE
     const matchingDates: string[] = [];
     for (let y = thisYear - 1; y >= Math.max(thisYear - 30, 2000); y--) {
       matchingDates.push(`${y}-${month}-${day}`);
@@ -114,7 +113,7 @@ export default function ReflectionsScreen() {
       .eq("user_id", user.id)
       .in("moment_date", matchingDates)
       .order("moment_date", { ascending: false })
-        .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false });
     if (fetchError) throw fetchError;
     return (data ?? []).map(mapRowToMoment);
   }, [user, month, day, thisYear]);
@@ -136,41 +135,6 @@ export default function ReflectionsScreen() {
     return data?.[0] ? mapRowToMoment(data[0]) : null;
   }, [user]);
 
-  const fetchThisMonth = useCallback(async (): Promise<ThisMonthData> => {
-    if (!user) return { count: 0, lastMonthCount: 0, topArtist: null, topMood: null };
-    const [
-      { count: thisCount },
-      { count: lastCount },
-      { data: topRows },
-    ] = await Promise.all([
-      supabase
-        .from("moments")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .gte("moment_date", firstOfMonth)
-        .lte("moment_date", lastOfMonth),
-      supabase
-        .from("moments")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .gte("moment_date", firstOfLastMonth)
-        .lte("moment_date", lastOfLastMonth),
-      supabase
-        .from("moments")
-        .select("song_artist, mood")
-        .eq("user_id", user.id)
-        .gte("moment_date", firstOfMonth)
-        .lte("moment_date", lastOfMonth),
-    ]);
-    const rows = topRows ?? [];
-    return {
-      count: thisCount ?? 0,
-      lastMonthCount: lastCount ?? 0,
-      topArtist: topValue(rows.map((r: any) => r.song_artist)),
-      topMood: topValue(rows.map((r: any) => r.mood)),
-    };
-  }, [user, firstOfMonth, lastOfMonth, firstOfLastMonth, lastOfLastMonth]);
-
   const fetchAMonthAgo = useCallback(async (): Promise<Moment | null> => {
     if (!user) return null;
     const { data } = await supabase
@@ -184,24 +148,61 @@ export default function ReflectionsScreen() {
     return data?.[0] ? mapRowToMoment(data[0]) : null;
   }, [user, aMonthAgoFrom, aMonthAgoTo]);
 
+  const fetchAYearAgo = useCallback(async (): Promise<Moment | null> => {
+    if (!user) return null;
+    const { data } = await supabase
+      .from("moments")
+      .select("*")
+      .eq("user_id", user.id)
+      .gte("moment_date", aYearAgoFrom)
+      .lte("moment_date", aYearAgoTo)
+      .order("moment_date", { ascending: false })
+      .limit(1);
+    return data?.[0] ? mapRowToMoment(data[0]) : null;
+  }, [user, aYearAgoFrom, aYearAgoTo]);
+
+  const fetchForgotten = useCallback(async (): Promise<Moment | null> => {
+    if (!user) return null;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 180);
+    const cutoffStr = cutoff.toISOString();
+    const { count } = await supabase
+      .from("moments")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .lt("created_at", cutoffStr);
+    if (!count || count === 0) return null;
+    const offset = Math.floor(Math.random() * count);
+    const { data } = await supabase
+      .from("moments")
+      .select("*")
+      .eq("user_id", user.id)
+      .lt("created_at", cutoffStr)
+      .order("created_at", { ascending: false })
+      .range(offset, offset);
+    return data?.[0] ? mapRowToMoment(data[0]) : null;
+  }, [user]);
+
   const loadAll = useCallback(
     async (preserveRandom: boolean, silent = false) => {
       if (!user) return;
       if (!silent) { setLoading(true); setError(""); }
       try {
-        const [otd, rand, tm, ama] = await Promise.all([
+        const [otd, rand, ama, aya, forgotten] = await Promise.all([
           fetchOnThisDay(),
           preserveRandom && randomMomentRef.current
             ? Promise.resolve(randomMomentRef.current)
             : fetchRandom(),
-          fetchThisMonth(),
           fetchAMonthAgo(),
+          fetchAYearAgo(),
+          fetchForgotten(),
         ]);
         setOnThisDay(otd);
         setRandomMoment(rand);
         randomMomentRef.current = rand;
-        setThisMonth(tm);
         setAMonthAgo(ama);
+        setAYearAgo(aya);
+        setForgottenMoment(forgotten);
       } catch (e: any) {
         if (!silent) setError(friendlyError(e));
       } finally {
@@ -209,10 +210,10 @@ export default function ReflectionsScreen() {
         lastFetchTime.current = Date.now();
       }
     },
-    [user, fetchOnThisDay, fetchRandom, fetchThisMonth, fetchAMonthAgo]
+    [user, fetchOnThisDay, fetchRandom, fetchAMonthAgo, fetchAYearAgo, fetchForgotten]
   );
 
-  // Initial fetch — starts on mount (before tab gains focus) so data is ready when navigated to
+  // Initial fetch — starts on mount so data is ready when navigated to
   const initialFetchDoneRef = useRef(false);
   useEffect(() => {
     if (initialFetchDoneRef.current) return;
@@ -254,14 +255,12 @@ export default function ReflectionsScreen() {
       .map((year) => ({ year, moments: map.get(year)! }));
   }, [onThisDay]);
 
-  // This month comparison label
-  const comparisonLabel = useMemo(() => {
-    if (!thisMonth) return null;
-    const diff = thisMonth.count - thisMonth.lastMonthCount;
-    if (diff === 0) return "Same as last month";
-    const sign = diff > 0 ? "↑" : "↓";
-    return `${sign} ${Math.abs(diff)} vs last month`;
-  }, [thisMonth]);
+  // Hero fallback: On This Day → A Month Ago → Random
+  const heroType: HeroType = useMemo(() => {
+    if (byYear.length > 0) return "onThisDay";
+    if (aMonthAgo) return "aMonthAgo";
+    return "random";
+  }, [byYear, aMonthAgo]);
 
   if (loading) {
     return (
@@ -286,11 +285,30 @@ export default function ReflectionsScreen() {
     );
   }
 
-  const hasAnyContent =
-    byYear.length > 0 ||
-    aMonthAgo !== null ||
-    (thisMonth !== null && thisMonth.count > 0) ||
-    randomMoment !== null;
+  // Empty state: user has no moments at all
+  if (randomMoment === null) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Reflections</Text>
+        </View>
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>Your memories resurface here.</Text>
+          <Text style={styles.emptyBody}>
+            On This Day, a month ago, a random moment — the songs that marked
+            your life, brought back to you.
+          </Text>
+          <TouchableOpacity
+            style={styles.emptyButton}
+            onPress={() => router.push("/create")}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.emptyButtonText}>Capture your first memory</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -303,11 +321,11 @@ export default function ReflectionsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* On This Day — hidden when empty */}
-        {byYear.length > 0 && (
+        {/* ── HERO ── */}
+        {heroType === "onThisDay" && (
           <>
             <View style={styles.sectionRow}>
-              <Text style={styles.sectionTitle}>On This Day</Text>
+              <Text style={styles.heroTitle}>On This Day</Text>
               <Text style={styles.sectionSubtitle}>{todayLabel}</Text>
             </View>
             {byYear.map(({ year, moments }) => {
@@ -332,10 +350,53 @@ export default function ReflectionsScreen() {
           </>
         )}
 
-        {/* A Month Ago — hidden when empty */}
-        {aMonthAgo && (
+        {heroType === "aMonthAgo" && aMonthAgo && (
           <>
-            <View style={[styles.sectionRow, byYear.length > 0 && styles.sectionRowSpaced]}>
+            <View style={styles.sectionRow}>
+              <Text style={styles.heroTitle}>A Month Ago</Text>
+              {aMonthAgo.momentDate && (
+                <Text style={styles.sectionSubtitle}>
+                  {new Date(aMonthAgo.momentDate + "T00:00:00").toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </Text>
+              )}
+            </View>
+            <MomentCard
+              item={aMonthAgo}
+              onPress={() => router.push(`/moment/${aMonthAgo.id}`)}
+              allMoods={allMoods}
+            />
+          </>
+        )}
+
+        {heroType === "random" && randomMoment && (
+          <>
+            <View style={styles.sectionRow}>
+              <Text style={styles.heroTitle}>A Random Memory</Text>
+              <TouchableOpacity onPress={handleShuffle} disabled={shuffling} hitSlop={8}>
+                {shuffling ? (
+                  <ActivityIndicator size="small" color={theme.colors.accent} />
+                ) : (
+                  <Ionicons name="shuffle" size={20} color={theme.colors.accent} />
+                )}
+              </TouchableOpacity>
+            </View>
+            <MomentCard
+              item={randomMoment}
+              onPress={() => router.push(`/moment/${randomMoment.id}`)}
+              allMoods={allMoods}
+            />
+          </>
+        )}
+
+        {/* ── SUPPORTING ── */}
+
+        {/* A Month Ago — supporting (only when not hero) */}
+        {heroType !== "aMonthAgo" && aMonthAgo && (
+          <>
+            <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
               <Text style={styles.sectionTitle}>A Month Ago</Text>
               {aMonthAgo.momentDate && (
                 <Text style={styles.sectionSubtitle}>
@@ -354,63 +415,58 @@ export default function ReflectionsScreen() {
           </>
         )}
 
-        {/* This Month — hidden when no moments logged yet */}
-        {thisMonth !== null && thisMonth.count > 0 && (
+        {/* A Year Ago — hidden when empty */}
+        {aYearAgo && (
           <>
-            <View style={[styles.sectionRow, (byYear.length > 0 || aMonthAgo) && styles.sectionRowSpaced]}>
-              <Text style={styles.sectionTitle}>This Month</Text>
-              <Text style={styles.sectionSubtitle}>{thisMonthLabel}</Text>
-            </View>
-            <View style={styles.thisMonthCard}>
-              <View style={styles.thisMonthStat}>
-                <Text style={styles.thisMonthBig}>{thisMonth.count}</Text>
-                <Text style={styles.thisMonthStatLabel}>
-                  {thisMonth.count === 1 ? "moment" : "moments"}
+            <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
+              <Text style={styles.sectionTitle}>A Year Ago</Text>
+              {aYearAgo.momentDate && (
+                <Text style={styles.sectionSubtitle}>
+                  {new Date(aYearAgo.momentDate + "T00:00:00").toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
                 </Text>
-              </View>
-              {comparisonLabel ? (
-                <View style={styles.thisMonthChip}>
-                  <Text
-                    style={[
-                      styles.thisMonthChipText,
-                      thisMonth.count > thisMonth.lastMonthCount && styles.thisMonthChipUp,
-                      thisMonth.count < thisMonth.lastMonthCount && styles.thisMonthChipDown,
-                    ]}
-                  >
-                    {comparisonLabel}
-                  </Text>
-                </View>
-              ) : null}
-              {thisMonth.topArtist ? (
-                <View style={styles.thisMonthMeta}>
-                  <Text style={styles.thisMonthMetaLabel}>🎵 </Text>
-                  <Text style={styles.thisMonthMetaValue} numberOfLines={1}>
-                    {thisMonth.topArtist}
-                  </Text>
-                </View>
-              ) : null}
-              {thisMonth.topMood ? (
-                <View style={styles.thisMonthMeta}>
-                  <Text style={styles.thisMonthMetaLabel}>Top mood: </Text>
-                  <Text style={styles.thisMonthMetaValue} numberOfLines={1}>
-                    {thisMonth.topMood}
-                  </Text>
-                </View>
-              ) : null}
+              )}
             </View>
+            <MomentCard
+              item={aYearAgo}
+              onPress={() => router.push(`/moment/${aYearAgo.id}`)}
+              allMoods={allMoods}
+            />
           </>
         )}
 
-        {/* A Random Memory — always visible as the anchor section */}
-        {randomMoment && (
+        {/* Journal Prompt — always visible */}
+        <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
+          <Text style={styles.sectionTitle}>Journal Prompt</Text>
+        </View>
+        <View style={styles.promptCard}>
+          <Text style={styles.promptQuestion}>{dailyPrompt.question}</Text>
+          <TouchableOpacity
+            style={styles.promptCta}
+            onPress={() =>
+              router.push({
+                pathname: "/create",
+                params: {
+                  promptQuestion: dailyPrompt.question,
+                  promptStarter: dailyPrompt.starter,
+                },
+              })
+            }
+            activeOpacity={0.7}
+          >
+            <Text style={styles.promptCtaText}>Capture this memory →</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* A Random Memory — supporting (only when not hero) */}
+        {heroType !== "random" && randomMoment && (
           <>
-            <View style={[styles.sectionRow, (byYear.length > 0 || aMonthAgo || thisMonth?.count) && styles.sectionRowSpaced]}>
+            <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
               <Text style={styles.sectionTitle}>A Random Memory</Text>
-              <TouchableOpacity
-                onPress={handleShuffle}
-                disabled={shuffling}
-                hitSlop={8}
-              >
+              <TouchableOpacity onPress={handleShuffle} disabled={shuffling} hitSlop={8}>
                 {shuffling ? (
                   <ActivityIndicator size="small" color={theme.colors.accent} />
                 ) : (
@@ -426,13 +482,18 @@ export default function ReflectionsScreen() {
           </>
         )}
 
-        {/* Empty state — shown only when user has no moments at all */}
-        {!hasAnyContent && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>
-              Log some moments and they'll resurface here.
-            </Text>
-          </View>
+        {/* Forgotten Moment — hidden when empty */}
+        {forgottenMoment && (
+          <>
+            <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
+              <Text style={styles.sectionTitle}>Forgotten Moment</Text>
+            </View>
+            <MomentCard
+              item={forgottenMoment}
+              onPress={() => router.push(`/moment/${forgottenMoment.id}`)}
+              allMoods={allMoods}
+            />
+          </>
         )}
       </ScrollView>
     </View>
@@ -473,6 +534,11 @@ function createStyles(theme: Theme) {
     sectionRowSpaced: {
       marginTop: theme.spacing["3xl"],
     },
+    heroTitle: {
+      fontSize: theme.fontSize.xl,
+      fontWeight: theme.fontWeight.bold,
+      color: theme.colors.text,
+    },
     sectionTitle: {
       fontSize: theme.fontSize.lg,
       fontWeight: theme.fontWeight.semibold,
@@ -481,54 +547,6 @@ function createStyles(theme: Theme) {
     sectionSubtitle: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
-    },
-    thisMonthCard: {
-      backgroundColor: theme.colors.cardBg,
-      borderRadius: theme.radii.md,
-      padding: theme.spacing.lg,
-      gap: theme.spacing.sm,
-    },
-    thisMonthStat: {
-      flexDirection: "row",
-      alignItems: "baseline",
-      gap: 6,
-    },
-    thisMonthBig: {
-      fontSize: theme.fontSize["3xl"],
-      fontWeight: theme.fontWeight.bold,
-      color: theme.colors.text,
-    },
-    thisMonthStatLabel: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.textSecondary,
-    },
-    thisMonthChip: {
-      alignSelf: "flex-start",
-    },
-    thisMonthChipText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
-      fontWeight: theme.fontWeight.medium,
-    },
-    thisMonthChipUp: {
-      color: theme.colors.success,
-    },
-    thisMonthChipDown: {
-      color: theme.colors.destructive,
-    },
-    thisMonthMeta: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    thisMonthMetaLabel: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
-    },
-    thisMonthMetaValue: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.text,
-      fontWeight: theme.fontWeight.medium,
-      flex: 1,
     },
     yearGroup: {
       marginBottom: theme.spacing.xl,
@@ -539,16 +557,55 @@ function createStyles(theme: Theme) {
       color: theme.colors.textSecondary,
       marginBottom: theme.spacing.sm,
     },
+    promptCard: {
+      backgroundColor: theme.colors.cardBg,
+      borderRadius: theme.radii.md,
+      padding: theme.spacing.lg,
+      gap: theme.spacing.md,
+    },
+    promptQuestion: {
+      fontSize: theme.fontSize.base,
+      color: theme.colors.text,
+      lineHeight: 22,
+    },
+    promptCta: {
+      alignSelf: "flex-start",
+    },
+    promptCtaText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.accent,
+      fontWeight: theme.fontWeight.semibold,
+    },
     emptyState: {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      paddingTop: 80,
+      paddingHorizontal: theme.spacing["2xl"],
     },
-    emptyStateText: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.textTertiary,
+    emptyTitle: {
+      fontSize: theme.fontSize.lg,
+      fontWeight: theme.fontWeight.semibold,
+      color: theme.colors.text,
       textAlign: "center",
+      marginBottom: theme.spacing.md,
+    },
+    emptyBody: {
+      fontSize: theme.fontSize.base,
+      color: theme.colors.textSecondary,
+      textAlign: "center",
+      lineHeight: 22,
+      marginBottom: theme.spacing["2xl"],
+    },
+    emptyButton: {
+      paddingVertical: 12,
+      paddingHorizontal: theme.spacing.xl,
+      borderRadius: theme.radii.button,
+      backgroundColor: theme.colors.accent,
+    },
+    emptyButtonText: {
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
+      color: "#fff",
     },
     errorText: {
       fontSize: theme.fontSize.base,
