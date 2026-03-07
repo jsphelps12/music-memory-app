@@ -14,7 +14,7 @@ export default function Home() {
         </p>
         <div className="pt-4">
           <a
-            href="#"
+            href="https://apps.apple.com/us/app/soundtracks/id6759203604"
             className="inline-block px-8 py-3 rounded-full text-white font-semibold text-lg transition-opacity hover:opacity-90"
             style={{ backgroundColor: "#E8825C" }}
           >

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-const APP_STORE_URL = "https://apps.apple.com/app/soundtracks/id0000000000"; // TODO: update with real App Store ID
+const APP_STORE_URL = "https://apps.apple.com/us/app/soundtracks/id6759203604";
 const CLIPBOARD_PREFIX = "soundtracks-invite:";
 
 interface Props {

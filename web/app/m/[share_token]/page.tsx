@@ -147,9 +147,8 @@ export default async function GiftedMomentPage({ params }: PageProps) {
           <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.4)" }}>
             Remember a song that takes you back?
           </p>
-          {/* TODO: replace href with real App Store URL once live */}
           <a
-            href="https://music-memory-app.vercel.app"
+            href="https://apps.apple.com/us/app/soundtracks/id6759203604"
             className="block text-center py-3 rounded-full text-white font-semibold text-base transition-opacity hover:opacity-90"
             style={{ backgroundColor: "#E8825C" }}
           >
