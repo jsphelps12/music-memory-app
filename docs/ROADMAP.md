@@ -763,6 +763,7 @@ Worth building, not urgent.
 - [ ] Weather auto-tagging — silently attach weather at creation; enables "rainy day songs" [Free]
 - [ ] Legacy mode — designate someone to receive your collection [Premium]
 - [ ] Referral program — gift 3 months Plus, get 1 month free; ship once paying base exists [Free mechanic]
+- [ ] Printable moment card — styled high-res PNG export of a single moment (album art, song name, date, reflection snippet); generated client-side via `react-native-view-shot`; user saves to camera roll and prints wherever; no backend needed; shareable/viral; this is the free step before in-app print fulfillment [Free]
 
 ---
 
@@ -778,7 +779,8 @@ If the product is healthy and the team grows.
 - [ ] Export / backup — download your data
 - [ ] Accessibility — VoiceOver, dynamic type
 - [ ] Spotify full integration — native playback/auth (cross-search is done)
-- [ ] Physical book (print-on-demand) — the long-term events revenue play; needs public moment pages first
+- [ ] Physical book (print-on-demand) — annual "year in music" book; QR codes link each page to the song so it plays when you point your phone at it; see monetization section for full product thinking
+- [ ] Printable moment cards — individual moments exported as styled high-res images (song, photo, reflection, date); downloadable for printing at Walgreens/CVS; ideal for dorm walls, gifts, journals; free tier gets the download, Premium gets in-app print fulfillment (see LATER for the free download step)
 - [ ] QR codes on individual moments — physical-digital bridge for journals, gifts, photo walls
 - [ ] Playlist journals — create a playlist where each song has a reflection; export to Apple Music
 
@@ -835,6 +837,8 @@ Get users first. Let usage data and user feedback drive exactly what to charge f
 **B2B music therapy** — therapists assign music journaling between sessions. Therapist-tier ($15–25/month): assign prompts, view client engagement (with consent). AMTA has 4,000+ members. Low acquisition cost, high LTV, zero consumer marketing needed.
 
 **Physical book margin** — $149 hardcover at ~$45–55 print cost = ~$95 gross margin per book. Artifact Uprising charges $200 for a beautiful-but-silent book. Tracks books play music — point your phone at any page, the song from that moment plays. That's a genuinely different product category, not just a photo book with better paper. Positioned below Artifact Uprising on price, above Chatbooks on intention. The QR audio + emotional reflections + playlist page at the back is the differentiator. One wedding photographer who recommends it to every client makes this revenue meaningful.
+
+*Premium + book bundle:* Tracks Plus subscribers get a meaningful discount on their annual book (e.g. 20–30% off, or one softcover included with the yearly plan at ~$50/yr). This gives Plus an additional reason to stay subscribed year-round even for light users, and makes the annual plan feel like a no-brainer if the user is already planning to buy a book. Alternative framing: the book is the annual plan's "gift to yourself" — pay for Plus, get your year in music on your shelf. Print partner candidates: Chatbooks (API-friendly, partnership programs), Artifact (AI-organized layouts), Blurb (has a developer API), Prodigi (global fulfillment). Prerequisite: public moment page URLs for QR codes to resolve.
 
 **Growth levers — acquisition channels worth thinking about now even if not built yet:**
 
