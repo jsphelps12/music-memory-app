@@ -29,6 +29,7 @@ import { uploadMomentPhotoWithThumbnail } from "@/lib/storage";
 import { getNowPlaying, onNowPlayingChange } from "@/lib/now-playing";
 import { identifyAudio, stopShazamListening, type ShazamResult } from "@/modules/shazam-kit";
 import { onSongSelected } from "@/lib/songEvents";
+import { emitOnboardingMomentSaved } from "@/lib/onboardingEvents";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
 import { CollectionPicker } from "@/components/CollectionPicker";
@@ -250,6 +251,7 @@ export default function CreateMomentScreen() {
     sharedPhotoPaths?: string;
     promptQuestion?: string;
     promptStarter?: string;
+    onboardingStage?: string; // "1" | "2"
   }>();
 
   const [song, setSong] = useState<Song | null>(null);
@@ -622,6 +624,15 @@ export default function CreateMomentScreen() {
 
       markTimelineStale();
 
+      if (params.onboardingStage === "1" || params.onboardingStage === "2") {
+        if (params.onboardingStage === "1" && user) {
+          await AsyncStorage.setItem(firstMomentKey(user.id), "true");
+        }
+        emitOnboardingMomentSaved({ momentId: inserted!.id, hasPerson: people.length > 0 });
+        router.back();
+        return;
+      }
+
       const key = user ? firstMomentKey(user.id) : null;
       const firstMomentDone = key ? await AsyncStorage.getItem(key) : "true";
       if (!firstMomentDone && key) {
@@ -828,47 +839,6 @@ export default function CreateMomentScreen() {
 
         {showDetails && (
           <>
-            {/* Mood selector */}
-            <Text style={styles.sectionLabel}>Mood</Text>
-            <MoodSelector
-              selectedMood={selectedMood}
-              onSelectMood={setSelectedMood}
-              customMoods={profile?.customMoods ?? []}
-              saveCustomMood={saveCustomMood}
-              deleteCustomMood={deleteCustomMood}
-            />
-
-            {/* People */}
-            <Text style={styles.sectionLabel}>People</Text>
-            <PeopleInput people={people} onChange={setPeople} suggestions={peopleSuggestions} />
-
-            {/* Collection */}
-            <Text style={styles.sectionLabel}>Collection</Text>
-            {selectedCollection ? (
-              <View style={styles.collectionChipRow}>
-                <TouchableOpacity
-                  style={styles.collectionChip}
-                  onPress={() => setCollectionPickerVisible(true)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="folder-outline" size={14} color={theme.colors.accentText} />
-                  <Text style={styles.collectionChipText}>{selectedCollection.name}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setSelectedCollection(null)} hitSlop={8}>
-                  <Ionicons name="close-circle" size={18} color={theme.colors.placeholder} />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.collectionEmpty}
-                onPress={() => setCollectionPickerVisible(true)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="folder-outline" size={16} color={theme.colors.placeholder} />
-                <Text style={styles.collectionEmptyText}>Add to collection</Text>
-              </TouchableOpacity>
-            )}
-
             {/* Photos */}
             <Text style={styles.sectionLabel}>Photos</Text>
             <TouchableOpacity style={styles.addPhotosButton} activeOpacity={0.7} onPress={handleAddPhotos}>
@@ -923,6 +893,47 @@ export default function CreateMomentScreen() {
                   <Text style={styles.metaBannerUseText}>Use</Text>
                 </TouchableOpacity>
               </View>
+            )}
+
+            {/* People */}
+            <Text style={styles.sectionLabel}>People</Text>
+            <PeopleInput people={people} onChange={setPeople} suggestions={peopleSuggestions} />
+
+            {/* Mood selector */}
+            <Text style={styles.sectionLabel}>Mood</Text>
+            <MoodSelector
+              selectedMood={selectedMood}
+              onSelectMood={setSelectedMood}
+              customMoods={profile?.customMoods ?? []}
+              saveCustomMood={saveCustomMood}
+              deleteCustomMood={deleteCustomMood}
+            />
+
+            {/* Collection */}
+            <Text style={styles.sectionLabel}>Collection</Text>
+            {selectedCollection ? (
+              <View style={styles.collectionChipRow}>
+                <TouchableOpacity
+                  style={styles.collectionChip}
+                  onPress={() => setCollectionPickerVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="folder-outline" size={14} color={theme.colors.accentText} />
+                  <Text style={styles.collectionChipText}>{selectedCollection.name}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setSelectedCollection(null)} hitSlop={8}>
+                  <Ionicons name="close-circle" size={18} color={theme.colors.placeholder} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.collectionEmpty}
+                onPress={() => setCollectionPickerVisible(true)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="folder-outline" size={16} color={theme.colors.placeholder} />
+                <Text style={styles.collectionEmptyText}>Add to collection</Text>
+              </TouchableOpacity>
             )}
 
             {/* Date picker */}

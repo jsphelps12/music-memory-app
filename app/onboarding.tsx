@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePostHog } from "posthog-react-native";
 import {
   View,
@@ -14,7 +14,6 @@ import {
   Keyboard,
   Platform,
 } from "react-native";
-import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { CloseButton } from "@/components/CloseButton";
 import * as Haptics from "expo-haptics";
@@ -23,15 +22,9 @@ import { useAuth, OnboardingData } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
-import { FavoriteArtist, FavoriteSong } from "@/types";
-import { searchItunesArtists, searchItunesSongs } from "@/lib/musicSearch";
+import { onOnboardingMomentSaved } from "@/lib/onboardingEvents";
 
-const TOTAL_STEPS = 5;
-
-const GENRES = [
-  "Rock", "Pop", "Hip-Hop", "R&B / Soul", "Country", "Electronic",
-  "Latin", "Jazz", "Folk / Indie", "Classical", "Reggae", "Metal",
-];
+const TOTAL_STEPS = 2;
 
 const BIRTH_YEARS = Array.from({ length: 86 }, (_, i) => 2015 - i); // 2015 → 1930
 
@@ -47,13 +40,16 @@ const COUNTRIES = [
   "Saudi Arabia", "United Arab Emirates", "Israel", "Turkey", "Greece",
 ];
 
+type OnboardingPhase = "questionnaire" | "moment1_intro" | "interstitial" | "moment2_intro";
+
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { completeOnboarding, user } = useAuth();
+  const { completeOnboarding, saveOnboardingData, user } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const posthog = usePostHog();
 
+  const [phase, setPhase] = useState<OnboardingPhase>("questionnaire");
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -72,77 +68,36 @@ export default function OnboardingScreen() {
     [countrySearch]
   );
 
-  // Step 3 — Artists
-  const [artistQuery, setArtistQuery] = useState("");
-  const [artistResults, setArtistResults] = useState<FavoriteArtist[]>([]);
-  const [artistSearching, setArtistSearching] = useState(false);
-  const [selectedArtists, setSelectedArtists] = useState<FavoriteArtist[]>([]);
-  const artistDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Escape hatch ────────────────────────────────────────────────────────
 
-  // Step 4 — Songs
-  const [songQuery, setSongQuery] = useState("");
-  const [songResults, setSongResults] = useState<FavoriteSong[]>([]);
-  const [songSearching, setSongSearching] = useState(false);
-  const [selectedSongs, setSelectedSongs] = useState<FavoriteSong[]>([]);
-  const songDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  async function handleSkipMoments() {
+    setSaving(true);
+    try {
+      const data: OnboardingData = {
+        displayName: displayName.trim(),
+        birthYear,
+        country: country || null,
+        favoriteArtists: [],
+        favoriteSongs: [],
+        genrePreferences: [],
+      };
+      await completeOnboarding(data);
+      posthog.capture("onboarding_completed", {
+        has_birth_year: Boolean(data.birthYear),
+        has_country: Boolean(data.country),
+        skipped_moments: true,
+      });
+      router.replace("/(tabs)");
+    } catch (e: any) {
+      setError(friendlyError(e));
+      setSaving(false);
+    }
+  }
 
-  // Step 5 — Genres
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-
-  // ── Search handlers ────────────────────────────────────────────────────
-
-  const handleArtistQuery = useCallback((text: string) => {
-    setArtistQuery(text);
-    if (artistDebounce.current) clearTimeout(artistDebounce.current);
-    if (!text.trim()) { setArtistResults([]); return; }
-    artistDebounce.current = setTimeout(async () => {
-      setArtistSearching(true);
-      const results = await searchItunesArtists(text);
-      setArtistResults(results);
-      setArtistSearching(false);
-    }, 350);
-  }, []);
-
-  const handleSongQuery = useCallback((text: string) => {
-    setSongQuery(text);
-    if (songDebounce.current) clearTimeout(songDebounce.current);
-    if (!text.trim()) { setSongResults([]); return; }
-    songDebounce.current = setTimeout(async () => {
-      setSongSearching(true);
-      const results = await searchItunesSongs(text);
-      setSongResults(results);
-      setSongSearching(false);
-    }, 350);
-  }, []);
-
-  const toggleArtist = useCallback((artist: FavoriteArtist) => {
-    Haptics.selectionAsync();
-    setSelectedArtists((prev) => {
-      if (prev.find((a) => a.id === artist.id)) return prev.filter((a) => a.id !== artist.id);
-      if (prev.length >= 5) return prev;
-      setArtistQuery("");
-      setArtistResults([]);
-      return [...prev, artist];
-    });
-  }, []);
-
-  const toggleSong = useCallback((song: FavoriteSong) => {
-    Haptics.selectionAsync();
-    setSelectedSongs((prev) => {
-      if (prev.find((s) => s.id === song.id)) return prev.filter((s) => s.id !== song.id);
-      if (prev.length >= 5) return prev;
-      setSongQuery("");
-      setSongResults([]);
-      return [...prev, song];
-    });
-  }, []);
-
-  // ── Navigation ─────────────────────────────────────────────────────────
+  // ── Questionnaire navigation ────────────────────────────────────────────
 
   function canAdvance(): boolean {
     if (step === 1) return displayName.trim().length > 0;
-    if (step === 3) return selectedArtists.length >= 1;
-    if (step === 4) return selectedSongs.length >= 1;
     return true;
   }
 
@@ -151,8 +106,6 @@ export default function OnboardingScreen() {
     if (!canAdvance()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       if (step === 1) setError("Please enter your name.");
-      else if (step === 3) setError("Add at least one favorite artist.");
-      else if (step === 4) setError("Add at least one favorite song.");
       return;
     }
     setError("");
@@ -163,26 +116,28 @@ export default function OnboardingScreen() {
       return;
     }
 
-    // Final step — save and go
+    // After step 2 — save name/year/country, then go to moment1_intro
     setSaving(true);
     try {
-      const data: OnboardingData = {
+      await saveOnboardingData({
         displayName: displayName.trim(),
         birthYear,
         country: country || null,
-        favoriteArtists: selectedArtists,
-        favoriteSongs: selectedSongs,
-        genrePreferences: selectedGenres,
-      };
-      await completeOnboarding(data);
-      if (user) posthog.identify(user.id, { $set: { display_name: data.displayName, birth_year: data.birthYear, country: data.country, genre_preferences: data.genrePreferences } });
-      posthog.capture("onboarding_completed", { has_birth_year: Boolean(data.birthYear), has_country: Boolean(data.country), genre_count: data.genrePreferences.length, artist_count: data.favoriteArtists.length, song_count: data.favoriteSongs.length });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Gate: go to tabs, then immediately open create so first moment is captured
-      router.replace("/(tabs)");
-      setTimeout(() => router.push("/create" as any), 600);
+      });
+      if (user) {
+        posthog.identify(user.id, {
+          $set: {
+            display_name: displayName.trim(),
+            birth_year: birthYear,
+            country: country || null,
+          },
+        });
+      }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setPhase("moment1_intro");
     } catch (e: any) {
       setError(friendlyError(e));
+    } finally {
       setSaving(false);
     }
   }
@@ -195,317 +150,284 @@ export default function OnboardingScreen() {
     }
   }
 
-  // ── Render helpers ──────────────────────────────────────────────────────
+  // ── Moment phase handlers ───────────────────────────────────────────────
+
+  function handleCaptureMoment1() {
+    const unsubscribe = onOnboardingMomentSaved(() => {
+      unsubscribe();
+      setPhase("interstitial");
+    });
+    router.push("/create?onboardingStage=1" as any);
+  }
+
+  function handleCaptureMoment2() {
+    const unsubscribe = onOnboardingMomentSaved(async (payload) => {
+      unsubscribe();
+      const data: OnboardingData = {
+        displayName: displayName.trim(),
+        birthYear,
+        country: country || null,
+        favoriteArtists: [],
+        favoriteSongs: [],
+        genrePreferences: [],
+      };
+      try {
+        await completeOnboarding(data);
+        posthog.capture("onboarding_completed", {
+          has_birth_year: Boolean(data.birthYear),
+          has_country: Boolean(data.country),
+          skipped_moments: false,
+        });
+      } catch {}
+      router.replace("/(tabs)");
+      setTimeout(() => {
+        router.push({
+          pathname: `/moment/${payload.momentId}`,
+          params: { returnTo: "/celebration", fromOnboarding: "true" },
+        } as any);
+      }, 800);
+    });
+    router.push({
+      pathname: "/create",
+      params: {
+        onboardingStage: "2",
+        promptQuestion: "Where were you when you discovered your favorite song?",
+        promptStarter: "I still remember the moment I first heard...",
+      },
+    } as any);
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────
 
   const progress = step / TOTAL_STEPS;
 
-  function renderStep() {
-    switch (step) {
-      case 1:
-        return (
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.stepContent}>
-              <Text style={styles.stepHeading}>What should we call you?</Text>
-              <Text style={styles.stepSub}>This shows up on shared collections and gifted memories.</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Your name"
-                placeholderTextColor={theme.colors.placeholder}
-                value={displayName}
-                onChangeText={(t) => { setDisplayName(t); setError(""); }}
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={handleNext}
-                textContentType="name"
-                autoComplete="name"
-                maxLength={40}
-              />
-            </View>
-          </TouchableWithoutFeedback>
-        );
+  function renderQuestionnaire() {
+    return (
+      <>
+        {/* Progress bar */}
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+        </View>
 
-      case 2:
-        return (
-          <View style={styles.stepContent}>
-            <Text style={styles.stepHeading}>A bit about you</Text>
-            <Text style={styles.stepSub}>Helps us surface songs that match your era and background.</Text>
-
-            <Text style={styles.fieldLabel}>Birth year</Text>
-            <TouchableOpacity
-              style={styles.pickerRow}
-              onPress={() => setYearPickerVisible(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.pickerRowText, !birthYear && { color: theme.colors.placeholder }]}>
-                {birthYear ? String(birthYear) : "Select year"}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={theme.colors.textSecondary} />
+        {/* Step counter + back */}
+        <View style={styles.topRow}>
+          {step > 1 ? (
+            <TouchableOpacity onPress={handleBack} hitSlop={12} activeOpacity={0.7}>
+              <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
             </TouchableOpacity>
+          ) : (
+            <View style={{ width: 24 }} />
+          )}
+          <Text style={styles.stepCount}>{step} of {TOTAL_STEPS}</Text>
+          <View style={{ width: 24 }} />
+        </View>
 
-            <Text style={[styles.fieldLabel, { marginTop: 20 }]}>Country you grew up in</Text>
-            <TouchableOpacity
-              style={styles.pickerRow}
-              onPress={() => { setCountrySearch(""); setCountryPickerVisible(true); }}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.pickerRowText, !country && { color: theme.colors.placeholder }]}>
-                {country || "Select country"}
+        {/* Step body */}
+        <View style={styles.body}>
+          {step === 1 ? (
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={styles.stepContent}>
+                <Text style={styles.stepHeading}>What's your name?</Text>
+                <Text style={styles.stepSub}>This is how you'll appear to friends — you can always add more later.</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Your name"
+                  placeholderTextColor={theme.colors.placeholder}
+                  value={displayName}
+                  onChangeText={(t) => { setDisplayName(t); setError(""); }}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={handleNext}
+                  textContentType="name"
+                  autoComplete="name"
+                  maxLength={40}
+                />
+              </View>
+            </TouchableWithoutFeedback>
+          ) : (
+            <View style={styles.stepContent}>
+              <Text style={styles.stepHeading}>A bit about you</Text>
+              <Text style={styles.stepSub}>Helps us surface songs that match your era and background.</Text>
+
+              <Text style={styles.fieldLabel}>Birth year</Text>
+              <TouchableOpacity
+                style={styles.pickerRow}
+                onPress={() => setYearPickerVisible(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.pickerRowText, !birthYear && { color: theme.colors.placeholder }]}>
+                  {birthYear ? String(birthYear) : "Select year"}
+                </Text>
+                <Ionicons name="chevron-down" size={16} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+
+              <Text style={[styles.fieldLabel, { marginTop: 20 }]}>Country you grew up in</Text>
+              <TouchableOpacity
+                style={styles.pickerRow}
+                onPress={() => { setCountrySearch(""); setCountryPickerVisible(true); }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.pickerRowText, !country && { color: theme.colors.placeholder }]}>
+                  {country || "Select country"}
+                </Text>
+                <Ionicons name="chevron-down" size={16} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+
+              <Text style={styles.optionalHint}>Both optional — you can update these anytime in your profile.</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Error */}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        {/* CTA */}
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.nextButton, { backgroundColor: theme.colors.buttonBg, opacity: saving ? 0.7 : 1 }]}
+            onPress={handleNext}
+            activeOpacity={0.8}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator color={theme.colors.buttonText} />
+            ) : (
+              <Text style={[styles.nextButtonText, { color: theme.colors.buttonText }]}>
+                Continue
               </Text>
-              <Ionicons name="chevron-down" size={16} color={theme.colors.textSecondary} />
+            )}
+          </TouchableOpacity>
+
+          {step === 2 && (
+            <TouchableOpacity
+              onPress={() => {
+                setError("");
+                handleNext();
+              }}
+              activeOpacity={0.7}
+              style={styles.skipLink}
+            >
+              <Text style={styles.skipText}>Skip for now</Text>
             </TouchableOpacity>
-
-            <Text style={styles.optionalHint}>Both optional — you can update these anytime in your profile.</Text>
-          </View>
-        );
-
-      case 3:
-        return (
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            keyboardVerticalOffset={20}
-          >
-            <View style={styles.stepContent}>
-              <Text style={styles.stepHeading}>Favorite artists</Text>
-              <Text style={styles.stepSub}>Pick up to 5. We'll use these to find songs that mean something to you.</Text>
-            </View>
-
-            {selectedArtists.length > 0 && (
-              <View style={styles.chips}>
-                {selectedArtists.map((a) => (
-                  <TouchableOpacity
-                    key={a.id}
-                    style={[styles.chip, { backgroundColor: theme.colors.accent }]}
-                    onPress={() => toggleArtist(a)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.chipText}>{a.name}</Text>
-                    <Ionicons name="close" size={14} color="#fff" style={{ marginLeft: 4 }} />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            <View style={[styles.searchRow, { borderColor: theme.colors.border }]}>
-              <Ionicons name="search" size={16} color={theme.colors.textSecondary} style={styles.searchIcon} />
-              <TextInput
-                style={[styles.searchInput, { color: theme.colors.text }]}
-                placeholder="Search artists…"
-                placeholderTextColor={theme.colors.placeholder}
-                value={artistQuery}
-                onChangeText={handleArtistQuery}
-                returnKeyType="search"
-              />
-              {artistSearching ? (
-                <ActivityIndicator size="small" color={theme.colors.accent} />
-              ) : artistQuery.length > 0 ? (
-                <TouchableOpacity onPress={() => { setArtistQuery(""); setArtistResults([]); }} hitSlop={8}>
-                  <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-
-            <FlatList
-              data={artistResults}
-              keyExtractor={(item) => item.id}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              style={styles.resultsList}
-              renderItem={({ item }) => {
-                const selected = !!selectedArtists.find((a) => a.id === item.id);
-                return (
-                  <TouchableOpacity
-                    style={[styles.resultRow, selected && { backgroundColor: theme.colors.chipBg }]}
-                    onPress={() => toggleArtist(item)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.resultTitle, selected && { color: theme.colors.accent }]}>
-                      {item.name}
-                    </Text>
-                    {selected && <Ionicons name="checkmark" size={18} color={theme.colors.accent} />}
-                  </TouchableOpacity>
-                );
-              }}
-            />
-          </KeyboardAvoidingView>
-        );
-
-      case 5:
-        return (
-          <View style={styles.stepContent}>
-            <Text style={styles.stepHeading}>Your genres</Text>
-            <Text style={styles.stepSub}>What kind of music shaped you? Pick any that apply — or skip.</Text>
-            <View style={styles.genreGrid}>
-              {GENRES.map((genre) => {
-                const selected = selectedGenres.includes(genre);
-                return (
-                  <TouchableOpacity
-                    key={genre}
-                    style={[styles.genreChip, selected && styles.genreChipSelected]}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setSelectedGenres((prev) =>
-                        selected ? prev.filter((g) => g !== genre) : [...prev, genre]
-                      );
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.genreChipText, selected && styles.genreChipTextSelected]}>
-                      {genre}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        );
-
-      case 4:
-        return (
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            keyboardVerticalOffset={20}
-          >
-            <View style={styles.stepContent}>
-              <Text style={styles.stepHeading}>Favorite songs</Text>
-              <Text style={styles.stepSub}>Pick up to 5 songs you have strong memories of.</Text>
-            </View>
-
-            {selectedSongs.length > 0 && (
-              <View style={styles.chips}>
-                {selectedSongs.map((s) => (
-                  <TouchableOpacity
-                    key={s.id}
-                    style={[styles.chip, { backgroundColor: theme.colors.accent }]}
-                    onPress={() => toggleSong(s)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.chipText} numberOfLines={1}>{s.title}</Text>
-                    <Ionicons name="close" size={14} color="#fff" style={{ marginLeft: 4 }} />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            <View style={[styles.searchRow, { borderColor: theme.colors.border }]}>
-              <Ionicons name="search" size={16} color={theme.colors.textSecondary} style={styles.searchIcon} />
-              <TextInput
-                style={[styles.searchInput, { color: theme.colors.text }]}
-                placeholder="Search songs…"
-                placeholderTextColor={theme.colors.placeholder}
-                value={songQuery}
-                onChangeText={handleSongQuery}
-                returnKeyType="search"
-              />
-              {songSearching ? (
-                <ActivityIndicator size="small" color={theme.colors.accent} />
-              ) : songQuery.length > 0 ? (
-                <TouchableOpacity onPress={() => { setSongQuery(""); setSongResults([]); }} hitSlop={8}>
-                  <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-
-            <FlatList
-              data={songResults}
-              keyExtractor={(item) => item.id}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              style={styles.resultsList}
-              renderItem={({ item }) => {
-                const selected = !!selectedSongs.find((s) => s.id === item.id);
-                return (
-                  <TouchableOpacity
-                    style={[styles.resultRow, selected && { backgroundColor: theme.colors.chipBg }]}
-                    onPress={() => toggleSong(item)}
-                    activeOpacity={0.7}
-                  >
-                    {item.artworkUrl && (
-                      <Image
-                        source={{ uri: item.artworkUrl }}
-                        style={styles.songArtwork}
-                        contentFit="cover"
-                      />
-                    )}
-                    <View style={styles.resultText}>
-                      <Text style={[styles.resultTitle, selected && { color: theme.colors.accent }]} numberOfLines={1}>
-                        {item.title}
-                      </Text>
-                      <Text style={styles.resultSub} numberOfLines={1}>{item.artist}</Text>
-                    </View>
-                    {selected && <Ionicons name="checkmark" size={18} color={theme.colors.accent} />}
-                  </TouchableOpacity>
-                );
-              }}
-            />
-          </KeyboardAvoidingView>
-        );
-    }
+          )}
+        </View>
+      </>
+    );
   }
+
+  function renderMoment1Intro() {
+    return (
+      <View style={styles.container}>
+        <View style={styles.phaseContent}>
+          <View style={styles.phaseIconCircle}>
+            <Ionicons name="musical-notes" size={36} color={theme.colors.accent} />
+          </View>
+          <Text style={styles.phaseHeading}>What are you listening to right now?</Text>
+          <Text style={styles.phaseSub}>Log the song and a quick thought — takes 30 seconds.</Text>
+        </View>
+
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.nextButton, { backgroundColor: theme.colors.buttonBg }]}
+            onPress={handleCaptureMoment1}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.nextButtonText, { color: theme.colors.buttonText }]}>
+              Capture now
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleSkipMoments}
+            activeOpacity={0.7}
+            style={styles.skipLink}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+            ) : (
+              <Text style={styles.skipText}>Skip for now</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  function renderInterstitial() {
+    return (
+      <View style={styles.container}>
+        <View style={styles.phaseContent}>
+          <View style={styles.phaseIconCircle}>
+            <Ionicons name="heart" size={36} color={theme.colors.accent} />
+          </View>
+          <Text style={styles.phaseHeading}>Nice. Now the one that really matters.</Text>
+          <Text style={styles.phaseSub}>
+            Think of a song tied to a real memory — a place, a person, a moment in time. Tap <Text style={{ fontWeight: "700", color: theme.colors.text }}>"Add details"</Text> in the next screen to attach a photo and tag who you were with.
+          </Text>
+        </View>
+
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.nextButton, { backgroundColor: theme.colors.buttonBg }]}
+            onPress={() => setPhase("moment2_intro")}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.nextButtonText, { color: theme.colors.buttonText }]}>
+              Continue →
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  function renderMoment2Intro() {
+    return (
+      <View style={styles.container}>
+        <View style={styles.phaseContent}>
+          <View style={styles.phaseIconCircle}>
+            <Ionicons name="time-outline" size={36} color={theme.colors.accent} />
+          </View>
+          <Text style={styles.phaseHeading}>What's a song that means something to you?</Text>
+          <Text style={styles.phaseSub}>Tap <Text style={{ fontWeight: "700", color: theme.colors.text }}>"Add details"</Text> to attach a photo and tag who you were with.</Text>
+        </View>
+
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.nextButton, { backgroundColor: theme.colors.buttonBg }]}
+            onPress={handleCaptureMoment2}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.nextButtonText, { color: theme.colors.buttonText }]}>
+              Capture this memory
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleSkipMoments}
+            activeOpacity={0.7}
+            style={styles.skipLink}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+            ) : (
+              <Text style={styles.skipText}>Skip for now</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  if (phase === "moment1_intro") return renderMoment1Intro();
+  if (phase === "interstitial") return renderInterstitial();
+  if (phase === "moment2_intro") return renderMoment2Intro();
 
   return (
     <View style={styles.container}>
-      {/* Progress bar */}
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-      </View>
-
-      {/* Step counter + back */}
-      <View style={styles.topRow}>
-        {step > 1 ? (
-          <TouchableOpacity onPress={handleBack} hitSlop={12} activeOpacity={0.7}>
-            <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 24 }} />
-        )}
-        <Text style={styles.stepCount}>{step} of {TOTAL_STEPS}</Text>
-        <View style={{ width: 24 }} />
-      </View>
-
-      {/* Step body */}
-      <View style={styles.body}>
-        {renderStep()}
-      </View>
-
-      {/* Error */}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      {/* CTA */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.nextButton, { backgroundColor: theme.colors.buttonBg, opacity: saving ? 0.7 : 1 }]}
-          onPress={handleNext}
-          activeOpacity={0.8}
-          disabled={saving}
-        >
-          {saving ? (
-            <ActivityIndicator color={theme.colors.buttonText} />
-          ) : (
-            <Text style={[styles.nextButtonText, { color: theme.colors.buttonText }]}>
-              {step === TOTAL_STEPS ? "Capture my first memory" : "Continue"}
-            </Text>
-          )}
-        </TouchableOpacity>
-
-        {(step === 2 || step === 5) && (
-          <TouchableOpacity
-            onPress={() => {
-              setError("");
-              if (step < TOTAL_STEPS) {
-                setStep((s) => s + 1);
-              } else {
-                handleNext();
-              }
-            }}
-            activeOpacity={0.7}
-            style={styles.skipLink}
-          >
-            <Text style={styles.skipText}>Skip for now</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      {renderQuestionnaire()}
 
       {/* ── Year picker modal ── */}
       <Modal visible={yearPickerVisible} transparent animationType="slide" onRequestClose={() => setYearPickerVisible(false)}>
@@ -677,72 +599,6 @@ function createStyles(theme: Theme) {
       color: theme.colors.textTertiary,
       marginTop: 16,
     },
-    chips: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 8,
-      marginBottom: 12,
-    },
-    chip: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 20,
-    },
-    chipText: {
-      color: "#fff",
-      fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.medium,
-      maxWidth: 140,
-    },
-    searchRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: theme.colors.backgroundInput,
-      borderRadius: 12,
-      borderWidth: 1,
-      paddingHorizontal: 12,
-      height: 44,
-      marginBottom: 8,
-    },
-    searchIcon: {
-      marginRight: 8,
-    },
-    searchInput: {
-      flex: 1,
-      fontSize: theme.fontSize.base,
-    },
-    resultsList: {
-      flex: 1,
-    },
-    resultRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: 10,
-      paddingHorizontal: 12,
-      borderRadius: 10,
-      marginBottom: 2,
-    },
-    songArtwork: {
-      width: 40,
-      height: 40,
-      borderRadius: 6,
-      marginRight: 12,
-    },
-    resultText: {
-      flex: 1,
-    },
-    resultTitle: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      fontWeight: theme.fontWeight.medium,
-    },
-    resultSub: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
-      marginTop: 2,
-    },
     error: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.destructive,
@@ -774,31 +630,32 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
     },
-    genreGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 10,
+    // Moment phases
+    phaseContent: {
+      flex: 1,
+      paddingHorizontal: theme.spacing.xl,
+      paddingTop: 80,
+      justifyContent: "center",
     },
-    genreChip: {
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 20,
-      backgroundColor: theme.colors.backgroundInput,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
-    genreChipSelected: {
+    phaseIconCircle: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
       backgroundColor: theme.colors.accentBg,
-      borderColor: theme.colors.accent,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: theme.spacing["2xl"],
     },
-    genreChipText: {
-      fontSize: theme.fontSize.sm,
+    phaseHeading: {
+      fontSize: theme.fontSize["2xl"],
+      fontWeight: theme.fontWeight.bold,
+      color: theme.colors.text,
+      marginBottom: theme.spacing.sm,
+    },
+    phaseSub: {
+      fontSize: theme.fontSize.base,
       color: theme.colors.textSecondary,
-      fontWeight: theme.fontWeight.medium,
-    },
-    genreChipTextSelected: {
-      color: theme.colors.accent,
-      fontWeight: theme.fontWeight.semibold,
+      lineHeight: 24,
     },
     // Picker modals
     modalBackdrop: {

@@ -66,6 +66,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
     const inAuthGroup = segments[0] === "(auth)";
     const inOnboarding = segments[0] === "onboarding";
+    // Allow create/song-search to be open during onboarding (moment capture flow)
+    const inOnboardingCreate = inOnboarding || segments[0] === "create" || segments[0] === "song-search";
 
     if (!session && !inAuthGroup) {
       if (!hasLaunched) {
@@ -77,7 +79,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       }
     } else if (session && (inAuthGroup || inOnboarding)) {
       if (!profile?.onboardingCompleted) {
-        router.replace("/onboarding" as any);
+        // Only redirect to onboarding from the auth group — if already on onboarding,
+        // do nothing. Calling replace("/onboarding") while already there remounts the
+        // component and wipes all phase/step state mid-flow.
+        if (!inOnboarding) {
+          router.replace("/onboarding" as any);
+        }
       } else {
         // Only pre-set first-moment flag for existing users signing in from the auth group.
         // Do NOT pre-set when coming from inOnboarding — that means a new user just finished
@@ -95,7 +102,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
           }
         });
       }
-    } else if (session && !inAuthGroup && !inOnboarding) {
+    } else if (session && !inAuthGroup && !inOnboardingCreate) {
       if (!profile?.onboardingCompleted) {
         router.replace("/onboarding" as any);
       } else if (!hasLaunched) {

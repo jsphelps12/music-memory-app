@@ -54,9 +54,10 @@ import { Collection, Moment, MoodOption } from "@/types";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { ShareCardModal } from "@/components/ShareCardModal";
 import { CloseButton } from "@/components/CloseButton";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function MomentDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, returnTo, fromOnboarding } = useLocalSearchParams<{ id: string; returnTo?: string; fromOnboarding?: string }>();
   const router = useRouter();
   const { user, profile } = useAuth();
   const { currentSong, isPlaying, play, pause, stop } = usePlayer();
@@ -71,6 +72,7 @@ export default function MomentDetailScreen() {
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [showVolumeHint, setShowVolumeHint] = useState(true);
 
   // Collection membership state
   const [collectionModalVisible, setCollectionModalVisible] = useState(false);
@@ -94,6 +96,12 @@ export default function MomentDetailScreen() {
     translateY.value = withTiming(0, config);
     scaleAnim.value = withTiming(1, config);
   }, []);
+
+  useEffect(() => {
+    if (fromOnboarding !== "true") return;
+    const t = setTimeout(() => setShowVolumeHint(false), 6000);
+    return () => clearTimeout(t);
+  }, [fromOnboarding]);
 
   const hasAutoPlayed = useRef(false);
   const momentRef = useRef(moment);
@@ -139,7 +147,13 @@ export default function MomentDetailScreen() {
     });
   }, []);
 
-  const goBack = useCallback(() => router.back(), [router]);
+  const goBack = useCallback(() => {
+    if (returnTo) {
+      router.replace(returnTo as any);
+    } else {
+      router.back();
+    }
+  }, [router, returnTo]);
 
   const swipeGesture = Gesture.Pan()
     .activeOffsetX([-15, 15])
@@ -291,7 +305,7 @@ export default function MomentDetailScreen() {
 
           posthog.capture("moment_deleted", { song_title: moment?.songTitle, song_artist: moment?.songArtist });
           markTimelineStale();
-          animateOut(() => router.back());
+          animateOut(goBack);
         },
       },
     ]);
@@ -326,13 +340,13 @@ export default function MomentDetailScreen() {
               <TouchableOpacity style={styles.moreButton} onPress={openMenu} activeOpacity={0.7}>
                 <Text style={styles.moreButtonText}>{"\u22EF"}</Text>
               </TouchableOpacity>
-              <CloseButton onPress={() => animateOut(() => router.back())} />
+              <CloseButton onPress={() => animateOut(goBack)} />
             </View>
           </>
         ) : (
           <>
             <View style={{ flex: 1 }} />
-            <CloseButton onPress={() => animateOut(() => router.back())} />
+            <CloseButton onPress={() => animateOut(goBack)} />
           </>
         )}
       </View>
@@ -393,7 +407,7 @@ export default function MomentDetailScreen() {
         <ErrorState
           message={error || "Moment not found"}
           onRetry={fetchMoment}
-          onBack={() => animateOut(() => router.back())}
+          onBack={() => animateOut(goBack)}
         />
       ) : (
         <ScrollView
@@ -560,6 +574,22 @@ export default function MomentDetailScreen() {
           photoUrls={photoUrls}
           onClose={() => setShareModalVisible(false)}
         />
+      )}
+
+      {/* Onboarding: volume nudge banner */}
+      {fromOnboarding === "true" && showVolumeHint && (
+        <View style={styles.volumeHint} pointerEvents="none">
+          <Ionicons name="volume-high-outline" size={16} color={theme.colors.textSecondary} />
+          <Text style={styles.volumeHintText}>Turn up your volume to hear it</Text>
+        </View>
+      )}
+
+      {/* Onboarding: share nudge card */}
+      {fromOnboarding === "true" && moment && (
+        <View style={styles.onboardingShareCard}>
+          <Ionicons name="gift-outline" size={18} color={theme.colors.accent} />
+          <Text style={styles.onboardingShareText}>Tap <Text style={{ fontWeight: "700" }}>•••</Text> above to give this memory to someone</Text>
+        </View>
       )}
 
       {/* Collection membership modal */}
@@ -985,6 +1015,45 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.xs,
       color: theme.colors.textTertiary,
       marginLeft: theme.spacing.sm,
+    },
+    volumeHint: {
+      position: "absolute",
+      bottom: 100,
+      alignSelf: "center",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      backgroundColor: theme.colors.backgroundInput,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
+      opacity: 0.9,
+    },
+    volumeHintText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+    },
+    onboardingShareCard: {
+      position: "absolute",
+      bottom: 48,
+      left: theme.spacing.xl,
+      right: theme.spacing.xl,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      backgroundColor: theme.colors.backgroundInput,
+      borderRadius: theme.radii.md,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: 14,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      pointerEvents: "none",
+    },
+    onboardingShareText: {
+      flex: 1,
+      fontSize: theme.fontSize.base,
+      color: theme.colors.text,
+      fontWeight: theme.fontWeight.medium,
     },
   });
 }

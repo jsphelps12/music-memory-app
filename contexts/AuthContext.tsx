@@ -36,6 +36,7 @@ interface AuthState {
     genrePreferences?: string[];
   }) => Promise<void>;
   refreshProfile: () => Promise<void>;
+  saveOnboardingData: (data: Pick<OnboardingData, "displayName" | "birthYear" | "country">) => Promise<void>;
   completeOnboarding: (data: OnboardingData) => Promise<void>;
   saveCustomMood: (mood: CustomMoodDefinition) => Promise<void>;
   deleteCustomMood: (value: string) => Promise<void>;
@@ -256,6 +257,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const saveOnboardingData = async (data: Pick<OnboardingData, "displayName" | "birthYear" | "country">) => {
+    if (!session?.user) throw new Error("Not authenticated");
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        display_name: data.displayName,
+        birth_year: data.birthYear,
+        country: data.country,
+      })
+      .eq("id", session.user.id);
+    if (error) throw error;
+    await fetchProfile(session.user.id);
+  };
+
   const completeOnboarding = async (data: OnboardingData) => {
     if (!session?.user) throw new Error("Not authenticated");
     const { error } = await supabase
@@ -335,6 +350,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         deleteAccount,
         updateProfile,
         refreshProfile,
+        saveOnboardingData,
         completeOnboarding,
         saveCustomMood,
         deleteCustomMood,

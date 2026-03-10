@@ -14,19 +14,19 @@ const NEXT_STEPS = [
     icon: "musical-notes" as const,
     accent: "primary" as const,
     title: "Keep capturing",
-    body: "The more moments you log, the richer your timeline gets.",
+    body: "Log moments as they happen — the songs you keep coming back to.",
   },
   {
     icon: "people-outline" as const,
     accent: "secondary" as const,
     title: "Start a shared collection",
-    body: "Invite friends or family to add memories to the same playlist.",
+    body: "Invite friends or family to build a playlist of memories together.",
   },
   {
-    icon: "gift-outline" as const,
+    icon: "time-outline" as const,
     accent: "primary" as const,
-    title: "Gift a memory",
-    body: "Share any moment as a link — no app required to view it.",
+    title: "Your memories resurface",
+    body: "On This Day and A Month Ago will bring moments back when you least expect it.",
   },
 ];
 
@@ -60,7 +60,7 @@ export default function CelebrationScreen() {
           <Ionicons name="musical-notes" size={40} color={theme.colors.accent} />
         </View>
 
-        <Text style={styles.heading}>Your first memory is saved.</Text>
+        <Text style={styles.heading}>Your story has begun.</Text>
         <Text style={styles.sub}>
           Every song you log becomes a piece of your story. Here's what to explore next.
         </Text>
@@ -99,7 +99,7 @@ export default function CelebrationScreen() {
           </Text>
         </TouchableOpacity>
         <Text style={[styles.notifHint, { color: theme.colors.textTertiary }]}>
-          We'll remind you when a song anniversary comes up. You can manage this in Settings anytime.
+          We'll resurface old memories, nudge you to capture new ones, and celebrate milestones along the way.
         </Text>
       </View>
     </View>
