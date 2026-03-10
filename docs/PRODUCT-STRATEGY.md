@@ -171,3 +171,129 @@ Before building anything, also ask:
 - Does this make the physical artifact more valuable? (lock-in)
 
 If none of the above and it doesn't serve the core loop from VISION.md: deprioritize.
+
+---
+
+## Competitive Landscape — Deep Dives
+
+### POV (Disposable Camera Events)
+
+**What it is:** Digital disposable camera for events. Host creates a camera, guests scan a QR code — no app download required via App Clips. Everyone takes photos, collected into one shared gallery revealed during or after the event.
+
+**Traction:** $100k+ MRR, 200k downloads/month at peak. Grew primarily through a faceless TikTok strategy — 4 accounts, UGC-style content under women's names targeting wedding emotions.
+
+**Business model:** Per-event pricing by guest count. Free under 10 guests, $4.99 for 25, up to $89.99 for 250+. Every event is a transaction. No subscription, no compounding. Also upsells physical photobooks.
+
+**What POV proves:**
+- The wedding/event acquisition channel is real and scalable — one QR code at a reception brings 30–150 new users
+- Per-event pricing works; willingness to pay scales with occasion size
+- The faceless TikTok playbook targeting wedding emotions drives real installs at low cost
+- Physical photobooks are a natural upsell in this space
+
+**What POV misses:** Zero memory layer. Value dies when the event ends. Guests look at the gallery once and move on. No On This Day, no resurfacing, no reflection, no music. The event happens, the gallery fills, people look at it once.
+
+**Relationship to Soundtracks:** Not a competitor. POV captures photos at an event in real time. Soundtracks captures what a song *meant* — before, during, and long after an event. A wedding couple could use both simultaneously. POV's $100k MRR also has no obvious path to $1M MRR — every dollar requires a new event. Soundtracks' subscription model compounds.
+
+**What to steal:** The TikTok playbook directly. Same faceless, UGC-style approach, different angle: "the song playing when you realized you were in love," "the album that got you through that year." Runs on zero budget. Start immediately.
+
+**The gap POV leaves open:** Soundtracks could be the layer that makes event memories last — "a year later, what song do you remember from that night?" A genuine complement, not a clone.
+
+---
+
+### Musicboard
+
+**What it is:** Rate albums, write reviews, make lists. Explicitly positions itself as "Letterboxd for music." Been around since ~2020, the most established app in the music social space.
+
+**Current status (early 2026):** Struggling badly. Servers went down February 2026, TechCrunch covered it, users organized a "Help Save Musicboard" campaign. Unresponsive dev team. Android app disappeared from Play Store at one point.
+
+**Why the model structurally fails:**
+- Music isn't consumed like film. You watch a movie once then review it. You listen to the same song 200 times across a decade in completely different emotional states.
+- A rating strips out the thing that actually matters — the context you were in when it hit you.
+- The critic frame ("was this album good?") is the wrong frame for music. Nobody lies awake thinking "does Bon Iver deserve 4 or 4.5 stars." They think "that album was my entire winter."
+- Most telling user complaint: people want to catalog music *without rating it* — they want a "listened" option like Letterboxd's "watched." They're trying to use the app for memory and presence, not criticism. The product keeps forcing them back into the critic role.
+
+**Relationship to Soundtracks:** Not a competitor — solving a completely different problem. Their users want better ratings tools. Soundtracks' users don't want to rate music, they want to remember it. Different pond entirely.
+
+---
+
+### Echo
+
+**What it is:** Newer (January 2025), shinier version of the same concept as Musicboard. Rate and rank music, build a profile, discover what friends are listening to. Adds gamification — achievements, leaderboards.
+
+**Traction:** 4.88 stars, ~1,300 ratings. Tiny but positive early buzz. Buggy on Android.
+
+**Same fundamental problem as Musicboard:** Turns music taste into a competitive leaderboard. Fun for a while, optimizes for a behavior (ranking) that has almost nothing to do with why music matters to people. The gamification masks the same category error.
+
+**Relationship to Soundtracks:** Same answer as Musicboard. Different question entirely.
+
+---
+
+### The "Letterboxd for Music" Thesis — Why It Doesn't Work
+
+The user's thesis: *we like music because of how it makes us feel and how it can take us back to moments.* This is the correct diagnosis of why the Letterboxd model fails for music.
+
+Film and music are consumed completely differently. When you watch a film, you sit down, give it focused attention, and it ends. Then you have an opinion. The review model works because there's a natural post-credits moment where reflection and rating happen organically.
+
+Music doesn't work that way. The same song hits differently at 22 and 28. A rating is almost meaningless without the context. The evaluative frame misses the point of why music matters to people entirely.
+
+**Soundtracks isn't competing with Musicboard and Echo.** It's solving a problem those apps don't even recognize exists. The positioning line: *Musicboard asks "what did you think of the album?" Soundtracks asks "what did the song take you back to?"* Two completely different questions.
+
+**The risk:** Never add public ratings or rankings. The moment you add ratings you've joined the critic category and lost the positioning entirely. The absence of ratings is a feature.
+
+---
+
+## Retention Benchmarks
+
+Context for setting realistic targets:
+
+| Category | Average Day 30 Retention |
+|---|---|
+| Music apps | 3.8% |
+| Social apps (good) | 15–25% |
+| Top-quartile consumer apps | 40%+ |
+| BeReal at peak | ~65% (6-month) — then collapsed |
+
+**BeReal's lesson:** Strong early retention numbers can be misleading if value is novelty-driven rather than compounding. BeReal peaked at 73M users in 2022, sold to Voodoo for €500M in 2024, now has ~2.93M DAU. Retention stats at peak masked that there was no compounding value — once the novelty wore off, there was no archive pulling people back.
+
+Soundtracks should have the opposite dynamic — slower early retention that *improves* over time as the archive builds and On This Day starts firing.
+
+**Realistic Day 30 targets:**
+
+| Cohort | Target | Signal |
+|---|---|---|
+| All users (overall) | 10–15% | Good for a memory/journaling app |
+| Activated users (2+ moments in week 1) | 25–35% | Product is working |
+| Activated users (5+ moments in month 1) | 40%+ | These are lifers |
+
+The overall number will always look low — it includes everyone who downloaded once, never logged, and left. That's noise. **Activated user retention is the number that matters.** Segment this in PostHog from day one.
+
+**The metric to watch above all others:** users who return to log (not just open the app) within 7 days organically, without a push notification. That proves habit formation, not just engagement.
+
+---
+
+## 14-Month Revenue Targets
+
+Honest projections for a solo founder launching a new category with no paid budget:
+
+| Scenario | Users | Monthly Revenue | What it requires |
+|---|---|---|---|
+| Conservative | 2,000–5,000 | $800–2,000 | Solid execution, no breakout |
+| Moderate | 10,000–20,000 | $2,500–5,000 | One channel breaks (TikTok or Wrapped season) |
+| Optimistic | 50,000+ | $10,000–15,000 | Viral moment + press + Wrapped season all hit |
+
+Realistic honest target: **$1,500–3,000/month by month 14** with consistent execution across building, marketing, and customer feedback.
+
+**Why this isn't POV's $100k MRR:** POV has a structurally viral mechanic (every event creates 50–150 new users automatically), a simple value prop needing zero explanation, and transactional revenue that doesn't require habit formation. Soundtracks has none of those early advantages. The value prop requires explanation. The best feature (On This Day) takes a year to land. New category = slower start.
+
+**But the ceiling is much higher long-term:**
+
+| Users | Conversion | Plus ARR | Events + Books | Total ARR |
+|---|---|---|---|---|
+| 50,000 | 4% | $100k | $50k | ~$150k |
+| 200,000 | 4% | $400k | $150k | ~$550k |
+| 1,000,000 | 4% | $2M | $500k | ~$2.5M |
+| 10,000,000 | 4% | $20M | $2M+ | ~$22M |
+
+POV at $100k MRR has no obvious path to $1M MRR — every dollar requires a new event. Soundtracks at $5k/month with strong retention has a credible path to $500k ARR within 5 years.
+
+**The number to actually care about at month 14 isn't revenue — it's activated user Day 30 retention.** If that's moving in the right direction, everything else follows.
