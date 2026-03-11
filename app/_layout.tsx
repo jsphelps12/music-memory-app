@@ -203,6 +203,8 @@ function RootLayoutNav() {
         router.push(`/moment/${data.momentId}`);
       } else if (data.type === "create") {
         router.push("/create");
+      } else if (data.type === "tabs") {
+        router.replace("/(tabs)");
       }
     }
 

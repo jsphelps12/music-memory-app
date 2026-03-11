@@ -97,6 +97,7 @@ export interface UserProfile {
   notifStreak: boolean;
   notifPrompts: boolean;
   notifResurfacing: boolean;
+  notifMilestones: boolean;
   createdAt: string;
   updatedAt: string;
 }

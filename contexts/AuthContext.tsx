@@ -88,6 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       notifStreak: data.notif_streak ?? true,
       notifPrompts: data.notif_prompts ?? true,
       notifResurfacing: data.notif_resurfacing ?? true,
+      notifMilestones: data.notif_milestones ?? true,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     });

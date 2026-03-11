@@ -116,6 +116,7 @@ export default function ProfileScreen() {
   const [notifStreak, setNotifStreak] = useState(true);
   const [notifPrompts, setNotifPrompts] = useState(true);
   const [notifResurfacing, setNotifResurfacing] = useState(true);
+  const [notifMilestones, setNotifMilestones] = useState(true);
 
   const loadProfileData = useCallback(async (isInitial: boolean) => {
     if (!user) return;
@@ -250,6 +251,7 @@ export default function ProfileScreen() {
       setNotifStreak(profile.notifStreak);
       setNotifPrompts(profile.notifPrompts);
       setNotifResurfacing(profile.notifResurfacing);
+      setNotifMilestones(profile.notifMilestones);
     }, [profile])
   );
 
@@ -299,7 +301,7 @@ export default function ProfileScreen() {
   };
 
   const handleNotifToggle = useCallback(async (
-    field: "notif_on_this_day" | "notif_streak" | "notif_prompts" | "notif_resurfacing",
+    field: "notif_on_this_day" | "notif_streak" | "notif_prompts" | "notif_resurfacing" | "notif_milestones",
     value: boolean
   ) => {
     if (!user) return;
@@ -307,6 +309,7 @@ export default function ProfileScreen() {
     if (field === "notif_streak") setNotifStreak(value);
     if (field === "notif_prompts") setNotifPrompts(value);
     if (field === "notif_resurfacing") setNotifResurfacing(value);
+    if (field === "notif_milestones") setNotifMilestones(value);
     posthog.capture("notification_preferences_changed", { notification_type: field, enabled: value });
     await supabase.from("profiles").update({ [field]: value }).eq("id", user.id);
   }, [user, posthog]);
@@ -609,6 +612,7 @@ export default function ProfileScreen() {
             {([
               { field: "notif_on_this_day", label: "On This Day", sub: "When a song anniversary comes up", value: notifOnThisDay },
               { field: "notif_resurfacing", label: "Random memories", sub: "A random moment from your past", value: notifResurfacing },
+              { field: "notif_milestones", label: "Streak milestones", sub: "Celebrate hitting a new streak", value: notifMilestones },
               { field: "notif_streak", label: "Streak reminders", sub: "Keep your logging streak going", value: notifStreak },
               { field: "notif_prompts", label: "Journal prompts", sub: "Occasional nudges to capture a moment", value: notifPrompts },
             ] as const).map(({ field, label, sub, value }, idx) => (

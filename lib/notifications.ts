@@ -27,7 +27,8 @@ export async function registerForPushNotifications(userId: string): Promise<void
   const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
   const token = tokenData.data;
 
-  await supabase.from("profiles").update({ push_token: token }).eq("id", userId);
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  await supabase.from("profiles").update({ push_token: token, timezone }).eq("id", userId);
 }
 
 export async function checkAndNotifyMilestone(userId: string): Promise<void> {
