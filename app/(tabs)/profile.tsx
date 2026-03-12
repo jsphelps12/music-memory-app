@@ -155,11 +155,9 @@ export default function ProfileScreen() {
         supabase.storage.from("moment-photos").list(user.id, { limit: 1000 }),
         supabase
           .from("moments")
-          .select("moment_date")
+          .select("created_at")
           .eq("user_id", user.id)
-          .not("moment_date", "is", null)
-          .order("moment_date", { ascending: false })
-        .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false }),
         supabase
           .from("moments")
           .select("song_artist, song_title, mood")
@@ -195,7 +193,7 @@ export default function ProfileScreen() {
         setStorageBytes(total);
       }
 
-      const dates = (dateRows ?? []).map((r: any) => r.moment_date as string);
+      const dates = (dateRows ?? []).map((r: any) => (r.created_at as string).slice(0, 10));
       const streaks = computeStreaks(dates);
       setCurrentStreak(streaks.current);
       setLongestStreak(streaks.longest);

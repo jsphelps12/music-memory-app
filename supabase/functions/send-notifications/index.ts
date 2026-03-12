@@ -104,16 +104,17 @@ Deno.serve(async (_req) => {
   const tokenByUserId = Object.fromEntries(eligibleUsers.map((u) => [u.id, u.push_token as string]));
   const prefsByUserId = Object.fromEntries(eligibleUsers.map((u) => [u.id, u]));
 
-  // Step 2: fetch all moments for eligible users in one query
+  // Step 2: fetch all moments for eligible users in one query.
+  // Order by created_at so streak/re-engagement is based on when you logged, not
+  // the date of the memory — logging an old memory today still counts as activity.
   const { data: allMoments } = await supabase
     .from("moments")
-    .select("id, user_id, moment_date, song_title, song_artist")
+    .select("id, user_id, moment_date, song_title, song_artist, created_at")
     .in("user_id", userIds)
-    .not("moment_date", "is", null)
-    .order("moment_date", { ascending: false });
+    .order("created_at", { ascending: false });
 
   // Build per-user data maps from the single moments fetch
-  type MomentRow = { id: string; moment_date: string; song_title: string; song_artist: string };
+  type MomentRow = { id: string; moment_date: string; song_title: string; song_artist: string; created_at: string };
   const momentsByUser: Record<string, MomentRow[]> = {};
   const loggedYesterdayByUser = new Map<string, string>(); // userId -> song_title
   const loggedTodaySet = new Set<string>();
@@ -125,11 +126,13 @@ Deno.serve(async (_req) => {
       moment_date: row.moment_date,
       song_title: row.song_title,
       song_artist: row.song_artist,
+      created_at: row.created_at,
     });
-    if (row.moment_date === yesterdayStr && !loggedYesterdayByUser.has(row.user_id)) {
+    const loggedDate = (row.created_at as string).slice(0, 10);
+    if (loggedDate === yesterdayStr && !loggedYesterdayByUser.has(row.user_id)) {
       loggedYesterdayByUser.set(row.user_id, row.song_title);
     }
-    if (row.moment_date === todayStr) loggedTodaySet.add(row.user_id);
+    if (loggedDate === todayStr) loggedTodaySet.add(row.user_id);
   }
 
   const messages: ExpoPushMessage[] = [];
@@ -211,7 +214,7 @@ Deno.serve(async (_req) => {
     // Streak can only be non-zero if user logged today
     if (!loggedTodaySet.has(userId)) continue;
 
-    const dates = (momentsByUser[userId] ?? []).map(m => m.moment_date);
+    const dates = (momentsByUser[userId] ?? []).map(m => m.created_at.slice(0, 10));
     const streak = computeStreak(dates, todayStr);
     if (!STREAK_MILESTONES.has(streak)) continue;
 
@@ -299,7 +302,7 @@ Deno.serve(async (_req) => {
     if (!lastMoment) continue; // No moments yet — lifecycle or prompt will handle
 
     const daysSince = Math.floor(
-      (now.getTime() - new Date(lastMoment.moment_date + "T00:00:00Z").getTime()) / 86400000
+      (now.getTime() - new Date(lastMoment.created_at).getTime()) / 86400000
     );
     if (daysSince < 7) continue;
 
