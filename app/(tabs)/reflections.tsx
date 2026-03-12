@@ -54,6 +54,7 @@ export default function ReflectionsScreen() {
     setForgottenMoment(null);
     randomMomentRef.current = null;
     lastFetchTime.current = 0;
+    initialFetchDoneRef.current = false;
   }, [user?.id]);
 
   const allMoods = useMemo(

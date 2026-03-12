@@ -227,6 +227,28 @@ export default function ProfileScreen() {
 
   // Initial fetch — starts on mount (before tab gains focus) so data is ready when navigated to
   const initialFetchDoneRef = useRef(false);
+
+  // Clear stale data immediately when user account changes, and allow initial fetch to re-run
+  useEffect(() => {
+    setMomentCount(null);
+    setStorageBytes(null);
+    setCurrentStreak(null);
+    setLongestStreak(null);
+    setDaysLogged(null);
+    setTopArtist(undefined);
+    setTopSong(undefined);
+    setTopMood(undefined);
+    setThisMonthCount(null);
+    setLastMonthCount(null);
+    setThisMonthTopArtist(undefined);
+    setThisMonthTopMood(undefined);
+    setInitialLoading(true);
+    setLoadError("");
+    setBannerError("");
+    lastFetchTime.current = 0;
+    initialFetchDoneRef.current = false;
+  }, [user?.id]);
+
   useEffect(() => {
     if (initialFetchDoneRef.current) return;
     initialFetchDoneRef.current = true;
