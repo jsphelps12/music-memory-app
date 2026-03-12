@@ -98,7 +98,8 @@ Ordered by impact across growth (new users), retention (keep existing), and reve
 |----------|---------|--------|-----------|-------|
 | 1 | Music Memory Engine Phase 1 | Retention | 🟡 | Edge function + seed dataset + existing notification infra. Questionnaire already built. |
 | 2 | Notification refinement | Retention | 🟡 | Tap-rate tracking per type, timing optimization, unengaged user suppression, deep link targets, A/B copy. |
-| 3 | Wedding feature | Growth | 🟡 | Web contribution form (no account) + QR code generation. Claim flow is the hard part. |
+| 3 | Wedding / Event invite flow | Growth | 🟡 | See full spec below. No-download web entry (App Clip / web form) is the critical unlock — a 60-year-old uncle won't download an app. QR codes at tables are ugly and feel corporate; distribute via wedding website, invitation insert, or day-of text instead. |
+| 3a | App Clip (no-download entry) | Growth | 🔴 | Guests join a shared collection and log a moment without installing the app. Converts to full install after. Critical for weddings, events, and any viral/shared collection flow. POV requires a download; this is a meaningful competitive advantage. |
 | 4 | Friends (Phase C) | Growth + Retention | 🟡 | Request/accept, display name search, notifications. Unlocks game + social features. |
 | 5 | Era Clustering | Revenue | 🔴 | Premium conversion trigger at 25–30 moments. Hardest feature on the list. |
 | 6 | Yearly Recap | Growth + Revenue | 🟡 | Must ship before December. Annual press moment. Free card + Premium full version. |
@@ -125,6 +126,36 @@ Current state: infrastructure exists (edge function, per-type prefs, cold-launch
 - [ ] Weekly prompted song (Music Memory Engine) — not yet wired to edge function
 - [ ] Weekly text prompt — not yet wired to edge function
 - [ ] Collection activity notifications — member adds to your shared collection (real-time, not batched)
+
+### Wedding / Event invite flow — full spec
+
+**The insight:** POV's QR-code-at-every-table approach is the wrong aesthetic for weddings. Brides don't want tech hardware on their tables. The distribution should be invisible — built into things that already exist at a wedding.
+
+**Distribution channels (no QR codes on tables):**
+- Wedding website (Zola, The Knot) — "Join Our Soundtrack" section with a link; guests are already visiting for RSVPs
+- Physical invitation insert — a small card at home, not mid-reception; different emotional context
+- Wedding party text the morning of — they're already on their phones coordinating
+- Ceremony program footnote — short link at the bottom, subtle
+- DJ/band announcement — one mention at a natural moment (first dance, end of night)
+
+**Who to target:** The wedding party and immediate family (15–20 people), not all 150 guests. These people care most, will log the most meaningful moments, and are most likely to become long-term Soundtracks users. One maid of honor who logs five moments and stays for years is worth more than 50 strangers who log once.
+
+**What to build:**
+- [ ] Wedding/event collection template — pre-sets name style, cover, prompt ("What song defined this day for you?")
+- [ ] Shareable card generator — beautiful image output with couple's names, date, short link; looks like a wedding invitation, not a tech product; designed to be texted or embedded in a wedding website
+- [ ] Vanity short URLs — `soundtracks.app/join/sarah-and-james` instead of a UUID; something you'd proudly put on a wedding website
+- [ ] App Clip / no-download web entry — guests who don't have the app log from a browser; critical for older guests; moment saves to a lightweight profile with "download Soundtracks to keep your memories" prompt after
+- [ ] Post-event claim flow — guests who contributed via web get a push/email: "Your memories from Sarah & James's wedding are waiting for you"
+
+**The competitive advantage over POV:** Soundtracks' window is forever, not just the event. The memory doesn't have to happen at the table — it can happen during the first dance, the next morning, or a month later when the song comes on shuffle. The invite flow should reflect this: "capture what this day sounds like to you, whenever it hits."
+
+**App Clip spec:**
+- Trigger: tap link or NFC tag → App Clip loads instantly, no App Store visit
+- Flow: see collection → search/select song → write reflection (optional) → submit
+- Moment saves to a temporary guest profile
+- Post-submit: "This moment is yours. Download Soundtracks to keep it and add more."
+- Full install inherits all App Clip moments
+- Prerequisite for: weddings at scale, concerts, any high-friction acquisition context
 
 ### Platform expansion
 - **Android**: Not before 1,000+ active iOS users + revenue. Abstraction is reasonable — swap points are clean:
