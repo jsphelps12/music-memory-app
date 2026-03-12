@@ -604,20 +604,17 @@ export default function TimelineScreen() {
           activeOpacity={0.7}
           style={styles.collectionSelector}
         >
-          {selectedCollection?.role === "member" && (
-            <Ionicons
-              name="people-outline"
-              size={15}
-              color={theme.colors.accentSecondary}
-              style={{ marginRight: 5 }}
-            />
-          )}
-          <Text style={styles.title}>
+          <Ionicons
+            name={selectedCollection?.role === "member" ? "people-outline" : "layers-outline"}
+            size={15}
+            color={selectedCollection ? theme.colors.accent : theme.colors.textSecondary}
+          />
+          <Text style={styles.title} numberOfLines={1}>
             {selectedCollection?.name ?? "All Moments"}
           </Text>
           <Ionicons
             name="chevron-down"
-            size={16}
+            size={14}
             color={theme.colors.textSecondary}
           />
         </TouchableOpacity>
@@ -1008,10 +1005,14 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       gap: 4,
-      flex: 1,
+      maxWidth: "60%",
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: theme.radii.full,
+      backgroundColor: theme.colors.backgroundTertiary,
     },
     title: {
-      fontSize: theme.fontSize["2xl"],
+      fontSize: theme.fontSize.lg,
       fontWeight: theme.fontWeight.bold,
       color: theme.colors.text,
     },
