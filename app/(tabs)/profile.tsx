@@ -251,15 +251,22 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (initialFetchDoneRef.current) return;
+    if (!user) return; // don't lock the ref while auth is still loading
     initialFetchDoneRef.current = true;
     loadProfileData(true);
-  }, [loadProfileData]);
+  }, [loadProfileData, user]);
 
-  // Background refresh (non-blocking banner) when returning to tab after cooldown
+  // Background refresh (non-blocking banner) when returning to tab after cooldown.
+  // Also fires if lastFetchTime is 0 — safety net for when the initial fetch returned
+  // early (e.g. auth hadn't restored yet on cold launch).
   useFocusEffect(
     useCallback(() => {
+      if (lastFetchTime.current === 0) {
+        loadProfileData(true);
+        return;
+      }
       const elapsed = Date.now() - lastFetchTime.current;
-      if (lastFetchTime.current > 0 && elapsed >= REFETCH_COOLDOWN_MS) {
+      if (elapsed >= REFETCH_COOLDOWN_MS) {
         loadProfileData(false);
       }
     }, [loadProfileData])
