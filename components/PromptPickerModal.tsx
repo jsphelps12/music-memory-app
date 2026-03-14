@@ -82,6 +82,7 @@ export function PromptPickerModal({ visible, onSelect, onClose, customCategories
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.tabs}
+            style={{ flexShrink: 0, flexGrow: 0 }}
           >
             {allCategories.map((cat, i) => (
               <TouchableOpacity
@@ -152,7 +153,8 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       justifyContent: "space-between",
       paddingHorizontal: 24,
-      paddingVertical: 12,
+      paddingTop: 12,
+      paddingBottom: 4,
     },
     title: {
       fontSize: theme.fontSize.base,
@@ -164,7 +166,7 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       gap: theme.spacing.sm,
       paddingHorizontal: 24,
-      paddingBottom: 12,
+      paddingBottom: 0,
     },
     tab: {
       paddingHorizontal: theme.spacing.md,

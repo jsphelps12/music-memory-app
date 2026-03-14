@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import * as Sentry from "@sentry/react-native";
 import { usePostHog } from "posthog-react-native";
 import * as Location from "expo-location";
 import * as FileSystem from "expo-file-system/legacy";
@@ -644,6 +645,7 @@ export default function CreateMomentScreen() {
         router.replace("/(tabs)");
       }
     } catch (e: any) {
+      Sentry.captureException(e);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(friendlyError(e));
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
