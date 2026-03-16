@@ -85,6 +85,23 @@ Everything here ships before App Store marketing push.
 
 ---
 
+## POST-LAUNCH — Shipped March 2026
+
+Work completed after App Store submission while awaiting review.
+
+- [x] **Wedding / Event guest contribution flow** — web form at `/c/{code}/contribute`; guests add song + reflection + photo with no account; live feed polls for new contributions every 30s; "Add Another" + App Store download CTA post-submit
+- [x] **Web QR code page** — `/c/{code}/qr`; full-screen scannable QR; downloadable PNG; accessible from CollectionShareSheet in app
+- [x] **Guest attribution** — `guest_name` / `guest_uuid` columns on moments; guest moments attributed by name in shared collection views (app + web)
+- [x] **No-download web entry (App Clip equivalent)** — web contribution form covers the core use case (60-year-old uncle can contribute from any browser, no app required); native App Clip deferred unless web conversion data shows it's worth the build complexity
+- [x] **Location autocomplete** — replaced free-text location field with Nominatim-backed search; stores `location_lat` / `location_lng` alongside display name; GPS suggestion banner and EXIF autofill both capture coordinates; foundation for map view
+- [x] **Collection pre-selection** — tapping the FAB or "Add Moment" from a collection view passes `collectionId` to create screen; collection is pre-selected and details section auto-expands
+- [x] **Add to Collection confirm step** — collection toggles in moment detail are now staged locally; "Save Changes" button commits; backdrop dismiss discards
+- [x] **Notification null crash fix** — `moment_date` null guard in send-notifications edge function; was silently crashing the function for all users
+- [x] **fetchPreviewUrl timeout** — 5s AbortController timeout on iTunes lookup; eliminates save-moment hangs when iTunes API is slow
+- [x] **NEXT_REDIRECT web fix** — re-throw Next.js redirect errors in ContributeForm catch block; was showing "unexpected response" error and enabling double-submission
+
+---
+
 ## PRIORITY STACK — Post-Launch Build Order
 
 Ordered by impact across growth (new users), retention (keep existing), and revenue (conversion to paid). Updated March 2026.
@@ -96,11 +113,10 @@ Ordered by impact across growth (new users), retention (keep existing), and reve
 
 | Priority | Feature | Drives | Complexity | Notes |
 |----------|---------|--------|-----------|-------|
-| 1 | Music Memory Engine Phase 1 | Retention | 🟡 | Edge function + seed dataset + existing notification infra. Questionnaire already built. |
-| 2 | Notification refinement | Retention | 🟡 | Tap-rate tracking per type, timing optimization, unengaged user suppression, deep link targets, A/B copy. |
-| 3 | Wedding / Event invite flow | Growth | 🟡 | See full spec below. No-download web entry (App Clip / web form) is the critical unlock — a 60-year-old uncle won't download an app. QR codes at tables are ugly and feel corporate; distribute via wedding website, invitation insert, or day-of text instead. |
-| 3a | App Clip (no-download entry) | Growth | 🔴 | Guests join a shared collection and log a moment without installing the app. Converts to full install after. Critical for weddings, events, and any viral/shared collection flow. POV requires a download; this is a meaningful competitive advantage. |
-| 4 | Friends (Phase C) | Growth + Retention | 🟡 | Request/accept, display name search, notifications. Unlocks game + social features. |
+| 1 | Friends (Phase C) | Growth + Retention | 🟡 | Request/accept, display name search, notifications. Unlocks Memory Game and social features. |
+| 2 | Wedding refinement | Growth + Revenue | 🟡 | Shareable card generator, vanity short URLs, wedding collection template, post-event claim flow, PDF book export. Builds on shipped web contribution flow. |
+| 3 | Notification refinement | Retention | 🟡 | Tap-rate tracking per type, timing optimization, unengaged user suppression, deep link targets, A/B copy. |
+| 4 | Music Memory Engine Phase 1 | Retention | 🟡 | Edge function + seed dataset + existing notification infra. Questionnaire already built. |
 | 5 | Era Clustering | Revenue | 🔴 | Premium conversion trigger at 25–30 moments. Hardest feature on the list. |
 | 6 | Yearly Recap | Growth + Revenue | 🟡 | Must ship before December. Annual press moment. Free card + Premium full version. |
 | 7 | Song Anniversaries + Forgotten Songs | Retention | 🟢 | Ship alongside Music Memory Engine work. Date math + simple query. |
@@ -111,10 +127,9 @@ Ordered by impact across growth (new users), retention (keep existing), and reve
 | 12 | Lock Screen Widget | Retention | 🔴 | App Intents, App Groups, Live Activities. Gets tech press. |
 | 13 | Spotify integration (iOS) | Growth | 🟡 | Store Spotify ID + deep link out. Expands addressable market significantly. |
 | 14 | Android port | Growth | 🔴 | 4–6 weeks. Swap points are clear: musickit.ts rewrite, new Kotlin modules for NowPlaying + ShazamKit → ACRCloud, Google Sign-In. Everything else cross-platform already. |
-| 15 | Physical Book (Wedding) | Revenue | 🔴 | PDF generation + print partner API + public moment pages dependency. |
-| 16 | Musical Autobiography | Revenue | 🔴 | LLM prose on personal data. Needs 2+ years of user data to be moving. Plant seeds now. |
-| 17 | "You're Not Alone" | Retention | 🟡 | Needs scale (1K+ users) for meaningful numbers. |
-| 18 | Community features | Retention | 🔴 | Tracks 100, memorial collections, community challenges. 5K+ users. |
+| 15 | Musical Autobiography | Revenue | 🔴 | LLM prose on personal data. Needs 2+ years of user data to be moving. Plant seeds now. |
+| 16 | "You're Not Alone" | Retention | 🟡 | Needs scale (1K+ users) for meaningful numbers. |
+| 17 | Community features | Retention | 🔴 | Tracks 100, memorial collections, community challenges. 5K+ users. |
 
 ### Notification refinement — what's missing
 Current state: infrastructure exists (edge function, per-type prefs, cold-launch fix, scheduling). What's not done:
@@ -140,22 +155,16 @@ Current state: infrastructure exists (edge function, per-type prefs, cold-launch
 
 **Who to target:** The wedding party and immediate family (15–20 people), not all 150 guests. These people care most, will log the most meaningful moments, and are most likely to become long-term Soundtracks users. One maid of honor who logs five moments and stays for years is worth more than 50 strangers who log once.
 
-**What to build:**
-- [ ] Wedding/event collection template — pre-sets name style, cover, prompt ("What song defined this day for you?")
-- [ ] Shareable card generator — beautiful image output with couple's names, date, short link; looks like a wedding invitation, not a tech product; designed to be texted or embedded in a wedding website
-- [ ] Vanity short URLs — `soundtracks.app/join/sarah-and-james` instead of a UUID; something you'd proudly put on a wedding website
-- [ ] App Clip / no-download web entry — guests who don't have the app log from a browser; critical for older guests; moment saves to a lightweight profile with "download Soundtracks to keep your memories" prompt after
-- [ ] Post-event claim flow — guests who contributed via web get a push/email: "Your memories from Sarah & James's wedding are waiting for you"
+**What to build (remaining):**
+- [ ] Shareable card generator — beautiful image with couple's names, date, short link (Priority 2)
+- [ ] Vanity short URLs — `soundtracks.app/join/sarah-and-james` (Priority 2)
+- [ ] Wedding/event collection template (Priority 2)
+- [ ] Post-event claim flow (Priority 2)
+- [ ] PDF book export (Priority 2)
 
-**The competitive advantage over POV:** Soundtracks' window is forever, not just the event. The memory doesn't have to happen at the table — it can happen during the first dance, the next morning, or a month later when the song comes on shuffle. The invite flow should reflect this: "capture what this day sounds like to you, whenever it hits."
+**No-download web entry — ✅ shipped via web form.** Guests contribute from any browser at `/c/{code}/contribute`. Native App Clip deferred unless web conversion data justifies the build complexity (separate Xcode target, App Store Connect configuration, App Clip experience URL setup).
 
-**App Clip spec:**
-- Trigger: tap link or NFC tag → App Clip loads instantly, no App Store visit
-- Flow: see collection → search/select song → write reflection (optional) → submit
-- Moment saves to a temporary guest profile
-- Post-submit: "This moment is yours. Download Soundtracks to keep it and add more."
-- Full install inherits all App Clip moments
-- Prerequisite for: weddings at scale, concerts, any high-friction acquisition context
+**The competitive advantage over POV:** Soundtracks' window is forever, not just the event. The memory doesn't have to happen at the table — it can happen during the first dance, the next morning, or a month later when the song comes on shuffle.
 
 ### Platform expansion
 - **Android**: Not before 1,000+ active iOS users + revenue. Abstraction is reasonable — swap points are clean:
@@ -341,20 +350,28 @@ Keep birth year + country in onboarding (required — Music Memory Engine needs 
 
 The wedding is a Trojan horse. Guest scans QR → contributes a memory → gets prompted to download → their contribution becomes their first personal moment. One event, potentially 50–150 installs.
 
-### Web Contribution Form (no account required) **[Free to contribute / Events tier to unlock]**
-- [ ] Guest navigates to `music-memory-app.vercel.app/c/{invite_code}/contribute`
-- [ ] Song search via iTunes Search API (public, no auth needed)
-- [ ] Reflection text, optional photo upload
-- [ ] Submits without an account — guest UUID stored in browser localStorage
-- [ ] Web server inserts via service role key (RLS doesn't block it)
-- [ ] After submit: "Want to keep this memory on your own timeline? Download Tracks — this will be your first moment."
-- [ ] After sign-up: claim flow links guest token's moments to new user_id
-- [ ] RLS update: allow guest inserts to collections with valid invite code
+### Web Contribution Form (no account required) ✅ **[Free to contribute / Events tier to unlock]**
+- [x] Guest navigates to `soundtracks.app/c/{invite_code}/contribute`
+- [x] Song search via iTunes Search API (public, no auth needed)
+- [x] Reflection text + mandatory photo upload
+- [x] Submits without an account — per-collection guest Supabase auth user; per-submission `guest_uuid` for claim flow
+- [x] Web server inserts via service role key (bypasses RLS)
+- [x] After submit: "Memory added ✓" banner + live feed (incremental polling every 30s) + "Add Another" + "Download Soundtracks" CTA
+- [ ] After sign-up: claim flow links guest moments to new user_id (post-event claim — not yet built)
+- [x] `events_tier_unlocked` flag on collections (default true); server action checks before allowing contributions
 
-### QR Code Generation **[Events tier]**
-- [ ] Collection owner taps "Get QR Code" → generates QR pointing to `/c/{code}/contribute`
-- [ ] Full-screen display for easy scanning at venue
-- [ ] Downloadable as image for printing on table cards, programs, venue signage
+### QR Code Generation ✅ **[Events tier]**
+- [x] Collection owner taps "Get QR Code" → web page at `/c/{code}/qr` opens in browser
+- [x] Full-screen scannable QR; renders with `qrcode` npm package on canvas
+- [x] Downloadable as PNG
+- [x] CollectionShareSheet: copy link + share sheet + Get QR Code button
+
+### Wedding Refinement **[Priority 2 — next up]**
+- [ ] Shareable card generator — beautiful image with couple's names, date, short link; looks like an invitation not a tech product; designed to be texted or embedded in wedding website
+- [ ] Vanity short URLs — `soundtracks.app/join/sarah-and-james` instead of UUID
+- [ ] Wedding/event collection template — pre-sets name style, cover, prompt ("What song defined this day for you?")
+- [ ] Post-event claim flow — guests who contributed via web get "Your memories from Sarah & James's wedding are waiting for you" after downloading
+- [ ] PDF book export — each page: contributor name, reflection, song + artist, photo; back: full song list with QR codes; cover: tiled album art collage; print-on-demand partner (Artifact Uprising, Blurb); $80 softcover / $130 hardcover
 
 *ShazamKit moved to Growth — it's a core everyday capture feature, not event-specific. See Growth section.*
 
