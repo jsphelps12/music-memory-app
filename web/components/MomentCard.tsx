@@ -69,7 +69,18 @@ export default function MomentCard({
               className="absolute inset-0 rounded-lg flex items-center justify-center"
               style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
             >
-              <span className="text-white" style={{ fontSize: 12 }}>{isPlaying ? "■" : "▶"}</span>
+              {isPlaying ? (
+                // Pause — two vertical bars
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                  <rect x="5" y="3" width="4" height="18" rx="1" />
+                  <rect x="15" y="3" width="4" height="18" rx="1" />
+                </svg>
+              ) : (
+                // Play — filled triangle
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                  <polygon points="6,3 20,12 6,21" />
+                </svg>
+              )}
             </button>
           )}
         </div>
