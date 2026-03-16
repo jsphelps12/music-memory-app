@@ -69,7 +69,7 @@ export default function MomentCard({
               className="absolute inset-0 rounded-lg flex items-center justify-center"
               style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
             >
-              <span className="text-white text-base">{isPlaying ? "⏸" : "▶"}</span>
+              <span className="text-white" style={{ fontSize: 12 }}>{isPlaying ? "■" : "▶"}</span>
             </button>
           )}
         </div>
