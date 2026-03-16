@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import CollectionMomentList, { type MomentItem } from "@/components/CollectionMomentList";
 import Link from "next/link";
 
@@ -11,8 +12,50 @@ interface Props {
 }
 
 const APP_STORE_URL = "https://apps.apple.com/us/app/soundtracks/id6759203604";
+const POLL_INTERVAL_MS = 30_000;
 
-export default function ContributeHub({ collectionName, inviteCode, moments, justSubmitted }: Props) {
+export default function ContributeHub({ collectionName, inviteCode, moments: initialMoments, justSubmitted }: Props) {
+  const [moments, setMoments] = useState<MomentItem[]>(initialMoments);
+  // Tracks the most recent added_at we've seen — poll only fetches newer than this
+  const latestAddedAtRef = useRef<string | null>(null);
+  const seenIdsRef = useRef(new Set(initialMoments.map((m) => m.id)));
+
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const params = new URLSearchParams({ inviteCode });
+        if (latestAddedAtRef.current) {
+          params.set("after", latestAddedAtRef.current);
+        }
+        const res = await fetch(`/api/collection-moments?${params}`);
+        if (!res.ok) return;
+        const { moments: newMoments, latestAddedAt } = await res.json();
+
+        // Update baseline timestamp regardless of whether there are new moments
+        if (latestAddedAt) {
+          latestAddedAtRef.current = latestAddedAt;
+        }
+
+        // Only prepend moments we haven't seen yet
+        const trulyNew = (newMoments as MomentItem[]).filter((m) => !seenIdsRef.current.has(m.id));
+        if (trulyNew.length > 0) {
+          trulyNew.forEach((m) => seenIdsRef.current.add(m.id));
+          setMoments((prev) => [...trulyNew, ...prev]);
+        }
+      } catch {
+        // Silently ignore poll failures
+      }
+    };
+
+    // First poll immediately to establish the latestAddedAt baseline,
+    // then continue on interval
+    poll();
+    const id = setInterval(poll, POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [inviteCode]);
+
+  const count = moments.length;
+
   return (
     <div className="min-h-screen pb-36" style={{ backgroundColor: "#FBF6F1" }}>
       {/* Success banner */}
@@ -34,7 +77,7 @@ export default function ContributeHub({ collectionName, inviteCode, moments, jus
           {collectionName}
         </h1>
         <p className="mt-1 text-sm" style={{ color: "#999" }}>
-          {moments.length} {moments.length === 1 ? "memory" : "memories"} so far
+          {count} {count === 1 ? "memory" : "memories"} so far
         </p>
       </div>
 
