@@ -110,7 +110,7 @@ export async function submitContribution(formData: FormData): Promise<void> {
       song_album_name: song.collectionName,
       song_artwork_url: artworkUrl,
       song_preview_url: previewUrl,
-      apple_music_id: String(song.trackId),
+      song_apple_music_id: String(song.trackId),
       reflection_text: reflection,
       photo_urls: [photoPath],
       moment_date: today,
@@ -120,6 +120,7 @@ export async function submitContribution(formData: FormData): Promise<void> {
     .single();
 
   if (momentError || !moment) {
+    console.error("Moment insert failed:", JSON.stringify(momentError));
     throw new Error("Failed to save your memory. Please try again.");
   }
 
