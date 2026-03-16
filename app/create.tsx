@@ -1108,7 +1108,7 @@ export default function CreateMomentScreen() {
                   </View>
                 )}
               </>
-            )
+            )}
           </>
         )}
 
