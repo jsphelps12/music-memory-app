@@ -38,6 +38,7 @@ export default async function CollectionPage({ params }: PageProps) {
     .from("collection_moments")
     .select(`
       added_at,
+      added_by_user_id,
       moments(
         id,
         song_title,
@@ -46,17 +47,45 @@ export default async function CollectionPage({ params }: PageProps) {
         song_preview_url,
         photo_urls,
         reflection_text,
-        moment_date
+        moment_date,
+        guest_name,
+        guest_uuid
       )
     `)
     .eq("collection_id", collection.id)
     .order("added_at", { ascending: false });
 
+  // Collect non-guest contributor IDs to fetch their display names
+  const contributorIds = [
+    ...new Set(
+      (rows ?? [])
+        .filter((r) => {
+          const m = r.moments as unknown as { guest_uuid?: string | null } | null;
+          return r.added_by_user_id && !m?.guest_uuid;
+        })
+        .map((r) => r.added_by_user_id as string)
+    ),
+  ];
+
+  const contributorProfiles =
+    contributorIds.length > 0
+      ? (
+          await getSupabase()
+            .from("profiles")
+            .select("id, display_name")
+            .in("id", contributorIds)
+        ).data ?? []
+      : [];
+
+  const profileMap = new Map(
+    contributorProfiles.map((p: { id: string; display_name: string | null }) => [p.id, p.display_name])
+  );
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+
   const moments: MomentItem[] = (rows ?? [])
-    .map((r) => r.moments)
-    .filter(Boolean)
-    .map((m) => {
-      const moment = m as unknown as {
+    .map((r) => {
+      const m = r.moments as unknown as {
         id: string;
         song_title: string;
         song_artist: string;
@@ -65,23 +94,29 @@ export default async function CollectionPage({ params }: PageProps) {
         photo_urls: string[] | null;
         reflection_text: string | null;
         moment_date: string | null;
-      };
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-      const photoUrls = (moment.photo_urls ?? []).map(
+        guest_name: string | null;
+        guest_uuid: string | null;
+      } | null;
+      if (!m) return null;
+      const photoUrls = (m.photo_urls ?? []).map(
         (path) => `${supabaseUrl}/storage/v1/object/public/moment-photos/${path}`
       );
+      const contributorName = m.guest_uuid && m.guest_name
+        ? m.guest_name
+        : (profileMap.get(r.added_by_user_id as string) ?? ownerName);
       return {
-        id: moment.id,
-        songTitle: moment.song_title,
-        songArtist: moment.song_artist,
-        artworkUrl: moment.song_artwork_url,
-        previewUrl: moment.song_preview_url,
+        id: m.id,
+        songTitle: m.song_title,
+        songArtist: m.song_artist,
+        artworkUrl: m.song_artwork_url,
+        previewUrl: m.song_preview_url,
         photoUrls,
-        reflection: moment.reflection_text,
-        momentDate: moment.moment_date,
-        contributorName: ownerName,
+        reflection: m.reflection_text,
+        momentDate: m.moment_date,
+        contributorName,
       };
-    });
+    })
+    .filter(Boolean) as MomentItem[];
 
   function formatDateRange(from: string | null, to: string | null) {
     if (!from && !to) return null;

@@ -274,7 +274,12 @@ export async function fetchSharedCollectionMoments(collectionId: string): Promis
       const row = momentMap.get(cm.moment_id);
       if (!row) return null;
       const moment = mapRowToMoment(row);
-      moment.contributorName = profileMap.get(cm.added_by_user_id) ?? null;
+      // Guest contributions use guest_name for attribution
+      if (row.guest_uuid && row.guest_name) {
+        moment.contributorName = row.guest_name;
+      } else {
+        moment.contributorName = profileMap.get(cm.added_by_user_id) ?? null;
+      }
       return moment;
     })
     .filter(Boolean) as Moment[];

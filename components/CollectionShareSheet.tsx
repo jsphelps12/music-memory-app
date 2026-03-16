@@ -9,7 +9,9 @@ import {
   Platform,
   Alert,
   ScrollView,
+  Linking,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect } from "react";
 import { CloseButton } from "@/components/CloseButton";
@@ -23,6 +25,7 @@ import {
   removeCollectionMember,
   CollectionMember,
 } from "@/lib/collections";
+import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { friendlyError } from "@/lib/errors";
@@ -81,6 +84,10 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
             setError("");
             try {
               await convertCollectionToShared(collection.id);
+              // Create guest auth user for this collection (server-side, service role)
+              await supabase.functions.invoke("create-guest-user", {
+                body: { collectionId: collection.id },
+              });
               onUpdated({ ...collection, isPublic: true });
             } catch (e: any) {
               setError(friendlyError(e));
@@ -242,26 +249,85 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
             ) : null}
 
             {collection.isPublic && inviteUrl ? (
-              /* Shared: show invite link + share button */
-              <View style={styles.shareSection}>
-                <View style={[styles.urlBox, { backgroundColor: theme.colors.backgroundInput }]}>
-                  <Text
-                    style={[styles.urlText, { color: theme.colors.textSecondary }]}
-                    numberOfLines={1}
-                    ellipsizeMode="middle"
+              /* Shared: show invite link + share button + guest contribution section */
+              <>
+                <View style={styles.shareSection}>
+                  <View style={[styles.urlBox, { backgroundColor: theme.colors.backgroundInput }]}>
+                    <Text
+                      style={[styles.urlText, { color: theme.colors.textSecondary }]}
+                      numberOfLines={1}
+                      ellipsizeMode="middle"
+                    >
+                      {inviteUrl}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.shareButton, { backgroundColor: theme.colors.accent }]}
+                    onPress={handleShare}
+                    activeOpacity={0.8}
                   >
-                    {inviteUrl}
-                  </Text>
+                    <Ionicons name="share-outline" size={18} color="#fff" />
+                    <Text style={styles.shareButtonText}>Share Invite Link</Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  style={[styles.shareButton, { backgroundColor: theme.colors.accent }]}
-                  onPress={handleShare}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="share-outline" size={18} color="#fff" />
-                  <Text style={styles.shareButtonText}>Share Invite Link</Text>
-                </TouchableOpacity>
-              </View>
+
+                {/* Guest Contributions section */}
+                {collection.inviteCode ? (
+                  <View style={styles.guestSection}>
+                    <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+                      GUEST CONTRIBUTIONS
+                    </Text>
+                    <Text style={[styles.guestSubtext, { color: theme.colors.textSecondary }]}>
+                      Share this link so guests can add memories without an account.
+                    </Text>
+                    <View style={[styles.urlBox, { backgroundColor: theme.colors.backgroundInput }]}>
+                      <Text
+                        style={[styles.urlText, { color: theme.colors.textSecondary }]}
+                        numberOfLines={1}
+                        ellipsizeMode="middle"
+                      >
+                        {`soundtracks.app/c/${collection.inviteCode}/contribute`}
+                      </Text>
+                    </View>
+                    <View style={styles.guestButtonRow}>
+                      <TouchableOpacity
+                        style={[styles.guestButton, { backgroundColor: theme.colors.backgroundInput }]}
+                        onPress={() => {
+                          Clipboard.setStringAsync(`https://soundtracks.app/c/${collection.inviteCode}/contribute`);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="copy-outline" size={16} color={theme.colors.text} />
+                        <Text style={[styles.guestButtonText, { color: theme.colors.text }]}>Copy Link</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.guestButton, { backgroundColor: theme.colors.backgroundInput }]}
+                        onPress={() => {
+                          Share.share(
+                            Platform.OS === "ios"
+                              ? { url: `https://soundtracks.app/c/${collection.inviteCode}/contribute` }
+                              : { message: `https://soundtracks.app/c/${collection.inviteCode}/contribute` }
+                          ).catch(() => {});
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="share-outline" size={16} color={theme.colors.text} />
+                        <Text style={[styles.guestButtonText, { color: theme.colors.text }]}>Share</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.qrButton, { borderColor: theme.colors.accent }]}
+                      onPress={() => {
+                        Linking.openURL(`https://soundtracks.app/c/${collection.inviteCode}/qr`);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="qr-code-outline" size={18} color={theme.colors.accent} />
+                      <Text style={[styles.qrButtonText, { color: theme.colors.accent }]}>Get QR Code</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+              </>
             ) : (
               /* Personal: one-way convert button */
               <View style={styles.shareSection}>
@@ -551,5 +617,43 @@ const styles = StyleSheet.create({
   },
   memberName: {
     fontSize: 15,
+  },
+  guestSection: {
+    marginTop: 24,
+    gap: 10,
+  },
+  guestSubtext: {
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  guestButtonRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  guestButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  guestButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  qrButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  qrButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

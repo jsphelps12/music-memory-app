@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  webpack(config, { isServer }) {
+    if (isServer) {
+      // qrcode uses canvas on server; exclude it since QRDisplay is client-only
+      config.externals = [...(config.externals ?? []), "canvas"];
+    }
+    return config;
+  },
   async headers() {
     return [
       {
