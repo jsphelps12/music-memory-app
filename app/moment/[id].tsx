@@ -57,7 +57,7 @@ import { CloseButton } from "@/components/CloseButton";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function MomentDetailScreen() {
-  const { id, returnTo, fromOnboarding } = useLocalSearchParams<{ id: string; returnTo?: string; fromOnboarding?: string }>();
+  const { id, returnTo, fromOnboarding, collectionId, collectionRole } = useLocalSearchParams<{ id: string; returnTo?: string; fromOnboarding?: string; collectionId?: string; collectionRole?: string }>();
   const router = useRouter();
   const { user, profile } = useAuth();
   const { currentSong, isPlaying, play, pause, stop } = usePlayer();
@@ -319,6 +319,36 @@ export default function MomentDetailScreen() {
     ]);
   };
 
+  const handleRemoveFromCollection = () => {
+    if (!collectionId) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    setMenuOpen(false);
+    Alert.alert("Remove from Collection", "Remove this moment from the collection? The moment won't be deleted.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          setDeleting(true);
+          const { error: removeError } = await supabase
+            .from("collection_moments")
+            .delete()
+            .eq("collection_id", collectionId)
+            .eq("moment_id", id);
+
+          if (removeError) {
+            setDeleting(false);
+            Alert.alert("Error", friendlyError(removeError));
+            return;
+          }
+
+          markTimelineStale();
+          animateOut(goBack);
+        },
+      },
+    ]);
+  };
+
   const mood = moment ? getMood(moment.mood) : undefined;
 
   return (
@@ -359,55 +389,89 @@ export default function MomentDetailScreen() {
         )}
       </View>
 
-      {menuOpen && (
-        <>
-          <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)} />
-          <View style={styles.menuContainer}>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                Haptics.selectionAsync();
-                setMenuOpen(false);
-                setShareModalVisible(true);
-                posthog.capture("moment_shared", { song_title: moment?.songTitle, song_artist: moment?.songArtist });
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.menuItemText}>Share Moment</Text>
-            </TouchableOpacity>
-            <View style={styles.menuDivider} />
-            <TouchableOpacity style={styles.menuItem} onPress={handleEdit} activeOpacity={0.7}>
-              <Text style={styles.menuItemText}>Edit Moment</Text>
-            </TouchableOpacity>
-            <View style={styles.menuDivider} />
-            <TouchableOpacity style={styles.menuItem} onPress={handleAddToCollection} activeOpacity={0.7}>
-              <Text style={styles.menuItemText}>Add to Collection</Text>
-            </TouchableOpacity>
-            <View style={styles.menuDivider} />
-            {moment.userId !== user?.id && (
-              <>
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    setMenuOpen(false);
-                    const subject = encodeURIComponent(`Report: ${moment.songTitle} by ${moment.songArtist}`);
-                    const body = encodeURIComponent(`Please describe what you'd like to report about this moment:\n\n\n\n---\nMoment ID: ${moment.id}\nContributor: ${moment.contributorName ?? "unknown"}`);
-                    Linking.openURL(`mailto:founder@soundtracks.app?subject=${subject}&body=${body}`);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.menuItemTextDestructive}>Report Moment</Text>
-                </TouchableOpacity>
-                <View style={styles.menuDivider} />
-              </>
-            )}
-            <TouchableOpacity style={styles.menuItem} onPress={handleDelete} activeOpacity={0.7}>
-              <Text style={styles.menuItemTextDestructive}>Delete Moment</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
+      {menuOpen && moment && (() => {
+        const isOwnMoment = moment.userId === user?.id;
+        const isGuest = !!moment.guestUuid;
+        const isCollectionOwner = collectionRole === "owner";
+        const inCollection = !!collectionId;
+
+        const canEdit = isOwnMoment;
+        const canAddToCollection = isOwnMoment;
+        const canDelete = isOwnMoment || (isGuest && isCollectionOwner);
+        const canRemove = inCollection && (isOwnMoment || isCollectionOwner);
+        // Report for non-own, non-guest moments (guests are managed by the owner directly)
+        const canReport = !isOwnMoment && !isGuest;
+
+        return (
+          <>
+            <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)} />
+            <View style={styles.menuContainer}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setMenuOpen(false);
+                  setShareModalVisible(true);
+                  posthog.capture("moment_shared", { song_title: moment.songTitle, song_artist: moment.songArtist });
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.menuItemText}>Share Moment</Text>
+              </TouchableOpacity>
+              {canEdit && (
+                <>
+                  <View style={styles.menuDivider} />
+                  <TouchableOpacity style={styles.menuItem} onPress={handleEdit} activeOpacity={0.7}>
+                    <Text style={styles.menuItemText}>Edit Moment</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              {canAddToCollection && (
+                <>
+                  <View style={styles.menuDivider} />
+                  <TouchableOpacity style={styles.menuItem} onPress={handleAddToCollection} activeOpacity={0.7}>
+                    <Text style={styles.menuItemText}>Add to Collection</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              {canReport && (
+                <>
+                  <View style={styles.menuDivider} />
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setMenuOpen(false);
+                      const subject = encodeURIComponent(`Report: ${moment.songTitle} by ${moment.songArtist}`);
+                      const body = encodeURIComponent(`Please describe what you'd like to report about this moment:\n\n\n\n---\nMoment ID: ${moment.id}\nContributor: ${moment.contributorName ?? "unknown"}`);
+                      Linking.openURL(`mailto:founder@soundtracks.app?subject=${subject}&body=${body}`);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.menuItemTextDestructive}>Report Moment</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              {canRemove && (
+                <>
+                  <View style={styles.menuDivider} />
+                  <TouchableOpacity style={styles.menuItem} onPress={handleRemoveFromCollection} activeOpacity={0.7}>
+                    <Text style={styles.menuItemTextDestructive}>Remove from Collection</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              {canDelete && (
+                <>
+                  <View style={styles.menuDivider} />
+                  <TouchableOpacity style={styles.menuItem} onPress={handleDelete} activeOpacity={0.7}>
+                    <Text style={styles.menuItemTextDestructive}>Delete Moment</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </>
+        );
+      })()}
 
       {loading ? (
         <SkeletonMomentDetail />

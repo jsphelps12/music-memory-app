@@ -534,10 +534,14 @@ export default function TimelineScreen() {
   const renderMoment = useCallback(({ item }: { item: Moment }) => (
     <MomentCard
       item={item}
-      onPress={() => router.push(`/moment/${item.id}`)}
+      onPress={() => router.push(
+        selectedCollection
+          ? { pathname: `/moment/${item.id}`, params: { collectionId: selectedCollection.id, collectionRole: selectedCollection.role } }
+          : `/moment/${item.id}`
+      )}
       allMoods={allMoods}
     />
-  ), [router, allMoods]);
+  ), [router, allMoods, selectedCollection]);
 
   const clearFilters = useCallback(() => {
     setSearchText("");

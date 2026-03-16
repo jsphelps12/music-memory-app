@@ -23,5 +23,6 @@ export function mapRowToMoment(row: any): Moment {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     shareToken: row.share_token ?? null,
+    guestUuid: row.guest_uuid ?? null,
   };
 }

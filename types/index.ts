@@ -44,6 +44,7 @@ export interface Moment {
   createdAt: string;
   updatedAt: string;
   shareToken?: string | null;
+  guestUuid?: string | null;
   // Set when viewing a shared collection — display name of who added this moment
   contributorName?: string | null;
 }
