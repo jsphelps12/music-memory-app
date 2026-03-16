@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "10mb",
+    },
+  },
   webpack(config, { isServer }) {
     if (isServer) {
       // qrcode uses canvas on server; exclude it since QRDisplay is client-only
