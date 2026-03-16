@@ -12,6 +12,7 @@ interface MomentCardProps {
   isPlaying: boolean;
   hasPreview: boolean;
   onToggle: () => void;
+  onPlayPause: () => void;
 }
 
 function formatDate(dateStr: string | null): string | null {
@@ -32,6 +33,7 @@ export default function MomentCard({
   isPlaying,
   hasPreview,
   onToggle,
+  onPlayPause,
 }: MomentCardProps) {
   return (
     <button
@@ -41,7 +43,7 @@ export default function MomentCard({
     >
       {/* Top row — always visible */}
       <div className="flex gap-4 p-4">
-        {/* Album artwork */}
+        {/* Album artwork — acts as play/pause button when expanded with a preview */}
         <div className="shrink-0 relative">
           {artworkUrl ? (
             <Image
@@ -60,13 +62,15 @@ export default function MomentCard({
               🎵
             </div>
           )}
-          {isPlaying && (
-            <div
+          {expanded && hasPreview && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onPlayPause(); }}
               className="absolute inset-0 rounded-lg flex items-center justify-center"
               style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
             >
-              <span className="text-white text-base">▶</span>
-            </div>
+              <span className="text-white text-base">{isPlaying ? "⏸" : "▶"}</span>
+            </button>
           )}
         </div>
 

@@ -31,7 +31,7 @@ export default function CollectionMomentList({ moments }: { moments: MomentItem[
       return;
     }
 
-    // Switch to a different moment
+    // Expand a new moment — start playing if it has a preview
     setExpandedId(moment.id);
     setIsPlaying(false);
 
@@ -40,12 +40,24 @@ export default function CollectionMomentList({ moments }: { moments: MomentItem[
     if (moment.previewUrl) {
       audio.src = moment.previewUrl;
       audio.currentTime = 0;
-      audio.play().catch(() => {
-        // Autoplay blocked — silently ignore
-      });
+      audio.play().catch(() => {});
     } else {
       audio.pause();
       audio.src = "";
+    }
+  }
+
+  function handlePlayPause(moment: MomentItem) {
+    const audio = audioRef.current;
+    if (!audio || !moment.previewUrl) return;
+    if (isPlaying) {
+      audio.pause();
+    } else {
+      if (audio.src !== moment.previewUrl) {
+        audio.src = moment.previewUrl;
+        audio.currentTime = 0;
+      }
+      audio.play().catch(() => {});
     }
   }
 
@@ -72,6 +84,7 @@ export default function CollectionMomentList({ moments }: { moments: MomentItem[
             isPlaying={expandedId === moment.id && isPlaying}
             hasPreview={!!moment.previewUrl}
             onToggle={() => toggle(moment)}
+            onPlayPause={() => handlePlayPause(moment)}
           />
         ))}
       </div>
