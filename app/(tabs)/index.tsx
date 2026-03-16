@@ -874,7 +874,11 @@ export default function TimelineScreen() {
               </Text>
               <TouchableOpacity
                 style={styles.ctaButton}
-                onPress={() => router.push("/create")}
+                onPress={() => router.push(
+                  selectedCollection
+                    ? { pathname: "/create", params: { collectionId: selectedCollection.id } }
+                    : "/create"
+                )}
                 activeOpacity={0.7}
               >
                 <Text style={styles.ctaButtonText}>Create Your First Moment</Text>
@@ -978,7 +982,11 @@ export default function TimelineScreen() {
             bottom: 16,
           },
         ]}
-        onPress={() => router.push("/create")}
+        onPress={() => router.push(
+          selectedCollection
+            ? { pathname: "/create", params: { collectionId: selectedCollection.id } }
+            : "/create"
+        )}
         activeOpacity={0.85}
       >
         <Ionicons name="add" size={30} color="#fff" />

@@ -16,6 +16,8 @@ export function mapRowToMoment(row: any): Moment {
     mood: row.mood,
     people: row.people ?? [],
     location: row.location,
+    locationLat: row.location_lat ?? null,
+    locationLng: row.location_lng ?? null,
     momentDate: row.moment_date,
     timeOfDay: row.time_of_day ?? null,
     createdAt: row.created_at,

@@ -36,6 +36,7 @@ import { PeopleInput } from "@/components/PeopleInput";
 import { CollectionPicker } from "@/components/CollectionPicker";
 import { CreateCollectionModal } from "@/components/CreateCollectionModal";
 import { fetchCollections, addMomentToCollection } from "@/lib/collections";
+import { searchPlaces, type GeoResult } from "@/lib/geocoding";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
@@ -73,11 +74,15 @@ async function extractPhotoMetadata(assets: ImagePicker.ImagePickerAsset[]) {
   }
 
   let suggestedLocation: string | undefined;
+  let capturedLat: number | undefined;
+  let capturedLng: number | undefined;
   for (const asset of assets) {
     const exif = asset.exif as Record<string, any> | undefined;
     if (!exif?.GPSLatitude || !exif?.GPSLongitude) continue;
     const lat = exif.GPSLatitude * (exif.GPSLatitudeRef === "S" ? -1 : 1);
     const lon = exif.GPSLongitude * (exif.GPSLongitudeRef === "W" ? -1 : 1);
+    capturedLat = lat;
+    capturedLng = lon;
     try {
       const [result] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
       if (result) {
@@ -89,7 +94,7 @@ async function extractPhotoMetadata(assets: ImagePicker.ImagePickerAsset[]) {
     break; // Only geocode the first photo with GPS
   }
 
-  return { date: earliestDate, location: suggestedLocation };
+  return { date: earliestDate, location: suggestedLocation, lat: capturedLat, lng: capturedLng };
 }
 
 // ─── Minimal JPEG EXIF parser (no external deps) ────────────────────────────
@@ -202,7 +207,7 @@ function _parseJpegExif(bytes: Uint8Array): { date?: Date; lat?: number; lon?: n
 
 // Extracts EXIF date + GPS from a bare file path (e.g. shared via share extension).
 // Reads only the first 64 KB — EXIF is always in the opening segments of a JPEG.
-async function extractExifFromPath(uri: string): Promise<{ date?: Date; location?: string }> {
+async function extractExifFromPath(uri: string): Promise<{ date?: Date; location?: string; lat?: number; lng?: number }> {
   try {
     const base64 = await FileSystem.readAsStringAsync(uri, {
       encoding: "base64" as any,
@@ -225,7 +230,7 @@ async function extractExifFromPath(uri: string): Promise<{ date?: Date; location
       }
     }
 
-    return { date, location };
+    return { date, location, lat: lat ?? undefined, lng: lon ?? undefined };
   } catch {
     return {};
   }
@@ -253,6 +258,7 @@ export default function CreateMomentScreen() {
     promptQuestion?: string;
     promptStarter?: string;
     onboardingStage?: string; // "1" | "2"
+    collectionId?: string;
   }>();
 
   const [song, setSong] = useState<Song | null>(null);
@@ -365,7 +371,10 @@ export default function CreateMomentScreen() {
         });
         if (!cancelled && result) {
           const suggestion = [result.city, result.region].filter(Boolean).join(", ");
-          if (suggestion) setLocationSuggestion(suggestion);
+          if (suggestion) {
+            setLocationSuggestion(suggestion);
+            setLocationSuggestionCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          }
         }
       } catch {
         // Location unavailable — skip suggestion
@@ -389,12 +398,17 @@ export default function CreateMomentScreen() {
   const [people, setPeople] = useState<string[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
   const [momentDate, setMomentDate] = useState<Date | null>(new Date());
-  const [location, setLocation] = useState("");
-  const [metaSuggestion, setMetaSuggestion] = useState<{ date?: Date; location?: string } | null>(null);
+  const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
+  const [locationQuery, setLocationQuery] = useState("");
+  const [locationResults, setLocationResults] = useState<GeoResult[]>([]);
+  const [locationSearching, setLocationSearching] = useState(false);
+  const [locationSuggestion, setLocationSuggestion] = useState("");
+  const [locationSuggestionCoords, setLocationSuggestionCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [dismissedLocationSuggestion, setDismissedLocationSuggestion] = useState(false);
+  const locationSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [metaSuggestion, setMetaSuggestion] = useState<{ date?: Date; location?: string; lat?: number; lng?: number } | null>(null);
   const [dismissedMetaSuggestion, setDismissedMetaSuggestion] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
-  const [locationSuggestion, setLocationSuggestion] = useState("");
-  const [dismissedLocationSuggestion, setDismissedLocationSuggestion] = useState(false);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [collectionPickerVisible, setCollectionPickerVisible] = useState(false);
@@ -406,10 +420,21 @@ export default function CreateMomentScreen() {
   const [promptPickerVisible, setPromptPickerVisible] = useState(false);
 
   useEffect(() => {
-    if (showDetails && user && collections.length === 0) {
+    if ((showDetails || params.collectionId) && user && collections.length === 0) {
       fetchCollections(user.id).then(setCollections).catch(() => {});
     }
-  }, [showDetails, user]);
+  }, [showDetails, params.collectionId, user]);
+
+  // Auto-expand details and pre-select collection when opened from a collection view
+  useEffect(() => {
+    if (params.collectionId) setShowDetails(true);
+  }, [params.collectionId]);
+
+  useEffect(() => {
+    if (!params.collectionId || collections.length === 0) return;
+    const match = collections.find((c) => c.id === params.collectionId);
+    if (match) setSelectedCollection(match);
+  }, [params.collectionId, collections]);
 
   useEffect(() => {
     if (showDetails && user && peopleSuggestions.length === 0) {
@@ -540,6 +565,39 @@ export default function CreateMomentScreen() {
     if (date) setMomentDate(date);
   };
 
+  const handleLocationQueryChange = (text: string) => {
+    setLocationQuery(text);
+    if (locationSearchTimer.current) clearTimeout(locationSearchTimer.current);
+    if (!text.trim()) {
+      setLocationResults([]);
+      return;
+    }
+    locationSearchTimer.current = setTimeout(async () => {
+      setLocationSearching(true);
+      try {
+        const results = await searchPlaces(text);
+        setLocationResults(results);
+      } catch {
+        setLocationResults([]);
+      } finally {
+        setLocationSearching(false);
+      }
+    }, 400);
+  };
+
+  const selectLocation = (result: GeoResult) => {
+    Haptics.selectionAsync();
+    setLocationResult(result);
+    setLocationQuery("");
+    setLocationResults([]);
+  };
+
+  const clearLocation = () => {
+    setLocationResult(null);
+    setLocationQuery("");
+    setLocationResults([]);
+  };
+
   const handleSave = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!hasSong) {
@@ -579,7 +637,9 @@ export default function CreateMomentScreen() {
           people,
           photo_urls: photoPaths,
           photo_thumbnails: thumbnailPaths,
-          location: location.trim() || null,
+          location: locationResult?.name ?? null,
+          location_lat: locationResult?.lat ?? null,
+          location_lng: locationResult?.lng ?? null,
           moment_date: momentDate
             ? `${momentDate.getFullYear()}-${String(momentDate.getMonth() + 1).padStart(2, "0")}-${String(momentDate.getDate()).padStart(2, "0")}`
             : null,
@@ -596,7 +656,7 @@ export default function CreateMomentScreen() {
         has_reflection: reflection.trim().length > 0,
         has_mood: Boolean(selectedMood),
         photo_count: photos.length,
-        has_location: location.trim().length > 0,
+        has_location: Boolean(locationResult),
         has_people: people.length > 0,
         has_collection: Boolean(selectedCollection),
       });
@@ -613,7 +673,9 @@ export default function CreateMomentScreen() {
       setPeople([]);
       setPhotos([]);
       setMomentDate(new Date());
-      setLocation("");
+      setLocationResult(null);
+      setLocationQuery("");
+      setLocationResults([]);
       setSelectedCollection(null);
       setMetaSuggestion(null);
       setDismissedMetaSuggestion(false);
@@ -887,7 +949,11 @@ export default function CreateMomentScreen() {
                   activeOpacity={0.7}
                   onPress={() => {
                     if (metaSuggestion.date) setMomentDate(metaSuggestion.date);
-                    if (metaSuggestion.location) setLocation(metaSuggestion.location);
+                    if (metaSuggestion.location) setLocationResult({
+                      name: metaSuggestion.location,
+                      lat: metaSuggestion.lat ?? null,
+                      lng: metaSuggestion.lng ?? null,
+                    });
                     setDismissedMetaSuggestion(true);
                     Haptics.selectionAsync();
                   }}
@@ -967,7 +1033,7 @@ export default function CreateMomentScreen() {
             )}
 
             {/* Location suggestion banner */}
-            {locationSuggestion && !dismissedLocationSuggestion && !location && (
+            {locationSuggestion && !dismissedLocationSuggestion && !locationResult && (
               <View style={styles.locationBanner}>
                 <View style={styles.locationBannerRow}>
                   <Text style={styles.locationBannerLabel}>Currently in {locationSuggestion}</Text>
@@ -979,7 +1045,11 @@ export default function CreateMomentScreen() {
                   style={styles.locationBannerUseButton}
                   activeOpacity={0.7}
                   onPress={() => {
-                    setLocation(locationSuggestion);
+                    setLocationResult({
+                      name: locationSuggestion,
+                      lat: locationSuggestionCoords?.lat ?? null,
+                      lng: locationSuggestionCoords?.lng ?? null,
+                    });
                     setDismissedLocationSuggestion(true);
                     Haptics.selectionAsync();
                   }}
@@ -991,17 +1061,54 @@ export default function CreateMomentScreen() {
 
             {/* Location */}
             <Text style={styles.sectionLabel}>Location</Text>
-            <TextInput
-              style={[styles.input, focusedField === "location" && { borderColor: theme.colors.accent }]}
-              placeholder="Where were you?"
-              placeholderTextColor={theme.colors.placeholder}
-              cursorColor={theme.colors.accent}
-              value={location}
-              onChangeText={setLocation}
-              onFocus={() => setFocusedField("location")}
-              onBlur={() => setFocusedField("")}
-              returnKeyType="done"
-            />
+            {locationResult ? (
+              <View style={styles.collectionChipRow}>
+                <View style={styles.locationChip}>
+                  <Ionicons name="location-outline" size={14} color={theme.colors.accentText} />
+                  <Text style={styles.locationChipText} numberOfLines={1}>{locationResult.name}</Text>
+                </View>
+                <TouchableOpacity onPress={clearLocation} hitSlop={8}>
+                  <Ionicons name="close-circle" size={18} color={theme.colors.placeholder} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <TextInput
+                  style={[styles.input, focusedField === "location" && { borderColor: theme.colors.accent }]}
+                  placeholder="Search for a place..."
+                  placeholderTextColor={theme.colors.placeholder}
+                  cursorColor={theme.colors.accent}
+                  value={locationQuery}
+                  onChangeText={handleLocationQueryChange}
+                  onFocus={() => setFocusedField("location")}
+                  onBlur={() => setFocusedField("")}
+                  returnKeyType="search"
+                />
+                {locationSearching && (
+                  <ActivityIndicator size="small" color={theme.colors.accent} style={{ marginTop: 8 }} />
+                )}
+                {locationResults.length > 0 && (
+                  <View style={[styles.locationResultsList, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
+                    {locationResults.map((result, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        style={[
+                          styles.locationResultItem,
+                          i < locationResults.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border },
+                        ]}
+                        onPress={() => selectLocation(result)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="location-outline" size={14} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
+                        <Text style={[styles.locationResultText, { color: theme.colors.text }]} numberOfLines={1}>
+                          {result.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </>
+            )
           </>
         )}
 
@@ -1473,6 +1580,38 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.sm,
       color: theme.colors.accentText,
       fontWeight: theme.fontWeight.medium,
+    },
+    locationChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+      flex: 1,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 8,
+      borderRadius: theme.radii.md,
+      backgroundColor: theme.colors.accentBg,
+    },
+    locationChipText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.accentText,
+      fontWeight: theme.fontWeight.medium,
+      flex: 1,
+    },
+    locationResultsList: {
+      marginTop: theme.spacing.xs,
+      borderRadius: theme.radii.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      overflow: "hidden",
+    },
+    locationResultItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 12,
+    },
+    locationResultText: {
+      fontSize: theme.fontSize.sm,
+      flex: 1,
     },
     collectionEmpty: {
       flexDirection: "row",

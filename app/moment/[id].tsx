@@ -78,7 +78,9 @@ export default function MomentDetailScreen() {
   const [collectionModalVisible, setCollectionModalVisible] = useState(false);
   const [allCollections, setAllCollections] = useState<Collection[]>([]);
   const [memberIds, setMemberIds] = useState<string[]>([]);
+  const [pendingMemberIds, setPendingMemberIds] = useState<string[]>([]);
   const [collectionLoading, setCollectionLoading] = useState(false);
+  const [savingCollections, setSavingCollections] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("");
   const [showingNewInput, setShowingNewInput] = useState(false);
   const [creatingCollection, setCreatingCollection] = useState(false);
@@ -243,27 +245,32 @@ export default function MomentDetailScreen() {
       ]);
       setAllCollections(cols);
       setMemberIds(ids);
+      setPendingMemberIds(ids);
     } catch {}
     setCollectionLoading(false);
   };
 
-  const toggleCollection = async (collection: Collection) => {
-    const isMember = memberIds.includes(collection.id);
-    if (isMember) {
-      setMemberIds((prev) => prev.filter((cid) => cid !== collection.id));
-      try {
-        await removeMomentFromCollection(collection.id, id);
-      } catch {
-        setMemberIds((prev) => [...prev, collection.id]);
-      }
-    } else {
-      setMemberIds((prev) => [...prev, collection.id]);
-      try {
-        await addMomentToCollection(collection.id, id, user!.id);
-      } catch {
-        setMemberIds((prev) => prev.filter((cid) => cid !== collection.id));
-      }
-    }
+  const toggleCollection = (collection: Collection) => {
+    setPendingMemberIds((prev) =>
+      prev.includes(collection.id)
+        ? prev.filter((cid) => cid !== collection.id)
+        : [...prev, collection.id]
+    );
+  };
+
+  const handleSaveCollections = async () => {
+    setSavingCollections(true);
+    try {
+      const toAdd = pendingMemberIds.filter((cid) => !memberIds.includes(cid));
+      const toRemove = memberIds.filter((cid) => !pendingMemberIds.includes(cid));
+      await Promise.all([
+        ...toAdd.map((cid) => addMomentToCollection(cid, id, user!.id)),
+        ...toRemove.map((cid) => removeMomentFromCollection(cid, id)),
+      ]);
+      setMemberIds(pendingMemberIds);
+    } catch {}
+    setSavingCollections(false);
+    setCollectionModalVisible(false);
   };
 
   const handleCreateCollection = async () => {
@@ -275,6 +282,7 @@ export default function MomentDetailScreen() {
       await addMomentToCollection(collection.id, id, user!.id);
       setAllCollections((prev) => [...prev, collection]);
       setMemberIds((prev) => [...prev, collection.id]);
+      setPendingMemberIds((prev) => [...prev, collection.id]);
       setNewCollectionName("");
       setShowingNewInput(false);
     } catch {}
@@ -631,7 +639,7 @@ export default function MomentDetailScreen() {
                 </Text>
               }
               renderItem={({ item }) => {
-                const isMember = memberIds.includes(item.id);
+                const isMember = pendingMemberIds.includes(item.id);
                 return (
                   <TouchableOpacity
                     style={collectionStyles.row}
@@ -701,6 +709,22 @@ export default function MomentDetailScreen() {
               </Text>
             </TouchableOpacity>
           )}
+
+          <View style={collectionStyles.saveRow}>
+            <TouchableOpacity
+              style={[collectionStyles.saveBtn, {
+                backgroundColor: theme.colors.accent,
+                opacity: savingCollections ? 0.6 : 1,
+              }]}
+              onPress={handleSaveCollections}
+              disabled={savingCollections}
+              activeOpacity={0.8}
+            >
+              <Text style={collectionStyles.saveBtnText}>
+                {savingCollections ? "Saving…" : "Save Changes"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -813,6 +837,21 @@ const collectionStyles = StyleSheet.create({
   },
   createBtnText: {
     fontSize: 15,
+    fontWeight: "600",
+  },
+  saveRow: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  saveBtn: {
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  saveBtnText: {
+    color: "#fff",
+    fontSize: 16,
     fontWeight: "600",
   },
 });

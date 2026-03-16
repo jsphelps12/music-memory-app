@@ -119,6 +119,8 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
     try {
       await submitContribution(formData);
     } catch (err: unknown) {
+      // Next.js redirect() throws a special error — re-throw it so the router handles navigation
+      if ((err as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw err;
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setSubmitting(false);
     }

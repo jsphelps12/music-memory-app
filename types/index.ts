@@ -37,6 +37,8 @@ export interface Moment {
   mood: MoodOption | null;
   people: string[];
   location: string | null;
+  locationLat: number | null;
+  locationLng: number | null;
   momentDate: string | null;
   timeOfDay: string | null;
   createdAt: string;
