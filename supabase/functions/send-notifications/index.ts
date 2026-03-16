@@ -241,6 +241,7 @@ Deno.serve(async (_req) => {
 
   for (const row of allMoments ?? []) {
     if (assignedUserIds.has(row.user_id)) continue;
+    if (!row.moment_date) continue;
     const [yearStr, month, day] = row.moment_date.split("-");
     const rowYear = Number(yearStr);
     if (month === todayMM && day === todayDD && rowYear < todayYear) {
