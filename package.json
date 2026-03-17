@@ -9,7 +9,9 @@
     "ios:device": "expo run:ios --device",
     "ios:clean": "expo prebuild --clean && rm -rf ios/Tracks.xcodeproj && cd ios && pod install --repo-update && cd .. && expo run:ios --device",
     "web": "expo start --web",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@expo/cli": "^54.0.23",
@@ -64,7 +66,8 @@
     "@types/react": "~19.1.0",
     "react-test-renderer": "19.1.0",
     "supabase": "^2.76.12",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "vitest": "^4.1.0"
   },
   "private": true,
   "expo": {
