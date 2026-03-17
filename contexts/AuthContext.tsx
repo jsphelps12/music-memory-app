@@ -8,6 +8,7 @@ import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
 
 export interface OnboardingData {
   displayName: string;
+  username?: string;
   birthYear: number | null;
   country: string | null;
   favoriteArtists: FavoriteArtist[];
@@ -28,6 +29,7 @@ interface AuthState {
   deleteAccount: () => Promise<void>;
   updateProfile: (updates: {
     displayName?: string;
+    username?: string | null;
     avatarUrl?: string;
     birthYear?: number | null;
     country?: string | null;
@@ -36,7 +38,7 @@ interface AuthState {
     genrePreferences?: string[];
   }) => Promise<void>;
   refreshProfile: () => Promise<void>;
-  saveOnboardingData: (data: Pick<OnboardingData, "displayName" | "birthYear" | "country">) => Promise<void>;
+  saveOnboardingData: (data: Pick<OnboardingData, "displayName" | "username" | "birthYear" | "country">) => Promise<void>;
   completeOnboarding: (data: OnboardingData) => Promise<void>;
   saveCustomMood: (mood: CustomMoodDefinition) => Promise<void>;
   deleteCustomMood: (value: string) => Promise<void>;
@@ -76,6 +78,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       id: data.id,
       displayName: data.display_name,
       avatarUrl: data.avatar_url,
+      username: data.username ?? null,
+      friendInviteToken: data.friend_invite_token ?? "",
       customMoods: data.custom_moods ?? [],
       customPromptCategories: data.custom_prompt_categories ?? [],
       birthYear: data.birth_year ?? null,
@@ -224,6 +228,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateProfile = async (updates: {
     displayName?: string;
+    username?: string | null;
     avatarUrl?: string;
     birthYear?: number | null;
     country?: string | null;
@@ -235,6 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const dbUpdates: Record<string, any> = {};
     if (updates.displayName !== undefined) dbUpdates.display_name = updates.displayName;
+    if (updates.username !== undefined) dbUpdates.username = updates.username ? updates.username.toLowerCase().trim() : null;
     if (updates.avatarUrl !== undefined) dbUpdates.avatar_url = updates.avatarUrl;
     if (updates.birthYear !== undefined) dbUpdates.birth_year = updates.birthYear;
     if (updates.country !== undefined) dbUpdates.country = updates.country;
@@ -258,15 +264,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const saveOnboardingData = async (data: Pick<OnboardingData, "displayName" | "birthYear" | "country">) => {
+  const saveOnboardingData = async (data: Pick<OnboardingData, "displayName" | "username" | "birthYear" | "country">) => {
     if (!session?.user) throw new Error("Not authenticated");
+    const updates: Record<string, any> = {
+      display_name: data.displayName,
+      birth_year: data.birthYear,
+      country: data.country,
+    };
+    if (data.username) updates.username = data.username.toLowerCase().trim();
     const { error } = await supabase
       .from("profiles")
-      .update({
-        display_name: data.displayName,
-        birth_year: data.birthYear,
-        country: data.country,
-      })
+      .update(updates)
       .eq("id", session.user.id);
     if (error) throw error;
     await fetchProfile(session.user.id);
@@ -274,17 +282,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const completeOnboarding = async (data: OnboardingData) => {
     if (!session?.user) throw new Error("Not authenticated");
+    const updates: Record<string, any> = {
+      display_name: data.displayName,
+      birth_year: data.birthYear,
+      country: data.country,
+      favorite_artists: data.favoriteArtists,
+      favorite_songs: data.favoriteSongs,
+      genre_preferences: data.genrePreferences,
+      onboarding_completed: true,
+    };
+    if (data.username) updates.username = data.username.toLowerCase().trim();
     const { error } = await supabase
       .from("profiles")
-      .update({
-        display_name: data.displayName,
-        birth_year: data.birthYear,
-        country: data.country,
-        favorite_artists: data.favoriteArtists,
-        favorite_songs: data.favoriteSongs,
-        genre_preferences: data.genrePreferences,
-        onboarding_completed: true,
-      })
+      .update(updates)
       .eq("id", session.user.id);
     if (error) throw error;
     await fetchProfile(session.user.id);

@@ -1,10 +1,13 @@
-import React from "react";
-import { StyleSheet } from "react-native";
+import React, { useEffect, useState } from "react";
+import { StyleSheet, View, Text } from "react-native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { Ionicons } from "@expo/vector-icons";
 import { withLayoutContext } from "expo-router";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
+import { useAuth } from "@/contexts/AuthContext";
+import { fetchPendingRequests, fetchTaggedMomentsInbox } from "@/lib/friends";
 
 const { Navigator } = createMaterialTopTabNavigator();
 const SwipeTabs = withLayoutContext(Navigator);
@@ -15,6 +18,63 @@ function TabBarIcon(props: {
 }) {
   return <FontAwesome size={24} style={{ marginBottom: -3 }} {...props} />;
 }
+
+function FriendsTabIcon({ color }: { color: string }) {
+  const [pendingCount, setPendingCount] = useState(0);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    async function loadCount() {
+      try {
+        const [requests, inbox] = await Promise.all([
+          fetchPendingRequests(user!.id),
+          fetchTaggedMomentsInbox(user!.id),
+        ]);
+        if (!cancelled) {
+          setPendingCount(requests.length + inbox.length);
+        }
+      } catch {}
+    }
+
+    loadCount();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  return (
+    <View>
+      <Ionicons name="people-outline" size={24} color={color} style={{ marginBottom: -3 }} />
+      {pendingCount > 0 && (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{pendingCount > 9 ? "9+" : pendingCount}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  badge: {
+    position: "absolute",
+    top: -4,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#E8825C",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
+    lineHeight: 12,
+  },
+});
 
 export default function TabLayout() {
   const theme = useTheme();
@@ -50,6 +110,13 @@ export default function TabLayout() {
         options={{
           title: "Reflections",
           tabBarIcon: ({ color }) => <TabBarIcon name="star" color={color} />,
+        }}
+      />
+      <SwipeTabs.Screen
+        name="friends"
+        options={{
+          title: "Friends",
+          tabBarIcon: ({ color }) => <FriendsTabIcon color={color} />,
         }}
       />
       <SwipeTabs.Screen

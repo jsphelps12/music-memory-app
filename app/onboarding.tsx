@@ -23,6 +23,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { onOnboardingMomentSaved } from "@/lib/onboardingEvents";
+import { checkUsernameAvailable } from "@/lib/friends";
 
 const TOTAL_STEPS = 2;
 
@@ -56,6 +57,9 @@ export default function OnboardingScreen() {
 
   // Step 1
   const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const usernameDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Step 2
   const [birthYear, setBirthYear] = useState<number | null>(null);
@@ -68,6 +72,24 @@ export default function OnboardingScreen() {
     [countrySearch]
   );
 
+  // ── Username check ──────────────────────────────────────────────────────
+
+  const handleUsernameChange = useCallback((text: string) => {
+    // Enforce lowercase alphanumeric + underscores only
+    const cleaned = text.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    setUsername(cleaned);
+    setUsernameStatus("idle");
+    if (usernameDebounce.current) clearTimeout(usernameDebounce.current);
+    if (!cleaned.trim()) return;
+    if (cleaned.length < 3) { setUsernameStatus("taken"); return; }
+    setUsernameStatus("checking");
+    usernameDebounce.current = setTimeout(async () => {
+      if (!user) return;
+      const available = await checkUsernameAvailable(cleaned, user.id).catch(() => false);
+      setUsernameStatus(available ? "available" : "taken");
+    }, 400);
+  }, [user]);
+
   // ── Escape hatch ────────────────────────────────────────────────────────
 
   async function handleSkipMoments() {
@@ -75,6 +97,7 @@ export default function OnboardingScreen() {
     try {
       const data: OnboardingData = {
         displayName: displayName.trim(),
+        username: username.trim() || undefined,
         birthYear,
         country: country || null,
         favoriteArtists: [],
@@ -97,7 +120,11 @@ export default function OnboardingScreen() {
   // ── Questionnaire navigation ────────────────────────────────────────────
 
   function canAdvance(): boolean {
-    if (step === 1) return displayName.trim().length > 0;
+    if (step === 1) {
+      const nameOk = displayName.trim().length > 0;
+      const usernameOk = username.length >= 3 && usernameStatus === "available";
+      return nameOk && usernameOk;
+    }
     return true;
   }
 
@@ -105,7 +132,10 @@ export default function OnboardingScreen() {
     Keyboard.dismiss();
     if (!canAdvance()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      if (step === 1) setError("Please enter your name.");
+      if (step === 1) {
+        if (!displayName.trim()) setError("Please enter your name.");
+        else if (usernameStatus !== "available") setError("Please choose an available username.");
+      }
       return;
     }
     setError("");
@@ -116,11 +146,12 @@ export default function OnboardingScreen() {
       return;
     }
 
-    // After step 2 — save name/year/country, then go to moment1_intro
+    // After step 2 — save name/year/country/username, then go to moment1_intro
     setSaving(true);
     try {
       await saveOnboardingData({
         displayName: displayName.trim(),
+        username: username.trim() || undefined,
         birthYear,
         country: country || null,
       });
@@ -165,6 +196,7 @@ export default function OnboardingScreen() {
       unsubscribe();
       const data: OnboardingData = {
         displayName: displayName.trim(),
+        username: username.trim() || undefined,
         birthYear,
         country: country || null,
         favoriteArtists: [],
@@ -227,21 +259,57 @@ export default function OnboardingScreen() {
           {step === 1 ? (
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
               <View style={styles.stepContent}>
-                <Text style={styles.stepHeading}>What's your name?</Text>
-                <Text style={styles.stepSub}>This is how you'll appear to friends — you can always add more later.</Text>
+                <Text style={styles.stepHeading}>Set up your profile</Text>
+                <Text style={styles.stepSub}>Your name and username are how you'll appear to friends.</Text>
+                <Text style={styles.fieldLabel}>Your name</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Your name"
+                  placeholder="Display name"
                   placeholderTextColor={theme.colors.placeholder}
                   value={displayName}
                   onChangeText={(t) => { setDisplayName(t); setError(""); }}
                   autoFocus
-                  returnKeyType="done"
-                  onSubmitEditing={handleNext}
+                  returnKeyType="next"
                   textContentType="name"
                   autoComplete="name"
                   maxLength={40}
                 />
+                <Text style={[styles.fieldLabel, { marginTop: 20 }]}>@username</Text>
+                <View style={styles.usernameRow}>
+                  <View style={[styles.usernameInputWrap, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundInput }]}>
+                    <Text style={[styles.usernameAt, { color: theme.colors.textSecondary }]}>@</Text>
+                    <TextInput
+                      style={[styles.usernameInput, { color: theme.colors.text }]}
+                      placeholder="username"
+                      placeholderTextColor={theme.colors.placeholder}
+                      value={username}
+                      onChangeText={handleUsernameChange}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="done"
+                      onSubmitEditing={handleNext}
+                      maxLength={30}
+                    />
+                    {usernameStatus === "checking" && (
+                      <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                    )}
+                    {usernameStatus === "available" && (
+                      <Ionicons name="checkmark-circle" size={18} color={theme.colors.success} />
+                    )}
+                    {usernameStatus === "taken" && (
+                      <Ionicons name="close-circle" size={18} color={theme.colors.destructive} />
+                    )}
+                  </View>
+                </View>
+                {usernameStatus === "available" && (
+                  <Text style={[styles.usernameHint, { color: theme.colors.success }]}>✓ Available</Text>
+                )}
+                {usernameStatus === "taken" && username.length < 3 && (
+                  <Text style={[styles.usernameHint, { color: theme.colors.destructive }]}>At least 3 characters required</Text>
+                )}
+                {usernameStatus === "taken" && username.length >= 3 && (
+                  <Text style={[styles.usernameHint, { color: theme.colors.destructive }]}>✗ Taken — try another</Text>
+                )}
               </View>
             </TouchableWithoutFeedback>
           ) : (
@@ -578,6 +646,31 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.base,
       color: theme.colors.text,
       backgroundColor: theme.colors.backgroundInput,
+    },
+    usernameRow: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    usernameInputWrap: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      height: 52,
+      borderWidth: 1,
+      borderRadius: 12,
+      paddingHorizontal: theme.spacing.lg,
+      gap: 4,
+    },
+    usernameAt: {
+      fontSize: theme.fontSize.base,
+    },
+    usernameInput: {
+      flex: 1,
+      fontSize: theme.fontSize.base,
+    },
+    usernameHint: {
+      fontSize: theme.fontSize.xs,
+      marginTop: 6,
     },
     pickerRow: {
       flexDirection: "row",

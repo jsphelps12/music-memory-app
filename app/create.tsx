@@ -419,6 +419,19 @@ export default function CreateMomentScreen() {
   const [peopleSuggestions, setPeopleSuggestions] = useState<string[]>([]);
   const [promptPickerVisible, setPromptPickerVisible] = useState(false);
 
+  // Tag Friends
+  const [taggedFriends, setTaggedFriends] = useState<Array<{ friend: import("@/types").Friendship; send: boolean }>>([]);
+  const [availableFriends, setAvailableFriends] = useState<import("@/types").Friendship[]>([]);
+  const [friendQuery, setFriendQuery] = useState("");
+
+  useEffect(() => {
+    if (showDetails && user && availableFriends.length === 0) {
+      import("@/lib/friends").then(({ fetchFriends }) => {
+        fetchFriends(user.id).then(setAvailableFriends).catch(() => {});
+      });
+    }
+  }, [showDetails, user?.id]);
+
   useEffect(() => {
     if ((showDetails || params.collectionId) && user && collections.length === 0) {
       fetchCollections(user.id).then(setCollections).catch(() => {});
@@ -665,6 +678,16 @@ export default function CreateMomentScreen() {
         await addMomentToCollection(selectedCollection.id, inserted.id, user.id).catch(() => {});
       }
 
+      // Tag friends (only real user-to-user tags — excludes guest moments)
+      if (inserted?.id && taggedFriends.length > 0) {
+        const { insertTaggedMoment } = await import("@/lib/friends");
+        await Promise.all(
+          taggedFriends.map((tf) =>
+            insertTaggedMoment(inserted.id, tf.friend.otherUserId, tf.send).catch(() => {})
+          )
+        );
+      }
+
       checkAndNotifyMilestone(user.id).catch(() => {});
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setSong(null);
@@ -684,6 +707,8 @@ export default function CreateMomentScreen() {
       setShazamResult(null);
       setShazamError("");
       setError("");
+      setTaggedFriends([]);
+      setFriendQuery("");
 
       markTimelineStale();
 
@@ -966,6 +991,88 @@ export default function CreateMomentScreen() {
             {/* People */}
             <Text style={styles.sectionLabel}>People</Text>
             <PeopleInput people={people} onChange={setPeople} suggestions={peopleSuggestions} />
+
+            {/* Tag Friends */}
+            {availableFriends.length > 0 && (
+              <>
+                <Text style={styles.sectionLabel}>Tag Friends</Text>
+                {/* Selected friends */}
+                {taggedFriends.length > 0 && (
+                  <View style={styles.taggedFriendsList}>
+                    {taggedFriends.map((tf) => (
+                      <View key={tf.friend.id} style={[styles.taggedFriendRow, { borderColor: theme.colors.border }]}>
+                        <Text style={[styles.taggedFriendName, { color: theme.colors.text }]} numberOfLines={1}>
+                          {tf.friend.otherUserDisplayName ?? tf.friend.otherUserUsername ?? "Friend"}
+                        </Text>
+                        <View style={styles.taggedFriendActions}>
+                          <Text style={[styles.sendLabel, { color: theme.colors.textSecondary }]}>Send</Text>
+                          <TouchableOpacity
+                            style={[styles.sendToggle, tf.send && { backgroundColor: theme.colors.accent }]}
+                            onPress={() => setTaggedFriends((prev) =>
+                              prev.map((f) => f.friend.id === tf.friend.id ? { ...f, send: !f.send } : f)
+                            )}
+                            activeOpacity={0.7}
+                          >
+                            <View style={[styles.sendToggleThumb, tf.send && styles.sendToggleThumbOn]} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => setTaggedFriends((prev) => prev.filter((f) => f.friend.id !== tf.friend.id))}
+                            hitSlop={8}
+                          >
+                            <Text style={{ color: theme.colors.textTertiary, fontSize: 18, lineHeight: 20 }}>✕</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                {/* Friend search */}
+                {availableFriends.filter((f) => !taggedFriends.find((tf) => tf.friend.id === f.id)).length > 0 && (
+                  <>
+                    <View style={[styles.friendSearchRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundInput }]}>
+                      <Text style={[{ fontSize: 14, color: theme.colors.textSecondary, marginRight: 4 }]}>@</Text>
+                      <TextInput
+                        style={[{ flex: 1, fontSize: 14, color: theme.colors.text }]}
+                        placeholder="Search friends…"
+                        placeholderTextColor={theme.colors.placeholder}
+                        value={friendQuery}
+                        onChangeText={setFriendQuery}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                    </View>
+                    {availableFriends
+                      .filter((f) => {
+                        if (taggedFriends.find((tf) => tf.friend.id === f.id)) return false;
+                        if (!friendQuery.trim()) return true;
+                        const q = friendQuery.toLowerCase();
+                        return (f.otherUserDisplayName ?? "").toLowerCase().includes(q) ||
+                          (f.otherUserUsername ?? "").toLowerCase().includes(q);
+                      })
+                      .slice(0, 5)
+                      .map((friend) => (
+                        <TouchableOpacity
+                          key={friend.id}
+                          style={[styles.friendResultRow, { borderBottomColor: theme.colors.border }]}
+                          onPress={() => {
+                            setTaggedFriends((prev) => [...prev, { friend, send: true }]);
+                            setFriendQuery("");
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.friendResultName, { color: theme.colors.text }]}>
+                            {friend.otherUserDisplayName ?? friend.otherUserUsername ?? "Friend"}
+                          </Text>
+                          {friend.otherUserUsername && (
+                            <Text style={[styles.friendResultUsername, { color: theme.colors.textSecondary }]}>@{friend.otherUserUsername}</Text>
+                          )}
+                        </TouchableOpacity>
+                      ))
+                    }
+                  </>
+                )}
+              </>
+            )}
 
             {/* Mood selector */}
             <Text style={styles.sectionLabel}>Mood</Text>
@@ -1720,6 +1827,71 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.sm,
       color: theme.colors.destructive,
       textAlign: "center",
+    },
+    // Tag Friends
+    taggedFriendsList: {
+      gap: 8,
+      marginBottom: 8,
+    },
+    taggedFriendRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderRadius: theme.radii.sm,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+    },
+    taggedFriendName: {
+      flex: 1,
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.medium,
+    },
+    taggedFriendActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    sendLabel: {
+      fontSize: theme.fontSize.xs,
+    },
+    sendToggle: {
+      width: 38,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: theme.colors.border,
+      justifyContent: "center",
+      paddingHorizontal: 2,
+    },
+    sendToggleThumb: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: "#fff",
+    },
+    sendToggleThumbOn: {
+      alignSelf: "flex-end",
+    },
+    friendSearchRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderRadius: theme.radii.sm,
+      borderWidth: StyleSheet.hairlineWidth,
+      paddingHorizontal: 10,
+      height: 38,
+      marginBottom: 4,
+    },
+    friendResultRow: {
+      paddingVertical: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    friendResultName: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.medium,
+    },
+    friendResultUsername: {
+      fontSize: theme.fontSize.xs,
+      marginTop: 1,
     },
   });
 }

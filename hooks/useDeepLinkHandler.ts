@@ -1,24 +1,38 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Linking } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { handleAuthDeepLink } from "@/lib/auth-linking";
+import { fetchProfileByFriendToken } from "@/lib/friends";
 
 export const PENDING_INVITE_CODE_KEY = "pending_invite_code";
+export const PENDING_FRIEND_TOKEN_KEY = "pending_friend_token";
 
-// Prefix written to clipboard on web when user taps "Download" from an invite link.
-// App reads this on first launch to recover the invite code (deferred deep link).
+// Prefixes written to clipboard on web for deferred deep link (cold install) fallback.
 const CLIPBOARD_INVITE_PREFIX = "soundtracks-invite:";
+const CLIPBOARD_FRIEND_PREFIX = "soundtracks-friend:";
 
 export async function checkClipboardForInvite(): Promise<string | null> {
   try {
     const text = await Clipboard.getStringAsync();
     if (text.startsWith(CLIPBOARD_INVITE_PREFIX)) {
       const code = text.replace(CLIPBOARD_INVITE_PREFIX, "").trim();
-      await Clipboard.setStringAsync(""); // clear so it doesn't fire again
+      await Clipboard.setStringAsync("");
       return code || null;
+    }
+  } catch {}
+  return null;
+}
+
+export async function checkClipboardForFriendToken(): Promise<string | null> {
+  try {
+    const text = await Clipboard.getStringAsync();
+    if (text.startsWith(CLIPBOARD_FRIEND_PREFIX)) {
+      const token = text.replace(CLIPBOARD_FRIEND_PREFIX, "").trim();
+      await Clipboard.setStringAsync("");
+      return token || null;
     }
   } catch {}
   return null;
@@ -27,12 +41,23 @@ export async function checkClipboardForInvite(): Promise<string | null> {
 export function useDeepLinkHandler() {
   const router = useRouter();
   const { user } = useAuth();
+  // Track pending friend token so we can show FriendRequestSheet after auth
+  const pendingFriendTokenRef = useRef<string | null>(null);
 
   const handleInviteCode = useCallback(async (inviteCode: string) => {
     if (user) {
       router.push({ pathname: "/join" as any, params: { inviteCode } });
     } else {
       await AsyncStorage.setItem(PENDING_INVITE_CODE_KEY, inviteCode);
+    }
+  }, [user, router]);
+
+  const handleFriendToken = useCallback(async (token: string) => {
+    if (user) {
+      // Show friend request sheet by navigating with params
+      router.push({ pathname: "/friend-request" as any, params: { token } });
+    } else {
+      await AsyncStorage.setItem(PENDING_FRIEND_TOKEN_KEY, token);
     }
   }, [user, router]);
 
@@ -44,16 +69,37 @@ export function useDeepLinkHandler() {
       return;
     }
 
+    // Friend link: soundtracks://friend?token={token}
+    const friendMatch = url.match(/^soundtracks:\/\/friend\?token=([a-zA-Z0-9-]+)/);
+    if (friendMatch) {
+      await handleFriendToken(friendMatch[1]);
+      return;
+    }
+
     // Auth deep link (email confirmation, PKCE)
     handleAuthDeepLink(url);
-  }, [handleInviteCode]);
+  }, [handleInviteCode, handleFriendToken]);
 
-  // Clipboard check — deferred deep link fallback for cold installs via web invite page
+  // Clipboard check — deferred deep link fallback for cold installs via web invite/friend pages
   useEffect(() => {
     checkClipboardForInvite().then((code) => {
       if (code) handleInviteCode(code);
     });
-  }, [handleInviteCode]);
+    checkClipboardForFriendToken().then((token) => {
+      if (token) handleFriendToken(token);
+    });
+  }, [handleInviteCode, handleFriendToken]);
+
+  // After auth, check for pending friend token
+  useEffect(() => {
+    if (!user) return;
+    AsyncStorage.getItem(PENDING_FRIEND_TOKEN_KEY).then((token) => {
+      if (token) {
+        AsyncStorage.removeItem(PENDING_FRIEND_TOKEN_KEY);
+        setTimeout(() => handleFriendToken(token), 500);
+      }
+    });
+  }, [user?.id]);
 
   // URI scheme deep links — app already installed
   useEffect(() => {

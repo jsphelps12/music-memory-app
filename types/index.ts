@@ -88,6 +88,8 @@ export interface UserProfile {
   id: string;
   displayName: string | null;
   avatarUrl: string | null;
+  username: string | null;
+  friendInviteToken: string;
   customMoods: CustomMoodDefinition[];
   customPromptCategories: CustomPromptCategory[];
   birthYear: number | null;
@@ -103,4 +105,32 @@ export interface UserProfile {
   notifMilestones: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Friendship {
+  id: string;
+  requesterId: string;
+  addresseeId: string;
+  status: 'pending' | 'accepted' | 'declined' | 'blocked';
+  createdAt: string;
+  updatedAt: string;
+  // Populated on fetch:
+  otherUserId: string;
+  otherUserDisplayName: string | null;
+  otherUserAvatarUrl: string | null;
+  otherUserUsername: string | null;
+}
+
+export interface TaggedMoment {
+  id: string;
+  momentId: string;
+  taggerUserId: string;
+  taggedUserId: string;
+  released: boolean;
+  status: 'pending' | 'accepted' | 'hidden';
+  tagToken: string;
+  createdAt: string;
+  taggerDisplayName: string | null;
+  taggerAvatarUrl: string | null;
+  moment?: Moment;
 }

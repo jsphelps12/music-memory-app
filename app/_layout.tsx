@@ -199,7 +199,9 @@ function RootLayoutNav() {
 
     function handleNotificationData(data: Record<string, any> | undefined) {
       if (!data) return;
-      if (data.momentId) {
+      if (data.type === "friends") {
+        router.push("/(tabs)/friends" as any);
+      } else if (data.momentId) {
         router.push(`/moment/${data.momentId}`);
       } else if (data.type === "create") {
         router.push("/create");
@@ -278,6 +280,14 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="join"
+            options={{ headerShown: false, presentation: "modal" }}
+          />
+          <Stack.Screen
+            name="friends-list"
+            options={{ headerShown: false, presentation: "modal" }}
+          />
+          <Stack.Screen
+            name="friend-request"
             options={{ headerShown: false, presentation: "modal" }}
           />
         </Stack>

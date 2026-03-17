@@ -26,6 +26,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { searchItunesArtists, searchItunesSongs } from "@/lib/musicSearch";
+import { checkUsernameAvailable } from "@/lib/friends";
 import { FavoriteArtist, FavoriteSong } from "@/types";
 
 const AVATAR_SIZE = 100;
@@ -59,9 +60,31 @@ export default function ProfileEditScreen() {
   // ── Basic info ──────────────────────────────────────────────────────────
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [nameInput, setNameInput] = useState(profile?.displayName ?? "");
+  const [usernameInput, setUsernameInput] = useState(profile?.username ?? "");
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const usernameDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [birthYear, setBirthYear] = useState<number | null>(profile?.birthYear ?? null);
   const [country, setCountry] = useState(profile?.country ?? "");
   const [saving, setSaving] = useState(false);
+
+  // ── Username check ──────────────────────────────────────────────────────
+  const handleUsernameChange = useCallback((text: string) => {
+    const cleaned = text.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    setUsernameInput(cleaned);
+    setUsernameStatus("idle");
+    if (usernameDebounce.current) clearTimeout(usernameDebounce.current);
+    if (!cleaned.trim() || cleaned === profile?.username) {
+      setUsernameStatus("idle");
+      return;
+    }
+    if (cleaned.length < 3) { setUsernameStatus("taken"); return; }
+    setUsernameStatus("checking");
+    usernameDebounce.current = setTimeout(async () => {
+      if (!user) return;
+      const available = await checkUsernameAvailable(cleaned, user.id).catch(() => false);
+      setUsernameStatus(available ? "available" : "taken");
+    }, 400);
+  }, [user, profile?.username]);
 
   // ── Picker modals ───────────────────────────────────────────────────────
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
@@ -218,10 +241,15 @@ export default function ProfileEditScreen() {
   // ── Save ────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (usernameInput.trim() && usernameStatus === "taken") {
+      Alert.alert("Username taken", "Please choose a different username.");
+      return;
+    }
     setSaving(true);
     try {
       await updateProfile({
         displayName: nameInput.trim() || undefined,
+        username: usernameInput.trim() || null,
         birthYear,
         country: country.trim() || null,
         favoriteArtists: selectedArtists,
@@ -294,6 +322,39 @@ export default function ProfileEditScreen() {
               cursorColor={theme.colors.accent}
               returnKeyType="done"
             />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Username</Text>
+            <View style={[styles.usernameRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundInput }]}>
+              <Text style={[styles.usernameAt, { color: theme.colors.textSecondary }]}>@</Text>
+              <TextInput
+                style={[styles.fieldInput, { flex: 1, borderWidth: 0, paddingVertical: 0, paddingHorizontal: 4, backgroundColor: "transparent" }]}
+                value={usernameInput}
+                onChangeText={handleUsernameChange}
+                placeholder="username"
+                placeholderTextColor={theme.colors.placeholder}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="done"
+                maxLength={30}
+              />
+              {usernameStatus === "checking" && (
+                <ActivityIndicator size="small" color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
+              )}
+              {usernameStatus === "available" && (
+                <Ionicons name="checkmark-circle" size={18} color={theme.colors.success} style={{ marginRight: 8 }} />
+              )}
+              {usernameStatus === "taken" && (
+                <Ionicons name="close-circle" size={18} color={theme.colors.destructive} style={{ marginRight: 8 }} />
+              )}
+            </View>
+            {usernameStatus === "available" && (
+              <Text style={[styles.usernameHint, { color: theme.colors.success }]}>✓ Available</Text>
+            )}
+            {usernameStatus === "taken" && usernameInput.length >= 3 && (
+              <Text style={[styles.usernameHint, { color: theme.colors.destructive }]}>✗ Taken — try another</Text>
+            )}
           </View>
 
           <View style={styles.field}>
@@ -671,6 +732,21 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.md,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: theme.colors.border,
+    },
+    usernameRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderRadius: theme.radii.sm,
+      borderWidth: StyleSheet.hairlineWidth,
+      paddingHorizontal: theme.spacing.md,
+      height: 48,
+    },
+    usernameAt: {
+      fontSize: theme.fontSize.base,
+    },
+    usernameHint: {
+      fontSize: theme.fontSize.xs,
+      marginTop: 4,
     },
     fieldReadOnly: {
       fontSize: theme.fontSize.base,

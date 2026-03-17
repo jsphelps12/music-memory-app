@@ -73,6 +73,8 @@ export default function MomentDetailScreen() {
   const [viewerIndex, setViewerIndex] = useState(0);
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [showVolumeHint, setShowVolumeHint] = useState(true);
+  const [friendTags, setFriendTags] = useState<import("@/types").TaggedMoment[]>([]);
+  const [releasingTagId, setReleasingTagId] = useState<string | null>(null);
 
   // Collection membership state
   const [collectionModalVisible, setCollectionModalVisible] = useState(false);
@@ -202,6 +204,14 @@ export default function MomentDetailScreen() {
       };
     }, [fetchMoment, stop])
   );
+
+  // Load friend tags for own moments
+  useEffect(() => {
+    if (!moment || !user || moment.userId !== user.id) return;
+    import("@/lib/friends").then(({ fetchTagsOnMoment }) => {
+      fetchTagsOnMoment(moment.id).then(setFriendTags).catch(() => {});
+    });
+  }, [moment?.id, user?.id]);
 
   const photoUrls = useMemo(
     () => moment?.photoUrls.map(getPublicPhotoUrl) ?? [],
@@ -629,6 +639,48 @@ export default function MomentDetailScreen() {
               ) : null}
             </View>
           ) : null}
+
+          {/* With Friends — only shown to the moment owner */}
+          {moment.userId === user?.id && friendTags.length > 0 && (
+            <View style={styles.withFriendsSection}>
+              <Text style={styles.withFriendsSectionLabel}>WITH FRIENDS</Text>
+              {friendTags.map((tag) => (
+                <View key={tag.id} style={styles.friendTagRow}>
+                  <Ionicons name="person-outline" size={15} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
+                  <Text style={[styles.friendTagName, { color: theme.colors.text }]} numberOfLines={1}>
+                    {tag.taggerDisplayName ?? "Friend"}
+                  </Text>
+                  <View style={{ flex: 1 }} />
+                  {tag.released ? (
+                    <Text style={[styles.friendTagStatus, { color: theme.colors.success }]}>Released ✓</Text>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.releaseBtn, { backgroundColor: theme.colors.accentBg }]}
+                      onPress={async () => {
+                        setReleasingTagId(tag.id);
+                        try {
+                          const { releaseTag } = await import("@/lib/friends");
+                          await releaseTag(tag.id);
+                          setFriendTags((prev) =>
+                            prev.map((t) => t.id === tag.id ? { ...t, released: true } : t)
+                          );
+                        } catch {}
+                        setReleasingTagId(null);
+                      }}
+                      disabled={releasingTagId === tag.id}
+                      activeOpacity={0.8}
+                    >
+                      {releasingTagId === tag.id ? (
+                        <ActivityIndicator size="small" color={theme.colors.accent} />
+                      ) : (
+                        <Text style={[styles.releaseBtnText, { color: theme.colors.accent }]}>Release →</Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
         </ScrollView>
       )}
 
@@ -1118,6 +1170,41 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.xs,
       color: theme.colors.textTertiary,
       marginLeft: theme.spacing.sm,
+    },
+    withFriendsSection: {
+      marginTop: theme.spacing.xl,
+      paddingTop: theme.spacing.lg,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.border,
+    },
+    withFriendsSectionLabel: {
+      fontSize: theme.fontSize.xs,
+      fontWeight: theme.fontWeight.semibold,
+      color: theme.colors.textTertiary,
+      letterSpacing: 0.5,
+      marginBottom: 10,
+    },
+    friendTagRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 8,
+    },
+    friendTagName: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.medium,
+      maxWidth: "50%",
+    },
+    friendTagStatus: {
+      fontSize: theme.fontSize.xs,
+    },
+    releaseBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+    },
+    releaseBtnText: {
+      fontSize: theme.fontSize.xs,
+      fontWeight: theme.fontWeight.semibold,
     },
     volumeHint: {
       position: "absolute",
