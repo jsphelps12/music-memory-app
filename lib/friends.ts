@@ -91,7 +91,7 @@ export async function sendFriendRequest(toUserId: string): Promise<void> {
   // Notify the recipient
   await supabase.functions.invoke("notify-friend", {
     body: { toUserId, type: "friend_request", payload: {} },
-  }).catch(() => {});
+  }).catch((err) => { if (__DEV__) console.warn("[notify-friend]", err); });
 }
 
 export async function acceptFriendRequest(friendshipId: string): Promise<void> {
@@ -110,7 +110,7 @@ export async function acceptFriendRequest(friendshipId: string): Promise<void> {
 
   await supabase.functions.invoke("notify-friend", {
     body: { toUserId: friendship.requester_id, type: "friend_accepted", payload: {} },
-  }).catch(() => {});
+  }).catch((err) => { if (__DEV__) console.warn("[notify-friend]", err); });
 }
 
 export async function declineFriendRequest(friendshipId: string): Promise<void> {
@@ -327,7 +327,7 @@ export async function insertTaggedMoment(
   if (released) {
     await supabase.functions.invoke("notify-friend", {
       body: { toUserId: taggedUserId, type: "moment_tagged", payload: { momentId } },
-    }).catch(() => {});
+    }).catch((err) => { if (__DEV__) console.warn("[notify-friend]", err); });
   }
 
   return mapTaggedMomentRow({ ...data, tagger_display_name: null, tagger_avatar_url: null });
@@ -349,7 +349,7 @@ export async function releaseTag(taggedMomentId: string): Promise<void> {
 
   await supabase.functions.invoke("notify-friend", {
     body: { toUserId: row.tagged_user_id, type: "moment_tagged", payload: { momentId: row.moment_id } },
-  }).catch(() => {});
+  }).catch((err) => { if (__DEV__) console.warn("[notify-friend]", err); });
 }
 
 export async function acceptTaggedMoment(taggedMomentId: string): Promise<void> {

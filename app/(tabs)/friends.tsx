@@ -12,6 +12,8 @@ import {
   TextInput,
   Keyboard,
   Platform,
+  KeyboardAvoidingView,
+  RefreshControl,
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -118,6 +120,7 @@ function AddFriendSheet({ visible, onClose, friendInviteToken, currentUserId, on
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={onClose} />
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={[styles.sheet, { backgroundColor: theme.colors.background }]}>
         <View style={[styles.sheetHandle, { backgroundColor: theme.colors.border }]} />
         <View style={styles.sheetHeader}>
@@ -201,6 +204,7 @@ function AddFriendSheet({ visible, onClose, friendInviteToken, currentUserId, on
           <Text style={[styles.noResults, { color: theme.colors.textSecondary }]}>No users found for "@{query}"</Text>
         )}
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -299,6 +303,7 @@ export default function FriendsScreen() {
   const allMoods = useMemo(() => MOODS, []);
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<Friendship[]>([]);
   const [inbox, setInbox] = useState<TaggedMoment[]>([]);
   const [accepted, setAccepted] = useState<TaggedMoment[]>([]);
@@ -330,12 +335,19 @@ export default function FriendsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
+      loadData(true);
     }, [loadData])
   );
 
-  const handleAcceptTag = (id: string) => {
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData(true);
+    setRefreshing(false);
+  }, [loadData]);
+
+  const handleAcceptTag = async (id: string) => {
     setInbox((prev) => prev.filter((i) => i.id !== id));
+    await loadData(true);
   };
 
   const handleHideTag = (id: string) => {
@@ -387,6 +399,7 @@ export default function FriendsScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         stickySectionHeadersEnabled={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.accent} />}
         ListHeaderComponent={
           <>
             {/* Pending request banner */}

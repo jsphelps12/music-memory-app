@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
 
     const notification = buildNotification(type, senderName, payload ?? {});
 
-    await fetch(EXPO_PUSH_URL, {
+    const pushRes = await fetch(EXPO_PUSH_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
@@ -111,6 +111,10 @@ Deno.serve(async (req) => {
         sound: "default",
       }),
     });
+    const pushData = await pushRes.json().catch(() => null);
+    if (!pushRes.ok || pushData?.data?.status === "error") {
+      console.error("[notify-friend] Expo push error:", JSON.stringify(pushData));
+    }
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
