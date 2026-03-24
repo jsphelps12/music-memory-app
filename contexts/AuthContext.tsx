@@ -100,19 +100,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!isMountedRef.current) return;
-      try {
-        setSession(session);
-        if (session?.user) {
-          posthog.identify(session.user.id, { $set: { email: session.user.email } });
-          await fetchProfile(session.user.id);
-          prefetchTimeline(session.user.id);
+    supabase.auth.getSession()
+      .then(async ({ data: { session } }) => {
+        if (!isMountedRef.current) return;
+        try {
+          setSession(session);
+          if (session?.user) {
+            posthog.identify(session.user.id, { $set: { email: session.user.email } });
+            await fetchProfile(session.user.id);
+            prefetchTimeline(session.user.id);
+          }
+        } finally {
+          if (isMountedRef.current) setLoading(false);
         }
-      } finally {
+      })
+      .catch(async () => {
+        // Corrupted session in storage (e.g. HTML error page cached during outage)
+        await supabase.auth.signOut({ scope: "local" });
         if (isMountedRef.current) setLoading(false);
-      }
-    });
+      });
 
     const {
       data: { subscription },
@@ -194,8 +200,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     const userId = session?.user?.id;
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    // Always clear locally even if the network call fails
+    await supabase.auth.signOut().catch(() => supabase.auth.signOut({ scope: "local" }));
     if (userId) clearTimelineCache(userId);
   };
 

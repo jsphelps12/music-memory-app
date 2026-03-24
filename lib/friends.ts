@@ -221,7 +221,7 @@ export async function fetchTaggedMomentsInbox(userId: string): Promise<TaggedMom
 
   const [{ data: profiles }, { data: moments }] = await Promise.all([
     supabase.from("profiles").select("id, display_name, avatar_url").in("id", taggerIds),
-    supabase.from("moments").select("*").in("id", momentIds),
+    supabase.rpc("get_tagged_moment_data", { p_moment_ids: momentIds }),
   ]);
 
   const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
@@ -254,7 +254,7 @@ export async function fetchAcceptedTaggedMoments(userId: string): Promise<Tagged
 
   const [{ data: profiles }, { data: moments }] = await Promise.all([
     supabase.from("profiles").select("id, display_name, avatar_url").in("id", taggerIds),
-    supabase.from("moments").select("*").in("id", momentIds),
+    supabase.rpc("get_tagged_moment_data", { p_moment_ids: momentIds }),
   ]);
 
   const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
