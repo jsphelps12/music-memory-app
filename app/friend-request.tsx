@@ -37,7 +37,7 @@ export default function FriendRequestScreen() {
   }, [token]);
 
   const handleClose = () => {
-    router.replace("/(tabs)/friends" as any);
+    router.navigate("/(tabs)/friends" as any);
   };
 
   const handleAdd = async () => {

@@ -187,6 +187,16 @@ export default function MomentDetailScreen() {
       .single();
 
     if (fetchError) {
+      // PGRST116 = 0 rows — may be a tagged moment owned by another user; try RPC
+      if (fetchError.code === "PGRST116") {
+        const { data: rpcData } = await supabase
+          .rpc("get_tagged_moment_data", { p_moment_ids: [id] });
+        if (rpcData && rpcData.length > 0) {
+          setMoment(mapRowToMoment(rpcData[0]));
+          setLoading(false);
+          return;
+        }
+      }
       if (showLoading) setError(friendlyError(fetchError));
       setLoading(false);
       return;

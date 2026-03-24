@@ -1044,7 +1044,7 @@ export default function CreateMomentScreen() {
                     {availableFriends
                       .filter((f) => {
                         if (taggedFriends.find((tf) => tf.friend.id === f.id)) return false;
-                        if (!friendQuery.trim()) return true;
+                        if (!friendQuery.trim()) return false;
                         const q = friendQuery.toLowerCase();
                         return (f.otherUserDisplayName ?? "").toLowerCase().includes(q) ||
                           (f.otherUserUsername ?? "").toLowerCase().includes(q);

@@ -139,11 +139,22 @@ export async function cancelFriendRequest(friendshipId: string): Promise<void> {
 
 export async function searchByUsername(query: string, currentUserId: string): Promise<ProfileResult[]> {
   if (!query.trim()) return [];
+
+  // Exclude users already in any friendship (pending, accepted, declined)
+  const { data: existingFriendships } = await supabase
+    .from("friendships")
+    .select("requester_id, addressee_id")
+    .or(`requester_id.eq.${currentUserId},addressee_id.eq.${currentUserId}`);
+  const excludeIds = new Set([currentUserId]);
+  (existingFriendships ?? []).forEach((f: any) => {
+    excludeIds.add(f.requester_id === currentUserId ? f.addressee_id : f.requester_id);
+  });
+
   const { data, error } = await supabase
     .from("profiles")
     .select("id, display_name, avatar_url, username, friend_invite_token")
     .ilike("username", `%${query.trim()}%`)
-    .neq("id", currentUserId)
+    .not("id", "in", `(${[...excludeIds].join(",")})`)
     .limit(20);
   if (error) throw error;
   return (data ?? []).map((row: any) => ({
