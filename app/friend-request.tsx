@@ -36,6 +36,10 @@ export default function FriendRequestScreen() {
     });
   }, [token]);
 
+  const handleClose = () => {
+    router.replace("/(tabs)/friends" as any);
+  };
+
   const handleAdd = async () => {
     if (!profile) return;
     setSending(true);
@@ -62,7 +66,7 @@ export default function FriendRequestScreen() {
       <View style={styles.header}>
         <View style={{ width: 32 }} />
         <View style={{ flex: 1 }} />
-        <CloseButton onPress={() => router.back()} />
+        <CloseButton onPress={handleClose} />
       </View>
 
       {loading ? (
@@ -122,7 +126,7 @@ export default function FriendRequestScreen() {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity onPress={() => router.back()} style={styles.notNowBtn} activeOpacity={0.7}>
+          <TouchableOpacity onPress={handleClose} style={styles.notNowBtn} activeOpacity={0.7}>
             <Text style={[styles.notNowText, { color: theme.colors.textSecondary }]}>Not Now</Text>
           </TouchableOpacity>
         </View>

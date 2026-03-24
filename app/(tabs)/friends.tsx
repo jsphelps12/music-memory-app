@@ -119,8 +119,8 @@ function AddFriendSheet({ visible, onClose, friendInviteToken, currentUserId, on
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={onClose} />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={[styles.sheet, { backgroundColor: theme.colors.background }]}>
         <View style={[styles.sheetHandle, { backgroundColor: theme.colors.border }]} />
         <View style={styles.sheetHeader}>
@@ -207,6 +207,7 @@ function AddFriendSheet({ visible, onClose, friendInviteToken, currentUserId, on
       </KeyboardAvoidingView>
     </Modal>
   );
+
 }
 
 // ── TaggedMomentInboxCard ─────────────────────────────────────────────────────
@@ -332,6 +333,13 @@ export default function FriendsScreen() {
   useEffect(() => {
     if (user) loadData(true);
   }, [user?.id]);
+
+  // Poll every 30s for new tagged moments
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(() => loadData(true), 30_000);
+    return () => clearInterval(interval);
+  }, [user?.id, loadData]);
 
   useFocusEffect(
     useCallback(() => {
