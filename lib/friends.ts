@@ -78,6 +78,7 @@ export async function fetchSentRequests(userId: string): Promise<Friendship[]> {
 export async function sendFriendRequest(toUserId: string): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Not authenticated");
+  if (session.user.id === toUserId) throw new Error("self_request");
 
   const { error } = await supabase
     .from("friendships")
@@ -114,9 +115,10 @@ export async function acceptFriendRequest(friendshipId: string): Promise<void> {
 }
 
 export async function declineFriendRequest(friendshipId: string): Promise<void> {
+  // DELETE instead of UPDATE so both parties can reconnect later
   const { error } = await supabase
     .from("friendships")
-    .update({ status: "declined", updated_at: new Date().toISOString() })
+    .delete()
     .eq("id", friendshipId);
   if (error) throw error;
 }

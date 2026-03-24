@@ -16,10 +16,12 @@ import { CloseButton } from "@/components/CloseButton";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { friendlyError } from "@/lib/errors";
 import { fetchProfileByFriendToken, sendFriendRequest, ProfileResult } from "@/lib/friends";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function FriendRequestScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const router = useRouter();
+  const { user } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -49,6 +51,9 @@ export default function FriendRequestScreen() {
     } catch (e: any) {
       if (e.message === "already_connected") {
         Alert.alert("Already connected", `You're already connected with ${profile.displayName ?? "them"}.`);
+        setSent(true);
+      } else if (e.message === "self_request") {
+        Alert.alert("That's your link!", "You can't add yourself as a friend.");
         setSent(true);
       } else {
         Alert.alert("Error", friendlyError(e));

@@ -31,6 +31,7 @@ import {
   fetchPendingRequests,
   fetchTaggedMomentsInbox,
   fetchAcceptedTaggedMoments,
+  fetchFriends,
   acceptTaggedMoment,
   hideTaggedMoment,
   getFriendInviteUrl,
@@ -308,6 +309,7 @@ export default function FriendsScreen() {
   const [pendingRequests, setPendingRequests] = useState<Friendship[]>([]);
   const [inbox, setInbox] = useState<TaggedMoment[]>([]);
   const [accepted, setAccepted] = useState<TaggedMoment[]>([]);
+  const [hasFriends, setHasFriends] = useState(false);
   const [addFriendVisible, setAddFriendVisible] = useState(false);
   const lastFetchRef = useRef(0);
   const COOLDOWN = 2 * 60 * 1000;
@@ -318,14 +320,16 @@ export default function FriendsScreen() {
     if (!force && now - lastFetchRef.current < COOLDOWN) return;
     lastFetchRef.current = now;
     try {
-      const [requests, inboxItems, acceptedItems] = await Promise.all([
+      const [requests, inboxItems, acceptedItems, friends] = await Promise.all([
         fetchPendingRequests(user.id),
         fetchTaggedMomentsInbox(user.id),
         fetchAcceptedTaggedMoments(user.id),
+        fetchFriends(user.id),
       ]);
       setPendingRequests(requests);
       setInbox(inboxItems);
       setAccepted(acceptedItems);
+      setHasFriends(friends.length > 0);
     } catch {}
     setLoading(false);
   }, [user]);
@@ -360,6 +364,20 @@ export default function FriendsScreen() {
 
   const handleHideTag = (id: string) => {
     setInbox((prev) => prev.filter((i) => i.id !== id));
+  };
+
+  const handleRemoveAccepted = (id: string) => {
+    Alert.alert("Remove memory?", "This will remove it from your With Others. You can't undo this.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          setAccepted((prev) => prev.filter((i) => i.id !== id));
+          await hideTaggedMoment(id).catch(() => {});
+        },
+      },
+    ]);
   };
 
   const sections = useMemo(() => {
@@ -470,6 +488,9 @@ export default function FriendsScreen() {
                 <Text style={[styles.acceptedCardMetaText, { color: theme.colors.textSecondary }]}>
                   from {item.taggerDisplayName ?? "Someone"}
                 </Text>
+                <TouchableOpacity onPress={() => handleRemoveAccepted(item.id)} hitSlop={8} style={{ marginLeft: "auto" }}>
+                  <Ionicons name="close-circle-outline" size={18} color={theme.colors.textTertiary} />
+                </TouchableOpacity>
               </View>
               <MomentCard
                 item={item.moment}
@@ -485,15 +506,19 @@ export default function FriendsScreen() {
               <Ionicons name="people-outline" size={48} color={theme.colors.textTertiary} />
               <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>With Others</Text>
               <Text style={[styles.emptySub, { color: theme.colors.textSecondary }]}>
-                Tag a friend in a moment — it'll show up here when they accept.
+                {hasFriends
+                  ? "Tag a friend in a moment and it'll show up here when they accept."
+                  : "Add a friend, then tag them in a moment to share it here."}
               </Text>
-              <TouchableOpacity
-                style={[styles.emptyBtn, { backgroundColor: theme.colors.accent }]}
-                onPress={() => setAddFriendVisible(true)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.emptyBtnText}>Add a Friend</Text>
-              </TouchableOpacity>
+              {!hasFriends && (
+                <TouchableOpacity
+                  style={[styles.emptyBtn, { backgroundColor: theme.colors.accent }]}
+                  onPress={() => setAddFriendVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.emptyBtnText}>Add a Friend</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : null
         }
