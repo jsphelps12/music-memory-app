@@ -110,6 +110,8 @@ function AddFriendSheet({ visible, onClose, friendInviteToken, currentUserId, on
     } catch (e: any) {
       if (e.message === "already_connected") {
         Alert.alert("Already connected", `You're already connected with ${name}.`);
+      } else if (e.message === "self_request") {
+        Alert.alert("That's you!", "You can't add yourself as a friend.");
       } else {
         Alert.alert("Error", friendlyError(e));
       }

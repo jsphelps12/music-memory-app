@@ -15,7 +15,7 @@ import { Theme } from "@/constants/theme";
 import { CloseButton } from "@/components/CloseButton";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { friendlyError } from "@/lib/errors";
-import { fetchProfileByFriendToken, sendFriendRequest, ProfileResult } from "@/lib/friends";
+import { fetchProfileByFriendToken, acceptFriendInvite, ProfileResult } from "@/lib/friends";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function FriendRequestScreen() {
@@ -43,18 +43,18 @@ export default function FriendRequestScreen() {
   };
 
   const handleAdd = async () => {
-    if (!profile) return;
+    if (!token) return;
     setSending(true);
     try {
-      await sendFriendRequest(profile.id);
+      await acceptFriendInvite(token);
       setSent(true);
+      setTimeout(() => router.replace("/(tabs)/friends" as any), 1500);
     } catch (e: any) {
-      if (e.message === "already_connected") {
-        Alert.alert("Already connected", `You're already connected with ${profile.displayName ?? "them"}.`);
-        setSent(true);
-      } else if (e.message === "self_request") {
+      if (e.message === "self_request") {
         Alert.alert("That's your link!", "You can't add yourself as a friend.");
         setSent(true);
+      } else if (e.message === "not_found") {
+        Alert.alert("Invalid link", "This friend link is no longer valid.");
       } else {
         Alert.alert("Error", friendlyError(e));
       }
@@ -106,7 +106,7 @@ export default function FriendRequestScreen() {
           )}
 
           <Text style={[styles.headline, { color: theme.colors.text }]}>
-            Add {profile.displayName?.split(" ")[0] ?? "them"} as a Friend on Soundtracks
+            {profile.displayName?.split(" ")[0] ?? "Someone"} invited you to connect on Soundtracks
           </Text>
           <Text style={[styles.sub, { color: theme.colors.textSecondary }]}>
             Share music memories with friends. When you tag them in a moment, they'll get a notification.
@@ -114,7 +114,7 @@ export default function FriendRequestScreen() {
 
           {sent ? (
             <View style={[styles.sentBadge, { backgroundColor: theme.colors.accentBg }]}>
-              <Text style={[styles.sentText, { color: theme.colors.accent }]}>Friend request sent!</Text>
+              <Text style={[styles.sentText, { color: theme.colors.accent }]}>You're now friends! 🎉</Text>
             </View>
           ) : (
             <TouchableOpacity
@@ -126,7 +126,7 @@ export default function FriendRequestScreen() {
               {sending ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.addBtnText}>Add {profile.displayName?.split(" ")[0] ?? "Friend"}</Text>
+                <Text style={styles.addBtnText}>Connect with {profile.displayName?.split(" ")[0] ?? "Friend"}</Text>
               )}
             </TouchableOpacity>
           )}

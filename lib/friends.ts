@@ -95,6 +95,15 @@ export async function sendFriendRequest(toUserId: string): Promise<void> {
   }).catch((err) => { if (__DEV__) console.warn("[notify-friend]", err); });
 }
 
+export async function acceptFriendInvite(token: string): Promise<void> {
+  const { data, error } = await supabase.functions.invoke("accept-friend-invite", {
+    body: { token },
+  });
+  if (error) throw error;
+  if (data?.error === "self_request") throw new Error("self_request");
+  if (data?.error === "not_found") throw new Error("not_found");
+}
+
 export async function acceptFriendRequest(friendshipId: string): Promise<void> {
   const { data: friendship, error: fetchError } = await supabase
     .from("friendships")

@@ -58,7 +58,7 @@ export default function OnboardingScreen() {
   // Step 1
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
-  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken" | "error">("idle");
   const usernameDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Step 2
@@ -85,8 +85,12 @@ export default function OnboardingScreen() {
     setUsernameStatus("checking");
     usernameDebounce.current = setTimeout(async () => {
       if (!user) return;
-      const available = await checkUsernameAvailable(cleaned, user.id).catch(() => false);
-      setUsernameStatus(available ? "available" : "taken");
+      try {
+        const available = await checkUsernameAvailable(cleaned, user.id);
+        setUsernameStatus(available ? "available" : "taken");
+      } catch {
+        setUsernameStatus("error");
+      }
     }, 400);
   }, [user]);
 
@@ -134,6 +138,7 @@ export default function OnboardingScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       if (step === 1) {
         if (!displayName.trim()) setError("Please enter your name.");
+        else if (usernameStatus === "error") setError("Couldn't check username availability — please try again.");
         else if (usernameStatus !== "available") setError("Please choose an available username.");
       }
       return;
@@ -299,6 +304,9 @@ export default function OnboardingScreen() {
                     {usernameStatus === "taken" && (
                       <Ionicons name="close-circle" size={18} color={theme.colors.destructive} />
                     )}
+                    {usernameStatus === "error" && (
+                      <Ionicons name="warning-outline" size={18} color={theme.colors.textSecondary} />
+                    )}
                   </View>
                 </View>
                 {usernameStatus === "available" && (
@@ -309,6 +317,9 @@ export default function OnboardingScreen() {
                 )}
                 {usernameStatus === "taken" && username.length >= 3 && (
                   <Text style={[styles.usernameHint, { color: theme.colors.destructive }]}>✗ Taken — try another</Text>
+                )}
+                {usernameStatus === "error" && (
+                  <Text style={[styles.usernameHint, { color: theme.colors.textSecondary }]}>Couldn't check availability — retype to retry</Text>
                 )}
               </View>
             </TouchableWithoutFeedback>

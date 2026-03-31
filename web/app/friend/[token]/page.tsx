@@ -71,7 +71,7 @@ export default async function FriendInvitePage({ params }: PageProps) {
 
         {/* Headline */}
         <p style={{ color: "#fff", fontSize: 20, fontWeight: "700", textAlign: "center", marginBottom: 10 }}>
-          {firstName} wants to be your friend on Soundtracks
+          {firstName} invited you to connect on Soundtracks
         </p>
         <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 15, textAlign: "center", lineHeight: "1.5", marginBottom: 36 }}>
           Soundtracks is where you capture music-linked memories — songs tied to real moments in your life. Friends can tag each other in shared memories.

@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
+  RefreshControl,
   Alert,
   Platform,
 } from "react-native";
@@ -55,6 +56,7 @@ export default function FriendsListScreen() {
   const [pending, setPending] = useState<Friendship[]>([]);
   const [sent, setSent] = useState<Friendship[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [sentCollapsed, setSentCollapsed] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
 
@@ -152,7 +154,17 @@ export default function FriendsListScreen() {
           <ActivityIndicator color={theme.colors.accent} />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={s.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => { setRefreshing(true); await loadData(); setRefreshing(false); }}
+              tintColor={theme.colors.accent}
+            />
+          }
+        >
 
           {/* Incoming Requests */}
           {pending.length > 0 && (

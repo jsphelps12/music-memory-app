@@ -40,7 +40,8 @@ function FriendsTabIcon({ color }: { color: string }) {
     }
 
     loadCount();
-    return () => { cancelled = true; };
+    const interval = setInterval(loadCount, 60_000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [user?.id]);
 
   return (

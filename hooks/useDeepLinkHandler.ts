@@ -40,7 +40,7 @@ export async function checkClipboardForFriendToken(): Promise<string | null> {
 
 export function useDeepLinkHandler() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   // Track pending friend token so we can show FriendRequestSheet after auth
   const pendingFriendTokenRef = useRef<string | null>(null);
 
@@ -90,16 +90,16 @@ export function useDeepLinkHandler() {
     });
   }, [handleInviteCode, handleFriendToken]);
 
-  // After auth, check for pending friend token
+  // After auth + onboarding complete, check for pending friend token
   useEffect(() => {
-    if (!user) return;
+    if (!user || !profile?.onboardingCompleted) return;
     AsyncStorage.getItem(PENDING_FRIEND_TOKEN_KEY).then((token) => {
       if (token) {
         AsyncStorage.removeItem(PENDING_FRIEND_TOKEN_KEY);
         setTimeout(() => handleFriendToken(token), 500);
       }
     });
-  }, [user?.id]);
+  }, [user?.id, profile?.onboardingCompleted]);
 
   // URI scheme deep links — app already installed
   useEffect(() => {
