@@ -200,6 +200,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     const userId = session?.user?.id;
+    // Clear push token so this device stops receiving notifications for this account
+    if (userId) {
+      await supabase.from("profiles").update({ push_token: null }).eq("id", userId).catch(() => {});
+    }
     // Always clear locally even if the network call fails
     await supabase.auth.signOut().catch(() => supabase.auth.signOut({ scope: "local" }));
     if (userId) clearTimelineCache(userId);
