@@ -8,3 +8,8 @@
 
 DROP POLICY IF EXISTS "Anyone can read a moment by share token" ON public.moments;
 DROP POLICY IF EXISTS "Public can view moments by share token" ON public.moments;
+
+-- Also drop the tagged_moments EXISTS subquery policy — replaced by the
+-- get_tagged_moment_data SECURITY DEFINER function which handles this
+-- use case without the per-row subquery cost.
+DROP POLICY IF EXISTS "Tagged users can read moments they are tagged in" ON public.moments;
