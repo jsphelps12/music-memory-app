@@ -106,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           setSession(session);
           if (session?.user) {
-            posthog.identify(session.user.id, { $set: { email: session.user.email } });
+            posthog.identify(session.user.id, { $set: { email: session.user.email ?? null } });
             await fetchProfile(session.user.id);
             prefetchTimeline(session.user.id);
           }
@@ -126,7 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!suppressAuth.current) {
         setSession(session);
         if (session?.user) {
-          posthog.identify(session.user.id, { $set: { email: session.user.email } });
+          posthog.identify(session.user.id, { $set: { email: session.user.email ?? null } });
           await fetchProfile(session.user.id);
         } else {
           posthog.reset();
@@ -202,7 +202,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const userId = session?.user?.id;
     // Clear push token so this device stops receiving notifications for this account
     if (userId) {
-      await supabase.from("profiles").update({ push_token: null }).eq("id", userId).catch(() => {});
+      try { await supabase.from("profiles").update({ push_token: null }).eq("id", userId); } catch {}
     }
     // Always clear locally even if the network call fails
     await supabase.auth.signOut().catch(() => supabase.auth.signOut({ scope: "local" }));

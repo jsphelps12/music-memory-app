@@ -103,28 +103,28 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Moments",
-          tabBarIcon: ({ color }) => <TabBarIcon name="music" color={color} />,
+          tabBarIcon: ({ color }: { color: string }) => <TabBarIcon name="music" color={color} />,
         }}
       />
       <SwipeTabs.Screen
         name="reflections"
         options={{
           title: "Reflections",
-          tabBarIcon: ({ color }) => <TabBarIcon name="star" color={color} />,
+          tabBarIcon: ({ color }: { color: string }) => <TabBarIcon name="star" color={color} />,
         }}
       />
       <SwipeTabs.Screen
         name="friends"
         options={{
           title: "Friends",
-          tabBarIcon: ({ color }) => <FriendsTabIcon color={color} />,
+          tabBarIcon: ({ color }: { color: string }) => <FriendsTabIcon color={color} />,
         }}
       />
       <SwipeTabs.Screen
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color }) => <TabBarIcon name="user" color={color} />,
+          tabBarIcon: ({ color }: { color: string }) => <TabBarIcon name="user" color={color} />,
         }}
       />
     </SwipeTabs>

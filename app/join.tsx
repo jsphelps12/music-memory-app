@@ -76,7 +76,7 @@ export default function JoinScreen() {
     try {
       const joined = await joinCollection(inviteCode, user.id);
       setPendingCollectionId(joined.id);
-      posthog.capture("collection_joined", { collection_name: collection?.name });
+      posthog.capture("collection_joined", { collection_name: collection?.name ?? null });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace("/(tabs)");
     } catch (e) {

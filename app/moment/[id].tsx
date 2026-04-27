@@ -331,7 +331,7 @@ export default function MomentDetailScreen() {
             return;
           }
 
-          posthog.capture("moment_deleted", { song_title: moment?.songTitle, song_artist: moment?.songArtist });
+          posthog.capture("moment_deleted", { song_title: moment?.songTitle ?? null, song_artist: moment?.songArtist ?? null });
           markTimelineStale();
           animateOut(goBack);
         },
@@ -498,7 +498,7 @@ export default function MomentDetailScreen() {
       ) : error || !moment ? (
         <ErrorState
           message={error || "Moment not found"}
-          onRetry={fetchMoment}
+          onRetry={() => fetchMoment(true)}
           onBack={() => animateOut(goBack)}
         />
       ) : (

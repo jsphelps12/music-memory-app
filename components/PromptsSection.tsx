@@ -268,7 +268,7 @@ function createStyles(theme: Theme) {
     },
     deleteBtn: {
       fontSize: theme.fontSize.sm,
-      color: theme.colors.error ?? "#E05C5C",
+      color: theme.colors.destructive,
     },
     startersList: {
       paddingHorizontal: theme.spacing.md,

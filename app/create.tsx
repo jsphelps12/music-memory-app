@@ -300,6 +300,8 @@ export default function CreateMomentScreen() {
     }
   }, [params.shareCandidates]);
 
+  const [photos, setPhotos] = useState<string[]>([]);
+
   // If share intent lookup failed, open song search
   useEffect(() => {
     if (params.shareFailedUrl) {
@@ -396,7 +398,6 @@ export default function CreateMomentScreen() {
 
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [people, setPeople] = useState<string[]>([]);
-  const [photos, setPhotos] = useState<string[]>([]);
   const [momentDate, setMomentDate] = useState<Date | null>(new Date());
   const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
   const [locationQuery, setLocationQuery] = useState("");

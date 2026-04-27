@@ -138,6 +138,35 @@ export default function TimelineScreen() {
   const viewModeRef = useRef(viewMode);
   viewModeRef.current = viewMode;
 
+  const fetchCalendarMoments = useCallback(async () => {
+    if (!user) return;
+    setCalendarLoading(true);
+    const { data } = await supabase
+      .from("moments")
+      .select("id, moment_date, song_artwork_url, song_title, song_artist")
+      .eq("user_id", user.id)
+      .order("moment_date", { ascending: false, nullsFirst: false });
+    if (data) {
+      setCalendarMoments(
+        data.map((r: any) => ({
+          id: r.id,
+          momentDate: r.moment_date ?? null,
+          songArtworkUrl: r.song_artwork_url ?? "",
+          songTitle: r.song_title ?? "",
+          songArtist: r.song_artist ?? "",
+          locationLat: null,
+          locationLng: null,
+          userId: "", reflectionText: "", photoUrls: [], photoThumbnails: [],
+          mood: null, people: [], location: null, timeOfDay: null,
+          createdAt: "", updatedAt: "", songAlbumName: "", songAppleMusicId: "",
+          songPreviewUrl: null,
+        } as Moment))
+      );
+      calendarFetchedRef.current = true;
+    }
+    setCalendarLoading(false);
+  }, [user]);
+
   const switchToList = useCallback(() => {
     if (viewModeRef.current !== "list") {
       calendarOpacity.value = withTiming(0, { duration: 200 });
@@ -247,6 +276,18 @@ export default function TimelineScreen() {
       if (locationDebounceTimer.current) clearTimeout(locationDebounceTimer.current);
     };
   }, [locationSearch]);
+
+  const sections = useMemo(() => {
+    const grouped: Record<string, Moment[]> = {};
+    for (const m of moments) {
+      const key = m.momentDate
+        ? new Date(m.momentDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })
+        : "No Date";
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(m);
+    }
+    return Object.entries(grouped).map(([title, data]) => ({ title, data }));
+  }, [moments]);
 
   // Scroll to a specific moment after switching from calendar to list
   useEffect(() => {
@@ -420,34 +461,6 @@ export default function TimelineScreen() {
     [user]
   );
 
-  const fetchCalendarMoments = useCallback(async () => {
-    if (!user) return;
-    setCalendarLoading(true);
-    const { data } = await supabase
-      .from("moments")
-      .select("id, moment_date, song_artwork_url, song_title, song_artist")
-      .eq("user_id", user.id)
-      .order("moment_date", { ascending: false, nullsFirst: false });
-    if (data) {
-      setCalendarMoments(
-        data.map((r: any) => ({
-          id: r.id,
-          momentDate: r.moment_date ?? null,
-          songArtworkUrl: r.song_artwork_url ?? "",
-          songTitle: r.song_title ?? "",
-          songArtist: r.song_artist ?? "",
-          // unused fields required by type
-          userId: "", reflectionText: "", photoUrls: [], photoThumbnails: [],
-          mood: null, people: [], location: null, timeOfDay: null,
-          createdAt: "", updatedAt: "", songAlbumName: "", songAppleMusicId: "",
-          songPreviewUrl: null,
-        } as Moment))
-      );
-      calendarFetchedRef.current = true;
-    }
-    setCalendarLoading(false);
-  }, [user]);
-
   const handleLoadMore = useCallback(async () => {
     if (!hasMore || loadingMore) return;
     setLoadingMore(true);
@@ -514,17 +527,6 @@ export default function TimelineScreen() {
     setRefreshing(false);
   }, [fetchMoments]);
 
-  const sections = useMemo(() => {
-    const grouped: Record<string, Moment[]> = {};
-    for (const m of moments) {
-      const key = m.momentDate
-        ? new Date(m.momentDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })
-        : "No Date";
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(m);
-    }
-    return Object.entries(grouped).map(([title, data]) => ({ title, data }));
-  }, [moments]);
 
   const allMoods = useMemo(
     () => [...MOODS, ...(profile?.customMoods ?? [])],
@@ -534,11 +536,12 @@ export default function TimelineScreen() {
   const renderMoment = useCallback(({ item }: { item: Moment }) => (
     <MomentCard
       item={item}
-      onPress={() => router.push(
-        selectedCollection
-          ? { pathname: `/moment/${item.id}`, params: { collectionId: selectedCollection.id, collectionRole: selectedCollection.role } }
-          : `/moment/${item.id}`
-      )}
+      onPress={() => {
+        const dest = selectedCollection
+          ? { pathname: "/moment/[id]" as const, params: { id: item.id, collectionId: selectedCollection.id, collectionRole: selectedCollection.role } }
+          : { pathname: "/moment/[id]" as const, params: { id: item.id } };
+        router.push(dest);
+      }}
       allMoods={allMoods}
     />
   ), [router, allMoods, selectedCollection]);
@@ -878,11 +881,7 @@ export default function TimelineScreen() {
               </Text>
               <TouchableOpacity
                 style={styles.ctaButton}
-                onPress={() => router.push(
-                  selectedCollection
-                    ? { pathname: "/create", params: { collectionId: selectedCollection.id } }
-                    : "/create"
-                )}
+                onPress={() => router.push("/create")}
                 activeOpacity={0.7}
               >
                 <Text style={styles.ctaButtonText}>Create Your First Moment</Text>

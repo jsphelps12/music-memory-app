@@ -42,22 +42,23 @@ export function prefetchTimeline(userId: string): void {
   if (_prefetch?.userId === userId) return; // already in flight for this user
 
   // Fire network fetch immediately (runs in background)
-  const networkFetch = supabase
-    .from("moments")
-    .select("*")
-    .eq("user_id", userId)
-    .order("moment_date", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false })
-    .range(0, TIMELINE_PAGE_SIZE - 1)
-    .then(({ data }) => (data ?? []).map(mapRowToMoment))
-    .then((moments) => {
-      writeCache(userId, moments);
-      return moments;
-    })
-    .catch((err) => {
-      if (__DEV__) console.warn("[timelinePrefetch] network fetch failed:", err);
-      return [] as typeof err;
-    });
+  const networkFetch = Promise.resolve(
+    supabase
+      .from("moments")
+      .select("*")
+      .eq("user_id", userId)
+      .order("moment_date", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .range(0, TIMELINE_PAGE_SIZE - 1)
+      .then(({ data }) => (data ?? []).map(mapRowToMoment))
+      .then((moments) => {
+        writeCache(userId, moments);
+        return moments;
+      })
+  ).catch((err: unknown) => {
+    if (__DEV__) console.warn("[timelinePrefetch] network fetch failed:", err);
+    return [] as Moment[];
+  });
 
   // Race: return cache immediately if available, else wait for network
   _prefetch = {
