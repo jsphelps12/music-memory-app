@@ -5,6 +5,7 @@ ALTER TABLE public.collection_members ENABLE ROW LEVEL SECURITY;
 -- NOTE: the original version had a third clause querying collection_members from within itself,
 -- causing infinite recursion (Postgres error 42P17). Removed — self-referential RLS policies
 -- must never query the same table they are defined on.
+DROP POLICY IF EXISTS "Members can view collection membership" ON public.collection_members;
 CREATE POLICY "Members can view collection membership"
   ON public.collection_members FOR SELECT
   USING (
@@ -16,11 +17,13 @@ CREATE POLICY "Members can view collection membership"
   );
 
 -- Users can only insert themselves
+DROP POLICY IF EXISTS "Users can join collections" ON public.collection_members;
 CREATE POLICY "Users can join collections"
   ON public.collection_members FOR INSERT
   WITH CHECK (user_id = auth.uid());
 
 -- Users can remove themselves; collection owners can remove any member
+DROP POLICY IF EXISTS "Users can leave or be removed from collections" ON public.collection_members;
 CREATE POLICY "Users can leave or be removed from collections"
   ON public.collection_members FOR DELETE
   USING (

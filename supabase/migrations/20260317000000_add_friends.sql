@@ -39,31 +39,39 @@ CREATE INDEX IF NOT EXISTS tagged_moments_token_idx ON tagged_moments(tag_token)
 
 -- 4. RLS: friendships
 ALTER TABLE public.friendships ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can view their own friendships" ON public.friendships;
 CREATE POLICY "Users can view their own friendships"
   ON public.friendships FOR SELECT
   USING (requester_id = auth.uid() OR addressee_id = auth.uid());
+DROP POLICY IF EXISTS "Users can send friend requests" ON public.friendships;
 CREATE POLICY "Users can send friend requests"
   ON public.friendships FOR INSERT WITH CHECK (requester_id = auth.uid());
+DROP POLICY IF EXISTS "Either party can update friendship" ON public.friendships;
 CREATE POLICY "Either party can update friendship"
   ON public.friendships FOR UPDATE
   USING (requester_id = auth.uid() OR addressee_id = auth.uid());
+DROP POLICY IF EXISTS "Either party can remove friendship" ON public.friendships;
 CREATE POLICY "Either party can remove friendship"
   ON public.friendships FOR DELETE
   USING (requester_id = auth.uid() OR addressee_id = auth.uid());
 
 -- 5. RLS: tagged_moments
 ALTER TABLE public.tagged_moments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can view tags involving them" ON public.tagged_moments;
 CREATE POLICY "Users can view tags involving them"
   ON public.tagged_moments FOR SELECT
   USING (tagger_user_id = auth.uid() OR tagged_user_id = auth.uid());
+DROP POLICY IF EXISTS "Taggers can insert tags on their own moments" ON public.tagged_moments;
 CREATE POLICY "Taggers can insert tags on their own moments"
   ON public.tagged_moments FOR INSERT
   WITH CHECK (
     tagger_user_id = auth.uid()
     AND EXISTS (SELECT 1 FROM public.moments WHERE id = moment_id AND user_id = auth.uid())
   );
+DROP POLICY IF EXISTS "Tagger can release; tagged user can accept or hide" ON public.tagged_moments;
 CREATE POLICY "Tagger can release; tagged user can accept or hide"
   ON public.tagged_moments FOR UPDATE
   USING (tagger_user_id = auth.uid() OR tagged_user_id = auth.uid());
+DROP POLICY IF EXISTS "Tagger can delete their tags" ON public.tagged_moments;
 CREATE POLICY "Tagger can delete their tags"
   ON public.tagged_moments FOR DELETE USING (tagger_user_id = auth.uid());

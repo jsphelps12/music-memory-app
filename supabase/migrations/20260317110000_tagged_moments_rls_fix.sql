@@ -1,6 +1,7 @@
 -- Allow tagged users to read moments they are tagged in
 -- Required for fetchTaggedMomentsInbox and fetchAcceptedTaggedMoments batch fetches to work
 
+DROP POLICY IF EXISTS "Tagged users can read moments they are tagged in" ON public.moments;
 CREATE POLICY "Tagged users can read moments they are tagged in"
   ON public.moments FOR SELECT
   USING (

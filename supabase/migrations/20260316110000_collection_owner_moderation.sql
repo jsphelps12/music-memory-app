@@ -3,6 +3,7 @@
 -- 2. Delete guest moments entirely (guests have no personal account)
 
 -- 1. Owner can remove any moment from their collection
+DROP POLICY IF EXISTS "Collection owners can remove moments from their collections" ON public.collection_moments;
 CREATE POLICY "Collection owners can remove moments from their collections"
   ON public.collection_moments FOR DELETE
   USING (
@@ -15,6 +16,7 @@ CREATE POLICY "Collection owners can remove moments from their collections"
 
 -- 2. Owner can delete guest moments in their collections
 --    (guest_uuid NOT NULL distinguishes guest moments from regular member moments)
+DROP POLICY IF EXISTS "Collection owners can delete guest moments in their collections" ON public.moments;
 CREATE POLICY "Collection owners can delete guest moments in their collections"
   ON public.moments FOR DELETE
   USING (
