@@ -7,7 +7,7 @@ export interface ProfileResult {
   displayName: string | null;
   avatarUrl: string | null;
   username: string | null;
-  friendInviteToken: string;
+  friendInviteToken?: string;
 }
 
 function mapFriendshipRow(row: any, currentUserId: string): Friendship {
@@ -164,7 +164,7 @@ export async function searchByUsername(query: string, currentUserId: string): Pr
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, display_name, avatar_url, username, friend_invite_token")
+    .select("id, display_name, avatar_url, username")
     .ilike("username", `%${query.trim()}%`)
     .not("id", "in", `(${[...excludeIds].join(",")})`)
     .limit(20);
@@ -174,7 +174,6 @@ export async function searchByUsername(query: string, currentUserId: string): Pr
     displayName: row.display_name,
     avatarUrl: row.avatar_url,
     username: row.username,
-    friendInviteToken: row.friend_invite_token,
   }));
 }
 

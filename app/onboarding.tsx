@@ -54,6 +54,10 @@ export default function OnboardingScreen() {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [pendingCompletion, setPendingCompletion] = useState<{
+    data: OnboardingData;
+    momentId: string;
+  } | null>(null);
 
   // Step 1
   const [displayName, setDisplayName] = useState("");
@@ -196,6 +200,32 @@ export default function OnboardingScreen() {
     router.push("/create?onboardingStage=1" as any);
   }
 
+  async function attemptCompleteOnboarding(data: OnboardingData, momentId: string) {
+    setSaving(true);
+    setError("");
+    try {
+      await completeOnboarding(data);
+      posthog.capture("onboarding_completed", {
+        has_birth_year: Boolean(data.birthYear),
+        has_country: Boolean(data.country),
+        skipped_moments: false,
+      });
+      setPendingCompletion(null);
+      router.replace("/(tabs)");
+      setTimeout(() => {
+        router.push({
+          pathname: `/moment/${momentId}`,
+          params: { returnTo: "/celebration", fromOnboarding: "true" },
+        } as any);
+      }, 800);
+    } catch (e: any) {
+      setSaving(false);
+      setError(friendlyError(e));
+      // Store pending data so the user can retry without re-creating the moment
+      setPendingCompletion({ data, momentId });
+    }
+  }
+
   function handleCaptureMoment2() {
     const unsubscribe = onOnboardingMomentSaved(async (payload) => {
       unsubscribe();
@@ -208,21 +238,7 @@ export default function OnboardingScreen() {
         favoriteSongs: [],
         genrePreferences: [],
       };
-      try {
-        await completeOnboarding(data);
-        posthog.capture("onboarding_completed", {
-          has_birth_year: Boolean(data.birthYear),
-          has_country: Boolean(data.country),
-          skipped_moments: false,
-        });
-      } catch {}
-      router.replace("/(tabs)");
-      setTimeout(() => {
-        router.push({
-          pathname: `/moment/${payload.momentId}`,
-          params: { returnTo: "/celebration", fromOnboarding: "true" },
-        } as any);
-      }, 800);
+      await attemptCompleteOnboarding(data, payload.momentId);
     });
     router.push({
       pathname: "/create",
@@ -472,16 +488,36 @@ export default function OnboardingScreen() {
           <Text style={styles.phaseSub}>Tap <Text style={{ fontWeight: "700", color: theme.colors.text }}>"Add details"</Text> to attach a photo and tag who you were with.</Text>
         </View>
 
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
         <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.nextButton, { backgroundColor: theme.colors.buttonBg }]}
-            onPress={handleCaptureMoment2}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.nextButtonText, { color: theme.colors.buttonText }]}>
-              Capture this memory
-            </Text>
-          </TouchableOpacity>
+          {pendingCompletion ? (
+            // Moment was saved but completeOnboarding failed — offer a retry
+            <TouchableOpacity
+              style={[styles.nextButton, { backgroundColor: theme.colors.buttonBg, opacity: saving ? 0.7 : 1 }]}
+              onPress={() => attemptCompleteOnboarding(pendingCompletion.data, pendingCompletion.momentId)}
+              activeOpacity={0.8}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color={theme.colors.buttonText} />
+              ) : (
+                <Text style={[styles.nextButtonText, { color: theme.colors.buttonText }]}>
+                  Try again
+                </Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.nextButton, { backgroundColor: theme.colors.buttonBg }]}
+              onPress={handleCaptureMoment2}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.nextButtonText, { color: theme.colors.buttonText }]}>
+                Capture this memory
+              </Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             onPress={handleSkipMoments}
