@@ -41,22 +41,10 @@ export async function submitContribution(formData: FormData): Promise<void> {
     throw new Error("Guest contributions are not enabled for this collection.");
   }
 
-  // Lazily provision guest user if not yet created (e.g. collection converted before feature shipped)
-  let guestUserId = collection.guest_user_id as string | null;
+  // Guest user must be provisioned by the collection owner via the app before contributions are accepted
+  const guestUserId = collection.guest_user_id as string | null;
   if (!guestUserId) {
-    const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-      email: `guest-${collection.id}@guests.soundtracks.app`,
-      password: crypto.randomUUID(),
-      email_confirm: true,
-    });
-    if (createError || !newUser.user) {
-      throw new Error("Failed to set up guest contributions. Please try again.");
-    }
-    guestUserId = newUser.user.id;
-    await supabase
-      .from("collections")
-      .update({ guest_user_id: guestUserId })
-      .eq("id", collection.id);
+    throw new Error("Guest contributions are not fully set up for this collection yet. Ask the collection owner to open the collection in the Soundtracks app first.");
   }
 
   // Generate per-submission UUID for claim flow

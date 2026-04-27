@@ -61,7 +61,7 @@ export default function JoinScreen() {
         .select("collection_id")
         .eq("collection_id", data.id)
         .eq("user_id", user!.id)
-        .single();
+        .maybeSingle();
 
       setState(membership ? "already_member" : "ready");
     } catch {

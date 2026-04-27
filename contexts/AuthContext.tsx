@@ -127,7 +127,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session);
         if (session?.user) {
           posthog.identify(session.user.id, { $set: { email: session.user.email } });
-          await fetchProfile(session.user.id);
+          try {
+            await fetchProfile(session.user.id);
+          } catch {
+            // Ensure the app is never left in an unresolvable loading state
+            if (isMountedRef.current) setProfileReady(true);
+          }
         } else {
           posthog.reset();
           setProfile(null);
