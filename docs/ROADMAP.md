@@ -1,5 +1,7 @@
 # Soundtracks — Roadmap
 
+> "Hold on to moments that matter."
+
 > "It's wild how certain songs can immediately take you back to a totally different time in your life."
 > — Instagram comment, 2,962 likes
 
@@ -99,12 +101,114 @@ Work completed after App Store submission while awaiting review.
 - [x] **Notification null crash fix** — `moment_date` null guard in send-notifications edge function; was silently crashing the function for all users
 - [x] **fetchPreviewUrl timeout** — 5s AbortController timeout on iTunes lookup; eliminates save-moment hangs when iTunes API is slow
 - [x] **NEXT_REDIRECT web fix** — re-throw Next.js redirect errors in ContributeForm catch block; was showing "unexpected response" error and enabling double-submission
+- [x] **Friends (Phase C)** — username + friend invite token on profiles; `friendships` + `tagged_moments` tables; friend invite link flow (direct accept via edge function, push notification); @username search; Friends tab with pending requests, tagged moment inbox, friends feed; Tag Friends in create screen; With Friends section in moment detail; friends badge polling; deep link dedup fix
+- [x] **RLS performance fix** — dropped `share_token IS NOT NULL` policies that caused full table scans and query timeouts under RLS; web gift pages use service role key
+
+---
+
+## NOW — April 2026 Priorities
+
+Six areas to address in order. The first two are prerequisites for everything else — a buggy, inconsistent app can't convert users no matter how good the features are.
+
+### 1. Polish & Bug Fixes 🔴 *Most urgent*
+
+The app has shipped but feels unfinished in places. UI is inconsistent across screens, error states are unhelpful, and there are known bugs in onboarding and friends. Every user who hits a bug or jarring UX is a potential churn. Fix this before pushing growth.
+
+**UI consistency:**
+- [ ] Audit every screen against the design system — spacing, font sizes, button styles, close button usage, empty states
+- [ ] Consistent error messaging — replace raw errors with `friendlyError()` everywhere; no technical strings shown to users
+- [ ] Loading states on every async action — no silent spinning or frozen UI
+- [ ] Modal presentation consistency — all modals use the same header pattern and CloseButton
+
+**Known bugs to fix:**
+- [ ] Onboarding: username availability check shows no feedback on network error (shows "error" state now but UX needs polish)
+- [ ] Friends: duplicate modal stack on cold open via invite link (deep link dedup shipped, but needs end-to-end QA)
+- [ ] Friends: slow/black screen on login during testing (likely dev build, but confirm in production build)
+- [ ] Edge function console.log cleanup — remove debug logs from `accept-friend-invite`
+- [ ] Untracked migration file: `20260324_collection_moments_moment_id_index.sql` needs to be committed
+
+**Code quality (do alongside bug fixes, not as a separate pass):**
+- [ ] Audit for duplicated fetch logic — several screens re-implement enrichment patterns that belong in `lib/friends.ts` / `lib/moments.ts`
+- [ ] Consistent error handling pattern — every `try/catch` should use `friendlyError()` before showing to user
+- [ ] Remove dead code and unused imports surfaced during audit
+
+---
+
+### 2. Full Apple Music Playback 🟡 *Major experiential gap*
+
+Currently all playback is capped at 30 seconds via iTunes preview URLs. Apple Music subscribers (the majority of iOS users in the target demographic) should get full-length playback of their moments. This is the single biggest quality-of-experience gap in the app.
+
+**What's needed:**
+- [ ] Subscription check — detect if user has active Apple Music subscription via MusicKit
+- [ ] Full playback via `ApplicationMusicPlayer` — replace `expo-av` preview playback with MusicKit `setQueue({ song })` for Apple Music subscribers
+- [ ] Graceful fallback — non-subscribers see the existing 30s preview behavior with a subtle "Subscribe to Apple Music for full songs" prompt
+- [ ] Store `apple_music_id` separately from preview URL — already done; just need to use it for full playback
+- [ ] Moment detail and now-playing context — both use the player; both need updating
+- [ ] Entitlement: MusicKit entitlement already enabled (used for search); full playback uses same entitlement
+
+**Spotify full integration:**
+- [ ] Store `spotify_track_id` on moments when song sourced from Spotify search
+- [ ] Deep link out to Spotify app for full playback (no SDK required — `spotify:track:{id}` URL scheme)
+- [ ] Show Spotify icon on moments that have a Spotify ID; tapping opens song in Spotify
+- [ ] This is the 80/20 version — full Spotify SDK integration is a separate multi-week effort
+
+---
+
+### 3. Wedding Ready 🟡 *Growth + Revenue lever*
+
+The web contribution flow is live. The remaining items make the wedding feature sellable and self-serve. A couple should be able to set this up in 10 minutes without contacting you.
+
+- [ ] **Shareable card generator** — beautiful image with couple's names, date, short link; looks like an invitation not a tech product; designed to be texted or embedded in wedding website
+- [ ] **Vanity short URLs** — `soundtracks.app/join/sarah-and-james` instead of UUID; configured by collection owner
+- [ ] **Wedding/event collection template** — pre-sets name format, cover style, default prompt ("What song defined this day for you?")
+- [ ] **Post-event claim flow** — guests who contributed via web get "Your memories from Sarah & James's wedding are waiting" after downloading
+- [ ] **PDF book export** — each page: contributor name, reflection, song + artist, photo; back: full song list; cover: tiled album art collage; print-on-demand via Artifact Uprising or Blurb
+
+---
+
+### 4. App Store Listing Improvement 🟢 *Organic discovery*
+
+The current listing is functional but not optimized. Better screenshots and copy = more organic downloads without spending on ads.
+
+- [ ] **Screenshots** — show the emotional core of the app (moment detail with blurred artwork, friends feature, reflections tab); current screenshots are functional but not aspirational; consider adding caption overlays
+- [ ] **Description rewrite** — lead with the emotional hook ("A song comes on and suddenly you're back."), not the feature list; current description is too feature-focused
+- [ ] **Keyword optimization** — research competitor keywords; "music diary", "music memories", "song journal" are underserved; use all 100 characters
+- [ ] **Promotional text** — update seasonally; not reviewed since launch
+- [ ] **App preview video** — optional but high-impact; 30s video showing the capture flow converts better than screenshots alone
+
+---
+
+### 5. Integration & End-to-End Tests 🟡 *Stability foundation*
+
+The friends debugging session is what happens without tests. The goal isn't 100% coverage — it's covering the flows that are painful to debug manually.
+
+**What to test:**
+- [ ] Edge functions — unit tests for `accept-friend-invite` auth logic, `send-notifications` scheduling logic
+- [ ] `lib/friends.ts` — `acceptFriendInvite`, `sendFriendRequest` error cases
+- [ ] `lib/moments.ts` — `mapRowToMoment`, fetch functions
+- [ ] Deep link handler — URL parsing, deduplication logic, pending token flow
+- [ ] Supabase local dev setup — `supabase start` + seed data so edge functions can be tested locally before deploying
+
+**What NOT to test (yet):**
+- UI components — too much churn; wait until UI is stable
+- Network calls — mock at the `supabase` client boundary, not per-function
+
+---
+
+### 6. Code Quality Audit 🟢 *Maintainability*
+
+Do this after the bug fix pass, not before. You'll understand the codebase better after fixing things.
+
+- [ ] Full duplicate code audit — identify shared patterns that should be extracted to lib functions
+- [ ] Consistent TypeScript — remove remaining `any` types in critical paths (friends, moments, auth)
+- [ ] RLS policy audit — verify all tables have correct policies; the share_token issue proved gaps exist
+- [ ] Review all edge functions for missing error handling
 
 ---
 
 ## PRIORITY STACK — Post-Launch Build Order
 
-Ordered by impact across growth (new users), retention (keep existing), and revenue (conversion to paid). Updated March 2026.
+Ordered by impact across growth (new users), retention (keep existing), and revenue (conversion to paid). Updated April 2026.
 
 ### Complexity reference
 - 🟢 Straightforward (days)
@@ -113,7 +217,7 @@ Ordered by impact across growth (new users), retention (keep existing), and reve
 
 | Priority | Feature | Drives | Complexity | Notes |
 |----------|---------|--------|-----------|-------|
-| 1 | Friends (Phase C) | Growth + Retention | 🟡 | Request/accept, display name search, notifications. Unlocks Memory Game and social features. |
+| 1 | ~~Friends (Phase C)~~ | ~~Growth + Retention~~ | ~~🟡~~ | ✅ Shipped April 2026 — friend invite links, direct accept, push notification, tagged moments. |
 | 2 | Wedding refinement | Growth + Revenue | 🟡 | Shareable card generator, vanity short URLs, wedding collection template, post-event claim flow, PDF book export. Builds on shipped web contribution flow. |
 | 3 | Notification refinement | Retention | 🟡 | Tap-rate tracking per type, timing optimization, unengaged user suppression, deep link targets, A/B copy. |
 | 4 | Music Memory Engine Phase 1 | Retention | 🟡 | Edge function + seed dataset + existing notification infra. Questionnaire already built. |

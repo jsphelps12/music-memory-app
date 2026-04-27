@@ -99,9 +99,10 @@ export async function acceptFriendInvite(token: string): Promise<void> {
   const { data, error } = await supabase.functions.invoke("accept-friend-invite", {
     body: { token },
   });
-  if (error) throw error;
+  // Check typed errors from response body first (edge fn may return 4xx with JSON body)
   if (data?.error === "self_request") throw new Error("self_request");
   if (data?.error === "not_found") throw new Error("not_found");
+  if (error || data?.error) throw new Error(data?.error ?? error?.message ?? "Unknown error");
 }
 
 export async function acceptFriendRequest(friendshipId: string): Promise<void> {

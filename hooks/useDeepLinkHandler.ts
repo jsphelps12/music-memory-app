@@ -43,6 +43,10 @@ export function useDeepLinkHandler() {
   const { user, profile } = useAuth();
   // Track pending friend token so we can show FriendRequestSheet after auth
   const pendingFriendTokenRef = useRef<string | null>(null);
+  // Deduplicate URL handling — getInitialURL + addEventListener both fire for same URL
+  const lastHandledUrlRef = useRef<string | null>(null);
+  // Prevent multiple simultaneous navigations to friend-request (URL + AsyncStorage + clipboard can all fire)
+  const friendNavInFlightRef = useRef(false);
 
   const handleInviteCode = useCallback(async (inviteCode: string) => {
     if (user) {
@@ -54,14 +58,19 @@ export function useDeepLinkHandler() {
 
   const handleFriendToken = useCallback(async (token: string) => {
     if (user) {
-      // Show friend request sheet by navigating with params
+      if (friendNavInFlightRef.current) return;
+      friendNavInFlightRef.current = true;
       router.push({ pathname: "/friend-request" as any, params: { token } });
+      // Reset after navigation settles
+      setTimeout(() => { friendNavInFlightRef.current = false; }, 2000);
     } else {
       await AsyncStorage.setItem(PENDING_FRIEND_TOKEN_KEY, token);
     }
   }, [user, router]);
 
   const handleUrl = useCallback(async (url: string) => {
+    if (lastHandledUrlRef.current === url) return;
+    lastHandledUrlRef.current = url;
     // Join link: soundtracks://join?inviteCode={code}
     const joinMatch = url.match(/^soundtracks:\/\/join\?inviteCode=([a-zA-Z0-9]+)/);
     if (joinMatch) {
