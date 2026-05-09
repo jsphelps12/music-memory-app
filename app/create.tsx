@@ -773,26 +773,19 @@ export default function CreateMomentScreen() {
     }
   };
 
-  // Onboarding context banner text — pinned above scroll so it doesn't scroll away
   const onboardingBannerText =
     params.onboardingStage === "1"
-      ? "✦  First moment — just a song and a quick thought. Takes 30 seconds."
+      ? "First moment — just a song and a quick thought. Takes 30 seconds."
       : params.onboardingStage === "2"
-      ? "✦  Now a deeper one — a song tied to a person. You'll be able to share it with them after."
+      ? "Now a deeper one — a song tied to a person. You'll be able to share it with them after."
       : null;
+  const [onboardingBannerDismissed, setOnboardingBannerDismissed] = useState(false);
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {onboardingBannerText && (
-        <View style={[styles.onboardingBanner, { backgroundColor: theme.colors.accentBg }]}>
-          <Text style={[styles.onboardingBannerText, { color: theme.colors.accent }]}>
-            {onboardingBannerText}
-          </Text>
-        </View>
-      )}
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
@@ -805,6 +798,19 @@ export default function CreateMomentScreen() {
             <Ionicons name="close" size={26} color={theme.colors.textSecondary} />
           </TouchableOpacity>
         </View>
+
+        {/* Onboarding context banner — dismissible card */}
+        {onboardingBannerText && !onboardingBannerDismissed && (
+          <View style={[styles.onboardingBanner, { backgroundColor: theme.colors.accentBg }]}>
+            <Ionicons name="diamond" size={12} color={theme.colors.accent} style={{ marginTop: 2, flexShrink: 0 }} />
+            <Text style={[styles.onboardingBannerText, { color: theme.colors.accent }]}>
+              {onboardingBannerText}
+            </Text>
+            <TouchableOpacity onPress={() => setOnboardingBannerDismissed(true)} hitSlop={10}>
+              <Text style={[styles.onboardingBannerDismiss, { color: theme.colors.accent }]}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Now Playing suggestion banner */}
         {!hasSong && nowPlayingSong && (
@@ -1375,13 +1381,22 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.background,
     },
     onboardingBanner: {
-      paddingHorizontal: theme.spacing.xl,
-      paddingVertical: 10,
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 10,
+      borderRadius: theme.radii.md,
+      padding: theme.spacing.md,
+      marginBottom: theme.spacing.lg,
     },
     onboardingBannerText: {
+      flex: 1,
       fontSize: theme.fontSize.sm,
       fontWeight: theme.fontWeight.medium,
-      lineHeight: 18,
+      lineHeight: 20,
+    },
+    onboardingBannerDismiss: {
+      fontSize: 14,
+      lineHeight: 20,
     },
     scrollView: {
       flex: 1,
