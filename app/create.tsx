@@ -773,11 +773,26 @@ export default function CreateMomentScreen() {
     }
   };
 
+  // Onboarding context banner text — pinned above scroll so it doesn't scroll away
+  const onboardingBannerText =
+    params.onboardingStage === "1"
+      ? "✦  First moment — just a song and a quick thought. Takes 30 seconds."
+      : params.onboardingStage === "2"
+      ? "✦  Now a deeper one — a song tied to a person. You'll be able to share it with them after."
+      : null;
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      {onboardingBannerText && (
+        <View style={[styles.onboardingBanner, { backgroundColor: theme.colors.accentBg }]}>
+          <Text style={[styles.onboardingBannerText, { color: theme.colors.accent }]}>
+            {onboardingBannerText}
+          </Text>
+        </View>
+      )}
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
@@ -1358,6 +1373,15 @@ function createStyles(theme: Theme) {
     container: {
       flex: 1,
       backgroundColor: theme.colors.background,
+    },
+    onboardingBanner: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingVertical: 10,
+    },
+    onboardingBannerText: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.medium,
+      lineHeight: 18,
     },
     scrollView: {
       flex: 1,

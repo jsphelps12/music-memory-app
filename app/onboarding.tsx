@@ -85,6 +85,9 @@ export default function OnboardingScreen() {
   const [moment1Id, setMoment1Id] = useState<string | null>(null);
   const [moment2Id, setMoment2Id] = useState<string | null>(null);
 
+  // ── Share sheet visibility (separate from phase so it can animate out) ─
+  const [shareSheetVisible, setShareSheetVisible] = useState(false);
+
   // ── Share screen person info ───────────────────────────────────────────
   const [taggedPersonName, setTaggedPersonName] = useState<string | null>(null);
   const [taggedPersonUserId, setTaggedPersonUserId] = useState<string | null>(null);
@@ -93,6 +96,10 @@ export default function OnboardingScreen() {
   const [moment1Data, setMoment1Data] = useState<Moment | null>(null);
   const [moment2Data, setMoment2Data] = useState<Moment | null>(null);
   const [shareCardVisible, setShareCardVisible] = useState(false);
+
+  useEffect(() => {
+    if (phase === "share") setShareSheetVisible(true);
+  }, [phase]);
 
   useEffect(() => {
     if (!moment1Id) return;
@@ -254,24 +261,30 @@ export default function OnboardingScreen() {
   }
 
   // ── Share screen ───────────────────────────────────────────────────────
+  function closeShareSheetThen(next: () => void) {
+    setShareSheetVisible(false);
+    // Wait for the sheet slide-down animation before transitioning
+    setTimeout(next, 300);
+  }
+
   function handleShareCard() {
-    setShareCardVisible(true);
+    closeShareSheetThen(() => setShareCardVisible(true));
   }
 
   async function handleShareLink() {
     const inviteUrl = profile?.friendInviteToken
       ? `https://soundtracks.app/friend/${profile.friendInviteToken}`
       : "https://soundtracks.app";
-    try {
-      await Share.share({ message: inviteUrl, url: inviteUrl });
-    } catch {}
-    // Only transition to celebration if we're still in the share screen phase.
-    // Calling this from the celebration invite banner should be a no-op on phase.
-    setPhase((current) => (current === "share" ? "celebration" : current));
+    closeShareSheetThen(async () => {
+      try {
+        await Share.share({ message: inviteUrl, url: inviteUrl });
+      } catch {}
+      setPhase("celebration");
+    });
   }
 
   function handleShareMaybeLater() {
-    setPhase("celebration");
+    closeShareSheetThen(() => setPhase("celebration"));
   }
 
   // ── Finish (celebration CTA) ───────────────────────────────────────────
@@ -562,12 +575,10 @@ export default function OnboardingScreen() {
         >
           <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <View style={styles.phaseTopBanner}>
-          <Text style={styles.phaseBannerText}>First moment — just a song and a quick thought. Takes 30 seconds.</Text>
-        </View>
 
         <View style={styles.phaseContent}>
           <Text style={styles.phaseHeading}>What are you listening to?</Text>
+          <Text style={styles.phaseSub}>The create screen will guide you.</Text>
         </View>
 
         <View style={styles.footer}>
@@ -595,10 +606,6 @@ export default function OnboardingScreen() {
   function renderMoment2Intro() {
     return (
       <View style={styles.container}>
-        <View style={styles.phaseTopBanner}>
-          <Text style={styles.phaseBannerText}>Now a deeper one — a song tied to a person. You'll be able to share it with them after.</Text>
-        </View>
-
         <View style={styles.phaseContent}>
           <Text style={styles.phaseHeading}>Capture a memory</Text>
           <Text style={[styles.phaseSub, { marginTop: 8 }]}>Pick a song tied to a real moment. Tag who you were with.</Text>
@@ -637,12 +644,101 @@ export default function OnboardingScreen() {
     const personName = taggedPersonName ?? "them";
     const isOnApp = Boolean(taggedPersonUserId);
     const shareableMoment = moment2Data ?? moment1Data;
-    const shareablePhotoUrls = shareableMoment?.photoUrls
-      .map((p) => getPublicPhotoUrl(p))
-      .filter(Boolean) as string[] ?? [];
+    const shareablePhotoUrls = shareableMoment?.photoUrls.map(getPublicPhotoUrl) ?? [];
 
     return (
       <View style={styles.container}>
+        {/* Background: the just-saved moment card */}
+        <View style={[styles.phaseContent, { justifyContent: "flex-start", paddingTop: 80 }]}>
+          <Text style={[styles.phaseHeading, { marginBottom: 4 }]}>
+            Share with {personName}?
+          </Text>
+          <Text style={styles.phaseSub}>They were part of this memory.</Text>
+          {shareableMoment && (
+            <View style={{ marginTop: theme.spacing["2xl"] }}>
+              <CelebrationMomentCard moment={shareableMoment} theme={theme} />
+            </View>
+          )}
+        </View>
+
+        {/* Share options — bottom sheet Modal sliding up over the background */}
+        <Modal
+          visible={shareSheetVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={handleShareMaybeLater}
+        >
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={handleShareMaybeLater}
+          />
+          <View style={[styles.shareSheet, { backgroundColor: theme.colors.background }]}>
+            <View style={[styles.pickerSheetHandle, { backgroundColor: theme.colors.border }]} />
+            <View style={styles.shareSheetHeader}>
+              <Text style={[styles.shareSheetTitle, { color: theme.colors.text }]}>
+                Share with {personName}?
+              </Text>
+              <Text style={[styles.shareSheetSub, { color: theme.colors.textSecondary }]}>
+                They were part of this memory.
+              </Text>
+            </View>
+
+            <View style={styles.shareOptionsList}>
+              <TouchableOpacity
+                style={[styles.shareOption, { borderColor: theme.colors.border }]}
+                onPress={handleShareCard}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.shareOptionIcon, { backgroundColor: theme.colors.accentBg }]}>
+                  <Ionicons name="image-outline" size={22} color={theme.colors.accent} />
+                </View>
+                <View style={styles.shareOptionText}>
+                  <Text style={[styles.shareOptionTitle, { color: theme.colors.text }]}>Create share card</Text>
+                  <Text style={[styles.shareOptionSub, { color: theme.colors.textSecondary }]}>A designed image for Stories</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.shareOption, { borderColor: theme.colors.border }]}
+                onPress={handleShareLink}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.shareOptionIcon, { backgroundColor: theme.colors.accentBg }]}>
+                  <Ionicons name="link-outline" size={22} color={theme.colors.accent} />
+                </View>
+                <View style={styles.shareOptionText}>
+                  <Text style={[styles.shareOptionTitle, { color: theme.colors.text }]}>Share link</Text>
+                  <Text style={[styles.shareOptionSub, { color: theme.colors.textSecondary }]}>Send via text, email or anywhere</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+              </TouchableOpacity>
+
+              <View style={[styles.shareOption, { borderColor: theme.colors.border, opacity: isOnApp ? 1 : 0.45 }]}>
+                <View style={[styles.shareOptionIcon, { backgroundColor: theme.colors.chipBg }]}>
+                  <Ionicons name="phone-portrait-outline" size={22} color={theme.colors.textSecondary} />
+                </View>
+                <View style={styles.shareOptionText}>
+                  <Text style={[styles.shareOptionTitle, { color: theme.colors.text }]}>Send in app</Text>
+                  <Text style={[styles.shareOptionSub, { color: theme.colors.textSecondary }]}>
+                    {isOnApp ? `${personName} is on soundtracks` : `When ${personName} joins soundtracks`}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              onPress={handleShareMaybeLater}
+              activeOpacity={0.7}
+              style={[styles.skipLink, { marginBottom: Platform.OS === "ios" ? 24 : 12 }]}
+            >
+              <Text style={[styles.skipText, { color: theme.colors.textSecondary }]}>Maybe later</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+
+        {/* ShareCardModal — opens after share sheet animates out */}
         {shareableMoment && (
           <ShareCardModal
             visible={shareCardVisible}
@@ -654,66 +750,6 @@ export default function OnboardingScreen() {
             }}
           />
         )}
-        <View style={styles.phaseContent}>
-          <Text style={styles.phaseHeading}>Share with {personName}?</Text>
-          <Text style={styles.phaseSub}>They were part of this memory.</Text>
-
-          <View style={styles.shareOptionsList}>
-            <TouchableOpacity
-              style={[styles.shareOption, { borderColor: theme.colors.border }]}
-              onPress={handleShareCard}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.shareOptionIcon, { backgroundColor: theme.colors.accentBg }]}>
-                <Ionicons name="image-outline" size={22} color={theme.colors.accent} />
-              </View>
-              <View style={styles.shareOptionText}>
-                <Text style={[styles.shareOptionTitle, { color: theme.colors.text }]}>Create share card</Text>
-                <Text style={[styles.shareOptionSub, { color: theme.colors.textSecondary }]}>A designed image for Stories</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.shareOption, { borderColor: theme.colors.border }]}
-              onPress={handleShareLink}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.shareOptionIcon, { backgroundColor: theme.colors.accentBg }]}>
-                <Ionicons name="link-outline" size={22} color={theme.colors.accent} />
-              </View>
-              <View style={styles.shareOptionText}>
-                <Text style={[styles.shareOptionTitle, { color: theme.colors.text }]}>Share link</Text>
-                <Text style={[styles.shareOptionSub, { color: theme.colors.textSecondary }]}>Send via text, email or anywhere</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-            </TouchableOpacity>
-
-            <View
-              style={[styles.shareOption, styles.shareOptionDisabled, { borderColor: theme.colors.border, opacity: isOnApp ? 1 : 0.45 }]}
-            >
-              <View style={[styles.shareOptionIcon, { backgroundColor: theme.colors.chipBg }]}>
-                <Ionicons name="phone-portrait-outline" size={22} color={theme.colors.textSecondary} />
-              </View>
-              <View style={styles.shareOptionText}>
-                <Text style={[styles.shareOptionTitle, { color: theme.colors.text }]}>Send in app</Text>
-                <Text style={[styles.shareOptionSub, { color: theme.colors.textSecondary }]}>
-                  {isOnApp ? `${personName} is on soundtracks` : `When ${personName} joins soundtracks`}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.footer}>
-          <TouchableOpacity
-            onPress={handleShareMaybeLater}
-            activeOpacity={0.7}
-            style={styles.skipLink}
-          >
-            <Text style={[styles.skipText, { color: theme.colors.textSecondary }]}>Maybe later</Text>
-          </TouchableOpacity>
-        </View>
       </View>
     );
   }
@@ -1000,16 +1036,6 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.sm,
     },
     // Phase screens
-    phaseTopBanner: {
-      backgroundColor: theme.colors.accentBg,
-      paddingHorizontal: theme.spacing.xl,
-      paddingVertical: 10,
-    },
-    phaseBannerText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.accent,
-      fontWeight: theme.fontWeight.medium,
-    },
     phaseContent: {
       flex: 1,
       paddingHorizontal: theme.spacing.xl,
@@ -1048,10 +1074,28 @@ function createStyles(theme: Theme) {
     valuePropText: {
       fontSize: theme.fontSize.base,
     },
-    // Share screen
+    // Share screen bottom sheet
+    shareSheet: {
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingBottom: Platform.OS === "ios" ? 34 : 20,
+    },
+    shareSheetHeader: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingTop: 12,
+      paddingBottom: 16,
+    },
+    shareSheetTitle: {
+      fontSize: theme.fontSize.lg,
+      fontWeight: theme.fontWeight.bold,
+      marginBottom: 4,
+    },
+    shareSheetSub: {
+      fontSize: theme.fontSize.sm,
+    },
     shareOptionsList: {
-      marginTop: theme.spacing["2xl"],
-      gap: 12,
+      paddingHorizontal: theme.spacing.xl,
+      gap: 10,
     },
     shareOption: {
       flexDirection: "row",
@@ -1061,7 +1105,6 @@ function createStyles(theme: Theme) {
       padding: 16,
       gap: 14,
     },
-    shareOptionDisabled: {},
     shareOptionIcon: {
       width: 44,
       height: 44,
