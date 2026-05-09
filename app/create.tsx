@@ -735,10 +735,20 @@ export default function CreateMomentScreen() {
       markTimelineStale();
 
       if (params.onboardingStage === "1" || params.onboardingStage === "2") {
-        if (params.onboardingStage === "1" && user) {
+        // Mark first moment done for any onboarding stage so celebration.tsx
+        // doesn't appear again after onboarding completes.
+        if (user) {
           await AsyncStorage.setItem(firstMomentKey(user.id), "true");
         }
-        emitOnboardingMomentSaved({ momentId: inserted!.id, hasPerson: people.length > 0 });
+        const firstFriend = taggedFriends[0];
+        const firstPersonName = firstFriend?.friend.otherUserDisplayName ?? people[0] ?? undefined;
+        const firstPersonUserId = firstFriend?.friend.otherUserId ?? null;
+        emitOnboardingMomentSaved({
+          momentId: inserted!.id,
+          hasPerson: people.length > 0 || taggedFriends.length > 0,
+          taggedPersonName: firstPersonName,
+          taggedPersonUserId: firstPersonUserId,
+        });
         router.back();
         return;
       }

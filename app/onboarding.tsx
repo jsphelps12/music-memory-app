@@ -13,7 +13,9 @@ import {
   Modal,
   Keyboard,
   Platform,
+  Share,
 } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { CloseButton } from "@/components/CloseButton";
 import * as Haptics from "expo-haptics";
@@ -24,8 +26,12 @@ import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { onOnboardingMomentSaved } from "@/lib/onboardingEvents";
 import { checkUsernameAvailable } from "@/lib/friends";
-
-const TOTAL_STEPS = 2;
+import { registerForPushNotifications } from "@/lib/notifications";
+import { supabase } from "@/lib/supabase";
+import { mapRowToMoment } from "@/lib/moments";
+import { getPublicPhotoUrl } from "@/lib/storage";
+import { ShareCardModal } from "@/components/ShareCardModal";
+import { Moment } from "@/types";
 
 const BIRTH_YEARS = Array.from({ length: 86 }, (_, i) => 2015 - i); // 2015 → 1930
 
@@ -41,33 +47,32 @@ const COUNTRIES = [
   "Saudi Arabia", "United Arab Emirates", "Israel", "Turkey", "Greece",
 ];
 
-type OnboardingPhase = "questionnaire" | "moment1_intro" | "interstitial" | "moment2_intro";
+type OnboardingPhase =
+  | "questionnaire"
+  | "value_prop"
+  | "moment1_intro"
+  | "moment2_intro"
+  | "share"
+  | "celebration";
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { completeOnboarding, saveOnboardingData, user } = useAuth();
+  const { completeOnboarding, saveOnboardingData, user, profile } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const posthog = usePostHog();
 
   const [phase, setPhase] = useState<OnboardingPhase>("questionnaire");
-  const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [pendingCompletion, setPendingCompletion] = useState<{
-    data: OnboardingData;
-    momentId: string;
-  } | null>(null);
 
-  // Step 1
-  const [displayName, setDisplayName] = useState("");
-  const [username, setUsername] = useState("");
+  // ── Profile fields (all required) ──────────────────────────────────────
+  const [displayName, setDisplayName] = useState(profile?.displayName ?? "");
+  const [username, setUsername] = useState(profile?.username ?? "");
   const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken" | "error">("idle");
   const usernameDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Step 2
-  const [birthYear, setBirthYear] = useState<number | null>(null);
-  const [country, setCountry] = useState("");
+  const [birthYear, setBirthYear] = useState<number | null>(profile?.birthYear ?? null);
+  const [country, setCountry] = useState(profile?.country ?? "");
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
   const [countryPickerVisible, setCountryPickerVisible] = useState(false);
   const [countrySearch, setCountrySearch] = useState("");
@@ -76,10 +81,33 @@ export default function OnboardingScreen() {
     [countrySearch]
   );
 
-  // ── Username check ──────────────────────────────────────────────────────
+  // ── Captured moment IDs ────────────────────────────────────────────────
+  const [moment1Id, setMoment1Id] = useState<string | null>(null);
+  const [moment2Id, setMoment2Id] = useState<string | null>(null);
 
+  // ── Share screen person info ───────────────────────────────────────────
+  const [taggedPersonName, setTaggedPersonName] = useState<string | null>(null);
+  const [taggedPersonUserId, setTaggedPersonUserId] = useState<string | null>(null);
+
+  // ── Fetched moment data (for share card + celebration cards) ───────────
+  const [moment1Data, setMoment1Data] = useState<Moment | null>(null);
+  const [moment2Data, setMoment2Data] = useState<Moment | null>(null);
+  const [shareCardVisible, setShareCardVisible] = useState(false);
+
+  useEffect(() => {
+    if (!moment1Id) return;
+    supabase.from("moments").select("*").eq("id", moment1Id).single()
+      .then(({ data }) => { if (data) setMoment1Data(mapRowToMoment(data)); });
+  }, [moment1Id]);
+
+  useEffect(() => {
+    if (!moment2Id) return;
+    supabase.from("moments").select("*").eq("id", moment2Id).single()
+      .then(({ data }) => { if (data) setMoment2Data(mapRowToMoment(data)); });
+  }, [moment2Id]);
+
+  // ── Username availability check ────────────────────────────────────────
   const handleUsernameChange = useCallback((text: string) => {
-    // Enforce lowercase alphanumeric + underscores only
     const cleaned = text.toLowerCase().replace(/[^a-z0-9_]/g, "");
     setUsername(cleaned);
     setUsernameStatus("idle");
@@ -98,64 +126,40 @@ export default function OnboardingScreen() {
     }, 400);
   }, [user]);
 
-  // ── Escape hatch ────────────────────────────────────────────────────────
-
-  async function handleSkipMoments() {
-    setSaving(true);
-    try {
-      const data: OnboardingData = {
-        displayName: displayName.trim(),
-        username: username.trim() || undefined,
-        birthYear,
-        country: country || null,
-        favoriteArtists: [],
-        favoriteSongs: [],
-        genrePreferences: [],
-      };
-      await completeOnboarding(data);
-      posthog.capture("onboarding_completed", {
-        has_birth_year: Boolean(data.birthYear),
-        has_country: Boolean(data.country),
-        skipped_moments: true,
-      });
-      router.replace("/(tabs)");
-    } catch (e: any) {
-      setError(friendlyError(e));
-      setSaving(false);
-    }
+  // ── Build onboarding data from current form state ──────────────────────
+  function buildOnboardingData(): OnboardingData {
+    return {
+      displayName: displayName.trim(),
+      username: username.trim() || undefined,
+      birthYear,
+      country: country || null,
+      favoriteArtists: [],
+      favoriteSongs: [],
+      genrePreferences: [],
+    };
   }
 
-  // ── Questionnaire navigation ────────────────────────────────────────────
-
+  // ── Questionnaire ──────────────────────────────────────────────────────
   function canAdvance(): boolean {
-    if (step === 1) {
-      const nameOk = displayName.trim().length > 0;
-      const usernameOk = username.length >= 3 && usernameStatus === "available";
-      return nameOk && usernameOk;
-    }
-    return true;
+    const nameOk = displayName.trim().length > 0;
+    const usernameOk = username.length >= 3 && usernameStatus === "available";
+    const yearOk = birthYear !== null;
+    const countryOk = country.length > 0;
+    return nameOk && usernameOk && yearOk && countryOk;
   }
 
-  async function handleNext() {
+  async function handleQuestionnaireSubmit() {
     Keyboard.dismiss();
     if (!canAdvance()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      if (step === 1) {
-        if (!displayName.trim()) setError("Please enter your name.");
-        else if (usernameStatus === "error") setError("Couldn't check username availability — please try again.");
-        else if (usernameStatus !== "available") setError("Please choose an available username.");
-      }
+      if (!displayName.trim()) setError("Please enter your name.");
+      else if (usernameStatus === "error") setError("Couldn't check username — please try again.");
+      else if (usernameStatus !== "available") setError("Please choose an available username.");
+      else if (!birthYear) setError("Please select your birth year.");
+      else if (!country) setError("Please select your country.");
       return;
     }
     setError("");
-
-    if (step < TOTAL_STEPS) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setStep((s) => s + 1);
-      return;
-    }
-
-    // After step 2 — save name/year/country/username, then go to moment1_intro
     setSaving(true);
     try {
       await saveOnboardingData({
@@ -174,7 +178,7 @@ export default function OnboardingScreen() {
         });
       }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setPhase("moment1_intro");
+      setPhase("value_prop");
     } catch (e: any) {
       setError(friendlyError(e));
     } finally {
@@ -182,363 +186,125 @@ export default function OnboardingScreen() {
     }
   }
 
-  function handleBack() {
-    if (step > 1) {
-      Keyboard.dismiss();
-      setError("");
-      setStep((s) => s - 1);
-    }
+  // ── Moment 1 ───────────────────────────────────────────────────────────
+  function handleSkipMoment1() {
+    // Skip moment 1 → still go to moment 2
+    setPhase("moment2_intro");
   }
 
-  // ── Moment phase handlers ───────────────────────────────────────────────
-
   function handleCaptureMoment1() {
-    const unsubscribe = onOnboardingMomentSaved(() => {
+    const unsubscribe = onOnboardingMomentSaved((payload) => {
       unsubscribe();
-      setPhase("interstitial");
+      setMoment1Id(payload.momentId);
+      setPhase("moment2_intro");
     });
     router.push("/create?onboardingStage=1" as any);
   }
 
-  async function attemptCompleteOnboarding(data: OnboardingData, momentId: string) {
+  // ── Moment 2 ───────────────────────────────────────────────────────────
+  function handleSkipMoment2() {
+    setError("");
+    if (moment1Id) {
+      // Saved moment 1, skipped moment 2 → show celebration with 1 moment
+      setPhase("celebration");
+    } else {
+      // Skipped both → complete onboarding and go straight to timeline
+      handleSkipBoth();
+    }
+  }
+
+  async function handleSkipBoth() {
     setSaving(true);
     setError("");
     try {
-      await completeOnboarding(data);
+      await completeOnboarding(buildOnboardingData());
       posthog.capture("onboarding_completed", {
-        has_birth_year: Boolean(data.birthYear),
-        has_country: Boolean(data.country),
-        skipped_moments: false,
+        has_birth_year: true,
+        has_country: true,
+        skipped_moments: true,
+        moments_saved: 0,
       });
-      setPendingCompletion(null);
       router.replace("/(tabs)");
-      setTimeout(() => {
-        router.push({
-          pathname: `/moment/${momentId}`,
-          params: { returnTo: "/celebration", fromOnboarding: "true" },
-        } as any);
-      }, 800);
     } catch (e: any) {
-      setSaving(false);
       setError(friendlyError(e));
-      // Store pending data so the user can retry without re-creating the moment
-      setPendingCompletion({ data, momentId });
+      setSaving(false);
     }
   }
 
   function handleCaptureMoment2() {
-    const unsubscribe = onOnboardingMomentSaved(async (payload) => {
+    const unsubscribe = onOnboardingMomentSaved((payload) => {
       unsubscribe();
-      const data: OnboardingData = {
-        displayName: displayName.trim(),
-        username: username.trim() || undefined,
-        birthYear,
-        country: country || null,
-        favoriteArtists: [],
-        favoriteSongs: [],
-        genrePreferences: [],
-      };
-      await attemptCompleteOnboarding(data, payload.momentId);
+      setMoment2Id(payload.momentId);
+      if (payload.hasPerson) {
+        setTaggedPersonName(payload.taggedPersonName ?? null);
+        setTaggedPersonUserId(payload.taggedPersonUserId ?? null);
+        setPhase("share");
+      } else {
+        setPhase("celebration");
+      }
     });
     router.push({
       pathname: "/create",
       params: {
         onboardingStage: "2",
-        promptQuestion: "Where were you when you discovered your favorite song?",
-        promptStarter: "I still remember the moment I first heard...",
+        promptQuestion: "Who were you with and what was happening?",
+        promptStarter: "We were...",
       },
     } as any);
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────
-
-  const progress = step / TOTAL_STEPS;
-
-  function renderQuestionnaire() {
-    return (
-      <>
-        {/* Progress bar */}
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-        </View>
-
-        {/* Step counter + back */}
-        <View style={styles.topRow}>
-          {step > 1 ? (
-            <TouchableOpacity onPress={handleBack} hitSlop={12} activeOpacity={0.7}>
-              <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-            </TouchableOpacity>
-          ) : (
-            <View style={{ width: 24 }} />
-          )}
-          <Text style={styles.stepCount}>{step} of {TOTAL_STEPS}</Text>
-          <View style={{ width: 24 }} />
-        </View>
-
-        {/* Step body */}
-        <View style={styles.body}>
-          {step === 1 ? (
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <View style={styles.stepContent}>
-                <Text style={styles.stepHeading}>Set up your profile</Text>
-                <Text style={styles.stepSub}>Your name and username are how you'll appear to friends.</Text>
-                <Text style={styles.fieldLabel}>Your name</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Display name"
-                  placeholderTextColor={theme.colors.placeholder}
-                  value={displayName}
-                  onChangeText={(t) => { setDisplayName(t); setError(""); }}
-                  autoFocus
-                  returnKeyType="next"
-                  textContentType="name"
-                  autoComplete="name"
-                  maxLength={40}
-                />
-                <Text style={[styles.fieldLabel, { marginTop: 20 }]}>@username</Text>
-                <View style={styles.usernameRow}>
-                  <View style={[styles.usernameInputWrap, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundInput }]}>
-                    <Text style={[styles.usernameAt, { color: theme.colors.textSecondary }]}>@</Text>
-                    <TextInput
-                      style={[styles.usernameInput, { color: theme.colors.text }]}
-                      placeholder="username"
-                      placeholderTextColor={theme.colors.placeholder}
-                      value={username}
-                      onChangeText={handleUsernameChange}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      returnKeyType="done"
-                      onSubmitEditing={handleNext}
-                      maxLength={30}
-                    />
-                    {usernameStatus === "checking" && (
-                      <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                    )}
-                    {usernameStatus === "available" && (
-                      <Ionicons name="checkmark-circle" size={18} color={theme.colors.success} />
-                    )}
-                    {usernameStatus === "taken" && (
-                      <Ionicons name="close-circle" size={18} color={theme.colors.destructive} />
-                    )}
-                    {usernameStatus === "error" && (
-                      <Ionicons name="warning-outline" size={18} color={theme.colors.textSecondary} />
-                    )}
-                  </View>
-                </View>
-                {usernameStatus === "available" && (
-                  <Text style={[styles.usernameHint, { color: theme.colors.success }]}>✓ Available</Text>
-                )}
-                {usernameStatus === "taken" && username.length < 3 && (
-                  <Text style={[styles.usernameHint, { color: theme.colors.destructive }]}>At least 3 characters required</Text>
-                )}
-                {usernameStatus === "taken" && username.length >= 3 && (
-                  <Text style={[styles.usernameHint, { color: theme.colors.destructive }]}>✗ Taken — try another</Text>
-                )}
-                {usernameStatus === "error" && (
-                  <Text style={[styles.usernameHint, { color: theme.colors.textSecondary }]}>Couldn't check availability — retype to retry</Text>
-                )}
-              </View>
-            </TouchableWithoutFeedback>
-          ) : (
-            <View style={styles.stepContent}>
-              <Text style={styles.stepHeading}>A bit about you</Text>
-              <Text style={styles.stepSub}>Helps us surface songs that match your era and background.</Text>
-
-              <Text style={styles.fieldLabel}>Birth year</Text>
-              <TouchableOpacity
-                style={styles.pickerRow}
-                onPress={() => setYearPickerVisible(true)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.pickerRowText, !birthYear && { color: theme.colors.placeholder }]}>
-                  {birthYear ? String(birthYear) : "Select year"}
-                </Text>
-                <Ionicons name="chevron-down" size={16} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-
-              <Text style={[styles.fieldLabel, { marginTop: 20 }]}>Country you grew up in</Text>
-              <TouchableOpacity
-                style={styles.pickerRow}
-                onPress={() => { setCountrySearch(""); setCountryPickerVisible(true); }}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.pickerRowText, !country && { color: theme.colors.placeholder }]}>
-                  {country || "Select country"}
-                </Text>
-                <Ionicons name="chevron-down" size={16} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-
-              <Text style={styles.optionalHint}>Both optional — you can update these anytime in your profile.</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Error */}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        {/* CTA */}
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.nextButton, { backgroundColor: theme.colors.buttonBg, opacity: saving ? 0.7 : 1 }]}
-            onPress={handleNext}
-            activeOpacity={0.8}
-            disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator color={theme.colors.buttonText} />
-            ) : (
-              <Text style={[styles.nextButtonText, { color: theme.colors.buttonText }]}>
-                Continue
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {step === 2 && (
-            <TouchableOpacity
-              onPress={() => {
-                setError("");
-                handleNext();
-              }}
-              activeOpacity={0.7}
-              style={styles.skipLink}
-            >
-              <Text style={styles.skipText}>Skip for now</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </>
-    );
+  // ── Share screen ───────────────────────────────────────────────────────
+  function handleShareCard() {
+    setShareCardVisible(true);
   }
 
-  function renderMoment1Intro() {
-    return (
-      <View style={styles.container}>
-        <View style={styles.phaseContent}>
-          <View style={styles.phaseIconCircle}>
-            <Ionicons name="musical-notes" size={36} color={theme.colors.accent} />
-          </View>
-          <Text style={styles.phaseHeading}>What are you listening to right now?</Text>
-          <Text style={styles.phaseSub}>Log the song and a quick thought — takes 30 seconds.</Text>
-        </View>
-
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.nextButton, { backgroundColor: theme.colors.buttonBg }]}
-            onPress={handleCaptureMoment1}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.nextButtonText, { color: theme.colors.buttonText }]}>
-              Capture now
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleSkipMoments}
-            activeOpacity={0.7}
-            style={styles.skipLink}
-            disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-            ) : (
-              <Text style={styles.skipText}>Skip for now</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
+  async function handleShareLink() {
+    const inviteUrl = profile?.friendInviteToken
+      ? `https://soundtracks.app/friend/${profile.friendInviteToken}`
+      : "https://soundtracks.app";
+    try {
+      await Share.share({ message: inviteUrl, url: inviteUrl });
+    } catch {}
+    // Only transition to celebration if we're still in the share screen phase.
+    // Calling this from the celebration invite banner should be a no-op on phase.
+    setPhase((current) => (current === "share" ? "celebration" : current));
   }
 
-  function renderInterstitial() {
-    return (
-      <View style={styles.container}>
-        <View style={styles.phaseContent}>
-          <View style={styles.phaseIconCircle}>
-            <Ionicons name="heart" size={36} color={theme.colors.accent} />
-          </View>
-          <Text style={styles.phaseHeading}>Nice. Now the one that really matters.</Text>
-          <Text style={styles.phaseSub}>
-            Think of a song tied to a real memory — a place, a person, a moment in time. Tap <Text style={{ fontWeight: "700", color: theme.colors.text }}>"Add details"</Text> in the next screen to attach a photo and tag who you were with.
-          </Text>
-        </View>
-
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.nextButton, { backgroundColor: theme.colors.buttonBg }]}
-            onPress={() => setPhase("moment2_intro")}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.nextButtonText, { color: theme.colors.buttonText }]}>
-              Continue →
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
+  function handleShareMaybeLater() {
+    setPhase("celebration");
   }
 
-  function renderMoment2Intro() {
-    return (
-      <View style={styles.container}>
-        <View style={styles.phaseContent}>
-          <View style={styles.phaseIconCircle}>
-            <Ionicons name="time-outline" size={36} color={theme.colors.accent} />
-          </View>
-          <Text style={styles.phaseHeading}>What's a song that means something to you?</Text>
-          <Text style={styles.phaseSub}>Tap <Text style={{ fontWeight: "700", color: theme.colors.text }}>"Add details"</Text> to attach a photo and tag who you were with.</Text>
-        </View>
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <View style={styles.footer}>
-          {pendingCompletion ? (
-            // Moment was saved but completeOnboarding failed — offer a retry
-            <TouchableOpacity
-              style={[styles.nextButton, { backgroundColor: theme.colors.buttonBg, opacity: saving ? 0.7 : 1 }]}
-              onPress={() => attemptCompleteOnboarding(pendingCompletion.data, pendingCompletion.momentId)}
-              activeOpacity={0.8}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator color={theme.colors.buttonText} />
-              ) : (
-                <Text style={[styles.nextButtonText, { color: theme.colors.buttonText }]}>
-                  Try again
-                </Text>
-              )}
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.nextButton, { backgroundColor: theme.colors.buttonBg }]}
-              onPress={handleCaptureMoment2}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.nextButtonText, { color: theme.colors.buttonText }]}>
-                Capture this memory
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            onPress={handleSkipMoments}
-            activeOpacity={0.7}
-            style={styles.skipLink}
-            disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-            ) : (
-              <Text style={styles.skipText}>Skip for now</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
+  // ── Finish (celebration CTA) ───────────────────────────────────────────
+  async function handleFinish() {
+    if (saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await completeOnboarding(buildOnboardingData());
+      posthog.capture("onboarding_completed", {
+        has_birth_year: true,
+        has_country: true,
+        skipped_moments: false,
+        moments_saved: [moment1Id, moment2Id].filter(Boolean).length,
+      });
+      try {
+        if (user) await registerForPushNotifications(user.id);
+        posthog.capture("notifications_enabled");
+      } catch {}
+      router.replace("/(tabs)");
+    } catch (e: any) {
+      setError(friendlyError(e));
+      setSaving(false);
+    }
   }
 
+  // ── Renders ────────────────────────────────────────────────────────────
+
+  if (phase === "value_prop") return renderValueProp();
   if (phase === "moment1_intro") return renderMoment1Intro();
-  if (phase === "interstitial") return renderInterstitial();
   if (phase === "moment2_intro") return renderMoment2Intro();
+  if (phase === "share") return renderShare();
+  if (phase === "celebration") return renderCelebration();
 
   return (
     <View style={styles.container}>
@@ -630,7 +396,501 @@ export default function OnboardingScreen() {
       </Modal>
     </View>
   );
+
+  // ── Questionnaire render ───────────────────────────────────────────────
+  function renderQuestionnaire() {
+    return (
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={{ flex: 1 }}>
+          {/* Header */}
+          <View style={styles.topRow}>
+            <Text style={styles.stepHeading}>Welcome to soundtracks.</Text>
+            <Text style={styles.stepSub}>Every song holds a moment. Let's set up your profile.</Text>
+          </View>
+
+          {/* Fields */}
+          <View style={styles.body}>
+            <Text style={styles.fieldLabel}>Display name</Text>
+            <TextInput
+              style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundInput }]}
+              placeholder="Your name"
+              placeholderTextColor={theme.colors.placeholder}
+              value={displayName}
+              onChangeText={(t) => { setDisplayName(t); setError(""); }}
+              autoFocus
+              returnKeyType="next"
+              textContentType="name"
+              autoComplete="name"
+              maxLength={40}
+            />
+
+            <Text style={[styles.fieldLabel, { marginTop: 20 }]}>@username</Text>
+            <View style={[styles.usernameInputWrap, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundInput }]}>
+              <Text style={[styles.usernameAt, { color: theme.colors.textSecondary }]}>@</Text>
+              <TextInput
+                style={[styles.usernameInput, { color: theme.colors.text }]}
+                placeholder="username"
+                placeholderTextColor={theme.colors.placeholder}
+                value={username}
+                onChangeText={handleUsernameChange}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="done"
+                maxLength={30}
+              />
+              {usernameStatus === "checking" && <ActivityIndicator size="small" color={theme.colors.textSecondary} />}
+              {usernameStatus === "available" && <Ionicons name="checkmark-circle" size={18} color={theme.colors.success} />}
+              {usernameStatus === "taken" && <Ionicons name="close-circle" size={18} color={theme.colors.destructive} />}
+              {usernameStatus === "error" && <Ionicons name="warning-outline" size={18} color={theme.colors.textSecondary} />}
+            </View>
+            {usernameStatus === "available" && (
+              <Text style={[styles.usernameHint, { color: theme.colors.success }]}>✓ Available</Text>
+            )}
+            {usernameStatus === "taken" && username.length < 3 && (
+              <Text style={[styles.usernameHint, { color: theme.colors.destructive }]}>At least 3 characters required</Text>
+            )}
+            {usernameStatus === "taken" && username.length >= 3 && (
+              <Text style={[styles.usernameHint, { color: theme.colors.destructive }]}>✗ Taken — try another</Text>
+            )}
+            {usernameStatus === "error" && (
+              <Text style={[styles.usernameHint, { color: theme.colors.textSecondary }]}>Couldn't check availability — retype to retry</Text>
+            )}
+
+            <Text style={[styles.fieldLabel, { marginTop: 20 }]}>Birth year</Text>
+            <TouchableOpacity
+              style={[styles.pickerRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundInput }]}
+              onPress={() => setYearPickerVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.pickerRowText, { color: birthYear ? theme.colors.text : theme.colors.placeholder }]}>
+                {birthYear ? String(birthYear) : "Select year"}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+
+            <Text style={[styles.fieldLabel, { marginTop: 20 }]}>Country you grew up in</Text>
+            <TouchableOpacity
+              style={[styles.pickerRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundInput }]}
+              onPress={() => { setCountrySearch(""); setCountryPickerVisible(true); }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.pickerRowText, { color: country ? theme.colors.text : theme.colors.placeholder }]}>
+                {country || "Select country"}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          <View style={styles.footer}>
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: theme.colors.buttonBg, opacity: saving ? 0.7 : 1 }]}
+              onPress={handleQuestionnaireSubmit}
+              activeOpacity={0.8}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color={theme.colors.buttonText} />
+              ) : (
+                <Text style={[styles.primaryButtonText, { color: theme.colors.buttonText }]}>Continue →</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableWithoutFeedback>
+    );
+  }
+
+  // ── Value prop render ──────────────────────────────────────────────────
+  function renderValueProp() {
+    return (
+      <View style={styles.container}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => setPhase("questionnaire")}
+          hitSlop={12}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <View style={styles.phaseContent}>
+          <View style={styles.phaseIconCircle}>
+            <Ionicons name="musical-note" size={36} color={theme.colors.accent} />
+          </View>
+          <Text style={styles.phaseHeading}>Your life has a soundtrack.</Text>
+          <Text style={styles.phaseSub}>
+            Soundtracks builds a timeline of songs tied to your memories — the ones that take you straight back.
+          </Text>
+
+          <View style={styles.valuePropList}>
+            {[
+              { icon: "radio-outline" as const, text: "A song playing right now" },
+              { icon: "people-outline" as const, text: "A memory shared with someone" },
+              { icon: "time-outline" as const, text: "A timeline that grows with you" },
+            ].map(({ icon, text }) => (
+              <View key={text} style={styles.valuePropRow}>
+                <Ionicons name={icon} size={20} color={theme.colors.textSecondary} />
+                <Text style={[styles.valuePropText, { color: theme.colors.textSecondary }]}>{text}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.primaryButton, { backgroundColor: theme.colors.buttonBg }]}
+            onPress={() => setPhase("moment1_intro")}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.primaryButtonText, { color: theme.colors.buttonText }]}>Save my first moment →</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Moment 1 intro render ──────────────────────────────────────────────
+  function renderMoment1Intro() {
+    return (
+      <View style={styles.container}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => setPhase("value_prop")}
+          hitSlop={12}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <View style={styles.phaseTopBanner}>
+          <Text style={styles.phaseBannerText}>First moment — just a song and a quick thought. Takes 30 seconds.</Text>
+        </View>
+
+        <View style={styles.phaseContent}>
+          <Text style={styles.phaseHeading}>What are you listening to?</Text>
+        </View>
+
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.primaryButton, { backgroundColor: theme.colors.buttonBg }]}
+            onPress={handleCaptureMoment1}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.primaryButtonText, { color: theme.colors.buttonText }]}>Save →</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleSkipMoment1}
+            activeOpacity={0.7}
+            style={styles.skipLink}
+          >
+            <Text style={[styles.skipText, { color: theme.colors.textSecondary }]}>Skip for now</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Moment 2 intro render ──────────────────────────────────────────────
+  function renderMoment2Intro() {
+    return (
+      <View style={styles.container}>
+        <View style={styles.phaseTopBanner}>
+          <Text style={styles.phaseBannerText}>Now a deeper one — a song tied to a person. You'll be able to share it with them after.</Text>
+        </View>
+
+        <View style={styles.phaseContent}>
+          <Text style={styles.phaseHeading}>Capture a memory</Text>
+          <Text style={[styles.phaseSub, { marginTop: 8 }]}>Pick a song tied to a real moment. Tag who you were with.</Text>
+        </View>
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.primaryButton, { backgroundColor: theme.colors.buttonBg }]}
+            onPress={handleCaptureMoment2}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.primaryButtonText, { color: theme.colors.buttonText }]}>Save moment →</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleSkipMoment2}
+            activeOpacity={0.7}
+            style={styles.skipLink}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+            ) : (
+              <Text style={[styles.skipText, { color: theme.colors.textSecondary }]}>Skip for now</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Share screen render ────────────────────────────────────────────────
+  function renderShare() {
+    const personName = taggedPersonName ?? "them";
+    const isOnApp = Boolean(taggedPersonUserId);
+    const shareableMoment = moment2Data ?? moment1Data;
+    const shareablePhotoUrls = shareableMoment?.photoUrls
+      .map((p) => getPublicPhotoUrl(p))
+      .filter(Boolean) as string[] ?? [];
+
+    return (
+      <View style={styles.container}>
+        {shareableMoment && (
+          <ShareCardModal
+            visible={shareCardVisible}
+            moment={shareableMoment}
+            photoUrls={shareablePhotoUrls}
+            onClose={() => {
+              setShareCardVisible(false);
+              setPhase("celebration");
+            }}
+          />
+        )}
+        <View style={styles.phaseContent}>
+          <Text style={styles.phaseHeading}>Share with {personName}?</Text>
+          <Text style={styles.phaseSub}>They were part of this memory.</Text>
+
+          <View style={styles.shareOptionsList}>
+            <TouchableOpacity
+              style={[styles.shareOption, { borderColor: theme.colors.border }]}
+              onPress={handleShareCard}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.shareOptionIcon, { backgroundColor: theme.colors.accentBg }]}>
+                <Ionicons name="image-outline" size={22} color={theme.colors.accent} />
+              </View>
+              <View style={styles.shareOptionText}>
+                <Text style={[styles.shareOptionTitle, { color: theme.colors.text }]}>Create share card</Text>
+                <Text style={[styles.shareOptionSub, { color: theme.colors.textSecondary }]}>A designed image for Stories</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.shareOption, { borderColor: theme.colors.border }]}
+              onPress={handleShareLink}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.shareOptionIcon, { backgroundColor: theme.colors.accentBg }]}>
+                <Ionicons name="link-outline" size={22} color={theme.colors.accent} />
+              </View>
+              <View style={styles.shareOptionText}>
+                <Text style={[styles.shareOptionTitle, { color: theme.colors.text }]}>Share link</Text>
+                <Text style={[styles.shareOptionSub, { color: theme.colors.textSecondary }]}>Send via text, email or anywhere</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+            </TouchableOpacity>
+
+            <View
+              style={[styles.shareOption, styles.shareOptionDisabled, { borderColor: theme.colors.border, opacity: isOnApp ? 1 : 0.45 }]}
+            >
+              <View style={[styles.shareOptionIcon, { backgroundColor: theme.colors.chipBg }]}>
+                <Ionicons name="phone-portrait-outline" size={22} color={theme.colors.textSecondary} />
+              </View>
+              <View style={styles.shareOptionText}>
+                <Text style={[styles.shareOptionTitle, { color: theme.colors.text }]}>Send in app</Text>
+                <Text style={[styles.shareOptionSub, { color: theme.colors.textSecondary }]}>
+                  {isOnApp ? `${personName} is on soundtracks` : `When ${personName} joins soundtracks`}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.footer}>
+          <TouchableOpacity
+            onPress={handleShareMaybeLater}
+            activeOpacity={0.7}
+            style={styles.skipLink}
+          >
+            <Text style={[styles.skipText, { color: theme.colors.textSecondary }]}>Maybe later</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Celebration render ─────────────────────────────────────────────────
+  function renderCelebration() {
+    const momentCount = [moment1Id, moment2Id].filter(Boolean).length;
+    // Show moment2 (shared) first, then moment1 (quick capture) — matches design
+    const celebrationMoments = [moment2Data, moment1Data].filter(Boolean) as Moment[];
+
+    return (
+      <View style={styles.container}>
+        <View style={styles.phaseContent}>
+          <View style={styles.phaseIconCircle}>
+            <Ionicons name="musical-note" size={36} color={theme.colors.accent} />
+          </View>
+          <Text style={styles.phaseHeading}>Your soundtrack starts here.</Text>
+          <Text style={styles.phaseSub}>
+            {momentCount === 2 ? "Two memories saved. Welcome." : "One memory saved. Welcome."}
+          </Text>
+
+          {/* Saved moment cards */}
+          {celebrationMoments.length > 0 && (
+            <View style={styles.celebrationMoments}>
+              {celebrationMoments.map((m) => (
+                <CelebrationMomentCard key={m.id} moment={m} theme={theme} />
+              ))}
+            </View>
+          )}
+
+          {/* Invite banner */}
+          {taggedPersonName && (
+            <View style={[styles.inviteBanner, { backgroundColor: theme.colors.accentSecondaryBg, borderColor: theme.colors.border }]}>
+              <View style={styles.inviteBannerRow}>
+                <View style={[styles.inviteAvatar, { backgroundColor: theme.colors.chipBg }]}>
+                  <Text style={[styles.inviteAvatarInitial, { color: theme.colors.textSecondary }]}>
+                    {taggedPersonName.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.inviteBannerTitle, { color: theme.colors.text }]}>
+                    Invite {taggedPersonName} to soundtracks
+                  </Text>
+                  <Text style={[styles.inviteBannerSub, { color: theme.colors.textSecondary }]}>
+                    They can see this memory and build their own soundtrack.
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[styles.inviteButton, { backgroundColor: theme.colors.accentSecondary }]}
+                onPress={handleShareLink}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.inviteButtonText, { color: "#fff" }]}>Send invite →</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.primaryButton, { backgroundColor: theme.colors.buttonBg, opacity: saving ? 0.7 : 1 }]}
+            onPress={handleFinish}
+            activeOpacity={0.8}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator color={theme.colors.buttonText} />
+            ) : (
+              <Text style={[styles.primaryButtonText, { color: theme.colors.buttonText }]}>Go to my timeline →</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 }
+
+// ── Celebration moment card ────────────────────────────────────────────────
+function CelebrationMomentCard({ moment, theme }: { moment: Moment; theme: Theme }) {
+  return (
+    <View style={[celebrationCardStyles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.cardBg }]}>
+      <View style={celebrationCardStyles.row}>
+        {moment.songArtworkUrl ? (
+          <Image
+            source={{ uri: moment.songArtworkUrl }}
+            style={celebrationCardStyles.artwork}
+            contentFit="cover"
+          />
+        ) : (
+          <View style={[celebrationCardStyles.artworkPlaceholder, { backgroundColor: theme.colors.chipBg }]}>
+            <Ionicons name="musical-note" size={20} color={theme.colors.textTertiary} />
+          </View>
+        )}
+        <View style={celebrationCardStyles.info}>
+          <Text style={[celebrationCardStyles.songName, { color: theme.colors.text }]} numberOfLines={1}>
+            {moment.songTitle}
+          </Text>
+          <Text style={[celebrationCardStyles.artist, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+            {moment.songArtist}
+          </Text>
+        </View>
+      </View>
+      {Boolean(moment.reflectionText) && (
+        <Text style={[celebrationCardStyles.reflection, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+          {moment.reflectionText}
+        </Text>
+      )}
+      {moment.people.length > 0 && (
+        <View style={celebrationCardStyles.chips}>
+          {moment.people.slice(0, 3).map((p) => (
+            <View key={p} style={[celebrationCardStyles.chip, { backgroundColor: theme.colors.chipBg }]}>
+              <Text style={[celebrationCardStyles.chipText, { color: theme.colors.textSecondary }]}>@ {p}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const celebrationCardStyles = StyleSheet.create({
+  card: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    gap: 10,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  artwork: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+  },
+  artworkPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  info: {
+    flex: 1,
+  },
+  songName: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  artist: {
+    fontSize: 13,
+  },
+  reflection: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontStyle: "italic",
+  },
+  chips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  chip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+  },
+  chipText: {
+    fontSize: 12,
+  },
+});
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
@@ -638,33 +898,20 @@ function createStyles(theme: Theme) {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
-    progressTrack: {
-      height: 3,
-      backgroundColor: theme.colors.border,
-    },
-    progressFill: {
-      height: 3,
-      backgroundColor: theme.colors.accent,
+    backButton: {
+      position: "absolute",
+      top: 56,
+      left: theme.spacing.xl,
+      zIndex: 10,
     },
     topRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
       paddingHorizontal: theme.spacing.xl,
-      paddingTop: 56,
-      paddingBottom: theme.spacing.lg,
-    },
-    stepCount: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
-      fontWeight: theme.fontWeight.medium,
+      paddingTop: 72,
+      paddingBottom: theme.spacing.xl,
     },
     body: {
       flex: 1,
       paddingHorizontal: theme.spacing.xl,
-    },
-    stepContent: {
-      paddingBottom: theme.spacing.xl,
     },
     stepHeading: {
       fontSize: theme.fontSize["2xl"],
@@ -675,7 +922,6 @@ function createStyles(theme: Theme) {
     stepSub: {
       fontSize: theme.fontSize.base,
       color: theme.colors.textSecondary,
-      marginBottom: theme.spacing["2xl"],
       lineHeight: 22,
     },
     fieldLabel: {
@@ -687,19 +933,11 @@ function createStyles(theme: Theme) {
     input: {
       height: 52,
       borderWidth: 1,
-      borderColor: theme.colors.border,
       borderRadius: 12,
       paddingHorizontal: theme.spacing.lg,
       fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      backgroundColor: theme.colors.backgroundInput,
-    },
-    usernameRow: {
-      flexDirection: "row",
-      alignItems: "center",
     },
     usernameInputWrap: {
-      flex: 1,
       flexDirection: "row",
       alignItems: "center",
       height: 52,
@@ -725,19 +963,11 @@ function createStyles(theme: Theme) {
       justifyContent: "space-between",
       height: 52,
       borderWidth: 1,
-      borderColor: theme.colors.border,
       borderRadius: 12,
       paddingHorizontal: theme.spacing.lg,
-      backgroundColor: theme.colors.backgroundInput,
     },
     pickerRowText: {
       fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-    },
-    optionalHint: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textTertiary,
-      marginTop: 16,
     },
     error: {
       fontSize: theme.fontSize.sm,
@@ -752,13 +982,13 @@ function createStyles(theme: Theme) {
       paddingTop: 12,
       gap: 8,
     },
-    nextButton: {
+    primaryButton: {
       height: 52,
-      borderRadius: 14,
+      borderRadius: theme.radii.button,
       alignItems: "center",
       justifyContent: "center",
     },
-    nextButtonText: {
+    primaryButtonText: {
       fontSize: theme.fontSize.base,
       fontWeight: theme.fontWeight.semibold,
     },
@@ -768,14 +998,22 @@ function createStyles(theme: Theme) {
     },
     skipText: {
       fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
     },
-    // Moment phases
+    // Phase screens
+    phaseTopBanner: {
+      backgroundColor: theme.colors.accentBg,
+      paddingHorizontal: theme.spacing.xl,
+      paddingVertical: 10,
+    },
+    phaseBannerText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.accent,
+      fontWeight: theme.fontWeight.medium,
+    },
     phaseContent: {
       flex: 1,
       paddingHorizontal: theme.spacing.xl,
-      paddingTop: 80,
-      justifyContent: "center",
+      paddingTop: 64,
     },
     phaseIconCircle: {
       width: 72,
@@ -796,6 +1034,100 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.base,
       color: theme.colors.textSecondary,
       lineHeight: 24,
+    },
+    // Value prop
+    valuePropList: {
+      marginTop: theme.spacing["2xl"],
+      gap: 16,
+    },
+    valuePropRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    valuePropText: {
+      fontSize: theme.fontSize.base,
+    },
+    // Share screen
+    shareOptionsList: {
+      marginTop: theme.spacing["2xl"],
+      gap: 12,
+    },
+    shareOption: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 16,
+      gap: 14,
+    },
+    shareOptionDisabled: {},
+    shareOptionIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+    },
+    shareOptionText: {
+      flex: 1,
+    },
+    shareOptionTitle: {
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
+      marginBottom: 2,
+    },
+    shareOptionSub: {
+      fontSize: theme.fontSize.sm,
+    },
+    // Celebration
+    celebrationMoments: {
+      marginTop: theme.spacing.xl,
+      gap: 10,
+    },
+    inviteBanner: {
+      marginTop: theme.spacing["2xl"],
+      borderRadius: 12,
+      borderWidth: 1,
+      padding: 16,
+      gap: 12,
+    },
+    inviteBannerRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 12,
+    },
+    inviteAvatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+    },
+    inviteAvatarInitial: {
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    inviteBannerTitle: {
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
+      marginBottom: 2,
+    },
+    inviteBannerSub: {
+      fontSize: theme.fontSize.sm,
+      lineHeight: 18,
+    },
+    inviteButton: {
+      height: 40,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    inviteButtonText: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.semibold,
     },
     // Picker modals
     modalBackdrop: {
