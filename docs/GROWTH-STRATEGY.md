@@ -364,3 +364,59 @@ Tracks sits at an intersection nobody else owns:
 | **Tracks** | **The intersection: music + the memory + the meaning** |
 
 *"The songs you'll always remember, and why."*
+
+---
+
+## First 100 Users — Concrete Plan
+
+Last updated May 2026. Goal: 100 *retained* users (10+ moments logged each), not 100 downloads.
+
+### Who to target
+1. **Music annotators** — people who already attach meaning to songs: playlist makers, Last.fm users, RateYourMusic contributors, music journalers. They have the behavior, just not the tool.
+2. **Life event people** — engaged couples, new parents, people processing a loss. They have immediate emotional stakes. A couple who uses it for their wedding becomes long-term users.
+3. **Personal network** — friends and family you can onboard in person and observe. Watching real people use it is irreplaceable early-stage research.
+
+### Where to find them
+- Authentically (not promotionally) in: r/lastfm, r/spotify, r/ifyoulikeblank, r/Music, r/journaling
+- DM people posting "this song takes me back to..." content on Twitter/X or Instagram — pre-qualified
+- Music micro-influencers (1k–10k followers) with a genuine personal note
+- 2–3 engaged couples via mutual connections — offer personal setup help
+- Your own TikTok/Reels: show the capture flow with a real memory, not a product demo
+
+### Do things that don't scale
+- DM every new user within 24 hours of sign-up (check PostHog daily)
+- Ask: "What song did you log first? What does it remind you of?"
+- Ask: "What would make you open this every week?"
+- Watch at least 5 people use the app in person — note every moment of hesitation
+- Set up a simple offboarding survey (Tally) for users who go quiet — churned users teach you more than retained ones
+
+### The empty state survival sequence
+Days 1–7 are the danger zone before the archive feels irreplaceable:
+1. **Day 0**: onboarding → first moment (guided, high-touch)
+2. **Day 1**: Music Memory Engine prompted-song notification — or a welcome message from you personally
+3. **Day 3**: "You've logged X moments. The magic starts at 10." nudge
+4. **Day 7**: if no return, personal DM
+5. **Day 30+**: On This Day starts working; archive starts feeling irreplaceable; churn drops
+
+---
+
+## Retention Benchmarks
+
+Targets to track in PostHog. Journaling-type app baseline; music's emotional hook should push above baseline.
+
+| Metric | Target | Baseline (journaling apps) |
+|--------|--------|---------------------------|
+| D1 retention | >40% | 25–35% |
+| D7 retention | >20% | 10–15% |
+| D30 retention | >10% | 5–8% |
+| Moments logged in first 7 days | >3 | — |
+| Users reaching 10 moments | >25% of signups | — |
+| Notification tap rate | >15% | 5–10% |
+
+### How to track in PostHog
+- **Retention cohort**: users who performed `moment_created` on day 0, then `app_opened` on day N
+- **Funnel**: `signed_up` → `moment_created` (1st) → `moment_created` (2nd) → `moment_created` (10th)
+- **Notification tap rate**: `notification_tapped` by type — On This Day, streak, prompted song — to see what drives returns
+
+### The number that matters most
+**Users who reach 10 moments.** Below 10, the app is a curiosity. Above 10, the archive starts to feel irreplaceable and churn drops sharply. Every product decision should optimize for getting users to moment 10 as fast as possible.

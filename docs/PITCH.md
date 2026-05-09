@@ -1,4 +1,4 @@
-# Tracks — The Pitch
+# Soundtracks — The Pitch
 
 ---
 
@@ -16,7 +16,7 @@
 ### In a meeting (60 seconds)
 *"Everyone has songs that are permanently tied to a memory — a breakup, a road trip, a person, a version of themselves they've almost forgotten. But there's nowhere to hold that. Spotify tells you what you listened to most. It can't tell you why that one song at 2am on a Tuesday changed something.*
 
-*Tracks is where you put that. You log the song, write a reflection, maybe add a photo. The app holds it. A year later, it resurfaces it — 'on this day, you were listening to this.' Over time it becomes a living record of who you've been.*
+*Soundtracks is where you put that. You log the song, write a reflection, maybe add a photo. The app holds it. A year later, it resurfaces it — 'on this day, you were listening to this.' Over time it becomes a living record of who you've been.*
 
 *The acquisition hook is weddings and events — one QR code at a reception brings in 30–100 new users from a single event. But the core product is deeply personal. It's a nostalgia engine."*
 
@@ -39,7 +39,7 @@ That gap — between the data and the meaning — is the product.
 
 ### The Solution
 
-Tracks is a music memory app. You log a song, write what it means to you right now, attach a mood, photos, location, people. The app holds it. It resurfaces it on the anniversary. Over years it becomes a structured, living record of who you've been — organized into eras, patterns, chapters.
+Soundtracks is a music memory app. You log a song, write what it means to you right now, attach a mood, photos, location, people. The app holds it. It resurfaces it on the anniversary. Over years it becomes a structured, living record of who you've been — organized into eras, patterns, chapters.
 
 **Logging is the investment. Resurfacing is the dividend.**
 
@@ -54,7 +54,7 @@ The people who need this app don't need to be taught the concept. They already s
 - *"That song got me through my divorce."*
 - *"I remember exactly where I was when I first heard this."*
 
-They just don't have a structured place to hold it. Tracks gives them that place.
+They just don't have a structured place to hold it. Soundtracks gives them that place.
 
 **This isn't a journaling app with music bolted on. It's not a music player with notes.** It's its own category: organizing nostalgia. The moat is the interpretation layer — using music + mood + time + reflection data to surface things the user didn't consciously notice about themselves.
 
@@ -77,7 +77,7 @@ Break-even at ~120 annual subscribers. Path to living off it at ~2,000.
 
 ### The Growth Engine
 
-Tracks currently has no network effects — every user's experience is independent. That's a ceiling. The answer isn't a social network. It's one mechanic that's better with two people than one.
+Soundtracks currently has no network effects — every user's experience is independent. That's a ceiling. The answer isn't a social network. It's one mechanic that's better with two people than one.
 
 **Weddings are the acquisition flywheel.**
 
@@ -96,7 +96,7 @@ A wedding guest who downloaded for someone else becomes a paying subscriber 12�
 
 ### Why Now
 
-- Spotify Wrapped proved the market: people are deeply hungry for meaning around their music history, not just stats. Wrapped generates cultural envy every December. Tracks is the version people actually want — yours, not algorithmic, year-round.
+- Spotify Wrapped proved the market: people are deeply hungry for meaning around their music history, not just stats. Wrapped generates cultural envy every December. Soundtracks is the version people actually want — yours, not algorithmic, year-round.
 - iOS 16+ capabilities (ShazamKit, Dynamic Island, Live Activities, Shortcuts) make frictionless capture finally possible — log a moment from the concert floor without unlocking your phone.
 - AI makes the interpretation layer viable for the first time — era clustering and narrative summaries are features that genuinely couldn't exist 5 years ago.
 
@@ -108,13 +108,13 @@ A wedding guest who downloaded for someone else becomes a paying subscriber 12�
 | Apple Music | ✓ | — | — |
 | Day One | — | ✓ | partial |
 | Apple Photos | — | ✓ (visual) | — |
-| **Tracks** | ✓ | ✓ | ✓ |
+| **Soundtracks** | ✓ | ✓ | ✓ |
 
 The real risk isn't competition — it's building the wrong version. "Day One but with songs" loses. The moat is the interpretation layer. If it disappears tomorrow, users miss: *being reminded of moments they lived, and being able to relive them through music.*
 
 ### The Vision
 
-After 10 years of using Tracks, a user should feel nostalgic, grateful, grounded, seen, and occasionally shocked. Shocked by how much they've lived. Shocked by patterns they never consciously noticed. Shocked that a song from 8 years ago still means the same thing.
+After 10 years of using Soundtracks, a user should feel nostalgic, grateful, grounded, seen, and occasionally shocked. Shocked by how much they've lived. Shocked by patterns they never consciously noticed. Shocked that a song from 8 years ago still means the same thing.
 
 That's the product. Everything else is in service of it.
 
@@ -123,7 +123,7 @@ That's the product. Everything else is in service of it.
 ## Common Questions
 
 **"Isn't this just Spotify with a notes field?"**
-No — Spotify is a discovery and playback tool. It's optimized for finding new music. Tracks is optimized for holding the meaning of music you already have a relationship with. They're complementary, not competitive. Most Tracks users are also heavy Spotify or Apple Music users.
+No — Spotify is a discovery and playback tool. It's optimized for finding new music. Soundtracks is optimized for holding the meaning of music you already have a relationship with. They're complementary, not competitive. Most Soundtracks users are also heavy Spotify or Apple Music users.
 
 **"Why would someone use this instead of just writing in their notes app?"**
 A notes app doesn't know the song. It doesn't resurface your entry on the anniversary. It doesn't recognize patterns across 200 entries. It doesn't show you that you've listened to the same artist during every major transition in your life. The music metadata is what makes the interpretation possible.
@@ -138,7 +138,7 @@ The On This Day notification is the retention engine. A year after logging somet
 Not a demographic. A psychographic: people who already associate songs with moments. The kind of person who says "that album was my whole era." They're 18–35 skewing, reflective, emotionally aware, heavy music listeners. They don't need to be convinced the concept matters — they just need the place to hold it.
 
 **"What's the long-term vision?"**
-The shift from rearview mirror to windshield. Early Tracks is about capturing and revisiting the past. Mature Tracks uses that accumulated data to serve present emotional needs: "I'm feeling anxious — here are your songs that historically helped." "Last October your mood dipped and your music got heavy. It's October." That turns Tracks from a journal into a personal intelligence layer. That's the difference between a nice app and an indispensable one.
+The shift from rearview mirror to windshield. Early Soundtracks is about capturing and revisiting the past. Mature Soundtracks uses that accumulated data to serve present emotional needs: "I'm feeling anxious — here are your songs that historically helped." "Last October your mood dipped and your music got heavy. It's October." That turns Soundtracks from a journal into a personal intelligence layer. That's the difference between a nice app and an indispensable one.
 
 ---
 

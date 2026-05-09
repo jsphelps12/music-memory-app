@@ -1,4 +1,4 @@
-# Tracks — Feature Ideas
+# Soundtracks — Feature Ideas
 
 Non-AI feature ideas organized by conviction level. See `AI-FEATURES.md` for AI/ML-specific features.
 
@@ -10,7 +10,7 @@ Features are marked **[Free]** or **[Premium]** based on the monetization philos
 
 The features most likely to drive growth, retention, or monetization at scale. Build these.
 
-### Shared Collections **[Free to join & contribute, Premium to create]**
+### Shared Collections ✅ **[Free to join & contribute, Premium to create]**
 
 The primary social growth engine. Every shared collection is a mini acquisition campaign.
 
@@ -53,10 +53,10 @@ The primary social growth engine. Every shared collection is a mini acquisition 
 
 ---
 
-### Shareable Era & Moment Cards **[Moment cards Free, Era cards Premium]**
+### Shareable Era & Moment Cards ✅ (moment card shipped, era card not yet) **[Moment cards Free, Era cards Premium]**
 
 - Every share is a word-of-mouth impression — this is how the app grows organically
-- **Moment card**: album art, song title, quote from reflection, date
+- **Moment card** ✅: album art, song title, quote from reflection, date — shipped as Share Image; needs design polish
 - **Era card**: artwork collage, era name, date range, "X moments in this chapter"
 - Vertical/story-format version designed for Instagram & TikTok ("This song was my whole era")
 - Multiple visual templates — clean, filmic, retro
@@ -191,12 +191,15 @@ Worth building after the high-conviction features are proven.
 - Apple Music lyrics API via MusicKit — fetch synced or static lyrics by song ID
 - Let users highlight specific lines; pairs with Lyric Anchoring feature above
 
-### Audio Reflections **[Free]**
+### Audio Reflections + Speech-to-Text **[Free]**
 
 - Voice memo option instead of (or alongside) typed reflections
 - Record via `expo-av`, upload to Supabase Storage alongside photos
-- Transcribe with on-device speech-to-text for searchability
+- **Speech-to-text via Apple's on-device `NSSpeechRecognizer`** — free, no API cost, works offline, already on every iPhone; wrappable as a small native module. Do NOT use OpenAI Whisper or cloud STT while bootstrapping — on-device is the right call.
+- Transcription stored as searchable reflection text; voice file stored separately for playback
 - Playback in moment detail — hear your own voice from that moment in time
+- **No music licensing concern** — recording your own voice as a reflection is user content, not copyrighted audio. The risk only arises if users can clip/redistribute copyrighted songs directly.
+- Lowers the capture friction wall significantly — speaking a reflection is faster than typing one
 
 ### Concert Mode **[Free]**
 
@@ -219,7 +222,7 @@ Worth building after the high-conviction features are proven.
 - Full reflection added later from the phone (saved as draft)
 - Lowest possible friction in the entire product
 
-### Mood Streaks / Gentle Gamification **[Free]**
+### Mood Streaks / Gentle Gamification ✅ (streak shipped, badges not yet) **[Free]**
 
 - "You've reflected 4 days this week" — warm, not competitive
 - Seasonal badges, monthly recaps ("You saved 12 moments in February")
@@ -297,7 +300,7 @@ Features and mechanics not yet captured above.
 - Download all your moments as a structured archive: JSON, PDF, or ZIP with photos
 - People with 200+ logged memories will pay for this peace of mind
 - "Your memories, yours forever" — especially resonant after years of use
-- Also positions Soundtracks as trustworthy: we let you take your data with you
+- Also positions the app as trustworthy: we let you take your data with you
 
 ### "What Kind of Music Person Are You" **[Premium — shareable card free]**
 

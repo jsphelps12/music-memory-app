@@ -1,16 +1,16 @@
-# Tracks — Vision & Product North Star
+# Soundtracks — Vision & Product North Star
 
 This document captures the core "why" behind every decision. When a feature feels ambiguous, come back here.
 
 ---
 
-## What Tracks Actually Is
+## What Soundtracks Actually Is
 
 Not a journaling app. Not a music player. Not a mood tracker.
 
-**Tracks is a nostalgia engine.** It organizes the emotional associations people already have with music — and turns them into a structured, living record of who they've been.
+**Soundtracks is a memory app.** It captures moments, helps you revisit them with full emotional force, and builds something worth sharing with the people who were there.
 
-The insight: music is the strongest involuntary memory trigger humans have. A song can transport you to a specific afternoon, a specific version of yourself, a feeling you'd forgotten existed. Tracks makes that power intentional. You log the association when it's alive, and the app returns it to you — months or years later — as emotional time travel.
+Music is how we get you all the way back. A song is the strongest autobiographical memory trigger humans have — it can return you to a specific afternoon, a specific version of yourself, a feeling you'd forgotten existed. Soundtracks makes that power intentional. You log the memory when it's alive, and the app returns it to you — months or years later — as emotional time travel.
 
 **Logging is the investment. Resurfacing is the dividend.**
 
@@ -18,12 +18,17 @@ The insight: music is the strongest involuntary memory trigger humans have. A so
 
 ## The Tagline
 
-> Every song holds a moment.
-> Keep them somewhere that remembers.
+> The past isn't gone. It's one song away.
 
-Secondary positioning line:
+Music is the portal, not the product. The tagline names it without making it the subject.
 
-> Your life is already a soundtrack. Discover it.
+Secondary positioning line (competitive, travels well):
+
+> Spotify knows your music. Soundtracks knows what it means.
+
+Retired (music-first, no longer primary):
+
+> ~~Every song holds a moment. Keep them somewhere that remembers.~~
 
 ---
 
@@ -31,9 +36,17 @@ Secondary positioning line:
 
 **Organizing nostalgia.**
 
-This is not a sub-category of journaling, music, or wellness. It's its own thing. When someone asks what Tracks is, the answer isn't "it's like Day One but with songs." The answer is: "it organizes nostalgia."
+This is not a sub-category of journaling, music, or wellness. It's its own thing. When someone asks what Soundtracks is, the answer isn't "it's like Day One but with songs." The answer is: "it organizes nostalgia."
 
 That framing survives any feature — era clustering, insights, share cards, maps, AI summaries. It all coheres under one idea.
+
+Three things most apps do separately — Soundtracks does together:
+
+- **Memory capture** — the moment, logged before it fades
+- **Emotional revisiting** — returning to it with full force, not just a photo thumbnail
+- **Shared, relationship-based recall** — the people who were there, experiencing it with you
+
+That combination is the product. No one else owns it.
 
 ---
 
@@ -41,15 +54,17 @@ That framing survives any feature — era clustering, insights, share cards, map
 
 Not a demographic. A psychographic.
 
-**People who already associate songs with moments.** The kind of person who says:
+**People who get nostalgic** — who want to hold onto the moments that shaped them, not just remember they happened. The kind of person who says:
 - "I can't hear that song without thinking about that summer."
 - "That album was my senior year."
 - "That song got me through that breakup."
 - "I remember exactly where I was when I first heard this."
 
-They don't need to be taught the concept. They just don't have a structured place to hold it. Tracks gives them that place.
+But also: the person who takes photos at every milestone, writes about meaningful days in their notes app, or texts a friend "remember when?" out of nowhere.
 
-**Primary audience**: reflective, nostalgic, emotionally aware people — across ages, but strongest with 18–35 who have enough life behind them to resurface, and enough life ahead to keep logging.
+Music is how Soundtracks unlocks the full emotional memory for them. They don't need to identify as a music person — just as someone who doesn't want to forget.
+
+**Primary audience**: reflective, nostalgic, emotionally aware people — across ages, but strongest with 18–40 who have enough life behind them to resurface, and enough life ahead to keep logging.
 
 ---
 
@@ -62,7 +77,7 @@ Listen → Log → Resurface → Reflect → Share → Repeat
 Every feature should serve one of these six stages. If it doesn't, deprioritize it.
 
 - **Listen**: the app intercepts an existing daily behavior (music listening)
-- **Log**: the lowest-friction capture possible — song required, everything else optional
+- **Log**: the lowest-friction capture possible — song strongly encouraged, everything else optional; a moment without a song is the start of a memory, not a finished one
 - **Resurface**: the magic — On This Day, eras, random rediscovery, pattern insights
 - **Reflect**: the depth — looking back at who you were, what patterns emerge
 - **Share**: the growth engine — era cards, yearly recap, moment exports
@@ -72,7 +87,7 @@ Every feature should serve one of these six stages. If it doesn't, deprioritize 
 
 ## The Emotional Arc
 
-After 5 years of using Tracks, a user should feel — in this order:
+After 5 years of using Soundtracks, a user should feel — in this order:
 
 1. **Nostalgic** — triggered by resurfacing: "this song was my winter"
 2. **Grateful** — triggered by accumulation: "I lived a lot"
@@ -86,7 +101,7 @@ This arc is the product north star. Features that contribute to it are worth bui
 
 ## The Positioning Line
 
-> **Spotify knows your music. Tracks knows what it means.**
+> **Spotify knows your music. Soundtracks knows what it means.**
 
 This sentence does the work. Every Spotify user instantly understands the gap it fills. No explanation needed. This is the sentence that travels.
 
@@ -94,9 +109,9 @@ This sentence does the work. Every Spotify user instantly understands the gap it
 
 ## The Differentiator From Day One
 
-Day One stores entries. Tracks structures emotional memory into eras and patterns.
+Day One stores entries. Soundtracks structures emotional memory into eras and patterns.
 
-Day One helps you remember events. Tracks helps you remember *who you were* through the songs that were playing.
+Day One helps you remember events. Soundtracks helps you remember *who you were* through the songs that were playing.
 
 The real risk of building this wrong: "Day One but with songs." If that's all it is, you lose. The moat is interpretation — using the music + mood + time + text data to surface things the user didn't consciously notice about themselves.
 
@@ -145,7 +160,7 @@ The language should feel like a thoughtful friend who has read everything you've
 
 ## What "Done" Looks Like
 
-If someone opens Tracks after 10 years and feels **nostalgic, grateful, grounded, seen, and shocked** — you built the right thing.
+If someone opens Soundtracks after 10 years and feels **nostalgic, grateful, grounded, seen, and shocked** — you built the right thing.
 
 If it disappeared tomorrow, users should miss: *being reminded of moments they lived, and being able to relive them through music.*
 
@@ -165,7 +180,7 @@ Every app that reached millions did it because using it made you want to bring s
 - "Share this moment with someone" — a message that's worth sending, which is an acquisition loop
 - **Shared collections** — the highest-leverage acquisition surface. A wedding collection with a QR code at the venue can bring in 20–30 new users from a single event. Couples, friend groups, families, concerts — every shared collection is a personalized invite campaign.
 
-The viral surface is the shareable card — specifically a vertical, story-format card designed for Instagram and TikTok. "This song was my whole era" is already a cultural format. Tracks makes it real and personal. Every share is a free impression.
+The viral surface is the shareable card — specifically a vertical, story-format card designed for Instagram and TikTok. "This song was my whole era" is already a cultural format. Soundtracks makes it real and personal. Every share is a free impression.
 
 **The wedding insight**: weddings are cultural moments where music is already central and everyone wants to remember. A "Wedding Soundtrack" collection — where every guest logs what songs meant something during the day — becomes an artifact the couple treasures forever. It also introduces the app to 50–150 people at once. At scale, weddings could be the single largest acquisition channel.
 
@@ -181,7 +196,7 @@ The shift to make: use accumulated past data to serve present and future emotion
 - **Seasonal anticipation**: "Last October your mood dipped and your music got heavy. It's October."
 - **Transition detection**: when logging patterns shift, the app quietly notices
 
-This turns Tracks from a journal into a personal intelligence layer. That's the difference between a nice app and an indispensable one.
+This turns Soundtracks from a journal into a personal intelligence layer. That's the difference between a nice app and an indispensable one.
 
 ---
 
@@ -189,7 +204,7 @@ This turns Tracks from a journal into a personal intelligence layer. That's the 
 
 People are terrified of being forgotten. They're terrified of forgetting.
 
-Tracks could be the place you build your musical autobiography — not just for yourself, but for the people who come after you. Parents log moments with their kids. People facing illness document their soundtrack. Someone who loses a parent can go back and understand what music meant to them.
+Soundtracks could be the place you build your musical autobiography — not just for yourself, but for the people who come after you. Parents log moments with their kids. People facing illness document their soundtrack. Someone who loses a parent can go back and understand what music meant to them.
 
 This framing creates a different kind of user: one who pays forever, tells their family, and never churns. Not because of features — because they're building something that matters.
 

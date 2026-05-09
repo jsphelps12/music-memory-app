@@ -1,4 +1,4 @@
-# Tracks — Technical Cheat Sheet
+# Soundtracks — Technical Cheat Sheet
 
 Everything you need to know to talk intelligently about this project in interviews, on your resume, and in technical conversations. Organized by topic with key decisions, trade-offs, and concepts to study.
 
@@ -6,7 +6,7 @@ Everything you need to know to talk intelligently about this project in intervie
 
 ## Architecture Overview
 
-Tracks is a **React Native iOS app** built with Expo (managed workflow + custom native modules), backed by Supabase (Postgres + Auth + Storage). It follows a client-heavy architecture — most logic lives on the device, with Supabase acting as a thin backend.
+Soundtracks is a **React Native iOS app** built with Expo (managed workflow + custom native modules), backed by Supabase (Postgres + Auth + Storage). It follows a client-heavy architecture — most logic lives on the device, with Supabase acting as a thin backend.
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -183,7 +183,7 @@ Used for email confirmation deep links. Standard OAuth2 extension for public cli
 
 **Why PKCE?** Mobile apps can't safely store a client secret — the binary can be decompiled. PKCE proves the app that started the flow is the same one finishing it, without a secret.
 
-**Study**: OAuth2, PKCE flow, why implicit flow is deprecated for mobile, how deep links (`tracks://`) route back to the app.
+**Study**: OAuth2, PKCE flow, why implicit flow is deprecated for mobile, how deep links (`soundtracks://`) route back to the app.
 
 ### Apple Sign-In
 
@@ -200,9 +200,9 @@ Uses `expo-apple-authentication` which wraps `ASAuthorizationController`. Apple 
 A share extension is a **separate process** — it runs in its own sandbox, not inside your main app. This is why `expo-share-intent` exists: it bridges the extension process back to your app.
 
 ```
-User taps Share → iOS shows share sheet → User picks Tracks
+User taps Share → iOS shows share sheet → User picks Soundtracks
   → Share extension process activates
-  → Extension passes URL to main app via deep link (tracks://dataUrl=...)
+  → Extension passes URL to main app via deep link (soundtracks://dataUrl=...)
   → Main app receives deep link via expo-linking
   → useShareIntentHandler() processes it
 ```
@@ -328,19 +328,24 @@ Expo acts as a push proxy — your server sends to Expo's API, Expo translates t
 
 **Scheduling:**
 ```sql
-SELECT cron.schedule('daily-notifications', '0 14 * * *',
+SELECT cron.schedule('daily-notifications', '0 * * * *',
   'SELECT net.http_post(url := ..., ...)');
 ```
-Runs at 14:00 UTC (10am EDT) daily. The Edge Function is a Deno HTTP server deployed to Supabase's edge infrastructure.
+Runs **hourly** (not daily). The Edge Function filters by `getLocalHour(now, user.timezone) === 10` so each user receives their notification at 10am their local time. Timezone is stored on `profiles` via `Intl.DateTimeFormat().resolvedOptions().timeZone` at push token registration.
+
+The Edge Function is a Deno HTTP server deployed to Supabase's edge infrastructure.
 
 **Priority queue logic** — one notification per user per day, in priority order:
 
-| Priority | Type | Condition | Cadence |
-|----------|------|-----------|---------|
-| 1 | On This Day | Moments exist on this date in prior years | Daily if match |
-| 2 | Streak | Logged yesterday, not today | Daily if streak |
-| 3 | Journal prompt | No higher priority match | Tue + Thu |
-| 4 | Resurfacing | Random past moment | Mon |
+| Priority | Type | Condition | Pref toggle |
+|----------|------|-----------|-------------|
+| 1 | Lifecycle | Days 1/3/7/14 post-signup — onboarding nudges | None (auto-expires) |
+| 2 | Streak Milestone | Hit 5/10/25/50 day streak | `notif_milestones` |
+| 3 | On This Day | Moments exist on this date in prior years | `notif_on_this_day` |
+| 4 | Streak Reminder | Logged yesterday, not yet today | `notif_streak` |
+| 5 | Re-engagement | 7/14/30+ days since last moment | `notif_prompts` |
+| 6 | Journal Prompt | No higher priority matches | `notif_prompts` |
+| 7 | Random Resurfacing | Random past moment | `notif_resurfacing` |
 
 **Batch send to Expo:**
 ```typescript
@@ -373,11 +378,30 @@ Without `getLastNotificationResponseAsync()`, cold-launch taps are silently drop
 
 ---
 
-## Stale-While-Revalidate Timeline Caching
+## Stale-While-Revalidate Caching (Profile + Timeline)
 
-**File:** `lib/timelinePrefetch.ts`
+Classic SWR pattern applied in two places: show cached data instantly, update silently in background.
 
-Classic SWR pattern: show cached data instantly, update silently in background.
+### Profile Cache (`lib/profileCache.ts`)
+
+On app launch, the auth gate blocks navigation until both session and profile are loaded. Without caching, this means a Supabase round-trip on every cold launch before the user sees anything.
+
+```
+Auth resolves → read profileCache from AsyncStorage
+  Cache hit → setProfile(cached), setProfileReady(true), setLoading(false)
+              → user enters app immediately (zero network wait)
+              → fetchProfile() still fires in parallel
+  Cache miss → wait for fetchProfile() to complete (first launch only)
+
+fetchProfile() resolves → writeProfileCache(userId, profile)
+                        → updates React state (silent revalidation)
+```
+
+`keepOnError: true` when cache was hit — if the network call fails (no connection), keep showing the cached profile rather than bouncing the user to onboarding.
+
+**Be ready to explain**: Why this matters for perceived startup time (the blocking overlay lifts immediately on cache hit, before the network call completes). How `keepOnError` prevents a bad experience on airplane mode.
+
+### Timeline Prefetch (`lib/timelinePrefetch.ts`)
 
 ### The Flow
 
@@ -407,6 +431,68 @@ Tab navigates to timeline → consumePrefetchPromise()
 Double `order()`: primary by `moment_date` (the memory date), secondary by `created_at` (tie-break when multiple moments on the same day). `nullsFirst: false` pushes undated moments to the bottom.
 
 **Be ready to explain**: Why you don't just show a loading spinner (perceived performance — the gap between interaction and content is the metric that matters, not actual load time). When SWR fails (stale data is shown too long if cache TTL is too high; resolved by checking `lastFetchTime` before re-fetching).
+
+---
+
+## Friends & Social Architecture
+
+### Data Model
+
+```
+friendships
+  id, requester_id, addressee_id, status (pending/accepted/declined/blocked), created_at
+
+tagged_moments
+  moment_id, tagged_user_id, status (pending/released/hidden), created_at
+
+moment_reactions          ← planned (Resonance feature)
+  moment_id, user_id, type, created_at
+```
+
+**Key constraint**: Friendships are bidirectional — both users must agree. No following model. Duplicate prevention via UNIQUE constraint on `(min(a,b), max(a,b))`; the app catches code `23505` (Postgres unique violation) and surfaces a friendly "already connected" message.
+
+### Friend Invite Flow
+
+```
+User A shares link: https://soundtracks.app/friend/{token}
+  → Web page writes "soundtracks-friend:{token}" to clipboard
+  → User B taps link → downloads app → signs up
+  → On first launch: app reads clipboard, extracts token
+  → Stores in AsyncStorage as pending_friend_token
+  → After auth completes: resolves token → sends friend request automatically
+```
+
+Same clipboard deferred deep link pattern as collection invites — pattern is reused in `lib/pendingCollection.ts` and the pending friend token handler in `useDeepLinkHandler`.
+
+### Social Tagging (`tagged_moments`)
+
+When you tag a friend in a moment ("they were there"):
+1. `tagged_moments` row inserted with `status = 'pending'`
+2. Tagged user gets a push notification via `supabase/functions/notify-friend/`
+3. Tagged moment appears in their "With Me" inbox in the Friends tab
+4. Creator can "release" the tag (flip to `released`) to make it visible
+
+**Edge Function pattern** (`notify-friend`): stateless function that accepts `{ toUserId, type, payload }` and sends a single Expo push. Types: `friend_request` | `friend_accepted` | `moment_tagged`. Avoids the main notification pipeline for real-time social events.
+
+### Username Availability Check (Debounced)
+
+Username input in onboarding + profile edit uses a 400ms debounced availability check:
+
+```typescript
+useEffect(() => {
+  const timer = setTimeout(async () => {
+    if (input.length >= 3) {
+      const available = await checkUsernameAvailable(input);
+      setStatus(available ? "available" : "taken");
+    }
+  }, 400);
+  return () => clearTimeout(timer);
+}, [input]);
+```
+
+**Study**: Debounce for API calls, optimistic UI, username constraints (lowercase enforcement, minimum length, uniqueness at DB level).
+
+**Be ready to explain**: Why mutual friendship (vs. following) fits this app's privacy model — you don't want someone to silently follow your journal. Why the Edge Function exists separately from the main notification pipeline (real-time social events need immediate delivery; the main pipeline runs hourly on a cron).
 
 ---
 
@@ -572,22 +658,42 @@ Same UUID for both — deterministic relationship between full and thumbnail pat
 
 ### Sentry (Crash Reporting)
 
-- `@sentry/react-native` initialized with `Sentry.wrap(RootLayout)` in `app/entry.tsx`
+- `@sentry/react-native` initialized in `app/_layout.tsx` with `tracesSampleRate: 0.1`, `environment`, and `enableAutoSessionTracking: true`
 - Source maps uploaded automatically by EAS Build via `SENTRY_AUTH_TOKEN`
 - Symbolicated stack traces in production — line numbers map to original TypeScript source
+- `Sentry.setUser({ id, email })` called after every successful profile fetch (in `fetchProfile` in `AuthContext`) so every error is traceable to a specific user in the Sentry dashboard
+- `Sentry.setUser(null)` called on sign-out to clear user context
 
 **Why source maps matter**: React Native JS bundles are minified. Without source maps, a crash at `bundle.js:1:47832` is useless. With them, Sentry resolves to the exact TypeScript file and line.
+
+**Why `setUser` matters**: Without it, Sentry errors are anonymous — you can see that something broke but not who was affected or how widespread it is. With it, you can filter errors by user, see error frequency per user, and reach out if needed.
 
 ### PostHog (Product Analytics)
 
 - `PostHogProvider` wraps the app in `_layout.tsx`
 - Screen tracking: `posthog.screen(pathname)` on every route change via `usePathname()`
-- User identity: `posthog.identify(user.id)` on auth, `posthog.reset()` on sign-out
-- SDK disabled if env var not set (safe for dev without analytics configured)
+- User identity called inside `fetchProfile` after every successful profile load — not just on sign-in:
+
+```typescript
+posthog.identify(userId, {
+  $set: {
+    email, display_name, username,
+    onboarding_completed, country, birth_year,
+  },
+  $set_once: {
+    signed_up_at: profile.createdAt,  // never overwritten after first set
+  },
+});
+```
+
+- `posthog.reset()` on sign-out (both in `signOut()` and the `onAuthStateChange` sign-out path)
+- Key events tracked: `signed_in`, `signed_up`, `signed_out`, `onboarding_completed`, `moment_created` (with `moment_count`), `moment_edited`, `moment_deleted`, `moment_shared`, `song_searched`, `song_selected`, `shazam_used`, `profile_updated`, `collection_joined`, `notifications_enabled`, `notification_preferences_changed`
+
+**`$set` vs `$set_once`**: `$set` updates the property every time (e.g. `onboarding_completed` flips from false to true). `$set_once` only writes the first value and never overwrites (e.g. `signed_up_at` — useful for cohort analysis).
 
 **Identify vs anonymous**: Before sign-in, events are recorded anonymously. `posthog.identify()` retroactively links pre-auth events (like onboarding steps) to the authenticated user.
 
-**Be ready to explain**: Why reset on sign-out (PostHog would otherwise attribute the next user's actions to the previous user's identity — critical in a multi-user app).
+**Be ready to explain**: Why reset on sign-out (PostHog would otherwise attribute the next user's actions to the previous user's identity — critical in a multi-user app). Why `identify` is called inside `fetchProfile` rather than just on sign-in (ensures user properties stay current even after profile edits; also fires on session restore so returning users are always identified).
 
 ---
 
@@ -739,7 +845,7 @@ These are concepts that come up in interviews and are directly relevant to this 
 ### Mobile-Specific
 - [ ] React Native bridge architecture — how JS talks to native code, serialization overhead, why large payloads (base64 images) cause jank
 - [ ] iOS app lifecycle (foreground, background, suspended, terminated)
-- [ ] Deep linking and universal links — how `soundtracks://` URLs route to your app, query params vs path segments
+- [ ] Deep linking and universal links — how `soundtracks://` URLs route to your app, query params vs path segments, deferred deep links via clipboard for new installs
 - [ ] iOS share extension lifecycle and memory constraints (~120MB limit)
 - [ ] CocoaPods dependency management — what a podspec actually does
 - [ ] App Transport Security and HTTPS requirements on iOS

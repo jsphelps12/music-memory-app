@@ -1,73 +1,119 @@
-# Tracks — Non-Development To-Do
+# Soundtracks — Non-Development To-Do
 
-Things to work on outside of coding sessions.
+Current, actionable items only. Last updated May 2026.
 
 ---
 
-## Beta Testing & Feedback
+## 🔴 Immediate (This Week)
 
-- [ ] Get TestFlight build approved (follow up if still pending)
-- [ ] Recruit 5-10 beta testers — target people who share songs, make playlists, or tie music to memories
-- [ ] Watch at least 2-3 people use the app in person — note where they hesitate or get confused
-- [ ] Ask each tester: "What would make you open this every day?"
-- [ ] Collect and organize feedback into themes (friction points, missing features, what they love)
+- [ ] Verify delete account works end-to-end on a production build — trigger from Profile, confirm auth user + all moments + all photos from storage + profile row all deleted cleanly
+- [ ] Set up `support@soundtracks.app` email alias → forwards to personal inbox
+- [ ] Create public Notion support page: Getting Started, FAQ, Known Issues, Contact
+- [ ] Set up Tally.so free form (Name, Email, Issue) → link from Notion page and from app Profile screen
+- [ ] Define retention benchmarks in PostHog — create D1/D7/D30 cohort dashboards; targets: D1 >40%, D7 >20%, D30 >10% (journaling-type app baseline)
+- [ ] Monitor Apple Review status — respond immediately if they request changes
 
-## UI/UX Sketching & Mocking
+---
 
-- [ ] Sketch the quick capture flow — what's the minimum viable moment? How fast can you go from now playing to saved?
-- [ ] Mock the iOS widget — what does it show? Now playing + "save" button? Last moment? On This Day?
-- [ ] Design the "On This Day" resurfacing experience — how does it appear? Push notification? In-app card? Both?
-- [ ] Sketch the candidate picker for Spotify cross-search — is the current modal good enough or does it need polish?
-- [ ] Think through the share extension UX end-to-end — what happens when someone shares a non-music link?
+## 🟡 First 100 Users Plan
 
-## Positioning & Messaging
+Goal: 100 *retained* users who log 10+ moments each. Downloads don't matter. Retention does.
 
-Core answers (from VISION.md — read that first):
-- **Category**: "Organizing nostalgia" — not journaling, not music, not wellness. Its own thing.
-- **Tagline**: "Every song holds a moment. Keep them somewhere that remembers."
-- **One-sentence pitch**: "Tracks is a nostalgia engine — it captures the emotional associations you already have with music and turns them into a structured, living record of who you've been."
-- **Not capture, not reflect**: the app is about *resurfacing* — logging is the investment, resurfacing is the dividend.
-- **Brand voice**: Soft in tone, sharp in insight. Like a thoughtful friend who read everything you wrote.
+### Who they are
+- Music-obsessed people who already annotate: playlist makers, Last.fm users, RateYourMusic contributors, music journalers
+- People with a big life event coming: engaged couples, new parents, people processing a loss
+- Friends and family you can onboard personally and observe using it
 
-Remaining work:
-- [ ] Write the App Store description using the tagline and category above (see VISION.md for brand voice reference)
-- [ ] 3 apps to position against: Day One (stores entries — Tracks structures emotional memory into eras), Spotify Wrapped (one-day event — Tracks is year-round), standard journaling apps (text-forward — Tracks is music-anchored)
+### Where to find them
+- [ ] Post authentically (not promotionally) in: r/lastfm, r/spotify, r/ifyoulikeblank, r/Music, journaling subreddits
+- [ ] Find 2–3 engaged couples via mutual connections — offer personal setup, they become word-of-mouth
+- [ ] DM people who post "this song takes me back to..." content on Twitter/X or Instagram — they're pre-qualified
+- [ ] Reach out to music micro-influencers (1k–10k followers) with a personal note, not a pitch deck
+- [ ] Post your own moment on TikTok/Reels — show the real capture flow with a genuine memory, not a product demo
 
-## App Store Prep
+### Talk to every single one of them
+- [ ] DM each new user within 24 hours of sign-up (check PostHog new users daily)
+- [ ] Ask: "What song did you log first? What does it remind you of?"
+- [ ] Ask: "What would make you open this every week?"
+- [ ] Set up a simple offboarding Tally survey for users who go quiet — churned users teach you more than retained ones
 
-- [ ] Take polished screenshots in both light and dark mode with real data
-- [ ] Design App Store preview screenshots (consider using a tool like Rotato or Screenshots Pro)
-- [ ] Pick App Store category (likely Music or Lifestyle)
-- [ ] Write a privacy policy (required for submission)
-- [ ] Draft the "What's New" text for your first public release
+---
 
-## Business Model
+## 🟡 Customer Support Infrastructure
 
-Core decisions made (see VISION.md):
-- **Price**: $4.99/month or $39.99/year. Break-even at ~120 annual subscribers.
-- **Free forever**: unlimited logging, search, On This Day resurfacing, core features. Habit formation needs zero friction.
-- **Premium**: era clustering, pattern insights, shareable era/moment cards, AI narrative summaries, unlimited photos, yearly recap.
-- **Conversion trigger**: at 25–30 entries, show a locked Era card. Not "upgrade for storage" — "unlock the chapter you just lived."
+- [ ] Notion support page live at a public URL (link from app Profile screen)
+- [ ] Respond to every App Store review — positive and negative, within 48 hours
+- [ ] Check Sentry weekly for new crash patterns
 
-Remaining work:
-- [ ] Set up RevenueCat and define entitlements before building premium features
-- [ ] Decide which premium features ship at launch vs. added later (era clustering should be first)
+---
 
-## Growth & Distribution
+## 🟡 Compliance
 
-- [ ] Identify communities where potential users hang out (music subreddits, playlist communities, journaling groups)
-- [ ] Plan a soft launch strategy — who are the first 100 users and how do you reach them?
-- [ ] Consider a landing page or simple site for the app (even a Carrd or single-page site)
+- [ ] GDPR basics audit — verify privacy policy covers: right to deletion (delete account covers this), data portability, what data is shared with third parties, DPA contact email
+- [ ] Confirm delete account removes everything: auth user, moments, photos from storage, profile row, push token (see Issue #7 in ISSUES.md — push token not cleared on sign-out is related)
+- [ ] COPPA review — 12+ age rating is set; confirm privacy policy explicitly addresses under-13 exclusion
+- [ ] Data export — JSON export of all moments from Profile screen (low urgency but required for full GDPR compliance; a simple Supabase query dump is fine v1)
 
-## Retention Thinking
+---
 
-Blueprint (from VISION.md emotional arc — nostalgic → grateful → grounded → seen → shocked):
-- **Day 1–7**: frictionless logging builds the habit. On This Day starts working immediately if they have old moments.
-- **Day 7–30**: resurfacing moments they logged earlier creates the "it remembered!" moment. Push notifications (On This Day, streaks) keep them returning.
-- **Day 30+**: enough data for pattern insights and era clustering to feel meaningful. This is when premium converts.
-- **Year 1+**: yearly recap ("Your 2026 in Moments") creates an emotional event that brings them back and drives sharing.
+## 🟡 Developer Tooling & Testing
 
-- [x] Prioritize "On This Day" resurfacing — push notifications implemented
-- [ ] First-week retention: ensure a new user sees a resurfacing prompt within 7 days (even if it's just the "start your timeline" prompt)
-- [ ] Notification tuning — 2–3x/week max for On This Day; don't spam
-- [ ] Consider a "welcome" push on day 3: "You've logged X moments. Keep going — the magic starts at 25."
+Set up before building the social architecture redesign (With Me inbox, Resonance, Linked Moments). Social features require multi-user test setups that are painful without this infrastructure.
+
+### Staging Supabase Project
+- [ ] Create a second free Supabase project (`soundtracks-staging`)
+- [ ] Apply all migrations to it so schema matches production
+- [ ] Add `EXPO_PUBLIC_SUPABASE_URL_STAGING` + `EXPO_PUBLIC_SUPABASE_ANON_KEY_STAGING` to `.env` — swap via a simple `USE_STAGING=true` flag or a separate `.env.staging`
+- [ ] Point a dev build at staging for all social feature work — never test social flows against prod data
+
+### Test Account Seed Script
+- [ ] Create 2–3 pre-seeded accounts with predictable data (use personal + soundtracks email accounts you already have — add a third `carol@` account for empty-state testing)
+- [ ] Script (or SQL in Supabase dashboard) that seeds: 20+ moments for User A, 10+ moments for User B, a pre-existing friendship between them, a shared collection they're both in, some tagged moments
+- [ ] Document credentials in 1Password — never start from scratch to set up a test scenario
+- [ ] Re-run seed script on staging whenever you nuke + reset it
+
+### Jest Setup
+- [ ] `npm install --save-dev jest jest-expo @testing-library/react-native`
+- [ ] Configure `jest.config.js` with `jest-expo` preset
+- [ ] Write first tests for the easy wins: `lib/errors.ts` (`friendlyError`), `lib/profileCache.ts` (read/write/clear), timeline grouping logic
+- [ ] Add `npm test` to the pre-release checklist in DEPLOY.md once coverage is meaningful
+
+### Two-Simulator Workflow (no install needed)
+- [ ] Open a second simulator: Xcode → Window → Devices and Simulators → start a different device type
+- [ ] Log into each with a different test account — each simulator has isolated Keychain + AsyncStorage
+- [ ] Use `xcrun simctl openurl booted "soundtracks://join?inviteCode=abc"` for deep link testing without going through share sheets
+
+---
+
+## 🟡 Infrastructure (Free Wins)
+
+- [ ] Set up Cloudflare free tier as CDN in front of Supabase storage — proxy the `moment-photos` bucket URL through Cloudflare Workers; cuts egress significantly, extends $25/mo plan to ~3–4k MAU before overages hit. Guide: Cloudflare → Workers → reverse proxy to your Supabase storage URL.
+- [ ] Set Supabase billing alert at $20/month so you're not surprised
+- [ ] PostHog: build D1/D7/D30 retention cohort dashboards now (before you have enough users to be meaningful) — so the data is structured and ready when you need it
+
+---
+
+## 🟢 App Store (Next Update)
+
+- [ ] Rewrite App Store description — lead with emotional hook ("A song comes on and suddenly you're back."), not feature list; current description is too feature-forward
+- [ ] Keyword optimization — research: "music diary", "song journal", "music memories" are underserved; use all 100 keyword characters
+- [ ] Update screenshots to show emotional core: moment detail with blurred artwork, Reflections tab, friends feature
+- [ ] App preview video — 30s of the real capture flow with genuine memory content converts better than screenshots alone
+- [ ] Update promotional text seasonally (stale since launch)
+
+---
+
+## 🟢 Business Model
+
+- [ ] RevenueCat: hold until a premium feature is actually ready to ship. No point building paywall infrastructure before there's something behind the wall. Revisit when Era Clustering or Yearly Recap is close to done.
+- [ ] Events tier paywall: `events_tier_unlocked` defaults to `true` (open) — flip to `false` when wedding feature is polished. Before building the paywall, validate: ask 5 real users "would you pay $39.99 for this?" first.
+- [ ] Track one key events metric from day one: how many event hosts become long-term personal users? That's the conversion flywheel.
+
+---
+
+## 🔁 Ongoing Rhythm
+
+- **Daily**: check PostHog for new signups; DM anyone who joined in the last 24 hours
+- **Weekly**: review Sentry for new crashes; check notification tap rates in PostHog; review storage + bandwidth in Supabase dashboard
+- **Monthly**: review and respond to any new App Store reviews; check Supabase plan usage vs. limits
+- **Before each release**: run deployment checklist in DEPLOY.md

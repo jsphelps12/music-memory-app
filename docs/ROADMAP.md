@@ -134,6 +134,39 @@ The app has shipped but feels unfinished in places. UI is inconsistent across sc
 
 ---
 
+### 1b. Progressive Memory — Songless Capture + AI Soundtrack Suggestions 🟡 *Medium effort, high capture + retention value*
+
+A memory doesn't have to be complete to be worth saving. Songs are optional at capture time — the moment is saved immediately, and the app helps the user enrich it over time. This reframes incompleteness as momentum: the memory is *growing*, not broken.
+
+**The progression:**
+1. **Capture the memory** — reflection, mood, photo, date. Song is skippable. No gate.
+2. **AI-assisted soundtrack suggestions** — immediately after saving, if no song was attached, the app generates 3–5 real song candidates using the reflection text + mood + date + user taste profile. One tap to attach. These are real songs from the Apple Music / Spotify catalog, not generated audio.
+3. **Skip suggestions** — moment saved as a progressive memory (not called a "draft" in UI). Missing artwork communicates incompleteness visually; an "Add song →" chip on the card invites backfill.
+4. **Upgrade later** — "Add Song" is a first-class action on the moment detail screen, not buried in an edit flow. The AI suggestions can be re-surfaced at this point too.
+
+**What to build:**
+- [ ] Remove hard song requirement on create screen — "Add Song" skippable with visible "Add later" affordance
+- [ ] Post-save AI suggestion sheet — appears immediately after saving a songless moment; shows 3–5 candidates with artist, title, era; one tap attaches; dismissible
+- [ ] Suggestion algorithm — LLM prompt using reflection text + mood + moment date + user's taste profile (birth year, country, favorite artists) → candidate song list → cross-referenced against Apple Music catalog via MusicKit search
+- [ ] Progressive memory card treatment — no artwork backdrop; distinct placeholder; "Add song →" chip; still appears on timeline and in reflections, never hidden
+- [ ] Backfill from detail — "Add Song" prominently surfaced on any moment missing one; re-runs AI suggestions as starting point
+- [ ] Gentle weekly notification — "A memory from March is still looking for its song." At most once/week, only if progressive memories exist, lowest priority type
+
+**What NOT to build (yet):**
+- Generated ambient scores — off-brand at the core level. Soundtracks works because *this specific song* is *your* memory. A generated score has no memory attached to it; it's a novel experience, not a remembered one. Expensive, complex, and dilutes the product identity. Revisit only if users explicitly ask for it.
+
+**What NOT to do in the UI:**
+- Don't call them "drafts" — sounds like an error
+- Don't block sharing or collections on progressive memories
+- Don't hide them or sort them separately — they live on the timeline alongside complete moments
+
+**Why this matters:**
+Removes the capture blocker at the worst possible moments (funerals, spontaneous memories, old memories resurfacing). The AI suggestion step means users aren't left staring at a search box when they're emotional — the app does the work. Backfill in a reflective state produces higher-quality song associations than forced search at capture time.
+
+**Technical dependency:** AI suggestions build directly on Music Memory Engine infrastructure (taste profile, era scoring) — ship Phase 1 of Music Memory Engine first, or in parallel.
+
+---
+
 ### 2. Full Apple Music Playback 🟡 *Major experiential gap*
 
 Currently all playback is capped at 30 seconds via iTunes preview URLs. Apple Music subscribers (the majority of iOS users in the target demographic) should get full-length playback of their moments. This is the single biggest quality-of-experience gap in the app.
@@ -219,18 +252,18 @@ Ordered by impact across growth (new users), retention (keep existing), and reve
 |----------|---------|--------|-----------|-------|
 | 1 | ~~Friends (Phase C)~~ | ~~Growth + Retention~~ | ~~🟡~~ | ✅ Shipped April 2026 — friend invite links, direct accept, push notification, tagged moments. |
 | 2 | Wedding refinement | Growth + Revenue | 🟡 | Shareable card generator, vanity short URLs, wedding collection template, post-event claim flow, PDF book export. Builds on shipped web contribution flow. |
-| 3 | Notification refinement | Retention | 🟡 | Tap-rate tracking per type, timing optimization, unengaged user suppression, deep link targets, A/B copy. |
-| 4 | Music Memory Engine Phase 1 | Retention | 🟡 | Edge function + seed dataset + existing notification infra. Questionnaire already built. |
-| 5 | Era Clustering | Revenue | 🔴 | Premium conversion trigger at 25–30 moments. Hardest feature on the list. |
-| 6 | Yearly Recap | Growth + Revenue | 🟡 | Must ship before December. Annual press moment. Free card + Premium full version. |
-| 7 | Song Anniversaries + Forgotten Songs | Retention | 🟢 | Ship alongside Music Memory Engine work. Date math + simple query. |
-| 8 | Save for Later (Song Inbox) | Retention | 🟡 | Share Extension "Save" path + drafts table + inbox UI. |
-| 9 | Memory Game | Growth + Retention | 🟡–🔴 | Async version first (Wordle-style). Needs friends. Killer viral mechanic. |
-| 10 | Smart Playlists (basic) | Retention + Growth | 🟡 | Time-period + mood playlists → Apple Music export. Shareable. |
-| 11 | QR Code Framed Print | Revenue | 🟡 | Needs public moment pages first. Printful API. High-volume gift product. |
-| 12 | Lock Screen Widget | Retention | 🔴 | App Intents, App Groups, Live Activities. Gets tech press. |
-| 13 | Spotify integration (iOS) | Growth | 🟡 | Store Spotify ID + deep link out. Expands addressable market significantly. |
-| 14 | Android port | Growth | 🔴 | 4–6 weeks. Swap points are clear: musickit.ts rewrite, new Kotlin modules for NowPlaying + ShazamKit → ACRCloud, Google Sign-In. Everything else cross-platform already. |
+| 3 | Spotify integration (iOS) | Growth | 🟡 | **Moved up from #13.** Currently cuts out ~60% of TAM. 80/20 version: store `spotify_track_id` on moments + deep link out to Spotify app (`spotify:track:{id}`) — no SDK required. Show Spotify icon on moments with a Spotify ID. Full SDK (in-app playback) is a separate follow-on effort. |
+| 4 | Notification refinement | Retention | 🟡 | Tap-rate tracking per type, timing optimization, unengaged user suppression, deep link targets, A/B copy. |
+| 5 | Music Memory Engine Phase 1 | Retention | 🟡 | Highest-leverage empty-state fix. Edge function + seed dataset + existing notification infra. Questionnaire already built. Seeds moments from listening history; weekly prompted-song push. |
+| 6 | Era Clustering | Revenue | 🔴 | Premium conversion trigger at 25–30 moments. Hardest feature on the list. |
+| 7 | Yearly Recap | Growth + Revenue | 🟡 | Must ship before December. Annual press moment. Free card + Premium full version. |
+| 8 | Song Anniversaries + Forgotten Songs | Retention | 🟢 | Ship alongside Music Memory Engine work. Date math + simple query. |
+| 9 | Save for Later (Song Inbox) | Retention | 🟡 | Share Extension "Save" path + drafts table + inbox UI. |
+| 10 | Memory Game | Growth + Retention | 🟡–🔴 | Async version first (Wordle-style). Needs friends. Killer viral mechanic. |
+| 11 | Smart Playlists (basic) | Retention + Growth | 🟡 | Time-period + mood playlists → Apple Music export. Shareable. |
+| 12 | QR Code Framed Print | Revenue | 🟡 | Needs public moment pages first. Printful API. High-volume gift product. |
+| 13 | Lock Screen Widget | Retention | 🔴 | App Intents, App Groups, Live Activities. Gets tech press. |
+| 14 | Android port | Growth | 🔴 | Not before 1,000+ active iOS users + revenue. 4–6 weeks. Swap points: musickit.ts rewrite, new Kotlin modules for NowPlaying + ShazamKit → ACRCloud, Google Sign-In. Everything else cross-platform already. |
 | 15 | Musical Autobiography | Revenue | 🔴 | LLM prose on personal data. Needs 2+ years of user data to be moving. Plant seeds now. |
 | 16 | "You're Not Alone" | Retention | 🟡 | Needs scale (1K+ users) for meaningful numbers. |
 | 17 | Community features | Retention | 🔴 | Tracks 100, memorial collections, community challenges. 5K+ users. |

@@ -1,55 +1,36 @@
 # Tracks — Production Readiness
 
-Last updated: February 2026. Revisit before each major release.
+Last updated: May 2026. Revisit before each major release.
 
 ---
 
 ## TL;DR
 
 The app has solid security fundamentals (RLS enforced everywhere, proper auth flow, no
-exposed secrets in code). But there are **two hard App Store blockers**, **one real security
-risk** in the web app, and **scalability debt** that becomes painful past ~500 moments per
-user. None of these are insurmountable — most are 1–3 day fixes.
+exposed secrets in code). The original App Store blockers are resolved (delete account ✅,
+privacy policy ✅, nutrition label ✅, Sentry/PostHog ✅). Remaining open items are
+security hardening, scalability prep, and GDPR completeness. None are blockers — all are
+addressable before significant user growth.
 
 ---
 
-## App Store Blockers (Must Fix Before Submission)
+## App Store Blockers ✅ All Resolved
 
-### 1. No Account Deletion Feature 🚨
-**Apple has required this since June 2022. Apps without it get rejected.**
+### 1. Account Deletion ✅
+**Fixed May 2026.**
 
-The profile screen has a Sign Out button but no way to permanently delete an account and
-its data. This is also a GDPR requirement.
-
-What's needed:
-- "Delete Account" button in the profile/settings screen (with confirmation dialog)
-- Supabase edge function (service role) that deletes:
-  - All moments and their photos from storage
-  - All collections and collection_moments
-  - The profile row
-  - The auth.users entry (requires service role)
-- Cascading deletes on most tables are already set up — need to verify storage cleanup
-
-**Estimated effort:** 2–3 days
+Delete Account flow ships from Profile screen. Deletes: auth user, all moments, all photos
+from storage, profile row. Verify push token is also cleared on delete (see Issue #7).
 
 ---
 
-### 2. No Privacy Policy 🚨
-Apple requires a privacy policy URL at submission. The web app (`music-memory-app.vercel.app`)
-is the natural home for it.
-
-What the policy must cover:
-- What data is collected (see Apple Nutrition Label section below)
-- How it's stored (Supabase, US-based)
-- Third parties data is shared with (Apple MusicKit, Expo push, iTunes API)
-- User rights (access, deletion — which the delete account feature covers)
-- Contact email for privacy requests
-
-**Estimated effort:** 2–4 hours (use a generator, customize, host at `/privacy`)
+### 2. Privacy Policy ✅
+**Fixed — hosted at `/privacy` and `/terms` on the web app.**
 
 ---
 
-### 3. Apple Privacy Nutrition Label — Incomplete Declaration
+### 3. Apple Privacy Nutrition Label ✅
+**Completed at App Store submission.**
 App Store Connect requires accurate data type declarations. Based on the codebase,
 the following must be declared:
 
@@ -63,10 +44,7 @@ the following must be declared:
 | User content | Yes | Yes | Reflection text, people tags |
 | Device identifiers | Yes | Yes | Push notification token |
 
-The location declaration is the most likely to be missed. `expo-location` is installed
-and `reverseGeocodeAsync` is called at moment creation. This must be declared.
-
-**Estimated effort:** 1–2 hours in App Store Connect
+All declared at App Store submission.
 
 ---
 
@@ -409,17 +387,11 @@ The Vercel web app auto-deploys on push to main already — that part is fine.
 
 ---
 
-### 21. No Crash Reporting or Analytics
-Production crashes are currently invisible. There is no way to know if users are
-hitting errors, which screens they use most, or why they stop using the app.
-
-**Before App Store launch, add both:**
-- **Sentry** (`@sentry/react-native`) — crash reporting, error tracking, session replays.
-  Free tier is sufficient for early scale. Setup is ~2 hours.
-- **PostHog** (or Mixpanel) — product analytics. Track: moment created, collection shared,
-  invite link opened, join completed. Free tier is generous. Setup is ~2 hours.
-
-Without these you're flying blind after launch.
+### 21. Crash Reporting + Analytics ✅
+**Sentry and PostHog are both integrated and shipping in production.** Sentry captures
+crashes; PostHog tracks key events and will power D1/D7/D30 retention dashboards.
+Create retention cohort dashboards in PostHog before meaningful user growth so the data
+is structured and ready when you need it. Targets: D1 >40%, D7 >20%, D30 >10%.
 
 ---
 
@@ -462,30 +434,53 @@ Future you will thank present you at 11pm before a deadline.
 
 ---
 
-## Prioritized Fix List
+## GDPR Compliance
 
-### Before App Store Submission (Blockers)
-- [ ] Delete account feature (#1)
-- [ ] Privacy policy at `/privacy` (#2)
-- [ ] Declare data types in App Store Connect nutrition label (#3)
-- [ ] Add `accessibilityLabel` to all icon-only buttons (#15) — quick win
-- [ ] Add Sentry crash reporting (#21) — you need this day one
-- [ ] Write deployment runbook (#23)
+Soundtracks has European users in its TAM. Basic compliance required now; full compliance
+before any marketing push into EU markets.
+
+### Current status
+- ✅ Right to deletion — delete account feature ships from Profile screen
+- ✅ Privacy policy — hosted at `/privacy`; covers data types, third parties, user rights
+- ⚠️ Data portability — no export yet; required for full GDPR compliance
+- ⚠️ DPA contact — privacy policy should include a dedicated contact email for data requests
+- ⚠️ Under-13 exclusion — COPPA + GDPR-K; 12+ age rating is set but policy should explicitly state no under-13 users
+
+### What to add
+- [ ] **Data export** — JSON dump of all a user's moments from Profile screen. A simple Supabase query (`SELECT * FROM moments WHERE user_id = ?`) wrapped in a button is sufficient for v1. Offer as a download or email.
+- [ ] **Privacy contact email** — add `privacy@soundtracks.app` (or founder's email) to privacy policy as DPA contact
+- [ ] **Under-13 statement** — add explicit "this service is not directed at children under 13" language to privacy policy
+
+### What you don't need yet
+- Cookie banners — only required for web tracking; your web app doesn't track unauthenticated visitors
+- Full data processing agreements — required when you have business customers (B2B events tier); not needed for consumer users yet
+- Privacy shield certification — not required for apps of this scale
+
+---
+
+## Prioritized Fix List — Updated May 2026
+
+### ✅ Resolved (App Store Blockers)
+- [x] Delete account feature (#1) ✅
+- [x] Privacy policy at `/privacy` (#2) ✅
+- [x] App Store Connect nutrition label (#3) ✅
+- [x] Sentry crash reporting ✅
+- [x] PostHog analytics ✅
 
 ### Before Wide Marketing Push (Security + Stability)
 - [ ] Replace service role key in web app with anon key + RLS policies (#4, #6)
-- [ ] Clear push token on sign-out (#7)
+- [ ] Clear push token on sign-out / delete (#7)
 - [ ] Remove console.logs from edge function (#12)
-- [ ] Add PostHog/Mixpanel analytics (#21)
 - [ ] Add EAS preview build profile (#22)
+- [ ] GDPR: data export, privacy contact email, under-13 statement (see above)
+- [ ] Add `accessibilityLabel` to all icon-only buttons (#15) — quick win
 
 ### Before Significant User Growth (Scalability)
 - [x] Pagination (30 items/page, infinite scroll) ✅
 - [x] AsyncStorage startup cache ✅
 - [x] All DB indexes ✅
-- [ ] Batch notification edge function (#10)
-- [ ] Upgrade Supabase to Pro plan (#12)
-- [ ] CDN in front of image storage (#11)
+- [ ] **Cloudflare free CDN in front of Supabase storage** — proxy `moment-photos` bucket through Cloudflare Workers; dramatically cuts egress; extends $25/mo Supabase plan to ~3–4k MAU. Do this before any marketing push.
+- [ ] Batch notification edge function (#10) — needed before 1K users
 - [ ] Offline detection banner (#16)
 - [ ] Add CI pipeline — type check + lint on PRs (#20)
 

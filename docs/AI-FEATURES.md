@@ -1,6 +1,6 @@
-# Tracks — AI/ML Feature Ideas
+# Soundtracks — AI/ML Feature Ideas
 
-Potential AI/ML features organized by value and complexity. The unique dataset — music + mood + free-text reflection + people + time — is what makes these features genuinely interesting rather than gimmicky. Most music apps have listening data. Tracks has *meaning* data.
+Potential AI/ML features organized by value and complexity. The unique dataset — music + mood + free-text reflection + people + time — is what makes these features genuinely interesting rather than gimmicky. Most music apps have listening data. Soundtracks has *meaning* data.
 
 ---
 
