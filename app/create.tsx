@@ -4,6 +4,7 @@ import { usePostHog } from "posthog-react-native";
 import * as Location from "expo-location";
 import * as FileSystem from "expo-file-system/legacy";
 import {
+  Alert,
   View,
   Text,
   TextInput,
@@ -675,22 +676,42 @@ export default function CreateMomentScreen() {
         has_collection: Boolean(selectedCollection),
       });
 
-      if (selectedCollection && inserted?.id) {
-        await addMomentToCollection(selectedCollection.id, inserted.id, user.id).catch(() => {});
-      }
+      // Secondary failures don't block navigation — moment is already saved
+      const secondaryFailures: string[] = [];
+      const secondaryOps: Promise<void>[] = [];
 
-      // Tag friends (only real user-to-user tags — excludes guest moments)
-      if (inserted?.id && taggedFriends.length > 0) {
-        const { insertTaggedMoment } = await import("@/lib/friends");
-        await Promise.all(
-          taggedFriends.map((tf) =>
-            insertTaggedMoment(inserted.id, tf.friend.otherUserId, tf.send).catch(() => {})
-          )
+      if (selectedCollection && inserted?.id) {
+        secondaryOps.push(
+          addMomentToCollection(selectedCollection.id, inserted.id, user.id).catch((e) => {
+            Sentry.captureException(e);
+            secondaryFailures.push("couldn't be added to the collection");
+          })
         );
       }
 
+      if (inserted?.id && taggedFriends.length > 0) {
+        secondaryOps.push(
+          import("@/lib/friends").then(({ insertTaggedMoment }) =>
+            Promise.allSettled(taggedFriends.map((tf) => insertTaggedMoment(inserted.id, tf.friend.otherUserId, tf.send)))
+          ).then((tagResults) => {
+            const tagFailures = tagResults.filter((r) => r.status === "rejected");
+            tagFailures.forEach((r) => Sentry.captureException((r as PromiseRejectedResult).reason));
+            if (tagFailures.length > 0) secondaryFailures.push("some friend tags didn't send");
+          })
+        );
+      }
+
+      await Promise.all(secondaryOps);
+
       checkAndNotifyMilestone(user.id).catch(() => {});
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      if (secondaryFailures.length > 0) {
+        Alert.alert(
+          "Moment saved",
+          `Your moment was saved, but it ${secondaryFailures.join(" and ")}. Try again from the moment detail.`
+        );
+      }
       setSong(null);
       setReflection("");
       setSelectedMood(null);

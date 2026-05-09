@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, } from "react";
+import { usePostHog } from "posthog-react-native";
 import {
   View,
   Text,
@@ -37,6 +38,7 @@ import { markTimelineStale } from "@/lib/timelineRefresh";
 export default function EditMomentScreen() {
   const router = useRouter();
   const { user, profile, saveCustomMood, deleteCustomMood } = useAuth();
+  const posthog = usePostHog();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -226,6 +228,13 @@ export default function EditMomentScreen() {
 
       if (updateError) throw updateError;
 
+      posthog.capture("moment_edited", {
+        has_reflection: reflection.trim().length > 0,
+        has_mood: !!selectedMood,
+        has_people: people.length > 0,
+        photo_count: existingPhotos.length + newPhotos.length,
+        has_location: !!(location.trim()),
+      });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       markTimelineStale();
       router.back();

@@ -13,7 +13,10 @@ export function friendlyError(err: unknown): string {
     lower.includes("network request failed") ||
     lower.includes("failed to fetch") ||
     lower.includes("networkerror") ||
-    lower.includes("load failed")
+    lower.includes("load failed") ||
+    lower.includes("aborted") ||
+    lower.includes("timed out") ||
+    lower.includes("timeout")
   ) {
     return "No connection. Check your internet and try again.";
   }

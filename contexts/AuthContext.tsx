@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import * as AppleAuthentication from "expo-apple-authentication";
+import * as Sentry from "@sentry/react-native";
 import { supabase } from "@/lib/supabase";
 import { posthog } from "@/lib/posthog";
 import { CustomMoodDefinition, CustomPromptCategory, FavoriteArtist, FavoriteSong, UserProfile } from "@/types";
 import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
+import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
 
 export interface OnboardingData {
   displayName: string;
@@ -57,7 +59,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isMountedRef = useRef(true);
   const currentFetchUserIdRef = useRef<string | null>(null);
 
-  async function fetchProfile(userId: string) {
+  // keepOnError: don't wipe cached profile on network failure (prevents bouncing user to onboarding)
+  async function fetchProfile(userId: string, { keepOnError = false, email }: { keepOnError?: boolean; email?: string | null } = {}) {
     currentFetchUserIdRef.current = userId;
     const { data, error } = await supabase
       .from("profiles")
@@ -69,12 +72,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (currentFetchUserIdRef.current !== userId) return;
 
     if (error || !data) {
-      setProfile(null);
+      if (!keepOnError) setProfile(null);
       setProfileReady(true);
       return;
     }
 
-    setProfile({
+    const profile: UserProfile = {
       id: data.id,
       displayName: data.display_name,
       avatarUrl: data.avatar_url,
@@ -95,22 +98,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       notifMilestones: data.notif_milestones ?? true,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
-    });
+    };
+    setProfile(profile);
     setProfileReady(true);
+    writeProfileCache(userId, profile);
+
+    // Sentry user context — enables filtering errors by user in the Sentry dashboard
+    Sentry.setUser({ id: userId, email: email ?? undefined });
+
+    // PostHog identify with full properties for retention/cohort analysis
+    posthog.identify(userId, {
+      $set: {
+        email: email ?? null,
+        display_name: profile.displayName,
+        username: profile.username,
+        onboarding_completed: profile.onboardingCompleted,
+        country: profile.country,
+        birth_year: profile.birthYear,
+      },
+      $set_once: {
+        signed_up_at: profile.createdAt,
+      },
+    });
   }
 
   useEffect(() => {
     supabase.auth.getSession()
       .then(async ({ data: { session } }) => {
         if (!isMountedRef.current) return;
-        try {
-          setSession(session);
-          if (session?.user) {
-            posthog.identify(session.user.id, { $set: { email: session.user.email ?? null } });
-            await fetchProfile(session.user.id);
-            prefetchTimeline(session.user.id);
+        setSession(session);
+        if (session?.user) {
+          // Start timeline prefetch immediately — before any awaits, so _prefetch is
+          // populated before setLoading(false) causes the tab to mount and call consumePrefetchPromise
+          prefetchTimeline(session.user.id);
+
+          // Stale-while-revalidate: lift AuthGate overlay immediately from cache, then refresh
+          const cached = await readProfileCache(session.user.id);
+          if (isMountedRef.current && cached) {
+            setProfile(cached);
+            setProfileReady(true);
+            setLoading(false); // release overlay immediately
           }
-        } finally {
+
+          try {
+            await fetchProfile(session.user.id, { keepOnError: cached !== null, email: session.user.email });
+          } finally {
+            if (isMountedRef.current) setLoading(false);
+          }
+        } else {
           if (isMountedRef.current) setLoading(false);
         }
       })
@@ -126,14 +161,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!suppressAuth.current) {
         setSession(session);
         if (session?.user) {
-          posthog.identify(session.user.id, { $set: { email: session.user.email ?? null } });
           try {
-            await fetchProfile(session.user.id);
+            await fetchProfile(session.user.id, { email: session.user.email });
           } catch {
             if (isMountedRef.current) setProfileReady(true);
           }
         } else {
           posthog.reset();
+          Sentry.setUser(null);
           setProfile(null);
           setProfileReady(false);
         }
@@ -204,13 +239,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     const userId = session?.user?.id;
-    // Clear push token so this device stops receiving notifications for this account
+    // Clear push token fire-and-forget — don't block sign-out on this network call
     if (userId) {
-      try { await supabase.from("profiles").update({ push_token: null }).eq("id", userId); } catch {}
+      supabase.from("profiles").update({ push_token: null }).eq("id", userId).then(null, () => {});
     }
     // Always clear locally even if the network call fails
     await supabase.auth.signOut().catch(() => supabase.auth.signOut({ scope: "local" }));
-    if (userId) clearTimelineCache(userId);
+    if (userId) {
+      clearTimelineCache(userId);
+      clearProfileCache(userId);
+    }
+    posthog.reset();
+    Sentry.setUser(null);
   };
 
   const deleteAccount = async () => {

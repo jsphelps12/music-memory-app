@@ -323,7 +323,7 @@ export default function TimelineScreen() {
         const prefetchPromise = consumePrefetchPromise(user.id);
         if (prefetchPromise) {
           const prefetched = await prefetchPromise.catch(() => null);
-          if (prefetched) {
+          if (prefetched !== null) {
             const peopleSet = new Set<string>();
             for (const m of prefetched) for (const p of m.people) peopleSet.add(p);
             setMoments(prefetched);

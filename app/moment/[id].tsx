@@ -60,7 +60,7 @@ export default function MomentDetailScreen() {
   const { id, returnTo, fromOnboarding, collectionId, collectionRole } = useLocalSearchParams<{ id: string; returnTo?: string; fromOnboarding?: string; collectionId?: string; collectionRole?: string }>();
   const router = useRouter();
   const { user, profile } = useAuth();
-  const { currentSong, isPlaying, play, pause, stop } = usePlayer();
+  const { currentSong, isPlaying, playError, play, pause, stop } = usePlayer();
   const theme = useTheme();
   const posthog = usePostHog();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -556,7 +556,7 @@ export default function MomentDetailScreen() {
             </View>
             {moment.songPreviewUrl ? (
               <TouchableOpacity
-                style={styles.playButton}
+                style={[styles.playButton, playError && styles.playButtonError]}
                 activeOpacity={0.7}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -580,9 +580,11 @@ export default function MomentDetailScreen() {
                   }
                 }}
               >
-                <Text style={styles.playButtonText}>
+                <Text style={[styles.playButtonText, playError && styles.playButtonErrorText]}>
                   {isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId
                     ? "Pause"
+                    : playError
+                    ? "Unavailable"
                     : "Play"}
                 </Text>
               </TouchableOpacity>
@@ -1115,10 +1117,16 @@ function createStyles(theme: Theme) {
       borderRadius: theme.radii.lg,
       marginLeft: theme.spacing.sm,
     },
+    playButtonError: {
+      backgroundColor: theme.colors.backgroundSecondary,
+    },
     playButtonText: {
       color: theme.colors.buttonText,
       fontSize: theme.fontSize.sm,
       fontWeight: theme.fontWeight.semibold,
+    },
+    playButtonErrorText: {
+      color: theme.colors.textTertiary,
     },
     reflection: {
       fontSize: 17,

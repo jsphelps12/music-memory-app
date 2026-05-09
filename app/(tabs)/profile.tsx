@@ -346,9 +346,11 @@ export default function ProfileScreen() {
     setSigningOut(true);
     setSignOutError("");
     try {
+      posthog.capture("signed_out");
       await signOut();
     } catch (e) {
       setSignOutError(friendlyError(e));
+    } finally {
       setSigningOut(false);
     }
   };

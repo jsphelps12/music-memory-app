@@ -30,6 +30,10 @@ export { ErrorBoundary } from "expo-router";
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
   debug: false,
+  environment: process.env.EXPO_PUBLIC_APP_ENV ?? "production",
+  tracesSampleRate: 0.1,   // capture 10% of transactions for performance monitoring
+  enableAutoSessionTracking: true,
+  sessionTrackingIntervalMillis: 30_000,
 });
 
 export const unstable_settings = {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePostHog } from "posthog-react-native";
 import {
   View,
   Text,
@@ -53,6 +54,7 @@ const COUNTRIES = [
 export default function ProfileEditScreen() {
   const router = useRouter();
   const { user, profile, updateProfile } = useAuth();
+  const posthog = usePostHog();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const scrollRef = useRef<ScrollView>(null);
@@ -255,6 +257,14 @@ export default function ProfileEditScreen() {
         favoriteArtists: selectedArtists,
         favoriteSongs: selectedSongs,
         genrePreferences: selectedGenres,
+      });
+      posthog.capture("profile_updated", {
+        has_username: !!(usernameInput.trim()),
+        has_birth_year: birthYear !== null,
+        has_country: !!(country.trim()),
+        favorite_artists_count: selectedArtists.length,
+        favorite_songs_count: selectedSongs.length,
+        genre_preferences_count: selectedGenres.length,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();

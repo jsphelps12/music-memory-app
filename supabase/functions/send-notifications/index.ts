@@ -51,10 +51,22 @@ function getLocalHour(utcDate: Date, timezone: string): number {
   }
 }
 
-Deno.serve(async (_req) => {
+Deno.serve(async (req) => {
+  // Only allow calls from the pg_cron job, which sends the service role key
+  // in the Authorization header. Reject anything else to prevent external
+  // callers from triggering mass notifications.
+  const authHeader = req.headers.get("Authorization");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  if (!authHeader || authHeader !== `Bearer ${serviceRoleKey}`) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    serviceRoleKey
   );
 
   const now = new Date();

@@ -16,7 +16,8 @@ export const TIMELINE_PAGE_SIZE = 30;
 
 const CACHE_KEY_PREFIX = "timeline_cache_v1_";
 
-let _prefetch: { promise: Promise<Moment[]>; userId: string } | null = null;
+// null means "network failed with no cache" — distinct from [] which means "user has 0 moments"
+let _prefetch: { promise: Promise<Moment[] | null>; userId: string } | null = null;
 
 function cacheKey(userId: string) {
   return `${CACHE_KEY_PREFIX}${userId}`;
@@ -57,7 +58,7 @@ export function prefetchTimeline(userId: string): void {
       })
   ).catch((err: unknown) => {
     if (__DEV__) console.warn("[timelinePrefetch] network fetch failed:", err);
-    return [] as Moment[];
+    return null; // signals "offline, no cache available" to fetchMoments
   });
 
   // Race: return cache immediately if available, else wait for network
@@ -73,7 +74,7 @@ export function prefetchTimeline(userId: string): void {
   };
 }
 
-export function consumePrefetchPromise(userId: string): Promise<Moment[]> | null {
+export function consumePrefetchPromise(userId: string): Promise<Moment[] | null> | null {
   if (_prefetch?.userId !== userId) return null; // wrong user — discard
   const p = _prefetch.promise;
   _prefetch = null;

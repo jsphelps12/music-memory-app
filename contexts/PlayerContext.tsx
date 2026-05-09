@@ -5,6 +5,7 @@ import { Song } from "@/types";
 interface PlayerState {
   currentSong: Song | null;
   isPlaying: boolean;
+  playError: boolean;
   play: (song: Song, previewUrl: string) => void;
   pause: () => void;
   stop: () => void;
@@ -15,6 +16,7 @@ const PlayerContext = createContext<PlayerState | undefined>(undefined);
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playError, setPlayError] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
 
   const unloadSound = useCallback(async () => {
@@ -28,6 +30,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const play = useCallback(async (song: Song, previewUrl: string) => {
     await unloadSound();
+    setPlayError(false);
     try {
       const { sound } = await Audio.Sound.createAsync(
         { uri: previewUrl },
@@ -47,6 +50,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     } catch {
       setIsPlaying(false);
       setCurrentSong(null);
+      setPlayError(true);
     }
   }, [unloadSound]);
 
@@ -63,6 +67,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     await unloadSound();
     setCurrentSong(null);
     setIsPlaying(false);
+    setPlayError(false);
   }, [unloadSound]);
 
   useEffect(() => {
@@ -75,7 +80,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <PlayerContext.Provider value={{ currentSong, isPlaying, play, pause, stop }}>
+    <PlayerContext.Provider value={{ currentSong, isPlaying, playError, play, pause, stop }}>
       {children}
     </PlayerContext.Provider>
   );
