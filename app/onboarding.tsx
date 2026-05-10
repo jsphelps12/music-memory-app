@@ -50,7 +50,6 @@ const COUNTRIES = [
 type OnboardingPhase =
   | "questionnaire"
   | "value_prop"
-  | "moment1_intro"
   | "moment2_intro"
   | "share"
   | "celebration";
@@ -69,7 +68,11 @@ export default function OnboardingScreen() {
   // ── Profile fields (all required) ──────────────────────────────────────
   const [displayName, setDisplayName] = useState(profile?.displayName ?? "");
   const [username, setUsername] = useState(profile?.username ?? "");
-  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken" | "error">("idle");
+  // If username was already saved (crash-recovery), treat it as available so the
+  // user isn't blocked by their own username showing up as "taken" in the DB check.
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken" | "error">(
+    profile?.username ? "available" : "idle"
+  );
   const usernameDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [birthYear, setBirthYear] = useState<number | null>(profile?.birthYear ?? null);
   const [country, setCountry] = useState(profile?.country ?? "");
@@ -85,6 +88,10 @@ export default function OnboardingScreen() {
   const [moment1Id, setMoment1Id] = useState<string | null>(null);
   const [moment2Id, setMoment2Id] = useState<string | null>(null);
 
+  // ── Deferred stage-2 capture: set true after stage-1 saves so that the
+  //    router.back() from create.tsx fully settles before we push stage 2. ─
+  const [captureStage2Pending, setCaptureStage2Pending] = useState(false);
+
   // ── Share sheet visibility (separate from phase so it can animate out) ─
   const [shareSheetVisible, setShareSheetVisible] = useState(false);
 
@@ -97,9 +104,15 @@ export default function OnboardingScreen() {
   const [moment2Data, setMoment2Data] = useState<Moment | null>(null);
   const [shareCardVisible, setShareCardVisible] = useState(false);
 
+  // After stage-1 saves, router.back() is called by create.tsx. We wait a tick
+  // so the navigation stack settles before pushing create stage 2 on top.
   useEffect(() => {
-    if (phase === "share") setShareSheetVisible(true);
-  }, [phase]);
+    if (!captureStage2Pending) return;
+    setCaptureStage2Pending(false);
+    const t = setTimeout(() => { handleCaptureMoment2Internal(); }, 350);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captureStage2Pending]);
 
   useEffect(() => {
     if (!moment1Id) return;
@@ -194,18 +207,25 @@ export default function OnboardingScreen() {
   }
 
   // ── Moment 1 ───────────────────────────────────────────────────────────
-  function handleSkipMoment1() {
-    // Skip moment 1 → still go to moment 2
-    setPhase("moment2_intro");
-  }
 
   function handleCaptureMoment1() {
     const unsubscribe = onOnboardingMomentSaved((payload) => {
       unsubscribe();
       setMoment1Id(payload.momentId);
+      // Transition to moment2_intro phase so if the user dismisses stage-2
+      // create without saving they land on a screen with a Skip option.
       setPhase("moment2_intro");
+      // Defer the push until router.back() from create.tsx has settled.
+      setCaptureStage2Pending(true);
     });
     router.push("/create?onboardingStage=1" as any);
+  }
+
+  function handleSkipMoment1() {
+    // Skip moment 1 → show moment2_intro, then immediately push stage-2 create.
+    setPhase("moment2_intro");
+    // No router.back() in flight, so push directly after a short tick.
+    setCaptureStage2Pending(true);
   }
 
   // ── Moment 2 ───────────────────────────────────────────────────────────
@@ -238,14 +258,21 @@ export default function OnboardingScreen() {
     }
   }
 
-  function handleCaptureMoment2() {
+  // Internal: push create stage-2 and wire up the save listener.
+  // Called either from the captureStage2Pending effect OR directly from
+  // the moment2_intro "Save moment →" button.
+  function handleCaptureMoment2Internal() {
     const unsubscribe = onOnboardingMomentSaved((payload) => {
       unsubscribe();
       setMoment2Id(payload.momentId);
       if (payload.hasPerson) {
         setTaggedPersonName(payload.taggedPersonName ?? null);
         setTaggedPersonUserId(payload.taggedPersonUserId ?? null);
+        // Set both phase AND shareSheetVisible together — don't rely on a
+        // useEffect to open the sheet, as the timing is unreliable during
+        // navigation transitions.
         setPhase("share");
+        setShareSheetVisible(true);
       } else {
         setPhase("celebration");
       }
@@ -314,7 +341,6 @@ export default function OnboardingScreen() {
   // ── Renders ────────────────────────────────────────────────────────────
 
   if (phase === "value_prop") return renderValueProp();
-  if (phase === "moment1_intro") return renderMoment1Intro();
   if (phase === "moment2_intro") return renderMoment2Intro();
   if (phase === "share") return renderShare();
   if (phase === "celebration") return renderCelebration();
@@ -415,6 +441,11 @@ export default function OnboardingScreen() {
     return (
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={{ flex: 1 }}>
+          {/* Progress bar — step 1 of 2 */}
+          <View style={styles.progressBarTrack}>
+            <View style={[styles.progressBarFill, { width: "50%" }]} />
+          </View>
+
           {/* Header */}
           <View style={styles.topRow}>
             <Text style={styles.stepHeading}>Welcome to soundtracks.</Text>
@@ -519,6 +550,12 @@ export default function OnboardingScreen() {
   function renderValueProp() {
     return (
       <View style={styles.container}>
+        {/* Progress bar — step 2 of 2 */}
+        <View style={styles.progressBarTrack}>
+          <View style={[styles.progressBarFill, { width: "100%" }]} />
+        </View>
+
+        {/* Back button — rendered AFTER progress bar so it layers on top cleanly */}
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => setPhase("questionnaire")}
@@ -527,7 +564,9 @@ export default function OnboardingScreen() {
         >
           <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <View style={styles.phaseContent}>
+
+        {/* Extra top padding so the icon doesn't overlap the absolute back button */}
+        <View style={[styles.phaseContent, { paddingTop: 100 }]}>
           <View style={styles.phaseIconCircle}>
             <Ionicons name="musical-note" size={36} color={theme.colors.accent} />
           </View>
@@ -551,43 +590,13 @@ export default function OnboardingScreen() {
         </View>
 
         <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: theme.colors.buttonBg }]}
-            onPress={() => setPhase("moment1_intro")}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.primaryButtonText, { color: theme.colors.buttonText }]}>Save my first moment →</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  // ── Moment 1 intro render ──────────────────────────────────────────────
-  function renderMoment1Intro() {
-    return (
-      <View style={styles.container}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => setPhase("value_prop")}
-          hitSlop={12}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-
-        <View style={styles.phaseContent}>
-          <Text style={styles.phaseHeading}>What are you listening to?</Text>
-          <Text style={styles.phaseSub}>The create screen will guide you.</Text>
-        </View>
-
-        <View style={styles.footer}>
+          {/* CTA directly opens create — no intermediate intro screen */}
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: theme.colors.buttonBg }]}
             onPress={handleCaptureMoment1}
             activeOpacity={0.8}
           >
-            <Text style={[styles.primaryButtonText, { color: theme.colors.buttonText }]}>Save →</Text>
+            <Text style={[styles.primaryButtonText, { color: theme.colors.buttonText }]}>Save my first moment →</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -603,12 +612,15 @@ export default function OnboardingScreen() {
   }
 
   // ── Moment 2 intro render ──────────────────────────────────────────────
+  // Only shown as a FALLBACK if the user dismissed create stage-2 without
+  // saving. Normally they never see this — the captureStage2Pending effect
+  // pushes create stage-2 automatically right after stage-1 saves.
   function renderMoment2Intro() {
     return (
       <View style={styles.container}>
         <View style={styles.phaseContent}>
-          <Text style={styles.phaseHeading}>Capture a memory</Text>
-          <Text style={[styles.phaseSub, { marginTop: 8 }]}>Pick a song tied to a real moment. Tag who you were with.</Text>
+          <Text style={styles.phaseHeading}>Now a deeper memory.</Text>
+          <Text style={[styles.phaseSub, { marginTop: 8 }]}>Pick a song tied to a moment with someone. Tag who you were with.</Text>
         </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -616,7 +628,7 @@ export default function OnboardingScreen() {
         <View style={styles.footer}>
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: theme.colors.buttonBg }]}
-            onPress={handleCaptureMoment2}
+            onPress={handleCaptureMoment2Internal}
             activeOpacity={0.8}
           >
             <Text style={[styles.primaryButtonText, { color: theme.colors.buttonText }]}>Save moment →</Text>
@@ -939,6 +951,16 @@ function createStyles(theme: Theme) {
       top: 56,
       left: theme.spacing.xl,
       zIndex: 10,
+    },
+    progressBarTrack: {
+      height: 3,
+      backgroundColor: theme.colors.border,
+      marginTop: 0,
+    },
+    progressBarFill: {
+      height: 3,
+      backgroundColor: theme.colors.accent,
+      borderRadius: 2,
     },
     topRow: {
       paddingHorizontal: theme.spacing.xl,
