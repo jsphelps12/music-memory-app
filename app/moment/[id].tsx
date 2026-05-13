@@ -15,6 +15,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Linking,
+  Share,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -57,7 +58,25 @@ import { CloseButton } from "@/components/CloseButton";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function MomentDetailScreen() {
-  const { id, returnTo, fromOnboarding, collectionId, collectionRole } = useLocalSearchParams<{ id: string; returnTo?: string; fromOnboarding?: string; collectionId?: string; collectionRole?: string }>();
+  const {
+    id,
+    returnTo,
+    fromOnboarding,
+    showShareSheet,
+    taggedPersonName: taggedPersonNameParam,
+    taggedPersonUserId: taggedPersonUserIdParam,
+    collectionId,
+    collectionRole,
+  } = useLocalSearchParams<{
+    id: string;
+    returnTo?: string;
+    fromOnboarding?: string;
+    showShareSheet?: string;
+    taggedPersonName?: string;
+    taggedPersonUserId?: string;
+    collectionId?: string;
+    collectionRole?: string;
+  }>();
   const router = useRouter();
   const { user, profile } = useAuth();
   const { currentSong, isPlaying, playError, play, pause, stop } = usePlayer();
@@ -72,6 +91,8 @@ export default function MomentDetailScreen() {
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [shareModalVisible, setShareModalVisible] = useState(false);
+  // Onboarding share sheet — auto-opens when showShareSheet=true
+  const [onboardingShareSheetVisible, setOnboardingShareSheetVisible] = useState(false);
   const [showVolumeHint, setShowVolumeHint] = useState(true);
   const [friendTags, setFriendTags] = useState<import("@/types").TaggedMoment[]>([]);
   const [releasingTagId, setReleasingTagId] = useState<string | null>(null);
@@ -106,6 +127,13 @@ export default function MomentDetailScreen() {
     const t = setTimeout(() => setShowVolumeHint(false), 6000);
     return () => clearTimeout(t);
   }, [fromOnboarding]);
+
+  // Auto-open the share sheet after the entrance animation completes.
+  useEffect(() => {
+    if (showShareSheet !== "true") return;
+    const t = setTimeout(() => setOnboardingShareSheetVisible(true), 450);
+    return () => clearTimeout(t);
+  }, [showShareSheet]);
 
   const hasAutoPlayed = useRef(false);
   const momentRef = useRef(moment);
@@ -158,6 +186,15 @@ export default function MomentDetailScreen() {
       router.back();
     }
   }, [router, returnTo]);
+
+  // Used by the onboarding share sheet — closes the sheet then exits to
+  // onboarding's celebration phase (which is the screen below after
+  // create.tsx did router.replace to get here).
+  const exitToCelebration = useCallback(() => {
+    setOnboardingShareSheetVisible(false);
+    // Small delay so the sheet slides down before animating out
+    setTimeout(() => animateOut(goBack), 300);
+  }, [animateOut, goBack]);
 
   const swipeGesture = Gesture.Pan()
     .activeOffsetX([-15, 15])
@@ -708,7 +745,13 @@ export default function MomentDetailScreen() {
           visible={shareModalVisible}
           moment={moment}
           photoUrls={photoUrls}
-          onClose={() => setShareModalVisible(false)}
+          onClose={() => {
+            setShareModalVisible(false);
+            // If we arrived here from the onboarding share sheet, exit to celebration
+            if (showShareSheet === "true") {
+              setTimeout(() => animateOut(goBack), 300);
+            }
+          }}
         />
       )}
 
@@ -720,13 +763,111 @@ export default function MomentDetailScreen() {
         </View>
       )}
 
-      {/* Onboarding: share nudge card */}
-      {fromOnboarding === "true" && moment && (
+      {/* Onboarding: share nudge card — hidden when the share sheet auto-opens */}
+      {fromOnboarding === "true" && showShareSheet !== "true" && moment && (
         <View style={styles.onboardingShareCard}>
           <Ionicons name="gift-outline" size={18} color={theme.colors.accent} />
           <Text style={styles.onboardingShareText}>Tap <Text style={{ fontWeight: "700" }}>•••</Text> above to give this memory to someone</Text>
         </View>
       )}
+
+      {/* ── Onboarding share sheet ── */}
+      {showShareSheet === "true" && moment && (() => {
+        const personName = taggedPersonNameParam ?? "them";
+        const isOnApp = Boolean(taggedPersonUserIdParam);
+        const inviteUrl = profile?.friendInviteToken
+          ? `https://soundtracks.app/friend/${profile.friendInviteToken}`
+          : "https://soundtracks.app";
+
+        return (
+          <Modal
+            visible={onboardingShareSheetVisible}
+            transparent
+            animationType="slide"
+            onRequestClose={exitToCelebration}
+          >
+            {/* Tapping the backdrop exits to celebration */}
+            <TouchableOpacity
+              style={shareSheetStyles.backdrop}
+              activeOpacity={1}
+              onPress={exitToCelebration}
+            />
+            <View style={[shareSheetStyles.sheet, { backgroundColor: theme.colors.background }]}>
+              <View style={[shareSheetStyles.handle, { backgroundColor: theme.colors.border }]} />
+
+              {/* Header row: title + X */}
+              <View style={shareSheetStyles.headerRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[shareSheetStyles.title, { color: theme.colors.text }]}>
+                    Share with {personName}?
+                  </Text>
+                  <Text style={[shareSheetStyles.sub, { color: theme.colors.textSecondary }]}>
+                    They were part of this memory.
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={exitToCelebration} hitSlop={12} activeOpacity={0.7}>
+                  <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Share options */}
+              <View style={shareSheetStyles.optionsList}>
+                {/* Create share card */}
+                <TouchableOpacity
+                  style={[shareSheetStyles.option, { borderColor: theme.colors.border }]}
+                  onPress={() => {
+                    setOnboardingShareSheetVisible(false);
+                    setTimeout(() => setShareModalVisible(true), 300);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[shareSheetStyles.optionIcon, { backgroundColor: theme.colors.accentBg }]}>
+                    <Ionicons name="image-outline" size={22} color={theme.colors.accent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[shareSheetStyles.optionTitle, { color: theme.colors.text }]}>Create share card</Text>
+                    <Text style={[shareSheetStyles.optionSub, { color: theme.colors.textSecondary }]}>A designed image for Stories</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                </TouchableOpacity>
+
+                {/* Share invite link */}
+                <TouchableOpacity
+                  style={[shareSheetStyles.option, { borderColor: theme.colors.border }]}
+                  onPress={async () => {
+                    setOnboardingShareSheetVisible(false);
+                    try { await Share.share({ message: inviteUrl, url: inviteUrl }); } catch {}
+                    setTimeout(() => animateOut(goBack), 300);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[shareSheetStyles.optionIcon, { backgroundColor: theme.colors.accentBg }]}>
+                    <Ionicons name="link-outline" size={22} color={theme.colors.accent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[shareSheetStyles.optionTitle, { color: theme.colors.text }]}>Share invite link</Text>
+                    <Text style={[shareSheetStyles.optionSub, { color: theme.colors.textSecondary }]}>Send via text, email or anywhere</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                </TouchableOpacity>
+
+                {/* Send in app — greyed until person joins */}
+                <View style={[shareSheetStyles.option, { borderColor: theme.colors.border, opacity: isOnApp ? 1 : 0.4 }]}>
+                  <View style={[shareSheetStyles.optionIcon, { backgroundColor: theme.colors.chipBg }]}>
+                    <Ionicons name="phone-portrait-outline" size={22} color={theme.colors.textSecondary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[shareSheetStyles.optionTitle, { color: theme.colors.text }]}>Send in app</Text>
+                    <Text style={[shareSheetStyles.optionSub, { color: theme.colors.textSecondary }]}>
+                      {isOnApp ? `${personName} is on soundtracks` : `Available when ${personName} joins`}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </Modal>
+        );
+      })()}
 
       {/* Collection membership modal */}
       <Modal
@@ -1265,3 +1406,70 @@ function createStyles(theme: Theme) {
     },
   });
 }
+
+// ── Onboarding share sheet styles (static — no theme dependency) ───────────
+const shareSheetStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  sheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: Platform.OS === "ios" ? 34 : 20,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginTop: 12,
+    marginBottom: 4,
+    opacity: 0.4,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+    gap: 12,
+  },
+  title: {
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 3,
+  },
+  sub: {
+    fontSize: 14,
+  },
+  optionsList: {
+    paddingHorizontal: 20,
+    gap: 10,
+    paddingBottom: 16,
+  },
+  option: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    gap: 14,
+  },
+  optionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  optionTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  optionSub: {
+    fontSize: 13,
+  },
+});

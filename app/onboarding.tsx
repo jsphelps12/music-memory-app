@@ -13,13 +13,13 @@ import {
   Modal,
   Keyboard,
   Platform,
-  Share,
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { CloseButton } from "@/components/CloseButton";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { useAuth, OnboardingData } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -29,8 +29,6 @@ import { checkUsernameAvailable } from "@/lib/friends";
 import { registerForPushNotifications } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
-import { getPublicPhotoUrl } from "@/lib/storage";
-import { ShareCardModal } from "@/components/ShareCardModal";
 import { Moment } from "@/types";
 
 const BIRTH_YEARS = Array.from({ length: 86 }, (_, i) => 2015 - i); // 2015 → 1930
@@ -47,12 +45,7 @@ const COUNTRIES = [
   "Saudi Arabia", "United Arab Emirates", "Israel", "Turkey", "Greece",
 ];
 
-type OnboardingPhase =
-  | "questionnaire"
-  | "value_prop"
-  | "moment2_intro"
-  | "share"
-  | "celebration";
+type OnboardingPhase = "questionnaire" | "value_prop" | "celebration";
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -92,20 +85,39 @@ export default function OnboardingScreen() {
   //    router.back() from create.tsx fully settles before we push stage 2. ─
   const [captureStage2Pending, setCaptureStage2Pending] = useState(false);
 
-  // ── Share sheet visibility (separate from phase so it can animate out) ─
-  const [shareSheetVisible, setShareSheetVisible] = useState(false);
+  // ── Track whether stage-2 create was pushed (to detect dismiss-without-save) ─
+  // Using a ref so it doesn't trigger re-renders, and useFocusEffect reads it.
+  const stage2PushedRef = useRef(false);
+  // Mirror moment1Id into a ref for safe access inside useFocusEffect callback.
+  const moment1IdRef = useRef<string | null>(null);
+  moment1IdRef.current = moment1Id;
 
-  // ── Share screen person info ───────────────────────────────────────────
-  const [taggedPersonName, setTaggedPersonName] = useState<string | null>(null);
-  const [taggedPersonUserId, setTaggedPersonUserId] = useState<string | null>(null);
-
-  // ── Fetched moment data (for share card + celebration cards) ───────────
+  // ── Fetched moment data for celebration cards ──────────────────────────
   const [moment1Data, setMoment1Data] = useState<Moment | null>(null);
   const [moment2Data, setMoment2Data] = useState<Moment | null>(null);
-  const [shareCardVisible, setShareCardVisible] = useState(false);
 
-  // After stage-1 saves, router.back() is called by create.tsx. We wait a tick
-  // so the navigation stack settles before pushing create stage 2 on top.
+  // ── Crash recovery: if the user already has moments they completed at    ─
+  //    least part of the flow before a crash — complete onboarding and      ─
+  //    let them straight into the app.                                       ─
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from("moments")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .then(({ count }) => {
+        if (count && count > 0) {
+          completeOnboarding(buildOnboardingData())
+            .then(() => router.replace("/(tabs)"))
+            .catch(() => {
+              // Silent fail — they'll try again next launch.
+            });
+        }
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // ── Deferred push of stage-2 create (after stage-1 router.back settles) ─
   useEffect(() => {
     if (!captureStage2Pending) return;
     setCaptureStage2Pending(false);
@@ -113,6 +125,17 @@ export default function OnboardingScreen() {
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [captureStage2Pending]);
+
+  // ── Detect stage-2 create dismissed without saving ─────────────────────
+  // Fires whenever onboarding regains focus. If stage2PushedRef is true,
+  // the user opened create stage-2 and closed it without saving.
+  useFocusEffect(useCallback(() => {
+    if (!stage2PushedRef.current) return;
+    stage2PushedRef.current = false;
+    // Whether they had moment1 or skipped everything, advance to celebration.
+    // renderCelebration handles 0/1 moment count gracefully.
+    setPhase("celebration");
+  }, []));
 
   useEffect(() => {
     if (!moment1Id) return;
@@ -211,71 +234,34 @@ export default function OnboardingScreen() {
   function handleCaptureMoment1() {
     const unsubscribe = onOnboardingMomentSaved((payload) => {
       unsubscribe();
+      stage2PushedRef.current = false; // Will be re-set by handleCaptureMoment2Internal
       setMoment1Id(payload.momentId);
-      // Transition to moment2_intro phase so if the user dismisses stage-2
-      // create without saving they land on a screen with a Skip option.
-      setPhase("moment2_intro");
-      // Defer the push until router.back() from create.tsx has settled.
+      // Defer stage-2 push until router.back() from create.tsx has settled.
       setCaptureStage2Pending(true);
     });
     router.push("/create?onboardingStage=1" as any);
   }
 
   function handleSkipMoment1() {
-    // Skip moment 1 → show moment2_intro, then immediately push stage-2 create.
-    setPhase("moment2_intro");
-    // No router.back() in flight, so push directly after a short tick.
-    setCaptureStage2Pending(true);
+    // Skipping moment 1 still shows moment 2. No router.back() in flight,
+    // so we can push directly.
+    handleCaptureMoment2Internal();
   }
 
   // ── Moment 2 ───────────────────────────────────────────────────────────
-  function handleSkipMoment2() {
-    setError("");
-    if (moment1Id) {
-      // Saved moment 1, skipped moment 2 → show celebration with 1 moment
-      setPhase("celebration");
-    } else {
-      // Skipped both → complete onboarding and go straight to timeline
-      handleSkipBoth();
-    }
-  }
-
-  async function handleSkipBoth() {
-    setSaving(true);
-    setError("");
-    try {
-      await completeOnboarding(buildOnboardingData());
-      posthog.capture("onboarding_completed", {
-        has_birth_year: true,
-        has_country: true,
-        skipped_moments: true,
-        moments_saved: 0,
-      });
-      router.replace("/(tabs)");
-    } catch (e: any) {
-      setError(friendlyError(e));
-      setSaving(false);
-    }
-  }
-
-  // Internal: push create stage-2 and wire up the save listener.
-  // Called either from the captureStage2Pending effect OR directly from
-  // the moment2_intro "Save moment →" button.
+  // Push create stage-2 and wire up the save listener.
+  // Called from the captureStage2Pending effect (after stage-1 saves) or
+  // directly from handleSkipMoment1.
   function handleCaptureMoment2Internal() {
+    stage2PushedRef.current = true; // So useFocusEffect can detect a dismiss
     const unsubscribe = onOnboardingMomentSaved((payload) => {
       unsubscribe();
+      stage2PushedRef.current = false; // Saved — no dismiss-detection needed
       setMoment2Id(payload.momentId);
-      if (payload.hasPerson) {
-        setTaggedPersonName(payload.taggedPersonName ?? null);
-        setTaggedPersonUserId(payload.taggedPersonUserId ?? null);
-        // Set both phase AND shareSheetVisible together — don't rely on a
-        // useEffect to open the sheet, as the timing is unreliable during
-        // navigation transitions.
-        setPhase("share");
-        setShareSheetVisible(true);
-      } else {
-        setPhase("celebration");
-      }
+      // Celebration either way; when hasPerson, create.tsx navigates to moment
+      // detail with showShareSheet=true instead of router.back(), so the share
+      // sheet appears over the moment view — onboarding just waits in celebration.
+      setPhase("celebration");
     });
     router.push({
       pathname: "/create",
@@ -285,33 +271,6 @@ export default function OnboardingScreen() {
         promptStarter: "We were...",
       },
     } as any);
-  }
-
-  // ── Share screen ───────────────────────────────────────────────────────
-  function closeShareSheetThen(next: () => void) {
-    setShareSheetVisible(false);
-    // Wait for the sheet slide-down animation before transitioning
-    setTimeout(next, 300);
-  }
-
-  function handleShareCard() {
-    closeShareSheetThen(() => setShareCardVisible(true));
-  }
-
-  async function handleShareLink() {
-    const inviteUrl = profile?.friendInviteToken
-      ? `https://soundtracks.app/friend/${profile.friendInviteToken}`
-      : "https://soundtracks.app";
-    closeShareSheetThen(async () => {
-      try {
-        await Share.share({ message: inviteUrl, url: inviteUrl });
-      } catch {}
-      setPhase("celebration");
-    });
-  }
-
-  function handleShareMaybeLater() {
-    closeShareSheetThen(() => setPhase("celebration"));
   }
 
   // ── Finish (celebration CTA) ───────────────────────────────────────────
@@ -341,8 +300,6 @@ export default function OnboardingScreen() {
   // ── Renders ────────────────────────────────────────────────────────────
 
   if (phase === "value_prop") return renderValueProp();
-  if (phase === "moment2_intro") return renderMoment2Intro();
-  if (phase === "share") return renderShare();
   if (phase === "celebration") return renderCelebration();
 
   return (
@@ -611,166 +568,18 @@ export default function OnboardingScreen() {
     );
   }
 
-  // ── Moment 2 intro render ──────────────────────────────────────────────
-  // Only shown as a FALLBACK if the user dismissed create stage-2 without
-  // saving. Normally they never see this — the captureStage2Pending effect
-  // pushes create stage-2 automatically right after stage-1 saves.
-  function renderMoment2Intro() {
-    return (
-      <View style={styles.container}>
-        <View style={styles.phaseContent}>
-          <Text style={styles.phaseHeading}>Now a deeper memory.</Text>
-          <Text style={[styles.phaseSub, { marginTop: 8 }]}>Pick a song tied to a moment with someone. Tag who you were with.</Text>
-        </View>
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: theme.colors.buttonBg }]}
-            onPress={handleCaptureMoment2Internal}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.primaryButtonText, { color: theme.colors.buttonText }]}>Save moment →</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleSkipMoment2}
-            activeOpacity={0.7}
-            style={styles.skipLink}
-            disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-            ) : (
-              <Text style={[styles.skipText, { color: theme.colors.textSecondary }]}>Skip for now</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  // ── Share screen render ────────────────────────────────────────────────
-  function renderShare() {
-    const personName = taggedPersonName ?? "them";
-    const isOnApp = Boolean(taggedPersonUserId);
-    const shareableMoment = moment2Data ?? moment1Data;
-    const shareablePhotoUrls = shareableMoment?.photoUrls.map(getPublicPhotoUrl) ?? [];
-
-    return (
-      <View style={styles.container}>
-        {/* Background: the just-saved moment card */}
-        <View style={[styles.phaseContent, { justifyContent: "flex-start", paddingTop: 80 }]}>
-          <Text style={[styles.phaseHeading, { marginBottom: 4 }]}>
-            Share with {personName}?
-          </Text>
-          <Text style={styles.phaseSub}>They were part of this memory.</Text>
-          {shareableMoment && (
-            <View style={{ marginTop: theme.spacing["2xl"] }}>
-              <CelebrationMomentCard moment={shareableMoment} theme={theme} />
-            </View>
-          )}
-        </View>
-
-        {/* Share options — bottom sheet Modal sliding up over the background */}
-        <Modal
-          visible={shareSheetVisible}
-          transparent
-          animationType="slide"
-          onRequestClose={handleShareMaybeLater}
-        >
-          <TouchableOpacity
-            style={styles.modalBackdrop}
-            activeOpacity={1}
-            onPress={handleShareMaybeLater}
-          />
-          <View style={[styles.shareSheet, { backgroundColor: theme.colors.background }]}>
-            <View style={[styles.pickerSheetHandle, { backgroundColor: theme.colors.border }]} />
-            <View style={styles.shareSheetHeader}>
-              <Text style={[styles.shareSheetTitle, { color: theme.colors.text }]}>
-                Share with {personName}?
-              </Text>
-              <Text style={[styles.shareSheetSub, { color: theme.colors.textSecondary }]}>
-                They were part of this memory.
-              </Text>
-            </View>
-
-            <View style={styles.shareOptionsList}>
-              <TouchableOpacity
-                style={[styles.shareOption, { borderColor: theme.colors.border }]}
-                onPress={handleShareCard}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.shareOptionIcon, { backgroundColor: theme.colors.accentBg }]}>
-                  <Ionicons name="image-outline" size={22} color={theme.colors.accent} />
-                </View>
-                <View style={styles.shareOptionText}>
-                  <Text style={[styles.shareOptionTitle, { color: theme.colors.text }]}>Create share card</Text>
-                  <Text style={[styles.shareOptionSub, { color: theme.colors.textSecondary }]}>A designed image for Stories</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.shareOption, { borderColor: theme.colors.border }]}
-                onPress={handleShareLink}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.shareOptionIcon, { backgroundColor: theme.colors.accentBg }]}>
-                  <Ionicons name="link-outline" size={22} color={theme.colors.accent} />
-                </View>
-                <View style={styles.shareOptionText}>
-                  <Text style={[styles.shareOptionTitle, { color: theme.colors.text }]}>Share link</Text>
-                  <Text style={[styles.shareOptionSub, { color: theme.colors.textSecondary }]}>Send via text, email or anywhere</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-              </TouchableOpacity>
-
-              <View style={[styles.shareOption, { borderColor: theme.colors.border, opacity: isOnApp ? 1 : 0.45 }]}>
-                <View style={[styles.shareOptionIcon, { backgroundColor: theme.colors.chipBg }]}>
-                  <Ionicons name="phone-portrait-outline" size={22} color={theme.colors.textSecondary} />
-                </View>
-                <View style={styles.shareOptionText}>
-                  <Text style={[styles.shareOptionTitle, { color: theme.colors.text }]}>Send in app</Text>
-                  <Text style={[styles.shareOptionSub, { color: theme.colors.textSecondary }]}>
-                    {isOnApp ? `${personName} is on soundtracks` : `When ${personName} joins soundtracks`}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              onPress={handleShareMaybeLater}
-              activeOpacity={0.7}
-              style={[styles.skipLink, { marginBottom: Platform.OS === "ios" ? 24 : 12 }]}
-            >
-              <Text style={[styles.skipText, { color: theme.colors.textSecondary }]}>Maybe later</Text>
-            </TouchableOpacity>
-          </View>
-        </Modal>
-
-        {/* ShareCardModal — opens after share sheet animates out */}
-        {shareableMoment && (
-          <ShareCardModal
-            visible={shareCardVisible}
-            moment={shareableMoment}
-            photoUrls={shareablePhotoUrls}
-            onClose={() => {
-              setShareCardVisible(false);
-              setPhase("celebration");
-            }}
-          />
-        )}
-      </View>
-    );
-  }
-
   // ── Celebration render ─────────────────────────────────────────────────
   function renderCelebration() {
     const momentCount = [moment1Id, moment2Id].filter(Boolean).length;
     // Show moment2 (shared) first, then moment1 (quick capture) — matches design
     const celebrationMoments = [moment2Data, moment1Data].filter(Boolean) as Moment[];
+
+    const subtitle =
+      momentCount === 0
+        ? "Your timeline is ready. Start adding memories anytime."
+        : momentCount === 1
+        ? "One memory saved. Your soundtrack has begun."
+        : "Two memories saved. Welcome.";
 
     return (
       <View style={styles.container}>
@@ -779,44 +588,13 @@ export default function OnboardingScreen() {
             <Ionicons name="musical-note" size={36} color={theme.colors.accent} />
           </View>
           <Text style={styles.phaseHeading}>Your soundtrack starts here.</Text>
-          <Text style={styles.phaseSub}>
-            {momentCount === 2 ? "Two memories saved. Welcome." : "One memory saved. Welcome."}
-          </Text>
+          <Text style={styles.phaseSub}>{subtitle}</Text>
 
-          {/* Saved moment cards */}
           {celebrationMoments.length > 0 && (
             <View style={styles.celebrationMoments}>
               {celebrationMoments.map((m) => (
                 <CelebrationMomentCard key={m.id} moment={m} theme={theme} />
               ))}
-            </View>
-          )}
-
-          {/* Invite banner */}
-          {taggedPersonName && (
-            <View style={[styles.inviteBanner, { backgroundColor: theme.colors.accentSecondaryBg, borderColor: theme.colors.border }]}>
-              <View style={styles.inviteBannerRow}>
-                <View style={[styles.inviteAvatar, { backgroundColor: theme.colors.chipBg }]}>
-                  <Text style={[styles.inviteAvatarInitial, { color: theme.colors.textSecondary }]}>
-                    {taggedPersonName.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.inviteBannerTitle, { color: theme.colors.text }]}>
-                    Invite {taggedPersonName} to soundtracks
-                  </Text>
-                  <Text style={[styles.inviteBannerSub, { color: theme.colors.textSecondary }]}>
-                    They can see this memory and build their own soundtrack.
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={[styles.inviteButton, { backgroundColor: theme.colors.accentSecondary }]}
-                onPress={handleShareLink}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.inviteButtonText, { color: "#fff" }]}>Send invite →</Text>
-              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -1096,103 +874,10 @@ function createStyles(theme: Theme) {
     valuePropText: {
       fontSize: theme.fontSize.base,
     },
-    // Share screen bottom sheet
-    shareSheet: {
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
-      paddingBottom: Platform.OS === "ios" ? 34 : 20,
-    },
-    shareSheetHeader: {
-      paddingHorizontal: theme.spacing.xl,
-      paddingTop: 12,
-      paddingBottom: 16,
-    },
-    shareSheetTitle: {
-      fontSize: theme.fontSize.lg,
-      fontWeight: theme.fontWeight.bold,
-      marginBottom: 4,
-    },
-    shareSheetSub: {
-      fontSize: theme.fontSize.sm,
-    },
-    shareOptionsList: {
-      paddingHorizontal: theme.spacing.xl,
-      gap: 10,
-    },
-    shareOption: {
-      flexDirection: "row",
-      alignItems: "center",
-      borderWidth: 1,
-      borderRadius: 12,
-      padding: 16,
-      gap: 14,
-    },
-    shareOptionIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 10,
-      alignItems: "center",
-      justifyContent: "center",
-      flexShrink: 0,
-    },
-    shareOptionText: {
-      flex: 1,
-    },
-    shareOptionTitle: {
-      fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
-      marginBottom: 2,
-    },
-    shareOptionSub: {
-      fontSize: theme.fontSize.sm,
-    },
     // Celebration
     celebrationMoments: {
       marginTop: theme.spacing.xl,
       gap: 10,
-    },
-    inviteBanner: {
-      marginTop: theme.spacing["2xl"],
-      borderRadius: 12,
-      borderWidth: 1,
-      padding: 16,
-      gap: 12,
-    },
-    inviteBannerRow: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      gap: 12,
-    },
-    inviteAvatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      alignItems: "center",
-      justifyContent: "center",
-      flexShrink: 0,
-    },
-    inviteAvatarInitial: {
-      fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
-    },
-    inviteBannerTitle: {
-      fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
-      marginBottom: 2,
-    },
-    inviteBannerSub: {
-      fontSize: theme.fontSize.sm,
-      lineHeight: 18,
-    },
-    inviteButton: {
-      height: 40,
-      borderRadius: 10,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    inviteButtonText: {
-      fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
     },
     // Picker modals
     modalBackdrop: {

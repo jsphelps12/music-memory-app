@@ -735,21 +735,35 @@ export default function CreateMomentScreen() {
       markTimelineStale();
 
       if (params.onboardingStage === "1" || params.onboardingStage === "2") {
-        // Mark first moment done for any onboarding stage so celebration.tsx
-        // doesn't appear again after onboarding completes.
+        // Mark first moment done so celebration.tsx doesn't appear post-onboarding.
         if (user) {
           await AsyncStorage.setItem(firstMomentKey(user.id), "true");
         }
         const firstFriend = taggedFriends[0];
+        const hasPerson = people.length > 0 || taggedFriends.length > 0;
         const firstPersonName = firstFriend?.friend.otherUserDisplayName ?? people[0] ?? undefined;
         const firstPersonUserId = firstFriend?.friend.otherUserId ?? null;
         emitOnboardingMomentSaved({
           momentId: inserted!.id,
-          hasPerson: people.length > 0 || taggedFriends.length > 0,
+          hasPerson,
           taggedPersonName: firstPersonName,
           taggedPersonUserId: firstPersonUserId,
         });
-        router.back();
+
+        if (params.onboardingStage === "2" && hasPerson) {
+          // Open the just-saved moment with the share sheet on top.
+          // router.replace removes create from the nav stack so closing
+          // moment detail returns straight to onboarding's celebration phase.
+          const shareParams: Record<string, string> = {
+            fromOnboarding: "true",
+            showShareSheet: "true",
+          };
+          if (firstPersonName) shareParams.taggedPersonName = firstPersonName;
+          if (firstPersonUserId) shareParams.taggedPersonUserId = firstPersonUserId;
+          router.replace({ pathname: `/moment/${inserted!.id}` as any, params: shareParams });
+        } else {
+          router.back();
+        }
         return;
       }
 
