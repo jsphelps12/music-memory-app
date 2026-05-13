@@ -61,11 +61,7 @@ export default function OnboardingScreen() {
   // ── Profile fields (all required) ──────────────────────────────────────
   const [displayName, setDisplayName] = useState(profile?.displayName ?? "");
   const [username, setUsername] = useState(profile?.username ?? "");
-  // If username was already saved (crash-recovery), treat it as available so the
-  // user isn't blocked by their own username showing up as "taken" in the DB check.
-  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken" | "error">(
-    profile?.username ? "available" : "idle"
-  );
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken" | "error">("idle");
   const usernameDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [birthYear, setBirthYear] = useState<number | null>(profile?.birthYear ?? null);
   const [country, setCountry] = useState(profile?.country ?? "");
@@ -95,6 +91,22 @@ export default function OnboardingScreen() {
   // ── Fetched moment data for celebration cards ──────────────────────────
   const [moment1Data, setMoment1Data] = useState<Moment | null>(null);
   const [moment2Data, setMoment2Data] = useState<Moment | null>(null);
+
+  // ── Username pre-fill verification ────────────────────────────────────
+  // If a username was already saved to the profile (crash-recovery reopen),
+  // verify it's still available under a different user before allowing
+  // continue. checkUsernameAvailable excludes the current user's own row,
+  // so a user's own saved username will always come back "available" —
+  // unless another account somehow claimed it (UNIQUE constraint violation
+  // would have prevented that, but we verify anyway for defense in depth).
+  useEffect(() => {
+    if (!profile?.username || !user?.id) return;
+    setUsernameStatus("checking");
+    checkUsernameAvailable(profile.username, user.id)
+      .then((available) => setUsernameStatus(available ? "available" : "taken"))
+      .catch(() => setUsernameStatus("available")); // network error → benefit of the doubt
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Intentionally runs only on mount
 
   // ── Crash recovery: if the user already has moments they completed at    ─
   //    least part of the flow before a crash — complete onboarding and      ─
