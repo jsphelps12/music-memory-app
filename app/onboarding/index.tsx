@@ -54,6 +54,9 @@ export default function QuestionnaireScreen() {
   const [username, setUsername] = useState(profile?.username ?? "");
   const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken" | "error">("idle");
   const usernameDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set to true once the user successfully submits the questionnaire so the
+  // async crash-recovery query can't reroute them if it resolves late.
+  const crashRecoveryCancelled = useRef(false);
   const [birthYear, setBirthYear] = useState<number | null>(profile?.birthYear ?? null);
   const [country, setCountry] = useState(profile?.country ?? "");
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
@@ -87,7 +90,7 @@ export default function QuestionnaireScreen() {
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
       .then(({ count }) => {
-        if (count && count > 0) {
+        if (count && count > 0 && !crashRecoveryCancelled.current) {
           const data: OnboardingData = {
             displayName: displayName.trim(),
             username: username.trim() || undefined,
@@ -179,6 +182,7 @@ export default function QuestionnaireScreen() {
         });
       }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      crashRecoveryCancelled.current = true;
       router.push({ pathname: "/onboarding/value-prop" } as any);
     } catch (e: any) {
       setError(friendlyError(e));
