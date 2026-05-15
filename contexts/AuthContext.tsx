@@ -11,8 +11,8 @@ import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/pr
 export interface OnboardingData {
   displayName: string;
   username?: string;
-  birthYear: number | null;
-  country: string | null;
+  birthYear?: number | null;
+  country?: string | null;
   favoriteArtists: FavoriteArtist[];
   favoriteSongs: FavoriteSong[];
   genrePreferences: string[];
@@ -40,7 +40,7 @@ interface AuthState {
     genrePreferences?: string[];
   }) => Promise<void>;
   refreshProfile: () => Promise<void>;
-  saveOnboardingData: (data: Pick<OnboardingData, "displayName" | "username" | "birthYear" | "country">) => Promise<void>;
+  saveOnboardingData: (data: { displayName: string; username?: string; birthYear?: number | null; country?: string | null }) => Promise<void>;
   completeOnboarding: (data: OnboardingData) => Promise<void>;
   saveCustomMood: (mood: CustomMoodDefinition) => Promise<void>;
   deleteCustomMood: (value: string) => Promise<void>;
@@ -318,13 +318,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const saveOnboardingData = async (data: Pick<OnboardingData, "displayName" | "username" | "birthYear" | "country">) => {
+  const saveOnboardingData = async (data: { displayName: string; username?: string; birthYear?: number | null; country?: string | null }) => {
     if (!session?.user) throw new Error("Not authenticated");
     const updates: Record<string, any> = {
       display_name: data.displayName,
-      birth_year: data.birthYear,
-      country: data.country,
     };
+    if (data.birthYear !== undefined) updates.birth_year = data.birthYear;
+    if (data.country !== undefined) updates.country = data.country;
     if (data.username) updates.username = data.username.toLowerCase().trim();
     const { error } = await supabase
       .from("profiles")
