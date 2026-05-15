@@ -275,7 +275,6 @@ export default function CreateMomentScreen() {
       setShowDetails(false);
       setError("");
       setTaggedFriends([]);
-      setFriendQuery("");
 
       markTimelineStale();
 
