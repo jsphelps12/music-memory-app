@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Privacy Policy — Soundtracks",
@@ -8,12 +9,12 @@ export default function PrivacyPolicy() {
   return (
     <main style={{ backgroundColor: "#FBF6F1", minHeight: "100vh" }}>
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "64px 24px 96px" }}>
-        <a
+        <Link
           href="/"
           style={{ fontSize: 14, color: "#E8825C", textDecoration: "none", display: "inline-block", marginBottom: 40 }}
         >
           ← Soundtracks
-        </a>
+        </Link>
 
         <h1 style={{ fontSize: 36, fontWeight: 700, color: "#2C2C3A", marginBottom: 8 }}>
           Privacy Policy
