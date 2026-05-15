@@ -1,8 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import * as Sentry from "@sentry/react-native";
 import { usePostHog } from "posthog-react-native";
-import * as Location from "expo-location";
-import * as FileSystem from "expo-file-system/legacy";
 import {
   Alert,
   View,
@@ -23,219 +21,27 @@ import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
-import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { fetchPreviewUrl } from "@/lib/musickit";
-import { uploadMomentPhotoWithThumbnail } from "@/lib/storage";
-import { getNowPlaying, onNowPlayingChange } from "@/lib/now-playing";
-import { identifyAudio, stopShazamListening, type ShazamResult } from "@/modules/shazam-kit";
-import { onSongSelected } from "@/lib/songEvents";
-import { emitOnboardingMomentSaved } from "@/lib/onboardingEvents";
+import { extractExifFromPath } from "@/lib/photoMetadata";
+import { saveMoment } from "@/lib/saveMoment";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
 import { CollectionPicker } from "@/components/CollectionPicker";
 import { CreateCollectionModal } from "@/components/CreateCollectionModal";
-import { fetchCollections, addMomentToCollection } from "@/lib/collections";
-import { searchPlaces, type GeoResult } from "@/lib/geocoding";
+import { SongPickerSection } from "@/components/SongPickerSection";
+import { PhotoPickerSection } from "@/components/PhotoPickerSection";
+import { LocationField } from "@/components/LocationField";
+import { fetchCollections } from "@/lib/collections";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Song, Collection } from "@/types";
+import { GeoResult } from "@/lib/geocoding";
 import { friendlyError } from "@/lib/errors";
 import { checkAndNotifyMilestone } from "@/lib/notifications";
 import { markTimelineStale } from "@/lib/timelineRefresh";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-const firstMomentKey = (userId: string) => `first_moment_saved_${userId}`;
 import { PromptPickerModal } from "@/components/PromptPickerModal";
-
-function getTimeOfDay(): string {
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 12) return "Morning";
-  if (hour >= 12 && hour < 17) return "Afternoon";
-  if (hour >= 17 && hour < 21) return "Evening";
-  return "Late Night";
-}
-
-async function extractPhotoMetadata(assets: ImagePicker.ImagePickerAsset[]) {
-  let earliestDate: Date | undefined;
-
-  for (const asset of assets) {
-    const exif = asset.exif as Record<string, any> | undefined;
-    if (!exif) continue;
-    const raw = exif.DateTimeOriginal ?? exif.DateTime;
-    if (raw) {
-      const normalized = (raw as string).replace(/^(\d{4}):(\d{2}):(\d{2})/, "$1-$2-$3");
-      const d = new Date(normalized);
-      if (!isNaN(d.getTime()) && (!earliestDate || d < earliestDate)) {
-        earliestDate = d;
-      }
-    }
-  }
-
-  let suggestedLocation: string | undefined;
-  let capturedLat: number | undefined;
-  let capturedLng: number | undefined;
-  for (const asset of assets) {
-    const exif = asset.exif as Record<string, any> | undefined;
-    if (!exif?.GPSLatitude || !exif?.GPSLongitude) continue;
-    const lat = exif.GPSLatitude * (exif.GPSLatitudeRef === "S" ? -1 : 1);
-    const lon = exif.GPSLongitude * (exif.GPSLongitudeRef === "W" ? -1 : 1);
-    capturedLat = lat;
-    capturedLng = lon;
-    try {
-      const [result] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
-      if (result) {
-        suggestedLocation = [result.city, result.region].filter(Boolean).join(", ") || undefined;
-      }
-    } catch {
-      // Geocoding failed — skip location suggestion
-    }
-    break; // Only geocode the first photo with GPS
-  }
-
-  return { date: earliestDate, location: suggestedLocation, lat: capturedLat, lng: capturedLng };
-}
-
-// ─── Minimal JPEG EXIF parser (no external deps) ────────────────────────────
-// Reads only what we need: DateTimeOriginal and GPS coords.
-
-function _u16(b: Uint8Array, o: number, le: boolean) {
-  return le ? b[o] | (b[o + 1] << 8) : (b[o] << 8) | b[o + 1];
-}
-function _u32(b: Uint8Array, o: number, le: boolean) {
-  return le
-    ? b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] * 0x1000000)
-    : b[o] * 0x1000000 | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3];
-}
-function _str(b: Uint8Array, o: number, len: number) {
-  let s = "";
-  for (let i = 0; i < len && b[o + i]; i++) s += String.fromCharCode(b[o + i]);
-  return s;
-}
-function _rational(b: Uint8Array, o: number, le: boolean) {
-  const n = _u32(b, o, le), d = _u32(b, o + 4, le);
-  return d ? n / d : 0;
-}
-
-type _IFDEntry = { tag: number; count: number; valOff: number };
-function _readIFD(b: Uint8Array, base: number, ifdStart: number, le: boolean): _IFDEntry[] {
-  if (ifdStart + 2 > b.length) return [];
-  const count = _u16(b, ifdStart, le);
-  const sizes = [0, 1, 1, 2, 4, 8, 1, 1, 2, 4, 8, 4, 8];
-  const entries: _IFDEntry[] = [];
-  for (let i = 0; i < count; i++) {
-    const e = ifdStart + 2 + i * 12;
-    if (e + 12 > b.length) break;
-    const tag = _u16(b, e, le);
-    const type = _u16(b, e + 2, le);
-    const cnt = _u32(b, e + 4, le);
-    const sz = (sizes[type] || 1) * cnt;
-    // valOff is TIFF-relative; inline values live at e+8 in the buffer
-    const valOff = sz <= 4 ? e + 8 - base : _u32(b, e + 8, le);
-    entries.push({ tag, count: cnt, valOff });
-  }
-  return entries;
-}
-
-function _parseJpegExif(bytes: Uint8Array): { date?: Date; lat?: number; lon?: number } {
-  let p = 2; // skip SOI FF D8
-  while (p + 4 < bytes.length) {
-    if (bytes[p] !== 0xFF) break;
-    const marker = bytes[p + 1];
-    const segLen = (bytes[p + 2] << 8) | bytes[p + 3];
-    if (marker === 0xDA) break; // start of scan — no more metadata
-    if (marker === 0xE1 && segLen > 6 && _str(bytes, p + 4, 4) === "Exif") {
-      const base = p + 10; // skip FF E1, length(2), "Exif\0\0"(6)
-      const le = bytes[base] === 0x49;
-      if (_u16(bytes, base + 2, le) !== 0x002A) break;
-      const ifd0 = _readIFD(bytes, base, base + _u32(bytes, base + 4, le), le);
-
-      let dateStr: string | undefined;
-      let exifOff: number | undefined;
-      let gpsOff: number | undefined;
-      for (const e of ifd0) {
-        if (e.tag === 0x0132) dateStr = _str(bytes, base + e.valOff, e.count);
-        // Sub-IFD pointers are 4-byte LONG values — read the value, not store the location
-        if (e.tag === 0x8769) exifOff = _u32(bytes, base + e.valOff, le);
-        if (e.tag === 0x8825) gpsOff = _u32(bytes, base + e.valOff, le);
-      }
-
-      // DateTimeOriginal overrides DateTime
-      if (exifOff != null) {
-        for (const e of _readIFD(bytes, base, base + exifOff, le)) {
-          if (e.tag === 0x9003) dateStr = _str(bytes, base + e.valOff, e.count);
-        }
-      }
-
-      let date: Date | undefined;
-      if (dateStr) {
-        const d = new Date(dateStr.replace(/^(\d{4}):(\d{2}):(\d{2})/, "$1-$2-$3"));
-        if (!isNaN(d.getTime())) date = d;
-      }
-
-      let lat: number | undefined, lon: number | undefined;
-      if (gpsOff != null) {
-        let latRef = "N", lonRef = "E", latRaw: number | undefined, lonRaw: number | undefined;
-        for (const e of _readIFD(bytes, base, base + gpsOff, le)) {
-          if (e.tag === 0x0001) latRef = _str(bytes, base + e.valOff, 1);
-          if (e.tag === 0x0003) lonRef = _str(bytes, base + e.valOff, 1);
-          if (e.tag === 0x0002 && e.count === 3) {
-            const d = _rational(bytes, base + e.valOff, le);
-            const m = _rational(bytes, base + e.valOff + 8, le);
-            const s = _rational(bytes, base + e.valOff + 16, le);
-            latRaw = d + m / 60 + s / 3600;
-          }
-          if (e.tag === 0x0004 && e.count === 3) {
-            const d = _rational(bytes, base + e.valOff, le);
-            const m = _rational(bytes, base + e.valOff + 8, le);
-            const s = _rational(bytes, base + e.valOff + 16, le);
-            lonRaw = d + m / 60 + s / 3600;
-          }
-        }
-        if (latRaw != null) lat = latRaw * (latRef === "S" ? -1 : 1);
-        if (lonRaw != null) lon = lonRaw * (lonRef === "W" ? -1 : 1);
-      }
-
-      return { date, lat, lon };
-    }
-    p += 2 + segLen;
-  }
-  return {};
-}
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Extracts EXIF date + GPS from a bare file path (e.g. shared via share extension).
-// Reads only the first 64 KB — EXIF is always in the opening segments of a JPEG.
-async function extractExifFromPath(uri: string): Promise<{ date?: Date; location?: string; lat?: number; lng?: number }> {
-  try {
-    const base64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: "base64" as any,
-      position: 0,
-      length: 65536,
-    });
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-
-    const { date, lat, lon } = _parseJpegExif(bytes);
-
-    let location: string | undefined;
-    if (lat != null && lon != null) {
-      try {
-        const [result] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
-        if (result) location = [result.city, result.region].filter(Boolean).join(", ") || undefined;
-      } catch {
-        // Geocoding failed — skip location
-      }
-    }
-
-    return { date, location, lat: lat ?? undefined, lng: lon ?? undefined };
-  } catch {
-    return {};
-  }
-}
 
 export default function CreateMomentScreen() {
   const router = useRouter();
@@ -258,19 +64,14 @@ export default function CreateMomentScreen() {
     sharedPhotoPaths?: string;
     promptQuestion?: string;
     promptStarter?: string;
-    onboardingStage?: string; // "1" | "2"
     collectionId?: string;
   }>();
 
   const [song, setSong] = useState<Song | null>(null);
-  const [nowPlayingSong, setNowPlayingSong] = useState<Song | null>(null);
-  const [shazamResult, setShazamResult] = useState<ShazamResult | null>(null);
-  const [isShazaming, setIsShazaming] = useState(false);
-  const [shazamError, setShazamError] = useState("");
   const [candidates, setCandidates] = useState<Song[]>([]);
   const [showCandidateModal, setShowCandidateModal] = useState(false);
 
-  // Sync song from search params when returning from song-search modal or share intent
+  // Sync song from params when returning from song-search with a share intent song
   useEffect(() => {
     if (params.songTitle) {
       setSong({
@@ -284,9 +85,6 @@ export default function CreateMomentScreen() {
       });
     }
   }, [params.songId]);
-
-  // Listen for song selected in song-search
-  useEffect(() => onSongSelected((s) => setSong(s)), []);
 
   // Handle Spotify cross-search candidates from share intent
   useEffect(() => {
@@ -337,60 +135,11 @@ export default function CreateMomentScreen() {
     } catch {}
   }, [params.sharedPhotoPaths]);
 
-  // Now Playing detection — check on mount and listen for song changes
-  useEffect(() => {
-    if (song) return;
-
-    let cancelled = false;
-    getNowPlaying().then((nowPlaying) => {
-      if (!cancelled && nowPlaying) {
-        setNowPlayingSong(nowPlaying);
-      }
-    });
-
-    const subscription = onNowPlayingChange((nowPlaying) => {
-      if (!cancelled) {
-        setNowPlayingSong(nowPlaying);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      subscription.remove();
-    };
-  }, [song]);
-
-  // Auto-detect current location for suggestion banner
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted" || cancelled) return;
-      try {
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        const [result] = await Location.reverseGeocodeAsync({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-        });
-        if (!cancelled && result) {
-          const suggestion = [result.city, result.region].filter(Boolean).join(", ");
-          if (suggestion) {
-            setLocationSuggestion(suggestion);
-            setLocationSuggestionCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          }
-        }
-      } catch {
-        // Location unavailable — skip suggestion
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
   const hasSong = !!song;
 
   const [reflection, setReflection] = useState("");
 
-  // Pre-fill reflection from a journal prompt (navigated from Reflections tab)
+  // Pre-fill reflection from a journal prompt
   useEffect(() => {
     if (params.promptStarter) {
       setReflection(params.promptStarter);
@@ -401,13 +150,6 @@ export default function CreateMomentScreen() {
   const [people, setPeople] = useState<string[]>([]);
   const [momentDate, setMomentDate] = useState<Date | null>(new Date());
   const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
-  const [locationQuery, setLocationQuery] = useState("");
-  const [locationResults, setLocationResults] = useState<GeoResult[]>([]);
-  const [locationSearching, setLocationSearching] = useState(false);
-  const [locationSuggestion, setLocationSuggestion] = useState("");
-  const [locationSuggestionCoords, setLocationSuggestionCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [dismissedLocationSuggestion, setDismissedLocationSuggestion] = useState(false);
-  const locationSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [metaSuggestion, setMetaSuggestion] = useState<{ date?: Date; location?: string; lat?: number; lng?: number } | null>(null);
   const [dismissedMetaSuggestion, setDismissedMetaSuggestion] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -466,61 +208,14 @@ export default function CreateMomentScreen() {
     }
   }, [showDetails, user]);
 
-  const handleUseNowPlaying = () => {
-    if (nowPlayingSong) {
-      Haptics.selectionAsync();
-      setSong(nowPlayingSong);
-      setNowPlayingSong(null);
-    }
-  };
-
-  const handleDismissNowPlaying = () => {
-    setNowPlayingSong(null);
-  };
-
-  const handleIdentify = async () => {
-    if (isShazaming) {
-      stopShazamListening().catch(() => {});
-      setIsShazaming(false);
-      return;
-    }
-    posthog.capture("shazam_used");
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setIsShazaming(true);
-    setShazamError("");
-    setShazamResult(null);
-    try {
-      const result = await identifyAudio();
-      setShazamResult(result);
-    } catch (e: any) {
-      const code = e?.code ?? "";
-      if (code !== "CANCELLED") {
-        setShazamError(code === "TIMEOUT" ? "Couldn't identify the song. Try again." : "Microphone error. Check permissions.");
-      }
-    } finally {
-      setIsShazaming(false);
-    }
-  };
-
-  const handleUseShazamResult = () => {
-    if (!shazamResult) return;
+  const handleApplyMeta = (
+    date: Date | undefined,
+    location: { name: string; lat: number | null; lng: number | null } | undefined
+  ) => {
+    if (date) setMomentDate(date);
+    if (location) setLocationResult(location);
+    setDismissedMetaSuggestion(true);
     Haptics.selectionAsync();
-    setSong({
-      id: shazamResult.appleMusicId,
-      title: shazamResult.title,
-      artistName: shazamResult.artist,
-      albumName: "",
-      artworkUrl: shazamResult.artworkUrl,
-      appleMusicId: shazamResult.appleMusicId,
-      durationMs: 0,
-    });
-    setShazamResult(null);
-    setShazamError("");
-  };
-
-  const handleDismissShazam = () => {
-    setShazamResult(null);
-    setShazamError("");
   };
 
   const handleSelectCandidate = (selected: Song) => {
@@ -528,89 +223,6 @@ export default function CreateMomentScreen() {
     setSong(selected);
     setCandidates([]);
     setShowCandidateModal(false);
-  };
-
-  const handleAddPhotos = () => {
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        options: ["Cancel", "Take Photo", "Choose from Library"],
-        cancelButtonIndex: 0,
-      },
-      async (buttonIndex) => {
-        let result: ImagePicker.ImagePickerResult | null = null;
-
-        if (buttonIndex === 1) {
-          const { status } = await ImagePicker.requestCameraPermissionsAsync();
-          if (status !== "granted") {
-            setError("Camera permission is required to take photos.");
-            return;
-          }
-          result = await ImagePicker.launchCameraAsync({
-            mediaTypes: ["images"],
-            quality: 0.8,
-            exif: true,
-          });
-        } else if (buttonIndex === 2) {
-          result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ["images"],
-            allowsMultipleSelection: true,
-            quality: 0.8,
-            exif: true,
-          });
-        }
-
-        if (result && !result.canceled) {
-          const uris = result.assets.map((a) => a.uri);
-          setPhotos((prev) => [...prev, ...uris]);
-          const meta = await extractPhotoMetadata(result.assets);
-          if (meta.date || meta.location) {
-            setMetaSuggestion(meta);
-            setDismissedMetaSuggestion(false);
-          }
-        }
-      }
-    );
-  };
-
-  const handleRemovePhoto = (uri: string) => {
-    setPhotos((prev) => prev.filter((p) => p !== uri));
-  };
-
-  const handleDateChange = (_event: DateTimePickerEvent, date?: Date) => {
-    if (date) setMomentDate(date);
-  };
-
-  const handleLocationQueryChange = (text: string) => {
-    setLocationQuery(text);
-    if (locationSearchTimer.current) clearTimeout(locationSearchTimer.current);
-    if (!text.trim()) {
-      setLocationResults([]);
-      return;
-    }
-    locationSearchTimer.current = setTimeout(async () => {
-      setLocationSearching(true);
-      try {
-        const results = await searchPlaces(text);
-        setLocationResults(results);
-      } catch {
-        setLocationResults([]);
-      } finally {
-        setLocationSearching(false);
-      }
-    }, 400);
-  };
-
-  const selectLocation = (result: GeoResult) => {
-    Haptics.selectionAsync();
-    setLocationResult(result);
-    setLocationQuery("");
-    setLocationResults([]);
-  };
-
-  const clearLocation = () => {
-    setLocationResult(null);
-    setLocationQuery("");
-    setLocationResults([]);
   };
 
   const handleSave = async () => {
@@ -629,41 +241,18 @@ export default function CreateMomentScreen() {
       return;
     }
     try {
-      const { previewUrl, albumName: fetchedAlbumName } = await fetchPreviewUrl(song!.appleMusicId);
-
-      const results = await Promise.all(
-        photos.map((uri) => uploadMomentPhotoWithThumbnail(user.id, uri))
-      );
-      const photoPaths = results.map((r) => r.fullPath);
-      const thumbnailPaths = results.map((r) => r.thumbnailPath);
-
-      const { data: inserted, error: insertError } = await supabase
-        .from("moments")
-        .insert({
-          user_id: user.id,
-          song_title: song!.title,
-          song_artist: song!.artistName,
-          song_album_name: song!.albumName || fetchedAlbumName || null,
-          song_artwork_url: song!.artworkUrl || null,
-          song_apple_music_id: song!.appleMusicId,
-          song_preview_url: previewUrl,
-          reflection_text: reflection.trim(),
-          mood: selectedMood,
-          people,
-          photo_urls: photoPaths,
-          photo_thumbnails: thumbnailPaths,
-          location: locationResult?.name ?? null,
-          location_lat: locationResult?.lat ?? null,
-          location_lng: locationResult?.lng ?? null,
-          moment_date: momentDate
-            ? `${momentDate.getFullYear()}-${String(momentDate.getMonth() + 1).padStart(2, "0")}-${String(momentDate.getDate()).padStart(2, "0")}`
-            : null,
-          time_of_day: getTimeOfDay(),
-        })
-        .select("id")
-        .single();
-
-      if (insertError) throw insertError;
+      const { id: insertedId, secondaryFailures } = await saveMoment({
+        userId: user.id,
+        song: song!,
+        reflection,
+        photos,
+        people,
+        mood: selectedMood,
+        locationResult,
+        momentDate,
+        selectedCollection,
+        taggedFriends,
+      });
 
       posthog.capture("moment_created", {
         song_title: song!.title,
@@ -676,33 +265,6 @@ export default function CreateMomentScreen() {
         has_collection: Boolean(selectedCollection),
       });
 
-      // Secondary failures don't block navigation — moment is already saved
-      const secondaryFailures: string[] = [];
-      const secondaryOps: Promise<void>[] = [];
-
-      if (selectedCollection && inserted?.id) {
-        secondaryOps.push(
-          addMomentToCollection(selectedCollection.id, inserted.id, user.id).catch((e) => {
-            Sentry.captureException(e);
-            secondaryFailures.push("couldn't be added to the collection");
-          })
-        );
-      }
-
-      if (inserted?.id && taggedFriends.length > 0) {
-        secondaryOps.push(
-          import("@/lib/friends").then(({ insertTaggedMoment }) =>
-            Promise.allSettled(taggedFriends.map((tf) => insertTaggedMoment(inserted.id, tf.friend.otherUserId, tf.send)))
-          ).then((tagResults) => {
-            const tagFailures = tagResults.filter((r) => r.status === "rejected");
-            tagFailures.forEach((r) => Sentry.captureException((r as PromiseRejectedResult).reason));
-            if (tagFailures.length > 0) secondaryFailures.push("some friend tags didn't send");
-          })
-        );
-      }
-
-      await Promise.all(secondaryOps);
-
       checkAndNotifyMilestone(user.id).catch(() => {});
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
@@ -712,6 +274,8 @@ export default function CreateMomentScreen() {
           `Your moment was saved, but it ${secondaryFailures.join(" and ")}. Try again from the moment detail.`
         );
       }
+
+      // Reset form
       setSong(null);
       setReflection("");
       setSelectedMood(null);
@@ -719,60 +283,17 @@ export default function CreateMomentScreen() {
       setPhotos([]);
       setMomentDate(new Date());
       setLocationResult(null);
-      setLocationQuery("");
-      setLocationResults([]);
       setSelectedCollection(null);
       setMetaSuggestion(null);
       setDismissedMetaSuggestion(false);
       setShowDetails(false);
-      setDismissedLocationSuggestion(false);
-      setShazamResult(null);
-      setShazamError("");
       setError("");
       setTaggedFriends([]);
       setFriendQuery("");
 
       markTimelineStale();
 
-      if (params.onboardingStage === "1" || params.onboardingStage === "2") {
-        // Mark first moment done so celebration.tsx doesn't appear post-onboarding.
-        if (user) {
-          await AsyncStorage.setItem(firstMomentKey(user.id), "true");
-        }
-        const firstFriend = taggedFriends[0];
-        const hasPerson = people.length > 0 || taggedFriends.length > 0;
-        const firstPersonName = firstFriend?.friend.otherUserDisplayName ?? people[0] ?? undefined;
-        const firstPersonUserId = firstFriend?.friend.otherUserId ?? null;
-        emitOnboardingMomentSaved({
-          momentId: inserted!.id,
-          hasPerson,
-          taggedPersonName: firstPersonName,
-          taggedPersonUserId: firstPersonUserId,
-        });
-
-        if (params.onboardingStage === "2" && hasPerson) {
-          // Open the just-saved moment with the share sheet on top.
-          // router.replace removes create from the nav stack so closing
-          // moment detail returns straight to onboarding's celebration phase.
-          const shareParams: Record<string, string> = {
-            fromOnboarding: "true",
-            showShareSheet: "true",
-          };
-          if (firstPersonName) shareParams.taggedPersonName = firstPersonName;
-          if (firstPersonUserId) shareParams.taggedPersonUserId = firstPersonUserId;
-          router.replace({ pathname: `/moment/${inserted!.id}` as any, params: shareParams });
-        } else {
-          router.back();
-        }
-        return;
-      }
-
-      const key = user ? firstMomentKey(user.id) : null;
-      const firstMomentDone = key ? await AsyncStorage.getItem(key) : "true";
-      if (!firstMomentDone && key) {
-        await AsyncStorage.setItem(key, "true");
-        router.replace("/celebration" as any);
-      } else if (router.canGoBack()) {
+      if (router.canGoBack()) {
         router.back();
       } else {
         router.replace("/(tabs)");
@@ -786,14 +307,6 @@ export default function CreateMomentScreen() {
       setLoading(false);
     }
   };
-
-  const onboardingBannerText =
-    params.onboardingStage === "1"
-      ? "First moment — just a song and a quick thought. Takes 30 seconds."
-      : params.onboardingStage === "2"
-      ? "Now a deeper one — a song tied to a person. You'll be able to share it with them after."
-      : null;
-  const [onboardingBannerDismissed, setOnboardingBannerDismissed] = useState(false);
 
   return (
     <KeyboardAvoidingView
@@ -813,147 +326,7 @@ export default function CreateMomentScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Onboarding context banner — dismissible card */}
-        {onboardingBannerText && !onboardingBannerDismissed && (
-          <View style={[styles.onboardingBanner, { backgroundColor: theme.colors.accentBg }]}>
-            <Ionicons name="diamond" size={12} color={theme.colors.accent} style={{ marginTop: 2, flexShrink: 0 }} />
-            <Text style={[styles.onboardingBannerText, { color: theme.colors.accent }]}>
-              {onboardingBannerText}
-            </Text>
-            <TouchableOpacity onPress={() => setOnboardingBannerDismissed(true)} hitSlop={10}>
-              <Text style={[styles.onboardingBannerDismiss, { color: theme.colors.accent }]}>✕</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Now Playing suggestion banner */}
-        {!hasSong && nowPlayingSong && (
-          <View style={styles.nowPlayingBanner}>
-            <View style={styles.nowPlayingContent}>
-              {nowPlayingSong.artworkUrl ? (
-                <Image
-                  source={{ uri: nowPlayingSong.artworkUrl }}
-                  style={styles.nowPlayingArtwork}
-                />
-              ) : (
-                <ArtworkPlaceholder style={styles.nowPlayingArtwork} />
-              )}
-              <View style={styles.nowPlayingInfo}>
-                <Text style={styles.nowPlayingLabel}>Now Playing</Text>
-                <Text style={styles.nowPlayingTitle} numberOfLines={1}>
-                  {nowPlayingSong.title}
-                </Text>
-                <Text style={styles.nowPlayingArtist} numberOfLines={1}>
-                  {nowPlayingSong.artistName}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.nowPlayingDismiss}
-                onPress={handleDismissNowPlaying}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text style={styles.nowPlayingDismissText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity
-              style={styles.nowPlayingUseButton}
-              activeOpacity={0.7}
-              onPress={handleUseNowPlaying}
-            >
-              <Text style={styles.nowPlayingUseText}>Use this song</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Song card */}
-        {hasSong ? (
-          <TouchableOpacity
-            style={styles.songCard}
-            activeOpacity={0.7}
-            onPress={() => router.push({ pathname: "/song-search", params: { photos: JSON.stringify(photos) } })}
-          >
-            {song!.artworkUrl ? (
-              <Image
-                source={{ uri: song!.artworkUrl }}
-                style={styles.artwork}
-              />
-            ) : (
-              <ArtworkPlaceholder style={styles.artwork} />
-            )}
-            <View style={styles.songInfo}>
-              <Text style={styles.songTitle} numberOfLines={1}>
-                {song!.title}
-              </Text>
-              <Text style={styles.songArtist} numberOfLines={1}>
-                {song!.artistName}
-              </Text>
-            </View>
-            <Text style={styles.changeText}>Change</Text>
-          </TouchableOpacity>
-        ) : (
-          <>
-            <TouchableOpacity
-              style={styles.selectSongButton}
-              activeOpacity={0.7}
-              onPress={() => router.push({ pathname: "/song-search", params: { photos: JSON.stringify(photos) } })}
-            >
-              <Text style={styles.selectSongButtonText}>Select Song</Text>
-            </TouchableOpacity>
-
-            {/* Identify button */}
-            <TouchableOpacity
-              style={[styles.identifyButton, isShazaming && { borderColor: theme.colors.accent }]}
-              activeOpacity={0.7}
-              onPress={handleIdentify}
-            >
-              {isShazaming ? (
-                <View style={styles.identifyRow}>
-                  <ActivityIndicator size="small" color={theme.colors.accent} style={{ marginRight: 8 }} />
-                  <Text style={[styles.identifyButtonText, { color: theme.colors.accent }]}>Listening… Tap to cancel</Text>
-                </View>
-              ) : (
-                <Text style={styles.identifyButtonText}>Identify Song</Text>
-              )}
-            </TouchableOpacity>
-
-            {/* Shazam result banner */}
-            {shazamResult && (
-              <View style={styles.shazamBanner}>
-                <View style={styles.nowPlayingContent}>
-                  {shazamResult.artworkUrl ? (
-                    <Image source={{ uri: shazamResult.artworkUrl }} style={styles.nowPlayingArtwork} />
-                  ) : (
-                    <ArtworkPlaceholder style={styles.nowPlayingArtwork} />
-                  )}
-                  <View style={styles.nowPlayingInfo}>
-                    <Text style={styles.shazamLabel}>Found</Text>
-                    <Text style={styles.nowPlayingTitle} numberOfLines={1}>{shazamResult.title}</Text>
-                    <Text style={styles.nowPlayingArtist} numberOfLines={1}>{shazamResult.artist}</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.nowPlayingDismiss}
-                    onPress={handleDismissShazam}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Text style={styles.nowPlayingDismissText}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity
-                  style={styles.nowPlayingUseButton}
-                  activeOpacity={0.7}
-                  onPress={handleUseShazamResult}
-                >
-                  <Text style={styles.nowPlayingUseText}>Use this song</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Shazam error */}
-            {shazamError ? (
-              <Text style={styles.shazamError}>{shazamError}</Text>
-            ) : null}
-          </>
-        )}
+        <SongPickerSection song={song} onChange={setSong} photos={photos} />
 
         {/* Reflection */}
         <Text style={styles.sectionLabel}>Reflection</Text>
@@ -997,63 +370,11 @@ export default function CreateMomentScreen() {
           <>
             {/* Photos */}
             <Text style={styles.sectionLabel}>Photos</Text>
-            <TouchableOpacity style={styles.addPhotosButton} activeOpacity={0.7} onPress={handleAddPhotos}>
-              <Text style={styles.addPhotosButtonText}>Add Photos</Text>
-            </TouchableOpacity>
-            {photos.length > 0 && (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.photoScroll}
-                contentContainerStyle={styles.photoScrollContent}
-              >
-                {photos.map((uri) => (
-                  <View key={uri} style={styles.photoThumbContainer}>
-                    <Image source={{ uri }} style={styles.photoThumb} />
-                    <TouchableOpacity
-                      style={styles.photoRemove}
-                      onPress={() => handleRemovePhoto(uri)}
-                    >
-                      <Text style={styles.photoRemoveText}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </ScrollView>
-            )}
-
-            {/* Photo metadata suggestion banner */}
-            {metaSuggestion && !dismissedMetaSuggestion && (
-              <View style={styles.metaBanner}>
-                <View style={styles.metaBannerRow}>
-                  <Text style={styles.metaBannerLabel}>From Photo</Text>
-                  <TouchableOpacity onPress={() => setDismissedMetaSuggestion(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Text style={styles.metaBannerDismissText}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.metaBannerBody}>
-                  {[
-                    metaSuggestion.date && `Taken ${metaSuggestion.date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`,
-                    metaSuggestion.location && `in ${metaSuggestion.location}`,
-                  ].filter(Boolean).join(" ")}
-                </Text>
-                <TouchableOpacity
-                  style={styles.metaBannerUseButton}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    if (metaSuggestion.date) setMomentDate(metaSuggestion.date);
-                    if (metaSuggestion.location) setLocationResult({
-                      name: metaSuggestion.location,
-                      lat: metaSuggestion.lat ?? null,
-                      lng: metaSuggestion.lng ?? null,
-                    });
-                    setDismissedMetaSuggestion(true);
-                    Haptics.selectionAsync();
-                  }}
-                >
-                  <Text style={styles.metaBannerUseText}>Use</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+            <PhotoPickerSection
+              photos={photos}
+              onChange={setPhotos}
+              onApplyMeta={handleApplyMeta}
+            />
 
             {/* People */}
             <Text style={styles.sectionLabel}>People</Text>
@@ -1063,7 +384,6 @@ export default function CreateMomentScreen() {
             {availableFriends.length > 0 && (
               <>
                 <Text style={styles.sectionLabel}>Tag Friends</Text>
-                {/* Selected friends */}
                 {taggedFriends.length > 0 && (
                   <View style={styles.taggedFriendsList}>
                     {taggedFriends.map((tf) => (
@@ -1093,7 +413,6 @@ export default function CreateMomentScreen() {
                     ))}
                   </View>
                 )}
-                {/* Friend search */}
                 {availableFriends.filter((f) => !taggedFriends.find((tf) => tf.friend.id === f.id)).length > 0 && (
                   <>
                     <View style={[styles.friendSearchRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundInput }]}>
@@ -1197,7 +516,7 @@ export default function CreateMomentScreen() {
                 mode="date"
                 display="compact"
                 maximumDate={new Date()}
-                onChange={handleDateChange}
+                onChange={(_event: DateTimePickerEvent, date?: Date) => { if (date) setMomentDate(date); }}
                 themeVariant={theme.isDark ? "dark" : "light"}
                 accentColor={theme.colors.accent}
                 style={styles.datePicker}
@@ -1206,83 +525,9 @@ export default function CreateMomentScreen() {
               <Text style={styles.noDateText}>No specific date</Text>
             )}
 
-            {/* Location suggestion banner */}
-            {locationSuggestion && !dismissedLocationSuggestion && !locationResult && (
-              <View style={styles.locationBanner}>
-                <View style={styles.locationBannerRow}>
-                  <Text style={styles.locationBannerLabel}>Currently in {locationSuggestion}</Text>
-                  <TouchableOpacity onPress={() => setDismissedLocationSuggestion(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Text style={styles.locationBannerDismissText}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity
-                  style={styles.locationBannerUseButton}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    setLocationResult({
-                      name: locationSuggestion,
-                      lat: locationSuggestionCoords?.lat ?? null,
-                      lng: locationSuggestionCoords?.lng ?? null,
-                    });
-                    setDismissedLocationSuggestion(true);
-                    Haptics.selectionAsync();
-                  }}
-                >
-                  <Text style={styles.locationBannerUseText}>Use as location</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
             {/* Location */}
             <Text style={styles.sectionLabel}>Location</Text>
-            {locationResult ? (
-              <View style={styles.collectionChipRow}>
-                <View style={styles.locationChip}>
-                  <Ionicons name="location-outline" size={14} color={theme.colors.accentText} />
-                  <Text style={styles.locationChipText} numberOfLines={1}>{locationResult.name}</Text>
-                </View>
-                <TouchableOpacity onPress={clearLocation} hitSlop={8}>
-                  <Ionicons name="close-circle" size={18} color={theme.colors.placeholder} />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <>
-                <TextInput
-                  style={[styles.input, focusedField === "location" && { borderColor: theme.colors.accent }]}
-                  placeholder="Search for a place..."
-                  placeholderTextColor={theme.colors.placeholder}
-                  cursorColor={theme.colors.accent}
-                  value={locationQuery}
-                  onChangeText={handleLocationQueryChange}
-                  onFocus={() => setFocusedField("location")}
-                  onBlur={() => setFocusedField("")}
-                  returnKeyType="search"
-                />
-                {locationSearching && (
-                  <ActivityIndicator size="small" color={theme.colors.accent} style={{ marginTop: 8 }} />
-                )}
-                {locationResults.length > 0 && (
-                  <View style={[styles.locationResultsList, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
-                    {locationResults.map((result, i) => (
-                      <TouchableOpacity
-                        key={i}
-                        style={[
-                          styles.locationResultItem,
-                          i < locationResults.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border },
-                        ]}
-                        onPress={() => selectLocation(result)}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons name="location-outline" size={14} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
-                        <Text style={[styles.locationResultText, { color: theme.colors.text }]} numberOfLines={1}>
-                          {result.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </>
-            )}
+            <LocationField value={locationResult} onChange={setLocationResult} detectCurrentLocation />
           </>
         )}
 
@@ -1364,20 +609,13 @@ export default function CreateMomentScreen() {
                 onPress={() => handleSelectCandidate(item)}
               >
                 {item.artworkUrl ? (
-                  <Image
-                    source={{ uri: item.artworkUrl }}
-                    style={styles.candidateArtwork}
-                  />
+                  <Image source={{ uri: item.artworkUrl }} style={styles.candidateArtwork} />
                 ) : (
                   <ArtworkPlaceholder style={styles.candidateArtwork} />
                 )}
                 <View style={styles.candidateInfo}>
-                  <Text style={styles.candidateSongTitle} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  <Text style={styles.candidateArtist} numberOfLines={1}>
-                    {item.artistName}
-                  </Text>
+                  <Text style={styles.candidateSongTitle} numberOfLines={1}>{item.title}</Text>
+                  <Text style={styles.candidateArtist} numberOfLines={1}>{item.artistName}</Text>
                 </View>
               </TouchableOpacity>
             )}
@@ -1393,24 +631,6 @@ function createStyles(theme: Theme) {
     container: {
       flex: 1,
       backgroundColor: theme.colors.background,
-    },
-    onboardingBanner: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      gap: 10,
-      borderRadius: theme.radii.md,
-      padding: theme.spacing.md,
-      marginBottom: theme.spacing.lg,
-    },
-    onboardingBannerText: {
-      flex: 1,
-      fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.medium,
-      lineHeight: 20,
-    },
-    onboardingBannerDismiss: {
-      fontSize: 14,
-      lineHeight: 20,
     },
     scrollView: {
       flex: 1,
@@ -1431,103 +651,32 @@ function createStyles(theme: Theme) {
       fontWeight: theme.fontWeight.bold,
       color: theme.colors.text,
     },
-    // Now Playing banner
-    nowPlayingBanner: {
-      backgroundColor: theme.colors.backgroundSecondary,
-      borderRadius: theme.radii.md,
-      padding: theme.spacing.md,
-      marginBottom: theme.spacing.lg,
-      borderWidth: 1,
-      borderColor: theme.colors.accent,
-    },
-    nowPlayingContent: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    nowPlayingArtwork: {
-      width: 44,
-      height: 44,
-      borderRadius: theme.radii.sm,
-    },
-    nowPlayingInfo: {
-      flex: 1,
-      marginLeft: theme.spacing.md,
-    },
-    nowPlayingLabel: {
-      fontSize: theme.fontSize.xs,
-      fontWeight: theme.fontWeight.semibold,
-      color: theme.colors.accent,
-      textTransform: "uppercase",
-      letterSpacing: 0.5,
-    },
-    nowPlayingTitle: {
-      fontSize: theme.fontSize.sm,
+    sectionLabel: {
+      fontSize: theme.fontSize.base,
       fontWeight: theme.fontWeight.semibold,
       color: theme.colors.text,
-      marginTop: 1,
-    },
-    nowPlayingArtist: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textSecondary,
-      marginTop: 1,
-    },
-    nowPlayingDismiss: {
-      padding: theme.spacing.xs,
-    },
-    nowPlayingDismissText: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textTertiary,
-    },
-    nowPlayingUseButton: {
-      marginTop: theme.spacing.sm,
-      backgroundColor: theme.colors.accent,
-      borderRadius: theme.radii.sm,
-      paddingVertical: theme.spacing.sm,
-      alignItems: "center",
-    },
-    nowPlayingUseText: {
-      fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
-      color: "#fff",
-    },
-    // Location suggestion banner
-    locationBanner: {
-      backgroundColor: theme.colors.backgroundSecondary,
-      borderRadius: theme.radii.md,
-      padding: theme.spacing.md,
-      marginTop: theme.spacing.xl,
+      marginTop: theme.spacing["2xl"],
       marginBottom: theme.spacing.sm,
+    },
+    sectionLabelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginTop: theme.spacing["2xl"],
+      marginBottom: theme.spacing.sm,
+    },
+    reflectionInput: {
+      height: 120,
       borderWidth: 1,
       borderColor: theme.colors.border,
-    },
-    locationBannerRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: theme.spacing.sm,
-    },
-    locationBannerLabel: {
-      fontSize: theme.fontSize.sm,
+      borderRadius: theme.radii.md,
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.md,
+      paddingBottom: theme.spacing.md,
+      fontSize: theme.fontSize.base,
       color: theme.colors.text,
-      fontWeight: theme.fontWeight.medium,
-      flex: 1,
+      backgroundColor: theme.colors.backgroundInput,
     },
-    locationBannerDismissText: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textTertiary,
-    },
-    locationBannerUseButton: {
-      backgroundColor: theme.colors.buttonBg,
-      borderRadius: theme.radii.sm,
-      paddingVertical: theme.spacing.sm,
-      alignItems: "center",
-    },
-    locationBannerUseText: {
-      fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
-      color: theme.colors.buttonText,
-    },
-    // Details toggle
     promptButton: {
       marginTop: theme.spacing.sm,
       alignSelf: "flex-start",
@@ -1548,105 +697,6 @@ function createStyles(theme: Theme) {
       color: theme.colors.accent,
       fontWeight: theme.fontWeight.medium,
     },
-    // Photo metadata suggestion banner
-    metaBanner: {
-      backgroundColor: theme.colors.backgroundSecondary,
-      borderRadius: theme.radii.md,
-      padding: theme.spacing.md,
-      marginTop: theme.spacing.lg,
-      borderWidth: 1,
-      borderColor: theme.colors.accent,
-    },
-    metaBannerRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: theme.spacing.xs,
-    },
-    metaBannerLabel: {
-      fontSize: theme.fontSize.xs,
-      fontWeight: theme.fontWeight.semibold,
-      color: theme.colors.accent,
-      textTransform: "uppercase",
-      letterSpacing: 0.5,
-    },
-    metaBannerDismissText: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textTertiary,
-    },
-    metaBannerBody: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.text,
-      marginBottom: theme.spacing.sm,
-    },
-    metaBannerUseButton: {
-      backgroundColor: theme.colors.accent,
-      borderRadius: theme.radii.sm,
-      paddingVertical: theme.spacing.sm,
-      alignItems: "center",
-    },
-    metaBannerUseText: {
-      fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
-      color: "#fff",
-    },
-    // Song card
-    songCard: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: theme.colors.backgroundSecondary,
-      padding: theme.spacing.md,
-      borderRadius: theme.radii.md,
-    },
-    artwork: {
-      width: 56,
-      height: 56,
-      borderRadius: theme.radii.sm,
-    },
-    songInfo: {
-      flex: 1,
-      marginLeft: theme.spacing.md,
-    },
-    songTitle: {
-      fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
-      color: theme.colors.text,
-    },
-    songArtist: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
-      marginTop: 2,
-    },
-    changeText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textTertiary,
-      marginLeft: theme.spacing.sm,
-    },
-    selectSongButton: {
-      backgroundColor: theme.colors.buttonBg,
-      paddingVertical: theme.spacing.lg,
-      borderRadius: theme.radii.md,
-      alignItems: "center",
-    },
-    selectSongButtonText: {
-      color: theme.colors.buttonText,
-      fontSize: 17,
-      fontWeight: theme.fontWeight.semibold,
-    },
-    sectionLabel: {
-      fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
-      color: theme.colors.text,
-      marginTop: theme.spacing["2xl"],
-      marginBottom: theme.spacing.sm,
-    },
-    sectionLabelRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginTop: theme.spacing["2xl"],
-      marginBottom: theme.spacing.sm,
-    },
     dateClearText: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.destructive,
@@ -1659,74 +709,6 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.base,
       color: theme.colors.placeholder,
       paddingVertical: theme.spacing.sm,
-    },
-    reflectionInput: {
-      height: 120,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.md,
-      paddingHorizontal: theme.spacing.lg,
-      paddingTop: theme.spacing.md,
-      paddingBottom: theme.spacing.md,
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      backgroundColor: theme.colors.backgroundInput,
-    },
-    input: {
-      height: 52,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.md,
-      paddingHorizontal: theme.spacing.lg,
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      backgroundColor: theme.colors.backgroundInput,
-    },
-    addPhotosButton: {
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderStyle: "dashed",
-      borderRadius: theme.radii.md,
-      paddingVertical: 14,
-      alignItems: "center",
-      backgroundColor: theme.colors.backgroundInput,
-    },
-    addPhotosButtonText: {
-      fontSize: 15,
-      color: theme.colors.textSecondary,
-      fontWeight: theme.fontWeight.medium,
-    },
-    photoScroll: {
-      marginTop: 10,
-      marginHorizontal: -theme.spacing.xl,
-    },
-    photoScrollContent: {
-      paddingHorizontal: theme.spacing.xl,
-      gap: 10,
-    },
-    photoThumbContainer: {
-      position: "relative",
-    },
-    photoThumb: {
-      width: 80,
-      height: 80,
-      borderRadius: theme.radii.sm,
-    },
-    photoRemove: {
-      position: "absolute",
-      top: -6,
-      right: -6,
-      width: 22,
-      height: 22,
-      borderRadius: 11,
-      backgroundColor: "rgba(0,0,0,0.6)",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    photoRemoveText: {
-      color: "#fff",
-      fontSize: 11,
-      fontWeight: theme.fontWeight.semibold,
     },
     datePicker: {
       alignSelf: "center",
@@ -1772,38 +754,6 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.sm,
       color: theme.colors.accentText,
       fontWeight: theme.fontWeight.medium,
-    },
-    locationChip: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs,
-      flex: 1,
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: 8,
-      borderRadius: theme.radii.md,
-      backgroundColor: theme.colors.accentBg,
-    },
-    locationChipText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.accentText,
-      fontWeight: theme.fontWeight.medium,
-      flex: 1,
-    },
-    locationResultsList: {
-      marginTop: theme.spacing.xs,
-      borderRadius: theme.radii.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      overflow: "hidden",
-    },
-    locationResultItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: 12,
-    },
-    locationResultText: {
-      fontSize: theme.fontSize.sm,
-      flex: 1,
     },
     collectionEmpty: {
       flexDirection: "row",
@@ -1872,46 +822,6 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
       marginTop: 2,
-    },
-    // Identify / ShazamKit
-    identifyButton: {
-      marginTop: theme.spacing.sm,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.md,
-      paddingVertical: theme.spacing.md,
-      alignItems: "center",
-      backgroundColor: theme.colors.backgroundInput,
-    },
-    identifyRow: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    identifyButtonText: {
-      fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.medium,
-      color: theme.colors.textSecondary,
-    },
-    shazamBanner: {
-      marginTop: theme.spacing.md,
-      backgroundColor: theme.colors.backgroundSecondary,
-      borderRadius: theme.radii.md,
-      padding: theme.spacing.md,
-      borderWidth: 1,
-      borderColor: theme.colors.accent,
-    },
-    shazamLabel: {
-      fontSize: theme.fontSize.xs,
-      fontWeight: theme.fontWeight.semibold,
-      color: theme.colors.accent,
-      textTransform: "uppercase",
-      letterSpacing: 0.5,
-    },
-    shazamError: {
-      marginTop: theme.spacing.sm,
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.destructive,
-      textAlign: "center",
     },
     // Tag Friends
     taggedFriendsList: {
