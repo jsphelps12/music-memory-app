@@ -154,7 +154,7 @@ export default function OnboardingCapture2Screen() {
         />
 
         <Text style={styles.sectionLabel}>People</Text>
-        <PeopleInput people={people} onChange={setPeople} suggestions={[]} />
+        <PeopleInput people={people} onChangePeople={setPeople} />
 
         <Text style={styles.sectionLabel}>Mood</Text>
         <MoodSelector

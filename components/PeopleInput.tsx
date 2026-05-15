@@ -1,85 +1,206 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
   StyleSheet,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import { Friendship } from "@/types";
+
+export interface TaggedFriend {
+  friend: Friendship;
+  send: boolean;
+}
 
 interface Props {
   people: string[];
-  onChange: (people: string[]) => void;
+  onChangePeople: (people: string[]) => void;
+  taggedFriends?: TaggedFriend[];
+  onChangeTaggedFriends?: (tagged: TaggedFriend[]) => void;
+  friends?: Friendship[];
   suggestions?: string[];
 }
 
-export function PeopleInput({ people, onChange, suggestions = [] }: Props) {
+export function PeopleInput({
+  people,
+  onChangePeople,
+  taggedFriends = [],
+  onChangeTaggedFriends,
+  friends = [],
+  suggestions = [],
+}: Props) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [input, setInput] = useState("");
+  const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
+  const inputRef = useRef<TextInput>(null);
 
-  const availableSuggestions = suggestions.filter((s) => !people.includes(s));
+  const taggedFriendIds = new Set(taggedFriends.map((tf) => tf.friend.otherUserId));
 
-  const handleAdd = () => {
-    const names = input
-      .split(",")
-      .map((n) => n.trim())
-      .filter((n) => n.length > 0 && !people.includes(n));
-    if (names.length > 0) onChange([...people, ...names]);
-    setInput("");
+  const matchingFriends = useMemo(() => {
+    if (!query.trim()) return [];
+    const q = query.toLowerCase();
+    return friends.filter((f) => {
+      if (taggedFriendIds.has(f.otherUserId)) return false;
+      return (
+        (f.otherUserDisplayName ?? "").toLowerCase().includes(q) ||
+        (f.otherUserUsername ?? "").toLowerCase().includes(q)
+      );
+    }).slice(0, 5);
+  }, [query, friends, taggedFriendIds]);
+
+  const availableSuggestions = useMemo(
+    () => suggestions.filter((s) => !people.includes(s)),
+    [suggestions, people]
+  );
+
+  const showDropdown = focused && (matchingFriends.length > 0 || query.trim().length > 0);
+  const showSuggestions = focused && !query.trim() && availableSuggestions.length > 0;
+
+  const addTextChip = () => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    if (!people.includes(trimmed)) {
+      onChangePeople([...people, trimmed]);
+      Haptics.selectionAsync();
+    }
+    setQuery("");
   };
+
+  const addFriendChip = (friend: Friendship) => {
+    if (onChangeTaggedFriends) {
+      onChangeTaggedFriends([...taggedFriends, { friend, send: true }]);
+      Haptics.selectionAsync();
+    }
+    setQuery("");
+    inputRef.current?.focus();
+  };
+
+  const removeTextChip = (name: string) => {
+    onChangePeople(people.filter((p) => p !== name));
+  };
+
+  const removeFriendChip = (friendId: string) => {
+    if (onChangeTaggedFriends) {
+      onChangeTaggedFriends(taggedFriends.filter((tf) => tf.friend.otherUserId !== friendId));
+    }
+  };
+
+  const hasChips = people.length > 0 || taggedFriends.length > 0;
 
   return (
     <View>
+      {/* Chips */}
+      {hasChips && (
+        <View style={styles.chips}>
+          {taggedFriends.map((tf) => (
+            <View key={tf.friend.otherUserId} style={[styles.chip, styles.friendChip, { backgroundColor: theme.colors.accentBg }]}>
+              <Ionicons name="person" size={11} color={theme.colors.accentText} />
+              <Text style={[styles.chipText, { color: theme.colors.accentText }]} numberOfLines={1}>
+                {tf.friend.otherUserDisplayName ?? tf.friend.otherUserUsername ?? "Friend"}
+              </Text>
+              <TouchableOpacity onPress={() => removeFriendChip(tf.friend.otherUserId)} hitSlop={6}>
+                <Ionicons name="close" size={13} color={theme.colors.accentText} />
+              </TouchableOpacity>
+            </View>
+          ))}
+          {people.map((name) => (
+            <View key={name} style={[styles.chip, { backgroundColor: theme.colors.chipBg }]}>
+              <Text style={[styles.chipText, { color: theme.colors.chipText }]} numberOfLines={1}>
+                {name}
+              </Text>
+              <TouchableOpacity onPress={() => removeTextChip(name)} hitSlop={6}>
+                <Ionicons name="close" size={13} color={theme.colors.textTertiary} />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Input */}
       <TextInput
+        ref={inputRef}
         style={[styles.input, focused && { borderColor: theme.colors.accent }]}
-        placeholder="Add people (comma-separated)"
+        placeholder="Add people…"
         placeholderTextColor={theme.colors.placeholder}
         cursorColor={theme.colors.accent}
-        value={input}
-        onChangeText={setInput}
+        value={query}
+        onChangeText={setQuery}
         autoCapitalize="words"
         autoCorrect={false}
+        returnKeyType="done"
         onFocus={() => setFocused(true)}
         onBlur={() => {
           setFocused(false);
-          handleAdd();
+          addTextChip();
         }}
-        onSubmitEditing={handleAdd}
-        returnKeyType="done"
+        onSubmitEditing={addTextChip}
       />
-      {availableSuggestions.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.suggestions}
-        >
-          {availableSuggestions.map((name) => (
+
+      {/* Dropdown — friends + free-text add */}
+      {showDropdown && (
+        <View style={[styles.dropdown, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
+          {matchingFriends.map((friend, i) => (
             <TouchableOpacity
-              key={name}
-              style={styles.suggestion}
-              onPress={() => onChange([...people, name])}
+              key={friend.otherUserId}
+              style={[
+                styles.dropdownRow,
+                i < matchingFriends.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border },
+              ]}
+              onPress={() => addFriendChip(friend)}
+              activeOpacity={0.7}
             >
-              <Text style={styles.suggestionText}>{name}</Text>
+              <Ionicons name="person-circle-outline" size={18} color={theme.colors.accent} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.dropdownName, { color: theme.colors.text }]} numberOfLines={1}>
+                  {friend.otherUserDisplayName ?? friend.otherUserUsername ?? "Friend"}
+                </Text>
+                {friend.otherUserUsername && (
+                  <Text style={[styles.dropdownUsername, { color: theme.colors.textSecondary }]}>
+                    @{friend.otherUserUsername}
+                  </Text>
+                )}
+              </View>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+          {query.trim().length > 0 && (
+            <TouchableOpacity
+              style={[
+                styles.dropdownRow,
+                matchingFriends.length > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border },
+              ]}
+              onPress={addTextChip}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="add-circle-outline" size={18} color={theme.colors.textSecondary} />
+              <Text style={[styles.dropdownAdd, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                Add "{query.trim()}"
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       )}
-      {people.length > 0 && (
-        <View style={styles.tags}>
-          {people.map((name) => (
-            <View key={name} style={styles.tag}>
-              <Text style={styles.tagText}>{name}</Text>
-              <TouchableOpacity
-                onPress={() => onChange(people.filter((p) => p !== name))}
-              >
-                <Text style={styles.tagRemove}>✕</Text>
-              </TouchableOpacity>
-            </View>
+
+      {/* Past name suggestions (shown when focused + empty) */}
+      {showSuggestions && (
+        <View style={styles.suggestions}>
+          {availableSuggestions.slice(0, 8).map((name) => (
+            <TouchableOpacity
+              key={name}
+              style={[styles.suggestionChip, { backgroundColor: theme.colors.backgroundInput, borderColor: theme.colors.border }]}
+              onPress={() => {
+                onChangePeople([...people, name]);
+                Haptics.selectionAsync();
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.suggestionText, { color: theme.colors.textSecondary }]}>{name}</Text>
+            </TouchableOpacity>
           ))}
         </View>
       )}
@@ -89,8 +210,31 @@ export function PeopleInput({ people, onChange, suggestions = [] }: Props) {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
+    chips: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing.sm,
+    },
+    chip: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 6,
+      borderRadius: theme.radii.lg,
+      gap: 5,
+      maxWidth: 200,
+    },
+    friendChip: {
+      gap: 5,
+    },
+    chipText: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.medium,
+      flexShrink: 1,
+    },
     input: {
-      height: 52,
+      height: 48,
       borderWidth: 1,
       borderColor: theme.colors.border,
       borderRadius: theme.radii.md,
@@ -99,45 +243,44 @@ function createStyles(theme: Theme) {
       color: theme.colors.text,
       backgroundColor: theme.colors.backgroundInput,
     },
-    tags: {
+    dropdown: {
+      marginTop: theme.spacing.xs,
+      borderRadius: theme.radii.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      overflow: "hidden",
+    },
+    dropdownRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 11,
+    },
+    dropdownName: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.medium,
+    },
+    dropdownUsername: {
+      fontSize: theme.fontSize.xs,
+    },
+    dropdownAdd: {
+      fontSize: theme.fontSize.sm,
+      flexShrink: 1,
+    },
+    suggestions: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: theme.spacing.sm,
       marginTop: theme.spacing.sm,
     },
-    tag: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: theme.colors.chipBg,
+    suggestionChip: {
       paddingHorizontal: theme.spacing.md,
       paddingVertical: 6,
-      borderRadius: theme.spacing.lg,
-      gap: 6,
-    },
-    tagText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.chipText,
-    },
-    tagRemove: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textTertiary,
-    },
-    suggestions: {
-      flexDirection: "row",
-      gap: theme.spacing.sm,
-      paddingVertical: theme.spacing.sm,
-    },
-    suggestion: {
-      backgroundColor: theme.colors.backgroundInput,
+      borderRadius: theme.radii.lg,
       borderWidth: 1,
-      borderColor: theme.colors.border,
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: 6,
-      borderRadius: theme.spacing.lg,
     },
     suggestionText: {
       fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
     },
   });
 }

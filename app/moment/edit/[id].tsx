@@ -368,7 +368,7 @@ export default function EditMomentScreen() {
 
         {/* People */}
         <Text style={styles.sectionLabel}>People</Text>
-        <PeopleInput people={people} onChange={setPeople} />
+        <PeopleInput people={people} onChangePeople={setPeople} />
 
         {/* Photos */}
         <Text style={styles.sectionLabel}>Photos</Text>
