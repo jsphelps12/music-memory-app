@@ -23,6 +23,7 @@ export interface SaveMomentInput {
   mood: string | null;
   locationResult: GeoResult | null;
   momentDate: Date | null;
+  visibility: 'private' | 'connections' | 'link';
   selectedCollection?: Collection | null;
   taggedFriends?: Array<{ friend: Friendship; send: boolean }>;
 }
@@ -63,6 +64,7 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
         ? `${input.momentDate.getFullYear()}-${String(input.momentDate.getMonth() + 1).padStart(2, "0")}-${String(input.momentDate.getDate()).padStart(2, "0")}`
         : null,
       time_of_day: getTimeOfDay(),
+      visibility: input.visibility,
     })
     .select("id")
     .single();

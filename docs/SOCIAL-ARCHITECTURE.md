@@ -127,25 +127,52 @@ Tab badge counts total unread items. Clears on visit.
 
 ---
 
-### Tagging — "We Were There"
+### People in a Moment — "Who Was There"
 
-When you create or edit a moment, you can tag friends who were physically present.
-Tagging means: "you were part of this memory."
+Every moment can include a list of people who were present. This serves two distinct but
+unified purposes: a personal memory aid (most common), and tagging connections who are
+on the app (secondary).
 
-**Rules:**
-- You can only tag existing connections
-- A tag is only visible to the tagged person if the moment's visibility is `connections` or `link`
-- If visibility is `private`, the tag exists in the DB but no notification is sent and the
-  moment doesn't appear in their With Me
-- **No release mechanic** — the privacy dial replaces it. Tag someone and they see it
-  immediately if visibility allows. No separate "release" step.
+**UI — unified chip input:**
+A single "People" field on create and edit screens. As you type:
+- Your connections appear in a dropdown (avatar + display name). Tap one → adds a
+  connection chip (visually distinct — small avatar dot indicator).
+- Type any name and hit return → adds a plain text chip for someone not on the app.
+
+Both chip types live in the same field. Remove either with ✕. Fast, no friction.
+
+**Chips are always independent.** A text chip named "Sarah" and a connection chip for
+a friend named Sarah are different things and are never auto-merged. The user decides
+which to add. Don't try to reconcile them.
+
+**Display name always.** Connection chips show the person's display name, not their
+@username. @username appears in the search dropdown only to disambiguate when two
+connections share a display name.
+
+**No phone contacts.** The permission prompt appears at the wrong moment, contacts are
+messy, and the payoff (auto-completing a name) doesn't justify the cost. Free-text is
+fast enough.
+
+**The primary job of this field is personal.** "I was with Mom, Jake, and Sarah from
+work." The tagging/notification mechanic is an enhancement on top, not the reason
+the field exists.
+
+**Data model — two sources, one UI:**
+- Free-text names → `people text[]` on `moments` (already exists)
+- Tagged connections → `tagged_moments` table (already exists)
+- On load, both are hydrated and rendered together as chips
+
+**Tagging rules:**
+- You can only tag existing connections (not arbitrary app users)
+- A tag only triggers a notification if the moment's visibility is `connections` or `link`
+- If visibility is `private`, the tag exists in the DB but the tagged person is never notified
+  and the moment does not appear in their With Me
+- **No release mechanic** — the privacy dial controls visibility. No separate "release" step.
 
 **Tagged person's experience:**
 - Gets a push notification: "Josh tagged you in a memory — Landslide, March 2024"
 - Moment appears in their With Me → Tagged by Friends section
-- Can view the full moment
-- Can resonate (see below)
-- Can add their own linked memory of the same song (see below)
+- Can view the full moment, resonate, and add their own linked memory
 - Cannot edit the original moment
 
 **DB:** `tagged_moments` table (already exists). Remove `status = 'pending'` release gate.
@@ -269,6 +296,8 @@ tagged person can see the moment. Replace with the privacy dial. If visibility i
 3. Add `visibility` enum to moments table
 4. Add privacy dial UI to create and edit screens
 5. Remove the release mechanic from tagged moments
+6. Redesign the People field — unified chip input replacing the current comma-separated
+   text input; free-text chips (plain names) + connection chips (tagged friends) in one field
 
 **Result:** The existing social layer feels coherent and intentional.
 
@@ -301,6 +330,11 @@ tagged person can see the moment. Replace with the privacy dial. If visibility i
 | Deferred gift flow | Clipboard pattern (same as collection invites). |
 | Resonance visibility | Private notification to creator only. No public count. |
 | Linked moments ownership | Each person owns their own moment. Link is a soft connection only. |
+| People field — chip display | Show display name, not @username. @username only in search dropdown to disambiguate. |
+| People field — chip independence | Text chips and connection chips are always independent. No auto-matching. |
+| People field — phone contacts | No. Permission cost and contact messiness outweigh the benefit of name auto-complete. |
+| People field — primary purpose | Personal memory aid ("who was there"). Tagging/notification is secondary. |
+| People field — data model | Two sources unified in one UI: `people text[]` (free text) + `tagged_moments` (connections). |
 
 ---
 

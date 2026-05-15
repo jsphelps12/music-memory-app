@@ -43,6 +43,7 @@ export interface Moment {
   timeOfDay: string | null;
   createdAt: string;
   updatedAt: string;
+  visibility: 'private' | 'connections' | 'link';
   shareToken?: string | null;
   guestUuid?: string | null;
   // Set when viewing a shared collection — display name of who added this moment

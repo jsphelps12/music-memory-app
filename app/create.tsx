@@ -26,6 +26,7 @@ import { extractExifFromPath } from "@/lib/photoMetadata";
 import { saveMoment } from "@/lib/saveMoment";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
+import { VisibilityPicker, Visibility } from "@/components/VisibilityPicker";
 import { CollectionPicker } from "@/components/CollectionPicker";
 import { CreateCollectionModal } from "@/components/CreateCollectionModal";
 import { SongPickerSection } from "@/components/SongPickerSection";
@@ -147,6 +148,7 @@ export default function CreateMomentScreen() {
 
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [people, setPeople] = useState<string[]>([]);
+  const [visibility, setVisibility] = useState<Visibility>('private');
   const [momentDate, setMomentDate] = useState<Date | null>(new Date());
   const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
   const [metaSuggestion, setMetaSuggestion] = useState<{ date?: Date; location?: string; lat?: number; lng?: number } | null>(null);
@@ -232,6 +234,7 @@ export default function CreateMomentScreen() {
         mood: selectedMood,
         locationResult,
         momentDate,
+        visibility,
         selectedCollection,
         taggedFriends,
       });
@@ -266,6 +269,7 @@ export default function CreateMomentScreen() {
       setMomentDate(new Date());
       setLocationResult(null);
       setSelectedCollection(null);
+      setVisibility('private');
       setMetaSuggestion(null);
       setDismissedMetaSuggestion(false);
       setShowDetails(false);
@@ -369,6 +373,10 @@ export default function CreateMomentScreen() {
               onChangeTaggedFriends={setTaggedFriends}
               friends={availableFriends}
             />
+
+            {/* Visibility */}
+            <Text style={styles.sectionLabel}>Who can see this</Text>
+            <VisibilityPicker value={visibility} onChange={setVisibility} />
 
             {/* Mood selector */}
             <Text style={styles.sectionLabel}>Mood</Text>

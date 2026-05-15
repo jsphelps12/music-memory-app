@@ -26,6 +26,7 @@ import { fetchPreviewUrl } from "@/lib/musickit";
 import { uploadMomentPhotoWithThumbnail, getPublicPhotoUrl } from "@/lib/storage";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
+import { VisibilityPicker, Visibility } from "@/components/VisibilityPicker";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
@@ -58,6 +59,7 @@ export default function EditMomentScreen() {
   const [reflection, setReflection] = useState("");
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [people, setPeople] = useState<string[]>([]);
+  const [visibility, setVisibility] = useState<Visibility>('private');
   const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
   const [existingThumbnails, setExistingThumbnails] = useState<string[]>([]);
   const [newPhotos, setNewPhotos] = useState<string[]>([]);
@@ -100,6 +102,7 @@ export default function EditMomentScreen() {
     setReflection(row.reflection_text ?? "");
     setSelectedMood(row.mood ?? null);
     setPeople(row.people ?? []);
+    setVisibility((row.visibility ?? 'private') as Visibility);
     setExistingPhotos(row.photo_urls ?? []);
     setExistingThumbnails(row.photo_thumbnails ?? []);
     setMomentDate(row.moment_date ? new Date(row.moment_date + "T00:00:00") : null);
@@ -225,6 +228,7 @@ export default function EditMomentScreen() {
           reflection_text: reflection.trim(),
           mood: selectedMood,
           people,
+          visibility,
           photo_urls: [...existingPhotos, ...newPaths],
           photo_thumbnails: [...existingThumbnails, ...newThumbPaths],
           location: location.trim() || null,
@@ -369,6 +373,10 @@ export default function EditMomentScreen() {
         {/* People */}
         <Text style={styles.sectionLabel}>People</Text>
         <PeopleInput people={people} onChangePeople={setPeople} />
+
+        {/* Visibility */}
+        <Text style={styles.sectionLabel}>Who can see this</Text>
+        <VisibilityPicker value={visibility} onChange={setVisibility} />
 
         {/* Photos */}
         <Text style={styles.sectionLabel}>Photos</Text>

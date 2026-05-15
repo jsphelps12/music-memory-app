@@ -22,6 +22,7 @@ export function mapRowToMoment(row: any): Moment {
     timeOfDay: row.time_of_day ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    visibility: row.visibility ?? 'private',
     shareToken: row.share_token ?? null,
     guestUuid: row.guest_uuid ?? null,
   };

@@ -570,6 +570,16 @@ Features that turn users into acquisition channels.
 - [x] App generates share token and surfaces iOS share sheet from moment detail
 - [x] Acquisition through emotional resonance — recipient sees your memory, CTA to download
 
+### Time Capsule **[Free basic / Premium scheduling]**
+- [ ] When logging a moment, optionally set a "resurface on" date — a specific day, an anniversary, or a recurring schedule (yearly, monthly, etc.)
+- [ ] Example: "Surface this every year on July 4th" or "Remind me of this in 5 years"
+- [ ] Notification arrives on the chosen date: *"You sealed this memory 2 years ago — ready to open it?"* — tapping opens the moment detail
+- [ ] Could also allow writing a message to future self at seal-time, revealed only when the capsule opens
+- [ ] Capsule state: sealed moments show a lock icon on timeline cards until the date arrives; after opening they return to normal
+- [ ] **Premium**: recurring schedules (monthly/yearly), multiple capsules per moment, "sealed until" visibility control (hide from timeline entirely until open date)
+- [ ] Fits naturally into the create screen as an optional field alongside mood/people — low friction, high emotional payoff
+- [ ] The intentionality of sealing something creates a ritual; the opening creates a guaranteed moment of reflection — the entire emotional arc of journaling compressed into one feature
+
 ### Resurfacing Weight Control **[Free]**
 - [ ] After a moment surfaces in Reflections, let the user explicitly signal: "Show this more" / "Not now" / "Bury this"
 - [ ] Implicit version: if you engage with a resurfaced moment (tap into detail, add a new reflection, or share it), it gets upweighted automatically; if you swipe past it three times, it gets downweighted

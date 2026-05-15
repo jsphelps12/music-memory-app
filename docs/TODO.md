@@ -50,7 +50,7 @@ Goal: 100 *retained* users who log 10+ moments each. Downloads don't matter. Ret
 ## 🟡 Compliance
 
 - [ ] GDPR basics audit — verify privacy policy covers: right to deletion (delete account covers this), data portability, what data is shared with third parties, DPA contact email
-- [ ] Confirm delete account removes everything: auth user, moments, photos from storage, profile row, push token (see Issue #7 in ISSUES.md — push token not cleared on sign-out is related)
+- [x] Confirm delete account removes everything: auth user, moments, photos from storage, profile row, push token — **Done.** Sign-out clears `push_token` to null (AuthContext.tsx:244). Delete account deletes the auth user server-side which cascades to the profile row. DB trigger (`evict_push_token`, migration 20260502) also evicts the token from any other profile sharing the same device token.
 - [ ] COPPA review — 12+ age rating is set; confirm privacy policy explicitly addresses under-13 exclusion
 - [ ] Data export — JSON export of all moments from Profile screen (low urgency but required for full GDPR compliance; a simple Supabase query dump is fine v1)
 
