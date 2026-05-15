@@ -7,10 +7,9 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { Link } from "expo-router";
@@ -55,7 +54,7 @@ export default function SignUpScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior="padding"
     >
       <View style={styles.inner}>
         <Text style={styles.title}>Sign Up</Text>
@@ -67,8 +66,11 @@ export default function SignUpScreen() {
           placeholderTextColor={theme.colors.placeholder}
           cursorColor={theme.colors.accent}
           autoCapitalize="none"
+          autoCorrect={false}
           keyboardType="email-address"
+          textContentType="emailAddress"
           autoComplete="email"
+          returnKeyType="next"
           value={email}
           onChangeText={setEmail}
           onFocus={() => setFocusedField("email")}
@@ -82,7 +84,12 @@ export default function SignUpScreen() {
             placeholderTextColor={theme.colors.placeholder}
             cursorColor={theme.colors.accent}
             secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+            textContentType="newPassword"
             autoComplete="new-password"
+            returnKeyType="go"
+            onSubmitEditing={handleSignUp}
             value={password}
             onChangeText={setPassword}
             onFocus={() => setFocusedField("password")}

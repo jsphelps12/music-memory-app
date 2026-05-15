@@ -6,10 +6,9 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import * as AppleAuthentication from "expo-apple-authentication";
@@ -79,7 +78,7 @@ export default function SignInScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior="padding"
     >
       <View style={styles.inner}>
         <Text style={styles.title}>Sign In</Text>
@@ -102,8 +101,11 @@ export default function SignInScreen() {
           placeholderTextColor={theme.colors.placeholder}
           cursorColor={theme.colors.accent}
           autoCapitalize="none"
+          autoCorrect={false}
           keyboardType="email-address"
+          textContentType="emailAddress"
           autoComplete="email"
+          returnKeyType="next"
           value={email}
           onChangeText={setEmail}
           onFocus={() => setFocusedField("email")}
@@ -117,7 +119,12 @@ export default function SignInScreen() {
             placeholderTextColor={theme.colors.placeholder}
             cursorColor={theme.colors.accent}
             secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+            textContentType="password"
             autoComplete="password"
+            returnKeyType="go"
+            onSubmitEditing={handleSignIn}
             value={password}
             onChangeText={setPassword}
             onFocus={() => setFocusedField("password")}

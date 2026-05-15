@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/react-native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, usePathname, useGlobalSearchParams } from "expo-router";
@@ -156,6 +157,7 @@ function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <KeyboardProvider>
       <PostHogProvider client={posthog} autocapture={{ captureScreens: false, captureTouches: true }}>
         <ShareIntentProvider>
           <AuthProvider>
@@ -165,6 +167,7 @@ function RootLayout() {
           </AuthProvider>
         </ShareIntentProvider>
       </PostHogProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

@@ -9,11 +9,11 @@ import {
   StyleSheet,
   ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
   Modal,
   Keyboard,
   Platform,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import { CloseButton } from "@/components/CloseButton";
 import * as Haptics from "expo-haptics";
@@ -213,6 +213,8 @@ export default function QuestionnaireScreen() {
               value={displayName}
               onChangeText={(t) => { setDisplayName(t); setError(""); }}
               autoFocus
+              autoCapitalize="words"
+              autoCorrect={false}
               returnKeyType="next"
               textContentType="name"
               autoComplete="name"
@@ -230,6 +232,8 @@ export default function QuestionnaireScreen() {
                 onChangeText={handleUsernameChange}
                 autoCapitalize="none"
                 autoCorrect={false}
+                textContentType="username"
+                autoComplete="username"
                 returnKeyType="done"
                 maxLength={30}
               />
@@ -348,6 +352,9 @@ export default function QuestionnaireScreen() {
                 value={countrySearch}
                 onChangeText={setCountrySearch}
                 autoFocus
+                autoCorrect={false}
+                autoCapitalize="words"
+                returnKeyType="search"
               />
               {countrySearch.length > 0 && (
                 <TouchableOpacity onPress={() => setCountrySearch("")} hitSlop={8}>

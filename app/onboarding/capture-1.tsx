@@ -7,11 +7,10 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
@@ -70,7 +69,7 @@ export default function OnboardingCapture1Screen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior="padding"
     >
       <View style={styles.progressBarTrack}>
         <View style={[styles.progressBarFill, { width: "66%" }]} />
@@ -100,6 +99,8 @@ export default function OnboardingCapture1Screen() {
           cursorColor={theme.colors.accent}
           multiline
           textAlignVertical="top"
+          autoCapitalize="sentences"
+          autoCorrect
           value={reflection}
           onChangeText={setReflection}
           onFocus={() => setFocusedField(true)}
