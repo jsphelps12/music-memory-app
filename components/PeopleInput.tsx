@@ -42,6 +42,8 @@ export function PeopleInput({ people, onChange, suggestions = [] }: Props) {
         cursorColor={theme.colors.accent}
         value={input}
         onChangeText={setInput}
+        autoCapitalize="words"
+        autoCorrect={false}
         onFocus={() => setFocused(true)}
         onBlur={() => {
           setFocused(false);

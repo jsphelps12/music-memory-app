@@ -119,6 +119,8 @@ export default function SongSearchScreen() {
         value={query}
         onChangeText={setQuery}
         autoFocus
+        autoCorrect={false}
+        autoCapitalize="words"
         returnKeyType="search"
       />
 

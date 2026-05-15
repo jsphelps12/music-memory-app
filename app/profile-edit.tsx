@@ -12,10 +12,10 @@ import {
   ScrollView,
   FlatList,
   Modal,
-  KeyboardAvoidingView,
   Platform,
   Linking,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -287,7 +287,7 @@ export default function ProfileEditScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.flex, { backgroundColor: theme.colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior="padding"
     >
       {/* Header */}
       <View style={styles.header}>
@@ -338,6 +338,9 @@ export default function ProfileEditScreen() {
               placeholder="Display name"
               placeholderTextColor={theme.colors.placeholder}
               cursorColor={theme.colors.accent}
+              autoCapitalize="words"
+              autoCorrect={false}
+              textContentType="name"
               returnKeyType="done"
             />
           </View>
@@ -354,6 +357,8 @@ export default function ProfileEditScreen() {
                 placeholderTextColor={theme.colors.placeholder}
                 autoCapitalize="none"
                 autoCorrect={false}
+                textContentType="username"
+                autoComplete="username"
                 returnKeyType="done"
                 maxLength={30}
               />
@@ -450,6 +455,8 @@ export default function ProfileEditScreen() {
                   placeholderTextColor={theme.colors.placeholder}
                   value={artistQuery}
                   onChangeText={handleArtistQuery}
+                  autoCorrect={false}
+                  autoCapitalize="words"
                   returnKeyType="search"
                 />
                 {artistSearching ? (
@@ -512,6 +519,8 @@ export default function ProfileEditScreen() {
                   placeholderTextColor={theme.colors.placeholder}
                   value={songQuery}
                   onChangeText={handleSongQuery}
+                  autoCorrect={false}
+                  autoCapitalize="words"
                   returnKeyType="search"
                 />
                 {songSearching ? (
@@ -608,7 +617,7 @@ export default function ProfileEditScreen() {
 
       {/* ── Country picker modal ── */}
       <Modal visible={countryPickerVisible} transparent animationType="slide" onRequestClose={() => setCountryPickerVisible(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
           <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setCountryPickerVisible(false)} />
           <View style={[styles.pickerSheet, { backgroundColor: theme.colors.background }]}>
             <View style={[styles.pickerSheetHandle, { backgroundColor: theme.colors.border }]} />
@@ -625,6 +634,9 @@ export default function ProfileEditScreen() {
                 value={countrySearch}
                 onChangeText={setCountrySearch}
                 autoFocus
+                autoCorrect={false}
+                autoCapitalize="words"
+                returnKeyType="search"
               />
               {countrySearch.length > 0 && (
                 <TouchableOpacity onPress={() => setCountrySearch("")} hitSlop={8}>

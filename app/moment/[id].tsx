@@ -13,10 +13,10 @@ import {
   Platform,
   ActivityIndicator,
   TextInput,
-  KeyboardAvoidingView,
   Linking,
   Share,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -877,7 +877,7 @@ export default function MomentDetailScreen() {
         onRequestClose={() => setCollectionModalVisible(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior="padding"
           style={collectionStyles.flex}
         >
         <Pressable

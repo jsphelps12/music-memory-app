@@ -12,9 +12,9 @@ import {
   TextInput,
   Keyboard,
   Platform,
-  KeyboardAvoidingView,
   RefreshControl,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -122,7 +122,7 @@ function AddFriendSheet({ visible, onClose, friendInviteToken, currentUserId, on
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={onClose} />
       <View style={[styles.sheet, { backgroundColor: theme.colors.background }]}>
         <View style={[styles.sheetHandle, { backgroundColor: theme.colors.border }]} />

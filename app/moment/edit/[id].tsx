@@ -6,14 +6,13 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   ActionSheetIOS,
   StyleSheet,
   Alert,
   Linking,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -277,7 +276,7 @@ export default function EditMomentScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior="padding"
     >
       <ScrollView
         ref={scrollViewRef}
@@ -349,6 +348,8 @@ export default function EditMomentScreen() {
           cursorColor={theme.colors.accent}
           multiline
           textAlignVertical="top"
+          autoCapitalize="sentences"
+          autoCorrect
           value={reflection}
           onChangeText={setReflection}
           onFocus={() => setFocusedField("reflection")}
@@ -445,11 +446,13 @@ export default function EditMomentScreen() {
           placeholder="Where were you?"
           placeholderTextColor={theme.colors.placeholder}
           cursorColor={theme.colors.accent}
+          autoCorrect={false}
+          autoCapitalize="words"
+          returnKeyType="done"
           value={location}
           onChangeText={setLocation}
           onFocus={() => setFocusedField("location")}
           onBlur={() => setFocusedField("")}
-          returnKeyType="done"
         />
 
         {/* Error */}

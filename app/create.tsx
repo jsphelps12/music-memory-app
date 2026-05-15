@@ -8,14 +8,13 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   ActionSheetIOS,
   Modal,
   FlatList,
   StyleSheet,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
@@ -311,7 +310,7 @@ export default function CreateMomentScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior="padding"
     >
       <ScrollView
         ref={scrollViewRef}
@@ -337,6 +336,8 @@ export default function CreateMomentScreen() {
           cursorColor={theme.colors.accent}
           multiline
           textAlignVertical="top"
+          autoCapitalize="sentences"
+          autoCorrect
           value={reflection}
           onChangeText={setReflection}
           onFocus={() => setFocusedField("reflection")}
@@ -425,6 +426,7 @@ export default function CreateMomentScreen() {
                         onChangeText={setFriendQuery}
                         autoCapitalize="none"
                         autoCorrect={false}
+                        returnKeyType="search"
                       />
                     </View>
                     {availableFriends

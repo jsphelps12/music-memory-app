@@ -117,6 +117,9 @@ export function MoodSelector({
             placeholderTextColor={theme.colors.placeholder}
             value={newEmoji}
             onChangeText={setNewEmoji}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="next"
             maxLength={4}
           />
           <TextInput
@@ -126,6 +129,8 @@ export function MoodSelector({
             cursorColor={theme.colors.accent}
             value={newLabel}
             onChangeText={setNewLabel}
+            autoCapitalize="words"
+            autoCorrect={false}
             returnKeyType="done"
             onSubmitEditing={handleSave}
           />

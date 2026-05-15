@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Modal,
   Share,
   StyleSheet,
   Platform,
@@ -15,6 +14,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { Audio } from "expo-av";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
+import { getPublicPhotoUrl } from "@/lib/storage";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { Moment } from "@/types";
@@ -30,7 +30,6 @@ export default function OnboardingMomentPreviewScreen() {
   const [moment, setMoment] = useState<Moment | null>(null);
   const [loading, setLoading] = useState(true);
   const [volumeBannerVisible, setVolumeBannerVisible] = useState(true);
-  const [sharePromptVisible, setSharePromptVisible] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
 
   // Redirect immediately if no moment to show
@@ -82,13 +81,6 @@ export default function OnboardingMomentPreviewScreen() {
     };
   }, [moment?.songPreviewUrl]);
 
-  // Show share prompt after a short delay
-  useEffect(() => {
-    if (!moment) return;
-    const t = setTimeout(() => setSharePromptVisible(true), 2000);
-    return () => clearTimeout(t);
-  }, [moment]);
-
   const handleContinue = async () => {
     await soundRef.current?.unloadAsync().catch(() => {});
     soundRef.current = null;
@@ -100,7 +92,6 @@ export default function OnboardingMomentPreviewScreen() {
 
   const handleShare = async () => {
     if (!moment) return;
-    setSharePromptVisible(false);
     try {
       await Share.share({
         message: `"${moment.songTitle}" by ${moment.songArtist}${moment.reflectionText ? ` — "${moment.reflectionText}"` : ""}`,
@@ -131,7 +122,9 @@ export default function OnboardingMomentPreviewScreen() {
 
       {/* Moment card */}
       <View style={styles.card}>
-        {moment.songArtworkUrl ? (
+        {moment.photoUrls?.[0] ? (
+          <Image source={{ uri: getPublicPhotoUrl(moment.photoUrls[0]) }} style={styles.artwork} contentFit="cover" />
+        ) : moment.songArtworkUrl ? (
           <Image source={{ uri: moment.songArtworkUrl }} style={styles.artwork} contentFit="cover" />
         ) : (
           <View style={[styles.artworkPlaceholder, { backgroundColor: theme.colors.accentBg }]}>
@@ -140,6 +133,9 @@ export default function OnboardingMomentPreviewScreen() {
         )}
 
         <View style={styles.songRow}>
+          {moment.photoUrls?.[0] && moment.songArtworkUrl ? (
+            <Image source={{ uri: moment.songArtworkUrl }} style={styles.songArtwork} contentFit="cover" />
+          ) : null}
           <View style={styles.songInfo}>
             <Text style={styles.songTitle} numberOfLines={1}>{moment.songTitle}</Text>
             <Text style={styles.songArtist} numberOfLines={1}>{moment.songArtist}</Text>
@@ -187,6 +183,14 @@ export default function OnboardingMomentPreviewScreen() {
 
       <View style={styles.footer}>
         <TouchableOpacity
+          style={[styles.shareButton, { backgroundColor: theme.colors.accentBg }]}
+          onPress={handleShare}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="share-outline" size={18} color={theme.colors.accent} />
+          <Text style={[styles.shareButtonText, { color: theme.colors.accent }]}>Share this moment</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           style={[styles.continueButton, { backgroundColor: theme.colors.buttonBg }]}
           onPress={handleContinue}
           activeOpacity={0.8}
@@ -196,49 +200,6 @@ export default function OnboardingMomentPreviewScreen() {
           </Text>
         </TouchableOpacity>
       </View>
-
-      {/* Share prompt */}
-      <Modal
-        visible={sharePromptVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSharePromptVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.shareOverlay}
-          activeOpacity={1}
-          onPress={() => setSharePromptVisible(false)}
-        >
-          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-            <View style={[styles.shareSheet, { backgroundColor: theme.colors.backgroundSecondary }]}>
-              <View style={styles.shareHandle} />
-              <Text style={[styles.shareTitle, { color: theme.colors.text }]}>
-                Share this moment?
-              </Text>
-              <Text style={[styles.shareBody, { color: theme.colors.textSecondary }]}>
-                Know someone this song belongs to? Send them this memory.
-              </Text>
-              <TouchableOpacity
-                style={[styles.shareButton, { backgroundColor: theme.colors.buttonBg }]}
-                onPress={handleShare}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="share-outline" size={18} color={theme.colors.buttonText} />
-                <Text style={[styles.shareButtonText, { color: theme.colors.buttonText }]}>Share</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.shareDismiss}
-                onPress={() => setSharePromptVisible(false)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.shareDismissText, { color: theme.colors.textSecondary }]}>
-                  Maybe later
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
     </View>
   );
 }
@@ -294,6 +255,11 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       gap: theme.spacing.md,
     },
+    songArtwork: {
+      width: 44,
+      height: 44,
+      borderRadius: 6,
+    },
     songInfo: {
       flex: 1,
     },
@@ -347,6 +313,19 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.xl,
       paddingBottom: Platform.OS === "ios" ? 44 : 24,
       paddingTop: 12,
+      gap: 10,
+    },
+    shareButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      height: 52,
+      borderRadius: theme.radii.button,
+    },
+    shareButtonText: {
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.semibold,
     },
     continueButton: {
       height: 52,
@@ -357,59 +336,6 @@ function createStyles(theme: Theme) {
     continueButtonText: {
       fontSize: theme.fontSize.base,
       fontWeight: theme.fontWeight.semibold,
-    },
-    // Share prompt sheet
-    shareOverlay: {
-      flex: 1,
-      justifyContent: "flex-end",
-      backgroundColor: "rgba(0,0,0,0.4)",
-    },
-    shareSheet: {
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
-      paddingHorizontal: theme.spacing.xl,
-      paddingTop: 12,
-      paddingBottom: Platform.OS === "ios" ? 44 : 24,
-      alignItems: "center",
-    },
-    shareHandle: {
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: theme.colors.border,
-      marginBottom: 20,
-    },
-    shareTitle: {
-      fontSize: theme.fontSize.xl,
-      fontWeight: theme.fontWeight.bold,
-      marginBottom: 8,
-      textAlign: "center",
-    },
-    shareBody: {
-      fontSize: theme.fontSize.base,
-      textAlign: "center",
-      lineHeight: 22,
-      marginBottom: theme.spacing["2xl"],
-    },
-    shareButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      height: 52,
-      borderRadius: theme.radii.button,
-      paddingHorizontal: 32,
-      alignSelf: "stretch",
-      justifyContent: "center",
-    },
-    shareButtonText: {
-      fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
-    },
-    shareDismiss: {
-      paddingVertical: 14,
-    },
-    shareDismissText: {
-      fontSize: theme.fontSize.sm,
     },
   });
 }

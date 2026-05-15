@@ -6,10 +6,9 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { createCollection } from "@/lib/collections";
@@ -70,7 +69,7 @@ export function CreateCollectionModal({ visible, userId, onCreated, onClose }: P
     >
       <View style={[styles.flex, styles.overlay]}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior="padding"
           style={styles.flex}
         >
           <Pressable style={styles.flex} onPress={handleClose} />
@@ -145,6 +144,8 @@ export function CreateCollectionModal({ visible, userId, onCreated, onClose }: P
               cursorColor={theme.colors.accent}
               value={name}
               onChangeText={setName}
+              autoCapitalize="words"
+              autoCorrect={false}
               returnKeyType="done"
               onSubmitEditing={handleCreate}
               maxLength={60}

@@ -148,6 +148,8 @@ export function LocationField({ value, onChange, detectCurrentLocation = false }
             onChangeText={handleQueryChange}
             onFocus={() => setFocusedField(true)}
             onBlur={() => setFocusedField(false)}
+            autoCorrect={false}
+            autoCapitalize="words"
             returnKeyType="search"
           />
           {locationSearching && (

@@ -116,6 +116,9 @@ export function PromptsSection({ customCategories, onSave, onDelete }: Props) {
           placeholderTextColor={theme.colors.placeholder}
           value={editingCategory.label}
           onChangeText={(t) => setEditingCategory({ ...editingCategory, label: t })}
+          autoCapitalize="words"
+          autoCorrect={false}
+          returnKeyType="done"
           maxLength={30}
         />
 
@@ -128,6 +131,9 @@ export function PromptsSection({ customCategories, onSave, onDelete }: Props) {
               placeholderTextColor={theme.colors.placeholder}
               value={s}
               onChangeText={(t) => updateStarter(i, t)}
+              autoCapitalize="sentences"
+              autoCorrect
+              returnKeyType="done"
             />
             <TouchableOpacity onPress={() => removeStarter(i)} activeOpacity={0.7}>
               <Text style={styles.removeBtn}>✕</Text>

@@ -681,6 +681,8 @@ export default function TimelineScreen() {
             cursorColor={theme.colors.accent}
             value={searchText}
             onChangeText={setSearchText}
+            autoCorrect={false}
+            autoCapitalize="none"
             returnKeyType="search"
           />
           {searchText.length > 0 ? (
@@ -794,6 +796,8 @@ export default function TimelineScreen() {
                 cursorColor={theme.colors.accent}
                 value={locationSearch}
                 onChangeText={setLocationSearch}
+                autoCorrect={false}
+                autoCapitalize="words"
                 returnKeyType="search"
               />
               {locationSearch.length > 0 ? (
