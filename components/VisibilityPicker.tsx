@@ -8,7 +8,7 @@ export type Visibility = 'private' | 'connections' | 'link';
 
 const OPTIONS: { value: Visibility; label: string; icon: string }[] = [
   { value: 'private', label: 'Just me', icon: 'lock-closed' },
-  { value: 'connections', label: 'Friends', icon: 'people' },
+  { value: 'connections', label: 'Connections', icon: 'people' },
   { value: 'link', label: 'Anyone with link', icon: 'link' },
 ];
 
