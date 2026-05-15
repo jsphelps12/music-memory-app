@@ -159,7 +159,6 @@ export default function CreateMomentScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focusedField, setFocusedField] = useState("");
-  const [peopleSuggestions, setPeopleSuggestions] = useState<string[]>([]);
   const [promptPickerVisible, setPromptPickerVisible] = useState(false);
 
   // Tag Friends
@@ -190,21 +189,6 @@ export default function CreateMomentScreen() {
     const match = collections.find((c) => c.id === params.collectionId);
     if (match) setSelectedCollection(match);
   }, [params.collectionId, collections]);
-
-  useEffect(() => {
-    if (showDetails && user && peopleSuggestions.length === 0) {
-      supabase
-        .from("moments")
-        .select("people")
-        .eq("user_id", user.id)
-        .not("people", "is", null)
-        .then(({ data }) => {
-          if (!data) return;
-          const names = [...new Set(data.flatMap((m) => m.people as string[]))].sort();
-          setPeopleSuggestions(names);
-        });
-    }
-  }, [showDetails, user]);
 
   const handleApplyMeta = (
     date: Date | undefined,
@@ -384,7 +368,6 @@ export default function CreateMomentScreen() {
               taggedFriends={taggedFriends}
               onChangeTaggedFriends={setTaggedFriends}
               friends={availableFriends}
-              suggestions={peopleSuggestions}
             />
 
             {/* Mood selector */}
