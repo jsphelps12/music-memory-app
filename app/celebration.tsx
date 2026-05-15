@@ -32,7 +32,7 @@ const NEXT_STEPS = [
 
 export default function CelebrationScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, profile, completeOnboarding } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const posthog = usePostHog();
@@ -46,6 +46,23 @@ export default function CelebrationScreen() {
   async function handleContinue() {
     if (!user || continuing) return;
     setContinuing(true);
+    try {
+      // Mark onboarding complete. Profile fields were already persisted by
+      // saveOnboardingData during the questionnaire — we just need the flag.
+      await completeOnboarding({
+        displayName: profile?.displayName ?? "",
+        username: profile?.username ?? undefined,
+        birthYear: profile?.birthYear ?? null,
+        country: profile?.country ?? null,
+        favoriteArtists: [],
+        favoriteSongs: [],
+        genrePreferences: [],
+      });
+      posthog.capture("onboarding_completed");
+    } catch {
+      // Non-fatal — worst case the user re-enters onboarding on next open,
+      // but crash recovery will catch them and send them straight to tabs.
+    }
     try {
       await registerForPushNotifications(user.id);
       posthog.capture("notifications_enabled");

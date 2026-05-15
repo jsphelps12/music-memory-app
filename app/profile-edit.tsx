@@ -14,6 +14,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from "react-native";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
@@ -167,7 +168,14 @@ export default function ProfileEditScreen() {
         if (buttonIndex === 1) {
           const { status } = await ImagePicker.requestCameraPermissionsAsync();
           if (status !== "granted") {
-            Alert.alert("Permission needed", "Camera permission is required to take photos.");
+            Alert.alert(
+              "Camera Access Required",
+              "To take a photo, allow camera access in Settings.",
+              [
+                { text: "Cancel", style: "cancel" },
+                { text: "Open Settings", onPress: () => Linking.openSettings() },
+              ]
+            );
             return;
           }
           result = await ImagePicker.launchCameraAsync({

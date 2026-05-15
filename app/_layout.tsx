@@ -72,8 +72,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
     const inAuthGroup = segments[0] === "(auth)";
     const inOnboarding = segments[0] === "onboarding";
-    // Allow create/song-search to be open during onboarding (moment capture flow)
-    const inOnboardingCreate = inOnboarding || segments[0] === "create" || segments[0] === "song-search";
+    // Allow create/song-search/celebration to be open during onboarding flow
+    const inOnboardingCreate = inOnboarding || segments[0] === "create" || segments[0] === "song-search" || segments[0] === "celebration";
 
     if (!session && !inAuthGroup) {
       if (!hasLaunched) {

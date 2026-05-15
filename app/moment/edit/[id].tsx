@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   ActionSheetIOS,
   StyleSheet,
+  Alert,
+  Linking,
 } from "react-native";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
@@ -144,7 +146,14 @@ export default function EditMomentScreen() {
           const { status } =
             await ImagePicker.requestCameraPermissionsAsync();
           if (status !== "granted") {
-            setError("Camera permission is required to take photos.");
+            Alert.alert(
+              "Camera Access Required",
+              "To take a photo, allow camera access in Settings.",
+              [
+                { text: "Cancel", style: "cancel" },
+                { text: "Open Settings", onPress: () => Linking.openSettings() },
+              ]
+            );
             return;
           }
           result = await ImagePicker.launchCameraAsync({
