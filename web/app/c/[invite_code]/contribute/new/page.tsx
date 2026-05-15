@@ -28,7 +28,7 @@ export default async function ContributeFormPage({ params }: PageProps) {
             Guest Contributions Unavailable
           </p>
           <p className="text-sm" style={{ color: "#999" }}>
-            The collection owner hasn't enabled guest contributions for this event.
+            The collection owner hasn&apos;t enabled guest contributions for this event.
           </p>
         </div>
       </div>
