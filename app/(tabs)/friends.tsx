@@ -430,6 +430,24 @@ export default function FriendsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.accent} />}
         ListHeaderComponent={
           <>
+            {/* Username setup prompt */}
+            {!profile?.usernameCustomized && (
+              <TouchableOpacity
+                style={[styles.banner, { backgroundColor: theme.colors.chipBg, borderColor: theme.colors.border }]}
+                onPress={() => router.push("/profile-edit" as any)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="at-outline" size={18} color={theme.colors.textSecondary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.bannerText, { color: theme.colors.text }]}>Set your username</Text>
+                  <Text style={[styles.bannerSubtext, { color: theme.colors.textSecondary }]}>
+                    Your current username is @{profile?.username} — tap to make it yours
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+
             {/* Pending request banner */}
             {pendingRequests.length > 0 && (
               <TouchableOpacity
@@ -579,6 +597,10 @@ function createStyles(theme: Theme) {
     bannerText: {
       fontSize: theme.fontSize.sm,
       fontWeight: theme.fontWeight.semibold,
+    },
+    bannerSubtext: {
+      fontSize: theme.fontSize.xs,
+      marginTop: 2,
     },
     inboxSection: {
       marginTop: 20,

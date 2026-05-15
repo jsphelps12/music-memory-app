@@ -82,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       displayName: data.display_name,
       avatarUrl: data.avatar_url,
       username: data.username ?? null,
+      usernameCustomized: data.username_customized ?? false,
       friendInviteToken: data.friend_invite_token ?? "",
       customMoods: data.custom_moods ?? [],
       customPromptCategories: data.custom_prompt_categories ?? [],
@@ -294,7 +295,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const dbUpdates: Record<string, any> = {};
     if (updates.displayName !== undefined) dbUpdates.display_name = updates.displayName;
-    if (updates.username !== undefined) dbUpdates.username = updates.username ? updates.username.toLowerCase().trim() : null;
+    if (updates.username !== undefined) {
+      dbUpdates.username = updates.username ? updates.username.toLowerCase().trim() : null;
+      if (updates.username) dbUpdates.username_customized = true;
+    }
     if (updates.avatarUrl !== undefined) dbUpdates.avatar_url = updates.avatarUrl;
     if (updates.birthYear !== undefined) dbUpdates.birth_year = updates.birthYear;
     if (updates.country !== undefined) dbUpdates.country = updates.country;

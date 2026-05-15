@@ -89,6 +89,7 @@ export interface UserProfile {
   displayName: string | null;
   avatarUrl: string | null;
   username: string | null;
+  usernameCustomized: boolean;
   friendInviteToken: string;
   customMoods: CustomMoodDefinition[];
   customPromptCategories: CustomPromptCategory[];
