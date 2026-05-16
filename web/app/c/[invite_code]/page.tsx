@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { getSupabase } from "@/lib/supabase";
 import CollectionMomentList, { type MomentItem } from "@/components/CollectionMomentList";
 import InviteCTA from "@/components/InviteCTA";
@@ -7,6 +8,61 @@ export const dynamic = "force-dynamic";
 
 interface PageProps {
   params: Promise<{ invite_code: string }>;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { invite_code } = await params;
+
+  const { data: collection } = await getSupabase()
+    .from("collections")
+    .select("id, name, user_id")
+    .eq("invite_code", invite_code)
+    .eq("is_public", true)
+    .single();
+
+  if (!collection) return { title: "Shared Collection · Soundtracks" };
+
+  const { data: profile } = await getSupabase()
+    .from("profiles")
+    .select("display_name")
+    .eq("id", collection.user_id)
+    .single();
+
+  const ownerName = profile?.display_name ?? null;
+
+  // Grab the first moment's artwork to use as OG image
+  const { data: firstMoment } = await getSupabase()
+    .from("collection_moments")
+    .select("moments(song_artwork_url)")
+    .eq("collection_id", collection.id)
+    .order("added_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  const ogImage = (firstMoment?.moments as any)?.song_artwork_url ?? undefined;
+
+  const title = collection.name;
+  const description = ownerName
+    ? `A shared collection by ${ownerName} on Soundtracks`
+    : "A shared collection on Soundtracks";
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      images: ogImage ? [{ url: ogImage, width: 1200, height: 1200 }] : [],
+      type: "website",
+      siteName: "Soundtracks",
+    },
+    twitter: {
+      card: ogImage ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: ogImage ? [ogImage] : [],
+    },
+  };
 }
 
 export default async function CollectionPage({ params }: PageProps) {
