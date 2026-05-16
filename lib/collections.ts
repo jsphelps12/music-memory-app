@@ -478,15 +478,23 @@ export async function sendCollectionInvite(
 export async function fetchPendingCollectionInvites(userId: string): Promise<CollectionInvite[]> {
   const { data, error } = await supabase
     .from("collection_invites")
-    .select("id, collection_id, created_at, collections(name), inviter:inviter_id(display_name)")
+    .select("id, collection_id, inviter_id, created_at, collections(name)")
     .eq("invitee_id", userId)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []).map((r: any) => ({
+  if (!data || data.length === 0) return [];
+
+  const inviterIds = [...new Set(data.map((r: any) => r.inviter_id).filter(Boolean))];
+  const { data: profiles } = inviterIds.length > 0
+    ? await supabase.from("profiles").select("id, display_name").in("id", inviterIds)
+    : { data: [] };
+  const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p.display_name]));
+
+  return data.map((r: any) => ({
     id: r.id,
     collectionId: r.collection_id,
-    collectionName: r.collections?.name ?? "Unknown",
-    inviterName: r.inviter?.display_name ?? null,
+    collectionName: (r.collections as any)?.name ?? "Unknown",
+    inviterName: profileMap.get(r.inviter_id) ?? null,
     createdAt: r.created_at,
   }));
 }
@@ -495,14 +503,22 @@ export async function fetchPendingCollectionInvites(userId: string): Promise<Col
 export async function fetchSentCollectionInvites(collectionId: string): Promise<SentCollectionInvite[]> {
   const { data, error } = await supabase
     .from("collection_invites")
-    .select("id, invitee_id, created_at, invitee:invitee_id(display_name)")
+    .select("id, invitee_id, created_at")
     .eq("collection_id", collectionId)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []).map((r: any) => ({
+  if (!data || data.length === 0) return [];
+
+  const inviteeIds = [...new Set(data.map((r: any) => r.invitee_id).filter(Boolean))];
+  const { data: profiles } = inviteeIds.length > 0
+    ? await supabase.from("profiles").select("id, display_name").in("id", inviteeIds)
+    : { data: [] };
+  const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p.display_name]));
+
+  return data.map((r: any) => ({
     id: r.id,
     inviteeId: r.invitee_id,
-    inviteeName: r.invitee?.display_name ?? null,
+    inviteeName: profileMap.get(r.invitee_id) ?? null,
     createdAt: r.created_at,
   }));
 }

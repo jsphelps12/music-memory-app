@@ -290,7 +290,7 @@ export default function SharedScreen() {
         fetchFriends(user.id),
         fetchTaggedMomentsSharedTab(user.id),
         fetchSharedCollectionActivity(user.id),
-        fetchPendingCollectionInvites(user.id),
+        fetchPendingCollectionInvites(user.id).catch(() => [] as CollectionInvite[]),
       ]);
       setPendingRequests(requests);
       setHasFriends(friends.length > 0);

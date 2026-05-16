@@ -34,7 +34,7 @@ function FriendsTabIcon({ color }: { color: string }) {
           fetchPendingRequests(user!.id),
           fetchTaggedMomentsSharedTab(user!.id),
           fetchSharedCollectionActivity(user!.id),
-          fetchPendingCollectionInvites(user!.id),
+          fetchPendingCollectionInvites(user!.id).catch(() => []),
         ]);
         if (!cancelled) {
           const newCollectionMoments = collections.reduce((sum, c) => sum + c.newMomentCount, 0);
