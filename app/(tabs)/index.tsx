@@ -81,6 +81,7 @@ export default function TimelineScreen() {
   const [pickerVisible, setPickerVisible] = useState(false);
   const [createCollectionVisible, setCreateCollectionVisible] = useState(false);
   const [shareSheetVisible, setShareSheetVisible] = useState(false);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const selectedCollectionRef = useRef(selectedCollection);
   selectedCollectionRef.current = selectedCollection;
 
@@ -148,7 +149,7 @@ export default function TimelineScreen() {
       .order("moment_date", { ascending: false, nullsFirst: false });
     if (data) {
       setCalendarMoments(
-        data.map((r: any) => ({
+        data.map((r: any): Moment => ({
           id: r.id,
           momentDate: r.moment_date ?? null,
           songArtworkUrl: r.song_artwork_url ?? "",
@@ -159,8 +160,8 @@ export default function TimelineScreen() {
           userId: "", reflectionText: "", photoUrls: [], photoThumbnails: [],
           mood: null, people: [], location: null, timeOfDay: null,
           createdAt: "", updatedAt: "", songAlbumName: "", songAppleMusicId: "",
-          songPreviewUrl: null,
-        } as Moment))
+          songPreviewUrl: null, visibility: "private",
+        }))
       );
       calendarFetchedRef.current = true;
     }
@@ -477,6 +478,17 @@ export default function TimelineScreen() {
     } catch {}
   }, [user]);
 
+  const fetchTotalCount = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { count } = await supabase
+        .from("moments")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id);
+      if (count !== null) setTotalCount(count);
+    } catch {}
+  }, [user]);
+
   // Auto-select a collection after joining via invite link
   useEffect(() => {
     if (collections.length === 0) return;
@@ -508,6 +520,7 @@ export default function TimelineScreen() {
       setFiltersExpanded(false);
 
       loadCollections();
+      fetchTotalCount();
 
       const stale = consumeTimelineStale();
       const elapsed = Date.now() - lastFetchTime.current;
@@ -518,7 +531,7 @@ export default function TimelineScreen() {
       } else if (stale || elapsed >= REFETCH_COOLDOWN_MS) {
         fetchMoments(false);
       }
-    }, [fetchMoments, loadCollections, fetchCalendarMoments])
+    }, [fetchMoments, loadCollections, fetchCalendarMoments, fetchTotalCount])
   );
 
   const handleRefresh = useCallback(async () => {
@@ -532,6 +545,15 @@ export default function TimelineScreen() {
     () => [...MOODS, ...(profile?.customMoods ?? [])],
     [profile?.customMoods]
   );
+
+  const personalCollections = useMemo(
+    () => collections.filter((c) => c.role === "owner" && !c.isPublic),
+    [collections]
+  );
+
+  const displayCount = selectedCollection
+    ? selectedCollection.momentCount
+    : totalCount;
 
   const renderMoment = useCallback(({ item }: { item: Moment }) => (
     <MomentCard
@@ -602,62 +624,111 @@ export default function TimelineScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => setPickerVisible(true)}
-          activeOpacity={0.7}
-          style={styles.collectionSelector}
-        >
-          <Ionicons
-            name={selectedCollection?.role === "member" ? "people-outline" : "layers-outline"}
-            size={15}
-            color={selectedCollection ? theme.colors.accent : theme.colors.textSecondary}
-          />
-          <Text style={styles.title} numberOfLines={1}>
-            {selectedCollection?.name ?? "All Moments"}
-          </Text>
-          <Ionicons
-            name="chevron-down"
-            size={14}
-            color={theme.colors.textSecondary}
-          />
-        </TouchableOpacity>
-        <View style={styles.headerRight}>
-          {selectedCollection ? (
-            <TouchableOpacity
-              onPress={() => setShareSheetVisible(true)}
-              hitSlop={8}
-            >
+        {/* Title row */}
+        <View style={styles.headerTop}>
+          <View>
+            {displayCount !== null && (
+              <Text style={styles.momentCountLabel}>
+                {displayCount} {displayCount === 1 ? "MOMENT" : "MOMENTS"}
+              </Text>
+            )}
+            <Text style={styles.title}>your soundtrack</Text>
+          </View>
+          <View style={styles.headerRight}>
+            {selectedCollection ? (
+              <TouchableOpacity onPress={() => setShareSheetVisible(true)} hitSlop={8}>
+                <Ionicons
+                  name={selectedCollection.role === "owner" ? "share-outline" : "ellipsis-horizontal"}
+                  size={22}
+                  color={theme.colors.text}
+                />
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity onPress={toggleView} hitSlop={8}>
               <Ionicons
-                name={selectedCollection.role === "owner" ? "share-outline" : "ellipsis-horizontal"}
+                name={viewMode === "calendar" ? "list-outline" : "calendar-outline"}
                 size={22}
                 color={theme.colors.text}
               />
             </TouchableOpacity>
-          ) : null}
-          <TouchableOpacity onPress={toggleView} hitSlop={8}>
-            <Ionicons
-              name={viewMode === "calendar" ? "list-outline" : "calendar-outline"}
-              size={22}
-              color={theme.colors.text}
-            />
-          </TouchableOpacity>
-          {viewMode === "list" ? (
-            <TouchableOpacity
-              onPress={() => setFiltersExpanded((v) => !v)}
-              hitSlop={8}
-              style={styles.filterToggle}
-            >
-              <Ionicons
-                name={filtersExpanded ? "options" : "options-outline"}
-                size={22}
-                color={theme.colors.text}
-              />
-              {hasFilterDot && !filtersExpanded ? (
-                <View style={styles.filterBadge} />
-              ) : null}
-            </TouchableOpacity>
-          ) : null}
+            {viewMode === "list" ? (
+              <TouchableOpacity
+                onPress={() => setFiltersExpanded((v) => !v)}
+                hitSlop={8}
+                style={styles.filterToggle}
+              >
+                <Ionicons
+                  name={filtersExpanded ? "options" : "options-outline"}
+                  size={22}
+                  color={theme.colors.text}
+                />
+                {hasFilterDot && !filtersExpanded ? (
+                  <View style={styles.filterBadge} />
+                ) : null}
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
+
+        {/* Collection chip row */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipRowContent}
+          style={styles.chipRow}
+        >
+          {/* All chip */}
+          <TouchableOpacity
+            style={[styles.chip, !selectedCollection && styles.chipSelected]}
+            onPress={() => setSelectedCollection(null)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.chipText, !selectedCollection && styles.chipTextSelected]}>
+              All
+            </Text>
+          </TouchableOpacity>
+
+          {/* Personal collection chips */}
+          {personalCollections.map((col) => {
+            const isSelected = selectedCollection?.id === col.id;
+            return (
+              <TouchableOpacity
+                key={col.id}
+                style={[styles.chip, isSelected && styles.chipSelected]}
+                onPress={() => setSelectedCollection(isSelected ? null : col)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.chipText, isSelected && styles.chipTextSelected]} numberOfLines={1}>
+                  {col.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+
+          {/* If selected collection is shared (not in chip row), show it as a chip */}
+          {selectedCollection && !personalCollections.find((c) => c.id === selectedCollection.id) && (
+            <TouchableOpacity
+              style={[styles.chip, styles.chipSelected, styles.chipShared]}
+              onPress={() => setSelectedCollection(null)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="people-outline" size={11} color={theme.colors.accentSecondary} />
+              <Text style={[styles.chipText, { color: theme.colors.accentSecondary }]} numberOfLines={1}>
+                {selectedCollection.name}
+              </Text>
+              <Ionicons name="close" size={11} color={theme.colors.accentSecondary} />
+            </TouchableOpacity>
+          )}
+
+          {/* Overflow chip */}
+          <TouchableOpacity
+            style={styles.chip}
+            onPress={() => setPickerVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.chipText}>•••</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       {/* Sticky search + filter zone */}
@@ -692,7 +763,7 @@ export default function TimelineScreen() {
         {filtersExpanded ? (
           <View style={styles.filterPanel}>
             <Text style={styles.filterLabel}>Mood</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterChipRow}>
               {allMoods.map((mood) => {
                 const selected = selectedMoods.includes(mood.value);
                 return (
@@ -712,7 +783,7 @@ export default function TimelineScreen() {
             {allPeople.length > 0 ? (
               <>
                 <Text style={styles.filterLabel}>People</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterChipRow}>
                   {allPeople.map((person) => {
                     const selected = selectedPeople.includes(person);
                     return (
@@ -1009,27 +1080,59 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.background,
     },
     header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
       paddingHorizontal: theme.spacing.xl,
-      paddingTop: 80,
-      paddingBottom: theme.spacing.lg,
+      paddingTop: 60,
+      paddingBottom: theme.spacing.sm,
     },
-    collectionSelector: {
+    headerTop: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      marginBottom: theme.spacing.md,
+    },
+    momentCountLabel: {
+      fontSize: 11,
+      fontWeight: "600",
+      letterSpacing: 0.8,
+      color: theme.colors.textTertiary,
+      marginBottom: 2,
+    },
+    title: {
+      fontSize: 26,
+      fontWeight: "700",
+      color: theme.colors.text,
+      letterSpacing: -0.5,
+    },
+    chipRow: {
+      marginHorizontal: -theme.spacing.xl,
+    },
+    chipRowContent: {
+      paddingHorizontal: theme.spacing.xl,
+      gap: 8,
+      paddingBottom: theme.spacing.sm,
+    },
+    chip: {
       flexDirection: "row",
       alignItems: "center",
       gap: 4,
-      maxWidth: "60%",
-      paddingHorizontal: 12,
-      paddingVertical: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 7,
       borderRadius: theme.radii.full,
       backgroundColor: theme.colors.backgroundTertiary,
     },
-    title: {
-      fontSize: theme.fontSize.lg,
-      fontWeight: theme.fontWeight.bold,
-      color: theme.colors.text,
+    chipSelected: {
+      backgroundColor: theme.colors.accent,
+    },
+    chipShared: {
+      backgroundColor: theme.colors.accentSecondaryBg,
+    },
+    chipText: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: theme.colors.textSecondary,
+    },
+    chipTextSelected: {
+      color: "#fff",
     },
     headerRight: {
       flexDirection: "row",
@@ -1111,7 +1214,7 @@ function createStyles(theme: Theme) {
       color: theme.colors.textSecondary,
       marginBottom: theme.spacing.sm,
     },
-    chipRow: {
+    filterChipRow: {
       marginBottom: theme.spacing.md,
     },
     filterChip: {
