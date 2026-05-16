@@ -36,7 +36,11 @@ import {
 import {
   fetchSharedCollectionActivity,
   markCollectionViewed,
+  fetchPendingCollectionInvites,
+  acceptCollectionInvite,
+  deleteCollectionInvite,
   SharedCollectionActivity,
+  CollectionInvite,
 } from "@/lib/collections";
 import type { Friendship, TaggedMoment } from "@/types";
 
@@ -268,8 +272,10 @@ export default function SharedScreen() {
   const [pendingRequests, setPendingRequests] = useState<Friendship[]>([]);
   const [taggedMoments, setTaggedMoments] = useState<TaggedMoment[]>([]);
   const [sharedCollections, setSharedCollections] = useState<SharedCollectionActivity[]>([]);
+  const [collectionInvites, setCollectionInvites] = useState<CollectionInvite[]>([]);
   const [hasFriends, setHasFriends] = useState(false);
   const [addFriendVisible, setAddFriendVisible] = useState(false);
+  const [respondingInviteId, setRespondingInviteId] = useState<string | null>(null);
   const lastFetchRef = useRef(0);
   const COOLDOWN = 2 * 60 * 1000;
 
@@ -279,16 +285,18 @@ export default function SharedScreen() {
     if (!force && now - lastFetchRef.current < COOLDOWN) return;
     lastFetchRef.current = now;
     try {
-      const [requests, friends, tagged, collections] = await Promise.all([
+      const [requests, friends, tagged, collections, invites] = await Promise.all([
         fetchPendingRequests(user.id),
         fetchFriends(user.id),
         fetchTaggedMomentsSharedTab(user.id),
         fetchSharedCollectionActivity(user.id),
+        fetchPendingCollectionInvites(user.id),
       ]);
       setPendingRequests(requests);
       setHasFriends(friends.length > 0);
       setTaggedMoments(tagged);
       setSharedCollections(collections);
+      setCollectionInvites(invites);
     } catch {}
     setLoading(false);
   }, [user]);
@@ -318,7 +326,34 @@ export default function SharedScreen() {
     });
   }, [router]);
 
-  const isEmpty = taggedMoments.length === 0 && sharedCollections.length === 0;
+  const handleAcceptInvite = useCallback(async (invite: CollectionInvite) => {
+    if (!user) return;
+    setRespondingInviteId(invite.id);
+    try {
+      await acceptCollectionInvite(invite.id, invite.collectionId, user.id);
+      setCollectionInvites((prev) => prev.filter((i) => i.id !== invite.id));
+      // Refresh shared collections so the newly joined one appears
+      loadData(true);
+    } catch (e: any) {
+      Alert.alert("Error", friendlyError(e));
+    } finally {
+      setRespondingInviteId(null);
+    }
+  }, [user, loadData]);
+
+  const handleDeclineInvite = useCallback(async (inviteId: string) => {
+    setRespondingInviteId(inviteId);
+    try {
+      await deleteCollectionInvite(inviteId);
+      setCollectionInvites((prev) => prev.filter((i) => i.id !== inviteId));
+    } catch (e: any) {
+      Alert.alert("Error", friendlyError(e));
+    } finally {
+      setRespondingInviteId(null);
+    }
+  }, []);
+
+  const isEmpty = taggedMoments.length === 0 && sharedCollections.length === 0 && collectionInvites.length === 0;
 
   if (loading) {
     return (
@@ -378,6 +413,61 @@ export default function SharedScreen() {
             </Text>
             <Ionicons name="chevron-forward" size={16} color={theme.colors.accent} style={{ marginLeft: "auto" }} />
           </TouchableOpacity>
+        )}
+
+        {/* Collection invites */}
+        {collectionInvites.length > 0 && (
+          <>
+            <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>Collection Invites</Text>
+            <View style={[styles.card, { backgroundColor: theme.colors.cardBg }]}>
+              {collectionInvites.map((invite, i) => (
+                <View key={invite.id}>
+                  <View style={styles.inviteRow}>
+                    <View style={[styles.collectionIcon, { backgroundColor: theme.colors.accentSecondaryBg }]}>
+                      <Ionicons name="people-outline" size={18} color={theme.colors.accentSecondary} />
+                    </View>
+                    <View style={styles.inviteInfo}>
+                      <Text style={[styles.collectionName, { color: theme.colors.text }]} numberOfLines={1}>
+                        {invite.collectionName}
+                      </Text>
+                      <Text style={[styles.collectionSub, { color: theme.colors.textSecondary }]}>
+                        {invite.inviterName ? `Invited by ${invite.inviterName}` : "You've been invited"}
+                      </Text>
+                    </View>
+                    <View style={styles.inviteActions}>
+                      <TouchableOpacity
+                        style={[styles.inviteBtn, styles.inviteBtnDecline, { borderColor: theme.colors.border }]}
+                        onPress={() => handleDeclineInvite(invite.id)}
+                        disabled={respondingInviteId === invite.id}
+                        activeOpacity={0.8}
+                      >
+                        {respondingInviteId === invite.id ? (
+                          <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                        ) : (
+                          <Text style={[styles.inviteBtnText, { color: theme.colors.textSecondary }]}>Decline</Text>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.inviteBtn, styles.inviteBtnAccept, { backgroundColor: theme.colors.accentSecondary }]}
+                        onPress={() => handleAcceptInvite(invite)}
+                        disabled={respondingInviteId === invite.id}
+                        activeOpacity={0.8}
+                      >
+                        {respondingInviteId === invite.id ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <Text style={[styles.inviteBtnText, { color: "#fff" }]}>Accept</Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  {i < collectionInvites.length - 1 && (
+                    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                  )}
+                </View>
+              ))}
+            </View>
+          </>
         )}
 
         {/* Empty state */}
@@ -538,6 +628,25 @@ function createStyles(theme: Theme) {
       borderRadius: 10,
     },
     newBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+    // Invite row
+    inviteRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    inviteInfo: { flex: 1, marginLeft: 12 },
+    inviteActions: { flexDirection: "row", gap: 8, marginLeft: 8 },
+    inviteBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: 20,
+      minWidth: 70,
+      alignItems: "center",
+    },
+    inviteBtnDecline: { borderWidth: 1 },
+    inviteBtnAccept: {},
+    inviteBtnText: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
     // Empty state
     emptyState: {
       flex: 1,

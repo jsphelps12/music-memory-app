@@ -9,7 +9,6 @@ import {
   Platform,
   Alert,
   ScrollView,
-  Linking,
   TextInput,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
@@ -25,9 +24,12 @@ import {
   fetchCollectionMembers,
   removeCollectionMember,
   renameCollection,
-  addCollectionMemberById,
   searchUsersForCollection,
+  sendCollectionInvite,
+  fetchSentCollectionInvites,
+  deleteCollectionInvite,
   CollectionMember,
+  SentCollectionInvite,
 } from "@/lib/collections";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -54,62 +56,74 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
   const [members, setMembers] = useState<CollectionMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [sentInvites, setSentInvites] = useState<SentCollectionInvite[]>([]);
+  const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
 
   // Rename state
   const [renaming, setRenaming] = useState(false);
   const [renameText, setRenameText] = useState(collection.name);
   const [savingRename, setSavingRename] = useState(false);
 
-  // Add member by username
-  const [addMemberQuery, setAddMemberQuery] = useState("");
-  const [addMemberResults, setAddMemberResults] = useState<{ id: string; displayName: string; username: string }[]>([]);
-  const [addingMemberId, setAddingMemberId] = useState<string | null>(null);
-  const [addMemberSearching, setAddMemberSearching] = useState(false);
-  const addMemberDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Invite member by username
+  const [inviteQuery, setInviteQuery] = useState("");
+  const [inviteResults, setInviteResults] = useState<{ id: string; displayName: string; username: string }[]>([]);
+  const [invitingId, setInvitingId] = useState<string | null>(null);
+  const [inviteSearching, setInviteSearching] = useState(false);
+  const [sentIds, setSentIds] = useState<Set<string>>(new Set());
+  const inviteDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isOwner = collection.role === "owner";
 
   useEffect(() => {
     if (visible && isOwner) {
       setLoadingMembers(true);
-      fetchCollectionMembers(collection.id)
-        .then(setMembers)
+      Promise.all([
+        fetchCollectionMembers(collection.id),
+        collection.isPublic ? fetchSentCollectionInvites(collection.id) : Promise.resolve([]),
+      ])
+        .then(([mems, invites]) => {
+          setMembers(mems);
+          setSentInvites(invites);
+        })
         .catch(() => {})
         .finally(() => setLoadingMembers(false));
     }
     if (!visible) {
       setMembers([]);
+      setSentInvites([]);
       setError("");
       setRenaming(false);
-      setAddMemberQuery("");
-      setAddMemberResults([]);
+      setInviteQuery("");
+      setInviteResults([]);
+      setSentIds(new Set());
     }
-  }, [visible, isOwner, collection.id]);
+  }, [visible, isOwner, collection.id, collection.isPublic]);
 
-  // Debounced username search
+  // Debounced username search for invite
   useEffect(() => {
-    if (addMemberDebounce.current) clearTimeout(addMemberDebounce.current);
-    if (addMemberQuery.trim().length < 2) {
-      setAddMemberResults([]);
-      setAddMemberSearching(false);
+    if (inviteDebounce.current) clearTimeout(inviteDebounce.current);
+    if (inviteQuery.trim().length < 2) {
+      setInviteResults([]);
+      setInviteSearching(false);
       return;
     }
-    setAddMemberSearching(true);
-    addMemberDebounce.current = setTimeout(() => {
+    setInviteSearching(true);
+    inviteDebounce.current = setTimeout(() => {
       const excludeIds = [
         collection.userId,
         user?.id ?? "",
         ...members.map((m) => m.userId),
+        ...sentInvites.map((i) => i.inviteeId),
       ].filter(Boolean);
-      searchUsersForCollection(addMemberQuery.trim(), excludeIds)
-        .then(setAddMemberResults)
+      searchUsersForCollection(inviteQuery.trim(), excludeIds)
+        .then(setInviteResults)
         .catch(() => {})
-        .finally(() => setAddMemberSearching(false));
+        .finally(() => setInviteSearching(false));
     }, 350);
     return () => {
-      if (addMemberDebounce.current) clearTimeout(addMemberDebounce.current);
+      if (inviteDebounce.current) clearTimeout(inviteDebounce.current);
     };
-  }, [addMemberQuery, members, collection.userId, user?.id]);
+  }, [inviteQuery, members, sentInvites, collection.userId, user?.id]);
 
   const inviteUrl = collection.inviteCode
     ? `${WEB_BASE_URL}/c/${collection.inviteCode}`
@@ -131,18 +145,36 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
     }
   }
 
-  async function handleAddMember(result: { id: string; displayName: string; username: string }) {
-    setAddingMemberId(result.id);
+  async function handleInvite(result: { id: string; displayName: string; username: string }) {
+    if (!user) return;
+    setInvitingId(result.id);
     setError("");
     try {
-      await addCollectionMemberById(collection.id, result.id);
-      setMembers((prev) => [...prev, { userId: result.id, displayName: result.displayName, joinedAt: new Date().toISOString() }]);
-      setAddMemberResults((prev) => prev.filter((r) => r.id !== result.id));
-      setAddMemberQuery("");
+      await sendCollectionInvite(collection.id, user.id, result.id);
+      setSentIds((prev) => new Set([...prev, result.id]));
+      setSentInvites((prev) => [...prev, { id: "", inviteeId: result.id, inviteeName: result.displayName, createdAt: new Date().toISOString() }]);
+      // Clear search after a moment so user sees the "Invited" state
+      setTimeout(() => {
+        setInviteQuery("");
+        setInviteResults([]);
+        setSentIds(new Set());
+      }, 1500);
     } catch (e: any) {
       setError(friendlyError(e));
     } finally {
-      setAddingMemberId(null);
+      setInvitingId(null);
+    }
+  }
+
+  async function handleRevokeInvite(inviteId: string) {
+    setRevokingInviteId(inviteId);
+    try {
+      await deleteCollectionInvite(inviteId);
+      setSentInvites((prev) => prev.filter((i) => i.id !== inviteId));
+    } catch (e: any) {
+      setError(friendlyError(e));
+    } finally {
+      setRevokingInviteId(null);
     }
   }
 
@@ -399,111 +431,62 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                   </View>
                 </View>
 
-                {/* Add member by username */}
+                {/* Invite member by username */}
                 <View style={styles.addMemberSection}>
-                  <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>ADD MEMBER</Text>
+                  <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>INVITE MEMBER</Text>
                   <View style={[styles.addMemberInputRow, { backgroundColor: theme.colors.backgroundInput }]}>
                     <Ionicons name="at-outline" size={16} color={theme.colors.placeholder} />
                     <TextInput
                       style={[styles.addMemberInput, { color: theme.colors.text }]}
                       placeholder="Search by username"
                       placeholderTextColor={theme.colors.placeholder}
-                      value={addMemberQuery}
-                      onChangeText={setAddMemberQuery}
+                      value={inviteQuery}
+                      onChangeText={setInviteQuery}
                       autoCapitalize="none"
                       autoCorrect={false}
                       returnKeyType="search"
                     />
-                    {addMemberSearching && (
+                    {inviteSearching && (
                       <ActivityIndicator size="small" color={theme.colors.textSecondary} />
                     )}
-                    {addMemberQuery.length > 0 && !addMemberSearching && (
-                      <TouchableOpacity onPress={() => { setAddMemberQuery(""); setAddMemberResults([]); }} hitSlop={8}>
+                    {inviteQuery.length > 0 && !inviteSearching && (
+                      <TouchableOpacity onPress={() => { setInviteQuery(""); setInviteResults([]); }} hitSlop={8}>
                         <Ionicons name="close-circle" size={16} color={theme.colors.placeholder} />
                       </TouchableOpacity>
                     )}
                   </View>
-                  {addMemberResults.map((result) => (
-                    <View key={result.id} style={[styles.addMemberResult, { borderBottomColor: theme.colors.backgroundInput }]}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.addMemberName, { color: theme.colors.text }]}>{result.displayName}</Text>
-                        <Text style={[styles.addMemberUsername, { color: theme.colors.textSecondary }]}>@{result.username}</Text>
+                  {inviteResults.map((result) => {
+                    const wasSent = sentIds.has(result.id);
+                    return (
+                      <View key={result.id} style={[styles.addMemberResult, { borderBottomColor: theme.colors.backgroundInput }]}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.addMemberName, { color: theme.colors.text }]}>{result.displayName}</Text>
+                          <Text style={[styles.addMemberUsername, { color: theme.colors.textSecondary }]}>@{result.username}</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[
+                            styles.addBtn,
+                            { backgroundColor: wasSent ? theme.colors.chipBg : theme.colors.accent, opacity: invitingId === result.id ? 0.6 : 1 },
+                          ]}
+                          onPress={() => !wasSent && handleInvite(result)}
+                          disabled={invitingId !== null || wasSent}
+                          activeOpacity={0.7}
+                        >
+                          {invitingId === result.id ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : wasSent ? (
+                            <Text style={[styles.addBtnText, { color: theme.colors.textSecondary }]}>Sent ✓</Text>
+                          ) : (
+                            <Text style={styles.addBtnText}>Invite</Text>
+                          )}
+                        </TouchableOpacity>
                       </View>
-                      <TouchableOpacity
-                        style={[styles.addBtn, { backgroundColor: theme.colors.accent, opacity: addingMemberId === result.id ? 0.6 : 1 }]}
-                        onPress={() => handleAddMember(result)}
-                        disabled={addingMemberId !== null}
-                        activeOpacity={0.7}
-                      >
-                        {addingMemberId === result.id ? (
-                          <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                          <Text style={styles.addBtnText}>Add</Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                  {addMemberQuery.trim().length >= 2 && !addMemberSearching && addMemberResults.length === 0 && (
+                    );
+                  })}
+                  {inviteQuery.trim().length >= 2 && !inviteSearching && inviteResults.length === 0 && (
                     <Text style={[styles.addMemberEmpty, { color: theme.colors.textTertiary }]}>No users found</Text>
                   )}
                 </View>
-
-                {/* Guest Contributions */}
-                {collection.inviteCode ? (
-                  <View style={styles.guestSection}>
-                    <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
-                      GUEST CONTRIBUTIONS
-                    </Text>
-                    <Text style={[styles.guestSubtext, { color: theme.colors.textSecondary }]}>
-                      Share this link so guests can add memories without an account.
-                    </Text>
-                    <View style={[styles.urlBox, { backgroundColor: theme.colors.backgroundInput }]}>
-                      <Text
-                        style={[styles.urlText, { color: theme.colors.textSecondary }]}
-                        numberOfLines={1}
-                        ellipsizeMode="middle"
-                      >
-                        {`soundtracks.app/c/${collection.inviteCode}/contribute`}
-                      </Text>
-                    </View>
-                    <View style={styles.guestButtonRow}>
-                      <TouchableOpacity
-                        style={[styles.guestButton, { backgroundColor: theme.colors.backgroundInput }]}
-                        onPress={() => {
-                          Clipboard.setStringAsync(`https://soundtracks.app/c/${collection.inviteCode}/contribute`);
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <Ionicons name="copy-outline" size={16} color={theme.colors.text} />
-                        <Text style={[styles.guestButtonText, { color: theme.colors.text }]}>Copy Link</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.guestButton, { backgroundColor: theme.colors.backgroundInput }]}
-                        onPress={() => {
-                          Share.share(
-                            Platform.OS === "ios"
-                              ? { url: `https://soundtracks.app/c/${collection.inviteCode}/contribute` }
-                              : { message: `https://soundtracks.app/c/${collection.inviteCode}/contribute` }
-                          ).catch(() => {});
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <Ionicons name="share-outline" size={16} color={theme.colors.text} />
-                        <Text style={[styles.guestButtonText, { color: theme.colors.text }]}>Share</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <TouchableOpacity
-                      style={[styles.qrButton, { borderColor: theme.colors.accent }]}
-                      onPress={() => {
-                        Linking.openURL(`https://soundtracks.app/c/${collection.inviteCode}/qr`);
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="qr-code-outline" size={18} color={theme.colors.accent} />
-                      <Text style={[styles.qrButtonText, { color: theme.colors.accent }]}>Get QR Code</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
               </>
             ) : (
               /* Personal: convert button */
@@ -539,42 +522,66 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
               </Text>
               {/* Owner row */}
               <View style={[styles.memberRow, { borderBottomColor: theme.colors.backgroundInput }]}>
-                <Text style={[styles.memberName, { color: theme.colors.text }]}>
-                  You (owner)
-                </Text>
+                <Text style={[styles.memberName, { color: theme.colors.text }]}>You (owner)</Text>
               </View>
               {loadingMembers ? (
                 <ActivityIndicator size="small" color={theme.colors.accent} style={{ marginVertical: 12 }} />
-              ) : members.length === 0 ? (
-                <Text style={[styles.emptyMembers, { color: theme.colors.textTertiary }]}>
-                  No one else has joined yet.
-                </Text>
               ) : (
-                members.map((member) => (
-                  <View
-                    key={member.userId}
-                    style={[styles.memberRow, { borderBottomColor: theme.colors.backgroundInput }]}
-                  >
-                    <Text style={[styles.memberName, { color: theme.colors.text }]}>
-                      {member.displayName ?? "Unknown"}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => handleRemoveMember(member)}
-                      disabled={removingMemberId === member.userId}
-                      hitSlop={8}
+                <>
+                  {members.map((member) => (
+                    <View
+                      key={member.userId}
+                      style={[styles.memberRow, { borderBottomColor: theme.colors.backgroundInput }]}
                     >
-                      {removingMemberId === member.userId ? (
-                        <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                      ) : (
-                        <Ionicons
-                          name="person-remove-outline"
-                          size={18}
-                          color={theme.colors.destructive ?? "#E53E3E"}
-                        />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                ))
+                      <Text style={[styles.memberName, { color: theme.colors.text }]}>
+                        {member.displayName ?? "Unknown"}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => handleRemoveMember(member)}
+                        disabled={removingMemberId === member.userId}
+                        hitSlop={8}
+                      >
+                        {removingMemberId === member.userId ? (
+                          <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                        ) : (
+                          <Ionicons name="person-remove-outline" size={18} color={theme.colors.destructive ?? "#E53E3E"} />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  {/* Pending invites */}
+                  {sentInvites.filter((i) => i.id).map((invite) => (
+                    <View
+                      key={invite.id}
+                      style={[styles.memberRow, { borderBottomColor: theme.colors.backgroundInput }]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.memberName, { color: theme.colors.textSecondary }]}>
+                          {invite.inviteeName ?? "Unknown"}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: theme.colors.textTertiary, marginTop: 1 }}>
+                          Invited · pending
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => invite.id && handleRevokeInvite(invite.id)}
+                        disabled={revokingInviteId === invite.id}
+                        hitSlop={8}
+                      >
+                        {revokingInviteId === invite.id ? (
+                          <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                        ) : (
+                          <Ionicons name="close-outline" size={18} color={theme.colors.textSecondary} />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  {members.length === 0 && sentInvites.filter((i) => i.id).length === 0 && (
+                    <Text style={[styles.emptyMembers, { color: theme.colors.textTertiary }]}>
+                      No one else has joined yet.
+                    </Text>
+                  )}
+                </>
               )}
             </View>
 

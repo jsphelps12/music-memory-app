@@ -444,3 +444,88 @@ export async function searchUsersForCollection(
     username: r.username ?? "",
   }));
 }
+
+// ── Collection invites ────────────────────────────────────────────────────────
+
+export interface CollectionInvite {
+  id: string;
+  collectionId: string;
+  collectionName: string;
+  inviterName: string | null;
+  createdAt: string;
+}
+
+export interface SentCollectionInvite {
+  id: string;
+  inviteeId: string;
+  inviteeName: string | null;
+  createdAt: string;
+}
+
+/** Owner sends an invite to a specific user. Silently ignores duplicate. */
+export async function sendCollectionInvite(
+  collectionId: string,
+  inviterId: string,
+  inviteeId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("collection_invites")
+    .insert({ collection_id: collectionId, inviter_id: inviterId, invitee_id: inviteeId });
+  if (error && error.code !== "23505") throw error;
+}
+
+/** Fetch pending invites the current user has received. */
+export async function fetchPendingCollectionInvites(userId: string): Promise<CollectionInvite[]> {
+  const { data, error } = await supabase
+    .from("collection_invites")
+    .select("id, collection_id, created_at, collections(name), inviter:inviter_id(display_name)")
+    .eq("invitee_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    collectionId: r.collection_id,
+    collectionName: r.collections?.name ?? "Unknown",
+    inviterName: r.inviter?.display_name ?? null,
+    createdAt: r.created_at,
+  }));
+}
+
+/** Fetch invites the owner has sent for a collection (pending, not yet accepted). */
+export async function fetchSentCollectionInvites(collectionId: string): Promise<SentCollectionInvite[]> {
+  const { data, error } = await supabase
+    .from("collection_invites")
+    .select("id, invitee_id, created_at, invitee:invitee_id(display_name)")
+    .eq("collection_id", collectionId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    inviteeId: r.invitee_id,
+    inviteeName: r.invitee?.display_name ?? null,
+    createdAt: r.created_at,
+  }));
+}
+
+/** Accept an invite: join the collection then delete the invite row. */
+export async function acceptCollectionInvite(
+  inviteId: string,
+  collectionId: string,
+  userId: string
+): Promise<void> {
+  await addCollectionMemberById(collectionId, userId);
+  const { error } = await supabase
+    .from("collection_invites")
+    .delete()
+    .eq("id", inviteId);
+  if (error) throw error;
+}
+
+/** Decline or revoke an invite (works for both invitee and owner). */
+export async function deleteCollectionInvite(inviteId: string): Promise<void> {
+  const { error } = await supabase
+    .from("collection_invites")
+    .delete()
+    .eq("id", inviteId);
+  if (error) throw error;
+}

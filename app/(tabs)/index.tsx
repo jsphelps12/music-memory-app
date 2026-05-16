@@ -89,6 +89,10 @@ export default function TimelineScreen() {
   // when switching from a collection filter back to "All" without a loading flash.
   const timelineSnapshotRef = useRef<{ moments: Moment[]; hasMore: boolean } | null>(null);
 
+  // Per-collection moment cache: collectionId → { moments, fetchedAt }
+  // Makes switching between chips feel instant after the first load.
+  const collectionCacheRef = useRef<Map<string, { moments: Moment[]; fetchedAt: number }>>(new Map());
+
   // Search & filter state
   const [searchText, setSearchText] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -132,6 +136,7 @@ export default function TimelineScreen() {
     calendarFetchedRef.current = false;
     lastFetchTime.current = 0;
     timelineSnapshotRef.current = null;
+    collectionCacheRef.current.clear();
   }, [user?.id]);
   const sectionListRef = useRef<SectionList>(null);
 
@@ -395,9 +400,26 @@ export default function TimelineScreen() {
       }
 
       if (currentCollection) {
+        const cacheKey = currentCollection.id;
+        const cached = collectionCacheRef.current.get(cacheKey);
+        const cacheStale = !cached || (Date.now() - cached.fetchedAt) > REFETCH_COOLDOWN_MS;
+
+        // Show cached result immediately; still refresh if stale
+        if (cached) {
+          setMoments(cached.moments);
+          setHasMore(false);
+          setLoading(false);
+          if (!cacheStale) {
+            lastFetchTime.current = Date.now();
+            return;
+          }
+          // Stale: fall through to fetch, but already showing cached content
+        }
+
         if (currentCollection.isPublic) {
           // Shared collection: fetch all contributors' moments (owner and members)
           const shared = await fetchSharedCollectionMoments(currentCollection.id);
+          collectionCacheRef.current.set(cacheKey, { moments: shared, fetchedAt: Date.now() });
           setMoments(shared);
           setHasMore(false);
           setLoading(false);
@@ -411,6 +433,7 @@ export default function TimelineScreen() {
           .eq("collection_id", currentCollection.id);
         const ids = (cm ?? []).map((r: any) => r.moment_id);
         if (ids.length === 0) {
+          collectionCacheRef.current.set(cacheKey, { moments: [], fetchedAt: Date.now() });
           setMoments([]);
           setHasMore(false);
           setLoading(false);
@@ -418,6 +441,7 @@ export default function TimelineScreen() {
           return;
         }
         query = query.in("id", ids);
+        // Finish the query below; cache will be updated after results arrive
       }
 
       // When switching back to All: restore cached snapshot instantly so the
@@ -462,6 +486,11 @@ export default function TimelineScreen() {
       // Keep snapshot fresh whenever showing the unfiltered timeline.
       if (!filtersActive && !append) {
         timelineSnapshotRef.current = { moments: mapped, hasMore: nextHasMore };
+      }
+
+      // Cache personal collection results (shared collections return early above).
+      if (currentCollection && !currentCollection.isPublic && !append) {
+        collectionCacheRef.current.set(currentCollection.id, { moments: mapped, fetchedAt: Date.now() });
       }
 
       // Populate allPeople — accumulates across pages
@@ -658,7 +687,7 @@ export default function TimelineScreen() {
             {selectedCollection ? (
               <TouchableOpacity onPress={() => setShareSheetVisible(true)} hitSlop={8}>
                 <Ionicons
-                  name={selectedCollection.role === "owner" ? "share-outline" : "ellipsis-horizontal"}
+                  name={selectedCollection.role === "owner" ? "settings-outline" : "ellipsis-horizontal"}
                   size={22}
                   color={theme.colors.text}
                 />

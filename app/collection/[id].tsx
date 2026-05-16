@@ -224,7 +224,7 @@ export default function CollectionDetailScreen() {
           activeOpacity={0.7}
         >
           <Ionicons
-            name={isOwner ? "share-outline" : "ellipsis-horizontal"}
+            name={isOwner ? "settings-outline" : "ellipsis-horizontal"}
             size={22}
             color={theme.colors.text}
           />
