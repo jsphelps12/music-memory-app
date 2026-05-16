@@ -239,6 +239,47 @@ Do this after the bug fix pass, not before. You'll understand the codebase bette
 
 ---
 
+## Tab Redesign — Decided May 2026
+
+### Tab structure
+| Tab | Was | Now |
+|-----|-----|-----|
+| Timeline | Moments | Timeline — chronological, collection chip row, search. No filter icon, no calendar toggle. |
+| Browse | Reflections | Browse — different lenses into your own catalog (see below) |
+| Shared | Friends | Shared — social inbox: tagged moments + shared collection activity + friend management |
+| Me | Profile | Me — profile, friends list, settings |
+
+### Timeline simplification
+- Replace title-as-collection-dropdown with a horizontal scrollable chip row: `All · [personal col 1] · [personal col 2] · ••• `
+- Shared collections accessible via `•••` (opens existing bottom sheet) — no individual shared chips in the row
+- Remove filter icon and calendar toggle from timeline header — both live in Browse
+- Keep search on Timeline (universal enough to stay)
+- Header title: **"your soundtrack"** with moment count above it (e.g. "27 MOMENTS")
+
+### Browse tab — "rediscover your own catalog through new lenses"
+Not a generic explore feed. Every tile is a re-entry point into your own memories, not new content.
+
+Sections (top to bottom):
+- **On This Day** — small strip at top when there are matches. Personal and timely.
+- **Calendar** — month grid, days with moments marked. Tap a day → moments from that day. (Moves from Timeline toggle)
+- **Map** — moments plotted by location. Only shown if user has geotagged moments.
+- **Moods** — emoji grid of all mood types (built-in + custom). Tap → filtered timeline.
+- **People** — everyone tagged across moments, sorted by frequency. Tap → "11 moments with Maya."
+- **Years** — horizontal time scrubber. "Summer 2024," "Winter 2023," scrubbable.
+
+Prompts are NOT the hero of Browse. They stay as a button in the create screen.
+
+### Shared tab — "the social surface, on your terms"
+Not a feed. Directed content only — things explicitly sent to you or that you're in.
+
+Sections:
+- **Tagged in** — moments friends tagged you in (newest first). Compact card: song artwork + title + "[Name] tagged you · date."
+- **Shared Collections** — your shared collections with new activity, grouped by collection. Tap → that collection's timeline.
+
+Friend management (requests, friends list, add friend) accessible via a button in the Shared tab header — links to existing `friends-list.tsx`.
+
+---
+
 ## PRIORITY STACK — Post-Launch Build Order
 
 Ordered by impact across growth (new users), retention (keep existing), and revenue (conversion to paid). Updated April 2026.
