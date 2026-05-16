@@ -192,6 +192,13 @@ export default function CreateMomentScreen() {
     if (match) setSelectedCollection(match);
   }, [params.collectionId, collections]);
 
+  // Auto-upgrade visibility when a shared collection is selected
+  useEffect(() => {
+    if (selectedCollection?.isPublic && visibility === 'private') {
+      setVisibility('connections');
+    }
+  }, [selectedCollection?.id, selectedCollection?.isPublic]);
+
   const handleApplyMeta = (
     date: Date | undefined,
     location: { name: string; lat: number | null; lng: number | null } | undefined
@@ -390,19 +397,38 @@ export default function CreateMomentScreen() {
             {/* Collection */}
             <Text style={styles.sectionLabel}>Collection</Text>
             {selectedCollection ? (
-              <View style={styles.collectionChipRow}>
-                <TouchableOpacity
-                  style={styles.collectionChip}
-                  onPress={() => setCollectionPickerVisible(true)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="folder-outline" size={14} color={theme.colors.accentText} />
-                  <Text style={styles.collectionChipText}>{selectedCollection.name}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setSelectedCollection(null)} hitSlop={8}>
-                  <Ionicons name="close-circle" size={18} color={theme.colors.placeholder} />
-                </TouchableOpacity>
-              </View>
+              <>
+                <View style={styles.collectionChipRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.collectionChip,
+                      selectedCollection.isPublic && { backgroundColor: theme.colors.accentSecondaryBg },
+                    ]}
+                    onPress={() => setCollectionPickerVisible(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={selectedCollection.isPublic ? "people-outline" : "folder-outline"}
+                      size={14}
+                      color={selectedCollection.isPublic ? theme.colors.accentSecondary : theme.colors.accentText}
+                    />
+                    <Text style={[
+                      styles.collectionChipText,
+                      selectedCollection.isPublic && { color: theme.colors.accentSecondary },
+                    ]}>
+                      {selectedCollection.name}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setSelectedCollection(null)} hitSlop={8}>
+                    <Ionicons name="close-circle" size={18} color={theme.colors.placeholder} />
+                  </TouchableOpacity>
+                </View>
+                {selectedCollection.isPublic && (
+                  <Text style={[styles.collectionHint, { color: theme.colors.textSecondary }]}>
+                    Collection members can see this moment.
+                  </Text>
+                )}
+              </>
             ) : (
               <TouchableOpacity
                 style={styles.collectionEmpty}
@@ -671,6 +697,11 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.sm,
       color: theme.colors.accentText,
       fontWeight: theme.fontWeight.medium,
+    },
+    collectionHint: {
+      fontSize: theme.fontSize.xs,
+      marginTop: 4,
+      marginBottom: theme.spacing.sm,
     },
     collectionEmpty: {
       flexDirection: "row",

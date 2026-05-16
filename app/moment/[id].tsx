@@ -324,9 +324,56 @@ export default function MomentDetailScreen() {
 
   const handleSaveCollections = async () => {
     setSavingCollections(true);
+    const toAdd = pendingMemberIds.filter((cid) => !memberIds.includes(cid));
+    const toRemove = memberIds.filter((cid) => !pendingMemberIds.includes(cid));
+
+    // Check if any newly added collections are shared and moment is private
+    const addingToShared = toAdd.some((cid) => allCollections.find((c) => c.id === cid)?.isPublic);
+    if (addingToShared && moment?.visibility === 'private') {
+      setSavingCollections(false);
+      Alert.alert(
+        "Make Visible to Members?",
+        "This moment is private. Upgrade to "Connections" so collection members can see it?",
+        [
+          {
+            text: "Keep Private",
+            style: "cancel",
+            onPress: async () => {
+              setSavingCollections(true);
+              try {
+                await Promise.all([
+                  ...toAdd.map((cid) => addMomentToCollection(cid, id, user!.id)),
+                  ...toRemove.map((cid) => removeMomentFromCollection(cid, id)),
+                ]);
+                setMemberIds(pendingMemberIds);
+              } catch {}
+              setSavingCollections(false);
+              setCollectionModalVisible(false);
+            },
+          },
+          {
+            text: "Make Visible",
+            onPress: async () => {
+              setSavingCollections(true);
+              try {
+                await Promise.all([
+                  ...toAdd.map((cid) => addMomentToCollection(cid, id, user!.id)),
+                  ...toRemove.map((cid) => removeMomentFromCollection(cid, id)),
+                  supabase.from("moments").update({ visibility: "connections" }).eq("id", id),
+                ]);
+                setMoment((prev) => prev ? { ...prev, visibility: "connections" } : prev);
+                setMemberIds(pendingMemberIds);
+              } catch {}
+              setSavingCollections(false);
+              setCollectionModalVisible(false);
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     try {
-      const toAdd = pendingMemberIds.filter((cid) => !memberIds.includes(cid));
-      const toRemove = memberIds.filter((cid) => !pendingMemberIds.includes(cid));
       await Promise.all([
         ...toAdd.map((cid) => addMomentToCollection(cid, id, user!.id)),
         ...toRemove.map((cid) => removeMomentFromCollection(cid, id)),
@@ -882,9 +929,22 @@ export default function MomentDetailScreen() {
                     onPress={() => toggleCollection(item)}
                     activeOpacity={0.7}
                   >
-                    <Text style={[collectionStyles.rowName, { color: theme.colors.text }]}>
-                      {item.name}
-                    </Text>
+                    <Ionicons
+                      name={item.isPublic ? "people-outline" : "folder-outline"}
+                      size={18}
+                      color={item.isPublic ? theme.colors.accentSecondary : theme.colors.textSecondary}
+                      style={{ marginRight: 10 }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[collectionStyles.rowName, { color: theme.colors.text }]}>
+                        {item.name}
+                      </Text>
+                      {item.isPublic && (
+                        <Text style={{ fontSize: 11, color: theme.colors.textTertiary, marginTop: 1 }}>
+                          Shared collection
+                        </Text>
+                      )}
+                    </View>
                     {isMember ? (
                       <View style={[collectionStyles.checkmark, { backgroundColor: theme.colors.accent }]}>
                         <Text style={collectionStyles.checkmarkText}>✓</Text>
