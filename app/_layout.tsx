@@ -301,7 +301,7 @@ function RootLayoutNav() {
             options={{ headerShown: false, presentation: "modal" }}
           />
           <Stack.Screen
-            name="collection"
+            name="collection/[id]"
             options={{ headerShown: false }}
           />
         </Stack>
