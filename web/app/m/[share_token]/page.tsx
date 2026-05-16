@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSupabase } from "@/lib/supabase";
 import { PreviewPlayer } from "@/components/PreviewPlayer";
+import { GiftClipboardWriter } from "./GiftClipboardWriter";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +89,7 @@ export default async function GiftedMomentPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen flex flex-col items-center" style={{ backgroundColor: "#0D0D0F" }}>
+      <GiftClipboardWriter shareToken={share_token} />
       <div className="w-full max-w-sm px-4 pt-10 pb-36">
 
         {/* Sender label */}

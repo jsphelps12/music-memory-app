@@ -6,13 +6,16 @@ import { useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { handleAuthDeepLink } from "@/lib/auth-linking";
 import { fetchProfileByFriendToken } from "@/lib/friends";
+import { supabase } from "@/lib/supabase";
 
 export const PENDING_INVITE_CODE_KEY = "pending_invite_code";
 export const PENDING_FRIEND_TOKEN_KEY = "pending_friend_token";
+export const PENDING_GIFT_TOKEN_KEY = "pending_gift_token";
 
 // Prefixes written to clipboard on web for deferred deep link (cold install) fallback.
 const CLIPBOARD_INVITE_PREFIX = "soundtracks-invite:";
 const CLIPBOARD_FRIEND_PREFIX = "soundtracks-friend:";
+const CLIPBOARD_GIFT_PREFIX = "soundtracks-gift:";
 
 export async function checkClipboardForInvite(): Promise<string | null> {
   try {
@@ -31,6 +34,18 @@ export async function checkClipboardForFriendToken(): Promise<string | null> {
     const text = await Clipboard.getStringAsync();
     if (text.startsWith(CLIPBOARD_FRIEND_PREFIX)) {
       const token = text.replace(CLIPBOARD_FRIEND_PREFIX, "").trim();
+      await Clipboard.setStringAsync("");
+      return token || null;
+    }
+  } catch {}
+  return null;
+}
+
+export async function checkClipboardForGift(): Promise<string | null> {
+  try {
+    const text = await Clipboard.getStringAsync();
+    if (text.startsWith(CLIPBOARD_GIFT_PREFIX)) {
+      const token = text.replace(CLIPBOARD_GIFT_PREFIX, "").trim();
       await Clipboard.setStringAsync("");
       return token || null;
     }
@@ -89,13 +104,16 @@ export function useDeepLinkHandler() {
     handleAuthDeepLink(url);
   }, [handleInviteCode, handleFriendToken]);
 
-  // Clipboard check — deferred deep link fallback for cold installs via web invite/friend pages
+  // Clipboard check — deferred deep link fallback for cold installs via web invite/friend/gift pages
   useEffect(() => {
     checkClipboardForInvite().then((code) => {
       if (code) handleInviteCode(code);
     });
     checkClipboardForFriendToken().then((token) => {
       if (token) handleFriendToken(token);
+    });
+    checkClipboardForGift().then((token) => {
+      if (token) AsyncStorage.setItem(PENDING_GIFT_TOKEN_KEY, token).catch(() => {});
     });
   }, [handleInviteCode, handleFriendToken]);
 
@@ -107,6 +125,19 @@ export function useDeepLinkHandler() {
         AsyncStorage.removeItem(PENDING_FRIEND_TOKEN_KEY);
         setTimeout(() => handleFriendToken(token), 500);
       }
+    });
+  }, [user?.id, profile?.onboardingCompleted]);
+
+  // After auth + onboarding complete, claim any pending gifted moment
+  useEffect(() => {
+    if (!user || !profile?.onboardingCompleted) return;
+    AsyncStorage.getItem(PENDING_GIFT_TOKEN_KEY).then(async (shareToken) => {
+      if (!shareToken) return;
+      await AsyncStorage.removeItem(PENDING_GIFT_TOKEN_KEY);
+      try {
+        await supabase.rpc("claim_gifted_moment", { p_share_token: shareToken });
+      } catch {}
+      // No navigation needed — moment will appear in With Me on next load
     });
   }, [user?.id, profile?.onboardingCompleted]);
 
