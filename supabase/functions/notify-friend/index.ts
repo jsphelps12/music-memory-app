@@ -7,7 +7,7 @@ const corsHeaders = {
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
-type NotificationType = "friend_request" | "friend_accepted" | "moment_tagged";
+type NotificationType = "friend_request" | "friend_accepted" | "moment_tagged" | "moment_resonated";
 
 function buildNotification(type: NotificationType, senderName: string, payload: Record<string, any>) {
   switch (type) {
@@ -28,6 +28,14 @@ function buildNotification(type: NotificationType, senderName: string, payload: 
         title: "New Memory Shared",
         body: `${senderName} tagged you in a memory`,
         data: { type: "friends", momentId: payload.momentId },
+      };
+    case "moment_resonated":
+      return {
+        title: "Someone resonated",
+        body: payload.songTitle
+          ? `${senderName} resonated with your ${payload.songTitle} memory`
+          : `${senderName} resonated with your memory`,
+        data: { type: "tabs", momentId: payload.momentId },
       };
   }
 }

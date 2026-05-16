@@ -57,6 +57,7 @@ import { markTimelineStale } from "@/lib/timelineRefresh";
 import { ShareCardModal } from "@/components/ShareCardModal";
 import { CloseButton } from "@/components/CloseButton";
 import { Ionicons } from "@expo/vector-icons";
+import { fetchMyReaction, fetchReactionCount, addReaction, removeReaction } from "@/lib/reactions";
 
 export default function MomentDetailScreen() {
   const {
@@ -105,6 +106,10 @@ export default function MomentDetailScreen() {
   const [newCollectionName, setNewCollectionName] = useState("");
   const [showingNewInput, setShowingNewInput] = useState(false);
   const [creatingCollection, setCreatingCollection] = useState(false);
+  // Resonance
+  const [hasReacted, setHasReacted] = useState(false);
+  const [reactionCount, setReactionCount] = useState(0);
+  const [reactingInFlight, setReactingInFlight] = useState(false);
 
   const [origin] = useState(() => consumeCardOrigin());
   const translateX = useSharedValue(origin.active ? origin.x : 0);
@@ -261,6 +266,42 @@ export default function MomentDetailScreen() {
       fetchTagsOnMoment(moment.id).then(setFriendTags).catch(() => {});
     });
   }, [moment?.id, user?.id]);
+
+  // Load reaction state
+  useEffect(() => {
+    if (!moment || !user) return;
+    if (moment.userId !== user.id) {
+      // Non-owner: check if current user has reacted
+      fetchMyReaction(moment.id).then(setHasReacted).catch(() => {});
+    } else {
+      // Owner: fetch total reaction count
+      fetchReactionCount(moment.id).then(setReactionCount).catch(() => {});
+    }
+  }, [moment?.id, user?.id]);
+
+  const handleResonance = useCallback(async () => {
+    if (!moment || !user || reactingInFlight) return;
+    const next = !hasReacted;
+    setHasReacted(next);
+    Haptics.impactAsync(next ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
+    setReactingInFlight(true);
+    try {
+      if (next) {
+        await addReaction(moment.id, user.id);
+        // Fire-and-forget push to owner
+        supabase.functions.invoke("notify-friend", {
+          body: { toUserId: moment.userId, type: "moment_resonated", payload: { momentId: moment.id, songTitle: moment.songTitle } },
+        }).catch(() => {});
+      } else {
+        await removeReaction(moment.id, user.id);
+      }
+    } catch {
+      // Revert optimistic update on failure
+      setHasReacted(!next);
+    } finally {
+      setReactingInFlight(false);
+    }
+  }, [moment, user, hasReacted, reactingInFlight]);
 
   const photoUrls = useMemo(
     () => moment?.photoUrls.map(getPublicPhotoUrl) ?? [],
@@ -698,6 +739,32 @@ export default function MomentDetailScreen() {
           ) : null}
 
         </ScrollView>
+      )}
+
+      {/* Resonance button — non-owners only */}
+      {moment && user && moment.userId !== user.id && (
+        <TouchableOpacity
+          style={[styles.resonanceBtn, hasReacted && styles.resonanceBtnActive]}
+          onPress={handleResonance}
+          activeOpacity={0.75}
+          hitSlop={12}
+        >
+          <Ionicons
+            name={hasReacted ? "heart" : "heart-outline"}
+            size={20}
+            color={hasReacted ? "#E8825C" : theme.colors.textSecondary}
+          />
+        </TouchableOpacity>
+      )}
+
+      {/* Resonance indicator — owner only, shown when at least one person has resonated */}
+      {moment && user && moment.userId === user.id && reactionCount > 0 && (
+        <View style={styles.resonanceIndicator}>
+          <Ionicons name="heart" size={13} color="#E8825C" />
+          <Text style={[styles.resonanceCount, { color: theme.colors.textSecondary }]}>
+            {reactionCount}
+          </Text>
+        </View>
       )}
 
       <PhotoViewer
@@ -1309,6 +1376,36 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.xs,
       color: theme.colors.textTertiary,
       marginLeft: theme.spacing.sm,
+    },
+    resonanceBtn: {
+      position: "absolute",
+      bottom: 48,
+      left: theme.spacing.xl,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: theme.colors.closeButtonBg,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    resonanceBtnActive: {
+      backgroundColor: theme.colors.accentBg,
+    },
+    resonanceIndicator: {
+      position: "absolute",
+      bottom: 54,
+      left: theme.spacing.xl,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: theme.colors.closeButtonBg,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 20,
+    },
+    resonanceCount: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.semibold,
     },
     volumeHint: {
       position: "absolute",
