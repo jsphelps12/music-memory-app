@@ -330,7 +330,7 @@ export async function fetchSharedCollectionActivity(userId: string): Promise<Sha
   });
 
   return [...ownedActivity, ...joinedActivity]
-    .filter((c) => c.totalMoments > 0)
+    .filter((c) => c.role === 'owner' || c.totalMoments > 0)
     .sort((a, b) => {
       if (!a.latestAddedAt) return 1;
       if (!b.latestAddedAt) return -1;
