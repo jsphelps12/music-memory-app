@@ -10,10 +10,11 @@ import {
   Alert,
   ScrollView,
   Linking,
+  TextInput,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { CloseButton } from "@/components/CloseButton";
 import * as Haptics from "expo-haptics";
 import { Collection } from "@/types";
@@ -23,6 +24,9 @@ import {
   leaveCollection,
   fetchCollectionMembers,
   removeCollectionMember,
+  renameCollection,
+  addCollectionMemberById,
+  searchUsersForCollection,
   CollectionMember,
 } from "@/lib/collections";
 import { supabase } from "@/lib/supabase";
@@ -51,6 +55,18 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
+  // Rename state
+  const [renaming, setRenaming] = useState(false);
+  const [renameText, setRenameText] = useState(collection.name);
+  const [savingRename, setSavingRename] = useState(false);
+
+  // Add member by username
+  const [addMemberQuery, setAddMemberQuery] = useState("");
+  const [addMemberResults, setAddMemberResults] = useState<{ id: string; displayName: string; username: string }[]>([]);
+  const [addingMemberId, setAddingMemberId] = useState<string | null>(null);
+  const [addMemberSearching, setAddMemberSearching] = useState(false);
+  const addMemberDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const isOwner = collection.role === "owner";
 
   useEffect(() => {
@@ -64,12 +80,71 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
     if (!visible) {
       setMembers([]);
       setError("");
+      setRenaming(false);
+      setAddMemberQuery("");
+      setAddMemberResults([]);
     }
   }, [visible, isOwner, collection.id]);
+
+  // Debounced username search
+  useEffect(() => {
+    if (addMemberDebounce.current) clearTimeout(addMemberDebounce.current);
+    if (addMemberQuery.trim().length < 2) {
+      setAddMemberResults([]);
+      setAddMemberSearching(false);
+      return;
+    }
+    setAddMemberSearching(true);
+    addMemberDebounce.current = setTimeout(() => {
+      const excludeIds = [
+        collection.userId,
+        user?.id ?? "",
+        ...members.map((m) => m.userId),
+      ].filter(Boolean);
+      searchUsersForCollection(addMemberQuery.trim(), excludeIds)
+        .then(setAddMemberResults)
+        .catch(() => {})
+        .finally(() => setAddMemberSearching(false));
+    }, 350);
+    return () => {
+      if (addMemberDebounce.current) clearTimeout(addMemberDebounce.current);
+    };
+  }, [addMemberQuery, members, collection.userId, user?.id]);
 
   const inviteUrl = collection.inviteCode
     ? `${WEB_BASE_URL}/c/${collection.inviteCode}`
     : null;
+
+  async function handleRename() {
+    const trimmed = renameText.trim();
+    if (!trimmed || trimmed === collection.name || savingRename) return;
+    setSavingRename(true);
+    setError("");
+    try {
+      await renameCollection(collection.id, trimmed);
+      onUpdated({ ...collection, name: trimmed });
+      setRenaming(false);
+    } catch (e: any) {
+      setError(friendlyError(e));
+    } finally {
+      setSavingRename(false);
+    }
+  }
+
+  async function handleAddMember(result: { id: string; displayName: string; username: string }) {
+    setAddingMemberId(result.id);
+    setError("");
+    try {
+      await addCollectionMemberById(collection.id, result.id);
+      setMembers((prev) => [...prev, { userId: result.id, displayName: result.displayName, joinedAt: new Date().toISOString() }]);
+      setAddMemberResults((prev) => prev.filter((r) => r.id !== result.id));
+      setAddMemberQuery("");
+    } catch (e: any) {
+      setError(friendlyError(e));
+    } finally {
+      setAddingMemberId(null);
+    }
+  }
 
   function handleConvert() {
     Alert.alert(
@@ -84,7 +159,6 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
             setError("");
             try {
               await convertCollectionToShared(collection.id);
-              // Create guest auth user for this collection (server-side, service role)
               await supabase.functions.invoke("create-guest-user", {
                 body: { collectionId: collection.id },
               });
@@ -195,6 +269,8 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
     );
   }
 
+  const totalMembers = members.length + 1; // +1 for owner
+
   return (
     <Modal
       visible={visible}
@@ -211,17 +287,58 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
         {/* Handle */}
         <View style={[styles.handle, { backgroundColor: theme.colors.textSecondary }]} />
 
-        {/* Header */}
+        {/* Header — inline rename for owners */}
         <View style={[styles.header, { paddingHorizontal: 20 }]}>
-          <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
-            {collection.name}
-          </Text>
-          <CloseButton onPress={onClose} />
+          {isOwner && renaming ? (
+            <View style={styles.renameRow}>
+              <TextInput
+                style={[styles.renameInput, { color: theme.colors.text, backgroundColor: theme.colors.backgroundInput }]}
+                value={renameText}
+                onChangeText={setRenameText}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={handleRename}
+                maxLength={60}
+              />
+              <TouchableOpacity
+                onPress={handleRename}
+                disabled={savingRename || !renameText.trim() || renameText.trim() === collection.name}
+                hitSlop={8}
+              >
+                {savingRename ? (
+                  <ActivityIndicator size="small" color={theme.colors.accent} />
+                ) : (
+                  <Text style={[styles.renameSave, { color: theme.colors.accent, opacity: !renameText.trim() || renameText.trim() === collection.name ? 0.35 : 1 }]}>
+                    Save
+                  </Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setRenaming(false); setRenameText(collection.name); }} hitSlop={8}>
+                <Text style={[styles.renameCancel, { color: theme.colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
+                {collection.name}
+              </Text>
+              {isOwner && (
+                <TouchableOpacity
+                  onPress={() => { setRenaming(true); setRenameText(collection.name); }}
+                  hitSlop={8}
+                  style={{ marginRight: 10 }}
+                >
+                  <Ionicons name="pencil-outline" size={18} color={theme.colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+              <CloseButton onPress={onClose} />
+            </>
+          )}
         </View>
 
         {isOwner ? (
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            {/* Info row */}
+            {/* Metadata row */}
             <View style={[styles.row, { borderBottomColor: theme.colors.backgroundInput }]}>
               <View style={styles.rowLeft}>
                 <Ionicons
@@ -234,9 +351,10 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                     {collection.isPublic ? "Shared Collection" : "Personal Collection"}
                   </Text>
                   <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
+                    {collection.momentCount} {collection.momentCount === 1 ? "moment" : "moments"}
                     {collection.isPublic
-                      ? "Anyone with the link can join and add moments."
-                      : "Just for you — private and not shareable."}
+                      ? ` · ${totalMembers} ${totalMembers === 1 ? "member" : "members"}`
+                      : " · just you"}
                   </Text>
                 </View>
               </View>
@@ -249,8 +367,8 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
             ) : null}
 
             {collection.isPublic && inviteUrl ? (
-              /* Shared: show invite link + share button + guest contribution section */
               <>
+                {/* Invite link */}
                 <View style={styles.shareSection}>
                   <View style={[styles.urlBox, { backgroundColor: theme.colors.backgroundInput }]}>
                     <Text
@@ -261,17 +379,76 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                       {inviteUrl}
                     </Text>
                   </View>
-                  <TouchableOpacity
-                    style={[styles.shareButton, { backgroundColor: theme.colors.accent }]}
-                    onPress={handleShare}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="share-outline" size={18} color="#fff" />
-                    <Text style={styles.shareButtonText}>Share Invite Link</Text>
-                  </TouchableOpacity>
+                  <View style={styles.linkButtonRow}>
+                    <TouchableOpacity
+                      style={[styles.linkButton, { backgroundColor: theme.colors.backgroundInput }]}
+                      onPress={() => Clipboard.setStringAsync(inviteUrl)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="copy-outline" size={16} color={theme.colors.text} />
+                      <Text style={[styles.linkButtonText, { color: theme.colors.text }]}>Copy</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.shareButton, { backgroundColor: theme.colors.accent }]}
+                      onPress={handleShare}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="share-outline" size={16} color="#fff" />
+                      <Text style={styles.shareButtonText}>Share Link</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
-                {/* Guest Contributions section */}
+                {/* Add member by username */}
+                <View style={styles.addMemberSection}>
+                  <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>ADD MEMBER</Text>
+                  <View style={[styles.addMemberInputRow, { backgroundColor: theme.colors.backgroundInput }]}>
+                    <Ionicons name="at-outline" size={16} color={theme.colors.placeholder} />
+                    <TextInput
+                      style={[styles.addMemberInput, { color: theme.colors.text }]}
+                      placeholder="Search by username"
+                      placeholderTextColor={theme.colors.placeholder}
+                      value={addMemberQuery}
+                      onChangeText={setAddMemberQuery}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="search"
+                    />
+                    {addMemberSearching && (
+                      <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                    )}
+                    {addMemberQuery.length > 0 && !addMemberSearching && (
+                      <TouchableOpacity onPress={() => { setAddMemberQuery(""); setAddMemberResults([]); }} hitSlop={8}>
+                        <Ionicons name="close-circle" size={16} color={theme.colors.placeholder} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  {addMemberResults.map((result) => (
+                    <View key={result.id} style={[styles.addMemberResult, { borderBottomColor: theme.colors.backgroundInput }]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.addMemberName, { color: theme.colors.text }]}>{result.displayName}</Text>
+                        <Text style={[styles.addMemberUsername, { color: theme.colors.textSecondary }]}>@{result.username}</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.addBtn, { backgroundColor: theme.colors.accent, opacity: addingMemberId === result.id ? 0.6 : 1 }]}
+                        onPress={() => handleAddMember(result)}
+                        disabled={addingMemberId !== null}
+                        activeOpacity={0.7}
+                      >
+                        {addingMemberId === result.id ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <Text style={styles.addBtnText}>Add</Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  {addMemberQuery.trim().length >= 2 && !addMemberSearching && addMemberResults.length === 0 && (
+                    <Text style={[styles.addMemberEmpty, { color: theme.colors.textTertiary }]}>No users found</Text>
+                  )}
+                </View>
+
+                {/* Guest Contributions */}
                 {collection.inviteCode ? (
                   <View style={styles.guestSection}>
                     <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
@@ -329,7 +506,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                 ) : null}
               </>
             ) : (
-              /* Personal: one-way convert button */
+              /* Personal: convert button */
               <View style={styles.shareSection}>
                 <TouchableOpacity
                   style={[
@@ -355,32 +532,22 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
               </View>
             )}
 
-            {/* Delete collection */}
-            <TouchableOpacity
-              style={[styles.deleteButton, deleting && styles.buttonDisabled]}
-              onPress={handleDelete}
-              disabled={deleting}
-              activeOpacity={0.8}
-            >
-              {deleting ? (
-                <ActivityIndicator color={theme.colors.destructive} />
-              ) : (
-                <Text style={[styles.deleteButtonText, { color: theme.colors.destructive ?? "#E53E3E" }]}>
-                  Delete Collection
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            {/* Members section */}
+            {/* Members list */}
             <View style={styles.membersSection}>
               <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
                 MEMBERS
               </Text>
+              {/* Owner row */}
+              <View style={[styles.memberRow, { borderBottomColor: theme.colors.backgroundInput }]}>
+                <Text style={[styles.memberName, { color: theme.colors.text }]}>
+                  You (owner)
+                </Text>
+              </View>
               {loadingMembers ? (
                 <ActivityIndicator size="small" color={theme.colors.accent} style={{ marginVertical: 12 }} />
               ) : members.length === 0 ? (
                 <Text style={[styles.emptyMembers, { color: theme.colors.textTertiary }]}>
-                  No one has joined yet.
+                  No one else has joined yet.
                 </Text>
               ) : (
                 members.map((member) => (
@@ -410,20 +577,35 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                 ))
               )}
             </View>
+
+            {/* Delete */}
+            <TouchableOpacity
+              style={[styles.deleteButton, deleting && styles.buttonDisabled]}
+              onPress={handleDelete}
+              disabled={deleting}
+              activeOpacity={0.8}
+            >
+              {deleting ? (
+                <ActivityIndicator color={theme.colors.destructive} />
+              ) : (
+                <Text style={[styles.deleteButtonText, { color: theme.colors.destructive ?? "#E53E3E" }]}>
+                  Delete Collection
+                </Text>
+              )}
+            </TouchableOpacity>
           </ScrollView>
         ) : (
+          /* Member view */
           <View style={styles.memberViewContent}>
-            {/* Member view */}
             <View style={[styles.row, { borderBottomColor: theme.colors.backgroundInput }]}>
               <View style={styles.rowLeft}>
                 <Ionicons name="people-outline" size={20} color={theme.colors.text} />
                 <View style={styles.rowText}>
                   <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Shared Collection</Text>
-                  {collection.ownerName ? (
-                    <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
-                      Created by {collection.ownerName}
-                    </Text>
-                  ) : null}
+                  <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
+                    {collection.momentCount} {collection.momentCount === 1 ? "moment" : "moments"}
+                    {collection.ownerName ? ` · by ${collection.ownerName}` : ""}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -469,11 +651,11 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "85%",
+    maxHeight: "88%",
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingBottom: 48,
   },
   handle: {
     width: 36,
@@ -494,7 +676,28 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     flex: 1,
-    marginRight: 12,
+    marginRight: 8,
+  },
+  renameRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  renameInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "600",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  renameSave: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  renameCancel: {
+    fontSize: 15,
   },
   row: {
     flexDirection: "row",
@@ -527,7 +730,24 @@ const styles = StyleSheet.create({
   },
   shareSection: {
     marginTop: 20,
-    gap: 12,
+    gap: 10,
+  },
+  linkButtonRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  linkButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  linkButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   urlBox: {
     borderRadius: 10,
@@ -539,16 +759,17 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
   shareButton: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingVertical: 14,
-    borderRadius: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
   shareButtonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
   },
   leaveButton: {
@@ -585,7 +806,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "#E53E3E",
-    marginTop: 20,
+    marginTop: 24,
   },
   deleteButtonText: {
     fontSize: 16,
@@ -618,6 +839,56 @@ const styles = StyleSheet.create({
   memberName: {
     fontSize: 15,
   },
+  // Add member
+  addMemberSection: {
+    marginTop: 24,
+    gap: 8,
+  },
+  addMemberInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  addMemberInput: {
+    flex: 1,
+    fontSize: 14,
+    padding: 0,
+  },
+  addMemberResult: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  addMemberName: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  addMemberUsername: {
+    fontSize: 12,
+    marginTop: 1,
+  },
+  addBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    minWidth: 52,
+    alignItems: "center",
+  },
+  addBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  addMemberEmpty: {
+    fontSize: 13,
+    paddingVertical: 8,
+  },
+  // Guest contributions
   guestSection: {
     marginTop: 24,
     gap: 10,

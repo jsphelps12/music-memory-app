@@ -85,6 +85,10 @@ export default function TimelineScreen() {
   const selectedCollectionRef = useRef(selectedCollection);
   selectedCollectionRef.current = selectedCollection;
 
+  // Snapshot of the full timeline (all-moments view) so we can restore instantly
+  // when switching from a collection filter back to "All" without a loading flash.
+  const timelineSnapshotRef = useRef<{ moments: Moment[]; hasMore: boolean } | null>(null);
+
   // Search & filter state
   const [searchText, setSearchText] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -127,6 +131,7 @@ export default function TimelineScreen() {
     setSelectedCollection(null);
     calendarFetchedRef.current = false;
     lastFetchTime.current = 0;
+    timelineSnapshotRef.current = null;
   }, [user?.id]);
   const sectionListRef = useRef<SectionList>(null);
 
@@ -415,6 +420,15 @@ export default function TimelineScreen() {
         query = query.in("id", ids);
       }
 
+      // When switching back to All: restore cached snapshot instantly so the
+      // user sees content immediately while the fresh fetch runs in background.
+      if (!currentCollection && !append && timelineSnapshotRef.current) {
+        setMoments(timelineSnapshotRef.current.moments);
+        setHasMore(timelineSnapshotRef.current.hasMore);
+        setLoading(false);
+        // Don't return — continue the fetch so we silently refresh the data.
+      }
+
       // Paginate only on the unfiltered "All Moments" view
       if (!filtersActive) {
         const from = pageRef.current * TIMELINE_PAGE_SIZE;
@@ -440,9 +454,15 @@ export default function TimelineScreen() {
       } else {
         setMoments(mapped);
       }
-      setHasMore(!filtersActive && mapped.length === TIMELINE_PAGE_SIZE);
+      const nextHasMore = !filtersActive && mapped.length === TIMELINE_PAGE_SIZE;
+      setHasMore(nextHasMore);
       setLoading(false);
       lastFetchTime.current = Date.now();
+
+      // Keep snapshot fresh whenever showing the unfiltered timeline.
+      if (!filtersActive && !append) {
+        timelineSnapshotRef.current = { moments: mapped, hasMore: nextHasMore };
+      }
 
       // Populate allPeople — accumulates across pages
       if (!filtersActive) {

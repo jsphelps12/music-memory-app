@@ -406,3 +406,41 @@ export async function fetchSharedCollectionMoments(collectionId: string): Promis
     })
     .filter(Boolean) as Moment[];
 }
+
+export async function renameCollection(collectionId: string, name: string): Promise<void> {
+  const { error } = await supabase
+    .from("collections")
+    .update({ name })
+    .eq("id", collectionId);
+  if (error) throw error;
+}
+
+export async function addCollectionMemberById(collectionId: string, userId: string): Promise<void> {
+  const { error } = await supabase
+    .from("collection_members")
+    .insert({ collection_id: collectionId, user_id: userId });
+  // Ignore duplicate membership (already a member)
+  if (error && error.code !== "23505") throw error;
+}
+
+export async function searchUsersForCollection(
+  query: string,
+  excludeIds: string[]
+): Promise<{ id: string; displayName: string; username: string }[]> {
+  if (query.trim().length < 2) return [];
+  let q = supabase
+    .from("profiles")
+    .select("id, display_name, username")
+    .ilike("username", `%${query.trim()}%`)
+    .limit(10);
+  if (excludeIds.length > 0) {
+    q = q.not("id", "in", `(${excludeIds.join(",")})`);
+  }
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    displayName: r.display_name ?? r.username ?? "Unknown",
+    username: r.username ?? "",
+  }));
+}

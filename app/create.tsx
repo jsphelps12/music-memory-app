@@ -192,13 +192,6 @@ export default function CreateMomentScreen() {
     if (match) setSelectedCollection(match);
   }, [params.collectionId, collections]);
 
-  // Auto-upgrade visibility when a shared collection is selected
-  useEffect(() => {
-    if (selectedCollection?.isPublic && visibility === 'private') {
-      setVisibility('connections');
-    }
-  }, [selectedCollection?.id, selectedCollection?.isPublic]);
-
   const handleApplyMeta = (
     date: Date | undefined,
     location: { name: string; lat: number | null; lng: number | null } | undefined
@@ -381,7 +374,9 @@ export default function CreateMomentScreen() {
             />
 
             {/* Visibility */}
-            <Text style={styles.sectionLabel}>Who can see this</Text>
+            <Text style={styles.sectionLabel}>
+              {selectedCollection?.isPublic ? "Who else can see this" : "Who can see this"}
+            </Text>
             <VisibilityPicker value={visibility} onChange={setVisibility} />
 
             {/* Mood selector */}
@@ -425,7 +420,7 @@ export default function CreateMomentScreen() {
                 </View>
                 {selectedCollection.isPublic && (
                   <Text style={[styles.collectionHint, { color: theme.colors.textSecondary }]}>
-                    Collection members can see this moment.
+                    All collection members can see this. "Who else can see this" controls access outside the collection.
                   </Text>
                 )}
               </>

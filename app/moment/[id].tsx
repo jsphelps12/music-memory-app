@@ -324,56 +324,9 @@ export default function MomentDetailScreen() {
 
   const handleSaveCollections = async () => {
     setSavingCollections(true);
-    const toAdd = pendingMemberIds.filter((cid) => !memberIds.includes(cid));
-    const toRemove = memberIds.filter((cid) => !pendingMemberIds.includes(cid));
-
-    // Check if any newly added collections are shared and moment is private
-    const addingToShared = toAdd.some((cid) => allCollections.find((c) => c.id === cid)?.isPublic);
-    if (addingToShared && moment?.visibility === 'private') {
-      setSavingCollections(false);
-      Alert.alert(
-        "Make Visible to Members?",
-        "This moment is private. Upgrade to "Connections" so collection members can see it?",
-        [
-          {
-            text: "Keep Private",
-            style: "cancel",
-            onPress: async () => {
-              setSavingCollections(true);
-              try {
-                await Promise.all([
-                  ...toAdd.map((cid) => addMomentToCollection(cid, id, user!.id)),
-                  ...toRemove.map((cid) => removeMomentFromCollection(cid, id)),
-                ]);
-                setMemberIds(pendingMemberIds);
-              } catch {}
-              setSavingCollections(false);
-              setCollectionModalVisible(false);
-            },
-          },
-          {
-            text: "Make Visible",
-            onPress: async () => {
-              setSavingCollections(true);
-              try {
-                await Promise.all([
-                  ...toAdd.map((cid) => addMomentToCollection(cid, id, user!.id)),
-                  ...toRemove.map((cid) => removeMomentFromCollection(cid, id)),
-                  supabase.from("moments").update({ visibility: "connections" }).eq("id", id),
-                ]);
-                setMoment((prev) => prev ? { ...prev, visibility: "connections" } : prev);
-                setMemberIds(pendingMemberIds);
-              } catch {}
-              setSavingCollections(false);
-              setCollectionModalVisible(false);
-            },
-          },
-        ]
-      );
-      return;
-    }
-
     try {
+      const toAdd = pendingMemberIds.filter((cid) => !memberIds.includes(cid));
+      const toRemove = memberIds.filter((cid) => !pendingMemberIds.includes(cid));
       await Promise.all([
         ...toAdd.map((cid) => addMomentToCollection(cid, id, user!.id)),
         ...toRemove.map((cid) => removeMomentFromCollection(cid, id)),
