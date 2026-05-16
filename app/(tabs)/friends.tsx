@@ -38,7 +38,6 @@ import {
   markCollectionViewed,
   SharedCollectionActivity,
 } from "@/lib/collections";
-import { setPendingCollectionId } from "@/lib/pendingCollection";
 import type { Friendship, TaggedMoment } from "@/types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -304,14 +303,12 @@ export default function SharedScreen() {
   }, [loadData]);
 
   const handleTapCollection = useCallback((item: SharedCollectionActivity) => {
-    // Mark viewed before navigating so badge clears immediately
+    // Mark viewed optimistically so badge clears immediately
     markCollectionViewed(item.collectionId, user!.id, item.role).catch(() => {});
     setSharedCollections((prev) =>
       prev.map((c) => c.collectionId === item.collectionId ? { ...c, newMomentCount: 0 } : c)
     );
-    // Use the pending collection pattern — Timeline tab picks it up on focus
-    setPendingCollectionId(item.collectionId);
-    router.push("/(tabs)" as any);
+    router.push({ pathname: "/collection/[id]" as any, params: { id: item.collectionId } });
   }, [user, router]);
 
   const handleTapTag = useCallback((tag: TaggedMoment) => {
