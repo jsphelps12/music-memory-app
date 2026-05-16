@@ -1,3 +1,4 @@
+import "../wdyr";
 import * as Sentry from "@sentry/react-native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -298,6 +299,10 @@ function RootLayoutNav() {
           <Stack.Screen
             name="friend-request"
             options={{ headerShown: false, presentation: "modal" }}
+          />
+          <Stack.Screen
+            name="collection"
+            options={{ headerShown: false }}
           />
         </Stack>
       </AuthGate>
