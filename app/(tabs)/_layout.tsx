@@ -7,7 +7,7 @@ import { createMaterialTopTabNavigator } from "@react-navigation/material-top-ta
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchPendingRequests, fetchTaggedMomentsSharedTab } from "@/lib/friends";
+import { fetchPendingRequests } from "@/lib/friends";
 import { fetchSharedCollectionActivity, fetchPendingCollectionInvites } from "@/lib/collections";
 
 const { Navigator } = createMaterialTopTabNavigator();
@@ -30,15 +30,14 @@ function FriendsTabIcon({ color }: { color: string }) {
 
     async function loadCount() {
       try {
-        const [requests, tagged, collections, invites] = await Promise.all([
+        const [requests, collections, invites] = await Promise.all([
           fetchPendingRequests(user!.id),
-          fetchTaggedMomentsSharedTab(user!.id),
           fetchSharedCollectionActivity(user!.id),
           fetchPendingCollectionInvites(user!.id).catch(() => []),
         ]);
         if (!cancelled) {
           const newCollectionMoments = collections.reduce((sum, c) => sum + c.newMomentCount, 0);
-          setPendingCount(requests.length + tagged.length + newCollectionMoments + invites.length);
+          setPendingCount(requests.length + newCollectionMoments + invites.length);
         }
       } catch {}
     }

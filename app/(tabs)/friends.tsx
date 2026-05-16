@@ -331,15 +331,17 @@ export default function SharedScreen() {
     setRespondingInviteId(invite.id);
     try {
       await acceptCollectionInvite(invite.id, invite.collectionId, user.id);
+      // Remove invite optimistically — don't re-fetch invites (replication lag causes it to reappear)
       setCollectionInvites((prev) => prev.filter((i) => i.id !== invite.id));
-      // Refresh shared collections so the newly joined one appears
-      loadData(true);
+      // Refresh only the shared collections so the newly joined one appears
+      const updated = await fetchSharedCollectionActivity(user.id);
+      setSharedCollections(updated);
     } catch (e: any) {
       Alert.alert("Error", friendlyError(e));
     } finally {
       setRespondingInviteId(null);
     }
-  }, [user, loadData]);
+  }, [user]);
 
   const handleDeclineInvite = useCallback(async (inviteId: string) => {
     setRespondingInviteId(inviteId);
