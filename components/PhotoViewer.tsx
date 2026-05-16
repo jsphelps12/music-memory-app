@@ -63,6 +63,10 @@ export function PhotoViewer({ photos, initialIndex, visible, onClose }: Props) {
           })}
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+          removeClippedSubviews
+          windowSize={3}
+          maxToRenderPerBatch={1}
+          initialNumToRender={1}
           renderItem={({ item }) => (
             <ScrollView
               style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}

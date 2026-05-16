@@ -1,6 +1,7 @@
-import { useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions } from "react-native";
 import { Image } from "expo-image";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   useSharedValue,
@@ -15,20 +16,22 @@ import { setCardOrigin } from "@/lib/cardTransition";
 import { setCachedMoment } from "@/lib/momentCache";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
-import { getPublicPhotoUrl } from "@/lib/storage";
+import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Moment, Song } from "@/types";
 
 interface Props {
   item: Moment;
-  onPress: () => void;
   allMoods: Array<{ value: string; emoji: string; label: string }>;
+  collectionId?: string;
+  collectionRole?: string;
   showArtist?: boolean;
 }
 
-export function MomentCard({ item, onPress, allMoods, showArtist = true }: Props) {
+function MomentCardComponent({ item, allMoods, collectionId, collectionRole, showArtist = true }: Props) {
   const theme = useTheme();
+  const router = useRouter();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const scale = useSharedValue(1);
   const animatedRef = useAnimatedRef<Animated.View>();
@@ -57,6 +60,9 @@ export function MomentCard({ item, onPress, allMoods, showArtist = true }: Props
 
   const handlePress = useCallback(() => {
     setCachedMoment(item);
+    const dest = collectionId
+      ? { pathname: "/moment/[id]" as const, params: { id: item.id, collectionId, collectionRole } }
+      : { pathname: "/moment/[id]" as const, params: { id: item.id } };
     const { width: sw, height: sh } = Dimensions.get("window");
     runOnUI(() => {
       "worklet";
@@ -68,9 +74,9 @@ export function MomentCard({ item, onPress, allMoods, showArtist = true }: Props
           m.width / sw
         );
       }
-      runOnJS(onPress)();
+      runOnJS(router.push)(dest);
     })();
-  }, [item, onPress]);
+  }, [item.id, collectionId, collectionRole, router]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -79,8 +85,8 @@ export function MomentCard({ item, onPress, allMoods, showArtist = true }: Props
   const mood = item.mood ? allMoods.find((m) => m.value === item.mood) : undefined;
   const thumbUrls =
     item.photoThumbnails.length > 0
-      ? item.photoThumbnails.map(getPublicPhotoUrl)
-      : item.photoUrls.map(getPublicPhotoUrl);
+      ? item.photoThumbnails.map((p) => getPublicPhotoThumbnailUrl(p, 400))
+      : item.photoUrls.map((p) => getPublicPhotoThumbnailUrl(p, 400));
 
   const formattedDate = item.momentDate
     ? new Date(item.momentDate + "T00:00:00").toLocaleDateString("en-US", {
@@ -105,7 +111,7 @@ export function MomentCard({ item, onPress, allMoods, showArtist = true }: Props
         <View style={styles.cardBody}>
           <View style={styles.cardRow}>
             {item.songArtworkUrl ? (
-              <Image source={{ uri: item.songArtworkUrl }} style={styles.artwork} />
+              <Image source={{ uri: item.songArtworkUrl }} style={styles.artwork} transition={200} />
             ) : (
               <ArtworkPlaceholder style={styles.artwork} />
             )}
@@ -156,6 +162,7 @@ export function MomentCard({ item, onPress, allMoods, showArtist = true }: Props
                 source={{ uri: url }}
                 style={styles.photoStripThumb}
                 contentFit="cover"
+                transition={200}
               />
             ))}
           </ScrollView>
@@ -273,3 +280,5 @@ function createStyles(theme: Theme) {
     },
   });
 }
+
+export const MomentCard = memo(MomentCardComponent);

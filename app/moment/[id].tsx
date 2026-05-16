@@ -15,6 +15,7 @@ import {
   TextInput,
   Linking,
   Share,
+  InteractionManager,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import Animated, {
@@ -34,7 +35,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
-import { getPublicPhotoUrl } from "@/lib/storage";
+import { getPublicPhotoUrl, getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import { mapRowToMoment } from "@/lib/moments";
 import {
   fetchCollections,
@@ -242,8 +243,12 @@ export default function MomentDetailScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchMoment(moment === null);
+      const isFirstLoad = moment === null;
+      const task = InteractionManager.runAfterInteractions(() => {
+        fetchMoment(isFirstLoad);
+      });
       return () => {
+        task.cancel();
         stop();
       };
     }, [fetchMoment, stop])
@@ -259,6 +264,11 @@ export default function MomentDetailScreen() {
 
   const photoUrls = useMemo(
     () => moment?.photoUrls.map(getPublicPhotoUrl) ?? [],
+    [moment?.photoUrls]
+  );
+
+  const photoThumbnailUrls = useMemo(
+    () => moment?.photoUrls.map((p) => getPublicPhotoThumbnailUrl(p, 400)) ?? [],
     [moment?.photoUrls]
   );
 
@@ -631,14 +641,14 @@ export default function MomentDetailScreen() {
           ) : null}
 
           {/* Photos */}
-          {photoUrls.length > 0 && (
+          {photoThumbnailUrls.length > 0 && (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               style={styles.photoGallery}
               contentContainerStyle={styles.photoGalleryContent}
             >
-              {photoUrls.map((url, index) => (
+              {photoThumbnailUrls.map((url, index) => (
                 <TouchableOpacity
                   key={index}
                   onPress={() => {
@@ -650,6 +660,7 @@ export default function MomentDetailScreen() {
                   <Image
                     source={{ uri: url }}
                     style={styles.photoImage}
+                    transition={200}
                   />
                 </TouchableOpacity>
               ))}

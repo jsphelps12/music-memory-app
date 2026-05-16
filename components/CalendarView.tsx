@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import {
   View,
   Text,
@@ -26,7 +26,7 @@ interface Props {
   loading?: boolean;
 }
 
-export function CalendarView({ moments, onDayPress, theme, loading }: Props) {
+function CalendarViewComponent({ moments, onDayPress, theme, loading }: Props) {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const byDate = useMemo(() => {
@@ -312,3 +312,5 @@ function createStyles(theme: Theme) {
     },
   });
 }
+
+export const CalendarView = memo(CalendarViewComponent);

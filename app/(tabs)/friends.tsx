@@ -10,11 +10,11 @@ import {
   Alert,
   Modal,
   TextInput,
-  Keyboard,
   Platform,
   RefreshControl,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -22,15 +22,36 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { CloseButton } from "@/components/CloseButton";
+import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { friendlyError } from "@/lib/errors";
+import { getPublicPhotoUrl } from "@/lib/storage";
 import {
   fetchPendingRequests,
   fetchFriends,
   getFriendInviteUrl,
   searchByUsername,
   sendFriendRequest,
+  fetchTaggedMomentsSharedTab,
 } from "@/lib/friends";
-import type { Friendship } from "@/types";
+import {
+  fetchSharedCollectionActivity,
+  markCollectionViewed,
+  SharedCollectionActivity,
+} from "@/lib/collections";
+import type { Friendship, TaggedMoment } from "@/types";
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days}d ago`;
+  if (days < 30) return `${Math.floor(days / 7)}w ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
+}
 
 // ── AddFriendSheet ────────────────────────────────────────────────────────────
 
@@ -53,11 +74,7 @@ function AddFriendSheet({ visible, onClose, friendInviteToken, currentUserId, on
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!visible) {
-      setQuery("");
-      setResults([]);
-      setSent(new Set());
-    }
+    if (!visible) { setQuery(""); setResults([]); setSent(new Set()); }
   }, [visible]);
 
   const handleQuery = useCallback((text: string) => {
@@ -66,18 +83,13 @@ function AddFriendSheet({ visible, onClose, friendInviteToken, currentUserId, on
     if (!text.trim()) { setResults([]); return; }
     debounceRef.current = setTimeout(async () => {
       setSearching(true);
-      try {
-        const res = await searchByUsername(text, currentUserId);
-        setResults(res);
-      } catch {}
+      try { setResults(await searchByUsername(text, currentUserId)); } catch {}
       setSearching(false);
     }, 400);
   }, [currentUserId]);
 
   const handleShareLink = async () => {
-    try {
-      await Share.share({ url: getFriendInviteUrl(friendInviteToken) });
-    } catch {}
+    try { await Share.share({ url: getFriendInviteUrl(friendInviteToken) }); } catch {}
   };
 
   const handleAdd = async (userId: string, name: string) => {
@@ -94,107 +106,158 @@ function AddFriendSheet({ visible, onClose, friendInviteToken, currentUserId, on
       } else {
         Alert.alert("Error", friendlyError(e));
       }
-    } finally {
-      setSending(null);
-    }
+    } finally { setSending(null); }
   };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-      <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={onClose} />
-      <View style={[styles.sheet, { backgroundColor: theme.colors.background }]}>
-        <View style={[styles.sheetHandle, { backgroundColor: theme.colors.border }]} />
-        <View style={styles.sheetHeader}>
-          <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Add Friend</Text>
-          <CloseButton onPress={onClose} />
-        </View>
-
-        {/* Share link */}
-        <TouchableOpacity style={[styles.shareLinkRow, { backgroundColor: theme.colors.accentBg }]} onPress={handleShareLink} activeOpacity={0.8}>
-          <Ionicons name="link-outline" size={20} color={theme.colors.accent} />
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={[styles.shareLinkTitle, { color: theme.colors.text }]}>Share Friend Link</Text>
-            <Text style={[styles.shareLinkSub, { color: theme.colors.textSecondary }]}>Anyone with the link can add you as a friend</Text>
+        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={onClose} />
+        <View style={[styles.sheet, { backgroundColor: theme.colors.background }]}>
+          <View style={[styles.sheetHandle, { backgroundColor: theme.colors.border }]} />
+          <View style={styles.sheetHeader}>
+            <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Add Friend</Text>
+            <CloseButton onPress={onClose} />
           </View>
-          <Ionicons name="share-outline" size={18} color={theme.colors.accent} />
-        </TouchableOpacity>
-
-        {/* Username search */}
-        <Text style={[styles.orDivider, { color: theme.colors.textTertiary }]}>or search by @username</Text>
-        <View style={[styles.searchRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundInput }]}>
-          <Ionicons name="at-outline" size={16} color={theme.colors.textSecondary} style={{ marginRight: 6 }} />
-          <TextInput
-            style={[styles.searchInput, { color: theme.colors.text }]}
-            placeholder="username"
-            placeholderTextColor={theme.colors.placeholder}
-            value={query}
-            onChangeText={handleQuery}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-          />
-          {searching ? (
-            <ActivityIndicator size="small" color={theme.colors.accent} />
-          ) : query.length > 0 ? (
-            <TouchableOpacity onPress={() => { setQuery(""); setResults([]); }} hitSlop={8}>
-              <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
-        {results.map((result) => {
-          const isSent = sent.has(result.id);
-          return (
-            <View key={result.id} style={[styles.resultRow, { borderBottomColor: theme.colors.border }]}>
-              <View style={[styles.avatarSmall, { backgroundColor: theme.colors.backgroundTertiary }]}>
-                {result.avatarUrl ? (
-                  <Image source={{ uri: getPublicPhotoUrl(result.avatarUrl) }} style={StyleSheet.absoluteFill} contentFit="cover" />
-                ) : (
-                  <Text style={[styles.avatarInitial, { color: theme.colors.textTertiary }]}>
-                    {(result.displayName ?? result.username ?? "?")[0]?.toUpperCase()}
-                  </Text>
-                )}
-              </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.resultName, { color: theme.colors.text }]}>{result.displayName ?? result.username}</Text>
-                {result.username && (
-                  <Text style={[styles.resultUsername, { color: theme.colors.textSecondary }]}>@{result.username}</Text>
-                )}
-              </View>
-              {isSent ? (
-                <Text style={[styles.sentLabel, { color: theme.colors.textSecondary }]}>Sent</Text>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.addButton, { backgroundColor: theme.colors.accent }]}
-                  onPress={() => handleAdd(result.id, result.displayName ?? result.username ?? "them")}
-                  disabled={sending === result.id}
-                  activeOpacity={0.8}
-                >
-                  {sending === result.id ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.addButtonText}>Add</Text>
-                  )}
-                </TouchableOpacity>
-              )}
+          <TouchableOpacity style={[styles.shareLinkRow, { backgroundColor: theme.colors.accentBg }]} onPress={handleShareLink} activeOpacity={0.8}>
+            <Ionicons name="link-outline" size={20} color={theme.colors.accent} />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={[styles.shareLinkTitle, { color: theme.colors.text }]}>Share Friend Link</Text>
+              <Text style={[styles.shareLinkSub, { color: theme.colors.textSecondary }]}>Anyone with the link can add you as a friend</Text>
             </View>
-          );
-        })}
-
-        {query.length > 0 && !searching && results.length === 0 && (
-          <Text style={[styles.noResults, { color: theme.colors.textSecondary }]}>No users found for "@{query}"</Text>
-        )}
-      </View>
+            <Ionicons name="share-outline" size={18} color={theme.colors.accent} />
+          </TouchableOpacity>
+          <Text style={[styles.orDivider, { color: theme.colors.textTertiary }]}>or search by @username</Text>
+          <View style={[styles.searchRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundInput }]}>
+            <Ionicons name="at-outline" size={16} color={theme.colors.textSecondary} style={{ marginRight: 6 }} />
+            <TextInput
+              style={[styles.searchInput, { color: theme.colors.text }]}
+              placeholder="username"
+              placeholderTextColor={theme.colors.placeholder}
+              value={query}
+              onChangeText={handleQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            {searching ? (
+              <ActivityIndicator size="small" color={theme.colors.accent} />
+            ) : query.length > 0 ? (
+              <TouchableOpacity onPress={() => { setQuery(""); setResults([]); }} hitSlop={8}>
+                <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {results.map((result) => {
+            const isSent = sent.has(result.id);
+            return (
+              <View key={result.id} style={[styles.resultRow, { borderBottomColor: theme.colors.border }]}>
+                <View style={[styles.avatarSmall, { backgroundColor: theme.colors.backgroundTertiary }]}>
+                  {result.avatarUrl ? (
+                    <Image source={{ uri: getPublicPhotoUrl(result.avatarUrl) }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                  ) : (
+                    <Text style={[styles.avatarInitial, { color: theme.colors.textTertiary }]}>
+                      {(result.displayName ?? result.username ?? "?")[0]?.toUpperCase()}
+                    </Text>
+                  )}
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={[styles.resultName, { color: theme.colors.text }]}>{result.displayName ?? result.username}</Text>
+                  {result.username && (
+                    <Text style={[styles.resultUsername, { color: theme.colors.textSecondary }]}>@{result.username}</Text>
+                  )}
+                </View>
+                {isSent ? (
+                  <Text style={[styles.sentLabel, { color: theme.colors.textSecondary }]}>Sent</Text>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.addButton, { backgroundColor: theme.colors.accent }]}
+                    onPress={() => handleAdd(result.id, result.displayName ?? result.username ?? "them")}
+                    disabled={sending === result.id}
+                    activeOpacity={0.8}
+                  >
+                    {sending === result.id ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.addButtonText}>Add</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          })}
+          {query.length > 0 && !searching && results.length === 0 && (
+            <Text style={[styles.noResults, { color: theme.colors.textSecondary }]}>No users found for "@{query}"</Text>
+          )}
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );
+}
 
+// ── Tagged Moment Row ─────────────────────────────────────────────────────────
+
+function TaggedRow({ tag, onPress, styles, theme }: { tag: TaggedMoment; onPress: () => void; styles: any; theme: any }) {
+  const artwork = tag.moment?.songArtworkUrl;
+  return (
+    <TouchableOpacity style={styles.taggedRow} onPress={onPress} activeOpacity={0.7}>
+      {artwork ? (
+        <Image source={{ uri: artwork }} style={styles.taggedArtwork} contentFit="cover" />
+      ) : (
+        <ArtworkPlaceholder style={styles.taggedArtwork} />
+      )}
+      <View style={styles.taggedInfo}>
+        <Text style={[styles.taggedSong, { color: theme.colors.text }]} numberOfLines={1}>
+          {tag.moment?.songTitle ?? "Unknown song"}
+        </Text>
+        <Text style={[styles.taggedArtist, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+          {tag.moment?.songArtist ?? ""}
+        </Text>
+        <Text style={[styles.taggedBy, { color: theme.colors.textTertiary }]} numberOfLines={1}>
+          {tag.taggerDisplayName ?? "Someone"} tagged you
+        </Text>
+      </View>
+      <Text style={[styles.taggedDate, { color: theme.colors.textTertiary }]}>
+        {timeAgo(tag.createdAt)}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+// ── Shared Collection Row ─────────────────────────────────────────────────────
+
+function CollectionRow({ item, onPress, styles, theme }: { item: SharedCollectionActivity; onPress: () => void; styles: any; theme: any }) {
+  const isShared = item.role === 'member';
+  return (
+    <TouchableOpacity style={styles.collectionRow} onPress={onPress} activeOpacity={0.7}>
+      <View style={[styles.collectionIcon, { backgroundColor: isShared ? theme.colors.accentSecondaryBg : theme.colors.chipBg }]}>
+        <Ionicons
+          name={isShared ? "people-outline" : "folder-outline"}
+          size={18}
+          color={isShared ? theme.colors.accentSecondary : theme.colors.textSecondary}
+        />
+      </View>
+      <View style={styles.collectionInfo}>
+        <Text style={[styles.collectionName, { color: theme.colors.text }]} numberOfLines={1}>
+          {item.name}
+        </Text>
+        <Text style={[styles.collectionSub, { color: theme.colors.textSecondary }]}>
+          {item.ownerName ? `by ${item.ownerName} · ` : ""}{item.totalMoments} {item.totalMoments === 1 ? "moment" : "moments"}
+        </Text>
+      </View>
+      {item.newMomentCount > 0 && (
+        <View style={[styles.newBadge, { backgroundColor: theme.colors.accent }]}>
+          <Text style={styles.newBadgeText}>{item.newMomentCount} new</Text>
+        </View>
+      )}
+      <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} style={{ marginLeft: 6 }} />
+    </TouchableOpacity>
+  );
 }
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
-export default function FriendsScreen() {
+export default function SharedScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
   const theme = useTheme();
@@ -203,6 +266,8 @@ export default function FriendsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<Friendship[]>([]);
+  const [taggedMoments, setTaggedMoments] = useState<TaggedMoment[]>([]);
+  const [sharedCollections, setSharedCollections] = useState<SharedCollectionActivity[]>([]);
   const [hasFriends, setHasFriends] = useState(false);
   const [addFriendVisible, setAddFriendVisible] = useState(false);
   const lastFetchRef = useRef(0);
@@ -214,31 +279,49 @@ export default function FriendsScreen() {
     if (!force && now - lastFetchRef.current < COOLDOWN) return;
     lastFetchRef.current = now;
     try {
-      const [requests, friends] = await Promise.all([
+      const [requests, friends, tagged, collections] = await Promise.all([
         fetchPendingRequests(user.id),
         fetchFriends(user.id),
+        fetchTaggedMomentsSharedTab(user.id),
+        fetchSharedCollectionActivity(user.id),
       ]);
       setPendingRequests(requests);
       setHasFriends(friends.length > 0);
+      setTaggedMoments(tagged);
+      setSharedCollections(collections);
     } catch {}
     setLoading(false);
   }, [user]);
 
-  useEffect(() => {
-    if (user) loadData(true);
-  }, [user?.id]);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadData(true);
-    }, [loadData])
-  );
+  useEffect(() => { if (user) loadData(true); }, [user?.id]);
+  useFocusEffect(useCallback(() => { loadData(true); }, [loadData]));
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadData(true);
     setRefreshing(false);
   }, [loadData]);
+
+  const handleTapCollection = useCallback(async (item: SharedCollectionActivity) => {
+    // Mark viewed before navigating so badge clears immediately
+    markCollectionViewed(item.collectionId, user!.id, item.role).catch(() => {});
+    setSharedCollections((prev) =>
+      prev.map((c) => c.collectionId === item.collectionId ? { ...c, newMomentCount: 0 } : c)
+    );
+    router.push({
+      pathname: "/collection/[id]" as any,
+      params: { id: item.collectionId },
+    });
+  }, [user, router]);
+
+  const handleTapTag = useCallback((tag: TaggedMoment) => {
+    router.push({
+      pathname: "/moment/[id]" as any,
+      params: { id: tag.momentId },
+    });
+  }, [router]);
+
+  const isEmpty = taggedMoments.length === 0 && sharedCollections.length === 0;
 
   if (loading) {
     return (
@@ -252,29 +335,19 @@ export default function FriendsScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Friends</Text>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Shared</Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            onPress={() => router.push("/friends-list" as any)}
-            hitSlop={8}
-            activeOpacity={0.7}
-            style={styles.headerBtn}
-          >
+          <TouchableOpacity onPress={() => router.push("/friends-list" as any)} hitSlop={8} activeOpacity={0.7} style={styles.headerBtn}>
             <Ionicons name="people-outline" size={22} color={theme.colors.text} />
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setAddFriendVisible(true)}
-            hitSlop={8}
-            activeOpacity={0.7}
-            style={styles.headerBtn}
-          >
+          <TouchableOpacity onPress={() => setAddFriendVisible(true)} hitSlop={8} activeOpacity={0.7} style={styles.headerBtn}>
             <Ionicons name="person-add-outline" size={22} color={theme.colors.text} />
           </TouchableOpacity>
         </View>
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, isEmpty && styles.listContentEmpty]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.accent} />}
       >
         {/* Username setup prompt */}
@@ -311,14 +384,14 @@ export default function FriendsScreen() {
         )}
 
         {/* Empty state */}
-        {pendingRequests.length === 0 && !profile?.usernameCustomized === false && (
+        {isEmpty && (
           <View style={styles.emptyState}>
-            <Ionicons name="people-outline" size={48} color={theme.colors.textTertiary} />
-            <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>With Me</Text>
+            <Ionicons name="share-social-outline" size={48} color={theme.colors.textTertiary} />
+            <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>Nothing shared yet</Text>
             <Text style={[styles.emptySub, { color: theme.colors.textSecondary }]}>
               {hasFriends
-                ? "Moments friends tag you in will appear here."
-                : "Add a friend, then tag each other in moments to share memories."}
+                ? "When friends tag you in a memory or add to a shared collection, it'll appear here."
+                : "Add a friend and tag each other in memories to get started."}
             </Text>
             {!hasFriends && (
               <TouchableOpacity
@@ -330,6 +403,40 @@ export default function FriendsScreen() {
               </TouchableOpacity>
             )}
           </View>
+        )}
+
+        {/* Tagged in */}
+        {taggedMoments.length > 0 && (
+          <>
+            <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>Tagged in</Text>
+            <View style={[styles.card, { backgroundColor: theme.colors.cardBg }]}>
+              {taggedMoments.map((tag, i) => (
+                <View key={tag.id}>
+                  <TaggedRow tag={tag} onPress={() => handleTapTag(tag)} styles={styles} theme={theme} />
+                  {i < taggedMoments.length - 1 && (
+                    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                  )}
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+
+        {/* Shared Collections */}
+        {sharedCollections.length > 0 && (
+          <>
+            <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>Shared Collections</Text>
+            <View style={[styles.card, { backgroundColor: theme.colors.cardBg }]}>
+              {sharedCollections.map((item, i) => (
+                <View key={item.collectionId}>
+                  <CollectionRow item={item} onPress={() => handleTapCollection(item)} styles={styles} theme={theme} />
+                  {i < sharedCollections.length - 1 && (
+                    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                  )}
+                </View>
+              ))}
+            </View>
+          </>
         )}
       </ScrollView>
 
@@ -361,18 +468,14 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.xl,
       fontWeight: theme.fontWeight.bold,
     },
-    headerActions: {
-      flexDirection: "row",
-      gap: 4,
-    },
-    headerBtn: {
-      padding: 6,
-    },
+    headerActions: { flexDirection: "row", gap: 4 },
+    headerBtn: { padding: 6 },
     listContent: {
       paddingHorizontal: theme.spacing.xl,
+      paddingTop: theme.spacing.lg,
       paddingBottom: 40,
-      flexGrow: 1,
     },
+    listContentEmpty: { flexGrow: 1 },
     banner: {
       flexDirection: "row",
       alignItems: "center",
@@ -380,16 +483,65 @@ function createStyles(theme: Theme) {
       padding: 14,
       borderRadius: theme.radii.md,
       borderWidth: 1,
+      marginBottom: 12,
+    },
+    bannerText: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+    bannerSubtext: { fontSize: theme.fontSize.xs, marginTop: 2 },
+    sectionLabel: {
+      fontSize: 11,
+      fontWeight: "600",
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+      marginBottom: 8,
       marginTop: 16,
     },
-    bannerText: {
-      fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
+    card: {
+      borderRadius: theme.radii.md,
+      overflow: "hidden",
+      marginBottom: 4,
     },
-    bannerSubtext: {
-      fontSize: theme.fontSize.xs,
-      marginTop: 2,
+    divider: { height: StyleSheet.hairlineWidth, marginLeft: 72 },
+    // Tagged row
+    taggedRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 12,
     },
+    taggedArtwork: {
+      width: 46,
+      height: 46,
+      borderRadius: 6,
+    },
+    taggedInfo: { flex: 1, marginLeft: 12 },
+    taggedSong: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.semibold },
+    taggedArtist: { fontSize: theme.fontSize.sm, marginTop: 1 },
+    taggedBy: { fontSize: theme.fontSize.xs, marginTop: 3 },
+    taggedDate: { fontSize: theme.fontSize.xs, marginLeft: 8 },
+    // Collection row
+    collectionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+    },
+    collectionIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    collectionInfo: { flex: 1, marginLeft: 12 },
+    collectionName: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.medium },
+    collectionSub: { fontSize: theme.fontSize.xs, marginTop: 2 },
+    newBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 10,
+    },
+    newBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+    // Empty state
     emptyState: {
       flex: 1,
       alignItems: "center",
@@ -409,21 +561,10 @@ function createStyles(theme: Theme) {
       lineHeight: 22,
       marginBottom: theme.spacing["2xl"],
     },
-    emptyBtn: {
-      paddingHorizontal: 28,
-      paddingVertical: 13,
-      borderRadius: theme.radii.button,
-    },
-    emptyBtnText: {
-      color: "#fff",
-      fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
-    },
+    emptyBtn: { paddingHorizontal: 28, paddingVertical: 13, borderRadius: theme.radii.button },
+    emptyBtnText: { color: "#fff", fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.semibold },
     // Modal / sheet
-    modalBackdrop: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.4)",
-    },
+    modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
     sheet: {
       borderTopLeftRadius: 20,
       borderTopRightRadius: 20,
@@ -432,90 +573,44 @@ function createStyles(theme: Theme) {
       paddingBottom: Platform.OS === "ios" ? 34 : 20,
     },
     sheetHandle: {
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      alignSelf: "center",
-      marginTop: 12,
-      marginBottom: 4,
-      opacity: 0.4,
+      width: 36, height: 4, borderRadius: 2,
+      alignSelf: "center", marginTop: 12, marginBottom: 4, opacity: 0.4,
     },
     sheetHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingVertical: 12,
+      flexDirection: "row", alignItems: "center",
+      justifyContent: "space-between", paddingVertical: 12,
     },
-    sheetTitle: {
-      fontSize: 17,
-      fontWeight: "600",
-    },
+    sheetTitle: { fontSize: 17, fontWeight: "600" },
     shareLinkRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      borderRadius: theme.radii.md,
-      padding: 14,
-      marginBottom: 20,
+      flexDirection: "row", alignItems: "center",
+      borderRadius: theme.radii.md, padding: 14, marginBottom: 20,
     },
-    shareLinkTitle: {
-      fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
-    },
-    shareLinkSub: {
-      fontSize: theme.fontSize.xs,
-      marginTop: 2,
-    },
-    orDivider: {
-      fontSize: theme.fontSize.xs,
-      textAlign: "center",
-      marginBottom: 12,
-    },
+    shareLinkTitle: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.semibold },
+    shareLinkSub: { fontSize: theme.fontSize.xs, marginTop: 2 },
+    orDivider: { fontSize: theme.fontSize.xs, textAlign: "center", marginBottom: 12 },
     searchRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      borderRadius: theme.radii.sm,
-      borderWidth: StyleSheet.hairlineWidth,
-      paddingHorizontal: 10,
-      height: 44,
-      marginBottom: 12,
+      flexDirection: "row", alignItems: "center",
+      borderRadius: theme.radii.sm, borderWidth: StyleSheet.hairlineWidth,
+      paddingHorizontal: 10, height: 44, marginBottom: 12,
     },
-    searchInput: {
-      flex: 1,
-      fontSize: theme.fontSize.base,
+    searchInput: { flex: 1, fontSize: theme.fontSize.base },
+    avatarSmall: {
+      width: 36, height: 36, borderRadius: 18,
+      alignItems: "center", justifyContent: "center", overflow: "hidden",
     },
+    avatarInitial: { fontSize: 15, fontWeight: "600" },
     resultRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: 12,
-      borderBottomWidth: StyleSheet.hairlineWidth,
+      flexDirection: "row", alignItems: "center",
+      paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth,
     },
-    resultName: {
-      fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.medium,
-    },
-    resultUsername: {
-      fontSize: theme.fontSize.sm,
-      marginTop: 2,
-    },
+    resultName: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.medium },
+    resultUsername: { fontSize: theme.fontSize.sm, marginTop: 2 },
     addButton: {
-      paddingHorizontal: 18,
-      paddingVertical: 8,
-      borderRadius: 20,
-      minWidth: 60,
-      alignItems: "center",
+      paddingHorizontal: 18, paddingVertical: 8,
+      borderRadius: 20, minWidth: 60, alignItems: "center",
     },
-    addButtonText: {
-      color: "#fff",
-      fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
-    },
-    sentLabel: {
-      fontSize: theme.fontSize.sm,
-    },
-    noResults: {
-      textAlign: "center",
-      fontSize: theme.fontSize.sm,
-      marginTop: 12,
-    },
+    addButtonText: { color: "#fff", fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+    sentLabel: { fontSize: theme.fontSize.sm },
+    noResults: { textAlign: "center", fontSize: theme.fontSize.sm, marginTop: 12 },
   });
 }

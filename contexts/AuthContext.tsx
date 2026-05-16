@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Sentry from "@sentry/react-native";
@@ -404,29 +404,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await fetchProfile(session.user.id);
   };
 
+  const contextValue = useMemo(() => ({
+    session,
+    user: session?.user ?? null,
+    profile,
+    loading,
+    profileReady,
+    signIn,
+    signUp,
+    signInWithApple,
+    signOut,
+    deleteAccount,
+    updateProfile,
+    refreshProfile,
+    saveOnboardingData,
+    completeOnboarding,
+    saveCustomMood,
+    deleteCustomMood,
+    saveCustomPromptCategory,
+    deleteCustomPromptCategory,
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [session, profile, loading, profileReady]);
+
   return (
-    <AuthContext.Provider
-      value={{
-        session,
-        user: session?.user ?? null,
-        profile,
-        loading,
-        profileReady,
-        signIn,
-        signUp,
-        signInWithApple,
-        signOut,
-        deleteAccount,
-        updateProfile,
-        refreshProfile,
-        saveOnboardingData,
-        completeOnboarding,
-        saveCustomMood,
-        deleteCustomMood,
-        saveCustomPromptCategory,
-        deleteCustomPromptCategory,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

@@ -348,7 +348,6 @@ export default function ReflectionsScreen() {
                     <MomentCard
                       key={m.id}
                       item={m}
-                      onPress={() => router.push(`/moment/${m.id}`)}
                       allMoods={allMoods}
                     />
                   ))}
@@ -373,7 +372,6 @@ export default function ReflectionsScreen() {
             </View>
             <MomentCard
               item={aMonthAgo}
-              onPress={() => router.push(`/moment/${aMonthAgo.id}`)}
               allMoods={allMoods}
             />
           </>
@@ -393,7 +391,6 @@ export default function ReflectionsScreen() {
             </View>
             <MomentCard
               item={randomMoment}
-              onPress={() => router.push(`/moment/${randomMoment.id}`)}
               allMoods={allMoods}
             />
           </>
@@ -417,7 +414,6 @@ export default function ReflectionsScreen() {
             </View>
             <MomentCard
               item={aMonthAgo}
-              onPress={() => router.push(`/moment/${aMonthAgo.id}`)}
               allMoods={allMoods}
             />
           </>
@@ -440,7 +436,6 @@ export default function ReflectionsScreen() {
             </View>
             <MomentCard
               item={aYearAgo}
-              onPress={() => router.push(`/moment/${aYearAgo.id}`)}
               allMoods={allMoods}
             />
           </>
@@ -484,7 +479,6 @@ export default function ReflectionsScreen() {
             </View>
             <MomentCard
               item={randomMoment}
-              onPress={() => router.push(`/moment/${randomMoment.id}`)}
               allMoods={allMoods}
             />
           </>
@@ -498,7 +492,6 @@ export default function ReflectionsScreen() {
             </View>
             <MomentCard
               item={forgottenMoment}
-              onPress={() => router.push(`/moment/${forgottenMoment.id}`)}
               allMoods={allMoods}
             />
           </>

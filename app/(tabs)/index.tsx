@@ -536,15 +536,11 @@ export default function TimelineScreen() {
   const renderMoment = useCallback(({ item }: { item: Moment }) => (
     <MomentCard
       item={item}
-      onPress={() => {
-        const dest = selectedCollection
-          ? { pathname: "/moment/[id]" as const, params: { id: item.id, collectionId: selectedCollection.id, collectionRole: selectedCollection.role } }
-          : { pathname: "/moment/[id]" as const, params: { id: item.id } };
-        router.push(dest);
-      }}
       allMoods={allMoods}
+      collectionId={selectedCollection?.id}
+      collectionRole={selectedCollection?.role}
     />
-  ), [router, allMoods, selectedCollection]);
+  ), [allMoods, selectedCollection]);
 
   const clearFilters = useCallback(() => {
     setSearchText("");
@@ -902,6 +898,10 @@ export default function TimelineScreen() {
               )}
               ListHeaderComponent={listHeader}
               onEndReached={handleLoadMore}
+              removeClippedSubviews
+              windowSize={10}
+              maxToRenderPerBatch={5}
+              initialNumToRender={10}
               onEndReachedThreshold={0.3}
               ListFooterComponent={
                 loadingMore ? (

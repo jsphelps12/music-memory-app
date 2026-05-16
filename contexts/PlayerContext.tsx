@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState, useRef, useEffect } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useState, useRef, useEffect } from "react";
 import { Audio } from "expo-av";
 import { Song } from "@/types";
 
@@ -79,8 +79,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const contextValue = useMemo(
+    () => ({ currentSong, isPlaying, playError, play, pause, stop }),
+    [currentSong, isPlaying, playError, play, pause, stop]
+  );
+
   return (
-    <PlayerContext.Provider value={{ currentSong, isPlaying, playError, play, pause, stop }}>
+    <PlayerContext.Provider value={contextValue}>
       {children}
     </PlayerContext.Provider>
   );

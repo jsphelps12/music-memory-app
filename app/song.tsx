@@ -106,7 +106,6 @@ export default function SongScreen() {
   const renderItem = useCallback(({ item }: { item: Moment }) => (
     <MomentCard
       item={item}
-      onPress={() => router.push(`/moment/${item.id}`)}
       allMoods={allMoods}
       showArtist={true}
     />

@@ -126,3 +126,10 @@ export function getPublicPhotoUrl(path: string): string {
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }
+
+export function getPublicPhotoThumbnailUrl(path: string, width = 400): string {
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path, {
+    transform: { width, quality: 80 },
+  });
+  return data.publicUrl;
+}

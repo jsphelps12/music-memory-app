@@ -7,7 +7,8 @@ import { createMaterialTopTabNavigator } from "@react-navigation/material-top-ta
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchPendingRequests, fetchTaggedMomentsInbox } from "@/lib/friends";
+import { fetchPendingRequests, fetchTaggedMomentsSharedTab } from "@/lib/friends";
+import { fetchSharedCollectionActivity } from "@/lib/collections";
 
 const { Navigator } = createMaterialTopTabNavigator();
 const SwipeTabs = withLayoutContext(Navigator);
@@ -29,12 +30,14 @@ function FriendsTabIcon({ color }: { color: string }) {
 
     async function loadCount() {
       try {
-        const [requests, inbox] = await Promise.all([
+        const [requests, tagged, collections] = await Promise.all([
           fetchPendingRequests(user!.id),
-          fetchTaggedMomentsInbox(user!.id),
+          fetchTaggedMomentsSharedTab(user!.id),
+          fetchSharedCollectionActivity(user!.id),
         ]);
         if (!cancelled) {
-          setPendingCount(requests.length + inbox.length);
+          const newCollectionMoments = collections.reduce((sum, c) => sum + c.newMomentCount, 0);
+          setPendingCount(requests.length + tagged.length + newCollectionMoments);
         }
       } catch {}
     }
@@ -116,14 +119,14 @@ export default function TabLayout() {
       <SwipeTabs.Screen
         name="friends"
         options={{
-          title: "Friends",
+          title: "Shared",
           tabBarIcon: ({ color }: { color: string }) => <FriendsTabIcon color={color} />,
         }}
       />
       <SwipeTabs.Screen
         name="profile"
         options={{
-          title: "Profile",
+          title: "Me",
           tabBarIcon: ({ color }: { color: string }) => <TabBarIcon name="user" color={color} />,
         }}
       />

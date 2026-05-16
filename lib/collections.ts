@@ -238,6 +238,128 @@ export async function removeCollectionMember(collectionId: string, userId: strin
   if (error) throw error;
 }
 
+export interface SharedCollectionActivity {
+  collectionId: string;
+  name: string;
+  role: 'owner' | 'member';
+  ownerName?: string;
+  inviteCode?: string;
+  totalMoments: number;
+  newMomentCount: number;
+  latestAddedAt: string | null;
+}
+
+// Fetch all shared collections the user is in, with new-moment counts since last visit.
+// "New" = added_at > last_viewed_at (members) or > owner_last_viewed_at (owners).
+// Falls back to joined_at / created_at when never viewed.
+export async function fetchSharedCollectionActivity(userId: string): Promise<SharedCollectionActivity[]> {
+  // Owned shared collections
+  const { data: ownedRows, error: ownedError } = await supabase
+    .from("collections")
+    .select("id, name, invite_code, created_at, owner_last_viewed_at, collection_moments(moment_id, added_at)")
+    .eq("user_id", userId)
+    .eq("is_public", true);
+
+  if (ownedError) throw ownedError;
+
+  // Joined shared collections
+  const { data: memberRows, error: memberError } = await supabase
+    .from("collection_members")
+    .select("collection_id, joined_at, last_viewed_at")
+    .eq("user_id", userId);
+
+  if (memberError) throw memberError;
+
+  const joinedIds = (memberRows ?? []).map((r: any) => r.collection_id);
+  let joinedActivity: SharedCollectionActivity[] = [];
+
+  if (joinedIds.length > 0) {
+    const { data: joinedRows, error: joinedError } = await supabase
+      .from("collections")
+      .select("id, name, user_id, invite_code, collection_moments(moment_id, added_at)")
+      .in("id", joinedIds);
+
+    if (joinedError) throw joinedError;
+
+    const ownerIds = [...new Set((joinedRows ?? []).map((c: any) => c.user_id))];
+    const { data: profiles } = ownerIds.length > 0
+      ? await supabase.from("profiles").select("id, display_name").in("id", ownerIds)
+      : { data: [] };
+    const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p.display_name]));
+    const memberMap = new Map((memberRows ?? []).map((r: any) => [r.collection_id, r]));
+
+    joinedActivity = (joinedRows ?? []).map((row: any) => {
+      const membership = memberMap.get(row.id);
+      const lastViewed: string | null = membership?.last_viewed_at ?? membership?.joined_at ?? null;
+      const moments: any[] = row.collection_moments ?? [];
+      const newCount = lastViewed
+        ? moments.filter((m: any) => m.added_at > lastViewed).length
+        : moments.length;
+      const latest = moments.reduce((max: string | null, m: any) =>
+        !max || m.added_at > max ? m.added_at : max, null);
+      return {
+        collectionId: row.id,
+        name: row.name,
+        role: 'member' as const,
+        ownerName: profileMap.get(row.user_id) ?? undefined,
+        inviteCode: row.invite_code ?? undefined,
+        totalMoments: moments.length,
+        newMomentCount: newCount,
+        latestAddedAt: latest,
+      };
+    });
+  }
+
+  const ownedActivity: SharedCollectionActivity[] = (ownedRows ?? []).map((row: any) => {
+    const lastViewed: string | null = row.owner_last_viewed_at ?? row.created_at ?? null;
+    const moments: any[] = row.collection_moments ?? [];
+    const newCount = lastViewed
+      ? moments.filter((m: any) => m.added_at > lastViewed).length
+      : moments.length;
+    const latest = moments.reduce((max: string | null, m: any) =>
+      !max || m.added_at > max ? m.added_at : max, null);
+    return {
+      collectionId: row.id,
+      name: row.name,
+      role: 'owner' as const,
+      inviteCode: row.invite_code ?? undefined,
+      totalMoments: moments.length,
+      newMomentCount: newCount,
+      latestAddedAt: latest,
+    };
+  });
+
+  return [...ownedActivity, ...joinedActivity]
+    .filter((c) => c.totalMoments > 0)
+    .sort((a, b) => {
+      if (!a.latestAddedAt) return 1;
+      if (!b.latestAddedAt) return -1;
+      return b.latestAddedAt.localeCompare(a.latestAddedAt);
+    });
+}
+
+// Mark a shared collection as viewed now — clears its new-moment badge.
+export async function markCollectionViewed(
+  collectionId: string,
+  userId: string,
+  role: 'owner' | 'member'
+): Promise<void> {
+  const now = new Date().toISOString();
+  if (role === 'owner') {
+    await supabase
+      .from("collections")
+      .update({ owner_last_viewed_at: now })
+      .eq("id", collectionId)
+      .eq("user_id", userId);
+  } else {
+    await supabase
+      .from("collection_members")
+      .update({ last_viewed_at: now })
+      .eq("collection_id", collectionId)
+      .eq("user_id", userId);
+  }
+}
+
 // Fetch all moments across all contributors in a shared collection, ordered by added_at
 export async function fetchSharedCollectionMoments(collectionId: string): Promise<Moment[]> {
   const { data: cmRows, error: cmError } = await supabase

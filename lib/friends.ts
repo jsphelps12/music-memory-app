@@ -389,3 +389,54 @@ export async function hideTaggedMoment(taggedMomentId: string): Promise<void> {
     .eq("id", taggedMomentId);
   if (error) throw error;
 }
+
+// Fetch tagged moments for the Shared tab inbox.
+// No released gate — visibility is controlled by the moment's privacy dial via RLS.
+// Returns only tags where the moment is actually readable (RLS filters out private ones).
+export async function fetchTaggedMomentsSharedTab(userId: string): Promise<TaggedMoment[]> {
+  const { data, error } = await supabase
+    .from("tagged_moments")
+    .select("*")
+    .eq("tagged_user_id", userId)
+    .neq("status", "hidden")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  if (!data || data.length === 0) return [];
+
+  const taggerIds = [...new Set(data.map((r: any) => r.tagger_user_id))];
+  const momentIds = data.map((r: any) => r.moment_id);
+
+  const [{ data: profiles }, { data: moments }] = await Promise.all([
+    supabase.from("profiles").select("id, display_name, avatar_url").in("id", taggerIds),
+    supabase.from("moments")
+      .select("id, song_title, song_artist, song_artwork_url, moment_date, reflection_text, mood, visibility")
+      .in("id", momentIds),
+  ]);
+
+  const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+  // RLS already filters out private moments — only readable ones come back
+  const momentMap = new Map((moments ?? []).map((m: any) => [m.id, m]));
+
+  return data
+    .filter((row: any) => momentMap.has(row.moment_id)) // skip private moments
+    .map((row: any) => {
+      const taggerProfile = profileMap.get(row.tagger_user_id);
+      const momentRow = momentMap.get(row.moment_id);
+      return mapTaggedMomentRow({
+        ...row,
+        tagger_display_name: taggerProfile?.display_name ?? null,
+        tagger_avatar_url: taggerProfile?.avatar_url ?? null,
+        moment_row: momentRow ? {
+          ...momentRow,
+          user_id: row.tagger_user_id,
+          song_apple_music_id: momentRow.id,
+          reflection_text: momentRow.reflection_text,
+          photo_urls: [],
+          photo_thumbnails: [],
+          people: [],
+          created_at: row.created_at,
+          updated_at: row.created_at,
+        } : null,
+      });
+    });
+}
