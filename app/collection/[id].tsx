@@ -17,7 +17,7 @@ import { Theme } from "@/constants/theme";
 import { MomentCard } from "@/components/MomentCard";
 import { CollectionShareSheet } from "@/components/CollectionShareSheet";
 import { ErrorState } from "@/components/ErrorState";
-import { MOODS } from "@/constants/moods";
+import { MOODS } from "@/constants/Moods";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { fetchSharedCollectionMoments, markCollectionViewed } from "@/lib/collections";
