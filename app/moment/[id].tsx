@@ -760,10 +760,7 @@ export default function MomentDetailScreen() {
       {/* Resonance indicator — owner only, shown when at least one person has resonated */}
       {moment && user && moment.userId === user.id && reactionCount > 0 && (
         <View style={styles.resonanceIndicator}>
-          <Ionicons name="heart" size={13} color="#E8825C" />
-          <Text style={[styles.resonanceCount, { color: theme.colors.textSecondary }]}>
-            {reactionCount}
-          </Text>
+          <Ionicons name="heart" size={16} color="#E8825C" />
         </View>
       )}
 
@@ -1393,19 +1390,14 @@ function createStyles(theme: Theme) {
     },
     resonanceIndicator: {
       position: "absolute",
-      bottom: 54,
+      bottom: 48,
       left: theme.spacing.xl,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      backgroundColor: theme.colors.closeButtonBg,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
+      width: 40,
+      height: 40,
       borderRadius: 20,
-    },
-    resonanceCount: {
-      fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
+      backgroundColor: theme.colors.accentBg,
+      alignItems: "center",
+      justifyContent: "center",
     },
     volumeHint: {
       position: "absolute",
