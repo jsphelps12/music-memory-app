@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Audio } from "expo-av";
 import { supabase } from "@/lib/supabase";
+import * as Crypto from "expo-crypto";
 import { mapRowToMoment } from "@/lib/moments";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { useTheme } from "@/hooks/useTheme";
@@ -50,8 +51,8 @@ export default function OnboardingMomentPreviewScreen() {
       .select("*")
       .eq("id", momentIdToShow)
       .single()
-      .then(({ data }) => {
-        if (data) setMoment(mapRowToMoment(data));
+      .then(({ data, error }) => {
+        if (!error && data) setMoment(mapRowToMoment(data));
         setLoading(false);
       });
   }, [momentIdToShow]);
@@ -93,9 +94,13 @@ export default function OnboardingMomentPreviewScreen() {
   const handleShare = async () => {
     if (!moment) return;
     try {
-      await Share.share({
-        message: `"${moment.songTitle}" by ${moment.songArtist}${moment.reflectionText ? ` — "${moment.reflectionText}"` : ""}`,
-      });
+      let token = moment.shareToken;
+      if (!token) {
+        token = Crypto.randomUUID();
+        await supabase.from("moments").update({ share_token: token }).eq("id", moment.id);
+      }
+      const url = `https://soundtracks.app/m/${token}`;
+      await Share.share({ message: url, url });
     } catch {}
   };
 
