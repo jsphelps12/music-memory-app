@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     ? `${supabaseUrl}/storage/v1/object/public/moment-photos/${row.photo_urls[0]}`
     : row.song_artwork_url ?? undefined;
 
-  const title = `${senderName} shared a memory with you`;
+  const title = `${senderName} shared a memory`;
   const songLine = [row.song_title, row.song_artist].filter(Boolean).join(" · ");
   const reflection = row.reflection_text
     ? ` — "${row.reflection_text.length > 120 ? row.reflection_text.slice(0, 120) + "…" : row.reflection_text}"`
@@ -94,7 +94,7 @@ export default async function GiftedMomentPage({ params }: PageProps) {
 
         {/* Sender label */}
         <p className="text-xs font-medium text-center mb-4 tracking-wide uppercase" style={{ color: "rgba(255,255,255,0.4)" }}>
-          {senderName} gifted you a memory
+          {senderName} shared a memory with you
         </p>
 
         {/* Card */}

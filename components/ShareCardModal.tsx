@@ -154,41 +154,41 @@ export function ShareCardModal({ visible, moment, photoUrls, onClose }: Props) {
             </View>
           )}
 
-          {/* Share image button */}
+          {/* Share link button */}
           <TouchableOpacity
             style={[
               styles.shareButton,
-              { backgroundColor: theme.colors.buttonBg, opacity: sharing ? 0.7 : 1 },
-            ]}
-            onPress={handleShare}
-            activeOpacity={0.8}
-            disabled={sharing}
-          >
-            {sharing ? (
-              <ActivityIndicator color={theme.colors.buttonText} />
-            ) : (
-              <Text style={[styles.shareButtonText, { color: theme.colors.buttonText }]}>
-                Share Image
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Gift link button */}
-          <TouchableOpacity
-            style={[
-              styles.shareButton,
-              styles.linkButton,
-              { borderColor: theme.colors.accent, opacity: sendingLink ? 0.7 : 1 },
+              { backgroundColor: theme.colors.buttonBg, opacity: sendingLink ? 0.7 : 1 },
             ]}
             onPress={handleSendLink}
             activeOpacity={0.8}
             disabled={sendingLink}
           >
             {sendingLink ? (
+              <ActivityIndicator color={theme.colors.buttonText} />
+            ) : (
+              <Text style={[styles.shareButtonText, { color: theme.colors.buttonText }]}>
+                Share
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Save as image button */}
+          <TouchableOpacity
+            style={[
+              styles.shareButton,
+              styles.linkButton,
+              { borderColor: theme.colors.accent, opacity: sharing ? 0.7 : 1 },
+            ]}
+            onPress={handleShare}
+            activeOpacity={0.8}
+            disabled={sharing}
+          >
+            {sharing ? (
               <ActivityIndicator color={theme.colors.accent} />
             ) : (
               <Text style={[styles.shareButtonText, { color: theme.colors.accent }]}>
-                Gift a Memory
+                Save as Image
               </Text>
             )}
           </TouchableOpacity>

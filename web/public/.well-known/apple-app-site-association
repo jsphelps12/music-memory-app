@@ -7,6 +7,18 @@
           {
             "/": "/confirm",
             "comment": "Email confirmation"
+          },
+          {
+            "/": "/m/*",
+            "comment": "Shared moment links"
+          },
+          {
+            "/": "/friend/*",
+            "comment": "Friend invite links"
+          },
+          {
+            "/": "/c/*",
+            "comment": "Collection links"
           }
         ]
       }

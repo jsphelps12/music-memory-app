@@ -83,17 +83,56 @@ export function useDeepLinkHandler() {
     }
   }, [user, router]);
 
+  const handleShareToken = useCallback(async (shareToken: string) => {
+    if (user) {
+      // Look up moment ID from share token and navigate directly
+      const { data } = await supabase
+        .from("moments")
+        .select("id")
+        .eq("share_token", shareToken)
+        .single();
+      if (data?.id) {
+        router.push({ pathname: "/moment/[id]" as any, params: { id: data.id } });
+      }
+    } else {
+      // Not logged in — store token; claimed after auth via existing PENDING_GIFT_TOKEN_KEY flow
+      await AsyncStorage.setItem(PENDING_GIFT_TOKEN_KEY, shareToken);
+    }
+  }, [user, router]);
+
   const handleUrl = useCallback(async (url: string) => {
     if (lastHandledUrlRef.current === url) return;
     lastHandledUrlRef.current = url;
-    // Join link: soundtracks://join?inviteCode={code}
+
+    // Universal Links — https://soundtracks.app/m/{share_token}
+    const universalMomentMatch = url.match(/^https:\/\/soundtracks\.app\/m\/([a-zA-Z0-9-]+)/);
+    if (universalMomentMatch) {
+      await handleShareToken(universalMomentMatch[1]);
+      return;
+    }
+
+    // Universal Links — https://soundtracks.app/friend/{token}
+    const universalFriendMatch = url.match(/^https:\/\/soundtracks\.app\/friend\/([a-zA-Z0-9-]+)/);
+    if (universalFriendMatch) {
+      await handleFriendToken(universalFriendMatch[1]);
+      return;
+    }
+
+    // Universal Links — https://soundtracks.app/c/{inviteCode}
+    const universalCollectionMatch = url.match(/^https:\/\/soundtracks\.app\/c\/([a-zA-Z0-9]+)/);
+    if (universalCollectionMatch) {
+      await handleInviteCode(universalCollectionMatch[1]);
+      return;
+    }
+
+    // Custom scheme — soundtracks://join?inviteCode={code}
     const joinMatch = url.match(/^soundtracks:\/\/join\?inviteCode=([a-zA-Z0-9]+)/);
     if (joinMatch) {
       await handleInviteCode(joinMatch[1]);
       return;
     }
 
-    // Friend link: soundtracks://friend?token={token}
+    // Custom scheme — soundtracks://friend?token={token}
     const friendMatch = url.match(/^soundtracks:\/\/friend\?token=([a-zA-Z0-9-]+)/);
     if (friendMatch) {
       await handleFriendToken(friendMatch[1]);
@@ -102,7 +141,7 @@ export function useDeepLinkHandler() {
 
     // Auth deep link (email confirmation, PKCE)
     handleAuthDeepLink(url);
-  }, [handleInviteCode, handleFriendToken]);
+  }, [handleInviteCode, handleFriendToken, handleShareToken]);
 
   // Clipboard check — deferred deep link fallback for cold installs via web invite/friend/gift pages
   useEffect(() => {

@@ -856,8 +856,8 @@ export default function MomentDetailScreen() {
                     <Ionicons name="image-outline" size={22} color={theme.colors.accent} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[shareSheetStyles.optionTitle, { color: theme.colors.text }]}>Create share card</Text>
-                    <Text style={[shareSheetStyles.optionSub, { color: theme.colors.textSecondary }]}>A designed image for Stories</Text>
+                    <Text style={[shareSheetStyles.optionTitle, { color: theme.colors.text }]}>Save as Image</Text>
+                    <Text style={[shareSheetStyles.optionSub, { color: theme.colors.textSecondary }]}>A designed card for Stories or texting</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
                 </TouchableOpacity>
