@@ -14,7 +14,11 @@ export async function submitContribution(formData: FormData): Promise<void> {
     throw new Error("All fields are required.");
   }
 
-  const song = JSON.parse(songJson) as {
+  if (name.length > 100) throw new Error("Name must be 100 characters or fewer.");
+  if (reflection.length > 5000) throw new Error("Reflection must be 5000 characters or fewer.");
+  if (photo.size > 20 * 1024 * 1024) throw new Error("Photo must be under 20 MB.");
+
+  let song: {
     trackId: number;
     trackName: string;
     artistName: string;
@@ -22,6 +26,14 @@ export async function submitContribution(formData: FormData): Promise<void> {
     artworkUrl100: string;
     previewUrl?: string;
   };
+  try {
+    song = JSON.parse(songJson);
+  } catch {
+    throw new Error("Invalid song data.");
+  }
+  if (!song.trackId || !song.trackName || !song.artistName) {
+    throw new Error("Invalid song data.");
+  }
 
   const supabase = getSupabase();
 

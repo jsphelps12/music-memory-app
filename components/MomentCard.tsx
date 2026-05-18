@@ -61,7 +61,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
   const handlePress = useCallback(() => {
     setCachedMoment(item);
     const dest = collectionId
-      ? { pathname: "/moment/[id]" as const, params: { id: item.id, collectionId, collectionRole } }
+      ? { pathname: "/moment/[id]" as const, params: { id: item.id, collectionId, collectionRole, contributorName: item.contributorName ?? undefined } }
       : { pathname: "/moment/[id]" as const, params: { id: item.id } };
     const { width: sw, height: sh } = Dimensions.get("window");
     runOnUI(() => {
@@ -76,7 +76,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
       }
       runOnJS(router.push)(dest);
     })();
-  }, [item.id, collectionId, collectionRole, router]);
+  }, [item.id, item.contributorName, collectionId, collectionRole, router]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],

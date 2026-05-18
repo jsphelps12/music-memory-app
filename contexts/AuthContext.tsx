@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { posthog } from "@/lib/posthog";
 import { CustomMoodDefinition, CustomPromptCategory, FavoriteArtist, FavoriteSong, UserProfile } from "@/types";
 import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
+import { fetchCollections, writeCollectionsCache, clearCollectionsCache, clearAllCollectionMomentsCache } from "@/lib/collections";
 import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
 
 export interface OnboardingData {
@@ -129,9 +130,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!isMountedRef.current) return;
         setSession(session);
         if (session?.user) {
-          // Start timeline prefetch immediately — before any awaits, so _prefetch is
-          // populated before setLoading(false) causes the tab to mount and call consumePrefetchPromise
+          // Start timeline + collections prefetch immediately — before any awaits,
+          // so data is warm before tabs mount and call loadCollections
           prefetchTimeline(session.user.id);
+          fetchCollections(session.user.id)
+            .then((data) => writeCollectionsCache(session.user.id, data))
+            .catch(() => {});
 
           // Stale-while-revalidate: lift AuthGate overlay immediately from cache, then refresh
           const cached = await readProfileCache(session.user.id);
@@ -249,6 +253,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (userId) {
       clearTimelineCache(userId);
       clearProfileCache(userId);
+      clearCollectionsCache(userId);
+      clearAllCollectionMomentsCache(userId);
     }
     posthog.reset();
     Sentry.setUser(null);

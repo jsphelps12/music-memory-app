@@ -8,6 +8,11 @@ export function friendlyError(err: unknown): string {
 
   const lower = message.toLowerCase();
 
+  // Server busy / query cancelled (Postgres 57014 — usually a table lock during a migration)
+  if (lower.includes("57014") || lower.includes("query_canceled") || lower.includes("canceling statement")) {
+    return "Server is busy. Please try again in a moment.";
+  }
+
   // Network errors
   if (
     lower.includes("network request failed") ||

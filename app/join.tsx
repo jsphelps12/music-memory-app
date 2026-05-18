@@ -56,13 +56,14 @@ export default function JoinScreen() {
       }
 
       // Check if already a member
-      const { data: membership } = await supabase
+      const { data: membership, error: membershipError } = await supabase
         .from("collection_members")
         .select("collection_id")
         .eq("collection_id", data.id)
         .eq("user_id", user!.id)
         .maybeSingle();
 
+      if (membershipError) throw membershipError;
       setState(membership ? "already_member" : "ready");
     } catch {
       setState("not_found");

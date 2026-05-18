@@ -72,14 +72,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { toUserId, type, payload } = await req.json() as {
+    const body = await req.json();
+    const { toUserId, type, payload } = body as {
       toUserId: string;
       type: NotificationType;
       payload: Record<string, any>;
     };
 
-    if (!toUserId || !type) {
-      return new Response(JSON.stringify({ error: "toUserId and type required" }), {
+    const validTypes: NotificationType[] = ["friend_request", "friend_accepted", "moment_tagged", "moment_resonated"];
+    if (!toUserId || !type || !validTypes.includes(type)) {
+      return new Response(JSON.stringify({ error: "toUserId and valid type required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

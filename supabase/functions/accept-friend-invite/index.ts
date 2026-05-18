@@ -24,24 +24,15 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) return error(401, "no_auth_header");
 
-  let visitorId: string;
-  try {
-    const jwt = authHeader.replace("Bearer ", "");
-    const segment = jwt.split(".")[1];
-    const b64 = segment.replace(/-/g, "+").replace(/_/g, "/").padEnd(
-      Math.ceil(segment.length / 4) * 4, "="
-    );
-    const payload = JSON.parse(atob(b64));
-    if (!payload.sub || payload.role !== "authenticated") return error(401, "invalid_claims");
-    visitorId = payload.sub;
-  } catch {
-    return error(401, "decode_failed");
-  }
-
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+  const token = authHeader.replace(/^Bearer\s+/i, "");
+  const { data: { user }, error: authError } = await adminClient.auth.getUser(token);
+  if (authError || !user) return error(401, "unauthorized");
+  const visitorId = user.id;
 
   const { token } = await req.json();
   if (!token) return error(400, "token required");

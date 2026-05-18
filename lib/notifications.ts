@@ -37,7 +37,8 @@ export async function checkAndNotifyMilestone(userId: string): Promise<void> {
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId);
 
-  if (error || count === null) return;
+  if (error) throw error;
+  if (count === null) return;
 
   if (!MILESTONE_COUNTS.includes(count)) return;
 

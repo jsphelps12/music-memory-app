@@ -2,22 +2,24 @@ import { supabase } from "@/lib/supabase";
 
 /** Check if the current user has resonated on a moment. */
 export async function fetchMyReaction(momentId: string): Promise<boolean> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("moment_reactions")
     .select("id")
     .eq("moment_id", momentId)
     .eq("type", "resonance")
     .maybeSingle();
+  if (error) throw error;
   return !!data;
 }
 
 /** Count all resonances on a moment. Only works for the moment owner (RLS). */
 export async function fetchReactionCount(momentId: string): Promise<number> {
-  const { count } = await supabase
+  const { count, error } = await supabase
     .from("moment_reactions")
     .select("id", { count: "exact", head: true })
     .eq("moment_id", momentId)
     .eq("type", "resonance");
+  if (error) throw error;
   return count ?? 0;
 }
 

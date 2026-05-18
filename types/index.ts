@@ -56,6 +56,7 @@ export interface Collection {
   name: string;
   createdAt: string;
   momentCount?: number;
+  momentIds?: string[]; // IDs of moments in this collection (personal collections only)
   isPublic?: boolean;
   inviteCode?: string;
   role: "owner" | "member";

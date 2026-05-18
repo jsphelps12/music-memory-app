@@ -1,6 +1,84 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { Collection, CollectionPreview, Moment } from "@/types";
+
+const COLLECTIONS_CACHE_PREFIX = "collections_cache_v1_";
+
+function collectionsCacheKey(userId: string) {
+  return `${COLLECTIONS_CACHE_PREFIX}${userId}`;
+}
+
+export async function readCollectionsCache(userId: string): Promise<Collection[] | null> {
+  try {
+    const raw = await AsyncStorage.getItem(collectionsCacheKey(userId));
+    return raw ? (JSON.parse(raw) as Collection[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function writeCollectionsCache(userId: string, collections: Collection[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(collectionsCacheKey(userId), JSON.stringify(collections));
+  } catch {}
+}
+
+export async function clearCollectionsCache(userId: string): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(collectionsCacheKey(userId));
+  } catch {}
+}
+
+// ─── Collection moments cache ─────────────────────────────────────────────────
+// Persists across app restarts so the first tap on a collection is instant.
+// All collections for a user stored under one key to keep clear/enumerate simple.
+
+const COLLECTION_MOMENTS_CACHE_KEY_PREFIX = "collection_moments_v1_";
+const COLLECTION_MOMENTS_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+type CollectionMomentsStore = Record<string, { moments: Moment[]; fetchedAt: number }>;
+
+function collectionMomentsCacheKey(userId: string) {
+  return `${COLLECTION_MOMENTS_CACHE_KEY_PREFIX}${userId}`;
+}
+
+async function readCollectionMomentsStore(userId: string): Promise<CollectionMomentsStore> {
+  try {
+    const raw = await AsyncStorage.getItem(collectionMomentsCacheKey(userId));
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function readCollectionMomentsCache(
+  userId: string,
+  collectionId: string
+): Promise<{ moments: Moment[]; fetchedAt: number } | null> {
+  const store = await readCollectionMomentsStore(userId);
+  return store[collectionId] ?? null;
+}
+
+export async function writeCollectionMomentsCache(
+  userId: string,
+  collectionId: string,
+  moments: Moment[]
+): Promise<void> {
+  try {
+    const store = await readCollectionMomentsStore(userId);
+    store[collectionId] = { moments, fetchedAt: Date.now() };
+    await AsyncStorage.setItem(collectionMomentsCacheKey(userId), JSON.stringify(store));
+  } catch {}
+}
+
+export async function clearAllCollectionMomentsCache(userId: string): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(collectionMomentsCacheKey(userId));
+  } catch {}
+}
+
+export { COLLECTION_MOMENTS_TTL_MS };
 
 export interface CollectionMember {
   userId: string;
@@ -9,22 +87,24 @@ export interface CollectionMember {
 }
 
 export async function fetchCollections(userId: string): Promise<Collection[]> {
-  // Owned collections
-  const { data: owned, error: ownedError } = await supabase
-    .from("collections")
-    .select("id, user_id, name, created_at, is_public, invite_code, collection_moments(moment_id)")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: true });
+  // Owned collections and member rows don't depend on each other — run in parallel
+  const [
+    { data: owned, error: ownedError },
+    { data: memberRows, error: memberError },
+  ] = await Promise.all([
+    supabase
+      .from("collections")
+      .select("id, user_id, name, created_at, is_public, invite_code, collection_moments(moment_id)")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("collection_members")
+      .select("collection_id, joined_at")
+      .eq("user_id", userId)
+      .order("joined_at", { ascending: true }),
+  ]);
 
   if (ownedError) throw ownedError;
-
-  // IDs of collections this user has joined (but doesn't own)
-  const { data: memberRows, error: memberError } = await supabase
-    .from("collection_members")
-    .select("collection_id, joined_at")
-    .eq("user_id", userId)
-    .order("joined_at", { ascending: true });
-
   if (memberError) throw memberError;
 
   const joinedIds = (memberRows ?? []).map((r: any) => r.collection_id);
@@ -67,6 +147,7 @@ export async function fetchCollections(userId: string): Promise<Collection[]> {
     name: row.name,
     createdAt: row.created_at,
     momentCount: (row.collection_moments ?? []).length,
+    momentIds: (row.collection_moments ?? []).map((cm: any) => cm.moment_id),
     isPublic: row.is_public ?? false,
     inviteCode: row.invite_code ?? undefined,
     role: "owner" as const,
@@ -346,65 +427,34 @@ export async function markCollectionViewed(
 ): Promise<void> {
   const now = new Date().toISOString();
   if (role === 'owner') {
-    await supabase
+    const { error } = await supabase
       .from("collections")
       .update({ owner_last_viewed_at: now })
       .eq("id", collectionId)
       .eq("user_id", userId);
+    if (error) throw error;
   } else {
-    await supabase
+    const { error } = await supabase
       .from("collection_members")
       .update({ last_viewed_at: now })
       .eq("collection_id", collectionId)
       .eq("user_id", userId);
+    if (error) throw error;
   }
 }
 
-// Fetch all moments across all contributors in a shared collection, ordered by added_at
+// Fetch all moments across all contributors in a shared collection via a single
+// server-side join (get_shared_collection_moments RPC), avoiding 3 serial queries.
 export async function fetchSharedCollectionMoments(collectionId: string): Promise<Moment[]> {
-  const { data: cmRows, error: cmError } = await supabase
-    .from("collection_moments")
-    .select("moment_id, added_by_user_id, added_at")
-    .eq("collection_id", collectionId)
-    .order("added_at", { ascending: false });
-
-  if (cmError) throw cmError;
-  if (!cmRows || cmRows.length === 0) return [];
-
-  const momentIds = cmRows.map((r: any) => r.moment_id);
-
-  const { data: momentRows, error: momentError } = await supabase
-    .from("moments")
-    .select("*")
-    .in("id", momentIds);
-
-  if (momentError) throw momentError;
-
-  const contributorIds = [
-    ...new Set(cmRows.map((r: any) => r.added_by_user_id).filter(Boolean)),
-  ];
-
-  const { data: profiles } = contributorIds.length > 0
-    ? await supabase.from("profiles").select("id, display_name").in("id", contributorIds)
-    : { data: [] };
-
-  const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p.display_name]));
-  const momentMap = new Map((momentRows ?? []).map((m: any) => [m.id, m]));
-
-  return cmRows
-    .map((cm: any) => {
-      const row = momentMap.get(cm.moment_id);
-      if (!row) return null;
-      const moment = mapRowToMoment(row);
-      // Guest contributions use guest_name for attribution
-      if (row.guest_uuid && row.guest_name) {
-        moment.contributorName = row.guest_name;
-      } else {
-        moment.contributorName = profileMap.get(cm.added_by_user_id) ?? null;
-      }
-      return moment;
-    })
-    .filter(Boolean) as Moment[];
+  const { data, error } = await supabase.rpc("get_shared_collection_moments", {
+    p_collection_id: collectionId,
+  });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => {
+    const moment = mapRowToMoment(row);
+    moment.contributorName = row.contributor_name ?? null;
+    return moment;
+  });
 }
 
 export async function renameCollection(collectionId: string, name: string): Promise<void> {

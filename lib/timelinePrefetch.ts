@@ -51,7 +51,10 @@ export function prefetchTimeline(userId: string): void {
       .order("moment_date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .range(0, TIMELINE_PAGE_SIZE - 1)
-      .then(({ data }) => (data ?? []).map(mapRowToMoment))
+      .then(({ data, error }) => {
+        if (error) throw error;
+        return (data ?? []).map(mapRowToMoment);
+      })
       .then((moments) => {
         writeCache(userId, moments);
         return moments;
