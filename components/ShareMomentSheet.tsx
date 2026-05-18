@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Platform,
   Alert,
+  ScrollView,
 } from "react-native";
 import ViewShot from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
@@ -20,9 +21,10 @@ import { supabase } from "@/lib/supabase";
 import * as Crypto from "expo-crypto";
 import { Image } from "expo-image";
 import { ShareCard, CARD_WIDTH, CARD_HEIGHT } from "@/components/ShareCard";
-import { Moment, TaggedMoment } from "@/types";
+import { Moment, TaggedMoment, Friendship } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { CloseButton } from "@/components/CloseButton";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   visible: boolean;
@@ -34,16 +36,59 @@ interface Props {
 
 export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: Props) {
   const theme = useTheme();
+  const { user } = useAuth();
   const viewShotRef = useRef<ViewShot>(null);
-  const [view, setView] = useState<"options" | "card">("options");
+  const [view, setView] = useState<"options" | "card" | "tagFriend">("options");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [sharing, setSharing] = useState(false);
   const [sendingLink, setSendingLink] = useState(false);
   const [sentTagIds, setSentTagIds] = useState<Set<string>>(new Set());
   const [sendingTagId, setSendingTagId] = useState<string | null>(null);
+  const [localTags, setLocalTags] = useState<TaggedMoment[]>(tags);
+  const [friends, setFriends] = useState<Friendship[]>([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [taggingUserId, setTaggingUserId] = useState<string | null>(null);
+
+  useEffect(() => { setLocalTags(tags); }, [tags]);
+
+  const alreadyTaggedIds = new Set(localTags.map((t) => t.taggedUserId));
+
+  const openTagFriendPicker = async () => {
+    setView("tagFriend");
+    if (friends.length > 0) return;
+    setFriendsLoading(true);
+    try {
+      const { fetchFriends } = await import("@/lib/friends");
+      const result = await fetchFriends(user!.id);
+      setFriends(result);
+    } catch {
+      Alert.alert("Couldn't load friends", "Please try again.");
+      setView("options");
+    } finally {
+      setFriendsLoading(false);
+    }
+  };
+
+  const handleTagFriend = async (friend: Friendship) => {
+    if (taggingUserId) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setTaggingUserId(friend.otherUserId);
+    try {
+      const { insertTaggedMoment } = await import("@/lib/friends");
+      const newTag = await insertTaggedMoment(moment.id, friend.otherUserId, true);
+      setLocalTags((prev) => [...prev, { ...newTag, taggerDisplayName: friend.otherUserDisplayName }]);
+      setSentTagIds((prev) => new Set([...prev, newTag.id]));
+      setView("options");
+    } catch {
+      Alert.alert("Couldn't tag friend", "Please try again.");
+    } finally {
+      setTaggingUserId(null);
+    }
+  };
 
   const handleClose = () => {
     setView("options");
+    setSentTagIds(new Set());
     onClose();
   };
 
@@ -183,8 +228,8 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
                 </TouchableOpacity>
               </View>
 
-              {/* Tagged friends — separate card with purple border */}
-              {tags.map((tag) => {
+              {/* Tagged friends */}
+              {localTags.map((tag) => {
                 const name = tag.taggerDisplayName ?? "Friend";
                 const sent = sentTagIds.has(tag.id);
                 const sending = sendingTagId === tag.id;
@@ -224,9 +269,87 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
                 );
               })}
 
+              {/* Tag another friend */}
+              {user && moment.userId === user.id && (
+                <TouchableOpacity
+                  style={[styles.friendCard, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
+                  activeOpacity={0.7}
+                  onPress={openTagFriendPicker}
+                >
+                  <View style={[styles.iconBox, { backgroundColor: theme.colors.chipBg }]}>
+                    <Ionicons name="person-add-outline" size={20} color={theme.colors.textSecondary} />
+                  </View>
+                  <View style={styles.optionText}>
+                    <Text style={[styles.optionTitle, { color: theme.colors.text }]}>Tag a friend</Text>
+                    <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>Send this moment to someone in app</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                </TouchableOpacity>
+              )}
+
               <TouchableOpacity style={styles.cancelButton} onPress={handleClose} activeOpacity={0.7}>
                 <Text style={[styles.cancelText, { color: theme.colors.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
+            </>
+          ) : view === "tagFriend" ? (
+            <>
+              <View style={styles.cardHeader}>
+                <TouchableOpacity onPress={() => setView("options")} hitSlop={12} activeOpacity={0.7} style={styles.backButton}>
+                  <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
+                </TouchableOpacity>
+                <Text style={[styles.cardTitle, { color: theme.colors.text }]}>Tag a friend</Text>
+                <CloseButton onPress={handleClose} />
+              </View>
+              {friendsLoading ? (
+                <View style={styles.friendPickerEmpty}>
+                  <ActivityIndicator color={theme.colors.accent} />
+                </View>
+              ) : (() => {
+                const available = friends.filter((f) => !alreadyTaggedIds.has(f.otherUserId));
+                if (available.length === 0) {
+                  return (
+                    <View style={styles.friendPickerEmpty}>
+                      <Text style={[styles.optionDesc, { color: theme.colors.textSecondary, textAlign: "center" }]}>
+                        All your friends have already been tagged.
+                      </Text>
+                    </View>
+                  );
+                }
+                return (
+                  <ScrollView style={styles.friendPickerList} showsVerticalScrollIndicator={false}>
+                    {available.map((friend) => {
+                      const isTagging = taggingUserId === friend.otherUserId;
+                      return (
+                        <TouchableOpacity
+                          key={friend.id}
+                          style={[styles.friendPickerRow, { borderBottomColor: theme.colors.border }]}
+                          onPress={() => handleTagFriend(friend)}
+                          disabled={!!taggingUserId}
+                          activeOpacity={0.7}
+                        >
+                          <View style={[styles.friendAvatar, { backgroundColor: theme.colors.backgroundTertiary }]}>
+                            <Text style={[styles.friendAvatarInitial, { color: theme.colors.textTertiary }]}>
+                              {(friend.otherUserDisplayName ?? friend.otherUserUsername ?? "?")[0]?.toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.optionTitle, { color: theme.colors.text }]} numberOfLines={1}>
+                              {friend.otherUserDisplayName ?? friend.otherUserUsername ?? "Friend"}
+                            </Text>
+                            {friend.otherUserUsername && (
+                              <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>@{friend.otherUserUsername}</Text>
+                            )}
+                          </View>
+                          {isTagging
+                            ? <ActivityIndicator size="small" color={theme.colors.accentSecondary} />
+                            : <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                          }
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                );
+              })()}
             </>
           ) : (
             <>
@@ -453,5 +576,33 @@ const styles = StyleSheet.create({
   shareButtonText: {
     fontSize: 16,
     fontWeight: "700",
+  },
+  friendPickerList: {
+    maxHeight: 320,
+    paddingHorizontal: 16,
+  },
+  friendPickerEmpty: {
+    height: 120,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  friendPickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  friendAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  friendAvatarInitial: {
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
