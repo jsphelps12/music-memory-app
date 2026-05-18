@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   View,
   Text,
@@ -6,7 +7,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -25,18 +25,15 @@ export default function FriendRequestScreen() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const [profile, setProfile] = useState<ProfileResult | null>(null);
-  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
-  useEffect(() => {
-    if (!token) { setLoading(false); return; }
-    fetchProfileByFriendToken(token).then((p) => {
-      setProfile(p);
-      setLoading(false);
-    });
-  }, [token]);
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ["friendToken", token],
+    queryFn: () => fetchProfileByFriendToken(token!),
+    enabled: !!token,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const handleClose = () => {
     router.navigate("/(tabs)/friends" as any);
@@ -74,7 +71,7 @@ export default function FriendRequestScreen() {
         <CloseButton onPress={handleClose} />
       </View>
 
-      {loading ? (
+      {isLoading ? (
         <View style={styles.center}>
           <ActivityIndicator color={theme.colors.accent} />
         </View>

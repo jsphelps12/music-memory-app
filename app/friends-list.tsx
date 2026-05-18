@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   View,
   Text,
@@ -8,7 +9,6 @@ import {
   ScrollView,
   RefreshControl,
   Alert,
-  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,6 +31,18 @@ import {
 import type { Friendship } from "@/types";
 
 const AVATAR_SIZE = 40;
+const STALE_TIME = 2 * 60 * 1000;
+
+type FriendsListData = { friends: Friendship[]; pending: Friendship[]; sent: Friendship[] };
+
+async function fetchFriendsListData(userId: string): Promise<FriendsListData> {
+  const [friends, pending, sent] = await Promise.all([
+    fetchFriends(userId),
+    fetchPendingRequests(userId),
+    fetchSentRequests(userId),
+  ]);
+  return { friends, pending, sent };
+}
 
 function Avatar({ avatarUrl, displayName }: { avatarUrl: string | null; displayName: string | null }) {
   const theme = useTheme();
@@ -51,45 +63,35 @@ export default function FriendsListScreen() {
   const { user } = useAuth();
   const theme = useTheme();
   const s = useMemo(() => createStyles(theme), [theme]);
+  const queryClient = useQueryClient();
 
-  const [friends, setFriends] = useState<Friendship[]>([]);
-  const [pending, setPending] = useState<Friendship[]>([]);
-  const [sent, setSent] = useState<Friendship[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [sentCollapsed, setSentCollapsed] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
-    if (!user) return;
-    try {
-      const [f, p, s] = await Promise.all([
-        fetchFriends(user.id),
-        fetchPendingRequests(user.id),
-        fetchSentRequests(user.id),
-      ]);
-      setFriends(f);
-      setPending(p);
-      setSent(s);
-    } catch (e) {
-      Alert.alert("Error", friendlyError(e));
-    }
-    setLoading(false);
-  }, [user]);
+  const { data, isLoading, isFetching, refetch } = useQuery({
+    queryKey: ["friendsList", user?.id],
+    queryFn: () => fetchFriendsListData(user!.id),
+    staleTime: STALE_TIME,
+    enabled: !!user,
+  });
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const friends = data?.friends ?? [];
+  const pending = data?.pending ?? [];
+  const sent = data?.sent ?? [];
 
   const handleAccept = async (friendship: Friendship) => {
     setActing(friendship.id);
     try {
       await acceptFriendRequest(friendship.id);
-      setPending((prev) => prev.filter((f) => f.id !== friendship.id));
-      setFriends((prev) => [
-        ...prev,
-        { ...friendship, status: "accepted" },
-      ]);
+      queryClient.setQueryData(["friendsList", user?.id], (old: FriendsListData | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pending: old.pending.filter((f) => f.id !== friendship.id),
+          friends: [...old.friends, { ...friendship, status: "accepted" }],
+        };
+      });
+      queryClient.invalidateQueries({ queryKey: ["friendsBadge", user?.id] });
     } catch (e) {
       Alert.alert("Error", friendlyError(e));
     }
@@ -100,7 +102,11 @@ export default function FriendsListScreen() {
     setActing(friendship.id);
     try {
       await declineFriendRequest(friendship.id);
-      setPending((prev) => prev.filter((f) => f.id !== friendship.id));
+      queryClient.setQueryData(["friendsList", user?.id], (old: FriendsListData | undefined) => {
+        if (!old) return old;
+        return { ...old, pending: old.pending.filter((f) => f.id !== friendship.id) };
+      });
+      queryClient.invalidateQueries({ queryKey: ["friendsBadge", user?.id] });
     } catch (e) {
       Alert.alert("Error", friendlyError(e));
     }
@@ -120,7 +126,10 @@ export default function FriendsListScreen() {
           onPress: async () => {
             try {
               await removeFriend(friendship.id);
-              setFriends((prev) => prev.filter((f) => f.id !== friendship.id));
+              queryClient.setQueryData(["friendsList", user?.id], (old: FriendsListData | undefined) => {
+                if (!old) return old;
+                return { ...old, friends: old.friends.filter((f) => f.id !== friendship.id) };
+              });
             } catch (e) {
               Alert.alert("Error", friendlyError(e));
             }
@@ -134,7 +143,10 @@ export default function FriendsListScreen() {
     setActing(friendship.id);
     try {
       await cancelFriendRequest(friendship.id);
-      setSent((prev) => prev.filter((f) => f.id !== friendship.id));
+      queryClient.setQueryData(["friendsList", user?.id], (old: FriendsListData | undefined) => {
+        if (!old) return old;
+        return { ...old, sent: old.sent.filter((f) => f.id !== friendship.id) };
+      });
     } catch (e) {
       Alert.alert("Error", friendlyError(e));
     }
@@ -149,7 +161,7 @@ export default function FriendsListScreen() {
         <CloseButton onPress={() => router.back()} />
       </View>
 
-      {loading ? (
+      {isLoading ? (
         <View style={s.center}>
           <ActivityIndicator color={theme.colors.accent} />
         </View>
@@ -159,8 +171,8 @@ export default function FriendsListScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
-              refreshing={refreshing}
-              onRefresh={async () => { setRefreshing(true); await loadData(); setRefreshing(false); }}
+              refreshing={isFetching && !isLoading}
+              onRefresh={refetch}
               tintColor={theme.colors.accent}
             />
           }

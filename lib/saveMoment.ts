@@ -78,7 +78,10 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
         ? `${input.momentDate.getFullYear()}-${String(input.momentDate.getMonth() + 1).padStart(2, "0")}-${String(input.momentDate.getDate()).padStart(2, "0")}`
         : null,
       time_of_day: getTimeOfDay(),
-      visibility: input.visibility,
+      // If tagging friends with send:true, upgrade private → connections so they can read it
+      visibility: input.visibility === 'private' && input.taggedFriends?.some((tf) => tf.send)
+        ? 'connections'
+        : input.visibility,
     })
     .select("*")
     .single();

@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { StyleSheet, View, Text } from "react-native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Ionicons } from "@expo/vector-icons";
 import { withLayoutContext } from "expo-router";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchPendingRequests } from "@/lib/friends";
@@ -20,32 +21,26 @@ function TabBarIcon(props: {
   return <FontAwesome size={24} style={{ marginBottom: -3 }} {...props} />;
 }
 
+async function fetchFriendsBadgeCount(userId: string): Promise<number> {
+  const [requests, collections, invites] = await Promise.all([
+    fetchPendingRequests(userId),
+    fetchSharedCollectionActivity(userId),
+    fetchPendingCollectionInvites(userId).catch(() => []),
+  ]);
+  const newCollectionMoments = collections.reduce((sum, c) => sum + c.newMomentCount, 0);
+  return requests.length + newCollectionMoments + invites.length;
+}
+
 function FriendsTabIcon({ color }: { color: string }) {
-  const [pendingCount, setPendingCount] = useState(0);
   const { user } = useAuth();
 
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-
-    async function loadCount() {
-      try {
-        const [requests, collections, invites] = await Promise.all([
-          fetchPendingRequests(user!.id),
-          fetchSharedCollectionActivity(user!.id),
-          fetchPendingCollectionInvites(user!.id).catch(() => []),
-        ]);
-        if (!cancelled) {
-          const newCollectionMoments = collections.reduce((sum, c) => sum + c.newMomentCount, 0);
-          setPendingCount(requests.length + newCollectionMoments + invites.length);
-        }
-      } catch {}
-    }
-
-    loadCount();
-    const interval = setInterval(loadCount, 60_000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, [user?.id]);
+  const { data: pendingCount = 0 } = useQuery({
+    queryKey: ["friendsBadge", user?.id],
+    queryFn: () => fetchFriendsBadgeCount(user!.id),
+    enabled: !!user,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  });
 
   return (
     <View>

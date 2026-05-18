@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   View,
   Text,
@@ -259,6 +260,27 @@ function CollectionRow({ item, onPress, styles, theme }: { item: SharedCollectio
   );
 }
 
+// ── Data fetching ─────────────────────────────────────────────────────────────
+
+const STALE_TIME = 2 * 60 * 1000;
+
+async function fetchSharedScreenData(userId: string) {
+  const [requests, friends, tagged, collections, invites] = await Promise.all([
+    fetchPendingRequests(userId),
+    fetchFriends(userId),
+    fetchTaggedMomentsSharedTab(userId),
+    fetchSharedCollectionActivity(userId),
+    fetchPendingCollectionInvites(userId).catch(() => [] as CollectionInvite[]),
+  ]);
+  return {
+    pendingRequests: requests,
+    hasFriends: friends.length > 0,
+    taggedMoments: tagged,
+    sharedCollections: collections,
+    collectionInvites: invites,
+  };
+}
+
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function SharedScreen() {
@@ -267,62 +289,45 @@ export default function SharedScreen() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [pendingRequests, setPendingRequests] = useState<Friendship[]>([]);
-  const [taggedMoments, setTaggedMoments] = useState<TaggedMoment[]>([]);
-  const [sharedCollections, setSharedCollections] = useState<SharedCollectionActivity[]>([]);
-  const [collectionInvites, setCollectionInvites] = useState<CollectionInvite[]>([]);
-  const [hasFriends, setHasFriends] = useState(false);
   const [addFriendVisible, setAddFriendVisible] = useState(false);
   const [respondingInviteId, setRespondingInviteId] = useState<string | null>(null);
-  const lastFetchRef = useRef(0);
-  const COOLDOWN = 2 * 60 * 1000;
+  const queryClient = useQueryClient();
 
-  const loadData = useCallback(async (force = false) => {
-    if (!user) return;
-    const now = Date.now();
-    if (!force && now - lastFetchRef.current < COOLDOWN) return;
-    lastFetchRef.current = now;
-    try {
-      const [requests, friends, tagged, collections, invites] = await Promise.all([
-        fetchPendingRequests(user.id),
-        fetchFriends(user.id),
-        fetchTaggedMomentsSharedTab(user.id),
-        fetchSharedCollectionActivity(user.id),
-        fetchPendingCollectionInvites(user.id).catch(() => [] as CollectionInvite[]),
-      ]);
-      setPendingRequests(requests);
-      setHasFriends(friends.length > 0);
-      setTaggedMoments(tagged);
-      setSharedCollections(collections);
-      setCollectionInvites(invites);
-    } catch {}
-    setLoading(false);
-  }, [user]);
+  const { data, isLoading, refetch, isFetching, dataUpdatedAt } = useQuery({
+    queryKey: ["sharedScreen", user?.id],
+    queryFn: () => fetchSharedScreenData(user!.id),
+    staleTime: STALE_TIME,
+    enabled: !!user,
+  });
 
-  useEffect(() => { if (user) loadData(true); }, [user?.id]);
-  useFocusEffect(useCallback(() => { loadData(true); }, [loadData]));
+  const pendingRequests = data?.pendingRequests ?? [];
+  const taggedMoments = data?.taggedMoments ?? [];
+  const sharedCollections = data?.sharedCollections ?? [];
+  const collectionInvites = data?.collectionInvites ?? [];
+  const hasFriends = data?.hasFriends ?? false;
+
+  useFocusEffect(useCallback(() => {
+    if (Date.now() - dataUpdatedAt > STALE_TIME) refetch();
+  }, [refetch, dataUpdatedAt]));
 
   const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await loadData(true);
-    setRefreshing(false);
-  }, [loadData]);
+    await refetch();
+  }, [refetch]);
 
   const handleTapCollection = useCallback((item: SharedCollectionActivity) => {
-    // Mark viewed optimistically so badge clears immediately
     markCollectionViewed(item.collectionId, user!.id, item.role).catch(() => {});
-    setSharedCollections((prev) =>
-      prev.map((c) => c.collectionId === item.collectionId ? { ...c, newMomentCount: 0 } : c)
+    queryClient.setQueryData(["sharedScreen", user?.id], (old: any) =>
+      old ? { ...old, sharedCollections: old.sharedCollections.map((c: SharedCollectionActivity) =>
+        c.collectionId === item.collectionId ? { ...c, newMomentCount: 0 } : c
+      )} : old
     );
     router.push({ pathname: "/collection/[id]" as any, params: { id: item.collectionId } });
-  }, [user, router]);
+  }, [user, router, queryClient]);
 
   const handleTapTag = useCallback((tag: TaggedMoment) => {
     router.push({
       pathname: "/moment/[id]" as any,
-      params: { id: tag.momentId },
+      params: { id: tag.momentId, contributorName: tag.taggerDisplayName ?? undefined },
     });
   }, [router]);
 
@@ -332,32 +337,39 @@ export default function SharedScreen() {
     try {
       await acceptCollectionInvite(invite.id, invite.collectionId, user.id);
       // Remove invite optimistically — don't re-fetch invites (replication lag causes it to reappear)
-      setCollectionInvites((prev) => prev.filter((i) => i.id !== invite.id));
-      // Refresh only the shared collections so the newly joined one appears
-      const updated = await fetchSharedCollectionActivity(user.id);
-      setSharedCollections(updated);
+      // Fetch updated collections separately and write both changes into cache at once
+      const updatedCollections = await fetchSharedCollectionActivity(user.id);
+      queryClient.setQueryData(["sharedScreen", user.id], (old: any) =>
+        old ? {
+          ...old,
+          collectionInvites: old.collectionInvites.filter((i: CollectionInvite) => i.id !== invite.id),
+          sharedCollections: updatedCollections,
+        } : old
+      );
     } catch (e: any) {
       Alert.alert("Error", friendlyError(e));
     } finally {
       setRespondingInviteId(null);
     }
-  }, [user]);
+  }, [user, queryClient]);
 
   const handleDeclineInvite = useCallback(async (inviteId: string) => {
     setRespondingInviteId(inviteId);
     try {
       await deleteCollectionInvite(inviteId);
-      setCollectionInvites((prev) => prev.filter((i) => i.id !== inviteId));
+      queryClient.setQueryData(["sharedScreen", user?.id], (old: any) =>
+        old ? { ...old, collectionInvites: old.collectionInvites.filter((i: CollectionInvite) => i.id !== inviteId) } : old
+      );
     } catch (e: any) {
       Alert.alert("Error", friendlyError(e));
     } finally {
       setRespondingInviteId(null);
     }
-  }, []);
+  }, [user, queryClient]);
 
   const isEmpty = taggedMoments.length === 0 && sharedCollections.length === 0 && collectionInvites.length === 0;
 
-  if (loading) {
+  if (isLoading) {
     return (
       <View style={[styles.container, styles.center]}>
         <ActivityIndicator color={theme.colors.accent} />
@@ -382,7 +394,7 @@ export default function SharedScreen() {
 
       <ScrollView
         contentContainerStyle={[styles.listContent, isEmpty && styles.listContentEmpty]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.accent} />}
+        refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={handleRefresh} tintColor={theme.colors.accent} />}
       >
         {/* Username setup prompt */}
         {!profile?.usernameCustomized && (

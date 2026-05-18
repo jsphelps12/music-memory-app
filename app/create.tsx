@@ -267,7 +267,7 @@ export default function CreateMomentScreen() {
       if (secondaryFailures.length > 0) {
         Alert.alert(
           "Moment saved",
-          `Your moment was saved, but it ${secondaryFailures.join(" and ")}. Try again from the moment detail.`
+          `Your moment was saved, but ${secondaryFailures.join(" and ")}. You can retry from the moment detail.`
         );
       }
 
