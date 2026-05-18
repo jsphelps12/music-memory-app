@@ -5,6 +5,7 @@ node_modules/
 
 #Claude
 .claude/
+.mcp.json
 
 # Expo
 .expo/
