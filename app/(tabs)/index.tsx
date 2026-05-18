@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePostHog } from "posthog-react-native";
 import {
   View,
   Text,
@@ -23,7 +24,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
-import { fetchCollections, fetchSharedCollectionMoments } from "@/lib/collections";
+import { fetchCollections, fetchSharedCollectionMoments, readCollectionsCache, writeCollectionsCache, readCollectionMomentsCache, writeCollectionMomentsCache, COLLECTION_MOMENTS_TTL_MS } from "@/lib/collections";
 import { consumePendingCollectionId } from "@/lib/pendingCollection";
 import { consumeTimelineStale } from "@/lib/timelineRefresh";
 import { consumePrefetchPromise, TIMELINE_PAGE_SIZE } from "@/lib/timelinePrefetch";
@@ -63,6 +64,7 @@ export default function TimelineScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
   const theme = useTheme();
+  const posthog = usePostHog();
 
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [moments, setMoments] = useState<Moment[]>([]);
@@ -124,7 +126,9 @@ export default function TimelineScreen() {
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [calendarMoments, setCalendarMoments] = useState<Moment[]>([]);
-  const calendarFetchedRef = useRef(false);
+  // null = never attempted, true = succeeded, false = failed (don't auto-retry, but retry on explicit user action)
+  const calendarFetchedRef = useRef<null | boolean>(null);
+  const lastCollectionsFetchTime = useRef(0);
   const [pendingScrollId, setPendingScrollId] = useState<string | null>(null);
 
   // Clear all data immediately when the user changes (e.g. sign out → sign in as different user)
@@ -133,8 +137,9 @@ export default function TimelineScreen() {
     setCalendarMoments([]);
     setCollections([]);
     setSelectedCollection(null);
-    calendarFetchedRef.current = false;
+    calendarFetchedRef.current = null;
     lastFetchTime.current = 0;
+    lastCollectionsFetchTime.current = 0;
     timelineSnapshotRef.current = null;
     collectionCacheRef.current.clear();
   }, [user?.id]);
@@ -152,12 +157,23 @@ export default function TimelineScreen() {
   const fetchCalendarMoments = useCallback(async () => {
     if (!user) return;
     setCalendarLoading(true);
-    const { data } = await supabase
+
+    // If all moments are already in memory, derive calendar data from them — no query needed.
+    const snapshot = timelineSnapshotRef.current;
+    if (snapshot && !snapshot.hasMore) {
+      setCalendarMoments(snapshot.moments);
+      calendarFetchedRef.current = true;
+      setCalendarLoading(false);
+      return;
+    }
+
+    // Paginated user (30+ moments) — must query the full set.
+    const { data, error } = await supabase
       .from("moments")
       .select("id, moment_date, song_artwork_url, song_title, song_artist")
       .eq("user_id", user.id)
       .order("moment_date", { ascending: false, nullsFirst: false });
-    if (data) {
+    if (!error && data) {
       setCalendarMoments(
         data.map((r: any): Moment => ({
           id: r.id,
@@ -174,6 +190,8 @@ export default function TimelineScreen() {
         }))
       );
       calendarFetchedRef.current = true;
+    } else {
+      calendarFetchedRef.current = false;
     }
     setCalendarLoading(false);
   }, [user]);
@@ -191,7 +209,7 @@ export default function TimelineScreen() {
       listOpacity.value = withTiming(0, { duration: 200 });
       calendarOpacity.value = withTiming(1, { duration: 200 });
       setViewMode("calendar");
-      if (!calendarFetchedRef.current) fetchCalendarMoments();
+      if (calendarFetchedRef.current !== true) fetchCalendarMoments();
     }
   }, [fetchCalendarMoments]);
 
@@ -226,7 +244,7 @@ export default function TimelineScreen() {
       listOpacity.value = withTiming(0, { duration: 200 });
       calendarOpacity.value = withTiming(1, { duration: 200 });
       setViewMode("calendar");
-      if (!calendarFetchedRef.current) fetchCalendarMoments();
+      if (calendarFetchedRef.current !== true) fetchCalendarMoments();
     } else {
       calendarOpacity.value = withTiming(0, { duration: 200 });
       listOpacity.value = withTiming(1, { duration: 200 });
@@ -327,6 +345,7 @@ export default function TimelineScreen() {
       if (!user) return;
       if (!append) pageRef.current = 0;
       if (showLoading) setLoading(true);
+      const t0 = Date.now();
 
       // On first load, consume the prefetch started at auth — avoids a duplicate
       // round trip and makes the initial render feel instant
@@ -337,11 +356,27 @@ export default function TimelineScreen() {
           if (prefetched !== null) {
             const peopleSet = new Set<string>();
             for (const m of prefetched) for (const p of m.people) peopleSet.add(p);
+            const nextHasMore = prefetched.length === TIMELINE_PAGE_SIZE;
             setMoments(prefetched);
-            setHasMore(prefetched.length === TIMELINE_PAGE_SIZE);
+            setHasMore(nextHasMore);
             setAllPeople(Array.from(peopleSet).sort());
+            timelineSnapshotRef.current = { moments: prefetched, hasMore: nextHasMore };
+            // Derive count from cache; only hit the DB if there might be more pages
+            if (!nextHasMore) {
+              setTotalCount(prefetched.length);
+            } else {
+              Promise.resolve(
+                supabase.from("moments").select("id", { count: "exact", head: true }).eq("user_id", user.id)
+              ).then(({ count }) => { if (count !== null) setTotalCount(count); }).catch(() => {});
+            }
             setLoading(false);
             lastFetchTime.current = Date.now();
+            posthog?.capture("timeline_load", {
+              source: "cold_start",
+              served_from: "prefetch_cache",
+              duration_ms: Date.now() - t0,
+              moment_count: prefetched.length,
+            });
             return;
           }
         }
@@ -401,47 +436,84 @@ export default function TimelineScreen() {
 
       if (currentCollection) {
         const cacheKey = currentCollection.id;
-        const cached = collectionCacheRef.current.get(cacheKey);
-        const cacheStale = !cached || (Date.now() - cached.fetchedAt) > REFETCH_COOLDOWN_MS;
+        const collectionType = currentCollection.isPublic ? "shared" : "personal";
 
-        // Show cached result immediately; still refresh if stale
-        if (cached) {
-          setMoments(cached.moments);
+        // L1: in-memory cache (fast, within-session)
+        let memCached = collectionCacheRef.current.get(cacheKey);
+
+        // L2: AsyncStorage (survives app restarts) — only check on cache miss
+        if (!memCached && user) {
+          const persisted = await readCollectionMomentsCache(user.id, cacheKey);
+          if (persisted) {
+            memCached = persisted;
+            collectionCacheRef.current.set(cacheKey, persisted); // warm L1
+          }
+        }
+
+        const cacheStale = !memCached || (Date.now() - memCached.fetchedAt) > COLLECTION_MOMENTS_TTL_MS;
+
+        // Show cached content immediately regardless of staleness
+        if (memCached) {
+          setMoments(memCached.moments);
           setHasMore(false);
           setLoading(false);
           if (!cacheStale) {
             lastFetchTime.current = Date.now();
+            posthog?.capture("collection_switch", {
+              served_from: "cache",
+              collection_type: collectionType,
+              duration_ms: Date.now() - t0,
+              moment_count: memCached.moments.length,
+            });
             return;
           }
-          // Stale: fall through to fetch, but already showing cached content
+          // Stale: show cached content but fall through to refresh
         }
 
-        if (currentCollection.isPublic) {
-          // Shared collection: fetch all contributors' moments (owner and members)
-          const shared = await fetchSharedCollectionMoments(currentCollection.id);
-          collectionCacheRef.current.set(cacheKey, { moments: shared, fetchedAt: Date.now() });
-          setMoments(shared);
-          setHasMore(false);
-          setLoading(false);
-          lastFetchTime.current = Date.now();
-          return;
-        }
-        // Owned collection: filter own moments by collection membership
-        const { data: cm } = await supabase
-          .from("collection_moments")
-          .select("moment_id")
-          .eq("collection_id", currentCollection.id);
-        const ids = (cm ?? []).map((r: any) => r.moment_id);
-        if (ids.length === 0) {
-          collectionCacheRef.current.set(cacheKey, { moments: [], fetchedAt: Date.now() });
-          setMoments([]);
-          setHasMore(false);
-          setLoading(false);
-          lastFetchTime.current = Date.now();
-          return;
-        }
-        query = query.in("id", ids);
-        // Finish the query below; cache will be updated after results arrive
+        const fetchAndCache = async (): Promise<Moment[]> => {
+          if (currentCollection.isPublic) {
+            return fetchSharedCollectionMoments(currentCollection.id);
+          }
+          // Personal collection: filter the in-memory snapshot if we have all moments,
+          // avoiding a DB round-trip entirely. Fall back to a query only for paginated users.
+          const snapshot = timelineSnapshotRef.current;
+          const ids = currentCollection.momentIds;
+          if (snapshot && !snapshot.hasMore && ids) {
+            const idSet = new Set(ids);
+            return snapshot.moments
+              .filter((m) => idSet.has(m.id))
+              .sort((a, b) => {
+                const da = a.momentDate ?? a.createdAt;
+                const db = b.momentDate ?? b.createdAt;
+                return da < db ? 1 : da > db ? -1 : 0;
+              });
+          }
+          const { data: collectionMoments, error: cmError } = await supabase
+            .from("moments")
+            .select("*, collection_moments!inner(collection_id)")
+            .eq("user_id", user!.id)
+            .eq("collection_moments.collection_id", currentCollection.id)
+            .order("moment_date", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false });
+          if (cmError) throw cmError;
+          return (collectionMoments ?? []).map(mapRowToMoment);
+        };
+
+        const fresh = await fetchAndCache();
+        const entry = { moments: fresh, fetchedAt: Date.now() };
+        collectionCacheRef.current.set(cacheKey, entry);
+        if (user) writeCollectionMomentsCache(user.id, cacheKey, fresh);
+        setMoments(fresh);
+        setHasMore(false);
+        setLoading(false);
+        lastFetchTime.current = Date.now();
+        posthog?.capture("collection_switch", {
+          served_from: memCached ? "stale_cache_refresh" : "network",
+          collection_type: collectionType,
+          duration_ms: Date.now() - t0,
+          moment_count: fresh.length,
+        });
+        return;
       }
 
       // When switching back to All: restore cached snapshot instantly so the
@@ -483,14 +555,32 @@ export default function TimelineScreen() {
       setLoading(false);
       lastFetchTime.current = Date.now();
 
+      if (!append) {
+        posthog?.capture("timeline_load", {
+          source: showLoading ? "cold_start" : "background_refresh",
+          served_from: "network",
+          duration_ms: Date.now() - t0,
+          moment_count: mapped.length,
+          has_filters: filtersActive,
+        });
+      }
+
       // Keep snapshot fresh whenever showing the unfiltered timeline.
       if (!filtersActive && !append) {
         timelineSnapshotRef.current = { moments: mapped, hasMore: nextHasMore };
-      }
-
-      // Cache personal collection results (shared collections return early above).
-      if (currentCollection && !currentCollection.isPublic && !append) {
-        collectionCacheRef.current.set(currentCollection.id, { moments: mapped, fetchedAt: Date.now() });
+        // Derive total count from loaded rows when we have everything; fire a
+        // COUNT query only for paginated users (nextHasMore === true) who need
+        // the real number before they've scrolled to the last page.
+        if (!nextHasMore) {
+          setTotalCount(mapped.length);
+        } else {
+          Promise.resolve(
+            supabase
+              .from("moments")
+              .select("id", { count: "exact", head: true })
+              .eq("user_id", user!.id)
+          ).then(({ count }) => { if (count !== null) setTotalCount(count); }).catch(() => {});
+        }
       }
 
       // Populate allPeople — accumulates across pages
@@ -508,7 +598,7 @@ export default function TimelineScreen() {
         }
       }
     },
-    [user]
+    [user, posthog]
   );
 
   const handleLoadMore = useCallback(async () => {
@@ -522,19 +612,13 @@ export default function TimelineScreen() {
   const loadCollections = useCallback(async () => {
     if (!user) return;
     try {
+      // Show cached collections immediately while fetching fresh data
+      const cached = await readCollectionsCache(user.id);
+      if (cached) setCollections(cached);
       const data = await fetchCollections(user.id);
       setCollections(data);
-    } catch {}
-  }, [user]);
-
-  const fetchTotalCount = useCallback(async () => {
-    if (!user) return;
-    try {
-      const { count } = await supabase
-        .from("moments")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id);
-      if (count !== null) setTotalCount(count);
+      writeCollectionsCache(user.id, data);
+      lastCollectionsFetchTime.current = Date.now();
     } catch {}
   }, [user]);
 
@@ -568,26 +652,48 @@ export default function TimelineScreen() {
       setDebouncedLocation((prev) => (prev === "" ? prev : ""));
       setFiltersExpanded(false);
 
-      loadCollections();
-      fetchTotalCount();
-
-      const stale = consumeTimelineStale();
+      const { stale, pendingMoment, deletedMomentId } = consumeTimelineStale();
       const elapsed = Date.now() - lastFetchTime.current;
-      if (stale) calendarFetchedRef.current = false;
-      if (!calendarFetchedRef.current) fetchCalendarMoments();
+      const collectionsElapsed = Date.now() - lastCollectionsFetchTime.current;
+
+      // Optimistically prepend a newly created moment so it appears instantly.
+      if (pendingMoment && timelineSnapshotRef.current && !selectedCollectionRef.current) {
+        const updated = [pendingMoment, ...timelineSnapshotRef.current.moments];
+        timelineSnapshotRef.current = { ...timelineSnapshotRef.current, moments: updated };
+        setMoments(updated);
+        setTotalCount((prev) => (prev !== null ? prev + 1 : null));
+      }
+
+      // Optimistically remove a deleted moment so the timeline updates instantly.
+      if (deletedMomentId) {
+        const filter = (list: Moment[]) => list.filter((m) => m.id !== deletedMomentId);
+        if (timelineSnapshotRef.current) {
+          const updated = filter(timelineSnapshotRef.current.moments);
+          timelineSnapshotRef.current = { ...timelineSnapshotRef.current, moments: updated };
+        }
+        setMoments((prev) => prev.filter((m) => m.id !== deletedMomentId));
+        setTotalCount((prev) => (prev !== null ? Math.max(0, prev - 1) : null));
+      }
+
+      if (stale || collectionsElapsed >= REFETCH_COOLDOWN_MS) loadCollections();
+
+      if (stale) calendarFetchedRef.current = null;
+      if (viewModeRef.current === "calendar" && calendarFetchedRef.current !== true) fetchCalendarMoments();
       if (lastFetchTime.current === 0) {
         fetchMoments(true);
       } else if (stale || elapsed >= REFETCH_COOLDOWN_MS) {
         fetchMoments(false);
       }
-    }, [fetchMoments, loadCollections, fetchCalendarMoments, fetchTotalCount])
+    }, [fetchMoments, loadCollections, fetchCalendarMoments])
   );
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchMoments(false);
+    calendarFetchedRef.current = null;
+    lastCollectionsFetchTime.current = 0;
+    await Promise.all([fetchMoments(false), loadCollections(), fetchCalendarMoments()]);
     setRefreshing(false);
-  }, [fetchMoments]);
+  }, [fetchMoments, loadCollections, fetchCalendarMoments]);
 
 
   const allMoods = useMemo(

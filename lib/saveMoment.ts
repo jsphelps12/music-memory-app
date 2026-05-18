@@ -3,8 +3,9 @@ import { supabase } from "@/lib/supabase";
 import { fetchPreviewUrl } from "@/lib/musickit";
 import { uploadMomentPhotoWithThumbnail } from "@/lib/storage";
 import { addMomentToCollection } from "@/lib/collections";
-import { Song, Collection, Friendship } from "@/types";
+import { Song, Collection, Friendship, Moment } from "@/types";
 import { GeoResult } from "@/lib/geocoding";
+import { mapRowToMoment } from "@/lib/moments";
 
 function getTimeOfDay(): string {
   const hour = new Date().getHours();
@@ -26,21 +27,34 @@ export interface SaveMomentInput {
   visibility: 'private' | 'connections' | 'link';
   selectedCollection?: Collection | null;
   taggedFriends?: Array<{ friend: Friendship; send: boolean }>;
+  prefetchedPreview?: { previewUrl: string | null; albumName: string | null } | null;
 }
 
 export interface SaveMomentResult {
   id: string;
+  moment: Moment;
   secondaryFailures: string[];
 }
 
 export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResult> {
-  const { previewUrl, albumName: fetchedAlbumName } = await fetchPreviewUrl(input.song.appleMusicId);
+  Sentry.addBreadcrumb({
+    category: "moment",
+    message: "save_moment started",
+    level: "info",
+    data: { photoCount: input.photos.length, song: input.song.title, hasCollection: !!input.selectedCollection },
+  });
 
-  const results = await Promise.all(
-    input.photos.map((uri) => uploadMomentPhotoWithThumbnail(input.userId, uri))
-  );
-  const photoPaths = results.map((r) => r.fullPath);
-  const thumbnailPaths = results.map((r) => r.thumbnailPath);
+  const [preview, photoResults] = await Promise.all([
+    input.prefetchedPreview !== undefined
+      ? Promise.resolve(input.prefetchedPreview ?? { previewUrl: null, albumName: null })
+      : fetchPreviewUrl(input.song.appleMusicId),
+    Promise.all(input.photos.map((uri) => uploadMomentPhotoWithThumbnail(input.userId, uri))),
+  ]);
+  const { previewUrl, albumName: fetchedAlbumName } = preview;
+  const photoPaths = photoResults.map((r) => r.fullPath);
+  const thumbnailPaths = photoResults.map((r) => r.thumbnailPath);
+
+  Sentry.addBreadcrumb({ category: "moment", message: "preview_url + photos ready", level: "info", data: { photoCount: photoResults.length } });
 
   const { data: inserted, error: insertError } = await supabase
     .from("moments")
@@ -66,10 +80,12 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
       time_of_day: getTimeOfDay(),
       visibility: input.visibility,
     })
-    .select("id")
+    .select("*")
     .single();
 
   if (insertError) throw insertError;
+
+  Sentry.addBreadcrumb({ category: "moment", message: "db insert success", level: "info", data: { id: inserted?.id } });
 
   const secondaryFailures: string[] = [];
   const secondaryOps: Promise<void>[] = [];
@@ -101,5 +117,5 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
 
   await Promise.all(secondaryOps);
 
-  return { id: inserted!.id, secondaryFailures };
+  return { id: inserted!.id, moment: mapRowToMoment(inserted!), secondaryFailures };
 }

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { usePostHog } from "posthog-react-native";
 import {
   View,
@@ -19,6 +20,7 @@ import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/contexts/AuthContext";
+import { LinearGradient } from "expo-linear-gradient";
 import { PromptsSection } from "@/components/PromptsSection";
 import { supabase } from "@/lib/supabase";
 import { getPublicPhotoUrl } from "@/lib/storage";
@@ -30,7 +32,7 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
 import { topValue } from "@/lib/utils";
 
-const REFETCH_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes
+const STALE_TIME = 2 * 60 * 1000;
 const AVATAR_SIZE = 80;
 
 function formatBytes(bytes: number): string {
@@ -82,6 +84,53 @@ function computeStreaks(dates: string[]): { current: number; longest: number; da
 }
 
 
+async function fetchProfileStats(userId: string) {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const y = now.getFullYear();
+  const m = pad(now.getMonth() + 1);
+  const firstOfMonth = `${y}-${m}-01`;
+  const lastOfMonth = new Date(y, now.getMonth() + 1, 0).toISOString().slice(0, 10);
+  const firstOfLastMonth = new Date(y, now.getMonth() - 1, 1).toISOString().slice(0, 10);
+
+  const [
+    { data: allRows, error: allError },
+    { data: twoMonthRows, error: twoMonthError },
+    { data: files },
+    { status: notifStatus },
+  ] = await Promise.all([
+    supabase.from("moments").select("created_at, song_artist, song_title, mood").eq("user_id", userId),
+    supabase.from("moments").select("moment_date, song_artist, mood").eq("user_id", userId)
+      .gte("moment_date", firstOfLastMonth).lte("moment_date", lastOfMonth),
+    supabase.storage.from("moment-photos").list(userId, { limit: 1000 }),
+    Notifications.getPermissionsAsync(),
+  ]);
+
+  if (allError) throw allError;
+  if (twoMonthError) throw twoMonthError;
+
+  const rows = allRows ?? [];
+  const dates = rows.map((r: any) => (r.created_at as string).slice(0, 10));
+  const streaks = computeStreaks(dates);
+  const allTwoMonth = twoMonthRows ?? [];
+  const tmRows = allTwoMonth.filter((r: any) => r.moment_date >= firstOfMonth);
+  const lmRows = allTwoMonth.filter((r: any) => r.moment_date < firstOfMonth);
+
+  return {
+    momentCount: rows.length,
+    ...streaks,
+    topArtist: topValue(rows.map((r: any) => r.song_artist)),
+    topSong: topValue(rows.map((r: any) => r.song_title)),
+    topMood: topValue(rows.map((r: any) => r.mood)),
+    thisMonthCount: tmRows.length,
+    lastMonthCount: lmRows.length,
+    thisMonthTopArtist: topValue(tmRows.map((r: any) => r.song_artist)),
+    thisMonthTopMood: topValue(tmRows.map((r: any) => r.mood)),
+    storageBytes: files ? files.reduce((sum, f) => sum + (f.metadata?.size ?? 0), 0) : null,
+    notifPermission: (notifStatus === "granted" ? "granted" : notifStatus === "denied" ? "denied" : "undetermined") as "granted" | "denied" | "undetermined",
+  };
+}
+
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, profile, signOut, deleteAccount, refreshProfile, saveCustomPromptCategory, deleteCustomPromptCategory } = useAuth();
@@ -91,204 +140,42 @@ export default function ProfileScreen() {
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
-  const [momentCount, setMomentCount] = useState<number | null>(null);
-  const [storageBytes, setStorageBytes] = useState<number | null>(null);
-  const [currentStreak, setCurrentStreak] = useState<number | null>(null);
-  const [longestStreak, setLongestStreak] = useState<number | null>(null);
-  const [daysLogged, setDaysLogged] = useState<number | null>(null);
-  const [topArtist, setTopArtist] = useState<string | null | undefined>(undefined);
-  const [topSong, setTopSong] = useState<string | null | undefined>(undefined);
-  const [topMood, setTopMood] = useState<string | null | undefined>(undefined);
-  const [thisMonthCount, setThisMonthCount] = useState<number | null>(null);
-  const [lastMonthCount, setLastMonthCount] = useState<number | null>(null);
-  const [thisMonthTopArtist, setThisMonthTopArtist] = useState<string | null | undefined>(undefined);
-  const [thisMonthTopMood, setThisMonthTopMood] = useState<string | null | undefined>(undefined);
   const [showPrompts, setShowPrompts] = useState(false);
   const [showCaptureMethods, setShowCaptureMethods] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
-  const [bannerError, setBannerError] = useState("");
-  const lastFetchTime = useRef(0);
-
-  const [notifPermission, setNotifPermission] = useState<"granted" | "denied" | "undetermined">("undetermined");
   const [notifOnThisDay, setNotifOnThisDay] = useState(true);
   const [notifStreak, setNotifStreak] = useState(true);
   const [notifPrompts, setNotifPrompts] = useState(true);
   const [notifResurfacing, setNotifResurfacing] = useState(true);
   const [notifMilestones, setNotifMilestones] = useState(true);
 
-  const loadProfileData = useCallback(async (isInitial: boolean) => {
-    if (!user) return;
-    try {
-      if (isInitial) setLoadError("");
-      setBannerError("");
+  const { data, isLoading, isError, error, refetch, isFetching, dataUpdatedAt } = useQuery({
+    queryKey: ["profileStats", user?.id],
+    queryFn: () => fetchProfileStats(user!.id),
+    staleTime: STALE_TIME,
+    enabled: !!user,
+  });
 
-      const _now = new Date();
-      const _pad = (n: number) => String(n).padStart(2, "0");
-      const _y = _now.getFullYear();
-      const _m = _pad(_now.getMonth() + 1);
-      const firstOfMonth = `${_y}-${_m}-01`;
-      const lastOfMonth = new Date(_y, _now.getMonth() + 1, 0).toISOString().slice(0, 10);
-      const firstOfLastMonth = new Date(_y, _now.getMonth() - 1, 1).toISOString().slice(0, 10);
-      const lastOfLastMonth = new Date(_y, _now.getMonth(), 0).toISOString().slice(0, 10);
-
-      await refreshProfile();
-
-      // Load notification permission status
-      const { status } = await Notifications.getPermissionsAsync();
-      setNotifPermission(status === "granted" ? "granted" : status === "denied" ? "denied" : "undetermined");
-
-      const [
-        { count, error: countError },
-        { data: files, error: storageError },
-        { data: dateRows, error: dateError },
-        { data: topRows, error: topError },
-        { count: thisMonthCountResult },
-        { count: lastMonthCountResult },
-        { data: thisMonthRows },
-      ] = await Promise.all([
-        supabase
-          .from("moments")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id),
-        supabase.storage.from("moment-photos").list(user.id, { limit: 1000 }),
-        supabase
-          .from("moments")
-          .select("created_at")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("moments")
-          .select("song_artist, song_title, mood")
-          .eq("user_id", user.id),
-        supabase
-          .from("moments")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .gte("moment_date", firstOfMonth)
-          .lte("moment_date", lastOfMonth),
-        supabase
-          .from("moments")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .gte("moment_date", firstOfLastMonth)
-          .lte("moment_date", lastOfLastMonth),
-        supabase
-          .from("moments")
-          .select("song_artist, mood")
-          .eq("user_id", user.id)
-          .gte("moment_date", firstOfMonth)
-          .lte("moment_date", lastOfMonth),
-      ]);
-
-      if (countError) throw countError;
-      if (dateError) throw dateError;
-      if (topError) throw topError;
-
-      setMomentCount(count ?? 0);
-
-      if (!storageError && files) {
-        const total = files.reduce((sum, f) => sum + (f.metadata?.size ?? 0), 0);
-        setStorageBytes(total);
-      }
-
-      const dates = (dateRows ?? []).map((r: any) => (r.created_at as string).slice(0, 10));
-      const streaks = computeStreaks(dates);
-      setCurrentStreak(streaks.current);
-      setLongestStreak(streaks.longest);
-      setDaysLogged(streaks.daysLogged);
-
-      const rows = topRows ?? [];
-      setTopArtist(topValue(rows.map((r: any) => r.song_artist)));
-      setTopSong(topValue(rows.map((r: any) => r.song_title)));
-      setTopMood(topValue(rows.map((r: any) => r.mood)));
-
-      setThisMonthCount(thisMonthCountResult ?? 0);
-      setLastMonthCount(lastMonthCountResult ?? 0);
-      const tmRows = thisMonthRows ?? [];
-      setThisMonthTopArtist(topValue(tmRows.map((r: any) => r.song_artist)));
-      setThisMonthTopMood(topValue(tmRows.map((r: any) => r.mood)));
-
-      lastFetchTime.current = Date.now();
-      setInitialLoading(false);
-
-    } catch (e) {
-      if (isInitial) {
-        setLoadError(friendlyError(e));
-        setInitialLoading(false);
-      } else {
-        setBannerError(friendlyError(e));
-      }
-    }
-  }, [user?.id]);
-
-  // Initial fetch — starts on mount (before tab gains focus) so data is ready when navigated to
-  const initialFetchDoneRef = useRef(false);
-
-  // Clear stale data immediately when user account changes, and allow initial fetch to re-run
-  useEffect(() => {
-    setMomentCount(null);
-    setStorageBytes(null);
-    setCurrentStreak(null);
-    setLongestStreak(null);
-    setDaysLogged(null);
-    setTopArtist(undefined);
-    setTopSong(undefined);
-    setTopMood(undefined);
-    setThisMonthCount(null);
-    setLastMonthCount(null);
-    setThisMonthTopArtist(undefined);
-    setThisMonthTopMood(undefined);
-    setInitialLoading(true);
-    setLoadError("");
-    setBannerError("");
-    lastFetchTime.current = 0;
-    initialFetchDoneRef.current = false;
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (initialFetchDoneRef.current) return;
-    if (!user) return; // don't lock the ref while auth is still loading
-    initialFetchDoneRef.current = true;
-    loadProfileData(true);
-  }, [loadProfileData, user]);
-
-  // Background refresh (non-blocking banner) when returning to tab after cooldown.
-  // Also fires if lastFetchTime is 0 — safety net for when the initial fetch returned
-  // early (e.g. auth hadn't restored yet on cold launch).
-  useFocusEffect(
-    useCallback(() => {
-      if (lastFetchTime.current === 0) {
-        loadProfileData(true);
-        return;
-      }
-      const elapsed = Date.now() - lastFetchTime.current;
-      if (elapsed >= REFETCH_COOLDOWN_MS) {
-        loadProfileData(false);
-      }
-    }, [loadProfileData])
-  );
+  useFocusEffect(useCallback(() => {
+    refreshProfile();
+    if (Date.now() - dataUpdatedAt > STALE_TIME) refetch();
+  }, [refetch, dataUpdatedAt, refreshProfile]));
 
   // Sync notif prefs from profile into local toggle state
-  useFocusEffect(
-    useCallback(() => {
-      if (!profile) return;
-      setNotifOnThisDay(profile.notifOnThisDay);
-      setNotifStreak(profile.notifStreak);
-      setNotifPrompts(profile.notifPrompts);
-      setNotifResurfacing(profile.notifResurfacing);
-      setNotifMilestones(profile.notifMilestones);
-    }, [profile])
-  );
+  useFocusEffect(useCallback(() => {
+    if (!profile) return;
+    setNotifOnThisDay(profile.notifOnThisDay);
+    setNotifStreak(profile.notifStreak);
+    setNotifPrompts(profile.notifPrompts);
+    setNotifResurfacing(profile.notifResurfacing);
+    setNotifMilestones(profile.notifMilestones);
+  }, [profile]));
 
   const avatarUri = profile?.avatarUrl ? getPublicPhotoUrl(profile.avatarUrl) : null;
 
   const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await loadProfileData(false);
-    setRefreshing(false);
-  }, [loadProfileData]);
+    refreshProfile();
+    await refetch();
+  }, [refetch, refreshProfile]);
 
   const handleDeleteAccount = () => {
     Alert.alert(
@@ -338,7 +225,15 @@ export default function ProfileScreen() {
     if (field === "notif_resurfacing") setNotifResurfacing(value);
     if (field === "notif_milestones") setNotifMilestones(value);
     posthog.capture("notification_preferences_changed", { notification_type: field, enabled: value });
-    await supabase.from("profiles").update({ [field]: value }).eq("id", user.id);
+    const { error } = await supabase.from("profiles").update({ [field]: value }).eq("id", user.id);
+    if (error) {
+      // Roll back optimistic update
+      if (field === "notif_on_this_day") setNotifOnThisDay(!value);
+      if (field === "notif_streak") setNotifStreak(!value);
+      if (field === "notif_prompts") setNotifPrompts(!value);
+      if (field === "notif_resurfacing") setNotifResurfacing(!value);
+      if (field === "notif_milestones") setNotifMilestones(!value);
+    }
   }, [user, posthog]);
 
   const handleSignOut = async () => {
@@ -355,7 +250,7 @@ export default function ProfileScreen() {
     }
   };
 
-  if (initialLoading) {
+  if (isLoading) {
     return (
       <ScrollView
         style={[styles.scroll, { backgroundColor: theme.colors.background }]}
@@ -366,11 +261,11 @@ export default function ProfileScreen() {
     );
   }
 
-  if (loadError) {
+  if (isError && !data) {
     return (
       <ErrorState
-        message={loadError}
-        onRetry={() => loadProfileData(true)}
+        message={friendlyError(error)}
+        onRetry={() => refetch()}
       />
     );
   }
@@ -398,17 +293,17 @@ export default function ProfileScreen() {
       contentContainerStyle={styles.container}
       refreshControl={
         <RefreshControl
-          refreshing={refreshing}
+          refreshing={isFetching && !isLoading}
           onRefresh={handleRefresh}
           tintColor={theme.colors.text}
         />
       }
     >
-      {bannerError ? (
+      {isError && !!data ? (
         <ErrorBanner
-          message={bannerError}
-          onRetry={() => loadProfileData(false)}
-          onDismiss={() => setBannerError("")}
+          message={friendlyError(error)}
+          onRetry={() => refetch()}
+          onDismiss={() => {}}
         />
       ) : null}
 
@@ -446,16 +341,17 @@ export default function ProfileScreen() {
         <Ionicons name="chevron-forward" size={18} color={theme.colors.textTertiary} />
       </TouchableOpacity>
 
+
       {/* Stats — row 1 */}
       <View style={styles.statsGrid}>
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{momentCount !== null ? momentCount : "—"}</Text>
+            <Text style={styles.statValue}>{data?.momentCount ?? "—"}</Text>
             <Text style={styles.statLabel}>Moments</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{daysLogged !== null ? daysLogged : "—"}</Text>
+            <Text style={styles.statValue}>{data?.daysLogged ?? "—"}</Text>
             <Text style={styles.statLabel}>Days Logged</Text>
           </View>
           <View style={styles.statDivider} />
@@ -469,19 +365,19 @@ export default function ProfileScreen() {
         <View style={[styles.statsRow, styles.statsRowBorder]}>
           <View style={styles.statItem}>
             <Text style={styles.statValue}>
-              {currentStreak !== null ? `${currentStreak} 🔥` : "—"}
+              {data != null ? `${data.current} 🔥` : "—"}
             </Text>
             <Text style={styles.statLabel}>Streak</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{longestStreak !== null ? longestStreak : "—"}</Text>
+            <Text style={styles.statValue}>{data?.longest ?? "—"}</Text>
             <Text style={styles.statLabel}>Best Streak</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statValue}>
-              {storageBytes !== null ? formatBytes(storageBytes) : "—"}
+              {data?.storageBytes != null ? formatBytes(data.storageBytes) : "—"}
             </Text>
             <Text style={styles.statLabel}>Storage</Text>
           </View>
@@ -496,7 +392,7 @@ export default function ProfileScreen() {
           <View style={styles.topStatText}>
             <Text style={styles.topStatLabel}>Top Artist</Text>
             <Text style={styles.topStatValue} numberOfLines={1}>
-              {topArtist === undefined ? "—" : topArtist ?? "None yet"}
+              {data == null ? "—" : data.topArtist ?? "None yet"}
             </Text>
           </View>
         </View>
@@ -505,7 +401,7 @@ export default function ProfileScreen() {
           <View style={styles.topStatText}>
             <Text style={styles.topStatLabel}>Top Song</Text>
             <Text style={styles.topStatValue} numberOfLines={1}>
-              {topSong === undefined ? "—" : topSong ?? "None yet"}
+              {data == null ? "—" : data.topSong ?? "None yet"}
             </Text>
           </View>
         </View>
@@ -514,18 +410,17 @@ export default function ProfileScreen() {
           <View style={styles.topStatText}>
             <Text style={styles.topStatLabel}>Top Mood</Text>
             <Text style={styles.topStatValue} numberOfLines={1}>
-              {topMood === undefined ? "—" : topMood ?? "None yet"}
+              {data == null ? "—" : data.topMood ?? "None yet"}
             </Text>
           </View>
         </View>
       </View>
 
       {/* This Month */}
-      {thisMonthCount !== null && thisMonthCount > 0 && (() => {
-        const diff = lastMonthCount !== null ? thisMonthCount - lastMonthCount : 0;
-        const compLabel = lastMonthCount === null
-          ? null
-          : diff === 0
+      {data != null && data.thisMonthCount > 0 && (() => {
+        const { thisMonthCount, lastMonthCount, thisMonthTopArtist, thisMonthTopMood } = data;
+        const diff = thisMonthCount - lastMonthCount;
+        const compLabel = diff === 0
           ? "same as last month"
           : `${diff > 0 ? "↑" : "↓"}${Math.abs(diff)} vs last month`;
         return (
@@ -626,7 +521,7 @@ export default function ProfileScreen() {
       {/* Notifications */}
       <View style={styles.notifCard}>
         <Text style={styles.sectionTitle}>Notifications</Text>
-        {notifPermission !== "granted" ? (
+        {data?.notifPermission !== "granted" ? (
           <TouchableOpacity
             style={styles.notifSettingsRow}
             onPress={() => Linking.openSettings()}
@@ -898,6 +793,92 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.xs,
       color: theme.colors.textTertiary,
       marginTop: 1,
+    },
+    proCard: {
+      backgroundColor: theme.colors.cardBg,
+      borderRadius: theme.radii.md,
+      padding: theme.spacing.lg,
+      marginBottom: theme.spacing["2xl"],
+      gap: theme.spacing.sm,
+    },
+    proCardHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    proCardTitle: {
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.bold,
+      color: theme.colors.text,
+    },
+    proBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: "#6B5F8C",
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: theme.radii.full,
+    },
+    proBadgeText: {
+      fontSize: theme.fontSize.xs,
+      fontWeight: theme.fontWeight.semibold,
+      color: "#fff",
+    },
+    proCardSub: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+    },
+    proCardActions: {
+      marginTop: theme.spacing.xs,
+    },
+    proManageButton: {
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radii.sm,
+      paddingVertical: 10,
+      alignItems: "center",
+    },
+    proManageText: {
+      fontSize: theme.fontSize.sm,
+      fontWeight: theme.fontWeight.semibold,
+      color: theme.colors.textSecondary,
+    },
+    upgradeCard: {
+      borderRadius: theme.radii.md,
+      padding: theme.spacing.lg,
+      marginBottom: theme.spacing["2xl"],
+      gap: theme.spacing.sm,
+    },
+    upgradeTitle: {
+      fontSize: theme.fontSize.lg,
+      fontWeight: theme.fontWeight.bold,
+      color: "#fff",
+    },
+    upgradeSub: {
+      fontSize: theme.fontSize.sm,
+      color: "rgba(255,255,255,0.85)",
+      lineHeight: 20,
+    },
+    upgradeButton: {
+      marginTop: theme.spacing.sm,
+      backgroundColor: "#fff",
+      borderRadius: theme.radii.button,
+      paddingVertical: 12,
+      alignItems: "center",
+    },
+    upgradeButtonText: {
+      fontSize: theme.fontSize.base,
+      fontWeight: theme.fontWeight.bold,
+      color: "#6B5F8C",
+    },
+    restoreButton: {
+      alignItems: "center",
+      paddingTop: theme.spacing.xs,
+    },
+    restoreText: {
+      fontSize: theme.fontSize.xs,
+      color: "rgba(255,255,255,0.7)",
     },
     notifCard: {
       backgroundColor: theme.colors.cardBg,

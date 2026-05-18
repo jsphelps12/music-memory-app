@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import * as Sentry from "@sentry/react-native";
 import { usePostHog } from "posthog-react-native";
 import {
@@ -41,6 +41,7 @@ import { GeoResult } from "@/lib/geocoding";
 import { friendlyError } from "@/lib/errors";
 import { checkAndNotifyMilestone } from "@/lib/notifications";
 import { markTimelineStale } from "@/lib/timelineRefresh";
+import { fetchPreviewUrl } from "@/lib/musickit";
 import { PromptPickerModal } from "@/components/PromptPickerModal";
 
 export default function CreateMomentScreen() {
@@ -68,13 +69,19 @@ export default function CreateMomentScreen() {
   }>();
 
   const [song, setSong] = useState<Song | null>(null);
+  const previewFetchRef = useRef<Promise<{ previewUrl: string | null; albumName: string | null }> | null>(null);
+
+  const handleSongChange = useCallback((s: Song | null) => {
+    setSong(s);
+    previewFetchRef.current = s ? fetchPreviewUrl(s.appleMusicId) : null;
+  }, []);
   const [candidates, setCandidates] = useState<Song[]>([]);
   const [showCandidateModal, setShowCandidateModal] = useState(false);
 
   // Sync song from params when returning from song-search with a share intent song
   useEffect(() => {
     if (params.songTitle) {
-      setSong({
+      handleSongChange({
         id: params.songId ?? "",
         title: params.songTitle,
         artistName: params.songArtist ?? "",
@@ -204,7 +211,7 @@ export default function CreateMomentScreen() {
 
   const handleSelectCandidate = (selected: Song) => {
     Haptics.selectionAsync();
-    setSong(selected);
+    handleSongChange(selected);
     setCandidates([]);
     setShowCandidateModal(false);
   };
@@ -225,7 +232,10 @@ export default function CreateMomentScreen() {
       return;
     }
     try {
-      const { id: insertedId, secondaryFailures } = await saveMoment({
+      const prefetchedPreview = previewFetchRef.current
+        ? await previewFetchRef.current.catch(() => null)
+        : undefined;
+      const { id: insertedId, moment: savedMoment, secondaryFailures } = await saveMoment({
         userId: user.id,
         song: song!,
         reflection,
@@ -237,6 +247,7 @@ export default function CreateMomentScreen() {
         visibility,
         selectedCollection,
         taggedFriends,
+        prefetchedPreview,
       });
 
       posthog.capture("moment_created", {
@@ -261,7 +272,7 @@ export default function CreateMomentScreen() {
       }
 
       // Reset form
-      setSong(null);
+      handleSongChange(null);
       setReflection("");
       setSelectedMood(null);
       setPeople([]);
@@ -276,7 +287,7 @@ export default function CreateMomentScreen() {
       setError("");
       setTaggedFriends([]);
 
-      markTimelineStale();
+      markTimelineStale(savedMoment);
 
       if (router.canGoBack()) {
         router.back();
@@ -311,7 +322,7 @@ export default function CreateMomentScreen() {
           </TouchableOpacity>
         </View>
 
-        <SongPickerSection song={song} onChange={setSong} photos={photos} />
+        <SongPickerSection song={song} onChange={handleSongChange} photos={photos} />
 
         {/* Reflection */}
         <Text style={styles.sectionLabel}>Reflection</Text>

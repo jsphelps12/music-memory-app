@@ -8,6 +8,7 @@ import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, usePathname, useGlobalSearchParams } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PostHogProvider } from "posthog-react-native";
 import { posthog } from "@/lib/posthog";
 import { View } from "react-native";
@@ -43,6 +44,15 @@ export const unstable_settings = {
 };
 
 SplashScreen.preventAutoHideAsync();
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 2 * 60 * 1000,
+      retry: 1,
+    },
+  },
+});
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -157,6 +167,7 @@ function RootLayout() {
   if (!loaded) return null;
 
   return (
+    <QueryClientProvider client={queryClient}>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardProvider>
       <PostHogProvider client={posthog} autocapture={{ captureScreens: false, captureTouches: true }}>
@@ -170,6 +181,7 @@ function RootLayout() {
       </PostHogProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>
+    </QueryClientProvider>
   );
 }
 

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   View,
   Text,
@@ -18,236 +19,171 @@ import { ALL_PROMPTS } from "@/constants/Prompts";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { MomentCard } from "@/components/MomentCard";
-import { friendlyError } from "@/lib/errors";
 import { pad } from "@/lib/dateUtils";
 import { Moment } from "@/types";
 
-const REFETCH_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+const STALE_TIME = 5 * 60 * 1000;
+
+type ReflectionsData = {
+  onThisDay: Moment[];
+  aMonthAgo: Moment | null;
+  aYearAgo: Moment | null;
+  forgottenMoment: Moment | null;
+};
 
 type HeroType = "onThisDay" | "aMonthAgo" | "random";
+
+async function fetchReflectionsData(
+  userId: string,
+  month: string,
+  day: string,
+  thisYear: number,
+  aMonthAgoFrom: string,
+  aMonthAgoTo: string,
+  aYearAgoFrom: string,
+  aYearAgoTo: string
+): Promise<ReflectionsData> {
+  const matchingDates: string[] = [];
+  for (let y = thisYear - 1; y >= Math.max(thisYear - 30, 2000); y--) {
+    matchingDates.push(`${y}-${month}-${day}`);
+  }
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 180);
+
+  const [onThisDayResult, aMonthAgoResult, aYearAgoResult, forgottenResult] = await Promise.all([
+    supabase
+      .from("moments")
+      .select("*")
+      .eq("user_id", userId)
+      .in("moment_date", matchingDates)
+      .order("moment_date", { ascending: false })
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("moments")
+      .select("*")
+      .eq("user_id", userId)
+      .gte("moment_date", aMonthAgoFrom)
+      .lte("moment_date", aMonthAgoTo)
+      .order("moment_date", { ascending: false })
+      .limit(1),
+    supabase
+      .from("moments")
+      .select("*")
+      .eq("user_id", userId)
+      .gte("moment_date", aYearAgoFrom)
+      .lte("moment_date", aYearAgoTo)
+      .order("moment_date", { ascending: false })
+      .limit(1),
+    supabase.rpc("get_random_forgotten_moment", { p_cutoff: cutoff.toISOString() }),
+  ]);
+
+  return {
+    onThisDay: (onThisDayResult.data ?? []).map(mapRowToMoment),
+    aMonthAgo: aMonthAgoResult.data?.[0] ? mapRowToMoment(aMonthAgoResult.data[0]) : null,
+    aYearAgo: aYearAgoResult.data?.[0] ? mapRowToMoment(aYearAgoResult.data[0]) : null,
+    forgottenMoment:
+      !forgottenResult.error && forgottenResult.data?.length > 0
+        ? mapRowToMoment(forgottenResult.data[0])
+        : null,
+  };
+}
+
+async function fetchRandomMoment(): Promise<Moment | null> {
+  const { data, error } = await supabase.rpc("get_random_moment");
+  if (error || !data || data.length === 0) return null;
+  return mapRowToMoment(data[0]);
+}
 
 export default function ReflectionsScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-
-  const [onThisDay, setOnThisDay] = useState<Moment[]>([]);
-  const [randomMoment, setRandomMoment] = useState<Moment | null>(null);
-  const [aMonthAgo, setAMonthAgo] = useState<Moment | null>(null);
-  const [aYearAgo, setAYearAgo] = useState<Moment | null>(null);
-  const [forgottenMoment, setForgottenMoment] = useState<Moment | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [shuffling, setShuffling] = useState(false);
-  const [error, setError] = useState("");
-
-  const lastFetchTime = useRef(0);
-  // Preserve the random moment when returning to tab — only re-pick on explicit shuffle
-  const randomMomentRef = useRef<Moment | null>(null);
-
-  // Clear all data immediately when the user changes
-  useEffect(() => {
-    setOnThisDay([]);
-    setRandomMoment(null);
-    setAMonthAgo(null);
-    setAYearAgo(null);
-    setForgottenMoment(null);
-    randomMomentRef.current = null;
-    lastFetchTime.current = 0;
-    initialFetchDoneRef.current = false;
-  }, [user?.id]);
+  const queryClient = useQueryClient();
 
   const allMoods = useMemo(
     () => [...MOODS, ...(profile?.customMoods ?? [])],
     [profile?.customMoods]
   );
 
-  const now = new Date();
-  const month = pad(now.getMonth() + 1);
-  const day = pad(now.getDate());
-  const thisYear = now.getFullYear();
-  const todayLabel = now.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-  });
+  // Stable date params — computed once on mount
+  const dateParams = useMemo(() => {
+    const now = new Date();
+    const month = pad(now.getMonth() + 1);
+    const day = pad(now.getDate());
+    const thisYear = now.getFullYear();
+    const todayLabel = now.toLocaleDateString("en-US", { month: "long", day: "numeric" });
 
-  // "A Month Ago" window: 25–35 days back
-  const aMonthAgoFrom = (() => {
-    const d = new Date(now);
-    d.setDate(d.getDate() - 35);
-    return d.toISOString().slice(0, 10);
-  })();
-  const aMonthAgoTo = (() => {
-    const d = new Date(now);
-    d.setDate(d.getDate() - 25);
-    return d.toISOString().slice(0, 10);
-  })();
+    const aMonthAgoFrom = (() => {
+      const d = new Date(now); d.setDate(d.getDate() - 35); return d.toISOString().slice(0, 10);
+    })();
+    const aMonthAgoTo = (() => {
+      const d = new Date(now); d.setDate(d.getDate() - 25); return d.toISOString().slice(0, 10);
+    })();
+    const aYearAgoFrom = (() => {
+      const d = new Date(now); d.setDate(d.getDate() - 380); return d.toISOString().slice(0, 10);
+    })();
+    const aYearAgoTo = (() => {
+      const d = new Date(now); d.setDate(d.getDate() - 350); return d.toISOString().slice(0, 10);
+    })();
 
-  // "A Year Ago" window: 350–380 days back
-  const aYearAgoFrom = (() => {
-    const d = new Date(now);
-    d.setDate(d.getDate() - 380);
-    return d.toISOString().slice(0, 10);
-  })();
-  const aYearAgoTo = (() => {
-    const d = new Date(now);
-    d.setDate(d.getDate() - 350);
-    return d.toISOString().slice(0, 10);
-  })();
+    return { month, day, thisYear, todayLabel, aMonthAgoFrom, aMonthAgoTo, aYearAgoFrom, aYearAgoTo };
+  }, []);
+
+  const { month, day, thisYear, todayLabel, aMonthAgoFrom, aMonthAgoTo, aYearAgoFrom, aYearAgoTo } = dateParams;
 
   // Daily rotating prompt — deterministic per calendar day
   const dailyPrompt = useMemo(() => {
+    const now = new Date();
     const start = new Date(now.getFullYear(), 0, 0);
     const dayOfYear = Math.floor((now.getTime() - start.getTime()) / 86400000);
     return ALL_PROMPTS[dayOfYear % ALL_PROMPTS.length];
   }, []);
 
-  const fetchOnThisDay = useCallback(async (): Promise<Moment[]> => {
-    if (!user) return [];
-    const matchingDates: string[] = [];
-    for (let y = thisYear - 1; y >= Math.max(thisYear - 30, 2000); y--) {
-      matchingDates.push(`${y}-${month}-${day}`);
-    }
-    const { data, error: fetchError } = await supabase
-      .from("moments")
-      .select("*")
-      .eq("user_id", user.id)
-      .in("moment_date", matchingDates)
-      .order("moment_date", { ascending: false })
-      .order("created_at", { ascending: false });
-    if (fetchError) throw fetchError;
-    return (data ?? []).map(mapRowToMoment);
-  }, [user, month, day, thisYear]);
+  // Main data: deterministic sections
+  const {
+    data,
+    isLoading,
+    isError,
+    refetch,
+    dataUpdatedAt,
+  } = useQuery({
+    queryKey: ["reflections", user?.id],
+    queryFn: () =>
+      fetchReflectionsData(user!.id, month, day, thisYear, aMonthAgoFrom, aMonthAgoTo, aYearAgoFrom, aYearAgoTo),
+    staleTime: STALE_TIME,
+    enabled: !!user,
+  });
 
-  const fetchRandom = useCallback(async (): Promise<Moment | null> => {
-    if (!user) return null;
-    const { count } = await supabase
-      .from("moments")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id);
-    if (!count || count === 0) return null;
-    const offset = Math.floor(Math.random() * count);
-    const { data } = await supabase
-      .from("moments")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .range(offset, offset);
-    return data?.[0] ? mapRowToMoment(data[0]) : null;
-  }, [user]);
+  // Random moment: staleTime Infinity — sticky between tab navigations, only changes on shuffle
+  const {
+    data: randomMoment,
+    refetch: refetchRandom,
+    isFetching: shuffling,
+  } = useQuery({
+    queryKey: ["reflections-random", user?.id],
+    queryFn: fetchRandomMoment,
+    staleTime: Infinity,
+    enabled: !!user,
+  });
 
-  const fetchAMonthAgo = useCallback(async (): Promise<Moment | null> => {
-    if (!user) return null;
-    const { data } = await supabase
-      .from("moments")
-      .select("*")
-      .eq("user_id", user.id)
-      .gte("moment_date", aMonthAgoFrom)
-      .lte("moment_date", aMonthAgoTo)
-      .order("moment_date", { ascending: false })
-      .limit(1);
-    return data?.[0] ? mapRowToMoment(data[0]) : null;
-  }, [user, aMonthAgoFrom, aMonthAgoTo]);
-
-  const fetchAYearAgo = useCallback(async (): Promise<Moment | null> => {
-    if (!user) return null;
-    const { data } = await supabase
-      .from("moments")
-      .select("*")
-      .eq("user_id", user.id)
-      .gte("moment_date", aYearAgoFrom)
-      .lte("moment_date", aYearAgoTo)
-      .order("moment_date", { ascending: false })
-      .limit(1);
-    return data?.[0] ? mapRowToMoment(data[0]) : null;
-  }, [user, aYearAgoFrom, aYearAgoTo]);
-
-  const fetchForgotten = useCallback(async (): Promise<Moment | null> => {
-    if (!user) return null;
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 180);
-    const cutoffStr = cutoff.toISOString();
-    const { count } = await supabase
-      .from("moments")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .lt("created_at", cutoffStr);
-    if (!count || count === 0) return null;
-    const offset = Math.floor(Math.random() * count);
-    const { data } = await supabase
-      .from("moments")
-      .select("*")
-      .eq("user_id", user.id)
-      .lt("created_at", cutoffStr)
-      .order("created_at", { ascending: false })
-      .range(offset, offset);
-    return data?.[0] ? mapRowToMoment(data[0]) : null;
-  }, [user]);
-
-  const loadAll = useCallback(
-    async (preserveRandom: boolean, silent = false) => {
-      if (!user) return;
-      if (!silent) { setLoading(true); setError(""); }
-      try {
-        const [otd, rand, ama, aya, forgotten] = await Promise.all([
-          fetchOnThisDay(),
-          preserveRandom && randomMomentRef.current
-            ? Promise.resolve(randomMomentRef.current)
-            : fetchRandom(),
-          fetchAMonthAgo(),
-          fetchAYearAgo(),
-          fetchForgotten(),
-        ]);
-        setOnThisDay(otd);
-        setRandomMoment(rand);
-        randomMomentRef.current = rand;
-        setAMonthAgo(ama);
-        setAYearAgo(aya);
-        setForgottenMoment(forgotten);
-      } catch (e: any) {
-        if (!silent) setError(friendlyError(e));
-      } finally {
-        if (!silent) setLoading(false);
-        lastFetchTime.current = Date.now();
-      }
-    },
-    [user, fetchOnThisDay, fetchRandom, fetchAMonthAgo, fetchAYearAgo, fetchForgotten]
-  );
-
-  // Initial fetch — starts on mount so data is ready when navigated to
-  const initialFetchDoneRef = useRef(false);
-  useEffect(() => {
-    if (initialFetchDoneRef.current) return;
-    if (!user) return; // don't lock the ref while auth is still loading
-    initialFetchDoneRef.current = true;
-    loadAll(false);
-  }, [loadAll, user]);
-
-  // Silent background refresh when returning to tab after cooldown.
-  // Also fires if lastFetchTime is 0 — safety net for when the initial fetch returned
-  // early (e.g. auth hadn't restored yet on cold launch).
   useFocusEffect(
     useCallback(() => {
-      if (lastFetchTime.current === 0) {
-        loadAll(false);
-        return;
+      if (!dataUpdatedAt || Date.now() - dataUpdatedAt > STALE_TIME) {
+        refetch();
       }
-      const elapsed = Date.now() - lastFetchTime.current;
-      if (elapsed >= REFETCH_COOLDOWN_MS) {
-        loadAll(true, true);
-      }
-    }, [loadAll])
+    }, [refetch, dataUpdatedAt])
   );
 
-  const handleShuffle = useCallback(async () => {
-    setShuffling(true);
-    try {
-      const rand = await fetchRandom();
-      setRandomMoment(rand);
-      randomMomentRef.current = rand;
-    } catch {}
-    setShuffling(false);
-  }, [fetchRandom]);
+  const handleShuffle = useCallback(() => {
+    refetchRandom();
+  }, [refetchRandom]);
+
+  const onThisDay = data?.onThisDay ?? [];
+  const aMonthAgo = data?.aMonthAgo ?? null;
+  const aYearAgo = data?.aYearAgo ?? null;
+  const forgottenMoment = data?.forgottenMoment ?? null;
 
   // Group On This Day moments by year, newest first
   const byYear = useMemo(() => {
@@ -270,7 +206,7 @@ export default function ReflectionsScreen() {
     return "random";
   }, [byYear, aMonthAgo]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <View style={[styles.container, styles.centered]}>
         <ActivityIndicator color={theme.colors.accent} />
@@ -278,15 +214,11 @@ export default function ReflectionsScreen() {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <View style={[styles.container, styles.centered]}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity
-          style={styles.retryButton}
-          onPress={() => loadAll(false)}
-          activeOpacity={0.7}
-        >
+        <Text style={styles.errorText}>Something went wrong loading your memories.</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => refetch()} activeOpacity={0.7}>
           <Text style={styles.retryText}>Try Again</Text>
         </TouchableOpacity>
       </View>
@@ -294,7 +226,7 @@ export default function ReflectionsScreen() {
   }
 
   // Empty state: user has no moments at all
-  if (randomMoment === null) {
+  if (randomMoment === null && onThisDay.length === 0 && !aMonthAgo) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
@@ -345,11 +277,7 @@ export default function ReflectionsScreen() {
                     {label} · {year}
                   </Text>
                   {moments.map((m) => (
-                    <MomentCard
-                      key={m.id}
-                      item={m}
-                      allMoods={allMoods}
-                    />
+                    <MomentCard key={m.id} item={m} allMoods={allMoods} />
                   ))}
                 </View>
               );
@@ -370,10 +298,7 @@ export default function ReflectionsScreen() {
                 </Text>
               )}
             </View>
-            <MomentCard
-              item={aMonthAgo}
-              allMoods={allMoods}
-            />
+            <MomentCard item={aMonthAgo} allMoods={allMoods} />
           </>
         )}
 
@@ -389,16 +314,12 @@ export default function ReflectionsScreen() {
                 )}
               </TouchableOpacity>
             </View>
-            <MomentCard
-              item={randomMoment}
-              allMoods={allMoods}
-            />
+            <MomentCard item={randomMoment} allMoods={allMoods} />
           </>
         )}
 
         {/* ── SUPPORTING ── */}
 
-        {/* A Month Ago — supporting (only when not hero) */}
         {heroType !== "aMonthAgo" && aMonthAgo && (
           <>
             <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
@@ -412,14 +333,10 @@ export default function ReflectionsScreen() {
                 </Text>
               )}
             </View>
-            <MomentCard
-              item={aMonthAgo}
-              allMoods={allMoods}
-            />
+            <MomentCard item={aMonthAgo} allMoods={allMoods} />
           </>
         )}
 
-        {/* A Year Ago — hidden when empty */}
         {aYearAgo && (
           <>
             <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
@@ -434,10 +351,7 @@ export default function ReflectionsScreen() {
                 </Text>
               )}
             </View>
-            <MomentCard
-              item={aYearAgo}
-              allMoods={allMoods}
-            />
+            <MomentCard item={aYearAgo} allMoods={allMoods} />
           </>
         )}
 
@@ -464,7 +378,6 @@ export default function ReflectionsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* A Random Memory — supporting (only when not hero) */}
         {heroType !== "random" && randomMoment && (
           <>
             <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
@@ -477,23 +390,16 @@ export default function ReflectionsScreen() {
                 )}
               </TouchableOpacity>
             </View>
-            <MomentCard
-              item={randomMoment}
-              allMoods={allMoods}
-            />
+            <MomentCard item={randomMoment} allMoods={allMoods} />
           </>
         )}
 
-        {/* Forgotten Moment — hidden when empty */}
         {forgottenMoment && (
           <>
             <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
               <Text style={styles.sectionTitle}>Forgotten Moment</Text>
             </View>
-            <MomentCard
-              item={forgottenMoment}
-              allMoods={allMoods}
-            />
+            <MomentCard item={forgottenMoment} allMoods={allMoods} />
           </>
         )}
       </ScrollView>

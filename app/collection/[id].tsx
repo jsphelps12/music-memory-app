@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   View,
   Text,
@@ -8,6 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
+
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -36,6 +38,91 @@ function groupByMonth(moments: Moment[]): { title: string; data: Moment[] }[] {
   return Object.entries(grouped).map(([title, data]) => ({ title, data }));
 }
 
+const STALE_TIME = 2 * 60 * 1000;
+
+async function fetchCollectionData(id: string, userId: string): Promise<{ collection: Collection; moments: Moment[] }> {
+  // Try owned first
+  const { data: owned } = await supabase
+    .from("collections")
+    .select("id, user_id, name, created_at, is_public, invite_code, collection_moments(moment_id)")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .single();
+
+  if (owned) {
+    const col: Collection = {
+      id: owned.id,
+      userId: owned.user_id,
+      name: owned.name,
+      createdAt: owned.created_at,
+      momentCount: (owned.collection_moments ?? []).length,
+      isPublic: owned.is_public ?? false,
+      inviteCode: owned.invite_code ?? undefined,
+      role: "owner",
+    };
+    const moments = await loadMoments(col);
+    return { collection: col, moments };
+  }
+
+  // Try member
+  const { data: membership } = await supabase
+    .from("collection_members")
+    .select("collection_id")
+    .eq("collection_id", id)
+    .eq("user_id", userId)
+    .single();
+
+  if (membership) {
+    const { data: joined } = await supabase
+      .from("collections")
+      .select("id, user_id, name, created_at, is_public, invite_code, collection_moments(moment_id)")
+      .eq("id", id)
+      .single();
+
+    if (joined) {
+      const { data: ownerProfile } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", joined.user_id)
+        .single();
+
+      const col: Collection = {
+        id: joined.id,
+        userId: joined.user_id,
+        name: joined.name,
+        createdAt: joined.created_at,
+        momentCount: (joined.collection_moments ?? []).length,
+        isPublic: joined.is_public ?? false,
+        inviteCode: joined.invite_code ?? undefined,
+        role: "member",
+        ownerName: ownerProfile?.display_name ?? undefined,
+      };
+      const moments = await loadMoments(col);
+      return { collection: col, moments };
+    }
+  }
+
+  throw new Error("Collection not found.");
+}
+
+async function loadMoments(col: Collection): Promise<Moment[]> {
+  if (col.isPublic) {
+    return fetchSharedCollectionMoments(col.id);
+  }
+  const { data: cm } = await supabase
+    .from("collection_moments")
+    .select("moment_id")
+    .eq("collection_id", col.id);
+  const ids = (cm ?? []).map((r: any) => r.moment_id);
+  if (ids.length === 0) return [];
+  const { data } = await supabase
+    .from("moments")
+    .select("*")
+    .in("id", ids)
+    .order("moment_date", { ascending: false });
+  return (data ?? []).map(mapRowToMoment);
+}
+
 export default function CollectionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -43,126 +130,37 @@ export default function CollectionDetailScreen() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const [collection, setCollection] = useState<Collection | null>(null);
-  const [moments, setMoments] = useState<Moment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState("");
   const [shareSheetVisible, setShareSheetVisible] = useState(false);
+  const queryClient = useQueryClient();
 
   const allMoods = useMemo(
     () => [...MOODS, ...(profile?.customMoods ?? [])],
     [profile?.customMoods]
   );
 
-  const fetchCollection = useCallback(async () => {
-    if (!user || !id) return;
-    setError("");
+  const { data, isLoading, isError, error, refetch, isFetching, dataUpdatedAt } = useQuery({
+    queryKey: ["collection", id, user?.id],
+    queryFn: () => fetchCollectionData(id!, user!.id),
+    staleTime: STALE_TIME,
+    enabled: !!user && !!id,
+  });
 
-    try {
-      // Try owned first
-      const { data: owned } = await supabase
-        .from("collections")
-        .select("id, user_id, name, created_at, is_public, invite_code, collection_moments(moment_id)")
-        .eq("id", id)
-        .eq("user_id", user.id)
-        .single();
+  const collection = data?.collection ?? null;
+  const moments = data?.moments ?? [];
 
-      if (owned) {
-        const col: Collection = {
-          id: owned.id,
-          userId: owned.user_id,
-          name: owned.name,
-          createdAt: owned.created_at,
-          momentCount: (owned.collection_moments ?? []).length,
-          isPublic: owned.is_public ?? false,
-          inviteCode: owned.invite_code ?? undefined,
-          role: "owner",
-        };
-        setCollection(col);
-        await loadMoments(col);
-        markCollectionViewed(id, user.id, "owner").catch(() => {});
-        return;
-      }
+  // Mark viewed after data loads
+  useEffect(() => {
+    if (!data?.collection || !user) return;
+    markCollectionViewed(id!, user.id, data.collection.role).catch(() => {});
+  }, [data?.collection?.id]);
 
-      // Try member
-      const { data: membership } = await supabase
-        .from("collection_members")
-        .select("collection_id")
-        .eq("collection_id", id)
-        .eq("user_id", user.id)
-        .single();
-
-      if (membership) {
-        const { data: joined } = await supabase
-          .from("collections")
-          .select("id, user_id, name, created_at, is_public, invite_code, collection_moments(moment_id)")
-          .eq("id", id)
-          .single();
-
-        if (joined) {
-          const { data: ownerProfile } = await supabase
-            .from("profiles")
-            .select("display_name")
-            .eq("id", joined.user_id)
-            .single();
-
-          const col: Collection = {
-            id: joined.id,
-            userId: joined.user_id,
-            name: joined.name,
-            createdAt: joined.created_at,
-            momentCount: (joined.collection_moments ?? []).length,
-            isPublic: joined.is_public ?? false,
-            inviteCode: joined.invite_code ?? undefined,
-            role: "member",
-            ownerName: ownerProfile?.display_name ?? undefined,
-          };
-          setCollection(col);
-          await loadMoments(col);
-          markCollectionViewed(id, user.id, "member").catch(() => {});
-          return;
-        }
-      }
-
-      setError("Collection not found.");
-    } catch (e: any) {
-      setError(friendlyError(e));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [id, user]);
-
-  const loadMoments = async (col: Collection) => {
-    if (col.isPublic) {
-      const shared = await fetchSharedCollectionMoments(col.id);
-      setMoments(shared);
-    } else {
-      // Personal owned collection
-      const { data: cm } = await supabase
-        .from("collection_moments")
-        .select("moment_id")
-        .eq("collection_id", col.id);
-      const ids = (cm ?? []).map((r: any) => r.moment_id);
-      if (ids.length === 0) { setMoments([]); return; }
-      const { data } = await supabase
-        .from("moments")
-        .select("*")
-        .in("id", ids)
-        .order("moment_date", { ascending: false });
-      setMoments((data ?? []).map(mapRowToMoment));
-    }
-  };
-
-  useEffect(() => { fetchCollection(); }, [fetchCollection]);
-
-  useFocusEffect(useCallback(() => { fetchCollection(); }, [fetchCollection]));
+  useFocusEffect(useCallback(() => {
+    if (Date.now() - dataUpdatedAt > STALE_TIME) refetch();
+  }, [refetch, dataUpdatedAt]));
 
   const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchCollection();
-  }, [fetchCollection]);
+    await refetch();
+  }, [refetch]);
 
   const sections = useMemo(() => groupByMonth(moments), [moments]);
 
@@ -175,7 +173,7 @@ export default function CollectionDetailScreen() {
     />
   ), [allMoods, collection]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <View style={[styles.container, styles.center]}>
         <ActivityIndicator color={theme.colors.accent} />
@@ -183,9 +181,9 @@ export default function CollectionDetailScreen() {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
-      <ErrorState message={error} onRetry={fetchCollection} onBack={() => router.back()} />
+      <ErrorState message={friendlyError(error)} onRetry={() => refetch()} onBack={() => router.back()} />
     );
   }
 
@@ -253,7 +251,7 @@ export default function CollectionDetailScreen() {
           contentContainerStyle={styles.listContent}
           stickySectionHeadersEnabled={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.accent} />
+            <RefreshControl refreshing={isFetching && !isLoading} onRefresh={handleRefresh} tintColor={theme.colors.accent} />
           }
         />
       )}
@@ -264,7 +262,11 @@ export default function CollectionDetailScreen() {
           visible={shareSheetVisible}
           collection={collection}
           onClose={() => setShareSheetVisible(false)}
-          onUpdated={(updated) => setCollection(updated)}
+          onUpdated={(updated) =>
+            queryClient.setQueryData(["collection", id, user?.id], (old: any) =>
+              old ? { ...old, collection: updated } : old
+            )
+          }
           onLeft={() => router.back()}
         />
       )}

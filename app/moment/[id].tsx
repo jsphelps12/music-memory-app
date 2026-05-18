@@ -39,10 +39,10 @@ import { getPublicPhotoUrl, getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import { mapRowToMoment } from "@/lib/moments";
 import {
   fetchCollections,
-  fetchMomentCollectionIds,
   addMomentToCollection,
   removeMomentFromCollection,
   createCollection,
+  readCollectionsCache,
 } from "@/lib/collections";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
@@ -52,9 +52,9 @@ import { SkeletonMomentDetail } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { friendlyError } from "@/lib/errors";
-import { Collection, Moment, MoodOption } from "@/types";
-import { markTimelineStale } from "@/lib/timelineRefresh";
-import { ShareCardModal } from "@/components/ShareCardModal";
+import { Collection, Moment, MoodOption, TaggedMoment } from "@/types";
+import { markTimelineStale, markTimelineDeleted } from "@/lib/timelineRefresh";
+import { ShareMomentSheet } from "@/components/ShareMomentSheet";
 import { CloseButton } from "@/components/CloseButton";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchMyReaction, fetchReactionCount, addReaction, removeReaction } from "@/lib/reactions";
@@ -69,6 +69,7 @@ export default function MomentDetailScreen() {
     taggedPersonUserId: taggedPersonUserIdParam,
     collectionId,
     collectionRole,
+    contributorName,
   } = useLocalSearchParams<{
     id: string;
     returnTo?: string;
@@ -78,6 +79,7 @@ export default function MomentDetailScreen() {
     taggedPersonUserId?: string;
     collectionId?: string;
     collectionRole?: string;
+    contributorName?: string;
   }>();
   const router = useRouter();
   const { user, profile } = useAuth();
@@ -110,6 +112,7 @@ export default function MomentDetailScreen() {
   const [hasReacted, setHasReacted] = useState(false);
   const [reactionCount, setReactionCount] = useState(0);
   const [reactingInFlight, setReactingInFlight] = useState(false);
+  const [friendTags, setFriendTags] = useState<TaggedMoment[]>([]);
 
   const [origin] = useState(() => consumeCardOrigin());
   const translateX = useSharedValue(origin.active ? origin.x : 0);
@@ -220,6 +223,8 @@ export default function MomentDetailScreen() {
   const fetchMoment = useCallback(async (showLoading: boolean) => {
     if (showLoading) setLoading(true);
     setError("");
+    const t0 = Date.now();
+    const hadPreview = !showLoading; // pre-populated from momentCache
     const { data, error: fetchError } = await supabase
       .from("moments")
       .select("*")
@@ -244,7 +249,11 @@ export default function MomentDetailScreen() {
 
     setMoment(mapRowToMoment(data));
     setLoading(false);
-  }, [id]);
+    posthog?.capture("moment_detail_open", {
+      had_preview: hadPreview,
+      duration_ms: Date.now() - t0,
+    });
+  }, [id, posthog]);
 
   useFocusEffect(
     useCallback(() => {
@@ -322,8 +331,9 @@ export default function MomentDetailScreen() {
     });
   };
 
-  const getMood = (value: MoodOption | null) =>
-    value ? [...MOODS, ...(profile?.customMoods ?? [])].find((m) => m.value === value) : undefined;
+  const allMoods = useMemo(() => [...MOODS, ...(profile?.customMoods ?? [])], [profile?.customMoods]);
+  const getMood = useCallback((value: MoodOption | null) =>
+    value ? allMoods.find((m) => m.value === value) : undefined, [allMoods]);
 
   const openMenu = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -344,13 +354,20 @@ export default function MomentDetailScreen() {
     setShowingNewInput(false);
     setNewCollectionName("");
     try {
-      const [cols, ids] = await Promise.all([
-        fetchCollections(user!.id),
-        fetchMomentCollectionIds(id),
-      ]);
+      // Read from AsyncStorage cache — collections were already fetched by the timeline.
+      // Only hit the network on a true cache miss.
+      const cached = await readCollectionsCache(user!.id);
+      const cols = cached ?? await fetchCollections(user!.id);
+
+      // Derive which collections contain this moment from the momentIds already stored
+      // on each collection — no second network call needed.
+      const memberCollectionIds = cols
+        .filter((c) => c.momentIds?.includes(id))
+        .map((c) => c.id);
+
       setAllCollections(cols);
-      setMemberIds(ids);
-      setPendingMemberIds(ids);
+      setMemberIds(memberCollectionIds);
+      setPendingMemberIds(memberCollectionIds);
     } catch {}
     setCollectionLoading(false);
   };
@@ -417,7 +434,7 @@ export default function MomentDetailScreen() {
           }
 
           posthog.capture("moment_deleted", { song_title: moment?.songTitle ?? null, song_artist: moment?.songArtist ?? null });
-          markTimelineStale();
+          markTimelineDeleted(id);
           animateOut(goBack);
         },
       },
@@ -638,6 +655,11 @@ export default function MomentDetailScreen() {
                   </Text>
                 </TouchableOpacity>
               ) : null}
+              {(contributorName || moment.contributorName) ? (
+                <Text style={styles.contributor} numberOfLines={1}>
+                  by {contributorName || moment.contributorName}
+                </Text>
+              ) : null}
             </View>
             {moment.songPreviewUrl ? (
               <TouchableOpacity
@@ -686,21 +708,21 @@ export default function MomentDetailScreen() {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              style={styles.photoGallery}
-              contentContainerStyle={styles.photoGalleryContent}
+              style={styles.photoStrip}
+              contentContainerStyle={styles.photoStripContent}
             >
               {photoThumbnailUrls.map((url, index) => (
                 <TouchableOpacity
                   key={index}
+                  activeOpacity={0.85}
                   onPress={() => {
                     setViewerIndex(index);
                     setViewerVisible(true);
                   }}
-                  activeOpacity={0.9}
                 >
                   <Image
                     source={{ uri: url }}
-                    style={styles.photoImage}
+                    style={styles.photoStripThumb}
                     transition={200}
                   />
                 </TouchableOpacity>
@@ -772,10 +794,11 @@ export default function MomentDetailScreen() {
       />
 
       {moment && (
-        <ShareCardModal
+        <ShareMomentSheet
           visible={shareModalVisible}
           moment={moment}
           photoUrls={photoUrls}
+          tags={friendTags}
           onClose={() => {
             setShareModalVisible(false);
             // If we arrived here from the onboarding share sheet, exit to celebration
@@ -1169,6 +1192,7 @@ const collectionStyles = StyleSheet.create({
   },
 });
 
+
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: {
@@ -1281,6 +1305,12 @@ function createStyles(theme: Theme) {
       color: theme.colors.textSecondary,
       marginTop: 1,
     },
+    contributor: {
+      fontSize: theme.fontSize.xs,
+      color: theme.colors.accent,
+      marginTop: 2,
+      fontWeight: theme.fontWeight.medium,
+    },
     songTitleLink: {
       color: theme.colors.accent,
     },
@@ -1319,15 +1349,15 @@ function createStyles(theme: Theme) {
       lineHeight: 26,
       marginBottom: theme.spacing.xl,
     },
-    photoGallery: {
+    photoStrip: {
       marginBottom: theme.spacing.xl,
       marginHorizontal: -theme.spacing.xl,
     },
-    photoGalleryContent: {
+    photoStripContent: {
       paddingHorizontal: theme.spacing.xl,
       gap: 10,
     },
-    photoImage: {
+    photoStripThumb: {
       width: 200,
       height: 200,
       borderRadius: theme.radii.md,
