@@ -312,12 +312,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (updates.favoriteSongs !== undefined) dbUpdates.favorite_songs = updates.favoriteSongs;
     if (updates.genrePreferences !== undefined) dbUpdates.genre_preferences = updates.genrePreferences;
 
-    const { error } = await supabase
+    const { data: rows, error } = await supabase
       .from("profiles")
       .update(dbUpdates)
-      .eq("id", session.user.id);
+      .eq("id", session.user.id)
+      .select("id");
 
     if (error) throw error;
+    if (!rows || rows.length === 0) throw new Error("Profile update blocked — check RLS policies.");
 
     await fetchProfile(session.user.id);
   };
@@ -336,18 +338,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (data.birthYear !== undefined) updates.birth_year = data.birthYear;
     if (data.country !== undefined) updates.country = data.country;
     if (data.username) updates.username = data.username.toLowerCase().trim();
-    const { error } = await supabase
+    const { data: rows, error } = await supabase
       .from("profiles")
       .update(updates)
-      .eq("id", session.user.id);
+      .eq("id", session.user.id)
+      .select("id");
     if (error) throw error;
+    if (!rows || rows.length === 0) throw new Error("Profile update blocked — check RLS policies.");
     await fetchProfile(session.user.id);
   };
 
   const completeOnboarding = async (data: OnboardingData) => {
     if (!session?.user) throw new Error("Not authenticated");
     const updates: Record<string, any> = {
-      display_name: data.displayName,
       birth_year: data.birthYear,
       country: data.country,
       favorite_artists: data.favoriteArtists,
@@ -355,12 +358,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       genre_preferences: data.genrePreferences,
       onboarding_completed: true,
     };
+    // Only set display_name if non-empty — never overwrite with blank
+    if (data.displayName.trim()) updates.display_name = data.displayName.trim();
     if (data.username) updates.username = data.username.toLowerCase().trim();
-    const { error } = await supabase
+    const { data: rows, error } = await supabase
       .from("profiles")
       .update(updates)
-      .eq("id", session.user.id);
+      .eq("id", session.user.id)
+      .select("id");
     if (error) throw error;
+    if (!rows || rows.length === 0) throw new Error("Profile update blocked — check RLS policies.");
     await fetchProfile(session.user.id);
   };
 

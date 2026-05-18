@@ -22,7 +22,7 @@ import { supabase } from "@/lib/supabase";
 
 export default function QuestionnaireScreen() {
   const router = useRouter();
-  const { completeOnboarding, saveOnboardingData, user, profile } = useAuth();
+  const { completeOnboarding, saveOnboardingData, user, profile, profileReady } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const posthog = usePostHog();
@@ -33,7 +33,7 @@ export default function QuestionnaireScreen() {
   const crashRecoveryCancelled = useRef(false);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || !profileReady) return;
     supabase
       .from("moments")
       .select("id", { count: "exact", head: true })
@@ -41,7 +41,7 @@ export default function QuestionnaireScreen() {
       .then(({ count }) => {
         if (count && count > 0 && !crashRecoveryCancelled.current) {
           const data: OnboardingData = {
-            displayName: displayName.trim(),
+            displayName: profile?.displayName?.trim() ?? "",
             favoriteArtists: [],
             favoriteSongs: [],
             genrePreferences: [],
@@ -55,7 +55,7 @@ export default function QuestionnaireScreen() {
         }
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, profileReady]);
 
   async function handleSubmit() {
     Keyboard.dismiss();
