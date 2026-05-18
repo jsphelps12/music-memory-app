@@ -4,16 +4,31 @@ Physical products are a defensible, high-margin revenue stream and a permanent w
 
 ---
 
+## Branded QR Code Standard
+
+All QR codes across every physical product (prints, books, card decks) use the same branded style — not a generic black square:
+- **Dots:** brand gradient (orange `#E8825C` → purple `#6B5F8C`)
+- **Shape:** rounded dots, not square pixels
+- **Center:** Soundtracks logo mark
+- **Scans with any phone camera** — no special app required
+
+Implementation: `react-native-qrcode-svg` for in-app generation; server-side SVG for print-resolution output. ~1–2 days to build once, applied everywhere.
+
+---
+
 ## The Book *(already in roadmap — flagship)*
 
-A hardcover memory book generated from a collection.
+A memory book generated from any collection — personal or shared/event. Works for weddings, annual personal collections, friend group trips, anything.
 
-- Each spread: contributor's name, reflection, song + artist, photo, QR code that plays the song
-- Back of book: full chronological song list with QR codes → Apple Music
-- Cover: tiled collage of album artwork
-- Pricing: $80 softcover / $130 hardcover
-- Print partner: Artifact Uprising, Blurb, or Printful
-- **The book is alive** — it plays music when you point your phone at a QR code. No photo book company can replicate this.
+- Cover: tiled collage of album artwork from all songs in the collection
+- Each spread: album art (left) + photo + full reflection + metadata — date, location, mood, people (right)
+- Branded QR code on each spread → public moment page where the song plays
+- Back matter: the Playlist — every song as a vinyl tracklist (№, Song, Artist, Album, Year) + QR code opening the full playlist in Apple Music
+- **Pricing: $49 softcover / $79 hardcover** (~$20–35 print cost; ~$29–44 margin)
+- Annual plan subscribers: one free softcover/year included
+- Monthly plan subscribers: 20% off
+- Print partners: Blurb (API), Prodigi (global fulfillment), Chatbooks (partnership programs)
+- **The book is alive** — it plays music when you point your phone at any QR code. No photo book company can replicate this.
 - See ROADMAP.md → Physical Book section for full spec
 
 ---

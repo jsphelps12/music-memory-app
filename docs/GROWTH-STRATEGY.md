@@ -13,9 +13,9 @@ Works for every audience. Spotify can tell you what you played. Tracks captures 
 | Tier | Price | What you get |
 |------|-------|-------------|
 | **Free** | $0 | Log moments, join collections, personal timeline |
-| **Tracks Plus** | $4.99/mo or $39.99/yr | Create shared collections, era clustering, insights, advanced filters |
+| **Tracks Plus** | $6.99–9.99/mo or $79–99/yr | Create shared collections, era clustering, insights, advanced filters; annual plan includes one free softcover book/year |
 | **Tracks Events** | $39.99 one-time per event | Extended collections (500+ contributors), QR code generation, event analytics, book export |
-| **Tracks Book** | $80–150 per book | Print-on-demand hardcover (see below) |
+| **Tracks Book** | $49 softcover / $79 hardcover | Print-on-demand; 20% off for Plus monthly subscribers |
 
 The Events tier is a one-time purchase tied to an occasion — lower barrier than a subscription for someone who just wants Tracks for their wedding. Most event hosts will also become long-term Plus subscribers after they see what the app can do.
 
@@ -39,7 +39,7 @@ A hardcover memory book generated from a collection. No competitor does this.
 
 **Technical dependency:** Requires public individual moment pages on the web app (`/m/{moment_id}`) for QR codes to link to. This is Phase E (web enrichment). PDF generation server-side via jsPDF or headless browser render, sent to a print-on-demand partner.
 
-**Pricing anchor:** $80 softcover, $130 hardcover. Pure margin after print cost.
+**Pricing:** $49 softcover (~$20 print cost → ~$29 margin), $79 hardcover (~$35 print cost → ~$44 margin). Annual Plus subscribers get one softcover free per year; monthly subscribers get 20% off.
 
 ---
 

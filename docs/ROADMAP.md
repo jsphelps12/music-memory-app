@@ -591,14 +591,30 @@ You're walking down the street. A restaurant is playing a song that immediately 
 - [ ] Personal collection export: "My Road Trip Playlist" — a playlist you actually remember making
 - [ ] Every export is shareable as a playlist → more impressions for Tracks
 
-### Physical Book **[Events / Book tier — design conversation TBD]**
-- [ ] Requires public individual moment pages on web (`/m/{moment_id}`) for QR codes to link to
-- [ ] Each page spread: contributor name, reflection, song + artist, photo, QR code that plays the song
-- [ ] Back of book: every song in the collection, each with a QR code → Apple Music
-- [ ] Cover: tiled collage of every album artwork from songs in the collection
-- [ ] PDF generation server-side; sent to print-on-demand partner (Artifact Uprising, Blurb)
-- [ ] $80 softcover / $130 hardcover pricing — pure margin after print cost
-- [ ] Dependency: public moment pages must exist first
+### Physical Book **[Premium — one free per year on annual plan; discounted for monthly]**
+Works for both personal collections and shared/event collections. The same product, different emotional context.
+
+**Structure:**
+- Cover: tiled collage of album artwork from all songs in the collection
+- Inside front: collection name, date range, brief description / story
+- Each spread: album art (left page) + photo + full reflection + metadata — date, location, mood, people (right page)
+- Styled QR code on each spread → links to public moment page where the song plays
+- Back matter: the Playlist — every song formatted as a vinyl tracklist (№, Song, Artist, Album, Year) + a QR code that opens the full playlist in Apple Music
+- Back cover: Soundtracks logo + collection invite code (for shared collections)
+
+**The playlist as the last page** is the feature. For a wedding book it's the ceremony soundtrack. For a personal annual book it's your year in music, printable and permanent. It's the "credits" of the story.
+
+**QR codes:** styled with brand gradient (orange→purple dots, rounded corners, Soundtracks logo center) — not a generic black square. Generated via `react-native-qrcode-svg` or server-side for print resolution. Scannable by any phone camera.
+
+**Pricing:**
+- Softcover (up to 50 moments): $49 — ~$20 print cost via Blurb/Prodigi → ~$29 margin
+- Hardcover (up to 100 moments): $79 — ~$35 print cost → ~$44 margin
+- Annual plan subscribers: one softcover/year included free (redemption ~20–30%, economics still healthy)
+- Monthly plan subscribers: 20% off any book
+
+**Print partners:** Blurb (has developer API), Prodigi (global fulfillment), Chatbooks (partnership programs). Prerequisite: public moment page URLs (`/m/{moment_id}`) must exist for QR codes to resolve.
+
+**The physical object does marketing you can't buy.** A wedding book sits on a coffee table, gets picked up at parties, gets photographed and posted. Every guest at the wedding who sees it is a potential user.
 
 ---
 
@@ -610,6 +626,43 @@ Features that turn users into acquisition channels.
 - [x] Web page at `web/app/m/[share_token]/page.tsx` — song + reflection, no account required to view
 - [x] App generates share token and surfaces iOS share sheet from moment detail
 - [x] Acquisition through emotional resonance — recipient sees your memory, CTA to download
+
+### Shareable Moment Card **[Free — core acquisition driver]**
+Every user who shares a moment is an ad. The card is the flywheel.
+
+**Three formats, one design system:**
+
+**Digital share card** (9:16, optimized for Stories and TikTok)
+- Album art fills top 60%, brand gradient (orange→purple) bleeds behind
+- Song + artist in clean type
+- 1–2 sentences of reflection — enough to feel it, not the full thing
+- Small photo inset, polaroid-style
+- Date + location in subtle type
+- "soundtracks · add yours" CTA at bottom — this is the acquisition hook
+- One tap from moment detail → native share sheet
+
+**Print card** (4×6 or 5×7 — prints at Walgreens/CVS for $0.30)
+- Same design adapted for horizontal/square
+- Styled QR code on the front (brand gradient dots, Soundtracks logo center) linking to the public moment page
+- 300 DPI output — generated server-side or via web for print quality
+- Free for all users; making it physical costs them nothing meaningful
+
+**Wall art** (12×12 or 18×24 — standard frame sizes)
+- Album art as the dominant visual, large
+- Memory in serif type below — minimal, gallery-quality
+- Aesthetic: between a framed record sleeve and a concert poster
+- Output as high-res PDF; user prints wherever they want or orders via partner
+- Premium tier feature or small one-time unlock ($2.99)
+
+**The conversion trigger:** viewer sees the card and thinks *"I have a song like that."* That feeling is what converts. Specificity drives it — "August 2019" lands harder than "a few years ago," a real city name lands harder than nothing. The reflection is truncated intentionally; curiosity does the rest.
+
+**The TikTok format:** scroll through 5–6 memory cards set to one of the songs. Each card: album art + one-line memory. The sound IS the song from the last card. End card: "capture yours on Soundtracks." This format already gets millions of organic views — the app is the tool that makes it effortless.
+
+**Yearly Recap card** (Wrapped-style, ships every November)
+- X moments captured, Y songs, top mood, most active month
+- Mosaic of album art from the year
+- "Your 2026 Soundtrack" — shareable, beautiful, guaranteed annual viral moment
+- Build it once, it markets the app every year forever
 
 ### Time Capsule **[Free basic / Premium scheduling]**
 - [ ] When logging a moment, optionally set a "resurface on" date — a specific day, an anniversary, or a recurring schedule (yearly, monthly, etc.)
@@ -1074,7 +1127,7 @@ Get users first. Let usage data and user feedback drive exactly what to charge f
 
 **Physical book margin** — $149 hardcover at ~$45–55 print cost = ~$95 gross margin per book. Artifact Uprising charges $200 for a beautiful-but-silent book. Tracks books play music — point your phone at any page, the song from that moment plays. That's a genuinely different product category, not just a photo book with better paper. Positioned below Artifact Uprising on price, above Chatbooks on intention. The QR audio + emotional reflections + playlist page at the back is the differentiator. One wedding photographer who recommends it to every client makes this revenue meaningful.
 
-*Premium + book bundle:* Tracks Plus subscribers get a meaningful discount on their annual book (e.g. 20–30% off, or one softcover included with the yearly plan at ~$50/yr). This gives Plus an additional reason to stay subscribed year-round even for light users, and makes the annual plan feel like a no-brainer if the user is already planning to buy a book. Alternative framing: the book is the annual plan's "gift to yourself" — pay for Plus, get your year in music on your shelf. Print partner candidates: Chatbooks (API-friendly, partnership programs), Artifact (AI-organized layouts), Blurb (has a developer API), Prodigi (global fulfillment). Prerequisite: public moment page URLs for QR codes to resolve.
+*Book + subscription model (decided):* Annual plan subscribers get **one free softcover book per year** (up to 50 moments, ~$20 print cost). Monthly subscribers get 20% off. Redemption rates on physical benefits like this run 20–30% in practice — most subscribers intend to make the book but don't. At 25% redemption on 1,000 annual subscribers: $99k revenue, ~$5k in print costs, net $94k. Even at 60% redemption it's healthy. The "free book" is a headline benefit that converts annual over monthly — simpler and more compelling than "20% off something you haven't made yet." The annual plan's framing: "your year in music, on your shelf." Print partner candidates: Blurb (developer API), Prodigi (global fulfillment), Chatbooks (partnership programs). Prerequisite: public moment page URLs for QR codes to resolve.
 
 **Growth levers — acquisition channels worth thinking about now even if not built yet:**
 

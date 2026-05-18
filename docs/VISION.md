@@ -139,7 +139,7 @@ Charge for:
 
 The conversion trigger: *after 25–30 entries, show a locked Era card.* Not "upgrade for more storage." But: "Unlock the chapter you just lived."
 
-**Target pricing**: $4.99/month or $39.99/year. Break-even at ~120 annual subscribers. Path to living off it at ~2,000.
+**Target pricing**: $6.99–9.99/month or $79–99/year. Annual plan includes one free softcover book/year (redemption ~20–30%; economics healthy). Monthly plan gets 20% off books. Break-even at ~200 annual subscribers. Path to lifestyle business (~$1M ARR) at ~12,000–15,000 paying users.
 
 ---
 
