@@ -1,14 +1,21 @@
 import React, { createContext, useCallback, useContext, useMemo, useState, useRef, useEffect } from "react";
 import { Audio } from "expo-av";
+import { Player, PlaybackStatus, isMusicSubscriptionError } from "@lomray/react-native-apple-music";
+import type { ISong } from "@lomray/react-native-apple-music";
+import { playAppleMusic, requestMusicAuthorization } from "@/lib/musickit";
 import { Song } from "@/types";
 
 interface PlayerState {
   currentSong: Song | null;
   isPlaying: boolean;
+  playbackTime: number;
+  playbackDuration: number;
   playError: boolean;
-  play: (song: Song, previewUrl: string) => void;
+  playFull: (song: Song, previewUrl?: string) => Promise<void>;
   pause: () => void;
+  resume: () => void;
   stop: () => void;
+  seekTo: (seconds: number) => void;
 }
 
 const PlayerContext = createContext<PlayerState | undefined>(undefined);
@@ -16,21 +23,63 @@ const PlayerContext = createContext<PlayerState | undefined>(undefined);
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackTime, setPlaybackTime] = useState(0);
+  const [playbackDuration, setPlaybackDuration] = useState(0);
   const [playError, setPlayError] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const isNativeRef = useRef(false);
 
   const unloadSound = useCallback(async () => {
     if (soundRef.current) {
-      try {
-        await soundRef.current.unloadAsync();
-      } catch {}
+      try { await soundRef.current.unloadAsync(); } catch {}
       soundRef.current = null;
     }
   }, []);
 
-  const play = useCallback(async (song: Song, previewUrl: string) => {
+  useEffect(() => {
+    const stateSub = Player.addListener("onPlaybackStateChange", (state) => {
+      if (!isNativeRef.current) return;
+      const playing =
+        state.playbackStatus === PlaybackStatus.PLAYING ||
+        state.playbackStatus === PlaybackStatus.SEEKING_FORWARD ||
+        state.playbackStatus === PlaybackStatus.SEEKING_BACKWARD;
+      setIsPlaying(playing);
+      if (state.playbackTime != null) setPlaybackTime(state.playbackTime);
+      if (state.playbackStatus === PlaybackStatus.STOPPED) {
+        setCurrentSong(null);
+        setIsPlaying(false);
+        setPlaybackTime(0);
+        setPlaybackDuration(0);
+        isNativeRef.current = false;
+      }
+    });
+
+    const timeSub = Player.addListener("onPlaybackTimeUpdate", (data) => {
+      if (!isNativeRef.current) return;
+      setPlaybackTime(data.playbackTime);
+    });
+
+    const songSub = Player.addListener("onCurrentSongChange", (song: ISong) => {
+      if (!isNativeRef.current) return;
+      if (song.duration) setPlaybackDuration(song.duration);
+    });
+
+    Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+
+    return () => {
+      stateSub.remove();
+      timeSub.remove();
+      songSub.remove();
+      unloadSound();
+    };
+  }, [unloadSound]);
+
+  const playPreview = useCallback(async (song: Song, previewUrl: string) => {
     await unloadSound();
+    isNativeRef.current = false;
     setPlayError(false);
+    setPlaybackTime(0);
+    setPlaybackDuration(0);
     try {
       const { sound } = await Audio.Sound.createAsync(
         { uri: previewUrl },
@@ -41,9 +90,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setIsPlaying(true);
 
       sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
+        if (!status.isLoaded) return;
+        if (status.positionMillis != null) setPlaybackTime(status.positionMillis / 1000);
+        if (status.durationMillis) setPlaybackDuration(status.durationMillis / 1000);
+        if (status.didJustFinish) {
           setIsPlaying(false);
           setCurrentSong(null);
+          setPlaybackTime(0);
+          setPlaybackDuration(0);
           unloadSound();
         }
       });
@@ -54,34 +108,91 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   }, [unloadSound]);
 
-  const pause = useCallback(async () => {
+  const playFull = useCallback(async (song: Song, previewUrl?: string) => {
+    await unloadSound();
+    if (isNativeRef.current) {
+      try { Player.pause(); } catch {}
+      isNativeRef.current = false;
+    }
+    setPlayError(false);
+    setPlaybackTime(0);
+    setPlaybackDuration(0);
+
+    if (!song.appleMusicId) {
+      if (previewUrl) await playPreview(song, previewUrl);
+      else { setCurrentSong(null); setPlayError(true); }
+      return;
+    }
+
+    const authorized = await requestMusicAuthorization();
+    if (!authorized) {
+      if (previewUrl) await playPreview(song, previewUrl);
+      else { setCurrentSong(null); setPlayError(true); }
+      return;
+    }
+
     try {
-      if (soundRef.current) {
-        await soundRef.current.pauseAsync();
+      await playAppleMusic(song.appleMusicId);
+      isNativeRef.current = true;
+      setCurrentSong(song);
+      setIsPlaying(true);
+    } catch (e) {
+      isNativeRef.current = false;
+      if (isMusicSubscriptionError(e) && previewUrl) {
+        await playPreview(song, previewUrl);
+      } else if (previewUrl) {
+        await playPreview(song, previewUrl);
+      } else {
+        setCurrentSong(null);
+        setIsPlaying(false);
+        setPlayError(true);
       }
-    } catch {}
+    }
+  }, [playPreview, unloadSound]);
+
+  const pause = useCallback(() => {
+    if (isNativeRef.current) {
+      try { Player.pause(); } catch {}
+    } else if (soundRef.current) {
+      soundRef.current.pauseAsync().catch(() => {});
+    }
     setIsPlaying(false);
+  }, []);
+
+  const resume = useCallback(() => {
+    if (isNativeRef.current) {
+      try { Player.play(); } catch {}
+    } else if (soundRef.current) {
+      soundRef.current.playAsync().catch(() => {});
+    }
+    setIsPlaying(true);
   }, []);
 
   const stop = useCallback(async () => {
+    if (isNativeRef.current) {
+      try { Player.pause(); } catch {}
+      isNativeRef.current = false;
+    }
     await unloadSound();
     setCurrentSong(null);
     setIsPlaying(false);
+    setPlaybackTime(0);
+    setPlaybackDuration(0);
     setPlayError(false);
   }, [unloadSound]);
 
-  useEffect(() => {
-    Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-    });
-    return () => {
-      unloadSound();
-    };
+  const seekTo = useCallback((seconds: number) => {
+    if (isNativeRef.current) {
+      Player.seekToTime(seconds);
+    } else if (soundRef.current) {
+      soundRef.current.setPositionAsync(seconds * 1000).catch(() => {});
+    }
+    setPlaybackTime(seconds);
   }, []);
 
   const contextValue = useMemo(
-    () => ({ currentSong, isPlaying, playError, play, pause, stop }),
-    [currentSong, isPlaying, playError, play, pause, stop]
+    () => ({ currentSong, isPlaying, playbackTime, playbackDuration, playError, playFull, pause, resume, stop, seekTo }),
+    [currentSong, isPlaying, playbackTime, playbackDuration, playError, playFull, pause, resume, stop, seekTo]
   );
 
   return (

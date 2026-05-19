@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -26,6 +26,7 @@ import {
   fetchCalendarMonth,
   BrowseMeta,
 } from "@/lib/browse";
+import { getRecentlyPlayed, searchSongs } from "@/lib/musickit";
 import type { Moment } from "@/types";
 
 
@@ -175,6 +176,33 @@ function PersonCircle({ name, count }: { name: string; count: number }) {
       </Text>
       <Text style={{ fontSize: 10, color: theme.colors.textTertiary }}>{count}</Text>
     </View>
+  );
+}
+
+function RecentlyPlayedCard({
+  title, artist, isLoading, onPress,
+}: { title: string; artist: string; isLoading: boolean; onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ marginLeft: 10, width: 130 }}>
+      <LinearGradient
+        colors={["#E8825C", "#6B5F8C"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ borderRadius: theme.radii.md, height: 44, alignItems: "center", justifyContent: "center" }}
+      >
+        {isLoading
+          ? <Ionicons name="hourglass-outline" size={18} color="rgba(255,255,255,0.7)" />
+          : <Ionicons name="musical-notes" size={20} color="rgba(255,255,255,0.85)" />
+        }
+      </LinearGradient>
+      <Text style={{ fontSize: 12, fontFamily: "DMSans_600SemiBold", color: theme.colors.text, marginTop: 5 }} numberOfLines={1}>
+        {title}
+      </Text>
+      <Text style={{ fontSize: 10, color: theme.colors.textTertiary, marginTop: 1 }} numberOfLines={1}>
+        {artist}
+      </Text>
+    </TouchableOpacity>
   );
 }
 
@@ -385,6 +413,36 @@ export default function BrowseScreen() {
     staleTime: 60_000,
   });
 
+  const { data: recentlyPlayed = [] } = useQuery({
+    queryKey: ["recentlyPlayed"],
+    queryFn: getRecentlyPlayed,
+    enabled: !!user,
+    staleTime: 5 * 60_000,
+  });
+
+  const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null);
+
+  const handleRecentlyPlayedTap = useCallback(async (id: string, title: string, artist: string) => {
+    setLoadingTrackId(id);
+    try {
+      const results = await searchSongs(`${title} ${artist}`);
+      const match = results[0];
+      if (match) {
+        router.push({
+          pathname: "/create",
+          params: {
+            songId: match.id,
+            songTitle: match.title,
+            songArtist: match.artistName,
+            songArtworkUrl: match.artworkUrl,
+            appleMusicId: match.appleMusicId,
+          },
+        });
+      }
+    } catch {}
+    setLoadingTrackId(null);
+  }, [router]);
+
   const moodCounts = useMemo(() => deriveMoodCounts(meta), [meta]);
   const peopleCounts = useMemo(() => derivePeopleCounts(meta), [meta]);
   const yearCounts = useMemo(() => deriveYearCounts(meta), [meta]);
@@ -462,6 +520,28 @@ export default function BrowseScreen() {
                   key={item.id}
                   item={item}
                   onPress={() => router.push({ pathname: "/moment/[id]", params: { id: item.id } })}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Recently Played */}
+        {recentlyPlayed.length > 0 && (
+          <View style={styles.section}>
+            <SectionHeader label="RECENTLY PLAYED" />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingLeft: 10, paddingRight: 20 }}
+            >
+              {recentlyPlayed.map((track) => (
+                <RecentlyPlayedCard
+                  key={track.id}
+                  title={track.title}
+                  artist={track.artist}
+                  isLoading={loadingTrackId === track.id}
+                  onPress={() => handleRecentlyPlayedTap(track.id, track.title, track.artist)}
                 />
               ))}
             </ScrollView>

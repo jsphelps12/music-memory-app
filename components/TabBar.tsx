@@ -9,6 +9,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { fetchPendingRequests } from "@/lib/friends";
 import { fetchSharedCollectionActivity, fetchPendingCollectionInvites } from "@/lib/collections";
 import type { MaterialTopTabBarProps } from "@react-navigation/material-top-tabs";
+import { MiniPlayer } from "@/components/MiniPlayer";
 
 const AnimatedIonicons = Animated.createAnimatedComponent(Ionicons);
 
@@ -84,15 +85,16 @@ export function TabBar({ state, navigation, position }: MaterialTopTabBarProps) 
   }
 
   return (
-    <View style={[
-      styles.bar,
-      {
-        height: barHeight,
-        paddingBottom: insets.bottom,
-        backgroundColor: theme.colors.tabBar,
-        borderTopColor: theme.colors.tabBarBorder,
-      },
-    ]}>
+    <View style={{ backgroundColor: theme.colors.tabBar }}>
+      <MiniPlayer />
+      <View style={[
+        styles.bar,
+        {
+          height: barHeight,
+          paddingBottom: insets.bottom,
+          borderTopColor: theme.colors.tabBarBorder,
+        },
+      ]}>
       {TAB_DEFS.map((tab, visualIndex) => {
         if (tab.realIndex === -1) {
           // Center capture button
@@ -150,6 +152,7 @@ export function TabBar({ state, navigation, position }: MaterialTopTabBarProps) 
           </TouchableOpacity>
         );
       })}
+      </View>
     </View>
   );
 }

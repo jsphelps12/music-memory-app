@@ -373,6 +373,7 @@ Current state: infrastructure exists (edge function, per-type prefs, cold-launch
   - `expo-apple-authentication` → add Google Sign-In
   - Everything else (UI, Supabase, navigation, photos, notifications) is already cross-platform
   - Estimated effort: 4–6 weeks focused work, not a full rewrite
+  - **Song search on Android**: MusicKit doesn't exist. Best option is the **iTunes Search API** (`itunes.apple.com/search?term=...`) — already partially used in the codebase for preview URL fetching, requires zero credentials, covers the full Apple Music catalog. Fallback option: Spotify Web API catalog search (requires OAuth). Now Playing on Android uses MediaSession (Kotlin native module, same TS interface as iOS).
 - **Spotify integration on iOS**: Before Android. Store `spotify_track_id`, search Spotify catalog, deep link out. 6–12 months out.
 
 ### Onboarding questionnaire — decision

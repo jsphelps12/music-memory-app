@@ -41,7 +41,6 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
     player.currentSong?.appleMusicId === item.songAppleMusicId && player.isPlaying;
 
   const handlePlayPress = useCallback(() => {
-    if (!item.songPreviewUrl) return;
     if (isThisPlaying) {
       player.pause();
     } else {
@@ -54,7 +53,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
         appleMusicId: item.songAppleMusicId,
         durationMs: 0,
       };
-      player.play(song, item.songPreviewUrl);
+      player.playFull(song, item.songPreviewUrl ?? undefined);
     }
   }, [item, isThisPlaying, player]);
 
@@ -168,7 +167,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
           </ScrollView>
         )}
       </TouchableOpacity>
-      {item.songPreviewUrl ? (
+      {item.songAppleMusicId ? (
         <TouchableOpacity
           style={styles.playButton}
           onPress={handlePlayPress}

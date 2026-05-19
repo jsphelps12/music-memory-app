@@ -1,9 +1,11 @@
 import {
   Auth,
   MusicKit,
+  Player,
+  MusicItem,
   CatalogSearchType,
 } from "@lomray/react-native-apple-music";
-import type { ISong } from "@lomray/react-native-apple-music";
+import type { ISong, ITracksFromLibrary } from "@lomray/react-native-apple-music";
 import type { Song } from "@/types";
 
 export async function requestMusicAuthorization(): Promise<boolean> {
@@ -28,6 +30,18 @@ export async function searchSongs(query: string): Promise<Song[]> {
     appleMusicId: item.id,
     durationMs: item.duration ?? 0,
   }));
+}
+
+export async function playAppleMusic(appleMusicId: string): Promise<void> {
+  await MusicKit.setPlaybackQueue(appleMusicId, MusicItem.SONG);
+  Player.play();
+}
+
+export async function getRecentlyPlayed(): Promise<{ id: string; title: string; artist: string }[]> {
+  const result: ITracksFromLibrary = await MusicKit.getTracksFromLibrary();
+  return result.recentlyPlayedItems
+    .filter((t) => t.type === MusicItem.SONG)
+    .map((t) => ({ id: String(t.id), title: t.title, artist: t.subtitle }));
 }
 
 export async function fetchPreviewUrl(

@@ -59,6 +59,12 @@ import { CloseButton } from "@/components/CloseButton";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchMyReaction, fetchReactionCount, addReaction, removeReaction } from "@/lib/reactions";
 
+function formatTime(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 export default function MomentDetailScreen() {
   const {
     id,
@@ -83,7 +89,7 @@ export default function MomentDetailScreen() {
   }>();
   const router = useRouter();
   const { user, profile } = useAuth();
-  const { currentSong, isPlaying, playError, play, pause, stop } = usePlayer();
+  const { currentSong, isPlaying, playbackTime, playbackDuration, playError, playFull, pause, resume, stop } = usePlayer();
   const theme = useTheme();
   const posthog = usePostHog();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -147,12 +153,12 @@ export default function MomentDetailScreen() {
   useEffect(() => {
     if (hasAutoPlayed.current) return;
     const m = momentRef.current;
-    if (!m?.songPreviewUrl) return;
+    if (!m?.songAppleMusicId) return;
     hasAutoPlayed.current = true;
     const timer = setTimeout(() => {
       const current = momentRef.current;
-      if (!current?.songPreviewUrl) return;
-      play(
+      if (!current?.songAppleMusicId) return;
+      playFull(
         {
           id: current.songAppleMusicId,
           title: current.songTitle,
@@ -162,7 +168,7 @@ export default function MomentDetailScreen() {
           appleMusicId: current.songAppleMusicId,
           durationMs: 0,
         },
-        current.songPreviewUrl!
+        current.songPreviewUrl ?? undefined
       );
     }, 400);
     return () => clearTimeout(timer);
@@ -656,18 +662,17 @@ export default function MomentDetailScreen() {
                 </Text>
               ) : null}
             </View>
-            {moment.songPreviewUrl ? (
+            {moment.songAppleMusicId ? (
               <TouchableOpacity
                 style={[styles.playButton, playError && styles.playButtonError]}
                 activeOpacity={0.7}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  const isCurrentSong =
-                    isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId;
+                  const isCurrentSong = isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId;
                   if (isCurrentSong) {
                     pause();
                   } else {
-                    play(
+                    playFull(
                       {
                         id: moment.songAppleMusicId,
                         title: moment.songTitle,
@@ -677,7 +682,7 @@ export default function MomentDetailScreen() {
                         appleMusicId: moment.songAppleMusicId,
                         durationMs: 0,
                       },
-                      moment.songPreviewUrl!
+                      moment.songPreviewUrl ?? undefined
                     );
                   }
                 }}
@@ -692,6 +697,18 @@ export default function MomentDetailScreen() {
               </TouchableOpacity>
             ) : null}
           </View>
+
+          {/* Playback progress bar */}
+          {currentSong?.appleMusicId === moment.songAppleMusicId && playbackDuration > 0 && (
+            <View style={styles.progressContainer}>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${Math.min(100, (playbackTime / playbackDuration) * 100)}%` }]} />
+              </View>
+              <Text style={styles.progressTime}>
+                {formatTime(playbackTime)} / {formatTime(playbackDuration)}
+              </Text>
+            </View>
+          )}
 
           {/* Reflection — the main content */}
           {moment.reflectionText ? (
@@ -1373,6 +1390,27 @@ function createStyles(theme: Theme) {
     },
     playButtonErrorText: {
       color: theme.colors.textTertiary,
+    },
+    progressContainer: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.sm,
+      gap: 4,
+    },
+    progressTrack: {
+      height: 2,
+      backgroundColor: theme.colors.backgroundSecondary,
+      borderRadius: 1,
+      overflow: "hidden",
+    },
+    progressFill: {
+      height: 2,
+      backgroundColor: theme.colors.accent,
+      borderRadius: 1,
+    },
+    progressTime: {
+      fontSize: 10,
+      color: theme.colors.textTertiary,
+      fontFamily: "DMSans_400Regular",
     },
     reflection: {
       fontSize: 18,
