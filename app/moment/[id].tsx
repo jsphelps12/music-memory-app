@@ -35,7 +35,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
-import { getPublicPhotoUrl, getPublicPhotoThumbnailUrl } from "@/lib/storage";
+import { getPublicPhotoUrl } from "@/lib/storage";
 import { mapRowToMoment } from "@/lib/moments";
 import {
   fetchCollections,
@@ -314,11 +314,6 @@ export default function MomentDetailScreen() {
 
   const photoUrls = useMemo(
     () => moment?.photoUrls.map(getPublicPhotoUrl) ?? [],
-    [moment?.photoUrls]
-  );
-
-  const photoThumbnailUrls = useMemo(
-    () => moment?.photoUrls.map((p) => getPublicPhotoThumbnailUrl(p, 400)) ?? [],
     [moment?.photoUrls]
   );
 
@@ -704,14 +699,14 @@ export default function MomentDetailScreen() {
           ) : null}
 
           {/* Photos */}
-          {photoThumbnailUrls.length > 0 && (
+          {photoUrls.length > 0 && (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               style={styles.photoStrip}
               contentContainerStyle={styles.photoStripContent}
             >
-              {photoThumbnailUrls.map((url, index) => (
+              {photoUrls.map((url, index) => (
                 <TouchableOpacity
                   key={index}
                   activeOpacity={0.85}
@@ -723,6 +718,7 @@ export default function MomentDetailScreen() {
                   <Image
                     source={{ uri: url }}
                     style={styles.photoStripThumb}
+                    contentFit="cover"
                     transition={200}
                   />
                 </TouchableOpacity>
@@ -759,6 +755,34 @@ export default function MomentDetailScreen() {
               ) : null}
             </View>
           ) : null}
+
+          {/* Shared with — owner only */}
+          {user && moment.userId === user.id && friendTags.length > 0 && (() => {
+            const visible = friendTags.slice(0, 2);
+            const overflow = friendTags.length - visible.length;
+            return (
+              <TouchableOpacity
+                style={styles.sharedWithRow}
+                activeOpacity={0.7}
+                onPress={() => setShareModalVisible(true)}
+              >
+                <Ionicons name="people-outline" size={14} color={theme.colors.accentSecondary} />
+                <Text style={styles.sharedWithLabel}>Shared with</Text>
+                {visible.map((tag) => (
+                  <View key={tag.id} style={styles.sharedWithChip}>
+                    <Text style={styles.sharedWithChipText} numberOfLines={1}>
+                      {tag.taggerDisplayName ?? "Friend"}
+                    </Text>
+                  </View>
+                ))}
+                {overflow > 0 && (
+                  <View style={styles.sharedWithChip}>
+                    <Text style={styles.sharedWithChipText}>+{overflow} more</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })()}
 
         </ScrollView>
       )}
@@ -821,7 +845,7 @@ export default function MomentDetailScreen() {
       {fromOnboarding === "true" && showShareSheet !== "true" && moment && (
         <View style={styles.onboardingShareCard}>
           <Ionicons name="gift-outline" size={18} color={theme.colors.accent} />
-          <Text style={styles.onboardingShareText}>Tap <Text style={{ fontWeight: "700" }}>•••</Text> above to give this memory to someone</Text>
+          <Text style={styles.onboardingShareText}>Tap <Text style={{ fontFamily: theme.fonts.bodyBold }}>•••</Text> above to give this memory to someone</Text>
         </View>
       )}
 
@@ -1090,7 +1114,7 @@ const collectionStyles = StyleSheet.create({
   },
   sheetTitle: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
     textTransform: "uppercase",
     letterSpacing: 0.8,
     paddingHorizontal: 20,
@@ -1119,7 +1143,7 @@ const collectionStyles = StyleSheet.create({
   },
   rowName: {
     fontSize: 16,
-    fontWeight: "500",
+    fontFamily: "DMSans_500Medium",
     flex: 1,
   },
   checkmark: {
@@ -1132,7 +1156,7 @@ const collectionStyles = StyleSheet.create({
   checkmarkText: {
     color: "#fff",
     fontSize: 13,
-    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
   },
   checkmarkEmpty: {
     width: 24,
@@ -1146,7 +1170,7 @@ const collectionStyles = StyleSheet.create({
   },
   newCollectionText: {
     fontSize: 16,
-    fontWeight: "500",
+    fontFamily: "DMSans_500Medium",
   },
   newInputRow: {
     paddingHorizontal: 20,
@@ -1173,7 +1197,7 @@ const collectionStyles = StyleSheet.create({
   },
   createBtnText: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
   saveRow: {
     paddingHorizontal: 20,
@@ -1188,10 +1212,12 @@ const collectionStyles = StyleSheet.create({
   saveBtnText: {
     color: "#fff",
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
 });
 
+
+const PHOTO_SIZE = 200;
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
@@ -1213,7 +1239,7 @@ function createStyles(theme: Theme) {
     },
     date: {
       fontSize: theme.fontSize.xl,
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
       flex: 1,
     },
@@ -1245,10 +1271,12 @@ function createStyles(theme: Theme) {
     },
     menuContainer: {
       position: "absolute",
-      top: 60 + 12 + 32 + 8, // headerPaddingTop + approx paddingBottom + button height + gap
+      top: 60 + 12 + 32 + 8,
       right: theme.spacing.xl,
       backgroundColor: theme.colors.cardBg,
       borderRadius: 14,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
       minWidth: 190,
       zIndex: 11,
       shadowColor: "#000",
@@ -1282,6 +1310,8 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       backgroundColor: theme.colors.cardBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
       padding: theme.spacing.md,
       borderRadius: theme.radii.md,
       marginBottom: theme.spacing.xl,
@@ -1297,11 +1327,12 @@ function createStyles(theme: Theme) {
     },
     songTitle: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
     songArtist: {
       fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
       marginTop: 1,
     },
@@ -1309,7 +1340,7 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.xs,
       color: theme.colors.accent,
       marginTop: 2,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
     },
     songTitleLink: {
       color: theme.colors.accent,
@@ -1338,28 +1369,30 @@ function createStyles(theme: Theme) {
     playButtonText: {
       color: theme.colors.buttonText,
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     playButtonErrorText: {
       color: theme.colors.textTertiary,
     },
     reflection: {
-      fontSize: 17,
+      fontSize: 18,
+      fontFamily: theme.fonts.displayItalic,
       color: theme.colors.text,
-      lineHeight: 26,
+      lineHeight: 28,
       marginBottom: theme.spacing.xl,
     },
     photoStrip: {
       marginBottom: theme.spacing.xl,
       marginHorizontal: -theme.spacing.xl,
+      height: PHOTO_SIZE,
     },
     photoStripContent: {
       paddingHorizontal: theme.spacing.xl,
       gap: 10,
     },
     photoStripThumb: {
-      width: 200,
-      height: 200,
+      width: PHOTO_SIZE,
+      height: PHOTO_SIZE,
       borderRadius: theme.radii.md,
     },
     metaRow: {
@@ -1372,6 +1405,8 @@ function createStyles(theme: Theme) {
       paddingHorizontal: 14,
       paddingVertical: 6,
       borderRadius: theme.spacing.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
       backgroundColor: theme.colors.chipBg,
     },
     moodChipText: {
@@ -1382,6 +1417,8 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.md,
       paddingVertical: 6,
       borderRadius: theme.spacing.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.accent,
       backgroundColor: theme.colors.accentBg,
     },
     personChipText: {
@@ -1393,6 +1430,30 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       justifyContent: "space-between",
       marginBottom: theme.spacing["3xl"],
+    },
+    sharedWithRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing["3xl"],
+    },
+    sharedWithLabel: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.accentSecondary,
+      fontFamily: theme.fonts.bodyMedium,
+    },
+    sharedWithChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: theme.spacing.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.accentSecondary,
+      backgroundColor: theme.colors.accentSecondaryBg,
+    },
+    sharedWithChipText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.accentSecondaryText,
     },
     locationText: {
       fontSize: theme.fontSize.sm,
@@ -1501,7 +1562,7 @@ const shareSheetStyles = StyleSheet.create({
   },
   title: {
     fontSize: 17,
-    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
     marginBottom: 3,
   },
   sub: {
@@ -1530,7 +1591,7 @@ const shareSheetStyles = StyleSheet.create({
   },
   optionTitle: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
     marginBottom: 2,
   },
   optionSub: {

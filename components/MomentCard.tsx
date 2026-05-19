@@ -85,8 +85,8 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
   const mood = item.mood ? allMoods.find((m) => m.value === item.mood) : undefined;
   const thumbUrls =
     item.photoThumbnails.length > 0
-      ? item.photoThumbnails.map((p) => getPublicPhotoThumbnailUrl(p, 400))
-      : item.photoUrls.map((p) => getPublicPhotoThumbnailUrl(p, 400));
+      ? item.photoThumbnails.map((p) => getPublicPhotoThumbnailUrl(p, 160, true))
+      : item.photoUrls.map((p) => getPublicPhotoThumbnailUrl(p, 160, true));
 
   const formattedDate = item.momentDate
     ? new Date(item.momentDate + "T00:00:00").toLocaleDateString("en-US", {
@@ -194,6 +194,8 @@ function createStyles(theme: Theme) {
     card: {
       backgroundColor: theme.colors.cardBg,
       borderRadius: theme.radii.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
       overflow: "hidden",
     },
     cardBody: {
@@ -226,11 +228,12 @@ function createStyles(theme: Theme) {
     },
     songTitle: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
     songArtist: {
       fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
       marginTop: 1,
     },
@@ -238,10 +241,12 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.xs,
       color: theme.colors.accent,
       marginTop: 2,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
     },
     reflection: {
       fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
+      fontStyle: "italic",
       color: theme.colors.textSecondary,
       marginTop: 6,
       lineHeight: 20,
@@ -256,11 +261,14 @@ function createStyles(theme: Theme) {
     moodChip: {
       paddingHorizontal: 10,
       paddingVertical: theme.spacing.xs,
-      borderRadius: theme.radii.md,
+      borderRadius: theme.radii.full,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
       backgroundColor: theme.colors.chipBg,
     },
     moodChipText: {
       fontSize: theme.fontSize.xs,
+      fontFamily: theme.fonts.bodyMedium,
       color: theme.colors.chipText,
     },
     date: {

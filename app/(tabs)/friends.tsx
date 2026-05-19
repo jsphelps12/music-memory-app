@@ -567,7 +567,7 @@ function createStyles(theme: Theme) {
     },
     headerTitle: {
       fontSize: theme.fontSize.xl,
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.display,
     },
     headerActions: { flexDirection: "row", gap: 4 },
     headerBtn: { padding: 6 },
@@ -586,11 +586,11 @@ function createStyles(theme: Theme) {
       borderWidth: 1,
       marginBottom: 12,
     },
-    bannerText: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+    bannerText: { fontSize: theme.fontSize.sm, fontFamily: theme.fonts.bodySemibold },
     bannerSubtext: { fontSize: theme.fontSize.xs, marginTop: 2 },
     sectionLabel: {
       fontSize: 11,
-      fontWeight: "600",
+      fontFamily: theme.fonts.bodySemibold,
       textTransform: "uppercase",
       letterSpacing: 0.6,
       marginBottom: 8,
@@ -598,6 +598,8 @@ function createStyles(theme: Theme) {
     },
     card: {
       borderRadius: theme.radii.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
       overflow: "hidden",
       marginBottom: 4,
     },
@@ -615,7 +617,7 @@ function createStyles(theme: Theme) {
       borderRadius: 6,
     },
     taggedInfo: { flex: 1, marginLeft: 12 },
-    taggedSong: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.semibold },
+    taggedSong: { fontSize: theme.fontSize.base, fontFamily: theme.fonts.bodySemibold },
     taggedArtist: { fontSize: theme.fontSize.sm, marginTop: 1 },
     taggedBy: { fontSize: theme.fontSize.xs, marginTop: 3 },
     taggedDate: { fontSize: theme.fontSize.xs, marginLeft: 8 },
@@ -634,14 +636,14 @@ function createStyles(theme: Theme) {
       justifyContent: "center",
     },
     collectionInfo: { flex: 1, marginLeft: 12 },
-    collectionName: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.medium },
+    collectionName: { fontSize: theme.fontSize.base, fontFamily: theme.fonts.bodyMedium },
     collectionSub: { fontSize: theme.fontSize.xs, marginTop: 2 },
     newBadge: {
       paddingHorizontal: 8,
       paddingVertical: 3,
       borderRadius: 10,
     },
-    newBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+    newBadgeText: { color: "#fff", fontSize: 11, fontFamily: theme.fonts.bodyBold },
     // Invite row
     inviteRow: {
       flexDirection: "row",
@@ -660,7 +662,7 @@ function createStyles(theme: Theme) {
     },
     inviteBtnDecline: { borderWidth: 1 },
     inviteBtnAccept: {},
-    inviteBtnText: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+    inviteBtnText: { fontSize: theme.fontSize.sm, fontFamily: theme.fonts.bodySemibold },
     // Empty state
     emptyState: {
       flex: 1,
@@ -671,7 +673,7 @@ function createStyles(theme: Theme) {
     },
     emptyTitle: {
       fontSize: theme.fontSize.xl,
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.display,
       marginTop: theme.spacing.lg,
       marginBottom: theme.spacing.sm,
     },
@@ -682,7 +684,7 @@ function createStyles(theme: Theme) {
       marginBottom: theme.spacing["2xl"],
     },
     emptyBtn: { paddingHorizontal: 28, paddingVertical: 13, borderRadius: theme.radii.button },
-    emptyBtnText: { color: "#fff", fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.semibold },
+    emptyBtnText: { color: "#fff", fontSize: theme.fontSize.base, fontFamily: theme.fonts.bodySemibold },
     // Modal / sheet
     modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
     sheet: {
@@ -700,12 +702,12 @@ function createStyles(theme: Theme) {
       flexDirection: "row", alignItems: "center",
       justifyContent: "space-between", paddingVertical: 12,
     },
-    sheetTitle: { fontSize: 17, fontWeight: "600" },
+    sheetTitle: { fontSize: 17, fontFamily: theme.fonts.bodySemibold },
     shareLinkRow: {
       flexDirection: "row", alignItems: "center",
       borderRadius: theme.radii.md, padding: 14, marginBottom: 20,
     },
-    shareLinkTitle: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.semibold },
+    shareLinkTitle: { fontSize: theme.fontSize.base, fontFamily: theme.fonts.bodySemibold },
     shareLinkSub: { fontSize: theme.fontSize.xs, marginTop: 2 },
     orDivider: { fontSize: theme.fontSize.xs, textAlign: "center", marginBottom: 12 },
     searchRow: {
@@ -718,18 +720,18 @@ function createStyles(theme: Theme) {
       width: 36, height: 36, borderRadius: 18,
       alignItems: "center", justifyContent: "center", overflow: "hidden",
     },
-    avatarInitial: { fontSize: 15, fontWeight: "600" },
+    avatarInitial: { fontSize: 15, fontFamily: theme.fonts.bodySemibold },
     resultRow: {
       flexDirection: "row", alignItems: "center",
       paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth,
     },
-    resultName: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.medium },
+    resultName: { fontSize: theme.fontSize.base, fontFamily: theme.fonts.bodyMedium },
     resultUsername: { fontSize: theme.fontSize.sm, marginTop: 2 },
     addButton: {
       paddingHorizontal: 18, paddingVertical: 8,
       borderRadius: 20, minWidth: 60, alignItems: "center",
     },
-    addButtonText: { color: "#fff", fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+    addButtonText: { color: "#fff", fontSize: theme.fontSize.sm, fontFamily: theme.fonts.bodySemibold },
     sentLabel: { fontSize: theme.fontSize.sm },
     noResults: { textAlign: "center", fontSize: theme.fontSize.sm, marginTop: 12 },
   });

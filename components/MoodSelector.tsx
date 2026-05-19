@@ -170,16 +170,20 @@ function createStyles(theme: Theme) {
       gap: theme.spacing.sm,
     },
     chip: {
-      paddingHorizontal: 14,
+      paddingHorizontal: 12,
       paddingVertical: theme.spacing.sm,
-      borderRadius: theme.radii.lg,
-      backgroundColor: theme.colors.chipBg,
+      borderRadius: theme.radii.full,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: "transparent",
     },
     chipSelected: {
       backgroundColor: theme.colors.chipSelectedBg,
+      borderColor: theme.colors.chipSelectedBg,
     },
     chipText: {
       fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.bodyMedium,
       color: theme.colors.chipText,
     },
     chipTextSelected: {
@@ -188,7 +192,7 @@ function createStyles(theme: Theme) {
     chipAdd: {
       paddingHorizontal: 14,
       paddingVertical: theme.spacing.sm,
-      borderRadius: theme.radii.lg,
+      borderRadius: theme.radii.full,
       backgroundColor: theme.colors.chipBg,
       borderWidth: 1,
       borderStyle: "dashed",
@@ -196,6 +200,7 @@ function createStyles(theme: Theme) {
     },
     chipAddText: {
       fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.bodyMedium,
       color: theme.colors.textSecondary,
     },
     addForm: {
@@ -234,7 +239,7 @@ function createStyles(theme: Theme) {
     },
     saveButtonText: {
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: "#fff",
     },
     cancelText: {

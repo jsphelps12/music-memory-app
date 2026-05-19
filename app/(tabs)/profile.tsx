@@ -622,7 +622,7 @@ function createStyles(theme: Theme) {
     },
     screenTitle: {
       fontSize: theme.fontSize["2xl"],
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
     },
     userCard: {
@@ -630,6 +630,8 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       backgroundColor: theme.colors.cardBg,
       borderRadius: theme.radii.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
       padding: theme.spacing.lg,
       gap: theme.spacing.md,
       marginBottom: theme.spacing["2xl"],
@@ -650,7 +652,7 @@ function createStyles(theme: Theme) {
     },
     initials: {
       fontSize: 28,
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.bodyBold,
       color: theme.colors.textTertiary,
     },
     userCardText: {
@@ -658,7 +660,7 @@ function createStyles(theme: Theme) {
     },
     displayName: {
       fontSize: theme.fontSize.lg,
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.bodyBold,
       color: theme.colors.text,
     },
     email: {
@@ -669,6 +671,8 @@ function createStyles(theme: Theme) {
     statsGrid: {
       backgroundColor: theme.colors.cardBg,
       borderRadius: theme.radii.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
       overflow: "hidden",
       marginBottom: theme.spacing["2xl"],
     },
@@ -691,7 +695,7 @@ function createStyles(theme: Theme) {
     },
     statValue: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.bodyBold,
       color: theme.colors.text,
     },
     statLabel: {
@@ -702,6 +706,8 @@ function createStyles(theme: Theme) {
     topStatsSection: {
       backgroundColor: theme.colors.cardBg,
       borderRadius: theme.radii.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
       paddingVertical: theme.spacing.md,
       paddingHorizontal: theme.spacing.lg,
       marginBottom: theme.spacing["2xl"],
@@ -709,7 +715,7 @@ function createStyles(theme: Theme) {
     },
     sectionTitle: {
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.textTertiary,
       textTransform: "uppercase",
       letterSpacing: 0.5,
@@ -737,13 +743,15 @@ function createStyles(theme: Theme) {
     },
     topStatValue: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
       color: theme.colors.text,
       marginTop: 1,
     },
     promptsCard: {
       backgroundColor: theme.colors.cardBg,
       borderRadius: theme.radii.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
       overflow: "hidden",
       marginBottom: theme.spacing["2xl"],
     },
@@ -759,7 +767,7 @@ function createStyles(theme: Theme) {
     },
     promptsRowLabel: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
       color: theme.colors.text,
     },
     promptsBody: {
@@ -786,7 +794,7 @@ function createStyles(theme: Theme) {
     },
     captureLabel: {
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
     captureDesc: {
@@ -808,7 +816,7 @@ function createStyles(theme: Theme) {
     },
     proCardTitle: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.bodyBold,
       color: theme.colors.text,
     },
     proBadge: {
@@ -822,7 +830,7 @@ function createStyles(theme: Theme) {
     },
     proBadgeText: {
       fontSize: theme.fontSize.xs,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: "#fff",
     },
     proCardSub: {
@@ -841,7 +849,7 @@ function createStyles(theme: Theme) {
     },
     proManageText: {
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.textSecondary,
     },
     upgradeCard: {
@@ -852,7 +860,7 @@ function createStyles(theme: Theme) {
     },
     upgradeTitle: {
       fontSize: theme.fontSize.lg,
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.bodyBold,
       color: "#fff",
     },
     upgradeSub: {
@@ -869,7 +877,7 @@ function createStyles(theme: Theme) {
     },
     upgradeButtonText: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.bodyBold,
       color: "#6B5F8C",
     },
     restoreButton: {
@@ -883,6 +891,8 @@ function createStyles(theme: Theme) {
     notifCard: {
       backgroundColor: theme.colors.cardBg,
       borderRadius: theme.radii.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
       paddingVertical: theme.spacing.md,
       paddingHorizontal: theme.spacing.lg,
       marginBottom: theme.spacing["2xl"],
@@ -917,7 +927,7 @@ function createStyles(theme: Theme) {
     },
     notifRowLabel: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
       color: theme.colors.text,
     },
     notifRowSub: {
@@ -943,7 +953,7 @@ function createStyles(theme: Theme) {
     feedbackText: {
       color: theme.colors.textSecondary,
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     signOutButton: {
       marginTop: theme.spacing.md,
@@ -960,7 +970,7 @@ function createStyles(theme: Theme) {
     signOutText: {
       color: theme.colors.destructive,
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     deleteAccountButton: {
       paddingVertical: 14,

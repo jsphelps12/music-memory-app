@@ -424,7 +424,7 @@ function createStyles(theme: Theme) {
     },
     title: {
       fontSize: theme.fontSize["2xl"],
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
     },
     scroll: { flex: 1 },
@@ -443,12 +443,12 @@ function createStyles(theme: Theme) {
     },
     heroTitle: {
       fontSize: theme.fontSize.xl,
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
     },
     sectionTitle: {
       fontSize: theme.fontSize.lg,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
     sectionSubtitle: {
@@ -460,13 +460,15 @@ function createStyles(theme: Theme) {
     },
     yearLabel: {
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.textSecondary,
       marginBottom: theme.spacing.sm,
     },
     promptCard: {
       backgroundColor: theme.colors.cardBg,
       borderRadius: theme.radii.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
       padding: theme.spacing.lg,
       gap: theme.spacing.md,
     },
@@ -481,7 +483,7 @@ function createStyles(theme: Theme) {
     promptCtaText: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.accent,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     emptyState: {
       flex: 1,
@@ -491,7 +493,7 @@ function createStyles(theme: Theme) {
     },
     emptyTitle: {
       fontSize: theme.fontSize.lg,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
       textAlign: "center",
       marginBottom: theme.spacing.md,
@@ -511,7 +513,7 @@ function createStyles(theme: Theme) {
     },
     emptyButtonText: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: "#fff",
     },
     errorText: {
@@ -529,7 +531,7 @@ function createStyles(theme: Theme) {
     },
     retryText: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
   });
