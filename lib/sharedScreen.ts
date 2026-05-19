@@ -1,9 +1,35 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   fetchSharedCollectionActivity,
   fetchPendingCollectionInvites,
   CollectionInvite,
 } from "@/lib/collections";
 import { fetchPendingRequests, fetchFriends, fetchTaggedMomentsSharedTab } from "@/lib/friends";
+
+export type SharedScreenData = Awaited<ReturnType<typeof fetchSharedScreenData>>;
+
+const sharedCacheKey = (userId: string) => `shared_screen_${userId}`;
+
+export async function readSharedCache(userId: string): Promise<SharedScreenData | null> {
+  try {
+    const raw = await AsyncStorage.getItem(sharedCacheKey(userId));
+    return raw ? (JSON.parse(raw) as SharedScreenData) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function writeSharedCache(userId: string, data: SharedScreenData): Promise<void> {
+  try {
+    await AsyncStorage.setItem(sharedCacheKey(userId), JSON.stringify(data));
+  } catch {}
+}
+
+export async function clearSharedCache(userId: string): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(sharedCacheKey(userId));
+  } catch {}
+}
 
 export async function fetchSharedScreenData(userId: string) {
   const [requests, friends, tagged, collections, invites] = await Promise.all([

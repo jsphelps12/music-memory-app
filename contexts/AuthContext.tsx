@@ -9,8 +9,8 @@ import { CustomMoodDefinition, CustomPromptCategory, FavoriteArtist, FavoriteSon
 import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
 import { fetchCollections, writeCollectionsCache, clearCollectionsCache, clearAllCollectionMomentsCache } from "@/lib/collections";
 import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
-import { fetchBrowseMetadata } from "@/lib/browse";
-import { fetchSharedScreenData } from "@/lib/sharedScreen";
+import { fetchBrowseMetadata, readBrowseCache, writeBrowseCache, clearBrowseCache } from "@/lib/browse";
+import { fetchSharedScreenData, readSharedCache, writeSharedCache, clearSharedCache } from "@/lib/sharedScreen";
 
 export interface OnboardingData {
   displayName: string;
@@ -140,15 +140,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           fetchCollections(session.user.id)
             .then((data) => writeCollectionsCache(session.user.id, data))
             .catch(() => {});
-          queryClient.prefetchQuery({
-            queryKey: ["browseMeta", session.user.id],
-            queryFn: () => fetchBrowseMetadata(session.user.id),
-            staleTime: 60_000,
+          readBrowseCache(session.user.id).then((cached) => {
+            if (cached) queryClient.setQueryData(["browseMeta", session.user.id], cached);
+            queryClient.prefetchQuery({
+              queryKey: ["browseMeta", session.user.id],
+              queryFn: () =>
+                fetchBrowseMetadata(session.user.id).then((data) => {
+                  writeBrowseCache(session.user.id, data).catch(() => {});
+                  return data;
+                }),
+              staleTime: 60_000,
+            });
           });
-          queryClient.prefetchQuery({
-            queryKey: ["sharedScreen", session.user.id],
-            queryFn: () => fetchSharedScreenData(session.user.id),
-            staleTime: 2 * 60 * 1000,
+          readSharedCache(session.user.id).then((cached) => {
+            if (cached) queryClient.setQueryData(["sharedScreen", session.user.id], cached);
+            queryClient.prefetchQuery({
+              queryKey: ["sharedScreen", session.user.id],
+              queryFn: () =>
+                fetchSharedScreenData(session.user.id).then((data) => {
+                  writeSharedCache(session.user.id, data).catch(() => {});
+                  return data;
+                }),
+              staleTime: 2 * 60 * 1000,
+            });
           });
 
           // Stale-while-revalidate: lift AuthGate overlay immediately from cache, then refresh
@@ -269,6 +283,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearProfileCache(userId);
       clearCollectionsCache(userId);
       clearAllCollectionMomentsCache(userId);
+      clearBrowseCache(userId);
+      clearSharedCache(userId);
     }
     posthog.reset();
     Sentry.setUser(null);

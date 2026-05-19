@@ -13,19 +13,6 @@ import { setCachedMoment } from "@/lib/momentCache";
 import { fetchBrowseMetadata, fetchMoodMoments } from "@/lib/browse";
 import type { Moment } from "@/types";
 
-const MOOD_TINTS: Record<string, string> = {
-  nostalgic: "#d4a574",
-  joyful: "#E8A55C",
-  melancholy: "#5a7a8c",
-  energetic: "#c4707a",
-  peaceful: "#7a8c5a",
-  romantic: "#c4707a",
-  rebellious: "#c4707a",
-  hopeful: "#E8825C",
-  bittersweet: "#9b6b4a",
-  empowered: "#7a5a8c",
-};
-
 function DistributionBar({ moments, color }: { moments: Moment[]; color: string }) {
   const theme = useTheme();
   const counts = useMemo(() => {
@@ -116,7 +103,7 @@ export default function MoodScreen() {
   }, [meta]);
 
   const currentMood = MOODS.find((m) => m.value === activeMood);
-  const tint = MOOD_TINTS[activeMood] ?? theme.colors.accent;
+  const tint = theme.colors.accent;
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>

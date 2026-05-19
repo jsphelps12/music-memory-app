@@ -28,26 +28,6 @@ import {
 } from "@/lib/browse";
 import type { Moment } from "@/types";
 
-const MOOD_TINTS: Record<string, string> = {
-  nostalgic: "#d4a574",
-  joyful: "#E8A55C",
-  melancholy: "#5a7a8c",
-  energetic: "#c4707a",
-  peaceful: "#7a8c5a",
-  romantic: "#c4707a",
-  rebellious: "#c4707a",
-  hopeful: "#E8825C",
-  bittersweet: "#9b6b4a",
-  empowered: "#7a5a8c",
-};
-
-const PERSON_GRADIENTS = [
-  ["#E8825C", "#6B5F8C"],
-  ["#5a7a8c", "#2a3a4a"],
-  ["#7a8c5a", "#3a4a2a"],
-  ["#d4a574", "#9b6b4a"],
-  ["#c4707a", "#7a3a4a"],
-];
 
 // ── helpers ────────────────────────────────────────────────
 
@@ -145,11 +125,10 @@ function ResurfacedCard({ item, onPress }: { item: BrowseMeta; onPress: () => vo
   );
 }
 
-function MoodCard({ mood, emoji, label, count, onPress }: {
+function MoodCard({ emoji, label, count, onPress }: {
   mood: string; emoji: string; label: string; count: number; onPress: () => void;
 }) {
   const theme = useTheme();
-  const tint = MOOD_TINTS[mood] ?? theme.colors.accent;
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -168,18 +147,17 @@ function MoodCard({ mood, emoji, label, count, onPress }: {
     >
       <Text style={{ fontSize: 22 }}>{emoji}</Text>
       <Text style={{ fontSize: 12, fontFamily: "DMSans_600SemiBold", color: theme.colors.text, marginTop: 6 }}>{label}</Text>
-      <Text style={{ fontSize: 11, color: tint, fontFamily: "DMSans_500Medium", marginTop: 2 }}>{count}</Text>
+      <Text style={{ fontSize: 11, color: theme.colors.textSecondary, fontFamily: "DMSans_500Medium", marginTop: 2 }}>{count}</Text>
     </TouchableOpacity>
   );
 }
 
-function PersonCircle({ name, count, index }: { name: string; count: number; index: number }) {
+function PersonCircle({ name, count }: { name: string; count: number }) {
   const theme = useTheme();
-  const grad = PERSON_GRADIENTS[index % PERSON_GRADIENTS.length] as [string, string];
   return (
     <View style={{ marginLeft: 12, alignItems: "center" }}>
       <LinearGradient
-        colors={grad}
+        colors={["#E8825C", "#6B5F8C"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{
@@ -522,8 +500,8 @@ export default function BrowseScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingLeft: 8, paddingRight: 20 }}
             >
-              {peopleCounts.map(({ name, count }, i) => (
-                <PersonCircle key={name} name={name} count={count} index={i} />
+              {peopleCounts.map(({ name, count }) => (
+                <PersonCircle key={name} name={name} count={count} />
               ))}
             </ScrollView>
           </View>

@@ -1,6 +1,30 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import type { Moment } from "@/types";
+
+const browseCacheKey = (userId: string) => `browse_meta_${userId}`;
+
+export async function readBrowseCache(userId: string): Promise<BrowseMeta[] | null> {
+  try {
+    const raw = await AsyncStorage.getItem(browseCacheKey(userId));
+    return raw ? (JSON.parse(raw) as BrowseMeta[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function writeBrowseCache(userId: string, data: BrowseMeta[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(browseCacheKey(userId), JSON.stringify(data));
+  } catch {}
+}
+
+export async function clearBrowseCache(userId: string): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(browseCacheKey(userId));
+  } catch {}
+}
 
 export interface BrowseMeta {
   id: string;
