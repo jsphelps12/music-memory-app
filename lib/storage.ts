@@ -127,9 +127,9 @@ export function getPublicPhotoUrl(path: string): string {
   return data.publicUrl;
 }
 
-export function getPublicPhotoThumbnailUrl(path: string, width = 400): string {
+export function getPublicPhotoThumbnailUrl(path: string, width = 400, square = false): string {
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path, {
-    transform: { width, quality: 80 },
+    transform: { width, ...(square && { height: width, resize: "cover" }), quality: 80 },
   });
   return data.publicUrl;
 }

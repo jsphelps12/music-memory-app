@@ -145,7 +145,7 @@ function createStyles(theme: Theme) {
     },
     heading: {
       fontSize: theme.fontSize["2xl"],
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
       marginBottom: theme.spacing.sm,
     },
@@ -176,7 +176,7 @@ function createStyles(theme: Theme) {
     },
     stepTitle: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
       marginBottom: 2,
     },
@@ -204,7 +204,7 @@ function createStyles(theme: Theme) {
     },
     continueButtonText: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
   });
 }

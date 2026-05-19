@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   },
   sheetTitle: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
     textTransform: "uppercase",
     letterSpacing: 0.8,
     paddingHorizontal: 20,
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 11,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
     letterSpacing: 0.6,
   },
   row: {
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
   },
   rowName: {
     fontSize: 16,
-    fontWeight: "500",
+    fontFamily: "DMSans_500Medium",
   },
   rowSub: {
     fontSize: 12,

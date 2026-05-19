@@ -140,7 +140,7 @@ function createStyles(theme: Theme) {
     },
     title: {
       fontSize: theme.fontSize["3xl"],
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
       marginBottom: theme.spacing.xs,
     },

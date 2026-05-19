@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   StyleSheet,
-  TextInput,
   ScrollView,
   ActivityIndicator,
 } from "react-native";
@@ -35,30 +34,14 @@ import { SkeletonTimelineCard } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
-import { dateToStr } from "@/lib/dateUtils";
 import { MomentCard } from "@/components/MomentCard";
 import { CalendarView } from "@/components/CalendarView";
 import { CollectionPicker } from "@/components/CollectionPicker";
 import { CreateCollectionModal } from "@/components/CreateCollectionModal";
 import { CollectionShareSheet } from "@/components/CollectionShareSheet";
-import { Collection, Moment, MoodOption } from "@/types";
-import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { Collection, Moment } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 30_000;
-const DEBOUNCE_MS = 300;
-
-function escapeLike(str: string): string {
-  return str.replace(/%/g, "\\%").replace(/_/g, "\\_");
-}
-
-
-function formatDateLabel(dateStr: string): string {
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 export default function TimelineScreen() {
   const router = useRouter();
@@ -94,34 +77,6 @@ export default function TimelineScreen() {
   // Per-collection moment cache: collectionId → { moments, fetchedAt }
   // Makes switching between chips feel instant after the first load.
   const collectionCacheRef = useRef<Map<string, { moments: Moment[]; fetchedAt: number }>>(new Map());
-
-  // Search & filter state
-  const [searchText, setSearchText] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [selectedMoods, setSelectedMoods] = useState<MoodOption[]>([]);
-  const [selectedPeople, setSelectedPeople] = useState<string[]>([]);
-  const [allPeople, setAllPeople] = useState<string[]>([]);
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
-  const [dateFrom, setDateFrom] = useState<string | null>(null);
-  const [dateTo, setDateTo] = useState<string | null>(null);
-  const [locationSearch, setLocationSearch] = useState("");
-  const [debouncedLocation, setDebouncedLocation] = useState("");
-  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const locationDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Refs to keep fetchMoments identity stable (avoids useFocusEffect loop)
-  const debouncedSearchRef = useRef(debouncedSearch);
-  debouncedSearchRef.current = debouncedSearch;
-  const selectedMoodsRef = useRef(selectedMoods);
-  selectedMoodsRef.current = selectedMoods;
-  const selectedPeopleRef = useRef(selectedPeople);
-  selectedPeopleRef.current = selectedPeople;
-  const dateFromRef = useRef(dateFrom);
-  dateFromRef.current = dateFrom;
-  const dateToRef = useRef(dateTo);
-  dateToRef.current = dateTo;
-  const debouncedLocationRef = useRef(debouncedLocation);
-  debouncedLocationRef.current = debouncedLocation;
 
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [calendarLoading, setCalendarLoading] = useState(true);
@@ -259,53 +214,6 @@ export default function TimelineScreen() {
     setPendingScrollId(momentId);
   }, []);
 
-  const hasActiveFilters =
-    debouncedSearch.length > 0 ||
-    selectedMoods.length > 0 ||
-    selectedPeople.length > 0 ||
-    dateFrom !== null ||
-    dateTo !== null ||
-    debouncedLocation.length > 0 ||
-    selectedCollection !== null;
-
-  // Dot only reflects manual filters — collection selection is a view mode, not a filter
-  const hasFilterDot =
-    debouncedSearch.length > 0 ||
-    selectedMoods.length > 0 ||
-    selectedPeople.length > 0 ||
-    dateFrom !== null ||
-    dateTo !== null ||
-    debouncedLocation.length > 0;
-
-  const hasChipFilters =
-    selectedMoods.length > 0 ||
-    selectedPeople.length > 0 ||
-    dateFrom !== null ||
-    dateTo !== null ||
-    debouncedLocation.length > 0;
-
-  // Debounce search text
-  useEffect(() => {
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    debounceTimer.current = setTimeout(() => {
-      setDebouncedSearch(searchText.trim());
-    }, DEBOUNCE_MS);
-    return () => {
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    };
-  }, [searchText]);
-
-  // Debounce location search
-  useEffect(() => {
-    if (locationDebounceTimer.current) clearTimeout(locationDebounceTimer.current);
-    locationDebounceTimer.current = setTimeout(() => {
-      setDebouncedLocation(locationSearch.trim());
-    }, DEBOUNCE_MS);
-    return () => {
-      if (locationDebounceTimer.current) clearTimeout(locationDebounceTimer.current);
-    };
-  }, [locationSearch]);
-
   const sections = useMemo(() => {
     const grouped: Record<string, Moment[]> = {};
     for (const m of moments) {
@@ -354,12 +262,9 @@ export default function TimelineScreen() {
         if (prefetchPromise) {
           const prefetched = await prefetchPromise.catch(() => null);
           if (prefetched !== null) {
-            const peopleSet = new Set<string>();
-            for (const m of prefetched) for (const p of m.people) peopleSet.add(p);
             const nextHasMore = prefetched.length === TIMELINE_PAGE_SIZE;
             setMoments(prefetched);
             setHasMore(nextHasMore);
-            setAllPeople(Array.from(peopleSet).sort());
             timelineSnapshotRef.current = { moments: prefetched, hasMore: nextHasMore };
             // Derive count from cache; only hit the DB if there might be more pages
             if (!nextHasMore) {
@@ -384,21 +289,8 @@ export default function TimelineScreen() {
       setBannerError("");
       if (showLoading) setError("");
 
-      const currentSearch = debouncedSearchRef.current;
-      const currentMoods = selectedMoodsRef.current;
-      const currentPeople = selectedPeopleRef.current;
-      const currentDateFrom = dateFromRef.current;
-      const currentDateTo = dateToRef.current;
-      const currentLocation = debouncedLocationRef.current;
       const currentCollection = selectedCollectionRef.current;
-      const filtersActive =
-        currentSearch.length > 0 ||
-        currentMoods.length > 0 ||
-        currentPeople.length > 0 ||
-        currentDateFrom !== null ||
-        currentDateTo !== null ||
-        currentLocation.length > 0 ||
-        currentCollection !== null;
+      const filtersActive = currentCollection !== null;
 
       let query = supabase
         .from("moments")
@@ -406,33 +298,6 @@ export default function TimelineScreen() {
         .eq("user_id", user!.id)
         .order("moment_date", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false });
-
-      if (currentSearch.length > 0) {
-        const term = escapeLike(currentSearch);
-        query = query.or(
-          `song_title.ilike.%${term}%,song_artist.ilike.%${term}%,reflection_text.ilike.%${term}%`
-        );
-      }
-
-      if (currentMoods.length > 0) {
-        query = query.in("mood", currentMoods);
-      }
-
-      if (currentPeople.length > 0) {
-        query = query.overlaps("people", currentPeople);
-      }
-
-      if (currentDateFrom) {
-        query = query.gte("moment_date", currentDateFrom);
-      }
-
-      if (currentDateTo) {
-        query = query.lte("moment_date", currentDateTo);
-      }
-
-      if (currentLocation.length > 0) {
-        query = query.ilike("location", `%${escapeLike(currentLocation)}%`);
-      }
 
       if (currentCollection) {
         const cacheKey = currentCollection.id;
@@ -583,20 +448,6 @@ export default function TimelineScreen() {
         }
       }
 
-      // Populate allPeople — accumulates across pages
-      if (!filtersActive) {
-        const peopleSet = new Set<string>();
-        if (append) {
-          setAllPeople((prev) => {
-            for (const p of prev) peopleSet.add(p);
-            for (const m of mapped) for (const p of m.people) peopleSet.add(p);
-            return Array.from(peopleSet).sort();
-          });
-        } else {
-          for (const m of mapped) for (const p of m.people) peopleSet.add(p);
-          setAllPeople(Array.from(peopleSet).sort());
-        }
-      }
     },
     [user, posthog]
   );
@@ -632,26 +483,15 @@ export default function TimelineScreen() {
     }
   }, [collections]);
 
-  // Re-fetch when filters change
+  // Re-fetch when collection changes
   useEffect(() => {
     if (lastFetchTime.current > 0) {
       fetchMoments(false);
     }
-  }, [debouncedSearch, selectedMoods, selectedPeople, dateFrom, dateTo, debouncedLocation, selectedCollection, fetchMoments]);
+  }, [selectedCollection, fetchMoments]);
 
   useFocusEffect(
     useCallback(() => {
-      // Reset filters on tab focus (functional updates avoid new refs when already empty)
-      setSearchText((prev) => (prev === "" ? prev : ""));
-      setDebouncedSearch((prev) => (prev === "" ? prev : ""));
-      setSelectedMoods((prev) => (prev.length === 0 ? prev : []));
-      setSelectedPeople((prev) => (prev.length === 0 ? prev : []));
-      setDateFrom((prev) => (prev === null ? prev : null));
-      setDateTo((prev) => (prev === null ? prev : null));
-      setLocationSearch((prev) => (prev === "" ? prev : ""));
-      setDebouncedLocation((prev) => (prev === "" ? prev : ""));
-      setFiltersExpanded(false);
-
       const { stale, pendingMoment, deletedMomentId } = consumeTimelineStale();
       const elapsed = Date.now() - lastFetchTime.current;
       const collectionsElapsed = Date.now() - lastCollectionsFetchTime.current;
@@ -719,32 +559,6 @@ export default function TimelineScreen() {
     />
   ), [allMoods, selectedCollection]);
 
-  const clearFilters = useCallback(() => {
-    setSearchText("");
-    setDebouncedSearch("");
-    setSelectedMoods([]);
-    setSelectedPeople([]);
-    setDateFrom(null);
-    setDateTo(null);
-    setLocationSearch("");
-    setDebouncedLocation("");
-    setSelectedCollection(null);
-  }, []);
-
-  const toggleMood = useCallback((mood: MoodOption) => {
-    setSelectedMoods((prev) =>
-      prev.includes(mood) ? prev.filter((m) => m !== mood) : [...prev, mood]
-    );
-  }, []);
-
-  const togglePerson = useCallback((person: string) => {
-    setSelectedPeople((prev) =>
-      prev.includes(person)
-        ? prev.filter((p) => p !== person)
-        : [...prev, person]
-    );
-  }, []);
-
   const handleRequestCreate = useCallback(() => {
     setPickerVisible(false);
     setCreateCollectionVisible(true);
@@ -774,14 +588,14 @@ export default function TimelineScreen() {
     />
   ) : null;
 
-  const showEmptyFilterState = hasActiveFilters && moments.length === 0 && !loading && !error;
+  const showEmptyCollectionState = selectedCollection !== null && moments.length === 0 && !loading && !error;
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         {/* Title row */}
         <View style={styles.headerTop}>
-          <View>
+          <View style={{ flex: 1, marginRight: theme.spacing.md }}>
             {displayCount !== null && (
               <Text style={styles.momentCountLabel}>
                 {displayCount} {displayCount === 1 ? "MOMENT" : "MOMENTS"}
@@ -806,22 +620,6 @@ export default function TimelineScreen() {
                 color={theme.colors.text}
               />
             </TouchableOpacity>
-            {viewMode === "list" ? (
-              <TouchableOpacity
-                onPress={() => setFiltersExpanded((v) => !v)}
-                hitSlop={8}
-                style={styles.filterToggle}
-              >
-                <Ionicons
-                  name={filtersExpanded ? "options" : "options-outline"}
-                  size={22}
-                  color={theme.colors.text}
-                />
-                {hasFilterDot && !filtersExpanded ? (
-                  <View style={styles.filterBadge} />
-                ) : null}
-              </TouchableOpacity>
-            ) : null}
           </View>
         </View>
 
@@ -886,212 +684,22 @@ export default function TimelineScreen() {
         </ScrollView>
       </View>
 
-      {/* Sticky search + filter zone */}
-      <View style={styles.stickyZone}>
-        {/* Search bar — always shown */}
-        <View style={styles.searchBar}>
-          <Ionicons
-            name="search"
-            size={18}
-            color={theme.colors.placeholder}
-            style={styles.searchIcon}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search songs, reflections..."
-            placeholderTextColor={theme.colors.placeholder}
-            cursorColor={theme.colors.accent}
-            value={searchText}
-            onChangeText={setSearchText}
-            autoCorrect={false}
-            autoCapitalize="none"
-            returnKeyType="search"
-          />
-          {searchText.length > 0 ? (
-            <TouchableOpacity onPress={() => setSearchText("")} hitSlop={8}>
-              <Ionicons name="close-circle" size={18} color={theme.colors.placeholder} />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
-        {/* Full filter panel — only when filtersExpanded */}
-        {filtersExpanded ? (
-          <View style={styles.filterPanel}>
-            <Text style={styles.filterLabel}>Mood</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterChipRow}>
-              {allMoods.map((mood) => {
-                const selected = selectedMoods.includes(mood.value);
-                return (
-                  <TouchableOpacity
-                    key={mood.value}
-                    style={[styles.filterChip, selected && styles.filterChipSelected]}
-                    onPress={() => toggleMood(mood.value)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.filterChipText, selected && styles.filterChipTextSelected]}>
-                      {mood.emoji} {mood.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-            {allPeople.length > 0 ? (
-              <>
-                <Text style={styles.filterLabel}>People</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterChipRow}>
-                  {allPeople.map((person) => {
-                    const selected = selectedPeople.includes(person);
-                    return (
-                      <TouchableOpacity
-                        key={person}
-                        style={[styles.filterChip, selected && styles.filterChipSelected]}
-                        onPress={() => togglePerson(person)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[styles.filterChipText, selected && styles.filterChipTextSelected]}>
-                          {person}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </>
-            ) : null}
-
-            <Text style={styles.filterLabel}>Date Range</Text>
-            <View style={styles.dateRangeRow}>
-              <View style={styles.dateRangeItem}>
-                <Text style={styles.dateRangeItemLabel}>From</Text>
-                {dateFrom ? (
-                  <View style={styles.datePickerRow}>
-                    <DateTimePicker
-                      value={new Date(dateFrom + "T00:00:00")}
-                      mode="date"
-                      display="compact"
-                      maximumDate={dateTo ? new Date(dateTo + "T00:00:00") : new Date()}
-                      onChange={(_: DateTimePickerEvent, date?: Date) => date && setDateFrom(dateToStr(date))}
-                      themeVariant={theme.isDark ? "dark" : "light"}
-                      accentColor={theme.colors.accent}
-                    />
-                    <TouchableOpacity onPress={() => setDateFrom(null)} hitSlop={8}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.placeholder} />
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity onPress={() => setDateFrom(dateToStr(new Date()))} activeOpacity={0.7}>
-                    <Text style={styles.dateAnyText}>Any</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              <View style={styles.dateRangeItem}>
-                <Text style={styles.dateRangeItemLabel}>To</Text>
-                {dateTo ? (
-                  <View style={styles.datePickerRow}>
-                    <DateTimePicker
-                      value={new Date(dateTo + "T00:00:00")}
-                      mode="date"
-                      display="compact"
-                      minimumDate={dateFrom ? new Date(dateFrom + "T00:00:00") : undefined}
-                      maximumDate={new Date()}
-                      onChange={(_: DateTimePickerEvent, date?: Date) => date && setDateTo(dateToStr(date))}
-                      themeVariant={theme.isDark ? "dark" : "light"}
-                      accentColor={theme.colors.accent}
-                    />
-                    <TouchableOpacity onPress={() => setDateTo(null)} hitSlop={8}>
-                      <Ionicons name="close-circle" size={16} color={theme.colors.placeholder} />
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity onPress={() => setDateTo(dateToStr(new Date()))} activeOpacity={0.7}>
-                    <Text style={styles.dateAnyText}>Any</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-
-            <Text style={styles.filterLabel}>Location</Text>
-            <View style={styles.locationFilterInput}>
-              <TextInput
-                style={styles.locationFilterText}
-                placeholder="Search by location..."
-                placeholderTextColor={theme.colors.placeholder}
-                cursorColor={theme.colors.accent}
-                value={locationSearch}
-                onChangeText={setLocationSearch}
-                autoCorrect={false}
-                autoCapitalize="words"
-                returnKeyType="search"
-              />
-              {locationSearch.length > 0 ? (
-                <TouchableOpacity onPress={() => setLocationSearch("")} hitSlop={8}>
-                  <Ionicons name="close-circle" size={18} color={theme.colors.placeholder} />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-        ) : null}
-
-        {/* Active filter chips — only when panel closed and mood/people filters active */}
-        {!filtersExpanded && hasChipFilters ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.activeChipsRow}>
-            {selectedMoods.map((moodValue) => {
-              const mood = allMoods.find((m) => m.value === moodValue);
-              return (
-                <TouchableOpacity
-                  key={moodValue}
-                  style={styles.activeChip}
-                  onPress={() => toggleMood(moodValue)}
-                >
-                  <Text style={styles.activeChipText}>{mood?.emoji} {mood?.label} ✕</Text>
-                </TouchableOpacity>
-              );
-            })}
-            {selectedPeople.map((person) => (
-              <TouchableOpacity
-                key={person}
-                style={styles.activeChip}
-                onPress={() => togglePerson(person)}
-              >
-                <Text style={styles.activeChipText}>{person} ✕</Text>
-              </TouchableOpacity>
-            ))}
-            {(dateFrom || dateTo) ? (
-              <TouchableOpacity
-                style={styles.activeChip}
-                onPress={() => { setDateFrom(null); setDateTo(null); }}
-              >
-                <Text style={styles.activeChipText}>
-                  {dateFrom ? formatDateLabel(dateFrom) : "Any"} – {dateTo ? formatDateLabel(dateTo) : "Any"} ✕
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-            {debouncedLocation.length > 0 ? (
-              <TouchableOpacity
-                style={styles.activeChip}
-                onPress={() => { setLocationSearch(""); setDebouncedLocation(""); }}
-              >
-                <Text style={styles.activeChipText}>{debouncedLocation} ✕</Text>
-              </TouchableOpacity>
-            ) : null}
-          </ScrollView>
-        ) : null}
-      </View>
 
       <GestureDetector gesture={pinchGesture}>
       <View style={styles.viewsContainer}>
         <Animated.View style={[StyleSheet.absoluteFill, listAnimStyle]} pointerEvents={viewMode === "list" ? "auto" : "none"}>
-          {loading && moments.length === 0 && !hasActiveFilters ? (
+          {loading && moments.length === 0 ? (
             <View style={styles.skeletonList}>
               {[0, 1, 2, 3].map((i) => (
                 <SkeletonTimelineCard key={i} />
               ))}
             </View>
-          ) : error && !hasActiveFilters ? (
+          ) : error ? (
             <ErrorState
               message={error}
               onRetry={() => fetchMoments(true)}
             />
-          ) : !hasActiveFilters && moments.length === 0 && !loading ? (
+          ) : moments.length === 0 && !loading ? (
             <View style={styles.centered}>
               <View style={styles.emptyIconContainer}>
                 <Ionicons
@@ -1138,22 +746,11 @@ export default function TimelineScreen() {
                 ) : null
               }
               ListEmptyComponent={
-                showEmptyFilterState ? (
-                  <View style={styles.emptyFilter}>
-                    <Text style={styles.emptyFilterText}>
-                      {selectedCollection
-                        ? `No moments in "${selectedCollection.name}"`
-                        : "No moments match your filters"}
+                showEmptyCollectionState ? (
+                  <View style={styles.centered}>
+                    <Text style={styles.emptySubtitle}>
+                      No moments in "{selectedCollection?.name}"
                     </Text>
-                    <TouchableOpacity
-                      style={styles.clearFiltersButton}
-                      onPress={clearFilters}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.clearFiltersButtonText}>
-                        Clear Filters
-                      </Text>
-                    </TouchableOpacity>
                   </View>
                 ) : null
               }
@@ -1206,24 +803,6 @@ export default function TimelineScreen() {
         />
       ) : null}
 
-      {/* Floating action button */}
-      <TouchableOpacity
-        style={[
-          styles.fab,
-          {
-            backgroundColor: theme.colors.accent,
-            bottom: 16,
-          },
-        ]}
-        onPress={() => router.push(
-          selectedCollection
-            ? { pathname: "/create", params: { collectionId: selectedCollection.id } }
-            : "/create"
-        )}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="add" size={30} color="#fff" />
-      </TouchableOpacity>
     </View>
   );
 }
@@ -1247,16 +826,16 @@ function createStyles(theme: Theme) {
     },
     momentCountLabel: {
       fontSize: 11,
-      fontWeight: "600",
+      fontFamily: theme.fonts.bodySemibold,
       letterSpacing: 0.8,
       color: theme.colors.textTertiary,
       marginBottom: 2,
     },
     title: {
-      fontSize: 26,
-      fontWeight: "700",
+      fontSize: 30,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
-      letterSpacing: -0.5,
+      lineHeight: 34,
     },
     chipRow: {
       marginHorizontal: -theme.spacing.xl,
@@ -1270,185 +849,36 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       gap: 4,
-      paddingHorizontal: 14,
-      paddingVertical: 7,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
       borderRadius: theme.radii.full,
-      backgroundColor: theme.colors.backgroundTertiary,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: "transparent",
     },
     chipSelected: {
-      backgroundColor: theme.colors.accent,
+      backgroundColor: theme.colors.buttonBg,
+      borderColor: theme.colors.buttonBg,
     },
     chipShared: {
       backgroundColor: theme.colors.accentSecondaryBg,
+      borderColor: theme.colors.accentSecondary,
     },
     chipText: {
       fontSize: 13,
-      fontWeight: "600",
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.textSecondary,
     },
     chipTextSelected: {
-      color: "#fff",
+      color: theme.colors.buttonText,
     },
     headerRight: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.md,
     },
-    fab: {
-      position: "absolute",
-      right: 20,
-      width: 56,
-      height: 56,
-      borderRadius: 28,
-      alignItems: "center",
-      justifyContent: "center",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.2,
-      shadowRadius: 6,
-      elevation: 5,
-    },
     viewsContainer: {
       flex: 1,
-    },
-    filterToggle: {
-      position: "relative",
-      padding: theme.spacing.xs,
-    },
-    filterBadge: {
-      position: "absolute",
-      top: 2,
-      right: 2,
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: theme.colors.accent,
-    },
-    stickyZone: {
-      paddingHorizontal: theme.spacing.xl,
-      paddingBottom: theme.spacing.sm,
-    },
-    searchBar: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: theme.colors.backgroundInput,
-      borderRadius: theme.radii.sm,
-      paddingHorizontal: theme.spacing.md,
-      marginBottom: theme.spacing.md,
-      height: 40,
-    },
-    activeChipsRow: {
-      marginBottom: theme.spacing.sm,
-    },
-    activeChip: {
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: 6,
-      borderRadius: theme.radii.md,
-      backgroundColor: theme.colors.chipSelectedBg,
-      marginRight: theme.spacing.sm,
-    },
-    activeChipText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.chipSelectedText,
-    },
-    searchIcon: {
-      marginRight: theme.spacing.sm,
-    },
-    searchInput: {
-      flex: 1,
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      padding: 0,
-    },
-    filterPanel: {
-      marginBottom: theme.spacing.md,
-    },
-    filterLabel: {
-      fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
-      color: theme.colors.textSecondary,
-      marginBottom: theme.spacing.sm,
-    },
-    filterChipRow: {
-      marginBottom: theme.spacing.md,
-    },
-    filterChip: {
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: 6,
-      borderRadius: theme.radii.md,
-      backgroundColor: theme.colors.chipBg,
-      marginRight: theme.spacing.sm,
-    },
-    filterChipSelected: {
-      backgroundColor: theme.colors.chipSelectedBg,
-    },
-    filterChipText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.chipText,
-    },
-    filterChipTextSelected: {
-      color: theme.colors.chipSelectedText,
-    },
-    dateRangeRow: {
-      flexDirection: "row",
-      gap: theme.spacing.xl,
-      marginBottom: theme.spacing.md,
-    },
-    dateRangeItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-    },
-    dateRangeItemLabel: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
-      fontWeight: theme.fontWeight.medium,
-    },
-    datePickerRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-    },
-    dateAnyText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.accent,
-      fontWeight: theme.fontWeight.medium,
-    },
-    locationFilterInput: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: theme.colors.backgroundInput,
-      borderRadius: theme.radii.sm,
-      paddingHorizontal: theme.spacing.md,
-      marginBottom: theme.spacing.md,
-      height: 36,
-    },
-    locationFilterText: {
-      flex: 1,
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.text,
-      padding: 0,
-    },
-    emptyFilter: {
-      alignItems: "center",
-      paddingTop: theme.spacing["4xl"],
-    },
-    emptyFilterText: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.textSecondary,
-      marginBottom: theme.spacing.lg,
-      textAlign: "center",
-    },
-    clearFiltersButton: {
-      paddingVertical: 10,
-      paddingHorizontal: theme.spacing.xl,
-      borderRadius: theme.radii.md,
-      backgroundColor: theme.colors.chipBg,
-    },
-    clearFiltersButtonText: {
-      fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
-      color: theme.colors.text,
     },
     centered: {
       flex: 1,

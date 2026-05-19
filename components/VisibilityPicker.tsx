@@ -73,7 +73,7 @@ function createStyles(theme: Theme) {
     },
     label: {
       fontSize: 11,
-      fontWeight: "600",
+      fontFamily: "DMSans_600SemiBold",
       textAlign: "center",
     },
   });

@@ -232,7 +232,7 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     groupLabel: {
       fontSize: theme.fontSize.xs,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.textTertiary,
       textTransform: "uppercase",
       letterSpacing: 0.6,
@@ -255,7 +255,7 @@ function createStyles(theme: Theme) {
     categoryLabel: {
       fontSize: theme.fontSize.base,
       color: theme.colors.text,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
       flex: 1,
     },
     chevron: {
@@ -294,7 +294,7 @@ function createStyles(theme: Theme) {
     addCategoryBtn: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.accent,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
       marginTop: theme.spacing.lg,
     },
     emptyText: {
@@ -311,12 +311,12 @@ function createStyles(theme: Theme) {
     },
     editTitle: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
     editAction: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
     },
     categoryNameInput: {
       height: 48,
@@ -331,7 +331,7 @@ function createStyles(theme: Theme) {
     },
     startersLabel: {
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
       color: theme.colors.textSecondary,
       marginBottom: theme.spacing.sm,
     },

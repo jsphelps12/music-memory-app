@@ -180,7 +180,7 @@ function createStyles(theme: Theme) {
     },
     artistName: {
       fontSize: theme.fontSize["2xl"],
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
       marginBottom: theme.spacing.xs,
     },

@@ -408,17 +408,14 @@ export async function fetchTaggedMomentsSharedTab(userId: string): Promise<Tagge
 
   const [{ data: profiles }, { data: moments }] = await Promise.all([
     supabase.from("profiles").select("id, display_name, avatar_url").in("id", taggerIds),
-    supabase.from("moments")
-      .select("id, song_title, song_artist, song_artwork_url, moment_date, reflection_text, mood, visibility")
-      .in("id", momentIds),
+    supabase.rpc("get_tagged_moment_data", { p_moment_ids: momentIds }),
   ]);
 
   const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
-  // RLS already filters out private moments — only readable ones come back
   const momentMap = new Map((moments ?? []).map((m: any) => [m.id, m]));
 
   return data
-    .filter((row: any) => momentMap.has(row.moment_id)) // skip private moments
+    .filter((row: any) => momentMap.has(row.moment_id))
     .map((row: any) => {
       const taggerProfile = profileMap.get(row.tagger_user_id);
       const momentRow = momentMap.get(row.moment_id);
@@ -426,17 +423,7 @@ export async function fetchTaggedMomentsSharedTab(userId: string): Promise<Tagge
         ...row,
         tagger_display_name: taggerProfile?.display_name ?? null,
         tagger_avatar_url: taggerProfile?.avatar_url ?? null,
-        moment_row: momentRow ? {
-          ...momentRow,
-          user_id: row.tagger_user_id,
-          song_apple_music_id: momentRow.id,
-          reflection_text: momentRow.reflection_text,
-          photo_urls: [],
-          photo_thumbnails: [],
-          people: [],
-          created_at: row.created_at,
-          updated_at: row.created_at,
-        } : null,
+        moment_row: momentRow ?? null,
       });
     });
 }

@@ -5,6 +5,16 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
+import {
+  DMSerifDisplay_400Regular,
+  DMSerifDisplay_400Regular_Italic,
+} from "@expo-google-fonts/dm-serif-display";
+import {
+  DMSans_400Regular,
+  DMSans_500Medium,
+  DMSans_600SemiBold,
+  DMSans_700Bold,
+} from "@expo-google-fonts/dm-sans";
 import { Stack, useRouter, useSegments, usePathname, useGlobalSearchParams } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
@@ -151,6 +161,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
+    DMSerifDisplay_400Regular,
+    DMSerifDisplay_400Regular_Italic,
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_600SemiBold,
+    DMSans_700Bold,
     ...FontAwesome.font,
   });
 

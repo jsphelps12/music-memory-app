@@ -231,7 +231,7 @@ function createStyles(theme: Theme) {
       flex: 1,
       fontSize: theme.fontSize.sm,
       color: theme.colors.accent,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
     },
     volumeDismiss: {
       fontSize: 12,
@@ -270,7 +270,7 @@ function createStyles(theme: Theme) {
     },
     songTitle: {
       fontSize: theme.fontSize.xl,
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
       marginBottom: 2,
     },
@@ -290,7 +290,7 @@ function createStyles(theme: Theme) {
     playingText: {
       fontSize: theme.fontSize.xs,
       color: theme.colors.accent,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     reflection: {
       fontSize: theme.fontSize.base,
@@ -330,7 +330,7 @@ function createStyles(theme: Theme) {
     },
     shareButtonText: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     continueButton: {
       height: 52,
@@ -340,7 +340,7 @@ function createStyles(theme: Theme) {
     },
     continueButtonText: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
   });
 }

@@ -1,130 +1,21 @@
-import React from "react";
-import { StyleSheet, View, Text } from "react-native";
-import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { Ionicons } from "@expo/vector-icons";
 import { withLayoutContext } from "expo-router";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
-import { useTheme } from "@/hooks/useTheme";
-import { useAuth } from "@/contexts/AuthContext";
-import { fetchPendingRequests } from "@/lib/friends";
-import { fetchSharedCollectionActivity, fetchPendingCollectionInvites } from "@/lib/collections";
+import { TabBar } from "@/components/TabBar";
 
 const { Navigator } = createMaterialTopTabNavigator();
 const SwipeTabs = withLayoutContext(Navigator);
 
-function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>["name"];
-  color: string;
-}) {
-  return <FontAwesome size={24} style={{ marginBottom: -3 }} {...props} />;
-}
-
-async function fetchFriendsBadgeCount(userId: string): Promise<number> {
-  const [requests, collections, invites] = await Promise.all([
-    fetchPendingRequests(userId),
-    fetchSharedCollectionActivity(userId),
-    fetchPendingCollectionInvites(userId).catch(() => []),
-  ]);
-  const newCollectionMoments = collections.reduce((sum, c) => sum + c.newMomentCount, 0);
-  return requests.length + newCollectionMoments + invites.length;
-}
-
-function FriendsTabIcon({ color }: { color: string }) {
-  const { user } = useAuth();
-
-  const { data: pendingCount = 0 } = useQuery({
-    queryKey: ["friendsBadge", user?.id],
-    queryFn: () => fetchFriendsBadgeCount(user!.id),
-    enabled: !!user,
-    staleTime: 60_000,
-    refetchInterval: 60_000,
-  });
-
-  return (
-    <View>
-      <Ionicons name="people-outline" size={24} color={color} style={{ marginBottom: -3 }} />
-      {pendingCount > 0 && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{pendingCount > 9 ? "9+" : pendingCount}</Text>
-        </View>
-      )}
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  badge: {
-    position: "absolute",
-    top: -4,
-    right: -8,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: "#E8825C",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 3,
-  },
-  badgeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "700",
-    lineHeight: 12,
-  },
-});
-
 export default function TabLayout() {
-  const theme = useTheme();
-  const insets = useSafeAreaInsets();
-
   return (
     <SwipeTabs
       tabBarPosition="bottom"
-      screenOptions={{
-        tabBarActiveTintColor: theme.colors.tabBarActive,
-        tabBarInactiveTintColor: theme.colors.tabBarInactive,
-        tabBarStyle: {
-          backgroundColor: theme.colors.tabBar,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: theme.colors.tabBarBorder,
-          paddingBottom: insets.bottom,
-          height: 49 + insets.bottom,
-        },
-        tabBarIndicatorStyle: { height: 0 },
-        tabBarLabelStyle: { fontSize: 10, marginTop: 2 },
-        tabBarItemStyle: { paddingVertical: 6 },
-      }}
+      tabBar={(props) => <TabBar {...props} />}
+      screenOptions={{ swipeEnabled: false }}
     >
-      <SwipeTabs.Screen
-        name="index"
-        options={{
-          title: "Moments",
-          tabBarIcon: ({ color }: { color: string }) => <TabBarIcon name="music" color={color} />,
-        }}
-      />
-      <SwipeTabs.Screen
-        name="reflections"
-        options={{
-          title: "Reflections",
-          tabBarIcon: ({ color }: { color: string }) => <TabBarIcon name="star" color={color} />,
-        }}
-      />
-      <SwipeTabs.Screen
-        name="friends"
-        options={{
-          title: "Shared",
-          tabBarIcon: ({ color }: { color: string }) => <FriendsTabIcon color={color} />,
-        }}
-      />
-      <SwipeTabs.Screen
-        name="profile"
-        options={{
-          title: "Me",
-          tabBarIcon: ({ color }: { color: string }) => <TabBarIcon name="user" color={color} />,
-        }}
-      />
+      <SwipeTabs.Screen name="index"       options={{ title: "Moments" }} />
+      <SwipeTabs.Screen name="browse"      options={{ title: "Browse" }} />
+      <SwipeTabs.Screen name="friends"     options={{ title: "Shared" }} />
+      <SwipeTabs.Screen name="profile"     options={{ title: "Me" }} />
     </SwipeTabs>
   );
 }

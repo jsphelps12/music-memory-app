@@ -171,11 +171,11 @@ function createStyles(theme: Theme) {
     },
     initials: {
       fontSize: 36,
-      fontWeight: "700",
+      fontFamily: theme.fonts.bodyBold,
     },
     name: {
       fontSize: theme.fontSize.xl,
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.display,
       textAlign: "center",
     },
     username: {
@@ -185,7 +185,7 @@ function createStyles(theme: Theme) {
     },
     headline: {
       fontSize: theme.fontSize.lg,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       textAlign: "center",
       marginBottom: 10,
     },
@@ -206,7 +206,7 @@ function createStyles(theme: Theme) {
     addBtnText: {
       color: "#fff",
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     notNowBtn: {
       padding: 12,
@@ -224,7 +224,7 @@ function createStyles(theme: Theme) {
     },
     sentText: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     notFoundText: {
       fontSize: theme.fontSize.base,

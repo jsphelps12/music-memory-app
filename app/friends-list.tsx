@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
   },
   avatarInitial: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
 });
 
@@ -329,7 +329,7 @@ function createStyles(theme: Theme) {
     },
     headerTitle: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     scrollContent: {
       paddingHorizontal: theme.spacing.xl,
@@ -340,7 +340,7 @@ function createStyles(theme: Theme) {
     },
     sectionLabel: {
       fontSize: theme.fontSize.xs,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       textTransform: "uppercase",
       letterSpacing: 0.5,
       marginBottom: 12,
@@ -363,7 +363,7 @@ function createStyles(theme: Theme) {
     },
     rowName: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
     },
     rowUsername: {
       fontSize: theme.fontSize.sm,
@@ -389,20 +389,20 @@ function createStyles(theme: Theme) {
     },
     declineBtnText: {
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
     },
     acceptBtn: {},
     acceptBtnText: {
       color: "#fff",
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     cancelBtn: {
       borderWidth: 1,
     },
     cancelBtnText: {
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
     },
     emptyText: {
       fontSize: theme.fontSize.sm,

@@ -597,12 +597,12 @@ function createStyles(theme: Theme) {
     },
     title: {
       fontSize: theme.fontSize["2xl"],
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
     },
     sectionLabel: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
       marginTop: theme.spacing["2xl"],
       marginBottom: theme.spacing.sm,
@@ -644,7 +644,7 @@ function createStyles(theme: Theme) {
     detailsToggleText: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.accent,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
     },
     dateClearText: {
       fontSize: theme.fontSize.sm,
@@ -681,7 +681,7 @@ function createStyles(theme: Theme) {
     saveButtonText: {
       color: theme.colors.buttonText,
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     // Collection picker UI
     collectionChipRow: {
@@ -702,7 +702,7 @@ function createStyles(theme: Theme) {
     collectionChipText: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.accentText,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
     },
     collectionHint: {
       fontSize: theme.fontSize.xs,
@@ -735,7 +735,7 @@ function createStyles(theme: Theme) {
     },
     candidateTitle: {
       fontSize: theme.fontSize.lg,
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.bodyBold,
       color: theme.colors.text,
     },
     candidateClose: {
@@ -769,7 +769,7 @@ function createStyles(theme: Theme) {
     },
     candidateSongTitle: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
     candidateArtist: {

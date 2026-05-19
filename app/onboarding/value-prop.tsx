@@ -107,7 +107,7 @@ function createStyles(theme: Theme) {
     },
     heading: {
       fontSize: theme.fontSize["2xl"],
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
       marginBottom: theme.spacing.sm,
     },
@@ -142,7 +142,7 @@ function createStyles(theme: Theme) {
     },
     primaryButtonText: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     skipLink: {
       alignItems: "center",

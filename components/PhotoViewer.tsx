@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   closeButtonText: {
     color: "#fff",
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
   dotsContainer: {
     position: "absolute",

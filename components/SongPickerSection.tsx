@@ -231,7 +231,7 @@ function createStyles(theme: Theme) {
     },
     songTitle: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
     songArtist: {
@@ -253,7 +253,7 @@ function createStyles(theme: Theme) {
     selectSongButtonText: {
       color: theme.colors.buttonText,
       fontSize: 17,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     identifyButton: {
       marginTop: theme.spacing.sm,
@@ -270,7 +270,7 @@ function createStyles(theme: Theme) {
     },
     identifyButtonText: {
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
       color: theme.colors.textSecondary,
     },
     nowPlayingBanner: {
@@ -304,21 +304,21 @@ function createStyles(theme: Theme) {
     },
     bannerLabel: {
       fontSize: theme.fontSize.xs,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.accent,
       textTransform: "uppercase",
       letterSpacing: 0.5,
     },
     shazamLabel: {
       fontSize: theme.fontSize.xs,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.accent,
       textTransform: "uppercase",
       letterSpacing: 0.5,
     },
     bannerTitle: {
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
       marginTop: 1,
     },
@@ -343,7 +343,7 @@ function createStyles(theme: Theme) {
     },
     useButtonText: {
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: "#fff",
     },
     shazamError: {

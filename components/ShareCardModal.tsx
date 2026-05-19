@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
   cardWrapper: {
     marginTop: 4,
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   },
   pickerLabel: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
     textTransform: "uppercase",
     letterSpacing: 0.6,
     paddingHorizontal: 24,
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
   },
   shareButtonText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
   },
   linkButton: {
     backgroundColor: "transparent",

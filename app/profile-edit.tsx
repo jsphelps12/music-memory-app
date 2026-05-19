@@ -604,7 +604,7 @@ export default function ProfileEditScreen() {
                   onPress={() => { Haptics.selectionAsync(); setBirthYear(item); setYearPickerVisible(false); }}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.pickerItemText, { color: selected ? theme.colors.accent : theme.colors.text }, selected && { fontWeight: "700" }]}>
+                  <Text style={[styles.pickerItemText, { color: selected ? theme.colors.accent : theme.colors.text }, selected && { fontFamily: theme.fonts.bodyBold }]}>
                     {item}
                   </Text>
                   {selected && <Ionicons name="checkmark" size={18} color={theme.colors.accent} />}
@@ -657,7 +657,7 @@ export default function ProfileEditScreen() {
                     onPress={() => { Haptics.selectionAsync(); setCountry(item); setCountryPickerVisible(false); }}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.pickerItemText, { color: selected ? theme.colors.accent : theme.colors.text }, selected && { fontWeight: "700" }]}>
+                    <Text style={[styles.pickerItemText, { color: selected ? theme.colors.accent : theme.colors.text }, selected && { fontFamily: theme.fonts.bodyBold }]}>
                       {item}
                     </Text>
                     {selected && <Ionicons name="checkmark" size={18} color={theme.colors.accent} />}
@@ -687,7 +687,7 @@ function createStyles(theme: Theme) {
     },
     headerTitle: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
     cancelText: {
@@ -696,7 +696,7 @@ function createStyles(theme: Theme) {
     },
     saveText: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.accent,
     },
     container: {
@@ -717,7 +717,7 @@ function createStyles(theme: Theme) {
     avatar: { width: AVATAR_SIZE, height: AVATAR_SIZE },
     initials: {
       fontSize: 36,
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.bodyBold,
       color: theme.colors.textTertiary,
     },
     changePhotoText: {
@@ -732,7 +732,7 @@ function createStyles(theme: Theme) {
     },
     sectionLabel: {
       fontSize: theme.fontSize.xs,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.textTertiary,
       textTransform: "uppercase",
       letterSpacing: 0.5,
@@ -749,7 +749,7 @@ function createStyles(theme: Theme) {
     },
     fieldLabel: {
       fontSize: theme.fontSize.xs,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
       color: theme.colors.textSecondary,
       marginBottom: 6,
     },
@@ -820,7 +820,7 @@ function createStyles(theme: Theme) {
     chipText: {
       color: "#fff",
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
       maxWidth: 140,
     },
     searchRow: {
@@ -853,7 +853,7 @@ function createStyles(theme: Theme) {
     resultTitle: {
       fontSize: theme.fontSize.base,
       color: theme.colors.text,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
     },
     resultSub: {
       fontSize: theme.fontSize.sm,
@@ -889,7 +889,7 @@ function createStyles(theme: Theme) {
     },
     pickerSheetTitle: {
       fontSize: 17,
-      fontWeight: "600",
+      fontFamily: theme.fonts.bodySemibold,
     },
     pickerItem: {
       flexDirection: "row",
@@ -937,7 +937,7 @@ function createStyles(theme: Theme) {
     genreChipText: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.text,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
     },
     genreChipTextSelected: {
       color: "#fff",

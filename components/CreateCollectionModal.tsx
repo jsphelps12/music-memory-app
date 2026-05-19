@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
   typeRow: {
     flexDirection: "row",
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   },
   typeLabel: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
   typeHint: {
     fontSize: 12,
@@ -245,6 +245,6 @@ const styles = StyleSheet.create({
   },
   btnText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
 });

@@ -55,7 +55,7 @@ function createStyles(theme: Theme) {
     retryText: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.accent,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
     },
     dismissText: {
       fontSize: theme.fontSize.sm,

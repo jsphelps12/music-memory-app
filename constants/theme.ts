@@ -1,5 +1,15 @@
 import { StyleSheet, ViewStyle } from "react-native";
 
+export const fonts = {
+  display: "DMSerifDisplay_400Regular",
+  displayItalic: "DMSerifDisplay_400Regular_Italic",
+  body: "DMSans_400Regular",
+  bodyMedium: "DMSans_500Medium",
+  bodySemibold: "DMSans_600SemiBold",
+  bodyBold: "DMSans_700Bold",
+  mono: "SpaceMono",
+} as const;
+
 export const spacing = {
   xs: 4,
   sm: 8,
@@ -162,6 +172,7 @@ const darkColors: ThemeColors = {
 export interface Theme {
   isDark: boolean;
   colors: ThemeColors;
+  fonts: typeof fonts;
   spacing: typeof spacing;
   fontSize: typeof fontSize;
   fontWeight: typeof fontWeight;
@@ -174,6 +185,7 @@ export function getTheme(colorScheme: "light" | "dark" | null | undefined): Them
   return {
     isDark,
     colors: isDark ? darkColors : lightColors,
+    fonts,
     spacing,
     fontSize,
     fontWeight,

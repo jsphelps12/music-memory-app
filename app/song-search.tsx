@@ -236,7 +236,7 @@ function createStyles(theme: Theme) {
     retryButtonText: {
       color: theme.colors.buttonText,
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     settingsButton: {
       backgroundColor: theme.colors.buttonBg,
@@ -248,7 +248,7 @@ function createStyles(theme: Theme) {
     settingsButtonText: {
       color: theme.colors.buttonText,
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     emptySubtext: {
       fontSize: theme.fontSize.sm,
@@ -276,7 +276,7 @@ function createStyles(theme: Theme) {
     },
     songTitle: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
     songArtist: {

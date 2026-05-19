@@ -266,13 +266,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 26,
-    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
     textAlign: "center",
     marginBottom: 6,
   },
   collectionName: {
     fontSize: 22,
-    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
     textAlign: "center",
     marginBottom: 6,
   },
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: "#fff",
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
   },
   buttonDisabled: {
     opacity: 0.6,

@@ -158,7 +158,7 @@ function createStyles(theme: Theme) {
     },
     title: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
     tabs: {
@@ -183,7 +183,7 @@ function createStyles(theme: Theme) {
     tabText: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
     },
     tabTextActive: {
       color: "#fff",

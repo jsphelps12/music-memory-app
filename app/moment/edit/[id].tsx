@@ -506,7 +506,7 @@ function createStyles(theme: Theme) {
     },
     title: {
       fontSize: theme.fontSize["2xl"],
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
       marginBottom: theme.spacing.xs,
     },
@@ -537,7 +537,7 @@ function createStyles(theme: Theme) {
     },
     songTitle: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
     songArtist: {
@@ -559,11 +559,11 @@ function createStyles(theme: Theme) {
     selectSongButtonText: {
       color: theme.colors.buttonText,
       fontSize: 17,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     sectionLabel: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
       marginTop: theme.spacing["2xl"],
       marginBottom: theme.spacing.sm,
@@ -622,7 +622,7 @@ function createStyles(theme: Theme) {
     addPhotosButtonText: {
       fontSize: 15,
       color: theme.colors.textSecondary,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
     },
     photoScroll: {
       marginTop: 10,
@@ -654,7 +654,7 @@ function createStyles(theme: Theme) {
     photoRemoveText: {
       color: "#fff",
       fontSize: 11,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     datePicker: {
       alignSelf: "center",
@@ -678,7 +678,7 @@ function createStyles(theme: Theme) {
     saveButtonText: {
       color: theme.colors.buttonText,
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
   });
 }

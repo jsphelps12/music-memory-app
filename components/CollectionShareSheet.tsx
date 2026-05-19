@@ -681,7 +681,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
     flex: 1,
     marginRight: 8,
   },
@@ -694,14 +694,14 @@ const styles = StyleSheet.create({
   renameInput: {
     flex: 1,
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
   renameSave: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
   renameCancel: {
     fontSize: 15,
@@ -725,7 +725,7 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
   rowSub: {
     fontSize: 12,
@@ -754,7 +754,7 @@ const styles = StyleSheet.create({
   },
   linkButtonText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
   urlBox: {
     borderRadius: 10,
@@ -777,7 +777,7 @@ const styles = StyleSheet.create({
   shareButtonText: {
     color: "#fff",
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
   leaveButton: {
     alignItems: "center",
@@ -788,7 +788,7 @@ const styles = StyleSheet.create({
   },
   leaveButtonText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -804,7 +804,7 @@ const styles = StyleSheet.create({
   },
   convertButtonText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
   deleteButton: {
     alignItems: "center",
@@ -817,7 +817,7 @@ const styles = StyleSheet.create({
   },
   deleteButtonText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
   memberViewContent: {
     paddingHorizontal: 20,
@@ -828,7 +828,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 11,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
     letterSpacing: 0.8,
     marginBottom: 8,
   },
@@ -873,7 +873,7 @@ const styles = StyleSheet.create({
   },
   addMemberName: {
     fontSize: 14,
-    fontWeight: "500",
+    fontFamily: "DMSans_500Medium",
   },
   addMemberUsername: {
     fontSize: 12,
@@ -889,7 +889,7 @@ const styles = StyleSheet.create({
   addBtnText: {
     color: "#fff",
     fontSize: 13,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
   addMemberEmpty: {
     fontSize: 13,
@@ -919,7 +919,7 @@ const styles = StyleSheet.create({
   },
   guestButtonText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
   qrButton: {
     flexDirection: "row",
@@ -932,6 +932,6 @@ const styles = StyleSheet.create({
   },
   qrButtonText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
 });

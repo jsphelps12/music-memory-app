@@ -166,7 +166,7 @@ function createStyles(theme: Theme, horizontalPadding: number) {
     addButtonText: {
       fontSize: 15,
       color: theme.colors.textSecondary,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
     },
     photoScroll: {
       marginTop: 10,
@@ -198,7 +198,7 @@ function createStyles(theme: Theme, horizontalPadding: number) {
     removeText: {
       color: "#fff",
       fontSize: 11,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     metaBanner: {
       backgroundColor: theme.colors.backgroundSecondary,
@@ -216,7 +216,7 @@ function createStyles(theme: Theme, horizontalPadding: number) {
     },
     metaBannerLabel: {
       fontSize: theme.fontSize.xs,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.accent,
       textTransform: "uppercase",
       letterSpacing: 0.5,
@@ -238,7 +238,7 @@ function createStyles(theme: Theme, horizontalPadding: number) {
     },
     metaUseText: {
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: "#fff",
     },
   });

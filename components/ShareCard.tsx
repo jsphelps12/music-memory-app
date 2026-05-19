@@ -129,13 +129,13 @@ const styles = StyleSheet.create({
   },
   songTitle: {
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
     color: "#fff",
     lineHeight: 20,
   },
   songArtist: {
     fontSize: 13,
-    fontWeight: "500",
+    fontFamily: "DMSans_500Medium",
     color: "rgba(255,255,255,0.55)",
     marginTop: 1,
   },
@@ -155,11 +155,11 @@ const styles = StyleSheet.create({
   date: {
     fontSize: 12,
     color: "rgba(255,255,255,0.4)",
-    fontWeight: "500",
+    fontFamily: "DMSans_500Medium",
   },
   wordmark: {
     fontSize: 13,
-    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
     color: "#E8825C",
     letterSpacing: 0.5,
   },

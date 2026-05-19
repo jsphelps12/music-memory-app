@@ -184,7 +184,7 @@ function createStyles(theme: Theme) {
     },
     chipText: {
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
       flexShrink: 1,
     },
     input: {
@@ -212,7 +212,7 @@ function createStyles(theme: Theme) {
     },
     dropdownName: {
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.medium,
+      fontFamily: theme.fonts.bodyMedium,
     },
     dropdownUsername: {
       fontSize: theme.fontSize.xs,

@@ -161,7 +161,7 @@ function createStyles(theme: Theme) {
     },
     title: {
       fontSize: theme.fontSize["2xl"],
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
       marginBottom: theme.spacing.sm,
     },
@@ -173,7 +173,7 @@ function createStyles(theme: Theme) {
     },
     sectionLabel: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
       marginTop: theme.spacing["2xl"],
       marginBottom: theme.spacing.sm,
@@ -206,7 +206,7 @@ function createStyles(theme: Theme) {
     saveButtonText: {
       color: theme.colors.buttonText,
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     skipLink: {
       alignItems: "center",

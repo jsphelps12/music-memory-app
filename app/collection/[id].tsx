@@ -293,7 +293,7 @@ function createStyles(theme: Theme) {
     },
     headerTitle: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     headerSub: {
       fontSize: theme.fontSize.xs,
@@ -302,7 +302,7 @@ function createStyles(theme: Theme) {
     shareBtn: { padding: 6, marginLeft: 4 },
     sectionHeader: {
       fontSize: theme.fontSize.xs,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       textTransform: "uppercase",
       letterSpacing: 0.8,
       paddingHorizontal: theme.spacing.xl,
@@ -314,7 +314,7 @@ function createStyles(theme: Theme) {
     },
     emptyTitle: {
       fontSize: theme.fontSize.lg,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       marginTop: theme.spacing.lg,
       marginBottom: theme.spacing.sm,
       textAlign: "center",

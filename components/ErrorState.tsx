@@ -55,7 +55,7 @@ function createStyles(theme: Theme) {
     retryButtonText: {
       color: theme.colors.buttonText,
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     backLink: {
       paddingVertical: theme.spacing.sm,

@@ -171,7 +171,7 @@ const cardStyles = StyleSheet.create({
   artwork: { width: 44, height: 44, borderRadius: 6 },
   artworkPlaceholder: { width: 44, height: 44, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   info: { flex: 1 },
-  songName: { fontSize: 15, fontWeight: "600", marginBottom: 2 },
+  songName: { fontSize: 15, fontFamily: "DMSans_600SemiBold", marginBottom: 2 },
   artist: { fontSize: 13 },
   reflection: { fontSize: 13, lineHeight: 18, fontStyle: "italic" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
@@ -201,7 +201,7 @@ function createStyles(theme: Theme) {
     },
     heading: {
       fontSize: theme.fontSize["2xl"],
-      fontWeight: theme.fontWeight.bold,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
       marginBottom: theme.spacing.sm,
     },
@@ -234,7 +234,7 @@ function createStyles(theme: Theme) {
     },
     primaryButtonText: {
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
   });
 }

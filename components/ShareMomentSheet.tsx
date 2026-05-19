@@ -231,7 +231,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
               {/* Tagged friends */}
               {localTags.map((tag) => {
                 const name = tag.taggerDisplayName ?? "Friend";
-                const sent = sentTagIds.has(tag.id);
+                const sent = sentTagIds.has(tag.id) || tag.released;
                 const sending = sendingTagId === tag.id;
                 return (
                   <TouchableOpacity
@@ -446,12 +446,11 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
     marginBottom: 2,
   },
   subtitle: {
     fontSize: 14,
-    fontWeight: "400",
   },
   optionCard: {
     marginHorizontal: 16,
@@ -480,7 +479,7 @@ const styles = StyleSheet.create({
   },
   optionTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
   optionDesc: {
     fontSize: 13,
@@ -506,7 +505,7 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 16,
-    fontWeight: "500",
+    fontFamily: "DMSans_500Medium",
   },
   // Card view
   cardHeader: {
@@ -522,7 +521,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     flex: 1,
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
     textAlign: "center",
   },
   cardWrapper: {
@@ -541,7 +540,7 @@ const styles = StyleSheet.create({
   },
   pickerLabel: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
     textTransform: "uppercase",
     letterSpacing: 0.6,
     paddingHorizontal: 20,
@@ -575,7 +574,7 @@ const styles = StyleSheet.create({
   },
   shareButtonText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
   },
   friendPickerList: {
     maxHeight: 320,
@@ -603,6 +602,6 @@ const styles = StyleSheet.create({
   },
   friendAvatarInitial: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "DMSans_600SemiBold",
   },
 });
