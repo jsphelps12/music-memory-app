@@ -168,7 +168,7 @@ export default function MomentDetailScreen() {
           appleMusicId: current.songAppleMusicId,
           durationMs: 0,
         },
-        current.songPreviewUrl ?? undefined
+        current.songPreviewUrl || undefined
       );
     }, 400);
     return () => clearTimeout(timer);
@@ -682,7 +682,7 @@ export default function MomentDetailScreen() {
                         appleMusicId: moment.songAppleMusicId,
                         durationMs: 0,
                       },
-                      moment.songPreviewUrl ?? undefined
+                      moment.songPreviewUrl || undefined
                     );
                   }
                 }}

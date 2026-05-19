@@ -53,7 +53,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
         appleMusicId: item.songAppleMusicId,
         durationMs: 0,
       };
-      player.playFull(song, item.songPreviewUrl ?? undefined);
+      player.playFull(song, item.songPreviewUrl || undefined);
     }
   }, [item, isThisPlaying, player]);
 

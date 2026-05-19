@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useState, useRef, useEffect } from "react";
 import { Audio } from "expo-av";
-import { Player, PlaybackStatus, isMusicSubscriptionError } from "@lomray/react-native-apple-music";
+import { Player, PlaybackStatus } from "@lomray/react-native-apple-music";
 import type { ISong } from "@lomray/react-native-apple-music";
 import { playAppleMusic, requestMusicAuthorization } from "@/lib/musickit";
 import { Song } from "@/types";
@@ -136,11 +136,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       isNativeRef.current = true;
       setCurrentSong(song);
       setIsPlaying(true);
-    } catch (e) {
+    } catch {
       isNativeRef.current = false;
-      if (isMusicSubscriptionError(e) && previewUrl) {
-        await playPreview(song, previewUrl);
-      } else if (previewUrl) {
+      if (previewUrl) {
         await playPreview(song, previewUrl);
       } else {
         setCurrentSong(null);
