@@ -7,8 +7,6 @@ import {
   StyleSheet,
   RefreshControl,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { runOnJS } from "react-native-reanimated";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
@@ -72,30 +70,6 @@ export default function ArtistScreen() {
     }, [fetchMoments])
   );
 
-  const goBack = useCallback(() => router.back(), [router]);
-
-  const swipeDownGesture = Gesture.Pan()
-    .activeOffsetY([-20, 20])
-    .failOffsetX([-15, 15])
-    .onEnd((e) => {
-      "worklet";
-      if (e.translationY > 80 || e.velocityY > 500) {
-        runOnJS(goBack)();
-      }
-    });
-
-  const swipeHorizGesture = Gesture.Pan()
-    .activeOffsetX([-20, 20])
-    .failOffsetY([-10, 10])
-    .onEnd((e) => {
-      "worklet";
-      if (Math.abs(e.translationX) > 80 || Math.abs(e.velocityX) > 500) {
-        runOnJS(goBack)();
-      }
-    });
-
-  const swipeGesture = Gesture.Race(swipeDownGesture, swipeHorizGesture);
-
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchMoments(false);
@@ -111,7 +85,6 @@ export default function ArtistScreen() {
   ), [router, allMoods]);
 
   return (
-    <GestureDetector gesture={swipeGesture}>
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} activeOpacity={0.7}>
@@ -155,7 +128,6 @@ export default function ArtistScreen() {
         />
       )}
     </View>
-    </GestureDetector>
   );
 }
 

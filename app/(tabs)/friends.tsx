@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { NewSharedCollectionModal } from "@/components/NewSharedCollectionModal";
 import {
   View,
   Text,
@@ -264,22 +265,7 @@ function CollectionRow({ item, onPress, styles, theme }: { item: SharedCollectio
 
 const STALE_TIME = 2 * 60 * 1000;
 
-async function fetchSharedScreenData(userId: string) {
-  const [requests, friends, tagged, collections, invites] = await Promise.all([
-    fetchPendingRequests(userId),
-    fetchFriends(userId),
-    fetchTaggedMomentsSharedTab(userId),
-    fetchSharedCollectionActivity(userId),
-    fetchPendingCollectionInvites(userId).catch(() => [] as CollectionInvite[]),
-  ]);
-  return {
-    pendingRequests: requests,
-    hasFriends: friends.length > 0,
-    taggedMoments: tagged,
-    sharedCollections: collections,
-    collectionInvites: invites,
-  };
-}
+import { fetchSharedScreenData } from "@/lib/sharedScreen";
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
@@ -290,7 +276,9 @@ export default function SharedScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [addFriendVisible, setAddFriendVisible] = useState(false);
+  const [newCollectionVisible, setNewCollectionVisible] = useState(false);
   const [respondingInviteId, setRespondingInviteId] = useState<string | null>(null);
+  const PREVIEW_COUNT = 4;
   const queryClient = useQueryClient();
 
   const { data, isLoading, refetch, isFetching, dataUpdatedAt } = useQuery({
@@ -432,7 +420,7 @@ export default function SharedScreen() {
         {/* Collection invites */}
         {collectionInvites.length > 0 && (
           <>
-            <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>Collection Invites</Text>
+            <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary, marginTop: 16, marginBottom: 8 }]}>COLLECTION INVITES</Text>
             <View style={[styles.card, { backgroundColor: theme.colors.cardBg }]}>
               {collectionInvites.map((invite, i) => (
                 <View key={invite.id}>
@@ -509,12 +497,19 @@ export default function SharedScreen() {
         {/* Tagged in */}
         {taggedMoments.length > 0 && (
           <>
-            <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>Tagged in</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>TAGGED IN</Text>
+              {taggedMoments.length > PREVIEW_COUNT && (
+                <TouchableOpacity onPress={() => router.push("/tagged-moments" as any)} hitSlop={8} activeOpacity={0.7}>
+                  <Text style={[styles.seeAll, { color: theme.colors.accent }]}>See all →</Text>
+                </TouchableOpacity>
+              )}
+            </View>
             <View style={[styles.card, { backgroundColor: theme.colors.cardBg }]}>
-              {taggedMoments.map((tag, i) => (
+              {taggedMoments.slice(0, PREVIEW_COUNT).map((tag, i, arr) => (
                 <View key={tag.id}>
                   <TaggedRow tag={tag} onPress={() => handleTapTag(tag)} styles={styles} theme={theme} />
-                  {i < taggedMoments.length - 1 && (
+                  {i < arr.length - 1 && (
                     <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
                   )}
                 </View>
@@ -524,20 +519,28 @@ export default function SharedScreen() {
         )}
 
         {/* Shared Collections */}
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>SHARED COLLECTIONS</Text>
+          {sharedCollections.length > PREVIEW_COUNT && (
+            <TouchableOpacity onPress={() => router.push("/shared-collections" as any)} hitSlop={8} activeOpacity={0.7} style={{ marginRight: 8 }}>
+              <Text style={[styles.seeAll, { color: theme.colors.accent }]}>See all →</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={() => setNewCollectionVisible(true)} hitSlop={8} activeOpacity={0.7}>
+            <Ionicons name="add-circle-outline" size={20} color={theme.colors.accent} />
+          </TouchableOpacity>
+        </View>
         {sharedCollections.length > 0 && (
-          <>
-            <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>Shared Collections</Text>
-            <View style={[styles.card, { backgroundColor: theme.colors.cardBg }]}>
-              {sharedCollections.map((item, i) => (
-                <View key={item.collectionId}>
-                  <CollectionRow item={item} onPress={() => handleTapCollection(item)} styles={styles} theme={theme} />
-                  {i < sharedCollections.length - 1 && (
-                    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-                  )}
-                </View>
-              ))}
-            </View>
-          </>
+          <View style={[styles.card, { backgroundColor: theme.colors.cardBg }]}>
+            {sharedCollections.slice(0, PREVIEW_COUNT).map((item, i, arr) => (
+              <View key={item.collectionId}>
+                <CollectionRow item={item} onPress={() => handleTapCollection(item)} styles={styles} theme={theme} />
+                {i < arr.length - 1 && (
+                  <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                )}
+              </View>
+            ))}
+          </View>
         )}
       </ScrollView>
 
@@ -547,6 +550,12 @@ export default function SharedScreen() {
         friendInviteToken={profile?.friendInviteToken ?? ""}
         currentUserId={user?.id ?? ""}
         onRequestSent={() => {}}
+      />
+
+      <NewSharedCollectionModal
+        visible={newCollectionVisible}
+        onClose={() => setNewCollectionVisible(false)}
+        userId={user?.id ?? ""}
       />
     </View>
   );
@@ -588,13 +597,22 @@ function createStyles(theme: Theme) {
     },
     bannerText: { fontSize: theme.fontSize.sm, fontFamily: theme.fonts.bodySemibold },
     bannerSubtext: { fontSize: theme.fontSize.xs, marginTop: 2 },
-    sectionLabel: {
-      fontSize: 11,
-      fontFamily: theme.fonts.bodySemibold,
-      textTransform: "uppercase",
-      letterSpacing: 0.6,
+    sectionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
       marginBottom: 8,
       marginTop: 16,
+    },
+    sectionLabel: {
+      fontSize: 10,
+      fontFamily: theme.fonts.bodyBold,
+      textTransform: "uppercase",
+      letterSpacing: 1.2,
+      flex: 1,
+    },
+    seeAll: {
+      fontSize: 13,
+      fontFamily: theme.fonts.bodyMedium,
     },
     card: {
       borderRadius: theme.radii.md,

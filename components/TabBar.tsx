@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Animated } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,6 +9,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { fetchPendingRequests } from "@/lib/friends";
 import { fetchSharedCollectionActivity, fetchPendingCollectionInvites } from "@/lib/collections";
 import type { MaterialTopTabBarProps } from "@react-navigation/material-top-tabs";
+
+const AnimatedIonicons = Animated.createAnimatedComponent(Ionicons);
 
 async function fetchFriendsBadgeCount(userId: string): Promise<number> {
   const [requests, collections, invites] = await Promise.all([
@@ -40,7 +42,7 @@ const ICONS: Record<number, { active: string; inactive: string }> = {
   4: { active: "person",                inactive: "person-outline" },
 };
 
-export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
+export function TabBar({ state, navigation, position }: MaterialTopTabBarProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -55,6 +57,31 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
   });
 
   const barHeight = 49 + insets.bottom;
+  const activeColor = theme.colors.tabBarActive;
+  const inactiveColor = theme.colors.tabBarInactive;
+  const lastRealIndex = state.routes.length - 1;
+
+  function getTabColor(realIndex: number) {
+    if (realIndex === 0) {
+      return position.interpolate({
+        inputRange: [0, 1],
+        outputRange: [activeColor, inactiveColor],
+        extrapolate: "clamp",
+      });
+    }
+    if (realIndex === lastRealIndex) {
+      return position.interpolate({
+        inputRange: [lastRealIndex - 1, lastRealIndex],
+        outputRange: [inactiveColor, activeColor],
+        extrapolate: "clamp",
+      });
+    }
+    return position.interpolate({
+      inputRange: [realIndex - 1, realIndex, realIndex + 1],
+      outputRange: [inactiveColor, activeColor, inactiveColor],
+      extrapolate: "clamp",
+    });
+  }
 
   return (
     <View style={[
@@ -90,7 +117,7 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
         }
 
         const isActive = state.index === tab.realIndex;
-        const color = isActive ? theme.colors.tabBarActive : theme.colors.tabBarInactive;
+        const animatedColor = getTabColor(tab.realIndex);
         const iconDef = ICONS[visualIndex];
         const iconName = isActive ? iconDef.active : iconDef.inactive;
         const showBadge = tab.label === "Shared" && badgeCount > 0;
@@ -112,14 +139,14 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
             activeOpacity={0.7}
           >
             <View style={styles.iconWrapper}>
-              <TabIcon name={iconName} color={color} />
+              <AnimatedIonicons name={iconName as any} size={22} color={animatedColor} />
               {showBadge && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{badgeCount > 9 ? "9+" : badgeCount}</Text>
                 </View>
               )}
             </View>
-            <Text style={[styles.label, { color }]}>{tab.label}</Text>
+            <Animated.Text style={[styles.label, { color: animatedColor }]}>{tab.label}</Animated.Text>
           </TouchableOpacity>
         );
       })}

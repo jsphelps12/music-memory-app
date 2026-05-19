@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Session, User } from "@supabase/supabase-js";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Sentry from "@sentry/react-native";
@@ -8,6 +9,8 @@ import { CustomMoodDefinition, CustomPromptCategory, FavoriteArtist, FavoriteSon
 import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
 import { fetchCollections, writeCollectionsCache, clearCollectionsCache, clearAllCollectionMomentsCache } from "@/lib/collections";
 import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
+import { fetchBrowseMetadata } from "@/lib/browse";
+import { fetchSharedScreenData } from "@/lib/sharedScreen";
 
 export interface OnboardingData {
   displayName: string;
@@ -52,6 +55,7 @@ interface AuthState {
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -130,12 +134,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!isMountedRef.current) return;
         setSession(session);
         if (session?.user) {
-          // Start timeline + collections prefetch immediately — before any awaits,
-          // so data is warm before tabs mount and call loadCollections
+          // ── Tab prefetches — add new tab-level queries here ──────────────────
+          // Fire before any awaits so data is warm before tabs mount.
           prefetchTimeline(session.user.id);
           fetchCollections(session.user.id)
             .then((data) => writeCollectionsCache(session.user.id, data))
             .catch(() => {});
+          queryClient.prefetchQuery({
+            queryKey: ["browseMeta", session.user.id],
+            queryFn: () => fetchBrowseMetadata(session.user.id),
+            staleTime: 60_000,
+          });
+          queryClient.prefetchQuery({
+            queryKey: ["sharedScreen", session.user.id],
+            queryFn: () => fetchSharedScreenData(session.user.id),
+            staleTime: 2 * 60 * 1000,
+          });
 
           // Stale-while-revalidate: lift AuthGate overlay immediately from cache, then refresh
           const cached = await readProfileCache(session.user.id);

@@ -267,7 +267,17 @@ export default function CollectionDetailScreen() {
               old ? { ...old, collection: updated } : old
             )
           }
-          onLeft={() => router.back()}
+          onLeft={(collectionId) => {
+            queryClient.setQueryData(["sharedScreen", user?.id], (old: any) =>
+              old ? {
+                ...old,
+                sharedCollections: old.sharedCollections.filter(
+                  (c: any) => c.collectionId !== collectionId
+                ),
+              } : old
+            );
+            router.back();
+          }}
         />
       )}
     </View>

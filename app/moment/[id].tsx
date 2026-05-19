@@ -203,16 +203,16 @@ export default function MomentDetailScreen() {
   }, [animateOut, goBack]);
 
   const swipeGesture = Gesture.Pan()
-    .activeOffsetX([-15, 15])
-    .failOffsetY([-10, 10])
+    .activeOffsetX([15, Infinity])
+    .failOffsetY([-20, 20])
     .onUpdate((e) => {
       "worklet";
       translateX.value = e.translationX;
-      opacity.value = Math.max(0, 1 - Math.abs(e.translationX) / 200);
+      opacity.value = Math.max(0, 1 - e.translationX / 220);
     })
     .onEnd((e) => {
       "worklet";
-      if (Math.abs(e.translationX) > 60 || Math.abs(e.velocityX) > 400) {
+      if (e.translationX > 60 || e.velocityX > 400) {
         runOnJS(animateOut)(goBack);
       } else {
         translateX.value = withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) });

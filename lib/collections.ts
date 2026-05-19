@@ -410,8 +410,14 @@ export async function fetchSharedCollectionActivity(userId: string): Promise<Sha
     };
   });
 
+  // Deduplicate by collectionId — owner entry wins if the same id appears in both lists
+  const seen = new Set<string>();
   return [...ownedActivity, ...joinedActivity]
-    .filter((c) => c.role === 'owner' || c.totalMoments > 0)
+    .filter((c) => {
+      if (seen.has(c.collectionId)) return false;
+      seen.add(c.collectionId);
+      return c.role === 'owner' || c.totalMoments > 0;
+    })
     .sort((a, b) => {
       if (!a.latestAddedAt) return 1;
       if (!b.latestAddedAt) return -1;

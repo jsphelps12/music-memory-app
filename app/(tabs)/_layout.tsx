@@ -10,7 +10,7 @@ export default function TabLayout() {
     <SwipeTabs
       tabBarPosition="bottom"
       tabBar={(props) => <TabBar {...props} />}
-      screenOptions={{ swipeEnabled: false }}
+      screenOptions={{ swipeEnabled: true }}
     >
       <SwipeTabs.Screen name="index"       options={{ title: "Moments" }} />
       <SwipeTabs.Screen name="browse"      options={{ title: "Browse" }} />

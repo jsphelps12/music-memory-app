@@ -292,7 +292,6 @@ function RootLayoutNav() {
               headerShown: false,
               presentation: "transparentModal",
               animation: "none",
-              gestureEnabled: false,
               contentStyle: { backgroundColor: "transparent" },
             }}
           />
@@ -302,15 +301,15 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="artist"
-            options={{ headerShown: false, presentation: "fullScreenModal", gestureEnabled: false }}
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="song"
-            options={{ headerShown: false, presentation: "fullScreenModal", gestureEnabled: false }}
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="album"
-            options={{ headerShown: false, presentation: "fullScreenModal", gestureEnabled: false }}
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="profile-edit"
@@ -330,6 +329,14 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="collection/[id]"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="shared-collections"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="tagged-moments"
             options={{ headerShown: false }}
           />
         </Stack>
