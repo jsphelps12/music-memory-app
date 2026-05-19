@@ -102,10 +102,6 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
       setError("Please select a song.");
       return;
     }
-    if (!photoFile) {
-      setError("Please add a photo.");
-      return;
-    }
     setError(null);
     setSubmitting(true);
 
@@ -256,13 +252,12 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
         {/* Reflection */}
         <div>
           <label className="block text-sm font-semibold mb-1" style={{ color: "#2C2C3A" }}>
-            Your reflection <span style={{ color: "#E8825C" }}>*</span>
+            Message <span style={{ color: "#999", fontWeight: 400 }}>(optional)</span>
           </label>
           <textarea
-            required
             value={reflection}
             onChange={(e) => setReflection(e.target.value)}
-            placeholder="What does this song mean to you, or what does it remind you of?"
+            placeholder="What does this song mean to you, or what does it remind you of? (optional)"
             rows={4}
             className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-none"
             style={{
@@ -276,7 +271,7 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
         {/* Photo */}
         <div>
           <label className="block text-sm font-semibold mb-1" style={{ color: "#2C2C3A" }}>
-            Photo <span style={{ color: "#E8825C" }}>*</span>
+            Photo <span style={{ color: "#999", fontWeight: 400 }}>(optional)</span>
           </label>
           <input
             ref={fileInputRef}
@@ -331,7 +326,7 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
         {/* Submit */}
         <button
           type="submit"
-          disabled={submitting || !name.trim() || !selectedSong || !reflection.trim() || !photoFile}
+          disabled={submitting || !name.trim() || !selectedSong}
           className="w-full py-4 rounded-full text-white font-semibold text-base transition-opacity hover:opacity-90 disabled:opacity-50"
           style={{ backgroundColor: "#E8825C" }}
         >
