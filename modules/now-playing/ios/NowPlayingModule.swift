@@ -51,7 +51,6 @@ public class NowPlayingModule: Module {
 
     let title = item.title ?? ""
     let artist = item.artist ?? ""
-    let persistentID = item.persistentID
 
     var artworkDataUri: String? = nil
     if let artwork = item.artwork {
@@ -63,11 +62,10 @@ public class NowPlayingModule: Module {
     }
 
     let durationMs = Int(item.playbackDuration * 1000)
-    let storeId = item.value(forProperty: "storeID") as? String
-    let id = storeId ?? String(persistentID)
+    let storeId = item.value(forProperty: MPMediaItemPropertyPlaybackStoreID) as? String
 
     return [
-      "id": id,
+      "id": storeId ?? "",
       "title": title,
       "artistName": artist,
       "artworkUrl": artworkDataUri ?? "",

@@ -4,6 +4,7 @@ import type { EventSubscription } from "expo-modules-core";
 import type { Song } from "@/types";
 
 function itemToSong(item: NowPlayingItem): Song {
+  console.log("[NowPlaying] itemToSong — id:", item.id, "title:", item.title);
   return {
     id: item.id,
     title: item.title,

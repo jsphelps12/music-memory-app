@@ -69,15 +69,15 @@ async function lookupAppleMusicSong(id: string): Promise<Song | null> {
     const response = await fetch(`https://itunes.apple.com/lookup?id=${id}`);
     const json = await response.json();
     const result = json.results?.[0];
-    if (!result) return null;
+    if (!result || !result.trackId) return null;
 
     return {
-      id: String(result.trackId ?? result.collectionId),
-      title: result.trackName ?? result.collectionName ?? "",
+      id: String(result.trackId),
+      title: result.trackName ?? "",
       artistName: result.artistName ?? "",
       albumName: result.collectionName ?? "",
       artworkUrl: result.artworkUrl100?.replace("100x100", "600x600") ?? "",
-      appleMusicId: String(result.trackId ?? result.collectionId),
+      appleMusicId: String(result.trackId),
       durationMs: result.trackTimeMillis ?? 0,
     };
   } catch {

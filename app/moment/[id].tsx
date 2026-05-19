@@ -58,12 +58,7 @@ import { ShareMomentSheet } from "@/components/ShareMomentSheet";
 import { CloseButton } from "@/components/CloseButton";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchMyReaction, fetchReactionCount, addReaction, removeReaction } from "@/lib/reactions";
-
-function formatTime(secs: number): string {
-  const m = Math.floor(secs / 60);
-  const s = Math.floor(secs % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
+import { formatTime } from "@/lib/formatTime";
 
 export default function MomentDetailScreen() {
   const {
@@ -89,7 +84,7 @@ export default function MomentDetailScreen() {
   }>();
   const router = useRouter();
   const { user, profile } = useAuth();
-  const { currentSong, isPlaying, playbackTime, playbackDuration, playError, playFull, pause, resume, stop } = usePlayer();
+  const { currentSong, isPlaying, playbackTime, playbackDuration, playError, playFull, pause, resume, seekTo } = usePlayer();
   const theme = useTheme();
   const posthog = usePostHog();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -147,9 +142,22 @@ export default function MomentDetailScreen() {
     return () => clearTimeout(t);
   }, [showShareSheet]);
 
+  const progressBarWidthRef = useRef(1);
+  const progressDurationRef = useRef(playbackDuration);
+  progressDurationRef.current = playbackDuration;
+  const seekToRef = useRef(seekTo);
+  seekToRef.current = seekTo;
+
+  const handleProgressSeek = useCallback((x: number) => {
+    const ratio = Math.max(0, Math.min(1, x / progressBarWidthRef.current));
+    seekToRef.current(ratio * progressDurationRef.current);
+  }, []);
+
   const hasAutoPlayed = useRef(false);
   const momentRef = useRef(moment);
   momentRef.current = moment;
+  const playerRef = useRef({ currentSong, isPlaying });
+  playerRef.current = { currentSong, isPlaying };
   useEffect(() => {
     if (hasAutoPlayed.current) return;
     const m = momentRef.current;
@@ -158,6 +166,9 @@ export default function MomentDetailScreen() {
     const timer = setTimeout(() => {
       const current = momentRef.current;
       if (!current?.songAppleMusicId) return;
+      console.log("[MomentAutoPlay] songAppleMusicId:", current.songAppleMusicId, "title:", current.songTitle);
+      const { currentSong: cs, isPlaying: ip } = playerRef.current;
+      if (cs?.appleMusicId === current.songAppleMusicId && ip) return;
       playFull(
         {
           id: current.songAppleMusicId,
@@ -208,23 +219,36 @@ export default function MomentDetailScreen() {
     setTimeout(() => animateOut(goBack), 300);
   }, [animateOut, goBack]);
 
-  const swipeGesture = Gesture.Pan()
-    .activeOffsetX([15, Infinity])
-    .failOffsetY([-20, 20])
-    .onUpdate((e) => {
-      "worklet";
-      translateX.value = e.translationX;
-      opacity.value = Math.max(0, 1 - e.translationX / 220);
-    })
-    .onEnd((e) => {
-      "worklet";
-      if (e.translationX > 60 || e.velocityX > 400) {
-        runOnJS(animateOut)(goBack);
-      } else {
-        translateX.value = withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) });
-        opacity.value = withTiming(1, { duration: 200 });
-      }
-    });
+  const swipeGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX([15, Infinity])
+        .failOffsetY([-20, 20])
+        .onUpdate((e) => {
+          "worklet";
+          translateX.value = Math.max(0, e.translationX);
+          opacity.value = Math.max(0, 1 - e.translationX / 220);
+        })
+        .onEnd((e) => {
+          "worklet";
+          if (e.translationX > 60 || e.velocityX > 400) {
+            runOnJS(animateOut)(goBack);
+          } else {
+            translateX.value = withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) });
+            opacity.value = withTiming(1, { duration: 200 });
+          }
+        }),
+    [animateOut, goBack]
+  );
+
+  const seekGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .onBegin((e) => { runOnJS(handleProgressSeek)(e.x); })
+        .onUpdate((e) => { runOnJS(handleProgressSeek)(e.x); })
+        .blocksExternalGesture(swipeGesture),
+    [handleProgressSeek, swipeGesture]
+  );
 
   const fetchMoment = useCallback(async (showLoading: boolean) => {
     if (showLoading) setLoading(true);
@@ -263,15 +287,11 @@ export default function MomentDetailScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      const isFirstLoad = moment === null;
       const task = InteractionManager.runAfterInteractions(() => {
-        fetchMoment(isFirstLoad);
+        fetchMoment(moment === null);
       });
-      return () => {
-        task.cancel();
-        stop();
-      };
-    }, [fetchMoment, stop])
+      return () => { task.cancel(); };
+    }, [fetchMoment])
   );
 
   // Load friend tags for own moments
@@ -701,9 +721,16 @@ export default function MomentDetailScreen() {
           {/* Playback progress bar */}
           {currentSong?.appleMusicId === moment.songAppleMusicId && playbackDuration > 0 && (
             <View style={styles.progressContainer}>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${Math.min(100, (playbackTime / playbackDuration) * 100)}%` }]} />
+              <GestureDetector gesture={seekGesture}>
+              <View
+                style={styles.progressTrackWrapper}
+                onLayout={(e) => { progressBarWidthRef.current = e.nativeEvent.layout.width; }}
+              >
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: `${Math.min(100, (playbackTime / playbackDuration) * 100)}%` }]} />
+                </View>
               </View>
+            </GestureDetector>
               <Text style={styles.progressTime}>
                 {formatTime(playbackTime)} / {formatTime(playbackDuration)}
               </Text>
@@ -1395,6 +1422,10 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.lg,
       paddingTop: theme.spacing.sm,
       gap: 4,
+    },
+    progressTrackWrapper: {
+      height: 28,
+      justifyContent: "center",
     },
     progressTrack: {
       height: 2,

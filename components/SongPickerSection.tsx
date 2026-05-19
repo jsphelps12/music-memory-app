@@ -12,6 +12,7 @@ import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { getNowPlaying, onNowPlayingChange } from "@/lib/now-playing";
+import { searchSongs } from "@/lib/musickit";
 import { identifyAudio, stopShazamListening, type ShazamResult } from "@/modules/shazam-kit";
 import { onSongSelected } from "@/lib/songEvents";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
@@ -56,10 +57,24 @@ export function SongPickerSection({ song, onChange, photos = [] }: SongPickerSec
     };
   }, [song]);
 
-  const handleUseNowPlaying = () => {
+  const handleUseNowPlaying = async () => {
     if (!nowPlayingSong) return;
     Haptics.selectionAsync();
-    onChange(nowPlayingSong);
+
+    let song = nowPlayingSong;
+    if (!song.appleMusicId) {
+      try {
+        const query = [song.title, song.artistName].filter(Boolean).join(" ");
+        const results = await searchSongs(query);
+        const match = results.find((r) => r.title.toLowerCase() === song.title.toLowerCase());
+        if (match) {
+          song = { ...song, appleMusicId: match.appleMusicId, durationMs: match.durationMs || song.durationMs };
+        }
+      } catch {}
+    }
+    console.log("[NowPlaying] useThis — appleMusicId before:", nowPlayingSong.appleMusicId, "after:", song.appleMusicId);
+
+    onChange(song);
     setNowPlayingSong(null);
   };
 

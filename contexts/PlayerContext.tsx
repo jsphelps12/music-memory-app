@@ -8,6 +8,7 @@ import { Song } from "@/types";
 interface PlayerState {
   currentSong: Song | null;
   isPlaying: boolean;
+  isPreview: boolean;
   playbackTime: number;
   playbackDuration: number;
   playError: boolean;
@@ -26,12 +27,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [playbackTime, setPlaybackTime] = useState(0);
   const [playbackDuration, setPlaybackDuration] = useState(0);
   const [playError, setPlayError] = useState(false);
+  const [isPreview, setIsPreview] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
   const isNativeRef = useRef(false);
+  const playGenRef = useRef(0);
 
   const unloadSound = useCallback(async () => {
     if (soundRef.current) {
-      try { await soundRef.current.unloadAsync(); } catch {}
+      try {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+      } catch {}
       soundRef.current = null;
     }
   }, []);
@@ -88,6 +94,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       soundRef.current = sound;
       setCurrentSong(song);
       setIsPlaying(true);
+      setIsPreview(true);
 
       sound.setOnPlaybackStatusUpdate((status) => {
         if (!status.isLoaded) return;
@@ -109,6 +116,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, [unloadSound]);
 
   const playFull = useCallback(async (song: Song, previewUrl?: string) => {
+    const gen = ++playGenRef.current;
     await unloadSound();
     if (isNativeRef.current) {
       try { Player.pause(); } catch {}
@@ -119,6 +127,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setPlaybackDuration(0);
 
     if (!song.appleMusicId) {
+      if (gen !== playGenRef.current) return;
       if (previewUrl) await playPreview(song, previewUrl);
       else { setCurrentSong(null); setPlayError(true); }
       return;
@@ -126,17 +135,22 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     const authorized = await requestMusicAuthorization();
     if (!authorized) {
+      if (gen !== playGenRef.current) return;
       if (previewUrl) await playPreview(song, previewUrl);
       else { setCurrentSong(null); setPlayError(true); }
       return;
     }
 
     try {
-      await playAppleMusic(song.appleMusicId);
+      const durationSecs = await playAppleMusic(song.appleMusicId);
+      if (gen !== playGenRef.current) return;
       isNativeRef.current = true;
       setCurrentSong(song);
       setIsPlaying(true);
+      setIsPreview(false);
+      setPlaybackDuration(durationSecs);
     } catch {
+      if (gen !== playGenRef.current) return;
       isNativeRef.current = false;
       if (previewUrl) {
         await playPreview(song, previewUrl);
@@ -174,6 +188,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     await unloadSound();
     setCurrentSong(null);
     setIsPlaying(false);
+    setIsPreview(false);
     setPlaybackTime(0);
     setPlaybackDuration(0);
     setPlayError(false);
@@ -189,8 +204,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const contextValue = useMemo(
-    () => ({ currentSong, isPlaying, playbackTime, playbackDuration, playError, playFull, pause, resume, stop, seekTo }),
-    [currentSong, isPlaying, playbackTime, playbackDuration, playError, playFull, pause, resume, stop, seekTo]
+    () => ({ currentSong, isPlaying, isPreview, playbackTime, playbackDuration, playError, playFull, pause, resume, stop, seekTo }),
+    [currentSong, isPlaying, isPreview, playbackTime, playbackDuration, playError, playFull, pause, resume, stop, seekTo]
   );
 
   return (
