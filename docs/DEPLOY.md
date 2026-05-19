@@ -1,4 +1,4 @@
-# Tracks — Deployment Runbook
+# Soundtracks — Deployment Runbook
 
 Reference this before every build and submission. Update it when the process changes.
 
@@ -184,11 +184,8 @@ submission. Check each item — don't skim.
 - [ ] Timeline loads with correct sections
 - [ ] Scroll performance — no jank
 - [ ] Month section headers correct
-- [ ] Filter by mood
-- [ ] Filter by date range
-- [ ] Filter by people
+- [ ] Collection chip row — tap a collection, confirm timeline filters
 - [ ] Search by song title, artist, reflection text
-- [ ] Clear filters
 
 ### Collections
 - [ ] Create a collection
@@ -198,18 +195,24 @@ submission. Check each item — don't skim.
 - [ ] Toggle a collection public
 - [ ] Share the invite link via iOS share sheet
 - [ ] Open the shared link on web — confirm it renders correctly
-- [ ] Join flow — open a `tracks://join/{invite_code}` deep link, confirm join screen appears
+- [ ] Join flow — open a `soundtracks://join?inviteCode={code}` deep link, confirm join screen appears
 
-### Reflections Tab
-- [ ] On This Day section loads (or shows correct empty state if no moments on this date)
-- [ ] Random resurfacing section loads
-- [ ] Tap a moment — navigates to detail
+### Browse Tab
+- [ ] On This Day, Moods, People, Years, Calendar sections all load
+- [ ] Tap a mood → mood drill-down screen loads moments
+- [ ] Calendar highlights correct days
+
+### Shared Tab
+- [ ] Shared collections preview section loads
+- [ ] Tagged moments preview section loads
+- [ ] "See all →" navigates to full-list drill-down screens
+- [ ] Pending friend requests / collection invites show as banners
 
 ### Profile
 - [ ] Avatar upload
 - [ ] Display name edit
 - [ ] Stats are correct (moment count, storage)
-- [ ] Getting Started checklist (once built) — items check correctly
+- [ ] Stats are correct (moment count, storage)
 - [ ] Delete Account — confirm all data removed (check Supabase dashboard)
 - [ ] Sign out
 
@@ -219,7 +222,7 @@ submission. Check each item — don't skim.
 
 ### Misc
 - [ ] Dark mode — toggle in iOS settings, confirm app updates correctly
-- [ ] Deep link — `tracks://join/{invite_code}` from Safari opens join screen
+- [ ] Deep link — `soundtracks://join?inviteCode={code}` from Safari opens join screen
 - [ ] No console errors or warnings that weren't there before
 
 ---

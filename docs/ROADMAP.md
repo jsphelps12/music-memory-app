@@ -57,6 +57,12 @@ That's the product. Everything on this roadmap exists to make that feeling captu
 - [x] Share Feedback button on Profile screen
 - [x] Data isolation — timeline + reflections clear on user change; no flash of previous account's data
 - [x] Sentry crash reporting + PostHog analytics integrated and shipping in production build
+- [x] Tab redesign (May 2026) — 5-tab structure (Timeline · Browse · [+] · Shared · Me); center gradient capture button; swipe between tabs
+- [x] Browse tab — personal archive browser: On This Day, Moods (drill-down + in-place switching + distribution bar), People, Years, Calendar sections; nested stack navigator
+- [x] Shared tab redesign — preview sections (4 items) with "See all →" drill-downs; dedicated full-list screens; [+] new shared collection button
+- [x] Onboarding rebuild (May 2026) — multi-phase flow: value-prop → capture-1 → capture-2 → moment-preview → celebration; 2 seeded moments before celebration
+- [x] TanStack Query migration — timeline + collections on React Query; optimistic updates; app-wide tab prefetch on session resolve
+- [x] Navigation/swipe consistency — tab swiping enabled; consistent left-edge back policy; moment detail swipe-to-dismiss with animation; custom pans removed from song/album/artist
 
 ---
 
@@ -106,7 +112,21 @@ Work completed after App Store submission while awaiting review.
 
 ---
 
-## NOW — April 2026 Priorities
+## Shipped May 2026
+
+Tab redesign sprint + architecture improvements.
+
+- [x] **Tab redesign** — restructured from 4 tabs to 5 (Timeline · Browse · [+] · Shared · Me); center orange→purple gradient capture button floats above bar; material top tabs with swipe-between-tabs enabled; smooth TabBar icon + label color interpolation during swipe
+- [x] **Browse tab** — full personal archive browser; On This Day (horizontal scroll of resurfaced moments), Moods (emoji grid → drill-down with distribution bar + compact rows + in-place mood switching), People (person circles), Years (year chips), Calendar (month grid, days with moments highlighted); nested Stack navigator within Browse tab
+- [x] **Shared tab redesign** — replaces Friends tab; preview sections (4 items each) with "See all →" links; dedicated `shared-collections.tsx` and `tagged-moments.tsx` drill-down screens; [+] button creates new shared collections; pending requests + collection invites shown as action banners at top
+- [x] **Onboarding flow rebuild** — new multi-phase flow (index → value-prop → capture-1 → capture-2 → moment-preview → celebration); captures 2 seeded moments during onboarding before celebration screen; auth gate `replace` loop bug fixed
+- [x] **TanStack Query migration** — timeline + collections migrated; optimistic updates on timeline delete/restore; `lib/sharedScreen.ts` extracted for single shared data source; app-wide tab prefetch fires immediately on session resolve (timeline, collections, browse metadata, shared screen)
+- [x] **Navigation/swipe consistency** — tab swiping with `swipeEnabled: true`; consistent swipe policy: left-edge back on stack screens, swipe-down on modals, swipe-right on moment detail (translateX + opacity animation); custom pan gestures removed from song/album/artist screens
+- [x] **Shared collection fixes** — deduplication fix (Set-based), instant cache update on delete/leave via `setQueryData`, double header fix on drill-down screens
+
+---
+
+## NOW — May 2026 Priorities
 
 Six areas to address in order. The first two are prerequisites for everything else — a buggy, inconsistent app can't convert users no matter how good the features are.
 
@@ -239,7 +259,7 @@ Do this after the bug fix pass, not before. You'll understand the codebase bette
 
 ---
 
-## Tab Redesign — Decided May 2026
+## Tab Redesign — ✅ Shipped May 2026
 
 ### Tab structure
 | Tab | Was | Now |
@@ -292,6 +312,7 @@ Ordered by impact across growth (new users), retention (keep existing), and reve
 | Priority | Feature | Drives | Complexity | Notes |
 |----------|---------|--------|-----------|-------|
 | 1 | ~~Friends (Phase C)~~ | ~~Growth + Retention~~ | ~~🟡~~ | ✅ Shipped April 2026 — friend invite links, direct accept, push notification, tagged moments. |
+| 1b | ~~Tab redesign~~ | ~~Retention~~ | ~~🟡~~ | ✅ Shipped May 2026 — Browse tab, Shared tab redesign, center capture button, tab swiping, onboarding rebuild, TanStack Query migration. |
 | 2 | Wedding refinement | Growth + Revenue | 🟡 | Shareable card generator, vanity short URLs, wedding collection template, post-event claim flow, PDF book export. Builds on shipped web contribution flow. |
 | 3 | Spotify integration (iOS) | Growth | 🟡 | **Moved up from #13.** Currently cuts out ~60% of TAM. 80/20 version: store `spotify_track_id` on moments + deep link out to Spotify app (`spotify:track:{id}`) — no SDK required. Show Spotify icon on moments with a Spotify ID. Full SDK (in-app playback) is a separate follow-on effort. |
 | 4 | Notification refinement | Retention | 🟡 | Tap-rate tracking per type, timing optimization, unengaged user suppression, deep link targets, A/B copy. |
