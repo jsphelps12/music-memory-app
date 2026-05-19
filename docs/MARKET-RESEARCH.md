@@ -1,4 +1,4 @@
-# Tracks — Market Research
+# Soundtracks — Market Research
 *Last updated: February 2026 — revised to reflect full platform scope (iOS + Android, Apple Music + Spotify)*
 
 ---

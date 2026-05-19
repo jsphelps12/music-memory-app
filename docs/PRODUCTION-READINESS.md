@@ -1,4 +1,4 @@
-# Tracks — Production Readiness
+# Soundtracks — Production Readiness
 
 Last updated: May 2026. Revisit before each major release.
 
@@ -371,19 +371,12 @@ painful to manage manually.
 
 ---
 
-### 20. No CI Pipeline
-No `.github/workflows/` directory. No automated checks on pull requests or pushes.
+### 20. CI Pipeline ✅ Done
+`.github/workflows/` has two workflows:
+- **OTA Update** — triggers on push to main; runs `eas update --branch production` automatically
+- **PR Checks** — runs `npx tsc --noEmit` + `npm test` on every PR; web app also gets type-checked + built
 
-**Minimum useful CI (GitHub Actions, ~1 hour to set up):**
-```yaml
-# On every push/PR: type check + lint
-- run: npx tsc --noEmit
-- run: npx eslint .
-# On push to main: trigger EAS build for TestFlight
-- run: npx eas-cli build --platform ios --profile production --non-interactive
-```
-
-The Vercel web app auto-deploys on push to main already — that part is fine.
+The Vercel web app auto-deploys on push to main.
 
 ---
 
@@ -395,42 +388,16 @@ is structured and ready when you need it. Targets: D1 >40%, D7 >20%, D30 >10%.
 
 ---
 
-### 22. Single EAS Build Profile (No Staging)
-`eas.json` has only a `production` profile. Every test build goes directly to the same
-TestFlight track as release candidates.
-
-**Add a development profile:**
-```json
-{
-  "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal",
-      "ios": { "simulator": true }
-    },
-    "preview": {
-      "distribution": "internal",
-      "ios": { "buildConfiguration": "Release" }
-    },
-    "production": { ... }
-  }
-}
-```
-
-`preview` builds go to TestFlight for testing. `production` builds go to App Store Review.
-Keeps "work in progress" separate from "ready to test" separate from "shipping."
+### 22. EAS Build Profiles ✅ Done
+`eas.json` has `development`, `preview`, and `production` profiles.
+- `development` — simulator build with dev client
+- `preview` — internal TestFlight distribution (Release config)
+- `production` — App Store; `autoIncrement: true`, `appVersionSource: "remote"`
 
 ---
 
-### 23. No Deployment Runbook
-No documented process for:
-- How to cut a TestFlight build
-- How to bump the version before App Store submission
-- What to check before submitting to review
-- How to roll back if a bad build ships
-
-Write this down — even a short checklist in `docs/` — before you submit to the App Store.
-Future you will thank present you at 11pm before a deadline.
+### 23. Deployment Runbook ✅ Done
+See `docs/DEPLOY.md` — covers OTA vs binary builds, manual regression checklist, rollback procedure, versioning reference, and pre-submission checklist.
 
 ---
 
@@ -471,7 +438,7 @@ before any marketing push into EU markets.
 - [ ] Replace service role key in web app with anon key + RLS policies (#4, #6)
 - [ ] Clear push token on sign-out / delete (#7)
 - [ ] Remove console.logs from edge function (#12)
-- [ ] Add EAS preview build profile (#22)
+- [x] Add EAS preview build profile (#22) ✅
 - [ ] GDPR: data export, privacy contact email, under-13 statement (see above)
 - [ ] Add `accessibilityLabel` to all icon-only buttons (#15) — quick win
 
@@ -482,7 +449,7 @@ before any marketing push into EU markets.
 - [ ] **Cloudflare free CDN in front of Supabase storage** — proxy `moment-photos` bucket through Cloudflare Workers; dramatically cuts egress; extends $25/mo Supabase plan to ~3–4k MAU. Do this before any marketing push.
 - [ ] Batch notification edge function (#10) — needed before 1K users
 - [ ] Offline detection banner (#16)
-- [ ] Add CI pipeline — type check + lint on PRs (#20)
+- [x] Add CI pipeline — type check + OTA update on push to main (#20) ✅
 
 ### Ongoing / Nice to Have
 - [ ] Fix silent failure in `loadCollections` (#8)
