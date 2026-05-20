@@ -148,8 +148,6 @@ export default function Home() {
           .product-grid { grid-template-columns: 1fr; }
           .product-card { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.08); }
           .product-card:last-child { border-bottom: none; }
-          .hero-pad { padding: 120px 28px 80px; }
-          .section-pad { padding: 72px 28px; }
           .footer-inner { flex-direction: column; align-items: flex-start; }
         }
       `}</style>
@@ -161,7 +159,7 @@ export default function Home() {
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
         borderBottom: '1px solid rgba(255,255,255,0.08)',
-        padding: '14px 32px',
+        padding: '14px clamp(16px,4vw,32px)',
         display: 'flex', alignItems: 'center',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -193,7 +191,7 @@ export default function Home() {
           backgroundColor: '#1C1814',
           minHeight: '100vh',
           display: 'flex', flexDirection: 'column', justifyContent: 'center',
-          padding: '120px 64px 80px',
+          padding: 'clamp(100px,14vw,120px) clamp(24px,6vw,64px) 80px',
           position: 'relative', overflow: 'hidden',
         }}
       >
@@ -274,7 +272,7 @@ export default function Home() {
       {/* ─── Pull quote ──────────────────────────────────────── */}
       <section
         className="section-pad"
-        style={{ backgroundColor: '#0F0D0B', padding: '100px 64px', textAlign: 'center' }}
+        style={{ backgroundColor: '#0F0D0B', padding: 'clamp(72px,10vw,100px) clamp(24px,6vw,64px)', textAlign: 'center' }}
       >
         <div style={{ maxWidth: 720, margin: '0 auto' }}>
           <div style={{
@@ -299,7 +297,7 @@ export default function Home() {
       {/* ─── How it works ────────────────────────────────────── */}
       <section
         className="section-pad"
-        style={{ backgroundColor: '#111009', padding: '80px 64px' }}
+        style={{ backgroundColor: '#111009', padding: 'clamp(72px,10vw,80px) clamp(24px,6vw,64px)' }}
       >
         <div style={{ maxWidth: 980, margin: '0 auto' }}>
           <p className="body-font" style={{
@@ -334,7 +332,7 @@ export default function Home() {
 
       {/* ─── Features (editorial rows) ───────────────────────── */}
       <section style={{ backgroundColor: '#0F0D0B', paddingTop: 72, paddingBottom: 8 }}>
-        <div style={{ maxWidth: 980, margin: '0 auto', padding: '0 64px 32px' }}>
+        <div style={{ maxWidth: 980, margin: '0 auto', padding: '0 clamp(24px,6vw,64px) 32px' }}>
           <p className="body-font" style={{
             fontSize: '0.7rem', fontWeight: 500, letterSpacing: '0.2em',
             textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)',
@@ -352,7 +350,7 @@ export default function Home() {
             <span className="body-font feat-tag" style={{
               fontSize: '0.7rem', fontWeight: 500, letterSpacing: '0.12em',
               textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)',
-              paddingLeft: 64,
+              paddingLeft: 'clamp(24px,6vw,64px)',
             }}>{tag}</span>
             <h3 className="display" style={{
               fontSize: '1.25rem', fontWeight: 700,
@@ -360,7 +358,7 @@ export default function Home() {
             }}>{title}</h3>
             <p className="body-font" style={{
               fontSize: '0.95rem', lineHeight: 1.75, color: 'rgba(255,255,255,0.45)',
-              paddingRight: 64,
+              paddingRight: 'clamp(0px,4vw,64px)',
             }}>{body}</p>
           </div>
         ))}
@@ -369,7 +367,7 @@ export default function Home() {
       {/* ─── Physical products ───────────────────────────────── */}
       <section
         className="section-pad"
-        style={{ backgroundColor: '#1C1814', padding: '100px 64px' }}
+        style={{ backgroundColor: '#1C1814', padding: 'clamp(72px,10vw,100px) clamp(24px,6vw,64px)' }}
       >
         <div style={{ maxWidth: 980, margin: '0 auto' }}>
           <div style={{ marginBottom: 60 }}>
@@ -410,7 +408,7 @@ export default function Home() {
       {/* ─── Final CTA ───────────────────────────────────────── */}
       <section
         className="section-pad"
-        style={{ backgroundColor: '#0F0D0B', padding: '120px 64px', textAlign: 'center' }}
+        style={{ backgroundColor: '#0F0D0B', padding: 'clamp(80px,12vw,120px) clamp(24px,6vw,64px)', textAlign: 'center' }}
       >
         <div style={{ maxWidth: 520, margin: '0 auto' }}>
           <h2 className="display" style={{
@@ -445,7 +443,7 @@ export default function Home() {
       </section>
 
       {/* ─── Footer ──────────────────────────────────────────── */}
-      <footer style={{ backgroundColor: '#0F0D0B', borderTop: '1px solid rgba(255,255,255,0.08)', padding: '24px 48px' }}>
+      <footer style={{ backgroundColor: '#0F0D0B', borderTop: '1px solid rgba(255,255,255,0.08)', padding: '24px clamp(20px,5vw,48px)' }}>
         <div className="footer-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <span className="body-font" style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.35)' }}>
             © {new Date().getFullYear()} Soundtracks
