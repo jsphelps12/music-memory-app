@@ -1,5 +1,18 @@
 import Image from "next/image";
 
+const MOODS: Record<string, { emoji: string; label: string }> = {
+  nostalgic:   { emoji: "🕰️", label: "Nostalgic" },
+  joyful:      { emoji: "😊", label: "Joyful" },
+  melancholy:  { emoji: "🌧️", label: "Melancholy" },
+  energetic:   { emoji: "⚡", label: "Energetic" },
+  peaceful:    { emoji: "🌿", label: "Peaceful" },
+  romantic:    { emoji: "💕", label: "Romantic" },
+  rebellious:  { emoji: "🔥", label: "Rebellious" },
+  hopeful:     { emoji: "🌅", label: "Hopeful" },
+  bittersweet: { emoji: "🍂", label: "Bittersweet" },
+  empowered:   { emoji: "💪", label: "Empowered" },
+};
+
 interface MomentCardProps {
   artworkUrl: string | null;
   songTitle: string;
@@ -8,17 +21,19 @@ interface MomentCardProps {
   contributorName: string | null;
   momentDate: string | null;
   photoUrls: string[];
-  expanded: boolean;
+  mood: string | null;
   isPlaying: boolean;
   hasPreview: boolean;
-  onToggle: () => void;
   onPlayPause: () => void;
 }
 
 function formatDate(dateStr: string | null): string | null {
   if (!dateStr) return null;
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 export default function MomentCard({
@@ -29,55 +44,78 @@ export default function MomentCard({
   contributorName,
   momentDate,
   photoUrls,
-  expanded,
+  mood,
   isPlaying,
   hasPreview,
-  onToggle,
   onPlayPause,
 }: MomentCardProps) {
+  const moodDef = mood ? MOODS[mood] : null;
+
   return (
-    <button
-      onClick={onToggle}
-      className="w-full text-left rounded-2xl transition-all duration-200"
-      style={{ backgroundColor: expanded ? "#EDE4DA" : "#F3EDE6" }}
+    <div
+      style={{
+        backgroundColor: "#1A1A1F",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 16,
+        overflow: "hidden",
+      }}
     >
-      {/* Top row — always visible */}
-      <div className="flex gap-4 p-4">
-        {/* Album artwork — acts as play/pause button when expanded with a preview */}
-        <div className="shrink-0 relative">
+      {/* Song row */}
+      <div style={{ padding: "16px 16px 0", display: "flex", alignItems: "center", gap: 12 }}>
+        {/* Artwork + play/pause overlay */}
+        <div style={{ position: "relative", flexShrink: 0 }}>
           {artworkUrl ? (
             <Image
               src={artworkUrl}
               alt={`${songTitle} artwork`}
-              width={56}
-              height={56}
-              className="rounded-lg object-cover"
+              width={48}
+              height={48}
+              style={{ borderRadius: 8, objectFit: "cover", display: "block" }}
               unoptimized
             />
           ) : (
             <div
-              className="w-14 h-14 rounded-lg flex items-center justify-center text-2xl"
-              style={{ backgroundColor: "#E8825C22" }}
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 8,
+                backgroundColor: "rgba(255,255,255,0.06)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 20,
+              }}
             >
               🎵
             </div>
           )}
-          {expanded && hasPreview && (
+          {hasPreview && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onPlayPause(); }}
-              className="absolute inset-0 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
+              onClick={onPlayPause}
+              style={{
+                position: "absolute",
+                bottom: -4,
+                right: -4,
+                width: 20,
+                height: 20,
+                borderRadius: "50%",
+                backgroundColor: "rgba(0,0,0,0.75)",
+                border: "none",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+              }}
             >
               {isPlaying ? (
-                // Pause — two vertical bars
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="white">
                   <rect x="5" y="3" width="4" height="18" rx="1" />
                   <rect x="15" y="3" width="4" height="18" rx="1" />
                 </svg>
               ) : (
-                // Play — filled triangle
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="white">
                   <polygon points="6,3 20,12 6,21" />
                 </svg>
               )}
@@ -85,92 +123,109 @@ export default function MomentCard({
           )}
         </div>
 
-        {/* Song info + collapsed reflection */}
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm leading-tight truncate" style={{ color: "#2C2C3A" }}>
+        {/* Title / artist */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p
+            style={{
+              fontWeight: 600,
+              fontSize: 14,
+              color: "#fff",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              margin: 0,
+            }}
+          >
             {songTitle}
           </p>
-          <p className="text-sm truncate" style={{ color: "#999" }}>
+          <p
+            style={{
+              fontSize: 13,
+              color: "rgba(255,255,255,0.55)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              margin: "2px 0 0",
+            }}
+          >
             {songArtist}
           </p>
-          {!expanded && reflection && (
-            <p
-              className="mt-1 text-sm leading-snug"
-              style={{
-                color: "#2C2C3A",
-                overflow: "hidden",
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical",
-              } as React.CSSProperties}
-            >
-              {reflection}
-            </p>
-          )}
-        </div>
-
-        {/* Chevron */}
-        <div
-          className="shrink-0 self-center transition-transform duration-200"
-          style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}
-        >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path
-              d="M5 7.5L10 12.5L15 7.5"
-              stroke="#999"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
         </div>
       </div>
 
-      {/* Expanded content */}
-      {expanded && (
-        <div className="px-4 pb-4 space-y-3">
-          {/* Full reflection */}
-          {reflection && (
-            <p className="text-sm leading-relaxed" style={{ color: "#2C2C3A" }}>
-              {reflection}
-            </p>
-          )}
+      {/* Reflection */}
+      {reflection && (
+        <p
+          style={{
+            fontFamily: "'DM Serif Display', Georgia, serif",
+            fontStyle: "italic",
+            fontSize: 15,
+            lineHeight: 1.55,
+            color: "rgba(255,255,255,0.7)",
+            padding: "12px 16px 0",
+            margin: 0,
+            display: "-webkit-box",
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          } as React.CSSProperties}
+        >
+          {reflection}
+        </p>
+      )}
 
-          {/* Photos */}
-          {photoUrls.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {photoUrls.map((url, i) => (
-                <div key={i} className="shrink-0">
-                  <Image
-                    src={url}
-                    alt={`Photo ${i + 1}`}
-                    width={160}
-                    height={160}
-                    className="rounded-xl object-cover"
-                    style={{ width: 160, height: 160 }}
-                    unoptimized
-                  />
-                </div>
-              ))}
+      {/* Photo strip */}
+      {photoUrls.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            gap: 2,
+            overflowX: "auto",
+            marginTop: 12,
+          }}
+        >
+          {photoUrls.map((url, i) => (
+            <div key={i} style={{ flexShrink: 0 }}>
+              <Image
+                src={url}
+                alt={`Photo ${i + 1}`}
+                width={80}
+                height={80}
+                style={{ width: 80, height: 80, objectFit: "cover", display: "block" }}
+                unoptimized
+              />
             </div>
-          )}
-
-          {/* Meta row */}
-          <div className="flex items-center gap-2 text-xs" style={{ color: "#999" }}>
-            {contributorName && <span>{contributorName}</span>}
-            {contributorName && momentDate && <span>·</span>}
-            {momentDate && <span>{formatDate(momentDate)}</span>}
-            {hasPreview && (
-              <>
-                <span>·</span>
-                <span style={{ color: "#E8825C" }}>
-                  {isPlaying ? "♪ Playing preview" : "♪ Preview available"}
-                </span>
-              </>
-            )}
-          </div>
+          ))}
         </div>
       )}
-    </button>
+
+      {/* Meta row */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "10px 16px 12px",
+        }}
+      >
+        {moodDef && (
+          <span
+            style={{
+              fontSize: 11,
+              padding: "3px 9px",
+              borderRadius: 999,
+              backgroundColor: "rgba(255,255,255,0.08)",
+              color: "rgba(255,255,255,0.75)",
+              border: "1px solid rgba(255,255,255,0.12)",
+            }}
+          >
+            {moodDef.emoji} {moodDef.label}
+          </span>
+        )}
+        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginLeft: "auto" }}>
+          {[contributorName, formatDate(momentDate)].filter(Boolean).join(" · ")}
+        </span>
+      </div>
+    </div>
   );
 }

@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSupabase } from "@/lib/supabase";
 import CollectionMomentList, { type MomentItem } from "@/components/CollectionMomentList";
-import InviteCTA from "@/components/InviteCTA";
 
 export const dynamic = "force-dynamic";
 
@@ -30,12 +29,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const ownerName = profile?.display_name ?? null;
 
-  // Grab the first moment's artwork to use as OG image
   const { data: firstMoment } = await getSupabase()
     .from("collection_moments")
     .select("moments(song_artwork_url)")
     .eq("collection_id", collection.id)
-    .order("added_at", { ascending: false })
+    .order("added_at", { ascending: true })
     .limit(1)
     .single();
 
@@ -68,7 +66,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function CollectionPage({ params }: PageProps) {
   const { invite_code } = await params;
 
-  // Fetch the collection (must be public)
   const { data: collection } = await getSupabase()
     .from("collections")
     .select("id, name, user_id, cover_photo_url, date_from, date_to")
@@ -76,11 +73,8 @@ export default async function CollectionPage({ params }: PageProps) {
     .eq("is_public", true)
     .single();
 
-  if (!collection) {
-    notFound();
-  }
+  if (!collection) notFound();
 
-  // Fetch owner display name separately (collections.user_id → auth.users, not profiles)
   const { data: ownerProfile } = await getSupabase()
     .from("profiles")
     .select("display_name")
@@ -89,7 +83,6 @@ export default async function CollectionPage({ params }: PageProps) {
 
   const ownerName = ownerProfile?.display_name ?? null;
 
-  // Fetch moments in this collection
   const { data: rows } = await getSupabase()
     .from("collection_moments")
     .select(`
@@ -104,14 +97,14 @@ export default async function CollectionPage({ params }: PageProps) {
         photo_urls,
         reflection_text,
         moment_date,
+        mood,
         guest_name,
         guest_uuid
       )
     `)
     .eq("collection_id", collection.id)
-    .order("added_at", { ascending: false });
+    .order("added_at", { ascending: true });
 
-  // Collect non-guest contributor IDs to fetch their display names
   const contributorIds = [
     ...new Set(
       (rows ?? [])
@@ -150,6 +143,7 @@ export default async function CollectionPage({ params }: PageProps) {
         photo_urls: string[] | null;
         reflection_text: string | null;
         moment_date: string | null;
+        mood: string | null;
         guest_name: string | null;
         guest_uuid: string | null;
       } | null;
@@ -157,9 +151,10 @@ export default async function CollectionPage({ params }: PageProps) {
       const photoUrls = (m.photo_urls ?? []).map(
         (path) => `${supabaseUrl}/storage/v1/object/public/moment-photos/${path}`
       );
-      const contributorName = m.guest_uuid && m.guest_name
-        ? m.guest_name
-        : (profileMap.get(r.added_by_user_id as string) ?? ownerName);
+      const contributorName =
+        m.guest_uuid && m.guest_name
+          ? m.guest_name
+          : (profileMap.get(r.added_by_user_id as string) ?? ownerName);
       return {
         id: m.id,
         songTitle: m.song_title,
@@ -169,10 +164,17 @@ export default async function CollectionPage({ params }: PageProps) {
         photoUrls,
         reflection: m.reflection_text,
         momentDate: m.moment_date,
+        mood: m.mood,
         contributorName,
       };
     })
     .filter(Boolean) as MomentItem[];
+
+  // Determine hero image: cover photo > first moment artwork
+  const coverImagePath = collection.cover_photo_url;
+  const coverImageUrl = coverImagePath
+    ? `${supabaseUrl}/storage/v1/object/public/moment-photos/${coverImagePath}`
+    : moments[0]?.artworkUrl ?? null;
 
   function formatDateRange(from: string | null, to: string | null) {
     if (!from && !to) return null;
@@ -186,29 +188,82 @@ export default async function CollectionPage({ params }: PageProps) {
   const dateRange = formatDateRange(collection.date_from, collection.date_to);
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#FBF6F1" }}>
-      {/* Header */}
-      <div className="px-6 pt-12 pb-6 max-w-xl mx-auto">
-        <h1 className="text-3xl font-bold" style={{ color: "#2C2C3A" }}>
-          {collection.name}
-        </h1>
-        <div className="mt-1 flex items-center gap-3 text-sm" style={{ color: "#999" }}>
-          {ownerName && <span>by {ownerName}</span>}
-          {ownerName && (moments.length > 0 || dateRange) && <span>·</span>}
-          <span>{moments.length} {moments.length === 1 ? "moment" : "moments"}</span>
-          {dateRange && (
-            <>
-              <span>·</span>
-              <span>{dateRange}</span>
-            </>
-          )}
+    <div style={{ minHeight: "100vh", backgroundColor: "#0F0D0B" }}>
+
+      {/* Hero header — always visible */}
+      <div
+        style={{
+          position: "relative",
+          minHeight: 280,
+          display: "flex",
+          alignItems: "flex-end",
+          overflow: "hidden",
+          backgroundColor: "#0F0D0B",
+        }}
+      >
+        {/* Cover image or brand gradient */}
+        {coverImageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={coverImageUrl}
+            alt=""
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "linear-gradient(135deg, rgba(232,130,92,0.3) 0%, rgba(107,95,140,0.3) 100%)",
+            }}
+          />
+        )}
+
+        {/* Gradient overlay — always fades to dark bg */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, #0F0D0B 100%)",
+          }}
+        />
+
+        {/* Text */}
+        <div style={{ position: "relative", zIndex: 1, padding: "24px 24px 28px", width: "100%", maxWidth: 600, margin: "0 auto" }}>
+          <h1
+            style={{
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontSize: "clamp(1.75rem, 5vw, 2.5rem)",
+              fontWeight: 700,
+              color: "#fff",
+              margin: 0,
+              lineHeight: 1.15,
+            }}
+          >
+            {collection.name}
+          </h1>
+          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", margin: "6px 0 0" }}>
+            {[
+              ownerName ? `by ${ownerName}` : null,
+              `${moments.length} ${moments.length === 1 ? "moment" : "moments"}`,
+              dateRange,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
         </div>
       </div>
 
       {/* Moment list */}
-      <div className="px-6 pb-32 max-w-xl mx-auto">
+      <div style={{ padding: "16px 16px 140px", maxWidth: 600, margin: "0 auto" }}>
         {moments.length === 0 ? (
-          <p className="text-center py-12" style={{ color: "#999" }}>
+          <p style={{ textAlign: "center", padding: "48px 0", color: "rgba(255,255,255,0.35)" }}>
             No moments yet.
           </p>
         ) : (
@@ -218,10 +273,50 @@ export default async function CollectionPage({ params }: PageProps) {
 
       {/* Sticky CTA */}
       <div
-        className="fixed bottom-0 left-0 right-0 px-6 py-4 flex justify-center"
-        style={{ backgroundColor: "#FBF6F1", borderTop: "1px solid #E8D8CC" }}
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          padding: "12px 20px 20px",
+          backgroundColor: "#0F0D0B",
+          borderTop: "1px solid rgba(255,255,255,0.08)",
+        }}
       >
-        <InviteCTA inviteCode={invite_code} />
+        <div style={{ maxWidth: 600, margin: "0 auto", display: "flex", flexDirection: "column", gap: 8 }}>
+          <p style={{ fontSize: 12, textAlign: "center", color: "rgba(255,255,255,0.35)", margin: 0 }}>
+            Remember a song that takes you back?
+          </p>
+          <a
+            href="https://apps.apple.com/us/app/soundtracks/id6759203604"
+            style={{
+              display: "block",
+              textAlign: "center",
+              padding: "13px 20px",
+              borderRadius: 14,
+              backgroundColor: "#E8825C",
+              color: "#fff",
+              fontWeight: 600,
+              fontSize: 15,
+              textDecoration: "none",
+            }}
+          >
+            Capture your own memories in Soundtracks
+          </a>
+          <a
+            href={`soundtracks://join?inviteCode=${invite_code}`}
+            style={{
+              display: "block",
+              textAlign: "center",
+              padding: "8px",
+              fontSize: 13,
+              color: "rgba(255,255,255,0.35)",
+              textDecoration: "none",
+            }}
+          >
+            Already have the app? Open in Soundtracks
+          </a>
+        </div>
       </div>
     </div>
   );

@@ -313,22 +313,23 @@ Ordered by impact across growth (new users), retention (keep existing), and reve
 |----------|---------|--------|-----------|-------|
 | 1 | ~~Friends (Phase C)~~ | ~~Growth + Retention~~ | ~~🟡~~ | ✅ Shipped April 2026 — friend invite links, direct accept, push notification, tagged moments. |
 | 1b | ~~Tab redesign~~ | ~~Retention~~ | ~~🟡~~ | ✅ Shipped May 2026 — Browse tab, Shared tab redesign, center capture button, tab swiping, onboarding rebuild, TanStack Query migration. |
-| 2 | Wedding refinement | Growth + Revenue | 🟡 | Shareable card generator, vanity short URLs, wedding collection template, post-event claim flow, PDF book export. Builds on shipped web contribution flow. |
-| 3 | Spotify integration (iOS) | Growth | 🟡 | **Moved up from #13.** Currently cuts out ~60% of TAM. 80/20 version: store `spotify_track_id` on moments + deep link out to Spotify app (`spotify:track:{id}`) — no SDK required. Show Spotify icon on moments with a Spotify ID. Full SDK (in-app playback) is a separate follow-on effort. |
-| 4 | Notification refinement | Retention | 🟡 | Tap-rate tracking per type, timing optimization, unengaged user suppression, deep link targets, A/B copy. |
-| 5 | Music Memory Engine Phase 1 | Retention | 🟡 | Highest-leverage empty-state fix. Edge function + seed dataset + existing notification infra. Questionnaire already built. Seeds moments from listening history; weekly prompted-song push. |
-| 6 | Era Clustering | Revenue | 🔴 | Premium conversion trigger at 25–30 moments. Hardest feature on the list. |
-| 7 | Yearly Recap | Growth + Revenue | 🟡 | Must ship before December. Annual press moment. Free card + Premium full version. |
-| 8 | Song Anniversaries + Forgotten Songs | Retention | 🟢 | Ship alongside Music Memory Engine work. Date math + simple query. |
-| 9 | Save for Later (Song Inbox) | Retention | 🟡 | Share Extension "Save" path + drafts table + inbox UI. |
-| 10 | Memory Game | Growth + Retention | 🟡–🔴 | Async version first (Wordle-style). Needs friends. Killer viral mechanic. |
-| 11 | Smart Playlists (basic) | Retention + Growth | 🟡 | Time-period + mood playlists → Apple Music export. Shareable. |
-| 12 | QR Code Framed Print | Revenue | 🟡 | Needs public moment pages first. Printful API. High-volume gift product. |
-| 13 | Lock Screen Widget | Retention | 🔴 | App Intents, App Groups, Live Activities. Gets tech press. |
-| 14 | Android port | Growth | 🔴 | Not before 1,000+ active iOS users + revenue. 4–6 weeks. Swap points: musickit.ts rewrite, new Kotlin modules for NowPlaying + ShazamKit → ACRCloud, Google Sign-In. Everything else cross-platform already. |
-| 15 | Musical Autobiography | Revenue | 🔴 | LLM prose on personal data. Needs 2+ years of user data to be moving. Plant seeds now. |
-| 16 | "You're Not Alone" | Retention | 🟡 | Needs scale (1K+ users) for meaningful numbers. |
-| 17 | Community features | Retention | 🔴 | Tracks 100, memorial collections, community challenges. 5K+ users. |
+| 2 | Share Profile | Growth | 🟢 | Public profile page (web + deep link) showing display name, avatar, moment count, and a few public highlights. Primary use case: making connections — replaces swapping profile links with a shareable card/URL that can actually convert. |
+| 3 | Wedding refinement | Growth + Revenue | 🟡 | Shareable card generator, vanity short URLs, wedding collection template, post-event claim flow, PDF book export. Builds on shipped web contribution flow. |
+| 4 | Spotify integration (iOS) | Growth | 🟡 | **Moved up from #13.** Currently cuts out ~60% of TAM. 80/20 version: store `spotify_track_id` on moments + deep link out to Spotify app (`spotify:track:{id}`) — no SDK required. Show Spotify icon on moments with a Spotify ID. Full SDK (in-app playback) is a separate follow-on effort. |
+| 5 | Notification refinement | Retention | 🟡 | Tap-rate tracking per type, timing optimization, unengaged user suppression, deep link targets, A/B copy. |
+| 6 | Music Memory Engine Phase 1 | Retention | 🟡 | Highest-leverage empty-state fix. Edge function + seed dataset + existing notification infra. Questionnaire already built. Seeds moments from listening history; weekly prompted-song push. |
+| 7 | Era Clustering | Revenue | 🔴 | Premium conversion trigger at 25–30 moments. Hardest feature on the list. |
+| 8 | Yearly Recap | Growth + Revenue | 🟡 | Must ship before December. Annual press moment. Free card + Premium full version. |
+| 9 | Song Anniversaries + Forgotten Songs | Retention | 🟢 | Ship alongside Music Memory Engine work. Date math + simple query. |
+| 10 | Save for Later (Song Inbox) | Retention | 🟡 | Share Extension "Save" path + drafts table + inbox UI. |
+| 11 | Memory Game | Growth + Retention | 🟡–🔴 | Async version first (Wordle-style). Needs friends. Killer viral mechanic. |
+| 12 | Smart Playlists (basic) | Retention + Growth | 🟡 | Time-period + mood playlists → Apple Music export. Shareable. |
+| 13 | QR Code Framed Print | Revenue | 🟡 | Needs public moment pages first. Printful API. High-volume gift product. |
+| 14 | Lock Screen Widget | Retention | 🔴 | App Intents, App Groups, Live Activities. Gets tech press. |
+| 15 | Android port | Growth | 🔴 | Not before 1,000+ active iOS users + revenue. 4–6 weeks. Swap points: musickit.ts rewrite, new Kotlin modules for NowPlaying + ShazamKit → ACRCloud, Google Sign-In. Everything else cross-platform already. |
+| 16 | Musical Autobiography | Revenue | 🔴 | LLM prose on personal data. Needs 2+ years of user data to be moving. Plant seeds now. |
+| 17 | "You're Not Alone" | Retention | 🟡 | Needs scale (1K+ users) for meaningful numbers. |
+| 18 | Community features | Retention | 🔴 | Tracks 100, memorial collections, community challenges. 5K+ users. |
 
 ### Notification refinement — what's missing
 Current state: infrastructure exists (edge function, per-type prefs, cold-launch fix, scheduling). What's not done:
@@ -341,29 +342,45 @@ Current state: infrastructure exists (edge function, per-type prefs, cold-launch
 - [ ] Weekly text prompt — not yet wired to edge function
 - [ ] Collection activity notifications — member adds to your shared collection (real-time, not batched)
 
-### Wedding / Event invite flow — full spec
+### Wedding / Event — full spec
 
-**The insight:** POV's QR-code-at-every-table approach is the wrong aesthetic for weddings. Brides don't want tech hardware on their tables. The distribution should be invisible — built into things that already exist at a wedding.
+#### The Story Collection angle (primary pitch)
 
-**Distribution channels (no QR codes on tables):**
-- Wedding website (Zola, The Knot) — "Join Our Soundtrack" section with a link; guests are already visiting for RSVPs
-- Physical invitation insert — a small card at home, not mid-reception; different emotional context
-- Wedding party text the morning of — they're already on their phones coordinating
-- Ceremony program footnote — short link at the bottom, subtle
-- DJ/band announcement — one mention at a natural moment (first dance, end of night)
+**The insight:** The best wedding use case isn't a guestbook — it's the couple's own story. They curate a collection of songs that trace how they met, fell in love, and got here. Guests discover it at the reception by scanning a QR code on their table card. Before the dancing starts, they're already emotionally connected.
 
-**Who to target:** The wedding party and immediate family (15–20 people), not all 150 guests. These people care most, will log the most meaningful moments, and are most likely to become long-term Soundtracks users. One maid of honor who logs five moments and stays for years is worth more than 50 strangers who log once.
+**Two-phase experience:**
+1. **Story phase** — QR codes on table cards, escort cards, or bar menus link to the couple's curated collection. Each table can get a different moment ("Table 7 gets the road trip song"). Guests browse the couple's story while waiting for dinner. Conversation starter. Emotional primer.
+2. **Guest phase** — After dinner, one QR code at the dance floor / bar opens contributions. Guests add "the song that reminds me of love" or any memory from the evening.
+
+**The result:** The collection couples own forever becomes the wedding artifact — their love story + the songs from that night — printable as a book.
+
+**This is not a wedding-only feature.** Weddings are the highest-intent, highest-willingness-to-pay use case, but the exact same feature works for reunions, milestone birthdays, road trips, end-of-season team celebrations. The wedding is the wedge; the use case is "any event worth remembering."
+
+**Pricing direction:**
+- $59 one-time: unlocks QR code generation (per-moment + collection), guest contributions, permanent public link, printable card templates
+- $59 softcover / $89 hardcover add-on: the physical book (wedding tax is real and expected)
+- Total all-in: $118–$148 — less than a single centerpiece
+- `events_tier_unlocked` defaults true now; flip default to false when adding paywall
+
+**Distribution channels:**
+- QR codes on table cards / escort cards / ceremony programs (natural, non-intrusive)
+- Wedding website (Zola, The Knot) — embed the collection link in the "Our Story" section
+- Wedding party group chat — share the collection link before guests arrive
+- DJ/band announcement — one mention at a natural moment
+
+**Who converts to app users:** Every guest who scans a QR, reads the couple's story, and feels the emotional pull. The CTA on the web viewer — "Remember a song that takes you back? Capture your own memories in Soundtracks" — fires at the highest-emotion moment possible. One wedding, potentially 20–80 downloads from people who genuinely felt something.
 
 **What to build (remaining):**
-- [ ] Shareable card generator — beautiful image with couple's names, date, short link (Priority 2)
-- [ ] Vanity short URLs — `soundtracks.app/join/sarah-and-james` (Priority 2)
-- [ ] Wedding/event collection template (Priority 2)
-- [ ] Post-event claim flow (Priority 2)
-- [ ] PDF book export (Priority 2)
+- [ ] Per-moment QR code — download a QR pointing to `soundtracks.app/m/{share_token}` from moment detail screen (Priority 2)
+- [ ] Shareable card generator — printable table card with QR + couple's names + "Scan to hear our story" (Priority 2)
+- [ ] Vanity short URLs — `soundtracks.app/join/sarah-and-james` instead of UUID (Priority 2)
+- [ ] Wedding/event collection template — pre-sets name style, cover, prompt (Priority 2)
+- [ ] Post-event claim flow — guests who contributed get "Your memories from Sarah & James's wedding are waiting for you" after downloading (Priority 2)
+- [ ] Pricing + paywall — flip `events_tier_unlocked` default to false; add in-app purchase flow (Priority 3)
 
-**No-download web entry — ✅ shipped via web form.** Guests contribute from any browser at `/c/{code}/contribute`. Native App Clip deferred unless web conversion data justifies the build complexity (separate Xcode target, App Store Connect configuration, App Clip experience URL setup).
+**No-download web entry — ✅ shipped via web form.** Guests contribute from any browser at `/c/{code}/contribute`. Native App Clip deferred unless web conversion data justifies the build complexity.
 
-**The competitive advantage over POV:** Soundtracks' window is forever, not just the event. The memory doesn't have to happen at the table — it can happen during the first dance, the next morning, or a month later when the song comes on shuffle.
+**The competitive advantage:** Soundtracks' window is forever, not just the event. The memory doesn't have to happen at the table — it can happen during the first dance, the next morning, or a month later when the song comes on shuffle.
 
 ### Platform expansion
 - **Android**: Not before 1,000+ active iOS users + revenue. Abstraction is reasonable — swap points are clean:
@@ -648,6 +665,33 @@ Features that turn users into acquisition channels.
 - [x] Web page at `web/app/m/[share_token]/page.tsx` — song + reflection, no account required to view
 - [x] App generates share token and surfaces iOS share sheet from moment detail
 - [x] Acquisition through emotional resonance — recipient sees your memory, CTA to download
+
+### Share Profile **[Free — connection driver]**
+
+The problem with "share your profile" as a concept is that a bare link feels like LinkedIn. The goal here is making it natural to share your Soundtracks identity when meeting someone — IRL or online — in a way that actually gets them to add you as a friend, not just view a static page.
+
+**Profile page** — `soundtracks.app/u/{username}`
+- Avatar, display name, @username
+- Moment count + member since
+- 3–5 public "highlight" moments (user can pin these, defaults to most recent)
+- "Add as friend on Soundtracks" CTA — deep links to `soundtracks://friend?token={friend_invite_token}` for instant friend request if they have the app; falls back to App Store if not
+- Private by default — user explicitly turns on `profile_visibility: "public"` to enable the page
+
+**In-app share button** — accessible from Me tab (Profile screen)
+- "Share my profile" → iOS share sheet with `soundtracks.app/u/{username}` + short blurb ("Check out my music memories on Soundtracks")
+- Also shows QR code option for IRL use (same `qrcode` package already in web project)
+
+**Connection flow improvement**
+- Current friend invite URL (`soundtracks.app/friend/{token}`) just writes clipboard and redirects to App Store — it works but feels like a dead end for web visitors
+- Profile page replaces that landing experience: web visitor sees your highlights before being asked to install, raising the "worth downloading for" bar
+- After install + onboarding, the pending `friend_invite_token` auto-resolves (already implemented via `pending_friend_token` in AsyncStorage)
+
+**Implementation notes**
+- `username` + `friend_invite_token` already on `profiles` (shipped with Friends Phase C)
+- `profile_visibility` column already exists (shipped with Friends migration)
+- Web page is a new route: `web/app/u/[username]/page.tsx` — server component, queries `profiles` via service role where `profile_visibility = 'public'`
+- Pinned moments: add `is_profile_highlight boolean DEFAULT false` to `moments`; max 5 per user; UI to toggle from moment detail (`...` menu)
+- Public moment display: only show moments the user has explicitly pinned; no private reflection text — just song + date + photo thumbnail
 
 ### Shareable Moment Card **[Free — core acquisition driver]**
 Every user who shares a moment is an ad. The card is the flywheel.
@@ -1075,6 +1119,7 @@ Worth building, not urgent.
 - [ ] Legacy mode — designate someone to receive your collection [Premium]
 - [ ] Referral program — gift 3 months Plus, get 1 month free; ship once paying base exists [Free mechanic]
 - [ ] Printable moment card — styled high-res PNG export of a single moment (album art, song name, date, reflection snippet); generated client-side via `react-native-view-shot`; user saves to camera roll and prints wherever; no backend needed; shareable/viral; this is the free step before in-app print fulfillment [Free]
+- [ ] **Collapse Browse into Timeline + add "For You" tab** — Browse doesn't need its own tab; a button at the top of Timeline opens it as a pushed stack screen. Freed tab slot becomes "For You" — the Music Memory Engine's home: daily prompt, On This Day, suggested song to log, streak. Do this refactor at the same time as shipping the engine so the tab isn't empty. [Navigation refactor + Music Memory Engine milestone]
 
 ---
 

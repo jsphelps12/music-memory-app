@@ -4,17 +4,12 @@ export default function Home() {
   return (
     <main>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,900;1,600;1,700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
-
         :root {
           --cream: #FBF6F1;
-          --cream-dark: #EDE4DA;
           --charcoal: #1C1814;
           --orange: #E8825C;
           --purple: #6B5F8C;
-          --text: #2C2C3A;
-          --muted: #8A7F76;
-          --divider: #D4C9BE;
+          --divider: rgba(255,255,255,0.08);
         }
 
         * { box-sizing: border-box; }
@@ -56,7 +51,6 @@ export default function Home() {
           animation: spin-slow 90s linear infinite;
           pointer-events: none;
         }
-        /* Centre spindle dot */
         .vinyl-ring::after {
           content: '';
           position: absolute;
@@ -109,11 +103,11 @@ export default function Home() {
           gap: 24px;
           align-items: center;
           padding: 28px 48px;
-          border-bottom: 1px solid var(--divider);
+          border-bottom: 1px solid rgba(255,255,255,0.08);
           transition: background 0.2s ease;
         }
-        .feat-row:hover { background: var(--cream-dark); }
-        .feat-row:first-child { border-top: 1px solid var(--divider); }
+        .feat-row:hover { background: #1A1612; }
+        .feat-row:first-child { border-top: 1px solid rgba(255,255,255,0.08); }
 
         /* Scroll hint */
         @keyframes bounce {
@@ -135,11 +129,11 @@ export default function Home() {
         .product-grid {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          border: 1px solid rgba(251,246,241,0.1);
+          border: 1px solid rgba(255,255,255,0.08);
         }
         .product-card {
           padding: 40px 32px;
-          border-right: 1px solid rgba(251,246,241,0.1);
+          border-right: 1px solid rgba(255,255,255,0.08);
         }
         .product-card:last-child { border-right: none; }
 
@@ -152,7 +146,7 @@ export default function Home() {
           }
           .feat-tag { display: none; }
           .product-grid { grid-template-columns: 1fr; }
-          .product-card { border-right: none; border-bottom: 1px solid rgba(251,246,241,0.1); }
+          .product-card { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.08); }
           .product-card:last-child { border-bottom: none; }
           .hero-pad { padding: 120px 28px 80px; }
           .section-pad { padding: 72px 28px; }
@@ -163,16 +157,16 @@ export default function Home() {
       {/* ─── Header ──────────────────────────────────────────── */}
       <header style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50,
-        backgroundColor: 'rgba(251,246,241,0.88)',
+        backgroundColor: 'rgba(15,13,11,0.88)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
-        borderBottom: '1px solid #E8D8CC',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
         padding: '14px 32px',
         display: 'flex', alignItems: 'center',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Image src="/icon.png" alt="Soundtracks" width={28} height={28} style={{ borderRadius: 7 }} />
-          <span className="display" style={{ fontSize: '1.15rem', fontWeight: 700, color: '#1C1814', letterSpacing: '-0.01em' }}>
+          <span className="display" style={{ fontSize: '1.15rem', fontWeight: 700, color: '#FBF6F1', letterSpacing: '-0.01em' }}>
             Soundtracks
           </span>
         </div>
@@ -203,19 +197,15 @@ export default function Home() {
           position: 'relative', overflow: 'hidden',
         }}
       >
-        {/* Vinyl record decoration */}
         <div className="vinyl-ring" />
 
         <div style={{ maxWidth: 760, position: 'relative', zIndex: 2 }}>
-
-          {/* Waveform accent */}
           <div className="fu d1" style={{ display: 'flex', alignItems: 'flex-end', gap: 4, marginBottom: 36, height: 36 }}>
             {[1,2,3,4,5,6,7,8,9].map(i => (
               <div key={i} className="wbar" style={{ height: [10,18,6,22,14,28,8,20,12][i-1] }} />
             ))}
           </div>
 
-          {/* Headline */}
           <h1 className="display fu d2" style={{
             fontSize: 'clamp(3rem, 8.5vw, 6.5rem)',
             fontWeight: 700,
@@ -270,7 +260,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Scroll cue */}
         <div className="scroll-cue" style={{
           position: 'absolute', bottom: 32, left: '50%',
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
@@ -285,7 +274,7 @@ export default function Home() {
       {/* ─── Pull quote ──────────────────────────────────────── */}
       <section
         className="section-pad"
-        style={{ backgroundColor: '#FBF6F1', padding: '100px 64px', textAlign: 'center' }}
+        style={{ backgroundColor: '#0F0D0B', padding: '100px 64px', textAlign: 'center' }}
       >
         <div style={{ maxWidth: 720, margin: '0 auto' }}>
           <div style={{
@@ -296,12 +285,12 @@ export default function Home() {
           <p className="display" style={{
             fontSize: 'clamp(1.4rem, 3.5vw, 2.2rem)',
             fontWeight: 600, fontStyle: 'italic',
-            lineHeight: 1.45, color: '#2C2C3A',
+            lineHeight: 1.45, color: '#FBF6F1',
             marginBottom: 28,
           }}>
             "Music is the most powerful memory trigger we have. A song can take you back to a specific moment, place, and feeling — instantly."
           </p>
-          <p className="body-font" style={{ fontSize: '1rem', lineHeight: 1.7, color: '#8A7F76' }}>
+          <p className="body-font" style={{ fontSize: '1rem', lineHeight: 1.7, color: 'rgba(255,255,255,0.45)' }}>
             Soundtracks is built around that truth — a personal timeline of your life, told through music.
           </p>
         </div>
@@ -310,12 +299,12 @@ export default function Home() {
       {/* ─── How it works ────────────────────────────────────── */}
       <section
         className="section-pad"
-        style={{ backgroundColor: '#EDE4DA', padding: '80px 64px' }}
+        style={{ backgroundColor: '#111009', padding: '80px 64px' }}
       >
         <div style={{ maxWidth: 980, margin: '0 auto' }}>
           <p className="body-font" style={{
             fontSize: '0.7rem', fontWeight: 500, letterSpacing: '0.2em',
-            textTransform: 'uppercase', color: '#8A7F76',
+            textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)',
             textAlign: 'center', marginBottom: 56,
           }}>
             How it works
@@ -330,11 +319,11 @@ export default function Home() {
                 <div className="step-num" style={{ marginBottom: 16 }}>{num}</div>
                 <h3 className="display" style={{
                   fontSize: '1.35rem', fontWeight: 700,
-                  color: '#1C1814', marginBottom: 12, lineHeight: 1.2,
+                  color: '#FBF6F1', marginBottom: 12, lineHeight: 1.2,
                 }}>
                   {title}
                 </h3>
-                <p className="body-font" style={{ fontSize: '0.95rem', lineHeight: 1.75, color: '#666' }}>
+                <p className="body-font" style={{ fontSize: '0.95rem', lineHeight: 1.75, color: 'rgba(255,255,255,0.5)' }}>
                   {body}
                 </p>
               </div>
@@ -344,11 +333,11 @@ export default function Home() {
       </section>
 
       {/* ─── Features (editorial rows) ───────────────────────── */}
-      <section style={{ backgroundColor: '#FBF6F1', paddingTop: 72, paddingBottom: 8 }}>
+      <section style={{ backgroundColor: '#0F0D0B', paddingTop: 72, paddingBottom: 8 }}>
         <div style={{ maxWidth: 980, margin: '0 auto', padding: '0 64px 32px' }}>
           <p className="body-font" style={{
             fontSize: '0.7rem', fontWeight: 500, letterSpacing: '0.2em',
-            textTransform: 'uppercase', color: '#8A7F76',
+            textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)',
           }}>
             Everything inside
           </p>
@@ -362,15 +351,15 @@ export default function Home() {
           <div key={tag} className="feat-row" style={{ maxWidth: '100%' }}>
             <span className="body-font feat-tag" style={{
               fontSize: '0.7rem', fontWeight: 500, letterSpacing: '0.12em',
-              textTransform: 'uppercase', color: '#8A7F76',
+              textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)',
               paddingLeft: 64,
             }}>{tag}</span>
             <h3 className="display" style={{
               fontSize: '1.25rem', fontWeight: 700,
-              color: '#1C1814', lineHeight: 1.25,
+              color: '#FBF6F1', lineHeight: 1.25,
             }}>{title}</h3>
             <p className="body-font" style={{
-              fontSize: '0.95rem', lineHeight: 1.75, color: '#666',
+              fontSize: '0.95rem', lineHeight: 1.75, color: 'rgba(255,255,255,0.45)',
               paddingRight: 64,
             }}>{body}</p>
           </div>
@@ -421,19 +410,19 @@ export default function Home() {
       {/* ─── Final CTA ───────────────────────────────────────── */}
       <section
         className="section-pad"
-        style={{ backgroundColor: '#FBF6F1', padding: '120px 64px', textAlign: 'center' }}
+        style={{ backgroundColor: '#0F0D0B', padding: '120px 64px', textAlign: 'center' }}
       >
         <div style={{ maxWidth: 520, margin: '0 auto' }}>
           <h2 className="display" style={{
             fontSize: 'clamp(2.5rem, 6vw, 4.2rem)',
             fontWeight: 700, fontStyle: 'italic',
-            color: '#1C1814', lineHeight: 1.05,
+            color: '#FBF6F1', lineHeight: 1.05,
             letterSpacing: '-0.025em', marginBottom: 20,
           }}>
             Start capturing<br />today.
           </h2>
           <p className="body-font" style={{
-            fontSize: '1rem', color: '#8A7F76',
+            fontSize: '1rem', color: 'rgba(255,255,255,0.45)',
             lineHeight: 1.7, marginBottom: 44,
           }}>
             Free to download. Your memories are worth keeping.
@@ -444,7 +433,7 @@ export default function Home() {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 10,
               padding: '16px 32px', borderRadius: 999,
-              backgroundColor: '#1C1814', color: '#FBF6F1',
+              backgroundColor: '#E8825C', color: '#fff',
               fontWeight: 500, fontSize: '1rem',
               textDecoration: 'none', letterSpacing: '0.005em',
             }}
@@ -456,9 +445,9 @@ export default function Home() {
       </section>
 
       {/* ─── Footer ──────────────────────────────────────────── */}
-      <footer style={{ backgroundColor: '#FBF6F1', borderTop: '1px solid #E8D8CC', padding: '24px 48px' }}>
+      <footer style={{ backgroundColor: '#0F0D0B', borderTop: '1px solid rgba(255,255,255,0.08)', padding: '24px 48px' }}>
         <div className="footer-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span className="body-font" style={{ fontSize: '0.875rem', color: '#8A7F76' }}>
+          <span className="body-font" style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.35)' }}>
             © {new Date().getFullYear()} Soundtracks
           </span>
           <div style={{ display: 'flex', gap: 28 }}>
@@ -467,7 +456,7 @@ export default function Home() {
                 key={label}
                 href={href}
                 className="body-font"
-                style={{ fontSize: '0.875rem', color: '#8A7F76', textDecoration: 'none' }}
+                style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.35)', textDecoration: 'none' }}
               >
                 {label}
               </a>

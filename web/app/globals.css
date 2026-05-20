@@ -1,14 +1,27 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-brand-bg: #FBF6F1;
+  --color-brand-bg: #0F0D0B;
   --color-brand-accent: #E8825C;
-  --color-brand-text: #2C2C3A;
-  --color-brand-card: #F3EDE6;
-  --color-brand-muted: #999999;
+  --color-brand-text: #FFFFFF;
+  --color-brand-card: #1A1A1F;
+  --color-brand-muted: rgba(255,255,255,0.45);
+}
+
+:root {
+  --bg: #0F0D0B;
+  --bg-secondary: #1A1612;
+  --card-bg: #1A1A1F;
+  --text: #FFFFFF;
+  --text-secondary: rgba(255,255,255,0.55);
+  --text-tertiary: rgba(255,255,255,0.35);
+  --border: rgba(255,255,255,0.08);
+  --accent: #E8825C;
+  --chip-bg: rgba(255,255,255,0.08);
+  --chip-text: rgba(255,255,255,0.75);
 }
 
 body {
-  background-color: #FBF6F1;
-  color: #2C2C3A;
+  background-color: var(--bg);
+  color: var(--text);
 }

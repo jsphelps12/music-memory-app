@@ -4,6 +4,19 @@ import { getSupabase } from "@/lib/supabase";
 import { PreviewPlayer } from "@/components/PreviewPlayer";
 import { GiftClipboardWriter } from "./GiftClipboardWriter";
 
+const MOODS: Record<string, { emoji: string; label: string }> = {
+  nostalgic:   { emoji: "🕰️", label: "Nostalgic" },
+  joyful:      { emoji: "😊", label: "Joyful" },
+  melancholy:  { emoji: "🌧️", label: "Melancholy" },
+  energetic:   { emoji: "⚡", label: "Energetic" },
+  peaceful:    { emoji: "🌿", label: "Peaceful" },
+  romantic:    { emoji: "💕", label: "Romantic" },
+  rebellious:  { emoji: "🔥", label: "Rebellious" },
+  hopeful:     { emoji: "🌅", label: "Hopeful" },
+  bittersweet: { emoji: "🍂", label: "Bittersweet" },
+  empowered:   { emoji: "💪", label: "Empowered" },
+};
+
 export const dynamic = "force-dynamic";
 
 interface PageProps {
@@ -13,7 +26,9 @@ interface PageProps {
 async function fetchMomentData(share_token: string) {
   const { data: row } = await getSupabase()
     .from("moments")
-    .select("id, song_title, song_artist, song_album_name, song_artwork_url, song_preview_url, reflection_text, photo_urls, moment_date, user_id")
+    .select(
+      "id, song_title, song_artist, song_album_name, song_artwork_url, song_preview_url, reflection_text, photo_urls, moment_date, mood, location, user_id"
+    )
     .eq("share_token", share_token)
     .single();
   if (!row) return null;
@@ -80,111 +95,265 @@ export default async function GiftedMomentPage({ params }: PageProps) {
   const remainingPhotos = photoUrls.slice(1);
 
   const formattedDate = row.moment_date
-    ? new Date(row.moment_date).toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      })
+    ? new Date(row.moment_date)
+        .toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+        .toUpperCase()
     : null;
 
+  const moodDef = row.mood ? MOODS[row.mood] : null;
+
   return (
-    <div className="min-h-screen flex flex-col items-center" style={{ backgroundColor: "#0D0D0F" }}>
+    <div
+      style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", backgroundColor: "#0F0D0B" }}
+    >
       <GiftClipboardWriter shareToken={share_token} />
-      <div className="w-full max-w-sm px-4 pt-10 pb-36">
+      <div style={{ width: "100%", maxWidth: 390, padding: "40px 20px 140px" }}>
 
         {/* Sender label */}
-        <p className="text-xs font-medium text-center mb-4 tracking-wide uppercase" style={{ color: "rgba(255,255,255,0.4)" }}>
+        <p
+          style={{
+            fontSize: 11,
+            fontWeight: 500,
+            textAlign: "center",
+            marginBottom: 16,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: "rgba(255,255,255,0.35)",
+          }}
+        >
           {senderName} shared a memory with you
         </p>
 
         {/* Card */}
-        <div className="rounded-3xl overflow-hidden shadow-2xl" style={{ backgroundColor: "#1A1A1F" }}>
-
-          {/* Hero — photo if available, otherwise artwork */}
+        <div
+          style={{
+            borderRadius: 24,
+            overflow: "hidden",
+            boxShadow: "0 8px 40px rgba(0,0,0,0.4)",
+            backgroundColor: "#0F0D0B",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          {/* Hero — 3:2 with gradient fade */}
           {heroUrl && (
-            <div style={{ aspectRatio: "4/3", width: "100%", position: "relative" }}>
+            <div style={{ position: "relative", aspectRatio: "3/2", width: "100%" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={heroUrl}
                 alt=""
                 style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
               />
+              {/* Date + location eyebrow */}
+              {(formattedDate || row.location) && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 16,
+                    left: 18,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 3,
+                  }}
+                >
+                  {formattedDate && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        letterSpacing: "0.12em",
+                        color: "rgba(255,255,255,0.9)",
+                        textShadow: "0 1px 4px rgba(0,0,0,0.5)",
+                      }}
+                    >
+                      {formattedDate}
+                    </span>
+                  )}
+                  {row.location && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color: "rgba(255,255,255,0.7)",
+                        textShadow: "0 1px 4px rgba(0,0,0,0.5)",
+                      }}
+                    >
+                      📍 {row.location}
+                    </span>
+                  )}
+                </div>
+              )}
+              {/* Gradient fade into card bg */}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  height: "50%",
+                  background: "linear-gradient(to bottom, transparent 0%, #0F0D0B 100%)",
+                  pointerEvents: "none",
+                }}
+              />
             </div>
           )}
 
           {/* Content */}
-          <div className="px-5 pt-4 pb-5">
-            {/* Song row: artwork thumbnail + title/artist */}
-            <div className="flex items-center gap-3 mb-3">
+          <div style={{ padding: "14px 18px 18px" }}>
+            {/* Song row */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
               {row.song_artwork_url && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={row.song_artwork_url}
                   alt=""
-                  style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", flexShrink: 0 }}
+                  style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0 }}
                 />
               )}
               <div style={{ minWidth: 0 }}>
-                <p className="font-bold text-sm leading-tight truncate" style={{ color: "#fff" }}>
+                <p
+                  style={{
+                    fontWeight: 700,
+                    fontSize: 15,
+                    color: "#fff",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    margin: 0,
+                  }}
+                >
                   {row.song_title}
                 </p>
-                <p className="text-xs mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.55)" }}>
+                <p
+                  style={{
+                    fontSize: 12,
+                    color: "rgba(255,255,255,0.55)",
+                    margin: "2px 0 0",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   {row.song_artist}
                 </p>
               </div>
             </div>
 
-            {/* Reflection */}
+            {/* Reflection — DM Serif Display italic */}
             {row.reflection_text && (
-              <p className="text-sm leading-relaxed italic mb-3" style={{ color: "rgba(255,255,255,0.75)" }}>
+              <p
+                style={{
+                  fontFamily: "'DM Serif Display', Georgia, serif",
+                  fontStyle: "italic",
+                  fontSize: 16,
+                  lineHeight: 1.6,
+                  color: "rgba(255,255,255,0.85)",
+                  margin: "0 0 14px",
+                }}
+              >
                 &ldquo;{row.reflection_text}&rdquo;
               </p>
             )}
 
-            {/* Footer: date + wordmark */}
-            <div className="flex items-center justify-between">
-              {formattedDate ? (
-                <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{formattedDate}</p>
-              ) : <span />}
-              <p className="text-sm font-bold tracking-wide" style={{ color: "#E8825C" }}>Soundtracks</p>
+            {/* Footer: mood chip or date + wordmark */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                borderTop: "1px solid rgba(255,255,255,0.08)",
+                paddingTop: 12,
+                marginTop: row.reflection_text ? 0 : 4,
+              }}
+            >
+              {moodDef ? (
+                <span
+                  style={{
+                    fontSize: 11,
+                    padding: "3px 10px",
+                    borderRadius: 999,
+                    backgroundColor: "rgba(255,255,255,0.08)",
+                    color: "rgba(255,255,255,0.75)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                  }}
+                >
+                  {moodDef.emoji} {moodDef.label}
+                </span>
+              ) : formattedDate ? (
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", letterSpacing: "0.05em" }}>
+                  {formattedDate}
+                </span>
+              ) : (
+                <span />
+              )}
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: "0.12em",
+                  color: "#E8825C",
+                }}
+              >
+                SOUNDTRACKS
+              </span>
             </div>
           </div>
         </div>
 
         {/* Preview player */}
         {row.song_preview_url && (
-          <div className="mt-4 flex justify-center">
+          <div style={{ marginTop: 16, display: "flex", justifyContent: "center" }}>
             <PreviewPlayer url={row.song_preview_url} />
           </div>
         )}
 
         {/* Additional photos */}
         {remainingPhotos.length > 0 && (
-          <div className="mt-4 flex flex-col gap-3">
+          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
             {remainingPhotos.map((url, i) => (
-              <div key={i} className="rounded-2xl overflow-hidden">
+              <div key={i} style={{ borderRadius: 16, overflow: "hidden" }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={url} alt="" style={{ width: "100%", objectFit: "cover", display: "block" }} />
               </div>
             ))}
           </div>
         )}
-
       </div>
 
       {/* Sticky CTA */}
       <div
-        className="fixed bottom-0 left-0 right-0 px-6 py-4"
-        style={{ backgroundColor: "#0D0D0F", borderTop: "1px solid rgba(255,255,255,0.08)" }}
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          padding: "12px 20px 20px",
+          backgroundColor: "#0F0D0B",
+          borderTop: "1px solid rgba(255,255,255,0.08)",
+        }}
       >
-        <div className="max-w-sm mx-auto flex flex-col gap-2">
-          <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.4)" }}>
-            Remember a song that takes you back?
-          </p>
+        <div style={{ maxWidth: 390, margin: "0 auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+          {/* Apple App Store badge */}
+          <a href="https://apps.apple.com/us/app/soundtracks/id6759203604" style={{ display: "inline-block" }}>
+            <svg height="40" viewBox="0 0 120 40" xmlns="http://www.w3.org/2000/svg" aria-label="Download on the App Store">
+              <rect width="120" height="40" rx="8" fill="#fff" />
+              <text x="38" y="13" fontFamily="-apple-system, Helvetica, Arial, sans-serif" fontSize="8" fill="#0F0D0B" fontWeight="400">Download on the</text>
+              <text x="32" y="27" fontFamily="-apple-system, Helvetica, Arial, sans-serif" fontSize="14" fill="#0F0D0B" fontWeight="600">App Store</text>
+              <path d="M16 8.8c-.5.6-1.3.9-2 .9-.1-.8.3-1.6.8-2.1.5-.6 1.4-1 2.1-1 .1.9-.2 1.7-.9 2.2zm.9 1.3c-1.1-.1-2.1.6-2.6.6-.5 0-1.3-.6-2.2-.6-1.1 0-2.2.7-2.7 1.7-1.2 2-.3 5 .8 6.6.6.8 1.2 1.7 2.1 1.7.8 0 1.1-.5 2.1-.5s1.2.5 2.1.5c.9 0 1.5-.9 2-1.7.4-.6.6-1.1.8-1.7-.8-.4-1.4-1.2-1.4-2.2 0-.9.5-1.7 1.2-2.1-.5-.7-1.3-1.3-2.2-1.3z" fill="#0F0D0B" />
+            </svg>
+          </a>
           <a
             href="https://apps.apple.com/us/app/soundtracks/id6759203604"
-            className="block text-center py-3 rounded-full text-white font-semibold text-base transition-opacity hover:opacity-90"
-            style={{ backgroundColor: "#E8825C" }}
+            style={{
+              display: "block",
+              width: "100%",
+              textAlign: "center",
+              padding: "13px 20px",
+              borderRadius: 14,
+              backgroundColor: "#E8825C",
+              color: "#fff",
+              fontWeight: 600,
+              fontSize: 15,
+              textDecoration: "none",
+            }}
           >
             Capture your own memories in Soundtracks
           </a>

@@ -13,63 +13,39 @@ export interface MomentItem {
   previewUrl: string | null;
   photoUrls: string[];
   contributorName: string | null;
+  mood: string | null;
 }
 
 export default function CollectionMomentList({ moments }: { moments: MomentItem[] }) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  function toggle(moment: MomentItem) {
-    const audio = audioRef.current;
-
-    if (expandedId === moment.id) {
-      // Collapse — stop audio
-      audio?.pause();
-      setIsPlaying(false);
-      setExpandedId(null);
-      return;
-    }
-
-    // Expand a new moment — start playing if it has a preview
-    setExpandedId(moment.id);
-    setIsPlaying(false);
-
-    if (!audio) return;
-
-    if (moment.previewUrl) {
-      audio.src = moment.previewUrl;
-      audio.currentTime = 0;
-      audio.play().catch(() => {});
-    } else {
-      audio.pause();
-      audio.src = "";
-    }
-  }
 
   function handlePlayPause(moment: MomentItem) {
     const audio = audioRef.current;
     if (!audio || !moment.previewUrl) return;
-    if (isPlaying) {
+
+    if (playingId === moment.id) {
       audio.pause();
-    } else {
-      if (audio.src !== moment.previewUrl) {
-        audio.src = moment.previewUrl;
-        audio.currentTime = 0;
-      }
-      audio.play().catch(() => {});
+      setPlayingId(null);
+      return;
     }
+
+    audio.src = moment.previewUrl;
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+    setPlayingId(moment.id);
   }
 
   return (
     <>
       <audio
         ref={audioRef}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onEnded={() => setIsPlaying(false)}
+        onEnded={() => setPlayingId(null)}
+        onPause={() => {
+          if (audioRef.current?.ended === false) setPlayingId(null);
+        }}
       />
-      <div className="space-y-3">
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {moments.map((moment) => (
           <MomentCard
             key={moment.id}
@@ -80,10 +56,9 @@ export default function CollectionMomentList({ moments }: { moments: MomentItem[
             contributorName={moment.contributorName}
             momentDate={moment.momentDate}
             photoUrls={moment.photoUrls}
-            expanded={expandedId === moment.id}
-            isPlaying={expandedId === moment.id && isPlaying}
+            mood={moment.mood}
+            isPlaying={playingId === moment.id}
             hasPreview={!!moment.previewUrl}
-            onToggle={() => toggle(moment)}
             onPlayPause={() => handlePlayPause(moment)}
           />
         ))}
