@@ -110,7 +110,7 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
     formData.append("name", name.trim());
     formData.append("song", JSON.stringify(selectedSong));
     formData.append("reflection", reflection.trim());
-    formData.append("photo", photoFile);
+    if (photoFile) formData.append("photo", photoFile);
 
     try {
       await submitContribution(formData);
