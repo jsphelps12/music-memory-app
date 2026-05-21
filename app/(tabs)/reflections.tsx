@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   View,
   Text,
@@ -26,104 +26,61 @@ const STALE_TIME = 5 * 60 * 1000;
 
 type ReflectionsData = {
   onThisDay: Moment[];
-  aMonthAgo: Moment | null;
-  aYearAgo: Moment | null;
-  forgottenMoment: Moment | null;
-  thisWeekLastYear: Moment[];
   recentWithPeople: Moment[];
   recentWithMood: Moment[];
+  recentByArtist: Moment[];
 };
 
-type HeroType = "onThisDay" | "aMonthAgo" | "random";
+type HeroType = "onThisDay" | "random";
 
 async function fetchReflectionsData(
   userId: string,
   month: string,
   day: string,
-  thisYear: number,
-  aMonthAgoFrom: string,
-  aMonthAgoTo: string,
-  aYearAgoFrom: string,
-  aYearAgoTo: string,
-  weekLastYearFrom: string,
-  weekLastYearTo: string
+  thisYear: number
 ): Promise<ReflectionsData> {
   const matchingDates: string[] = [];
   for (let y = thisYear - 1; y >= Math.max(thisYear - 30, 2000); y--) {
     matchingDates.push(`${y}-${month}-${day}`);
   }
 
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 180);
-
-  const [
-    onThisDayResult,
-    aMonthAgoResult,
-    aYearAgoResult,
-    forgottenResult,
-    weekLastYearResult,
-    withPeopleResult,
-    withMoodResult,
-  ] = await Promise.all([
-    supabase
-      .from("moments")
-      .select(MOMENT_CARD_COLUMNS)
-      .eq("user_id", userId)
-      .in("moment_date", matchingDates)
-      .order("moment_date", { ascending: false })
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("moments")
-      .select(MOMENT_CARD_COLUMNS)
-      .eq("user_id", userId)
-      .gte("moment_date", aMonthAgoFrom)
-      .lte("moment_date", aMonthAgoTo)
-      .order("moment_date", { ascending: false })
-      .limit(1),
-    supabase
-      .from("moments")
-      .select(MOMENT_CARD_COLUMNS)
-      .eq("user_id", userId)
-      .gte("moment_date", aYearAgoFrom)
-      .lte("moment_date", aYearAgoTo)
-      .order("moment_date", { ascending: false })
-      .limit(1),
-    supabase.rpc("get_random_forgotten_moment", { p_cutoff: cutoff.toISOString() }),
-    supabase
-      .from("moments")
-      .select(MOMENT_CARD_COLUMNS)
-      .eq("user_id", userId)
-      .gte("moment_date", weekLastYearFrom)
-      .lte("moment_date", weekLastYearTo)
-      .order("moment_date", { ascending: false })
-      .limit(3),
-    supabase
-      .from("moments")
-      .select(MOMENT_CARD_COLUMNS)
-      .eq("user_id", userId)
-      .not("people", "eq", "{}")
-      .order("created_at", { ascending: false })
-      .limit(30),
-    supabase
-      .from("moments")
-      .select(MOMENT_CARD_COLUMNS)
-      .eq("user_id", userId)
-      .not("mood", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(30),
-  ]);
+  const [onThisDayResult, withPeopleResult, withMoodResult, byArtistResult] =
+    await Promise.all([
+      supabase
+        .from("moments")
+        .select(MOMENT_CARD_COLUMNS)
+        .eq("user_id", userId)
+        .in("moment_date", matchingDates)
+        .order("moment_date", { ascending: false })
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("moments")
+        .select(MOMENT_CARD_COLUMNS + ", people")
+        .eq("user_id", userId)
+        .neq("people", "{}")
+        .order("created_at", { ascending: false })
+        .limit(30),
+      supabase
+        .from("moments")
+        .select(MOMENT_CARD_COLUMNS)
+        .eq("user_id", userId)
+        .not("mood", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(30),
+      supabase
+        .from("moments")
+        .select(MOMENT_CARD_COLUMNS)
+        .eq("user_id", userId)
+        .not("song_artist", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(50),
+    ]);
 
   return {
     onThisDay: (onThisDayResult.data ?? []).map(mapRowToMoment),
-    aMonthAgo: aMonthAgoResult.data?.[0] ? mapRowToMoment(aMonthAgoResult.data[0]) : null,
-    aYearAgo: aYearAgoResult.data?.[0] ? mapRowToMoment(aYearAgoResult.data[0]) : null,
-    forgottenMoment:
-      !forgottenResult.error && forgottenResult.data?.length > 0
-        ? mapRowToMoment(forgottenResult.data[0])
-        : null,
-    thisWeekLastYear: (weekLastYearResult.data ?? []).map(mapRowToMoment),
     recentWithPeople: (withPeopleResult.data ?? []).map(mapRowToMoment),
     recentWithMood: (withMoodResult.data ?? []).map(mapRowToMoment),
+    recentByArtist: (byArtistResult.data ?? []).map(mapRowToMoment),
   };
 }
 
@@ -138,7 +95,6 @@ export default function ReflectionsScreen() {
   const { user, profile } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const queryClient = useQueryClient();
 
   const allMoods = useMemo(
     () => [...MOODS, ...(profile?.customMoods ?? [])],
@@ -152,27 +108,10 @@ export default function ReflectionsScreen() {
     const day = pad(now.getDate());
     const thisYear = now.getFullYear();
     const todayLabel = now.toLocaleDateString("en-US", { month: "long", day: "numeric" });
-
-    const offset = (days: number) => {
-      const d = new Date(now); d.setDate(d.getDate() - days); return d.toISOString().slice(0, 10);
-    };
-
-    return {
-      month, day, thisYear, todayLabel,
-      aMonthAgoFrom: offset(35),
-      aMonthAgoTo: offset(25),
-      aYearAgoFrom: offset(380),
-      aYearAgoTo: offset(350),
-      weekLastYearFrom: offset(369),
-      weekLastYearTo: offset(361),
-    };
+    return { month, day, thisYear, todayLabel };
   }, []);
 
-  const {
-    month, day, thisYear, todayLabel,
-    aMonthAgoFrom, aMonthAgoTo, aYearAgoFrom, aYearAgoTo,
-    weekLastYearFrom, weekLastYearTo,
-  } = dateParams;
+  const { month, day, thisYear, todayLabel } = dateParams;
 
   // Day-of-year seed for deterministic spotlight selection
   const dayOfYear = useMemo(() => {
@@ -189,8 +128,7 @@ export default function ReflectionsScreen() {
     dataUpdatedAt,
   } = useQuery({
     queryKey: ["reflections", user?.id],
-    queryFn: () =>
-      fetchReflectionsData(user!.id, month, day, thisYear, aMonthAgoFrom, aMonthAgoTo, aYearAgoFrom, aYearAgoTo, weekLastYearFrom, weekLastYearTo),
+    queryFn: () => fetchReflectionsData(user!.id, month, day, thisYear),
     staleTime: STALE_TIME,
     enabled: !!user,
   });
@@ -220,12 +158,9 @@ export default function ReflectionsScreen() {
   }, [refetchRandom]);
 
   const onThisDay = data?.onThisDay ?? [];
-  const aMonthAgo = data?.aMonthAgo ?? null;
-  const aYearAgo = data?.aYearAgo ?? null;
-  const forgottenMoment = data?.forgottenMoment ?? null;
-  const thisWeekLastYear = data?.thisWeekLastYear ?? [];
   const recentWithPeople = data?.recentWithPeople ?? [];
   const recentWithMood = data?.recentWithMood ?? [];
+  const recentByArtist = data?.recentByArtist ?? [];
 
   const personSpotlight = useMemo(() => {
     const people = [...new Set(recentWithPeople.flatMap((m) => m.people ?? []))];
@@ -244,6 +179,20 @@ export default function ReflectionsScreen() {
     return { mood, label: moodObj ? `${moodObj.emoji} ${moodObj.label}` : mood, moments };
   }, [recentWithMood, dayOfYear, allMoods]);
 
+  const artistSpotlight = useMemo(() => {
+    const counts = new Map<string, Moment[]>();
+    for (const m of recentByArtist) {
+      if (!m.songArtist) continue;
+      const arr = counts.get(m.songArtist) ?? [];
+      arr.push(m);
+      counts.set(m.songArtist, arr);
+    }
+    const eligible = [...counts.entries()].filter(([, ms]) => ms.length >= 2);
+    if (!eligible.length) return null;
+    const [artist, moments] = eligible[dayOfYear % eligible.length];
+    return { artist, moments: moments.slice(0, 2) };
+  }, [recentByArtist, dayOfYear]);
+
   // Group On This Day moments by year, newest first
   const byYear = useMemo(() => {
     const map = new Map<number, Moment[]>();
@@ -258,12 +207,11 @@ export default function ReflectionsScreen() {
       .map((year) => ({ year, moments: map.get(year)! }));
   }, [onThisDay]);
 
-  // Hero fallback: On This Day → A Month Ago → Random
+  // Hero: On This Day if available, else Random
   const heroType: HeroType = useMemo(() => {
     if (byYear.length > 0) return "onThisDay";
-    if (aMonthAgo) return "aMonthAgo";
     return "random";
-  }, [byYear, aMonthAgo]);
+  }, [byYear]);
 
   if (isLoading) {
     return (
@@ -285,7 +233,7 @@ export default function ReflectionsScreen() {
   }
 
   // Empty state: user has no moments at all
-  if (randomMoment === null && onThisDay.length === 0 && !aMonthAgo) {
+  if (randomMoment === null && onThisDay.length === 0) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
@@ -344,23 +292,6 @@ export default function ReflectionsScreen() {
           </>
         )}
 
-        {heroType === "aMonthAgo" && aMonthAgo && (
-          <>
-            <View style={styles.sectionRow}>
-              <Text style={styles.heroTitle}>A Month Ago</Text>
-              {aMonthAgo.momentDate && (
-                <Text style={styles.sectionSubtitle}>
-                  {new Date(aMonthAgo.momentDate + "T00:00:00").toLocaleDateString("en-US", {
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </Text>
-              )}
-            </View>
-            <MomentCard item={aMonthAgo} allMoods={allMoods} />
-          </>
-        )}
-
         {heroType === "random" && randomMoment && (
           <>
             <View style={styles.sectionRow}>
@@ -377,53 +308,7 @@ export default function ReflectionsScreen() {
           </>
         )}
 
-        {/* ── SUPPORTING ── */}
-
-        {thisWeekLastYear.length > 0 && (
-          <>
-            <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
-              <Text style={styles.sectionTitle}>This Week Last Year</Text>
-            </View>
-            {thisWeekLastYear.map((m) => (
-              <MomentCard key={m.id} item={m} allMoods={allMoods} />
-            ))}
-          </>
-        )}
-
-        {heroType !== "aMonthAgo" && aMonthAgo && (
-          <>
-            <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
-              <Text style={styles.sectionTitle}>A Month Ago</Text>
-              {aMonthAgo.momentDate && (
-                <Text style={styles.sectionSubtitle}>
-                  {new Date(aMonthAgo.momentDate + "T00:00:00").toLocaleDateString("en-US", {
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </Text>
-              )}
-            </View>
-            <MomentCard item={aMonthAgo} allMoods={allMoods} />
-          </>
-        )}
-
-        {aYearAgo && (
-          <>
-            <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
-              <Text style={styles.sectionTitle}>A Year Ago</Text>
-              {aYearAgo.momentDate && (
-                <Text style={styles.sectionSubtitle}>
-                  {new Date(aYearAgo.momentDate + "T00:00:00").toLocaleDateString("en-US", {
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </Text>
-              )}
-            </View>
-            <MomentCard item={aYearAgo} allMoods={allMoods} />
-          </>
-        )}
+        {/* ── SPOTLIGHTS ── */}
 
         {personSpotlight && personSpotlight.moments.length > 0 && (
           <>
@@ -447,6 +332,17 @@ export default function ReflectionsScreen() {
           </>
         )}
 
+        {artistSpotlight && artistSpotlight.moments.length > 0 && (
+          <>
+            <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
+              <Text style={styles.sectionTitle}>More from {artistSpotlight.artist}</Text>
+            </View>
+            {artistSpotlight.moments.map((m) => (
+              <MomentCard key={m.id} item={m} allMoods={allMoods} />
+            ))}
+          </>
+        )}
+
         {heroType !== "random" && randomMoment && (
           <>
             <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
@@ -460,15 +356,6 @@ export default function ReflectionsScreen() {
               </TouchableOpacity>
             </View>
             <MomentCard item={randomMoment} allMoods={allMoods} />
-          </>
-        )}
-
-        {forgottenMoment && (
-          <>
-            <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
-              <Text style={styles.sectionTitle}>Forgotten Moment</Text>
-            </View>
-            <MomentCard item={forgottenMoment} allMoods={allMoods} />
           </>
         )}
       </ScrollView>
