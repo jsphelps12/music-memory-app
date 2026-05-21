@@ -20,6 +20,8 @@ export function mapRowToMoment(row: any): Moment {
     locationLng: row.location_lng ?? null,
     momentDate: row.moment_date,
     timeOfDay: row.time_of_day ?? null,
+    weatherTempF: row.weather_temp_f ?? null,
+    weatherCondition: row.weather_condition ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     visibility: row.visibility ?? 'private',

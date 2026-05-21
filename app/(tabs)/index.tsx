@@ -127,6 +127,7 @@ export default function TimelineScreen() {
           locationLng: null,
           userId: "", reflectionText: "", photoUrls: [], photoThumbnails: [],
           mood: null, people: [], location: null, timeOfDay: null,
+          weatherTempF: null, weatherCondition: null,
           createdAt: "", updatedAt: "", songAlbumName: "", songAppleMusicId: "",
           songPreviewUrl: null, visibility: "private",
         }))
@@ -440,10 +441,16 @@ export default function TimelineScreen() {
               onPress={() => router.push("/browse" as any)}
             />
             {activeTab === "mine" && (
-              <IconButton
-                name={viewMode === "calendar" ? "list-outline" : "calendar-outline"}
-                onPress={toggleView}
-              />
+              <>
+                <IconButton
+                  name="map-outline"
+                  onPress={() => router.push("/moments-map" as any)}
+                />
+                <IconButton
+                  name={viewMode === "calendar" ? "list-outline" : "calendar-outline"}
+                  onPress={toggleView}
+                />
+              </>
             )}
           </View>
         </View>

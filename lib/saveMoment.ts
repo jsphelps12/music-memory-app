@@ -28,6 +28,7 @@ export interface SaveMomentInput {
   selectedCollection?: Collection | null;
   taggedFriends?: Array<{ friend: Friendship; send: boolean }>;
   prefetchedPreview?: { previewUrl: string | null; albumName: string | null } | null;
+  weatherResult?: { tempF: number; condition: string } | null;
 }
 
 export interface SaveMomentResult {
@@ -78,6 +79,8 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
         ? `${input.momentDate.getFullYear()}-${String(input.momentDate.getMonth() + 1).padStart(2, "0")}-${String(input.momentDate.getDate()).padStart(2, "0")}`
         : null,
       time_of_day: getTimeOfDay(),
+      weather_temp_f: input.weatherResult?.tempF ?? null,
+      weather_condition: input.weatherResult?.condition ?? null,
       // If tagging friends with send:true, upgrade private → connections so they can read it
       visibility: input.visibility === 'private' && input.taggedFriends?.some((tf) => tf.send)
         ? 'connections'

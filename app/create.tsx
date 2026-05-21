@@ -43,6 +43,7 @@ import { checkAndNotifyMilestone } from "@/lib/notifications";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { fetchPreviewUrl } from "@/lib/musickit";
 import { PromptPickerModal } from "@/components/PromptPickerModal";
+import { fetchWeather, WeatherResult } from "@/lib/weather";
 
 export default function CreateMomentScreen() {
   const router = useRouter();
@@ -158,6 +159,7 @@ export default function CreateMomentScreen() {
   const [visibility, setVisibility] = useState<Visibility>('private');
   const [momentDate, setMomentDate] = useState<Date | null>(new Date());
   const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
+  const [weatherResult, setWeatherResult] = useState<WeatherResult | null>(null);
   const [metaSuggestion, setMetaSuggestion] = useState<{ date?: Date; location?: string; lat?: number; lng?: number } | null>(null);
   const [dismissedMetaSuggestion, setDismissedMetaSuggestion] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -198,6 +200,26 @@ export default function CreateMomentScreen() {
     const match = collections.find((c) => c.id === params.collectionId);
     if (match) setSelectedCollection(match);
   }, [params.collectionId, collections]);
+
+  // Auto-fetch weather when location + date are both set
+  useEffect(() => {
+    if (!locationResult?.lat || !locationResult?.lng || !momentDate) {
+      setWeatherResult(null);
+      return;
+    }
+    let cancelled = false;
+    const d = momentDate;
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const hour = new Date().getHours();
+    const tod =
+      hour >= 5 && hour < 12 ? "Morning" :
+      hour >= 12 && hour < 17 ? "Afternoon" :
+      hour >= 17 && hour < 21 ? "Evening" : "Late Night";
+    fetchWeather(locationResult.lat, locationResult.lng, dateStr, tod).then((result) => {
+      if (!cancelled) setWeatherResult(result);
+    });
+    return () => { cancelled = true; };
+  }, [locationResult?.lat, locationResult?.lng, momentDate?.toDateString()]);
 
   const handleApplyMeta = (
     date: Date | undefined,
@@ -248,6 +270,7 @@ export default function CreateMomentScreen() {
         selectedCollection,
         taggedFriends,
         prefetchedPreview,
+        weatherResult,
       });
 
       posthog.capture("moment_created", {
@@ -281,6 +304,7 @@ export default function CreateMomentScreen() {
       setLocationResult(null);
       setSelectedCollection(null);
       setVisibility('private');
+      setWeatherResult(null);
       setMetaSuggestion(null);
       setDismissedMetaSuggestion(false);
       setShowDetails(false);
@@ -477,6 +501,17 @@ export default function CreateMomentScreen() {
             {/* Location */}
             <Text style={styles.sectionLabel}>Location</Text>
             <LocationField value={locationResult} onChange={setLocationResult} detectCurrentLocation />
+
+            {/* Weather chip — silently appears once auto-fetched */}
+            {weatherResult ? (
+              <View style={styles.collectionChipRow}>
+                <View style={styles.collectionChip}>
+                  <Text style={styles.collectionChipText}>
+                    {weatherResult.condition} · {weatherResult.tempF}°F
+                  </Text>
+                </View>
+              </View>
+            ) : null}
           </>
         )}
 

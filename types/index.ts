@@ -41,6 +41,8 @@ export interface Moment {
   locationLng: number | null;
   momentDate: string | null;
   timeOfDay: string | null;
+  weatherTempF: number | null;
+  weatherCondition: string | null;
   createdAt: string;
   updatedAt: string;
   visibility: 'private' | 'connections' | 'link';

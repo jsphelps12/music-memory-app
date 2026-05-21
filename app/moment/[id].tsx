@@ -59,6 +59,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchMyReaction, fetchReactionCount, addReaction, removeReaction } from "@/lib/reactions";
 import { formatTime } from "@/lib/formatTime";
+import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 
 export default function MomentDetailScreen() {
   const {
@@ -240,8 +241,8 @@ export default function MomentDetailScreen() {
   const swipeGesture = useMemo(
     () =>
       Gesture.Pan()
-        .activeOffsetX([15, Infinity])
-        .failOffsetY([-20, 20])
+        .activeOffsetX([40, Infinity])
+        .failOffsetY([-15, 15])
         .onUpdate((e) => {
           "worklet";
           translateX.value = Math.max(0, e.translationX);
@@ -262,6 +263,8 @@ export default function MomentDetailScreen() {
   const seekGesture = useMemo(
     () =>
       Gesture.Pan()
+        .activeOffsetX([-5, 5])
+        .failOffsetY([-10, 10])
         .onBegin((e) => { runOnJS(handleProgressSeek)(e.x); })
         .onUpdate((e) => { runOnJS(handleProgressSeek)(e.x); })
         .blocksExternalGesture(swipeGesture),
@@ -817,7 +820,7 @@ export default function MomentDetailScreen() {
             ) : null}
 
             {/* Chips (dark pill style) */}
-            {(mood || moment.people.length > 0) ? (
+            {(mood || moment.people.length > 0 || moment.weatherCondition) ? (
               <View style={styles.chipsRow}>
                 {mood ? (
                   <View style={styles.darkChip}>
@@ -829,12 +832,56 @@ export default function MomentDetailScreen() {
                     <Text style={styles.darkChipText}>👥 {person}</Text>
                   </View>
                 ))}
+                {moment.weatherCondition ? (
+                  <View style={styles.darkChip}>
+                    <Text style={styles.darkChipText}>
+                      {moment.weatherCondition}{moment.weatherTempF != null ? ` · ${moment.weatherTempF}°F` : ""}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
             ) : null}
 
             {/* Time of day */}
             {moment.timeOfDay ? (
               <Text style={styles.timeOfDay}>{moment.timeOfDay}</Text>
+            ) : null}
+
+            {/* Mini map */}
+            {moment.locationLat != null && moment.locationLng != null ? (
+              <TouchableOpacity
+                style={styles.miniMapContainer}
+                activeOpacity={0.85}
+                onPress={() => {
+                  const label = encodeURIComponent(moment.location ?? "");
+                  Linking.openURL(`maps://?q=${label}&ll=${moment.locationLat},${moment.locationLng}`);
+                }}
+              >
+                <MapView
+                  style={StyleSheet.absoluteFill}
+                  provider={PROVIDER_DEFAULT}
+                  initialRegion={{
+                    latitude: moment.locationLat,
+                    longitude: moment.locationLng,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                  }}
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                  rotateEnabled={false}
+                  pitchEnabled={false}
+                  pointerEvents="none"
+                >
+                  <Marker
+                    coordinate={{ latitude: moment.locationLat, longitude: moment.locationLng }}
+                    pinColor="#E8825C"
+                  />
+                </MapView>
+                <View style={styles.miniMapHint}>
+                  <Ionicons name="map-outline" size={12} color="rgba(255,255,255,0.9)" />
+                  <Text style={styles.miniMapHintText}>Open in Maps</Text>
+                </View>
+              </TouchableOpacity>
             ) : null}
 
             {/* Additional photos (when >1 photo, shown below reflection as cinematic grid) */}
@@ -1561,6 +1608,30 @@ function createStyles(_theme: Theme) {
       fontFamily: "DMSans_400Regular",
       color: "rgba(255,255,255,0.5)",
       marginTop: 12,
+    },
+    // ── Mini map ─────────────────────────────────────────────────────────────
+    miniMapContainer: {
+      height: 140,
+      borderRadius: 14,
+      overflow: "hidden",
+      marginTop: 16,
+    },
+    miniMapHint: {
+      position: "absolute",
+      bottom: 10,
+      right: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: "rgba(0,0,0,0.45)",
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 999,
+    },
+    miniMapHintText: {
+      fontSize: 11,
+      fontFamily: "DMSans_500Medium",
+      color: "rgba(255,255,255,0.9)",
     },
     // ── Photo grid ───────────────────────────────────────────────────────────
     photoGrid: {

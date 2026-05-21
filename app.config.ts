@@ -51,6 +51,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     favicon: "./assets/images/favicon.png",
   },
   plugins: [
+    ["react-native-maps", { useGoogleMapsOnAndroid: false }],
     [
       "@sentry/react-native/expo",
       {

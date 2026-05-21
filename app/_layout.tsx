@@ -347,6 +347,10 @@ function RootLayoutNav() {
             name="browse"
             options={{ headerShown: false }}
           />
+          <Stack.Screen
+            name="moments-map"
+            options={{ headerShown: false, gestureEnabled: false }}
+          />
         </Stack>
       </AuthGate>
     </ThemeProvider>
