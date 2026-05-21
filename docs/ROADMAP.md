@@ -135,20 +135,20 @@ Tab redesign sprint + architecture improvements.
 
 **UI consistency:**
 - [x] Audit every screen against the design system — spacing, font sizes, button styles, close button usage, empty states
-- [ ] Consistent error messaging — replace raw errors with `friendlyError()` everywhere; no technical strings shown to users
+- [x] Consistent error messaging — all catch blocks that surface errors to users use `friendlyError()`; silent `.catch(() => {})` fire-and-forgets are intentional
 - [ ] Loading states on every async action — no silent spinning or frozen UI
-- [ ] Modal presentation consistency — all modals use the same header pattern and CloseButton
+- [x] Modal presentation consistency — CloseButton added to CollectionPicker sheet and CreateCollectionModal header
 
 **Known bugs to fix:**
 - [ ] Onboarding: username availability check shows no feedback on network error (shows "error" state now but UX needs polish)
 - [ ] Friends: duplicate modal stack on cold open via invite link (deep link dedup shipped, but needs end-to-end QA)
 - [ ] Friends: slow/black screen on login during testing (likely dev build, but confirm in production build)
-- [ ] Edge function console.log cleanup — remove debug logs from `accept-friend-invite`
-- [ ] Untracked migration file: `20260324_collection_moments_moment_id_index.sql` needs to be committed
+- [x] Edge function console.log cleanup — removed all debug logs from `send-notifications`
+- [x] Untracked migration file — already committed as `20260324110000_tagged_moments_moment_id_index.sql`
 
 **Code quality (in progress — ~40 files, net -846 lines):**
 - [x] Audit for duplicated fetch logic — screens refactored; `EmptyState`, `IconButton`, `TaggedRow` extracted as shared components; `lib/momentColumns.ts` extracted
-- [ ] Consistent error handling pattern — every `try/catch` should use `friendlyError()` before showing to user
+- [x] Consistent error handling pattern — every `try/catch` that shows to user uses `friendlyError()`
 - [ ] Remove dead code and unused imports surfaced during audit
 
 ---
