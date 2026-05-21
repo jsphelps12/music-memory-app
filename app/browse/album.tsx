@@ -131,7 +131,7 @@ export default function AlbumScreen() {
         ListEmptyComponent={
           isLoading ? (
             <View style={{ alignItems: "center", marginTop: 40 }}>
-              <ActivityIndicator color={theme.colors.accent} />
+              <ActivityIndicator color={theme.colors.textSecondary} />
             </View>
           ) : (
             <Text style={{ color: theme.colors.textTertiary, textAlign: "center", marginTop: 40 }}>
