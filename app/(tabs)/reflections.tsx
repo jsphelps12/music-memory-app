@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -22,7 +23,7 @@ import { MomentCard } from "@/components/MomentCard";
 import { pad } from "@/lib/dateUtils";
 import { Moment } from "@/types";
 
-const STALE_TIME = 5 * 60 * 1000;
+const STALE_TIME = 2 * 60 * 1000;
 
 type ReflectionsData = {
   onThisDay: Moment[];
@@ -57,9 +58,8 @@ async function fetchReflectionsData(
         .from("moments")
         .select(MOMENT_CARD_COLUMNS + ", people")
         .eq("user_id", userId)
-        .neq("people", "{}")
         .order("created_at", { ascending: false })
-        .limit(30),
+        .limit(50),
       supabase
         .from("moments")
         .select(MOMENT_CARD_COLUMNS)
@@ -123,6 +123,7 @@ export default function ReflectionsScreen() {
   const {
     data,
     isLoading,
+    isFetching,
     isError,
     refetch,
     dataUpdatedAt,
@@ -163,10 +164,11 @@ export default function ReflectionsScreen() {
   const recentByArtist = data?.recentByArtist ?? [];
 
   const personSpotlight = useMemo(() => {
-    const people = [...new Set(recentWithPeople.flatMap((m) => m.people ?? []))];
+    const withPeople = recentWithPeople.filter((m) => m.people && m.people.length > 0);
+    const people = [...new Set(withPeople.flatMap((m) => m.people))];
     if (!people.length) return null;
     const person = people[dayOfYear % people.length];
-    const moments = recentWithPeople.filter((m) => m.people?.includes(person)).slice(0, 2);
+    const moments = withPeople.filter((m) => m.people?.includes(person)).slice(0, 2);
     return { person, moments };
   }, [recentWithPeople, dayOfYear]);
 
@@ -216,7 +218,7 @@ export default function ReflectionsScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator color={theme.colors.accent} />
+        <ActivityIndicator color={theme.colors.textSecondary} />
       </View>
     );
   }
@@ -267,6 +269,13 @@ export default function ReflectionsScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isFetching && !isLoading}
+            onRefresh={refetch}
+            tintColor={theme.colors.textSecondary}
+          />
+        }
       >
         {/* ── HERO ── */}
         {heroType === "onThisDay" && (
@@ -298,7 +307,7 @@ export default function ReflectionsScreen() {
               <Text style={styles.heroTitle}>A Random Memory</Text>
               <TouchableOpacity onPress={handleShuffle} disabled={shuffling} hitSlop={8}>
                 {shuffling ? (
-                  <ActivityIndicator size="small" color={theme.colors.accent} />
+                  <ActivityIndicator size="small" color={theme.colors.textSecondary} />
                 ) : (
                   <Ionicons name="shuffle" size={20} color={theme.colors.accent} />
                 )}
@@ -349,7 +358,7 @@ export default function ReflectionsScreen() {
               <Text style={styles.sectionTitle}>A Random Memory</Text>
               <TouchableOpacity onPress={handleShuffle} disabled={shuffling} hitSlop={8}>
                 {shuffling ? (
-                  <ActivityIndicator size="small" color={theme.colors.accent} />
+                  <ActivityIndicator size="small" color={theme.colors.textSecondary} />
                 ) : (
                   <Ionicons name="shuffle" size={20} color={theme.colors.accent} />
                 )}
