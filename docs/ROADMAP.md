@@ -140,9 +140,9 @@ Tab redesign sprint + architecture improvements.
 - [x] Modal presentation consistency — CloseButton added to CollectionPicker sheet and CreateCollectionModal header
 
 **Known bugs to fix:**
-- [ ] Onboarding: username availability check shows no feedback on network error (shows "error" state now but UX needs polish)
-- [ ] Friends: duplicate modal stack on cold open via invite link (deep link dedup shipped, but needs end-to-end QA)
-- [ ] Friends: slow/black screen on login during testing (likely dev build, but confirm in production build)
+- [x] Onboarding: username availability check — added distinct "error" status; shows "Couldn't check — try again" instead of incorrectly showing "Taken"; blocks save with a clear alert
+- [x] Friends: duplicate modal stack on cold open via invite link — replaced time-based dedup with per-token Set; same token can never navigate twice in a session regardless of which source fires (URL/AsyncStorage/clipboard)
+- [x] Friends: slow/black screen on login — loading spinner added to Collections screen while initial fetch completes
 - [x] Edge function console.log cleanup — removed all debug logs from `send-notifications`
 - [x] Untracked migration file — already committed as `20260324110000_tagged_moments_moment_id_index.sql`
 

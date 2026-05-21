@@ -56,12 +56,10 @@ export async function checkClipboardForGift(): Promise<string | null> {
 export function useDeepLinkHandler() {
   const router = useRouter();
   const { user, profile } = useAuth();
-  // Track pending friend token so we can show FriendRequestSheet after auth
-  const pendingFriendTokenRef = useRef<string | null>(null);
   // Deduplicate URL handling — getInitialURL + addEventListener both fire for same URL
   const lastHandledUrlRef = useRef<string | null>(null);
-  // Prevent multiple simultaneous navigations to friend-request (URL + AsyncStorage + clipboard can all fire)
-  const friendNavInFlightRef = useRef(false);
+  // Deduplicate friend-request navigations by token value — URL + AsyncStorage + clipboard can all fire the same token
+  const handledFriendTokensRef = useRef(new Set<string>());
 
   const handleInviteCode = useCallback(async (inviteCode: string) => {
     if (user) {
@@ -73,11 +71,9 @@ export function useDeepLinkHandler() {
 
   const handleFriendToken = useCallback(async (token: string) => {
     if (user) {
-      if (friendNavInFlightRef.current) return;
-      friendNavInFlightRef.current = true;
+      if (handledFriendTokensRef.current.has(token)) return;
+      handledFriendTokensRef.current.add(token);
       router.push({ pathname: "/friend-request" as any, params: { token } });
-      // Reset after navigation settles
-      setTimeout(() => { friendNavInFlightRef.current = false; }, 2000);
     } else {
       await AsyncStorage.setItem(PENDING_FRIEND_TOKEN_KEY, token);
     }

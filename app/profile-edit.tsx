@@ -66,7 +66,7 @@ export default function ProfileEditScreen() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [nameInput, setNameInput] = useState(profile?.displayName ?? "");
   const [usernameInput, setUsernameInput] = useState(profile?.username ?? "");
-  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken" | "error">("idle");
   const usernameDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [birthYear, setBirthYear] = useState<number | null>(profile?.birthYear ?? null);
   const [country, setCountry] = useState(profile?.country ?? "");
@@ -86,7 +86,13 @@ export default function ProfileEditScreen() {
     setUsernameStatus("checking");
     usernameDebounce.current = setTimeout(async () => {
       if (!user) return;
-      const available = await checkUsernameAvailable(cleaned, user.id).catch(() => false);
+      let available: boolean | null = null;
+      try {
+        available = await checkUsernameAvailable(cleaned, user.id);
+      } catch {
+        setUsernameStatus("error");
+        return;
+      }
       setUsernameStatus(available ? "available" : "taken");
     }, 400);
   }, [user, profile?.username]);
@@ -275,6 +281,10 @@ export default function ProfileEditScreen() {
       Alert.alert("Username taken", "Please choose a different username.");
       return;
     }
+    if (usernameInput.trim() && usernameStatus === "error") {
+      Alert.alert("Couldn't verify username", "Check your connection and try again.");
+      return;
+    }
     setSaving(true);
     try {
       await updateProfile({
@@ -388,7 +398,7 @@ export default function ProfileEditScreen() {
               {usernameStatus === "available" && (
                 <Ionicons name="checkmark-circle" size={18} color={theme.colors.success} style={{ marginRight: 8 }} />
               )}
-              {usernameStatus === "taken" && (
+              {(usernameStatus === "taken" || usernameStatus === "error") && (
                 <Ionicons name="close-circle" size={18} color={theme.colors.destructive} style={{ marginRight: 8 }} />
               )}
             </View>
@@ -397,6 +407,9 @@ export default function ProfileEditScreen() {
             )}
             {usernameStatus === "taken" && usernameInput.length >= 3 && (
               <Text style={[styles.usernameHint, { color: theme.colors.destructive }]}>✗ Taken — try another</Text>
+            )}
+            {usernameStatus === "error" && (
+              <Text style={[styles.usernameHint, { color: theme.colors.destructive }]}>Couldn't check — try again</Text>
             )}
           </View>
 
