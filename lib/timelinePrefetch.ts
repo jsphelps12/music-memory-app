@@ -10,6 +10,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
+import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { Moment } from "@/types";
 
 export const TIMELINE_PAGE_SIZE = 30;
@@ -46,7 +47,7 @@ export function prefetchTimeline(userId: string): void {
   const networkFetch = Promise.resolve(
     supabase
       .from("moments")
-      .select("*")
+      .select(MOMENT_CARD_COLUMNS)
       .eq("user_id", userId)
       .order("moment_date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })

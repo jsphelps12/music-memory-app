@@ -12,7 +12,12 @@ import {
   Platform,
   Alert,
   ScrollView,
+  Dimensions,
+  LayoutAnimation,
+  UIManager,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from "react-native-reanimated";
 import ViewShot from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
@@ -25,6 +30,12 @@ import { Moment, TaggedMoment, Friendship } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { CloseButton } from "@/components/CloseButton";
 import { useAuth } from "@/contexts/AuthContext";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 interface Props {
   visible: boolean;
@@ -39,6 +50,18 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
   const { user } = useAuth();
   const viewShotRef = useRef<ViewShot>(null);
   const [view, setView] = useState<"options" | "card" | "tagFriend">("options");
+
+  const translateY = useSharedValue(0);
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => { if (e.translationY > 0) translateY.value = e.translationY; })
+    .onEnd((e) => {
+      if (e.translationY > 80 || e.velocityY > 500) { runOnJS(handleClose)(); }
+      translateY.value = withTiming(0);
+    });
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
+
+  const goToCard = () => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setView("card"); };
+  const goToOptions = () => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setView("options"); };
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [sharing, setSharing] = useState(false);
   const [sendingLink, setSendingLink] = useState(false);
@@ -54,6 +77,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
   const alreadyTaggedIds = new Set(localTags.map((t) => t.taggedUserId));
 
   const openTagFriendPicker = async () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setView("tagFriend");
     if (friends.length > 0) return;
     setFriendsLoading(true);
@@ -63,6 +87,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
       setFriends(result);
     } catch {
       Alert.alert("Couldn't load friends", "Please try again.");
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setView("options");
     } finally {
       setFriendsLoading(false);
@@ -78,6 +103,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
       const newTag = await insertTaggedMoment(moment.id, friend.otherUserId, true);
       setLocalTags((prev) => [...prev, { ...newTag, taggerDisplayName: friend.otherUserDisplayName }]);
       setSentTagIds((prev) => new Set([...prev, newTag.id]));
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setView("options");
     } catch {
       Alert.alert("Couldn't tag friend", "Please try again.");
@@ -173,7 +199,8 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
       <View style={styles.overlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
 
-        <View style={[styles.sheet, { backgroundColor: theme.colors.backgroundSecondary }]}>
+        <GestureDetector gesture={panGesture}>
+          <Animated.View style={[styles.sheet, { backgroundColor: theme.colors.backgroundSecondary }, animatedStyle]}>
           <View style={[styles.handle, { backgroundColor: theme.colors.border }]} />
 
           {view === "options" ? (
@@ -194,9 +221,9 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
               {/* Option rows */}
               <View style={[styles.optionCard, { backgroundColor: theme.colors.cardBg, borderColor: theme.colors.border }]}>
                 {/* Create share card */}
-                <TouchableOpacity style={styles.optionRow} activeOpacity={0.7} onPress={() => setView("card")}>
+                <TouchableOpacity style={styles.optionRow} activeOpacity={0.7} onPress={goToCard}>
                   <View style={[styles.iconBox, { backgroundColor: theme.colors.accent + "20" }]}>
-                    <Ionicons name="sparkles" size={20} color={theme.colors.accent} />
+                    <Ionicons name="sparkles-outline" size={20} color={theme.colors.accent} />
                   </View>
                   <View style={styles.optionText}>
                     <Text style={[styles.optionTitle, { color: theme.colors.text }]}>Create share card</Text>
@@ -250,7 +277,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
                     <View style={[styles.iconBox, { backgroundColor: theme.colors.accentSecondary + "25" }]}>
                       {sending
                         ? <ActivityIndicator size="small" color={theme.colors.accentSecondary} />
-                        : <Ionicons name="people" size={20} color={theme.colors.accentSecondary} />
+                        : <Ionicons name="people-outline" size={20} color={theme.colors.accentSecondary} />
                       }
                     </View>
                     <View style={styles.optionText}>
@@ -294,7 +321,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
           ) : view === "tagFriend" ? (
             <>
               <View style={styles.cardHeader}>
-                <TouchableOpacity onPress={() => setView("options")} hitSlop={12} activeOpacity={0.7} style={styles.backButton}>
+                <TouchableOpacity onPress={goToOptions} hitSlop={12} activeOpacity={0.7} style={styles.backButton}>
                   <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
                 </TouchableOpacity>
                 <Text style={[styles.cardTitle, { color: theme.colors.text }]}>Tag a friend</Text>
@@ -353,67 +380,75 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
             </>
           ) : (
             <>
-              {/* Card view header */}
+              {/* Card view header — always visible, outside scroll */}
               <View style={styles.cardHeader}>
-                <TouchableOpacity onPress={() => setView("options")} hitSlop={12} activeOpacity={0.7} style={styles.backButton}>
+                <TouchableOpacity onPress={goToOptions} hitSlop={12} activeOpacity={0.7} style={styles.backButton}>
                   <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
                 </TouchableOpacity>
                 <Text style={[styles.cardTitle, { color: theme.colors.text }]}>Share card</Text>
                 <CloseButton onPress={handleClose} />
               </View>
 
-              {/* Card preview */}
-              <View style={styles.cardWrapper}>
-                <ViewShot
-                  ref={viewShotRef}
-                  options={{ format: "png", quality: 1.0 }}
-                  style={{ width: CARD_WIDTH, height: CARD_HEIGHT }}
-                >
-                  <ShareCard moment={moment} photoUrl={photoUrls.length > 0 ? photoUrls[selectedIndex] : null} />
-                </ViewShot>
-              </View>
-
-              {/* Photo picker */}
-              {photoUrls.length > 1 && (
-                <View style={styles.pickerSection}>
-                  <Text style={[styles.pickerLabel, { color: theme.colors.textTertiary }]}>Choose photo</Text>
-                  <FlatList
-                    data={photoUrls}
-                    horizontal
-                    keyExtractor={(_, i) => String(i)}
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.pickerContent}
-                    renderItem={({ item, index }) => {
-                      const selected = index === selectedIndex;
-                      return (
-                        <TouchableOpacity
-                          onPress={() => { Haptics.selectionAsync(); setSelectedIndex(index); }}
-                          activeOpacity={0.8}
-                          style={[styles.thumb, selected && { borderColor: theme.colors.accent, borderWidth: 2.5 }]}
-                        >
-                          <Image source={{ uri: item }} style={styles.thumbImage} contentFit="cover" />
-                        </TouchableOpacity>
-                      );
-                    }}
-                  />
-                </View>
-              )}
-
-              {/* Share button */}
-              <TouchableOpacity
-                style={[styles.shareButton, { backgroundColor: theme.colors.buttonBg, opacity: sharing ? 0.7 : 1 }]}
-                onPress={handleShareCard}
-                activeOpacity={0.8}
-                disabled={sharing}
+              {/* Scrollable: card preview + photo picker + share button */}
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+                contentContainerStyle={styles.cardScrollContent}
               >
-                {sharing
-                  ? <ActivityIndicator color={theme.colors.buttonText} />
-                  : <Text style={[styles.shareButtonText, { color: theme.colors.buttonText }]}>Share image</Text>
-                }
-              </TouchableOpacity>
+                {/* Card preview */}
+                <View style={styles.cardWrapper}>
+                  <ViewShot
+                    ref={viewShotRef}
+                    options={{ format: "png", quality: 1.0 }}
+                    style={{ width: CARD_WIDTH, height: CARD_HEIGHT }}
+                  >
+                    <ShareCard moment={moment} photoUrl={photoUrls.length > 0 ? photoUrls[selectedIndex] : null} />
+                  </ViewShot>
+                </View>
+
+                {/* Photo picker */}
+                {photoUrls.length > 1 && (
+                  <View style={styles.pickerSection}>
+                    <Text style={[styles.pickerLabel, { color: theme.colors.textTertiary }]}>Choose photo</Text>
+                    <FlatList
+                      data={photoUrls}
+                      horizontal
+                      keyExtractor={(_, i) => String(i)}
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.pickerContent}
+                      renderItem={({ item, index }) => {
+                        const selected = index === selectedIndex;
+                        return (
+                          <TouchableOpacity
+                            onPress={() => { Haptics.selectionAsync(); setSelectedIndex(index); }}
+                            activeOpacity={0.8}
+                            style={[styles.thumb, selected && { borderColor: theme.colors.accent, borderWidth: 2.5 }]}
+                          >
+                            <Image source={{ uri: item }} style={styles.thumbImage} contentFit="cover" />
+                          </TouchableOpacity>
+                        );
+                      }}
+                    />
+                  </View>
+                )}
+
+                {/* Share button */}
+                <TouchableOpacity
+                  style={[styles.shareButton, { backgroundColor: theme.colors.buttonBg, opacity: sharing ? 0.7 : 1 }]}
+                  onPress={handleShareCard}
+                  activeOpacity={0.8}
+                  disabled={sharing}
+                >
+                  {sharing
+                    ? <ActivityIndicator color={theme.colors.buttonText} />
+                    : <Text style={[styles.shareButtonText, { color: theme.colors.buttonText }]}>Share image</Text>
+                  }
+                </TouchableOpacity>
+              </ScrollView>
             </>
           )}
-        </View>
+          </Animated.View>
+        </GestureDetector>
       </View>
     </Modal>
   );
@@ -428,6 +463,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingBottom: Platform.OS === "ios" ? 36 : 24,
+    maxHeight: SCREEN_HEIGHT * 0.92,
   },
   handle: {
     width: 36,
@@ -508,6 +544,9 @@ const styles = StyleSheet.create({
     fontFamily: "DMSans_500Medium",
   },
   // Card view
+  cardScrollContent: {
+    paddingBottom: 8,
+  },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",

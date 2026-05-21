@@ -20,7 +20,6 @@ import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/contexts/AuthContext";
-import { LinearGradient } from "expo-linear-gradient";
 import { PromptsSection } from "@/components/PromptsSection";
 import { supabase } from "@/lib/supabase";
 import { getPublicPhotoUrl } from "@/lib/storage";
@@ -29,18 +28,14 @@ import { Theme } from "@/constants/theme";
 import { SkeletonProfile } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { IconButton } from "@/components/IconButton";
 import { friendlyError } from "@/lib/errors";
 import { topValue } from "@/lib/utils";
+import { fetchPendingRequests } from "@/lib/friends";
 
 const STALE_TIME = 2 * 60 * 1000;
 const AVATAR_SIZE = 80;
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
 
 function subtractDay(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
@@ -96,13 +91,15 @@ async function fetchProfileStats(userId: string) {
   const [
     { data: allRows, error: allError },
     { data: twoMonthRows, error: twoMonthError },
-    { data: files },
+    { count: friendCount },
     { status: notifStatus },
   ] = await Promise.all([
     supabase.from("moments").select("created_at, song_artist, song_title, mood").eq("user_id", userId),
     supabase.from("moments").select("moment_date, song_artist, mood").eq("user_id", userId)
       .gte("moment_date", firstOfLastMonth).lte("moment_date", lastOfMonth),
-    supabase.storage.from("moment-photos").list(userId, { limit: 1000 }),
+    supabase.from("friendships").select("id", { count: "exact", head: true })
+      .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
+      .eq("status", "accepted"),
     Notifications.getPermissionsAsync(),
   ]);
 
@@ -112,6 +109,7 @@ async function fetchProfileStats(userId: string) {
   const rows = allRows ?? [];
   const dates = rows.map((r: any) => (r.created_at as string).slice(0, 10));
   const streaks = computeStreaks(dates);
+  const uniqueArtistCount = new Set(rows.map((r: any) => r.song_artist).filter(Boolean)).size;
   const allTwoMonth = twoMonthRows ?? [];
   const tmRows = allTwoMonth.filter((r: any) => r.moment_date >= firstOfMonth);
   const lmRows = allTwoMonth.filter((r: any) => r.moment_date < firstOfMonth);
@@ -126,7 +124,8 @@ async function fetchProfileStats(userId: string) {
     lastMonthCount: lmRows.length,
     thisMonthTopArtist: topValue(tmRows.map((r: any) => r.song_artist)),
     thisMonthTopMood: topValue(tmRows.map((r: any) => r.mood)),
-    storageBytes: files ? files.reduce((sum, f) => sum + (f.metadata?.size ?? 0), 0) : null,
+    friendCount: friendCount ?? 0,
+    uniqueArtistCount,
     notifPermission: (notifStatus === "granted" ? "granted" : notifStatus === "denied" ? "denied" : "undetermined") as "granted" | "denied" | "undetermined",
   };
 }
@@ -141,7 +140,8 @@ export default function ProfileScreen() {
   const [signOutError, setSignOutError] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [showPrompts, setShowPrompts] = useState(false);
-  const [showCaptureMethods, setShowCaptureMethods] = useState(false);
+  const [showMilestones, setShowMilestones] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [notifOnThisDay, setNotifOnThisDay] = useState(true);
   const [notifStreak, setNotifStreak] = useState(true);
   const [notifPrompts, setNotifPrompts] = useState(true);
@@ -154,6 +154,14 @@ export default function ProfileScreen() {
     staleTime: STALE_TIME,
     enabled: !!user,
   });
+
+  const { data: pendingRequests = [] } = useQuery({
+    queryKey: ["pendingRequests", user?.id],
+    queryFn: () => fetchPendingRequests(user!.id),
+    staleTime: 60_000,
+    enabled: !!user,
+  });
+  const pendingCount = pendingRequests.length;
 
   useFocusEffect(useCallback(() => {
     refreshProfile();
@@ -233,6 +241,8 @@ export default function ProfileScreen() {
       if (field === "notif_prompts") setNotifPrompts(!value);
       if (field === "notif_resurfacing") setNotifResurfacing(!value);
       if (field === "notif_milestones") setNotifMilestones(!value);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   }, [user, posthog]);
 
@@ -288,38 +298,36 @@ export default function ProfileScreen() {
     : null;
 
   return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.container}
-      refreshControl={
-        <RefreshControl
-          refreshing={isFetching && !isLoading}
-          onRefresh={handleRefresh}
-          tintColor={theme.colors.text}
-        />
-      }
-    >
-      {isError && !!data ? (
-        <ErrorBanner
-          message={friendlyError(error)}
-          onRetry={() => refetch()}
-          onDismiss={() => {}}
-        />
-      ) : null}
-
+    <View style={styles.outerContainer}>
       {/* Screen header */}
       <View style={styles.screenHeader}>
         <Text style={styles.screenTitle}>Profile</Text>
-        <TouchableOpacity
-          onPress={() => router.push("/profile-edit")}
-          hitSlop={8}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="settings-outline" size={22} color={theme.colors.text} />
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <IconButton name="help-circle-outline" onPress={() => router.push("/help")} />
+          <IconButton name="settings-outline" onPress={() => router.push("/profile-edit")} />
+        </View>
       </View>
 
-      {/* User card */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.container}
+        refreshControl={
+          <RefreshControl
+            refreshing={isFetching && !isLoading}
+            onRefresh={handleRefresh}
+            tintColor={theme.colors.text}
+          />
+        }
+      >
+        {isError && !!data ? (
+          <ErrorBanner
+            message={friendlyError(error)}
+            onRetry={() => refetch()}
+            onDismiss={() => {}}
+          />
+        ) : null}
+
+        {/* User card */}
       <TouchableOpacity
         style={styles.userCard}
         onPress={() => router.push("/profile-edit")}
@@ -345,10 +353,10 @@ export default function ProfileScreen() {
       {/* Stats — row 1 */}
       <View style={styles.statsGrid}>
         <View style={styles.statsRow}>
-          <View style={styles.statItem}>
+          <TouchableOpacity style={styles.statItem} onPress={() => router.push("/(tabs)" as any)} activeOpacity={0.7}>
             <Text style={styles.statValue}>{data?.momentCount ?? "—"}</Text>
             <Text style={styles.statLabel}>Moments</Text>
-          </View>
+          </TouchableOpacity>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statValue}>{data?.daysLogged ?? "—"}</Text>
@@ -375,20 +383,38 @@ export default function ProfileScreen() {
             <Text style={styles.statLabel}>Best Streak</Text>
           </View>
           <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>
-              {data?.storageBytes != null ? formatBytes(data.storageBytes) : "—"}
-            </Text>
-            <Text style={styles.statLabel}>Storage</Text>
-          </View>
+          <TouchableOpacity style={styles.statItem} onPress={() => router.push("/friends-list" as any)} activeOpacity={0.7}>
+            <Text style={styles.statValue}>{data?.friendCount ?? "—"}</Text>
+            <Text style={styles.statLabel}>Friends</Text>
+          </TouchableOpacity>
         </View>
       </View>
+
+      {/* Friends */}
+      <TouchableOpacity
+        style={[styles.promptsCard, styles.friendsRow]}
+        onPress={() => router.push("/friends-list" as any)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.friendsRowLeft}>
+          <Ionicons name="people-outline" size={20} color={theme.colors.text} />
+          <Text style={styles.promptsRowLabel}>Friends</Text>
+          {pendingCount > 0 && (
+            <View style={styles.friendsBadge}>
+              <Text style={styles.friendsBadgeText}>{pendingCount > 9 ? "9+" : pendingCount}</Text>
+            </View>
+          )}
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={theme.colors.textTertiary} />
+      </TouchableOpacity>
 
       {/* Top Stats */}
       <View style={styles.topStatsSection}>
         <Text style={styles.sectionTitle}>All-Time Favorites</Text>
         <View style={styles.topStatRow}>
-          <Text style={styles.topStatIcon}>🎵</Text>
+          <View style={styles.topStatIconWrap}>
+            <Ionicons name="mic-outline" size={18} color={theme.colors.accent} />
+          </View>
           <View style={styles.topStatText}>
             <Text style={styles.topStatLabel}>Top Artist</Text>
             <Text style={styles.topStatValue} numberOfLines={1}>
@@ -397,7 +423,9 @@ export default function ProfileScreen() {
           </View>
         </View>
         <View style={styles.topStatRow}>
-          <Text style={styles.topStatIcon}>🎶</Text>
+          <View style={styles.topStatIconWrap}>
+            <Ionicons name="musical-note" size={18} color={theme.colors.accent} />
+          </View>
           <View style={styles.topStatText}>
             <Text style={styles.topStatLabel}>Top Song</Text>
             <Text style={styles.topStatValue} numberOfLines={1}>
@@ -406,7 +434,9 @@ export default function ProfileScreen() {
           </View>
         </View>
         <View style={styles.topStatRow}>
-          <Text style={styles.topStatIcon}>😊</Text>
+          <View style={styles.topStatIconWrap}>
+            <Ionicons name="happy-outline" size={18} color={theme.colors.accent} />
+          </View>
           <View style={styles.topStatText}>
             <Text style={styles.topStatLabel}>Top Mood</Text>
             <Text style={styles.topStatValue} numberOfLines={1}>
@@ -427,7 +457,9 @@ export default function ProfileScreen() {
           <View style={styles.topStatsSection}>
             <Text style={styles.sectionTitle}>This Month</Text>
             <View style={styles.topStatRow}>
-              <Text style={styles.topStatIcon}>📅</Text>
+              <View style={styles.topStatIconWrap}>
+                <Ionicons name="calendar-outline" size={18} color={theme.colors.accent} />
+              </View>
               <View style={styles.topStatText}>
                 <Text style={styles.topStatLabel}>Moments logged</Text>
                 <Text style={styles.topStatValue}>
@@ -438,7 +470,9 @@ export default function ProfileScreen() {
             </View>
             {thisMonthTopArtist ? (
               <View style={styles.topStatRow}>
-                <Text style={styles.topStatIcon}>🎵</Text>
+                <View style={styles.topStatIconWrap}>
+                  <Ionicons name="mic-outline" size={18} color={theme.colors.accent} />
+                </View>
                 <View style={styles.topStatText}>
                   <Text style={styles.topStatLabel}>Top Artist</Text>
                   <Text style={styles.topStatValue} numberOfLines={1}>{thisMonthTopArtist}</Text>
@@ -447,13 +481,73 @@ export default function ProfileScreen() {
             ) : null}
             {thisMonthTopMood ? (
               <View style={styles.topStatRow}>
-                <Text style={styles.topStatIcon}>😊</Text>
+                <View style={styles.topStatIconWrap}>
+                  <Ionicons name="happy-outline" size={18} color={theme.colors.accent} />
+                </View>
                 <View style={styles.topStatText}>
                   <Text style={styles.topStatLabel}>Top Mood</Text>
                   <Text style={styles.topStatValue} numberOfLines={1}>{thisMonthTopMood}</Text>
                 </View>
               </View>
             ) : null}
+          </View>
+        );
+      })()}
+
+      {/* Milestones */}
+      {data != null && (() => {
+        const BADGES = [
+          { id: "first_note", label: "First Note", icon: "musical-note", condition: data.momentCount >= 1 },
+          { id: "memory_maker", label: "10 Moments", icon: "albums", condition: data.momentCount >= 10 },
+          { id: "archivist", label: "50 Moments", icon: "archive", condition: data.momentCount >= 50 },
+          { id: "century", label: "100 Moments", icon: "trophy", condition: data.momentCount >= 100 },
+          { id: "on_a_roll", label: "7-Day Streak", icon: "flame", condition: data.longest >= 7 },
+          { id: "dedicated", label: "30-Day Streak", icon: "medal", condition: data.longest >= 30 },
+          { id: "habit", label: "2 Wks Logged", icon: "calendar", condition: data.daysLogged >= 14 },
+          { id: "historian", label: "60 Days Logged", icon: "book", condition: data.daysLogged >= 60 },
+          { id: "eclectic", label: "5 Artists", icon: "headset", condition: data.uniqueArtistCount >= 5 },
+          { id: "explorer", label: "20 Artists", icon: "radio", condition: data.uniqueArtistCount >= 20 },
+          { id: "connected", label: "Connected", icon: "person-add", condition: data.friendCount >= 1 },
+          { id: "social", label: "Social", icon: "people", condition: data.friendCount >= 5 },
+        ] as const;
+        const unlockedCount = BADGES.filter((b) => b.condition).length;
+        return (
+          <View style={styles.promptsCard}>
+            <TouchableOpacity
+              style={styles.promptsRow}
+              onPress={() => setShowMilestones((v) => !v)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.promptsRowLabel}>Milestones</Text>
+              <View style={styles.collapsibleRight}>
+                <Text style={styles.milestonesCount}>{unlockedCount} / {BADGES.length}</Text>
+                <Ionicons
+                  name={showMilestones ? "chevron-up" : "chevron-down"}
+                  size={16}
+                  color={theme.colors.textTertiary}
+                />
+              </View>
+            </TouchableOpacity>
+            {showMilestones && (
+              <View style={styles.promptsBody}>
+                <View style={styles.badgeGrid}>
+                  {BADGES.map((badge) => (
+                    <View key={badge.id} style={styles.badgeItem}>
+                      <View style={[styles.badgeCircle, badge.condition ? styles.badgeUnlocked : styles.badgeLocked]}>
+                        <Ionicons
+                          name={badge.icon as any}
+                          size={22}
+                          color={badge.condition ? "#fff" : theme.colors.textTertiary}
+                        />
+                      </View>
+                      <Text style={[styles.badgeLabel, !badge.condition && styles.badgeLabelLocked]} numberOfLines={2}>
+                        {badge.label}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
           </View>
         );
       })()}
@@ -483,77 +577,62 @@ export default function ProfileScreen() {
         )}
       </View>
 
-      {/* How to capture */}
-      <View style={[styles.promptsCard, showCaptureMethods && styles.promptsCardOpen]}>
+      {/* Notifications */}
+      <View style={styles.promptsCard}>
         <TouchableOpacity
           style={styles.promptsRow}
-          onPress={() => setShowCaptureMethods((v) => !v)}
+          onPress={() => setShowNotifications((v) => !v)}
           activeOpacity={0.7}
         >
-          <Text style={styles.promptsRowLabel}>How to capture a memory</Text>
-          <Ionicons
-            name={showCaptureMethods ? "chevron-up" : "chevron-down"}
-            size={16}
-            color={theme.colors.textTertiary}
-          />
-        </TouchableOpacity>
-        {showCaptureMethods && (
-          <View style={[styles.promptsBody, { gap: 0 }]}>
-            {([
-              { icon: "search-outline", label: "Search", desc: "Find any song by title or artist" },
-              { icon: "musical-note-outline", label: "Now Playing", desc: "Auto-fills when Apple Music is playing" },
-              { icon: "share-outline", label: "Share from Apple Music / Spotify", desc: "Tap Share → Soundtracks in any music app" },
-              { icon: "image-outline", label: "Share from Photos", desc: "Tap Share → Soundtracks from camera roll" },
-              { icon: "ear-outline", label: "ShazamKit", desc: "Hear a song anywhere — identify it in-app" },
-            ] as const).map(({ icon, label, desc }, idx) => (
-              <View key={label} style={[styles.captureRow, idx > 0 && styles.captureRowBorder]}>
-                <Ionicons name={icon} size={18} color={theme.colors.accent} style={styles.captureIcon} />
-                <View style={styles.captureText}>
-                  <Text style={styles.captureLabel}>{label}</Text>
-                  <Text style={styles.captureDesc}>{desc}</Text>
-                </View>
-              </View>
-            ))}
+          <Text style={styles.promptsRowLabel}>Notifications</Text>
+          <View style={styles.collapsibleRight}>
+            {data?.notifPermission !== "granted" ? (
+              <Text style={styles.notifStatusText}>Off</Text>
+            ) : null}
+            <Ionicons
+              name={showNotifications ? "chevron-up" : "chevron-down"}
+              size={16}
+              color={theme.colors.textTertiary}
+            />
           </View>
-        )}
-      </View>
-
-      {/* Notifications */}
-      <View style={styles.notifCard}>
-        <Text style={styles.sectionTitle}>Notifications</Text>
-        {data?.notifPermission !== "granted" ? (
-          <TouchableOpacity
-            style={styles.notifSettingsRow}
-            onPress={() => Linking.openSettings()}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="notifications-off-outline" size={18} color={theme.colors.textSecondary} />
-            <Text style={styles.notifSettingsText}>Notifications are disabled</Text>
-            <Text style={styles.notifSettingsLink}>Open Settings →</Text>
-          </TouchableOpacity>
-        ) : (
-          <>
-            {([
-              { field: "notif_on_this_day", label: "On This Day", sub: "When a song anniversary comes up", value: notifOnThisDay },
-              { field: "notif_resurfacing", label: "Random memories", sub: "A random moment from your past", value: notifResurfacing },
-              { field: "notif_milestones", label: "Streak milestones", sub: "Celebrate hitting a new streak", value: notifMilestones },
-              { field: "notif_streak", label: "Streak reminders", sub: "Keep your logging streak going", value: notifStreak },
-              { field: "notif_prompts", label: "Journal prompts", sub: "Occasional nudges to capture a moment", value: notifPrompts },
-            ] as const).map(({ field, label, sub, value }, idx) => (
-              <View key={field} style={[styles.notifRow, idx > 0 && styles.notifRowBorder]}>
-                <View style={styles.notifRowText}>
-                  <Text style={styles.notifRowLabel}>{label}</Text>
-                  <Text style={styles.notifRowSub}>{sub}</Text>
-                </View>
-                <Switch
-                  value={value}
-                  onValueChange={(v) => handleNotifToggle(field, v)}
-                  trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
-                  thumbColor="#fff"
-                />
-              </View>
-            ))}
-          </>
+        </TouchableOpacity>
+        {showNotifications && (
+          <View style={[styles.promptsBody, { paddingTop: theme.spacing.sm }]}>
+            {data?.notifPermission !== "granted" ? (
+              <TouchableOpacity
+                style={styles.notifSettingsRow}
+                onPress={() => Linking.openSettings()}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="notifications-off-outline" size={18} color={theme.colors.textSecondary} />
+                <Text style={styles.notifSettingsText}>Notifications are disabled</Text>
+                <Text style={styles.notifSettingsLink}>Open Settings →</Text>
+              </TouchableOpacity>
+            ) : (
+              <>
+                {([
+                  { field: "notif_on_this_day", label: "On This Day", sub: "When a song anniversary comes up", value: notifOnThisDay },
+                  { field: "notif_resurfacing", label: "Random memories", sub: "A random moment from your past", value: notifResurfacing },
+                  { field: "notif_milestones", label: "Streak milestones", sub: "Celebrate hitting a new streak", value: notifMilestones },
+                  { field: "notif_streak", label: "Streak reminders", sub: "Keep your logging streak going", value: notifStreak },
+                  { field: "notif_prompts", label: "Journal prompts", sub: "Occasional nudges to capture a moment", value: notifPrompts },
+                ] as const).map(({ field, label, sub, value }, idx) => (
+                  <View key={field} style={[styles.notifRow, idx > 0 && styles.notifRowBorder]}>
+                    <View style={styles.notifRowText}>
+                      <Text style={styles.notifRowLabel}>{label}</Text>
+                      <Text style={styles.notifRowSub}>{sub}</Text>
+                    </View>
+                    <Switch
+                      value={value}
+                      onValueChange={(v) => handleNotifToggle(field, v)}
+                      trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+                      thumbColor="#fff"
+                    />
+                  </View>
+                ))}
+              </>
+            )}
+          </View>
         )}
       </View>
 
@@ -599,18 +678,22 @@ export default function ProfileScreen() {
           <Text style={styles.deleteAccountText}>Delete Account</Text>
         )}
       </TouchableOpacity>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    scroll: {
+    outerContainer: {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
+    scroll: {
+      flex: 1,
+    },
     container: {
-      paddingTop: 70,
+      paddingTop: theme.spacing.lg,
       paddingBottom: 48,
       paddingHorizontal: theme.spacing.xl,
     },
@@ -618,10 +701,20 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      marginBottom: theme.spacing["2xl"],
+      paddingTop: 60,
+      paddingBottom: theme.spacing.lg,
+      paddingHorizontal: theme.spacing.xl,
+      backgroundColor: theme.colors.background,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.border,
+    },
+    headerButtons: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
     },
     screenTitle: {
-      fontSize: theme.fontSize["2xl"],
+      fontSize: 30,
       fontFamily: theme.fonts.display,
       color: theme.colors.text,
     },
@@ -729,10 +822,10 @@ function createStyles(theme: Theme) {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: theme.colors.border,
     },
-    topStatIcon: {
-      fontSize: 20,
+    topStatIconWrap: {
       width: 28,
-      textAlign: "center",
+      alignItems: "center",
+      justifyContent: "center",
     },
     topStatText: {
       flex: 1,
@@ -758,6 +851,81 @@ function createStyles(theme: Theme) {
     promptsCardOpen: {
       // no extra style needed — overflow hidden keeps it clean
     },
+    collapsibleRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+    },
+    milestonesCount: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textTertiary,
+    },
+    notifStatusText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textTertiary,
+    },
+    badgeGrid: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      flexWrap: "wrap",
+      rowGap: theme.spacing.lg,
+    },
+    badgeItem: {
+      width: "23%",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+    },
+    badgeCircle: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    badgeUnlocked: {
+      backgroundColor: theme.colors.accent,
+    },
+    badgeLocked: {
+      backgroundColor: theme.colors.backgroundTertiary,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+    },
+    badgeLabel: {
+      fontSize: theme.fontSize.xs,
+      color: theme.colors.text,
+      textAlign: "center",
+      lineHeight: 14,
+    },
+    badgeLabelLocked: {
+      color: theme.colors.textTertiary,
+    },
+    friendsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 14,
+      paddingHorizontal: theme.spacing.lg,
+    },
+    friendsRowLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+    },
+    friendsBadge: {
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: theme.colors.accent,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 4,
+    },
+    friendsBadgeText: {
+      color: "#fff",
+      fontSize: 11,
+      fontFamily: theme.fonts.bodyBold,
+      lineHeight: 13,
+    },
     promptsRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -775,127 +943,6 @@ function createStyles(theme: Theme) {
       borderTopColor: theme.colors.border,
       paddingHorizontal: theme.spacing.lg,
       paddingBottom: theme.spacing.lg,
-    },
-    captureRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: 10,
-    },
-    captureRowBorder: {
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: theme.colors.border,
-    },
-    captureIcon: {
-      width: 28,
-      marginRight: theme.spacing.sm,
-    },
-    captureText: {
-      flex: 1,
-    },
-    captureLabel: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.text,
-    },
-    captureDesc: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textTertiary,
-      marginTop: 1,
-    },
-    proCard: {
-      backgroundColor: theme.colors.cardBg,
-      borderRadius: theme.radii.md,
-      padding: theme.spacing.lg,
-      marginBottom: theme.spacing["2xl"],
-      gap: theme.spacing.sm,
-    },
-    proCardHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    proCardTitle: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodyBold,
-      color: theme.colors.text,
-    },
-    proBadge: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      backgroundColor: "#6B5F8C",
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      borderRadius: theme.radii.full,
-    },
-    proBadgeText: {
-      fontSize: theme.fontSize.xs,
-      fontFamily: theme.fonts.bodySemibold,
-      color: "#fff",
-    },
-    proCardSub: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
-    },
-    proCardActions: {
-      marginTop: theme.spacing.xs,
-    },
-    proManageButton: {
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.sm,
-      paddingVertical: 10,
-      alignItems: "center",
-    },
-    proManageText: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.textSecondary,
-    },
-    upgradeCard: {
-      borderRadius: theme.radii.md,
-      padding: theme.spacing.lg,
-      marginBottom: theme.spacing["2xl"],
-      gap: theme.spacing.sm,
-    },
-    upgradeTitle: {
-      fontSize: theme.fontSize.lg,
-      fontFamily: theme.fonts.bodyBold,
-      color: "#fff",
-    },
-    upgradeSub: {
-      fontSize: theme.fontSize.sm,
-      color: "rgba(255,255,255,0.85)",
-      lineHeight: 20,
-    },
-    upgradeButton: {
-      marginTop: theme.spacing.sm,
-      backgroundColor: "#fff",
-      borderRadius: theme.radii.button,
-      paddingVertical: 12,
-      alignItems: "center",
-    },
-    upgradeButtonText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodyBold,
-      color: "#6B5F8C",
-    },
-    restoreButton: {
-      alignItems: "center",
-      paddingTop: theme.spacing.xs,
-    },
-    restoreText: {
-      fontSize: theme.fontSize.xs,
-      color: "rgba(255,255,255,0.7)",
-    },
-    notifCard: {
-      backgroundColor: theme.colors.cardBg,
-      borderRadius: theme.radii.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      paddingVertical: theme.spacing.md,
-      paddingHorizontal: theme.spacing.lg,
-      marginBottom: theme.spacing["2xl"],
     },
     notifSettingsRow: {
       flexDirection: "row",

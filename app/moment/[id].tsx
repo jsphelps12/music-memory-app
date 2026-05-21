@@ -55,7 +55,7 @@ import { friendlyError } from "@/lib/errors";
 import { Collection, Moment, MoodOption, TaggedMoment } from "@/types";
 import { markTimelineStale, markTimelineDeleted } from "@/lib/timelineRefresh";
 import { ShareMomentSheet } from "@/components/ShareMomentSheet";
-import { CloseButton } from "@/components/CloseButton";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchMyReaction, fetchReactionCount, addReaction, removeReaction } from "@/lib/reactions";
 import { formatTime } from "@/lib/formatTime";
@@ -120,6 +120,24 @@ export default function MomentDetailScreen() {
   const translateY = useSharedValue(origin.active ? origin.y : 0);
   const scaleAnim = useSharedValue(origin.active ? origin.scale : 1);
   const opacity = useSharedValue(origin.active ? 0 : 1);
+
+  const collectionTranslateY = useSharedValue(0);
+  const collectionPanGesture = Gesture.Pan()
+    .onUpdate((e) => { if (e.translationY > 0) collectionTranslateY.value = e.translationY; })
+    .onEnd((e) => {
+      if (e.translationY > 80 || e.velocityY > 500) { runOnJS(setCollectionModalVisible)(false); }
+      collectionTranslateY.value = withTiming(0);
+    });
+  const collectionAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: collectionTranslateY.value }] }));
+
+  const onboardingShareTranslateY = useSharedValue(0);
+  const onboardingSharePanGesture = Gesture.Pan()
+    .onUpdate((e) => { if (e.translationY > 0) onboardingShareTranslateY.value = e.translationY; })
+    .onEnd((e) => {
+      if (e.translationY > 80 || e.velocityY > 500) { runOnJS(exitToCelebration)(); }
+      onboardingShareTranslateY.value = withTiming(0);
+    });
+  const onboardingShareAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: onboardingShareTranslateY.value }] }));
 
   useEffect(() => {
     const config = { duration: 320, easing: Easing.out(Easing.cubic) };
@@ -494,41 +512,60 @@ export default function MomentDetailScreen() {
 
   const mood = moment ? getMood(moment.mood) : undefined;
 
+  const hasPhotos = photoUrls.length > 0;
+
+  const formatEyebrow = (dateStr: string | null, location: string | null) => {
+    const parts: string[] = [];
+    if (dateStr) {
+      const d = new Date(dateStr + "T00:00:00");
+      parts.push(d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase());
+    }
+    if (location) parts.push(location.toUpperCase());
+    return parts.join(" · ");
+  };
+
   return (
     <GestureDetector gesture={swipeGesture}>
     <Animated.View style={[styles.container, animStyle]}>
+      {/* Ambient blurred artwork backdrop */}
       {moment?.songArtworkUrl ? (
-        <>
-          <Image
-            source={{ uri: moment.songArtworkUrl }}
-            style={StyleSheet.absoluteFill}
-            blurRadius={50}
-            contentFit="cover"
-          />
-          <View style={styles.backdrop} />
-        </>
+        <Image
+          source={{ uri: moment.songArtworkUrl }}
+          style={StyleSheet.absoluteFill}
+          blurRadius={50}
+          contentFit="cover"
+        />
       ) : null}
+      <LinearGradient
+        colors={["transparent", "rgba(13,10,8,0.55)", "#0F0D0B"]}
+        locations={[0, 0.4, 0.75]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
 
-      <View style={styles.headerRow}>
-        {!loading && moment ? (
-          <>
-            {formatDate(moment.momentDate) ? (
-              <Text style={styles.date}>{formatDate(moment.momentDate)}</Text>
-            ) : (
-              <Text style={[styles.date, styles.dateAbsent]}>No date</Text>
-            )}
-            <View style={styles.headerActions}>
-              <TouchableOpacity style={styles.moreButton} onPress={openMenu} activeOpacity={0.7}>
-                <Text style={styles.moreButtonText}>{"\u22EF"}</Text>
-              </TouchableOpacity>
-              <CloseButton onPress={() => animateOut(goBack)} />
-            </View>
-          </>
-        ) : (
-          <>
-            <View style={{ flex: 1 }} />
-            <CloseButton onPress={() => animateOut(goBack)} />
-          </>
+      {/* Glass nav — always visible */}
+      <View style={styles.glassNav}>
+        <TouchableOpacity style={styles.glassBtn} onPress={() => animateOut(goBack)} activeOpacity={0.8} hitSlop={8}>
+          <Ionicons name="chevron-back" size={20} color="#fff" />
+        </TouchableOpacity>
+        {!loading && moment && (
+          <View style={styles.glassBtnRow}>
+            <TouchableOpacity
+              style={styles.glassBtn}
+              onPress={() => {
+                Haptics.selectionAsync();
+                setShareModalVisible(true);
+                posthog.capture("moment_shared", { song_title: moment.songTitle, song_artist: moment.songArtist });
+              }}
+              activeOpacity={0.8}
+              hitSlop={8}
+            >
+              <Ionicons name="share-outline" size={18} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.glassBtn} onPress={openMenu} activeOpacity={0.8} hitSlop={8}>
+              <Ionicons name="ellipsis-horizontal" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
@@ -617,7 +654,9 @@ export default function MomentDetailScreen() {
       })()}
 
       {loading ? (
-        <SkeletonMomentDetail />
+        <View style={styles.loadingContainer}>
+          <SkeletonMomentDetail />
+        </View>
       ) : error || !moment ? (
         <ErrorState
           message={error || "Moment not found"}
@@ -625,66 +664,87 @@ export default function MomentDetailScreen() {
           onBack={() => animateOut(goBack)}
         />
       ) : (
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Song row: artwork + title/artist + play */}
-          <View style={styles.songRow}>
-            <TouchableOpacity
-              activeOpacity={moment.songAlbumName ? 0.7 : 1}
-              onPress={() => {
-                if (!moment.songAlbumName) return;
-                router.push({ pathname: "/album", params: { album: moment.songAlbumName, artist: moment.songArtist } });
-              }}
-            >
-              {moment.songArtworkUrl ? (
-                <Image
-                  source={{ uri: moment.songArtworkUrl }}
-                  style={styles.artwork}
-                />
-              ) : (
-                <ArtworkPlaceholder style={styles.artwork} />
+        <>
+          {/* Hero section */}
+          {hasPhotos ? (
+            <View style={styles.photoHero}>
+              <TouchableOpacity
+                activeOpacity={0.95}
+                onPress={() => { setViewerIndex(0); setViewerVisible(true); }}
+                style={StyleSheet.absoluteFill}
+              >
+                <Image source={{ uri: photoUrls[0] }} style={StyleSheet.absoluteFill} contentFit="cover" />
+              </TouchableOpacity>
+              <LinearGradient
+                colors={["transparent", "rgba(15,13,11,0.88)"]}
+                locations={[0.45, 1]}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+              />
+              {photoUrls.length > 1 && (
+                <View style={styles.photoCounterPill}>
+                  <Text style={styles.photoCounterText}>{photoUrls.length} PHOTOS</Text>
+                </View>
               )}
-            </TouchableOpacity>
-            <View style={styles.songInfo}>
-              <TouchableOpacity
-                activeOpacity={0.6}
-                onPress={() => router.push({ pathname: "/song", params: { title: moment.songTitle, artist: moment.songArtist } })}
-              >
-                <Text style={[styles.songTitle, styles.songTitleLink]} numberOfLines={2}>
-                  {moment.songTitle}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                activeOpacity={0.6}
-                onPress={() =>
-                  router.push({ pathname: "/artist", params: { name: moment.songArtist } })
-                }
-              >
-                <Text style={[styles.songArtist, styles.songArtistLink]} numberOfLines={1}>
-                  {moment.songArtist}
-                </Text>
-              </TouchableOpacity>
-              {moment.songAlbumName ? (
-                <TouchableOpacity
-                  activeOpacity={0.6}
-                  onPress={() => router.push({ pathname: "/album", params: { album: moment.songAlbumName, artist: moment.songArtist } })}
-                >
-                  <Text style={[styles.songAlbum, styles.songAlbumLink]} numberOfLines={1}>
-                    {moment.songAlbumName}
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-              {(contributorName || moment.contributorName) ? (
-                <Text style={styles.contributor} numberOfLines={1}>
-                  by {contributorName || moment.contributorName}
-                </Text>
-              ) : null}
             </View>
+          ) : (
+            <View style={styles.ambientHero}>
+              {moment.songArtworkUrl ? (
+                <Image source={{ uri: moment.songArtworkUrl }} style={styles.artworkHero} contentFit="cover" />
+              ) : (
+                <ArtworkPlaceholder style={styles.artworkHero} />
+              )}
+            </View>
+          )}
+
+          {/* Scrollable content */}
+          <ScrollView
+            style={[styles.scrollView, !hasPhotos && { marginTop: 0 }]}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Small artwork thumbnail — only shown in photo-first layout */}
+            {hasPhotos && moment.songArtworkUrl ? (
+              <Image source={{ uri: moment.songArtworkUrl }} style={styles.artworkThumb} contentFit="cover" />
+            ) : null}
+
+            {/* Date + location eyebrow */}
+            {(moment.momentDate || moment.location) ? (
+              <Text style={styles.eyebrow}>
+                {formatEyebrow(moment.momentDate, moment.location)}
+              </Text>
+            ) : null}
+
+            {/* Song title (serif) */}
+            <TouchableOpacity
+              activeOpacity={0.6}
+              onPress={() => router.push({ pathname: "/song", params: { title: moment.songTitle, artist: moment.songArtist } })}
+            >
+              <Text style={styles.songTitleHero} numberOfLines={2}>{moment.songTitle}</Text>
+            </TouchableOpacity>
+
+            {/* Artist */}
+            <TouchableOpacity
+              activeOpacity={0.6}
+              onPress={() => router.push({ pathname: "/artist", params: { name: moment.songArtist } })}
+            >
+              <Text style={styles.artistHero}>{moment.songArtist}</Text>
+            </TouchableOpacity>
+
+            {/* Album */}
+            {moment.songAlbumName ? (
+              <TouchableOpacity
+                activeOpacity={0.6}
+                onPress={() => router.push({ pathname: "/album", params: { album: moment.songAlbumName, artist: moment.songArtist } })}
+              >
+                <Text style={styles.albumHero}>{moment.songAlbumName}</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {/* Play pill */}
             {moment.songAppleMusicId ? (
               <TouchableOpacity
-                style={[styles.playButton, playError && styles.playButtonError]}
+                style={[styles.playPill, playError && styles.playPillError]}
                 activeOpacity={0.7}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -707,7 +767,12 @@ export default function MomentDetailScreen() {
                   }
                 }}
               >
-                <Text style={[styles.playButtonText, playError && styles.playButtonErrorText]}>
+                <Ionicons
+                  name={isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId ? "pause" : "play"}
+                  size={13}
+                  color={playError ? "rgba(255,255,255,0.4)" : "#0F0D0B"}
+                />
+                <Text style={[styles.playPillText, playError && styles.playPillTextError]}>
                   {isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId
                     ? "Pause"
                     : playError
@@ -716,142 +781,156 @@ export default function MomentDetailScreen() {
                 </Text>
               </TouchableOpacity>
             ) : null}
-          </View>
 
-          {/* Playback progress bar */}
-          {currentSong?.appleMusicId === moment.songAppleMusicId && playbackDuration > 0 && (
-            <View style={styles.progressContainer}>
-              <GestureDetector gesture={seekGesture}>
-              <View
-                style={styles.progressTrackWrapper}
-                onLayout={(e) => { progressBarWidthRef.current = e.nativeEvent.layout.width; }}
-              >
-                <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: `${Math.min(100, (playbackTime / playbackDuration) * 100)}%` }]} />
-                </View>
+            {/* Progress bar */}
+            {currentSong?.appleMusicId === moment.songAppleMusicId && playbackDuration > 0 && (
+              <View style={styles.progressContainer}>
+                <GestureDetector gesture={seekGesture}>
+                  <View
+                    style={styles.progressTrackWrapper}
+                    onLayout={(e) => { progressBarWidthRef.current = e.nativeEvent.layout.width; }}
+                  >
+                    <View style={styles.progressTrack}>
+                      <View style={[styles.progressFill, { width: `${Math.min(100, (playbackTime / playbackDuration) * 100)}%` }]} />
+                    </View>
+                  </View>
+                </GestureDetector>
+                <Text style={styles.progressTime}>
+                  {formatTime(playbackTime)} / {formatTime(playbackDuration)}
+                </Text>
               </View>
-            </GestureDetector>
-              <Text style={styles.progressTime}>
-                {formatTime(playbackTime)} / {formatTime(playbackDuration)}
+            )}
+
+            {/* Contributor */}
+            {(contributorName || moment.contributorName) ? (
+              <Text style={styles.contributor} numberOfLines={1}>
+                by {contributorName || moment.contributorName}
               </Text>
-            </View>
-          )}
+            ) : null}
 
-          {/* Reflection — the main content */}
-          {moment.reflectionText ? (
-            <Text style={styles.reflection}>{moment.reflectionText}</Text>
-          ) : null}
+            {/* Reflection — pull-quote treatment */}
+            {moment.reflectionText ? (
+              <View style={styles.reflectionContainer}>
+                <Text style={styles.quoteGlyph}>"</Text>
+                <Text style={styles.reflection}>{moment.reflectionText}</Text>
+              </View>
+            ) : null}
 
-          {/* Photos */}
-          {photoUrls.length > 0 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.photoStrip}
-              contentContainerStyle={styles.photoStripContent}
-            >
-              {photoUrls.map((url, index) => (
-                <TouchableOpacity
-                  key={index}
-                  activeOpacity={0.85}
-                  onPress={() => {
-                    setViewerIndex(index);
-                    setViewerVisible(true);
-                  }}
-                >
-                  <Image
-                    source={{ uri: url }}
-                    style={styles.photoStripThumb}
-                    contentFit="cover"
-                    transition={200}
-                  />
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-
-          {/* Metadata */}
-          {(mood || moment.people.length > 0) && (
-            <View style={styles.metaRow}>
-              {mood ? (
-                <View style={styles.moodChip}>
-                  <Text style={styles.moodChipText}>
-                    {mood.emoji} {mood.label}
-                  </Text>
-                </View>
-              ) : null}
-              {moment.people.map((person) => (
-                <View key={person} style={styles.personChip}>
-                  <Text style={styles.personChipText}>{person}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Location + time of day */}
-          {(moment.location || moment.timeOfDay) ? (
-            <View style={styles.locationRow}>
-              {moment.location ? (
-                <Text style={styles.locationText}>{moment.location}</Text>
-              ) : null}
-              {moment.timeOfDay ? (
-                <Text style={styles.timeOfDayText}>{moment.timeOfDay}</Text>
-              ) : null}
-            </View>
-          ) : null}
-
-          {/* Shared with — owner only */}
-          {user && moment.userId === user.id && friendTags.length > 0 && (() => {
-            const visible = friendTags.slice(0, 2);
-            const overflow = friendTags.length - visible.length;
-            return (
-              <TouchableOpacity
-                style={styles.sharedWithRow}
-                activeOpacity={0.7}
-                onPress={() => setShareModalVisible(true)}
-              >
-                <Ionicons name="people-outline" size={14} color={theme.colors.accentSecondary} />
-                <Text style={styles.sharedWithLabel}>Shared with</Text>
-                {visible.map((tag) => (
-                  <View key={tag.id} style={styles.sharedWithChip}>
-                    <Text style={styles.sharedWithChipText} numberOfLines={1}>
-                      {tag.taggerDisplayName ?? "Friend"}
-                    </Text>
+            {/* Chips (dark pill style) */}
+            {(mood || moment.people.length > 0) ? (
+              <View style={styles.chipsRow}>
+                {mood ? (
+                  <View style={styles.darkChip}>
+                    <Text style={styles.darkChipText}>{mood.emoji} {mood.label}</Text>
+                  </View>
+                ) : null}
+                {moment.people.map((person) => (
+                  <View key={person} style={styles.darkChip}>
+                    <Text style={styles.darkChipText}>👥 {person}</Text>
                   </View>
                 ))}
-                {overflow > 0 && (
-                  <View style={styles.sharedWithChip}>
-                    <Text style={styles.sharedWithChipText}>+{overflow} more</Text>
+              </View>
+            ) : null}
+
+            {/* Time of day */}
+            {moment.timeOfDay ? (
+              <Text style={styles.timeOfDay}>{moment.timeOfDay}</Text>
+            ) : null}
+
+            {/* Additional photos (when >1 photo, shown below reflection as cinematic grid) */}
+            {hasPhotos && photoUrls.length > 1 && (
+              <View style={styles.photoGrid}>
+                <Text style={styles.photoGridLabel}>{photoUrls.length} PHOTOS · TAP TO VIEW</Text>
+                <View style={styles.photoGridRow}>
+                  <TouchableOpacity
+                    style={[styles.photoGridMain, { marginRight: 6 }]}
+                    activeOpacity={0.85}
+                    onPress={() => { setViewerIndex(0); setViewerVisible(true); }}
+                  >
+                    <Image source={{ uri: photoUrls[0] }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+                  </TouchableOpacity>
+                  <View style={styles.photoGridStack}>
+                    {photoUrls.slice(1, 3).map((url, idx) => (
+                      <TouchableOpacity
+                        key={idx}
+                        style={[styles.photoGridSmall, idx === 0 && { marginBottom: 6 }]}
+                        activeOpacity={0.85}
+                        onPress={() => { setViewerIndex(idx + 1); setViewerVisible(true); }}
+                      >
+                        <Image source={{ uri: url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+                      </TouchableOpacity>
+                    ))}
                   </View>
-                )}
+                </View>
+              </View>
+            )}
+            {/* Single photo shown below reflection */}
+            {hasPhotos && photoUrls.length === 1 && (
+              <TouchableOpacity
+                style={styles.singlePhoto}
+                activeOpacity={0.85}
+                onPress={() => { setViewerIndex(0); setViewerVisible(true); }}
+              >
+                <Image source={{ uri: photoUrls[0] }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
               </TouchableOpacity>
-            );
-          })()}
+            )}
 
-        </ScrollView>
-      )}
+            {/* Shared with — owner only */}
+            {user && moment.userId === user.id && friendTags.length > 0 && (() => {
+              const visible = friendTags.slice(0, 2);
+              const overflow = friendTags.length - visible.length;
+              return (
+                <TouchableOpacity
+                  style={styles.sharedWithRow}
+                  activeOpacity={0.7}
+                  onPress={() => setShareModalVisible(true)}
+                >
+                  <Ionicons name="people-outline" size={14} color="rgba(255,255,255,0.6)" />
+                  <Text style={styles.sharedWithLabel}>Shared with</Text>
+                  {visible.map((tag) => (
+                    <View key={tag.id} style={styles.sharedWithChip}>
+                      <Text style={styles.sharedWithChipText} numberOfLines={1}>
+                        {tag.taggerDisplayName ?? "Friend"}
+                      </Text>
+                    </View>
+                  ))}
+                  {overflow > 0 && (
+                    <View style={styles.sharedWithChip}>
+                      <Text style={styles.sharedWithChipText}>+{overflow} more</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })()}
 
-      {/* Resonance button — non-owners only */}
-      {moment && user && moment.userId !== user.id && (
-        <TouchableOpacity
-          style={[styles.resonanceBtn, hasReacted && styles.resonanceBtnActive]}
-          onPress={handleResonance}
-          activeOpacity={0.75}
-          hitSlop={12}
-        >
-          <Ionicons
-            name={hasReacted ? "heart" : "heart-outline"}
-            size={20}
-            color={hasReacted ? "#E8825C" : theme.colors.textSecondary}
-          />
-        </TouchableOpacity>
-      )}
-
-      {/* Resonance indicator — owner only, shown when at least one person has resonated */}
-      {moment && user && moment.userId === user.id && reactionCount > 0 && (
-        <View style={styles.resonanceIndicator}>
-          <Ionicons name="heart" size={16} color="#E8825C" />
-        </View>
+            {/* Bottom action row */}
+            <View style={styles.actionRow}>
+              {user && moment.userId !== user.id && (
+                <TouchableOpacity
+                  style={[styles.resonanceGlass, hasReacted && styles.resonanceGlassActive]}
+                  onPress={handleResonance}
+                  activeOpacity={0.75}
+                  hitSlop={12}
+                >
+                  {reactingInFlight ? (
+                    <ActivityIndicator size="small" color={hasReacted ? "#E8825C" : "#fff"} />
+                  ) : (
+                    <Ionicons
+                      name={hasReacted ? "heart" : "heart-outline"}
+                      size={20}
+                      color={hasReacted ? "#E8825C" : "rgba(255,255,255,0.85)"}
+                    />
+                  )}
+                </TouchableOpacity>
+              )}
+              {user && moment.userId === user.id && reactionCount > 0 && (
+                <View style={styles.resonanceGlass}>
+                  <Ionicons name="heart" size={18} color="#E8825C" />
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        </>
       )}
 
       <PhotoViewer
@@ -914,7 +993,8 @@ export default function MomentDetailScreen() {
               activeOpacity={1}
               onPress={exitToCelebration}
             />
-            <View style={[shareSheetStyles.sheet, { backgroundColor: theme.colors.background }]}>
+            <GestureDetector gesture={onboardingSharePanGesture}>
+              <Animated.View style={[shareSheetStyles.sheet, { backgroundColor: theme.colors.background }, onboardingShareAnimatedStyle]}>
               <View style={[shareSheetStyles.handle, { backgroundColor: theme.colors.border }]} />
 
               {/* Header row: title + X */}
@@ -986,7 +1066,8 @@ export default function MomentDetailScreen() {
                   </View>
                 </View>
               </View>
-            </View>
+              </Animated.View>
+            </GestureDetector>
           </Modal>
         );
       })()}
@@ -1003,14 +1084,16 @@ export default function MomentDetailScreen() {
           style={collectionStyles.flex}
         >
         <Pressable
-          style={[
-            collectionStyles.backdrop,
-            { backgroundColor: theme.isDark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.3)" },
-          ]}
+          style={collectionStyles.backdrop}
           onPress={() => setCollectionModalVisible(false)}
         />
-        <View style={[collectionStyles.sheet, { backgroundColor: theme.colors.cardBg }]}>
-          <View style={[collectionStyles.handle, { backgroundColor: theme.colors.border }]} />
+        <Animated.View style={[collectionStyles.sheet, { backgroundColor: theme.colors.cardBg }, collectionAnimatedStyle]}>
+          <GestureDetector gesture={collectionPanGesture}>
+            <View
+              style={[collectionStyles.handle, { backgroundColor: theme.colors.border }]}
+              hitSlop={{ top: 12, bottom: 16, left: 120, right: 120 }}
+            />
+          </GestureDetector>
           <Text style={[collectionStyles.sheetTitle, { color: theme.colors.textSecondary }]}>
             Add to Collection
           </Text>
@@ -1129,7 +1212,7 @@ export default function MomentDetailScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
         </KeyboardAvoidingView>
       </Modal>
     </Animated.View>
@@ -1261,166 +1344,145 @@ const collectionStyles = StyleSheet.create({
 });
 
 
-const PHOTO_SIZE = 200;
-
-function createStyles(theme: Theme) {
+function createStyles(_theme: Theme) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.background,
+      backgroundColor: "#0F0D0B",
     },
-    backdrop: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: theme.isDark ? "rgba(0,0,0,0.60)" : "rgba(255,255,255,0.55)",
+    loadingContainer: {
+      flex: 1,
+      backgroundColor: "#0F0D0B",
     },
-    headerRow: {
-      paddingTop: 60,
-      paddingHorizontal: theme.spacing.xl,
-      paddingBottom: theme.spacing.md,
+    // ── Glass nav ────────────────────────────────────────────────────────────
+    glassNav: {
+      position: "absolute",
+      top: 56,
+      left: 16,
+      right: 16,
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
+      zIndex: 10,
     },
-    date: {
-      fontSize: theme.fontSize.xl,
-      fontFamily: theme.fonts.display,
-      color: theme.colors.text,
-      flex: 1,
-    },
-    dateAbsent: {
-      fontWeight: theme.fontWeight.normal,
-      color: theme.colors.textTertiary,
-    },
-    headerActions: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-    },
-    moreButton: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: theme.colors.closeButtonBg,
+    glassBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 999,
+      backgroundColor: "rgba(20,15,12,0.45)",
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.12)",
       alignItems: "center",
       justifyContent: "center",
     },
-    moreButtonText: {
-      fontSize: 18,
-      fontWeight: theme.fontWeight.bold,
-      color: theme.colors.textSecondary,
+    glassBtnRow: {
+      flexDirection: "row",
+      gap: 8,
     },
-    menuBackdrop: {
-      ...StyleSheet.absoluteFillObject,
-      zIndex: 10,
+    // ── Hero ─────────────────────────────────────────────────────────────────
+    photoHero: {
+      height: 320,
+      flexShrink: 0,
     },
-    menuContainer: {
+    photoCounterPill: {
       position: "absolute",
-      top: 60 + 12 + 32 + 8,
-      right: theme.spacing.xl,
-      backgroundColor: theme.colors.cardBg,
-      borderRadius: 14,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      minWidth: 190,
-      zIndex: 11,
+      top: 110,
+      right: 16,
+      backgroundColor: "rgba(20,15,12,0.5)",
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    photoCounterText: {
+      fontSize: 11,
+      fontFamily: "DMSans_600SemiBold",
+      letterSpacing: 0.8,
+      color: "rgba(255,255,255,0.8)",
+    },
+    ambientHero: {
+      height: 310,
+      flexShrink: 0,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingTop: 30,
+    },
+    artworkHero: {
+      width: 200,
+      height: 200,
+      borderRadius: 16,
       shadowColor: "#000",
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.2,
-      shadowRadius: 20,
-      elevation: 8,
-      overflow: "hidden",
+      shadowOffset: { width: 0, height: 20 },
+      shadowOpacity: 0.5,
+      shadowRadius: 30,
     },
-    menuItem: {
-      paddingVertical: 14,
-      paddingHorizontal: theme.spacing.lg,
-    },
-    menuItemText: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-    },
-    menuItemTextDestructive: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.destructive,
-    },
-    menuDivider: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: theme.colors.border,
+    // ── Scroll body ──────────────────────────────────────────────────────────
+    scrollView: {
+      flex: 1,
+      marginTop: -40,
     },
     scrollContent: {
-      paddingHorizontal: theme.spacing.xl,
-      paddingBottom: 60,
+      paddingHorizontal: 24,
+      paddingTop: 8,
+      paddingBottom: 80,
     },
-    songRow: {
+    artworkThumb: {
+      width: 52,
+      height: 52,
+      borderRadius: 8,
+      marginBottom: 14,
+    },
+    eyebrow: {
+      fontSize: 11,
+      fontFamily: "DMSans_600SemiBold",
+      letterSpacing: 1.2,
+      color: "#E8825C",
+      marginBottom: 4,
+      textTransform: "uppercase",
+    },
+    songTitleHero: {
+      fontFamily: "DMSerifDisplay_400Regular",
+      fontSize: 34,
+      lineHeight: 36,
+      color: "#fff",
+      marginTop: 4,
+    },
+    artistHero: {
+      fontSize: 15,
+      fontFamily: "DMSans_400Regular",
+      color: "rgba(255,255,255,0.55)",
+      marginTop: 4,
+      marginBottom: 2,
+    },
+    albumHero: {
+      fontSize: 12,
+      fontFamily: "DMSans_400Regular",
+      color: "rgba(255,255,255,0.4)",
+      marginBottom: 12,
+    },
+    playPill: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: theme.colors.cardBg,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      padding: theme.spacing.md,
-      borderRadius: theme.radii.md,
-      marginBottom: theme.spacing.xl,
+      gap: 6,
+      backgroundColor: "#fff",
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 999,
+      alignSelf: "flex-start",
+      marginTop: 12,
     },
-    artwork: {
-      width: 56,
-      height: 56,
-      borderRadius: theme.radii.sm,
+    playPillError: {
+      backgroundColor: "rgba(255,255,255,0.12)",
     },
-    songInfo: {
-      flex: 1,
-      marginLeft: theme.spacing.md,
+    playPillText: {
+      fontSize: 14,
+      fontFamily: "DMSans_600SemiBold",
+      color: "#0F0D0B",
     },
-    songTitle: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.text,
-    },
-    songArtist: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
-      color: theme.colors.textSecondary,
-      marginTop: 1,
-    },
-    contributor: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.accent,
-      marginTop: 2,
-      fontFamily: theme.fonts.bodyMedium,
-    },
-    songTitleLink: {
-      color: theme.colors.accent,
-    },
-    songArtistLink: {
-      textDecorationLine: "underline",
-    },
-    songAlbum: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textTertiary,
-      marginTop: 1,
-    },
-    songAlbumLink: {
-      color: theme.colors.accent,
-    },
-    playButton: {
-      backgroundColor: theme.colors.buttonBg,
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: 8,
-      borderRadius: theme.radii.lg,
-      marginLeft: theme.spacing.sm,
-    },
-    playButtonError: {
-      backgroundColor: theme.colors.backgroundSecondary,
-    },
-    playButtonText: {
-      color: theme.colors.buttonText,
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodySemibold,
-    },
-    playButtonErrorText: {
-      color: theme.colors.textTertiary,
+    playPillTextError: {
+      color: "rgba(255,255,255,0.4)",
     },
     progressContainer: {
-      paddingHorizontal: theme.spacing.lg,
-      paddingTop: theme.spacing.sm,
+      marginTop: 14,
       gap: 4,
     },
     progressTrackWrapper: {
@@ -1429,136 +1491,218 @@ function createStyles(theme: Theme) {
     },
     progressTrack: {
       height: 2,
-      backgroundColor: theme.colors.backgroundSecondary,
+      backgroundColor: "rgba(255,255,255,0.15)",
       borderRadius: 1,
       overflow: "hidden",
     },
     progressFill: {
       height: 2,
-      backgroundColor: theme.colors.accent,
+      backgroundColor: "#E8825C",
       borderRadius: 1,
     },
     progressTime: {
       fontSize: 10,
-      color: theme.colors.textTertiary,
       fontFamily: "DMSans_400Regular",
+      color: "rgba(255,255,255,0.4)",
+    },
+    contributor: {
+      fontSize: 12,
+      color: "#E8825C",
+      marginTop: 12,
+      fontFamily: "DMSans_500Medium",
+    },
+    // ── Reflection ───────────────────────────────────────────────────────────
+    reflectionContainer: {
+      position: "relative",
+      paddingTop: 34,
+      paddingLeft: 8,
+      marginTop: 20,
+    },
+    quoteGlyph: {
+      position: "absolute",
+      top: 10,
+      left: -4,
+      fontFamily: "DMSerifDisplay_400Regular",
+      fontSize: 72,
+      lineHeight: 72,
+      color: "#E8825C",
+      opacity: 0.5,
+      zIndex: 0,
     },
     reflection: {
-      fontSize: 18,
-      fontFamily: theme.fonts.displayItalic,
-      color: theme.colors.text,
-      lineHeight: 28,
-      marginBottom: theme.spacing.xl,
+      fontFamily: "DMSerifDisplay_400Regular_Italic",
+      fontSize: 20,
+      lineHeight: 30,
+      color: "rgba(255,255,255,0.92)",
+      zIndex: 1,
     },
-    photoStrip: {
-      marginBottom: theme.spacing.xl,
-      marginHorizontal: -theme.spacing.xl,
-      height: PHOTO_SIZE,
-    },
-    photoStripContent: {
-      paddingHorizontal: theme.spacing.xl,
-      gap: 10,
-    },
-    photoStripThumb: {
-      width: PHOTO_SIZE,
-      height: PHOTO_SIZE,
-      borderRadius: theme.radii.md,
-    },
-    metaRow: {
+    // ── Chips ─────────────────────────────────────────────────────────────────
+    chipsRow: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: theme.spacing.sm,
-      marginBottom: theme.spacing["3xl"],
+      gap: 8,
+      marginTop: 20,
     },
-    moodChip: {
-      paddingHorizontal: 14,
-      paddingVertical: 6,
-      borderRadius: theme.spacing.lg,
+    darkChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 999,
+      backgroundColor: "rgba(255,255,255,0.08)",
       borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.chipBg,
+      borderColor: "rgba(255,255,255,0.12)",
     },
-    moodChipText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.chipText,
+    darkChipText: {
+      fontSize: 12,
+      fontFamily: "DMSans_500Medium",
+      color: "rgba(255,255,255,0.85)",
     },
-    personChip: {
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: 6,
-      borderRadius: theme.spacing.lg,
-      borderWidth: 1,
-      borderColor: theme.colors.accent,
-      backgroundColor: theme.colors.accentBg,
+    timeOfDay: {
+      fontSize: 12,
+      fontFamily: "DMSans_400Regular",
+      color: "rgba(255,255,255,0.5)",
+      marginTop: 12,
     },
-    personChipText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.accentText,
+    // ── Photo grid ───────────────────────────────────────────────────────────
+    photoGrid: {
+      marginTop: 24,
     },
-    locationRow: {
+    photoGridLabel: {
+      fontSize: 10,
+      fontFamily: "DMSans_600SemiBold",
+      letterSpacing: 1.4,
+      color: "rgba(255,255,255,0.45)",
+      marginBottom: 10,
+      textTransform: "uppercase",
+    },
+    photoGridRow: {
       flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: theme.spacing["3xl"],
+      gap: 6,
+      height: 120,
     },
+    photoGridMain: {
+      flex: 2,
+      borderRadius: 10,
+      overflow: "hidden",
+    },
+    photoGridStack: {
+      flex: 1,
+      flexDirection: "column",
+      gap: 6,
+    },
+    photoGridSmall: {
+      flex: 1,
+      borderRadius: 10,
+      overflow: "hidden",
+    },
+    singlePhoto: {
+      marginTop: 20,
+      height: 200,
+      borderRadius: 14,
+      overflow: "hidden",
+    },
+    // ── Shared with ──────────────────────────────────────────────────────────
     sharedWithRow: {
       flexDirection: "row",
       alignItems: "center",
       flexWrap: "wrap",
-      gap: theme.spacing.sm,
-      marginBottom: theme.spacing["3xl"],
+      gap: 8,
+      marginTop: 20,
     },
     sharedWithLabel: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.accentSecondary,
-      fontFamily: theme.fonts.bodyMedium,
+      fontSize: 13,
+      fontFamily: "DMSans_500Medium",
+      color: "rgba(255,255,255,0.6)",
     },
     sharedWithChip: {
       paddingHorizontal: 10,
       paddingVertical: 4,
-      borderRadius: theme.spacing.lg,
+      borderRadius: 999,
       borderWidth: 1,
-      borderColor: theme.colors.accentSecondary,
-      backgroundColor: theme.colors.accentSecondaryBg,
+      borderColor: "rgba(255,255,255,0.15)",
+      backgroundColor: "rgba(255,255,255,0.08)",
     },
     sharedWithChipText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.accentSecondaryText,
+      fontSize: 12,
+      fontFamily: "DMSans_400Regular",
+      color: "rgba(255,255,255,0.75)",
     },
-    locationText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
+    // ── Action row ───────────────────────────────────────────────────────────
+    actionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      marginTop: 32,
+    },
+    shareMomentBtn: {
       flex: 1,
+      height: 48,
+      borderRadius: 14,
+      backgroundColor: "#fff",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
     },
-    timeOfDayText: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textTertiary,
-      marginLeft: theme.spacing.sm,
+    shareMomentBtnText: {
+      fontSize: 14,
+      fontFamily: "DMSans_600SemiBold",
+      color: "#0F0D0B",
     },
-    resonanceBtn: {
-      position: "absolute",
-      bottom: 48,
-      left: theme.spacing.xl,
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: theme.colors.closeButtonBg,
+    resonanceGlass: {
+      width: 48,
+      height: 48,
+      borderRadius: 14,
+      backgroundColor: "rgba(255,255,255,0.08)",
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.12)",
       alignItems: "center",
       justifyContent: "center",
     },
-    resonanceBtnActive: {
-      backgroundColor: theme.colors.accentBg,
+    resonanceGlassActive: {
+      backgroundColor: "rgba(232,130,92,0.15)",
+      borderColor: "rgba(232,130,92,0.3)",
     },
-    resonanceIndicator: {
+    // ── Context menu ─────────────────────────────────────────────────────────
+    menuBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 10,
+    },
+    menuContainer: {
       position: "absolute",
-      bottom: 48,
-      left: theme.spacing.xl,
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: theme.colors.accentBg,
-      alignItems: "center",
-      justifyContent: "center",
+      top: 56 + 36 + 12,
+      right: 16,
+      backgroundColor: "#1A1A1F",
+      borderRadius: 14,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: "rgba(255,255,255,0.1)",
+      minWidth: 190,
+      zIndex: 11,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.4,
+      shadowRadius: 20,
+      elevation: 8,
+      overflow: "hidden",
     },
+    menuItem: {
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+    },
+    menuItemText: {
+      fontSize: 16,
+      fontFamily: "DMSans_400Regular",
+      color: "#fff",
+    },
+    menuItemTextDestructive: {
+      fontSize: 16,
+      fontFamily: "DMSans_400Regular",
+      color: "#FF453A",
+    },
+    menuDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: "rgba(255,255,255,0.1)",
+    },
+    // ── Volume hint ──────────────────────────────────────────────────────────
     volumeHint: {
       position: "absolute",
       bottom: 100,
@@ -1566,37 +1710,38 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      backgroundColor: theme.colors.backgroundInput,
+      backgroundColor: "rgba(30,25,22,0.85)",
       paddingHorizontal: 14,
       paddingVertical: 8,
       borderRadius: 20,
-      opacity: 0.9,
     },
     volumeHintText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
+      fontSize: 13,
+      fontFamily: "DMSans_400Regular",
+      color: "rgba(255,255,255,0.7)",
     },
+    // ── Onboarding share card ─────────────────────────────────────────────────
     onboardingShareCard: {
       position: "absolute",
       bottom: 48,
-      left: theme.spacing.xl,
-      right: theme.spacing.xl,
+      left: 20,
+      right: 20,
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
-      backgroundColor: theme.colors.backgroundInput,
-      borderRadius: theme.radii.md,
-      paddingHorizontal: theme.spacing.lg,
+      backgroundColor: "rgba(30,25,22,0.85)",
+      borderRadius: 14,
+      paddingHorizontal: 16,
       paddingVertical: 14,
       borderWidth: 1,
-      borderColor: theme.colors.border,
+      borderColor: "rgba(255,255,255,0.1)",
       pointerEvents: "none",
     },
     onboardingShareText: {
       flex: 1,
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      fontWeight: theme.fontWeight.medium,
+      fontSize: 16,
+      fontFamily: "DMSans_500Medium",
+      color: "#fff",
     },
   });
 }

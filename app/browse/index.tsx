@@ -21,6 +21,7 @@ import { MOODS } from "@/constants/Moods";
 import { setCachedMoment } from "@/lib/momentCache";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
+import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import {
   fetchBrowseMetadata,
   fetchCalendarMonth,
@@ -28,6 +29,8 @@ import {
 } from "@/lib/browse";
 import { getRecentlyPlayed, searchSongs } from "@/lib/musickit";
 import type { Moment } from "@/types";
+import { EmptyState } from "@/components/EmptyState";
+import { IconButton } from "@/components/IconButton";
 
 
 // ── helpers ────────────────────────────────────────────────
@@ -301,7 +304,7 @@ function SearchResults({ query, userId, allMoods }: { query: string; userId: str
       const term = query.replace(/%/g, "\\%").replace(/_/g, "\\_");
       const { data, error } = await supabase
         .from("moments")
-        .select("*")
+        .select(MOMENT_CARD_COLUMNS)
         .eq("user_id", userId)
         .or(`song_title.ilike.%${term}%,song_artist.ilike.%${term}%,reflection_text.ilike.%${term}%`)
         .order("moment_date", { ascending: false, nullsFirst: false })
@@ -322,15 +325,11 @@ function SearchResults({ query, userId, allMoods }: { query: string; userId: str
   );
 
   if (isFetching) return (
-    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ color: theme.colors.textTertiary, fontSize: 14 }}>Searching…</Text>
-    </View>
+    <EmptyState icon="search-outline" title="Searching…" />
   );
 
   if (results.length === 0) return (
-    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ color: theme.colors.textTertiary, fontSize: 14 }}>No results</Text>
-    </View>
+    <EmptyState icon="search-outline" title="No results" subtitle="Try a different song, artist, or reflection." />
   );
 
   return (
@@ -490,22 +489,21 @@ export default function BrowseScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
-        {/* Header */}
-        <View style={styles.header}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {router.canGoBack() && (
+            <IconButton name="chevron-back" onPress={() => router.back()} />
+          )}
           <View>
             <Text style={styles.eyebrow}>THE ARCHIVE</Text>
             <Text style={styles.title}>browse</Text>
           </View>
-          <TouchableOpacity
-            style={styles.headerIconBtn}
-            onPress={() => setSearchActive(true)}
-            hitSlop={8}
-          >
-            <Ionicons name="search" size={18} color={theme.colors.text} />
-          </TouchableOpacity>
         </View>
+        <IconButton name="search-outline" onPress={() => setSearchActive(true)} />
+      </View>
 
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
         {/* On This Day */}
         {onThisDay.length > 0 && (
           <View style={styles.section}>
@@ -564,7 +562,7 @@ export default function BrowseScreen() {
                   emoji={emoji}
                   label={label}
                   count={count}
-                  onPress={() => router.push({ pathname: "/(tabs)/browse/mood", params: { value: mood } })}
+                  onPress={() => router.push({ pathname: "/browse/mood", params: { value: mood } })}
                 />
               ))}
             </ScrollView>
@@ -644,6 +642,8 @@ function createStyles(theme: Theme) {
       paddingHorizontal: 20,
       paddingTop: theme.spacing.md,
       paddingBottom: theme.spacing.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.border,
     },
     eyebrow: {
       fontSize: 10,
@@ -656,17 +656,6 @@ function createStyles(theme: Theme) {
       fontSize: 30,
       fontFamily: "DMSerifDisplay_400Regular",
       color: theme.colors.text,
-    },
-    headerIconBtn: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
-      backgroundColor: theme.colors.cardBg,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      alignItems: "center",
-      justifyContent: "center",
-      marginTop: 8,
     },
     section: {
       marginTop: 28,

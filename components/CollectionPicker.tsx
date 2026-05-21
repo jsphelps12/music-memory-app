@@ -8,9 +8,13 @@ import {
   Pressable,
   Platform,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from "react-native-reanimated";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { Collection } from "@/types";
+import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
 
 interface Props {
   visible: boolean;
@@ -31,7 +35,17 @@ export function CollectionPicker({
 }: Props) {
   const theme = useTheme();
 
-  const owned = collections.filter((c) => c.role === "owner");
+  const translateY = useSharedValue(0);
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => { if (e.translationY > 0) translateY.value = e.translationY; })
+    .onEnd((e) => {
+      if (e.translationY > 80 || e.velocityY > 500) { runOnJS(onClose)(); }
+      translateY.value = withTiming(0);
+    });
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
+
+  const ownedPersonal = collections.filter((c) => c.role === "owner" && !c.isPublic);
+  const ownedShared = collections.filter((c) => c.role === "owner" && c.isPublic);
   const shared = collections.filter((c) => c.role === "member");
 
   const handleSelect = (collection: Collection | null) => {
@@ -39,7 +53,11 @@ export function CollectionPicker({
     onClose();
   };
 
-  const renderRow = (item: Collection) => (
+  const renderRow = (item: Collection) => {
+    const thumbUrl = item.coverPhotoUrl
+      ? getPublicPhotoThumbnailUrl(item.coverPhotoUrl, 72, true)
+      : null;
+    return (
     <TouchableOpacity
       key={item.id}
       style={styles.row}
@@ -47,12 +65,16 @@ export function CollectionPicker({
       activeOpacity={0.7}
     >
       <View style={styles.rowLeft}>
+        {thumbUrl ? (
+          <Image source={{ uri: thumbUrl }} style={styles.rowThumb} contentFit="cover" />
+        ) : (
         <Ionicons
           name={item.role === "member" ? "people-outline" : "folder-outline"}
           size={20}
-          color={item.role === "member" ? theme.colors.accentSecondary : theme.colors.textSecondary}
+          color={theme.colors.textSecondary}
           style={styles.rowIcon}
         />
+        )}
         <View style={{ flex: 1 }}>
           <Text style={[styles.rowName, { color: theme.colors.text }]} numberOfLines={1}>
             {item.name}
@@ -73,6 +95,7 @@ export function CollectionPicker({
       ) : null}
     </TouchableOpacity>
   );
+  };
 
   return (
     <Modal
@@ -88,11 +111,26 @@ export function CollectionPicker({
         ]}
         onPress={onClose}
       />
-      <View style={[styles.sheet, { backgroundColor: theme.colors.cardBg }]}>
-        <View style={[styles.handle, { backgroundColor: theme.colors.border }]} />
+      <Animated.View style={[styles.sheet, { backgroundColor: theme.colors.cardBg }, animatedStyle]}>
+        <GestureDetector gesture={panGesture}>
+          <View
+            style={[styles.handle, { backgroundColor: theme.colors.border }]}
+            hitSlop={{ top: 12, bottom: 16, left: 120, right: 120 }}
+          />
+        </GestureDetector>
         <Text style={[styles.sheetTitle, { color: theme.colors.textSecondary }]}>
           Collections
         </Text>
+
+        {/* New Collection — pinned above the scroll list */}
+        <TouchableOpacity
+          style={[styles.newCollectionBtn, { borderBottomColor: theme.colors.border }]}
+          onPress={onRequestCreate}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="add-circle-outline" size={20} color={theme.colors.textSecondary} style={styles.rowIcon} />
+          <Text style={[styles.rowName, { color: theme.colors.text }]}>New Collection</Text>
+        </TouchableOpacity>
 
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* All Moments */}
@@ -111,15 +149,65 @@ export function CollectionPicker({
             ) : null}
           </TouchableOpacity>
 
-          {/* My Collections */}
-          {owned.length > 0 ? (
+          {/* My Collections (personal/private) */}
+          {ownedPersonal.length > 0 ? (
             <>
               <View style={[styles.sectionDivider, { borderTopColor: theme.colors.border }]}>
                 <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>
                   MY COLLECTIONS
                 </Text>
               </View>
-              {owned.map(renderRow)}
+              {ownedPersonal.map(renderRow)}
+            </>
+          ) : null}
+
+          {/* My Shared Collections */}
+          {ownedShared.length > 0 ? (
+            <>
+              <View style={[styles.sectionDivider, { borderTopColor: theme.colors.border }]}>
+                <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>
+                  MY SHARED COLLECTIONS
+                </Text>
+              </View>
+              {ownedShared.map((item) => {
+                const sharedThumbUrl = item.coverPhotoUrl
+                  ? getPublicPhotoThumbnailUrl(item.coverPhotoUrl, 72, true)
+                  : null;
+                return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.row}
+                  onPress={() => handleSelect(item)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.rowLeft}>
+                    {sharedThumbUrl ? (
+                      <Image source={{ uri: sharedThumbUrl }} style={styles.rowThumb} contentFit="cover" />
+                    ) : (
+                    <Ionicons
+                      name="people-outline"
+                      size={20}
+                      color={theme.colors.textSecondary}
+                      style={styles.rowIcon}
+                    />
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.rowName, { color: theme.colors.text }]} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      {item.momentCount !== undefined ? (
+                        <Text style={[styles.rowSub, { color: theme.colors.textTertiary }]}>
+                          {item.momentCount} {item.momentCount === 1 ? "moment" : "moments"}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+                  {selectedId === item.id ? (
+                    <Ionicons name="checkmark" size={20} color={theme.colors.accent} />
+                  ) : null}
+                </TouchableOpacity>
+              );
+              })}
             </>
           ) : null}
 
@@ -127,31 +215,15 @@ export function CollectionPicker({
           {shared.length > 0 ? (
             <>
               <View style={[styles.sectionDivider, { borderTopColor: theme.colors.border }]}>
-                <Text style={[styles.sectionLabel, { color: theme.colors.accentSecondary }]}>
+                <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>
                   SHARED WITH ME
                 </Text>
               </View>
               {shared.map(renderRow)}
             </>
           ) : null}
-
-          {/* New Collection */}
-          <View style={[styles.sectionDivider, { borderTopColor: theme.colors.border }]} />
-          <TouchableOpacity style={styles.row} onPress={onRequestCreate} activeOpacity={0.7}>
-            <View style={styles.rowLeft}>
-              <Ionicons
-                name="add-circle-outline"
-                size={20}
-                color={theme.colors.accent}
-                style={styles.rowIcon}
-              />
-              <Text style={[styles.rowName, { color: theme.colors.accent }]}>
-                New Collection
-              </Text>
-            </View>
-          </TouchableOpacity>
         </ScrollView>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
@@ -182,6 +254,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
   },
+  newCollectionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
   scroll: {
     flexGrow: 0,
   },
@@ -209,6 +288,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowIcon: {
+    marginRight: 12,
+  },
+  rowThumb: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
     marginRight: 12,
   },
   rowName: {

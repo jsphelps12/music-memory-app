@@ -1,61 +1,70 @@
-// Snapshot-friendly share card — dark, ~3:4 portrait.
+// Snapshot-friendly share card — 9:16 Story format (TikTok/Reels/Instagram).
 // Rendered inside a ViewShot ref in ShareCardModal; keep this pure RN with no animations.
 
 import { View, Text, StyleSheet, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import { Moment } from "@/types";
+import { MOODS } from "@/constants/Moods";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 export const CARD_WIDTH = SCREEN_WIDTH - 48;
-export const CARD_HEIGHT = Math.round(CARD_WIDTH * (4 / 3));
+export const CARD_HEIGHT = Math.round(CARD_WIDTH * (16 / 9));
 
 interface Props {
   moment: Moment;
-  photoUrl: string | null;  // resolved public URL for the selected photo
+  photoUrl: string | null;
 }
 
 export function ShareCard({ moment, photoUrl }: Props) {
   const date = moment.momentDate
     ? new Date(moment.momentDate + "T00:00:00").toLocaleDateString("en-US", {
-        month: "long",
+        month: "short",
         day: "numeric",
         year: "numeric",
-      })
+      }).toUpperCase()
     : null;
 
   const reflection =
     moment.reflectionText
-      ? moment.reflectionText.length > 110
-        ? moment.reflectionText.slice(0, 110).trimEnd() + "…"
+      ? moment.reflectionText.length > 120
+        ? moment.reflectionText.slice(0, 120).trimEnd() + "…"
         : moment.reflectionText
       : null;
 
-  const heroHeight = Math.round(CARD_HEIGHT * 0.55);
+  const heroHeight = Math.round(CARD_HEIGHT * 0.60);
+  const contentHeight = CARD_HEIGHT - heroHeight;
+  const heroSource = photoUrl ?? moment.songArtworkUrl ?? null;
+  const moodDef = moment.mood ? MOODS.find((m) => m.value === moment.mood) : null;
 
   return (
     <View style={[styles.card, { width: CARD_WIDTH, height: CARD_HEIGHT }]}>
-      {/* Hero — photo if available, otherwise artwork */}
+      {/* ── Hero (top 60%) ─────────────────────────────────────────────── */}
       <View style={[styles.hero, { height: heroHeight }]}>
-        {photoUrl ? (
+        {heroSource ? (
           <Image
-            source={{ uri: photoUrl }}
-            style={StyleSheet.absoluteFill}
-            contentFit="cover"
-          />
-        ) : moment.songArtworkUrl ? (
-          <Image
-            source={{ uri: moment.songArtworkUrl }}
+            source={{ uri: heroSource }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
           />
         ) : (
           <View style={styles.heroEmpty} />
         )}
+
+        {/* Date + location eyebrow over photo */}
+        <View style={styles.eyebrowContainer}>
+          {date ? <Text style={styles.eyebrowDate}>{date}</Text> : null}
+          {moment.location ? (
+            <Text style={styles.eyebrowLocation}>📍 {moment.location}</Text>
+          ) : null}
+        </View>
+
+        {/* Gradient fade into content panel */}
+        <View style={[styles.heroFade, { height: heroHeight * 0.5 }]} />
       </View>
 
-      {/* Content */}
-      <View style={styles.content}>
-        {/* Song row: artwork thumbnail + title/artist */}
+      {/* ── Content panel (bottom 40%) ──────────────────────────────────── */}
+      <View style={[styles.content, { height: contentHeight }]}>
+        {/* Song row */}
         <View style={styles.songRow}>
           {moment.songArtworkUrl ? (
             <Image
@@ -76,21 +85,30 @@ export function ShareCard({ moment, photoUrl }: Props) {
 
         {reflection ? (
           <Text style={styles.reflection} numberOfLines={3}>
-            "{reflection}"
+            {reflection}
           </Text>
         ) : null}
 
         <View style={styles.footer}>
-          {date ? <Text style={styles.date}>{date}</Text> : <View />}
-          <Text style={styles.wordmark}>Soundtracks</Text>
+          {moodDef ? (
+            <View style={styles.moodChip}>
+              <Text style={styles.moodChipText}>
+                {moodDef.emoji} {moodDef.label}
+              </Text>
+            </View>
+          ) : date ? (
+            <Text style={styles.footerDate}>{date}</Text>
+          ) : (
+            <View />
+          )}
+          <Text style={styles.wordmark}>SOUNDTRACKS</Text>
         </View>
       </View>
     </View>
   );
 }
 
-const BG = "#0D0D0F";
-const SURFACE = "#1A1A1F";
+const BG = "#0F0D0B";
 
 const styles = StyleSheet.create({
   card: {
@@ -100,67 +118,110 @@ const styles = StyleSheet.create({
   },
   hero: {
     width: "100%",
-    backgroundColor: SURFACE,
+    backgroundColor: "#1A1612",
   },
   heroEmpty: {
     flex: 1,
-    backgroundColor: SURFACE,
+    backgroundColor: "#1A1612",
+  },
+  eyebrowContainer: {
+    position: "absolute",
+    top: 20,
+    left: 22,
+    gap: 3,
+  },
+  eyebrowDate: {
+    fontSize: 10,
+    fontFamily: "DMSans_700Bold",
+    letterSpacing: 1.8,
+    color: "rgba(255,255,255,0.85)",
+  },
+  eyebrowLocation: {
+    fontSize: 10,
+    fontFamily: "DMSans_500Medium",
+    color: "rgba(255,255,255,0.65)",
+  },
+  heroFade: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    // Linear gradient approximated with a solid-to-transparent overlay
+    backgroundColor: BG,
+    opacity: 0.7,
   },
   content: {
-    flex: 1,
     paddingHorizontal: 20,
     paddingTop: 14,
-    paddingBottom: 14,
+    paddingBottom: 16,
     justifyContent: "space-between",
+    backgroundColor: BG,
   },
   songRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
     marginBottom: 10,
   },
   artwork: {
-    width: 40,
-    height: 40,
-    borderRadius: 6,
+    width: 48,
+    height: 48,
+    borderRadius: 8,
   },
   songInfo: {
     flex: 1,
   },
   songTitle: {
-    fontSize: 15,
+    fontSize: 18,
     fontFamily: "DMSans_700Bold",
     color: "#fff",
-    lineHeight: 20,
+    lineHeight: 22,
   },
   songArtist: {
-    fontSize: 13,
-    fontFamily: "DMSans_500Medium",
-    color: "rgba(255,255,255,0.55)",
-    marginTop: 1,
+    fontSize: 12,
+    fontFamily: "DMSans_400Regular",
+    color: "rgba(255,255,255,0.6)",
+    marginTop: 2,
   },
   reflection: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.75)",
-    lineHeight: 19,
-    fontStyle: "italic",
+    fontFamily: "DMSerifDisplay_400Regular_Italic",
+    fontSize: 16,
+    lineHeight: 23,
+    color: "rgba(255,255,255,0.92)",
     flex: 1,
   },
   footer: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+    marginTop: 14,
+    paddingTop: 10,
   },
-  date: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.4)",
+  moodChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  moodChipText: {
+    fontSize: 11,
     fontFamily: "DMSans_500Medium",
+    color: "rgba(255,255,255,0.75)",
+  },
+  footerDate: {
+    fontSize: 11,
+    fontFamily: "DMSans_500Medium",
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: 0.8,
   },
   wordmark: {
-    fontSize: 13,
+    fontSize: 11,
     fontFamily: "DMSans_700Bold",
     color: "#E8825C",
-    letterSpacing: 0.5,
+    letterSpacing: 1.4,
   },
 });

@@ -52,6 +52,20 @@ Copy `.env.example` to `.env` and fill in:
 - Local Expo native modules live in `modules/` directory; `nativeModulesDir` is configured in package.json for autolinking; each module needs a podspec in its `ios/` folder
 - Now playing detection uses `MPMusicPlayerController.systemMusicPlayer` (not the library's `ApplicationMusicPlayer` which only sees app-initiated playback)
 
+## Data Fetching (React Query / TanStack Query)
+
+All server state uses `@tanstack/react-query`. Follow these patterns for every new feature:
+
+- **staleTime**: `2 * 60 * 1000` (2 min) for screen-level queries; `60_000` for badge/count queries
+- **Query keys**: `["queryName", user?.id]` — always include user ID for per-user cache isolation
+- **enabled**: Always guard with `!!user` (add `!!id` for detail screens); never omit it
+- **Focus refetch**: Use `useFocusEffect` + check `Date.now() - dataUpdatedAt > STALE_TIME` before calling `refetch()` — never refetch unconditionally on focus
+- **Pull-to-refresh**: Pass `refreshing={isFetching && !isLoading}` to `RefreshControl` (not just `isFetching`)
+- **Fetch functions**: Define outside the component; use `Promise.all` for parallel supabase queries; enrich data (join owner names, etc.) inside the fetch function, not in render
+- **Invalidation after mutations**: `queryClient.invalidateQueries({ queryKey: [...] })`; prefer `setQueryData` for optimistic local updates
+- **View toggling (critical)**: Keep BOTH views mounted simultaneously; use `Animated.View` + `pointerEvents` + `useSharedValue` opacity to switch — **never** conditionally unmount a `SectionList`/`FlatList` to show a different view, as this causes a full remount and scroll-position loss. See the list/calendar toggle in `app/(tabs)/index.tsx` for the canonical pattern.
+- **Pagination**: Use `pageRef.current` + `.range(from, to)` on the Supabase query; `append` parameter controls concat vs replace on state update
+
 ## Current Status
 
 MVP complete. App runs on iPhone 17 Pro (iOS 26), Supabase live, first TestFlight build submitted. All auth, timeline, moment create/edit/delete, photo support, search/filtering, share extension, and now-playing auto-fill features are implemented. See `docs/ROADMAP.md` for roadmap.

@@ -21,13 +21,13 @@ export async function searchSongs(query: string): Promise<Song[]> {
   const result = await MusicKit.catalogSearch(query, [
     CatalogSearchType.SONGS,
   ]);
-  const songs: ISong[] = result?.songs ?? [];
+  const songs: (ISong & { albumName?: string })[] = result?.songs ?? [];
 
   return songs.map((item) => ({
     id: item.id,
     title: item.title,
     artistName: item.artistName,
-    albumName: "",
+    albumName: item.albumName ?? "",
     artworkUrl: item.artworkUrl ?? "",
     appleMusicId: item.id,
     durationMs: item.duration ?? 0,
@@ -35,7 +35,6 @@ export async function searchSongs(query: string): Promise<Song[]> {
 }
 
 export async function playAppleMusic(appleMusicId: string): Promise<number> {
-  console.log("[MusicKit] playAppleMusic — appleMusicId:", appleMusicId);
   Player.pause();
   await MusicKit.setPlaybackQueue(appleMusicId, MusicItem.SONG);
 
@@ -51,12 +50,11 @@ export async function playAppleMusic(appleMusicId: string): Promise<number> {
       else resolve(durationOrFail);
     };
 
-    const timeout = setTimeout(() => done(-1), 1500);
+    const timeout = setTimeout(() => done(-1), 2500);
 
     const stateSub = Player.addListener("onPlaybackStateChange", (state: IPlaybackState) => {
       if (state.playbackStatus === PlaybackStatus.PLAYING) {
         const playingId = state.currentSong?.id;
-        console.log("[MusicKit] PLAYING — playingId:", playingId, "expected:", appleMusicId, "match:", playingId === appleMusicId);
         if (playingId && playingId !== appleMusicId) {
           done(-1);
         } else {
@@ -71,7 +69,6 @@ export async function playAppleMusic(appleMusicId: string): Promise<number> {
     });
 
     const songSub = Player.addListener("onCurrentSongChange", (song: ISong) => {
-      console.log("[MusicKit] onCurrentSongChange — id:", song.id, "title:", song.title);
       if (song.id && song.id !== appleMusicId) {
         done(-1);
       } else {

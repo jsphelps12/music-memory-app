@@ -166,7 +166,7 @@ export default function JoinScreen() {
       {(state === "ready" || state === "joining") && collection && (
         <View style={styles.content}>
           <View style={[styles.collectionIcon, { backgroundColor: theme.colors.accentBg }]}>
-            <Ionicons name="people" size={36} color={theme.colors.accent} />
+            <Ionicons name="people-outline" size={36} color={theme.colors.accent} />
           </View>
 
           <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
@@ -182,7 +182,7 @@ export default function JoinScreen() {
           ) : null}
 
           <View style={[styles.statsRow, { borderColor: theme.colors.border }]}>
-            <Ionicons name="musical-notes-outline" size={16} color={theme.colors.textSecondary} />
+            <Ionicons name="musical-notes" size={16} color={theme.colors.textSecondary} />
             <Text style={[styles.statsText, { color: theme.colors.textSecondary }]}>
               {collection.momentCount} {collection.momentCount === 1 ? "moment" : "moments"}
             </Text>

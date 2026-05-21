@@ -4,7 +4,7 @@ import {
   fetchPendingCollectionInvites,
   CollectionInvite,
 } from "@/lib/collections";
-import { fetchPendingRequests, fetchFriends, fetchTaggedMomentsSharedTab } from "@/lib/friends";
+import { fetchPendingRequests, fetchFriends } from "@/lib/friends";
 
 export type SharedScreenData = Awaited<ReturnType<typeof fetchSharedScreenData>>;
 
@@ -32,17 +32,15 @@ export async function clearSharedCache(userId: string): Promise<void> {
 }
 
 export async function fetchSharedScreenData(userId: string) {
-  const [requests, friends, tagged, collections, invites] = await Promise.all([
+  const [requests, friends, collections, invites] = await Promise.all([
     fetchPendingRequests(userId),
     fetchFriends(userId),
-    fetchTaggedMomentsSharedTab(userId),
     fetchSharedCollectionActivity(userId),
     fetchPendingCollectionInvites(userId).catch(() => [] as CollectionInvite[]),
   ]);
   return {
     pendingRequests: requests,
     hasFriends: friends.length > 0,
-    taggedMoments: tagged,
     sharedCollections: collections,
     collectionInvites: invites,
   };

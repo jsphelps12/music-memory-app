@@ -81,7 +81,6 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
     transform: [{ scale: scale.value }],
   }));
 
-  const mood = item.mood ? allMoods.find((m) => m.value === item.mood) : undefined;
   const thumbUrls =
     item.photoThumbnails.length > 0
       ? item.photoThumbnails.map((p) => getPublicPhotoThumbnailUrl(p, 160, true))
@@ -115,57 +114,56 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
               <ArtworkPlaceholder style={styles.artwork} />
             )}
             <View style={styles.cardContent}>
-              <Text style={styles.songTitle} numberOfLines={1}>
-                {item.songTitle}
-              </Text>
+              <View style={styles.titleRow}>
+                <Text style={styles.songTitle} numberOfLines={1}>
+                  {item.songTitle}
+                </Text>
+                {formattedDate ? (
+                  <Text style={styles.date}>{formattedDate}</Text>
+                ) : null}
+              </View>
               {showArtist && (
                 <Text style={styles.songArtist} numberOfLines={1}>
                   {item.songArtist}
                 </Text>
               )}
-              {item.contributorName ? (
-                <Text style={styles.contributor} numberOfLines={1}>
-                  by {item.contributorName}
-                </Text>
-              ) : null}
-              {item.reflectionText ? (
-                <Text style={styles.reflection} numberOfLines={2}>
-                  {item.reflectionText}
-                </Text>
-              ) : null}
             </View>
           </View>
-          <View style={styles.cardMeta}>
-            {mood ? (
-              <View style={styles.moodChip}>
-                <Text style={styles.moodChipText}>
-                  {mood.emoji} {mood.label}
-                </Text>
-              </View>
-            ) : null}
-            {formattedDate ? (
-              <Text style={styles.date}>{formattedDate}</Text>
-            ) : null}
-          </View>
+          {item.reflectionText ? (
+            <Text style={styles.reflection} numberOfLines={2}>
+              {item.reflectionText}
+            </Text>
+          ) : null}
+          {(thumbUrls.length > 0 || !!item.contributorName) && (
+            <View style={styles.photoRow}>
+              {thumbUrls.length > 0 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.photoStrip}
+                  contentContainerStyle={styles.photoStripContent}
+                >
+                  {thumbUrls.map((url, i) => (
+                    <Image
+                      key={i}
+                      source={{ uri: url }}
+                      style={styles.photoStripThumb}
+                      contentFit="cover"
+                      transition={200}
+                    />
+                  ))}
+                </ScrollView>
+              )}
+              {item.contributorName ? (
+                <View style={styles.authorBadge}>
+                  <Text style={styles.authorBadgeText} numberOfLines={1}>
+                    {item.contributorName}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          )}
         </View>
-        {thumbUrls.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.photoStrip}
-            contentContainerStyle={styles.photoStripContent}
-          >
-            {thumbUrls.map((url, i) => (
-              <Image
-                key={i}
-                source={{ uri: url }}
-                style={styles.photoStripThumb}
-                contentFit="cover"
-                transition={200}
-              />
-            ))}
-          </ScrollView>
-        )}
       </TouchableOpacity>
       {item.songAppleMusicId ? (
         <TouchableOpacity
@@ -198,7 +196,7 @@ function createStyles(theme: Theme) {
       overflow: "hidden",
     },
     cardBody: {
-      padding: theme.spacing.md,
+      padding: 10,
     },
     cardRow: {
       flexDirection: "row",
@@ -211,9 +209,8 @@ function createStyles(theme: Theme) {
     },
     playButton: {
       position: "absolute",
-      // artwork is at (cardBody padding, cardBody padding); button sits at its bottom-right
-      top: theme.spacing.md + 56 - 22 - 3,
-      left: theme.spacing.md + 56 - 22 - 3,
+      top: 10 + 56 - 22 - 3,
+      left: 10 + 56 - 22 - 3,
       width: 22,
       height: 22,
       borderRadius: 11,
@@ -225,7 +222,13 @@ function createStyles(theme: Theme) {
       flex: 1,
       marginLeft: theme.spacing.md,
     },
+    titleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+    },
     songTitle: {
+      flex: 1,
       fontSize: theme.fontSize.base,
       fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
@@ -236,46 +239,26 @@ function createStyles(theme: Theme) {
       color: theme.colors.textSecondary,
       marginTop: 1,
     },
-    contributor: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.accent,
-      marginTop: 2,
-      fontFamily: theme.fonts.bodyMedium,
-    },
     reflection: {
       fontSize: theme.fontSize.sm,
       fontFamily: theme.fonts.body,
       fontStyle: "italic",
       color: theme.colors.textSecondary,
-      marginTop: 6,
-      lineHeight: 20,
-    },
-    cardMeta: {
-      flexDirection: "row",
-      alignItems: "center",
       marginTop: theme.spacing.sm,
-      gap: theme.spacing.sm,
-      flex: 1,
-    },
-    moodChip: {
-      paddingHorizontal: 10,
-      paddingVertical: theme.spacing.xs,
-      borderRadius: theme.radii.full,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.chipBg,
-    },
-    moodChipText: {
-      fontSize: theme.fontSize.xs,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.chipText,
+      lineHeight: 20,
     },
     date: {
       fontSize: theme.fontSize.xs,
       color: theme.colors.textTertiary,
-      marginLeft: "auto",
+      flexShrink: 0,
+    },
+    photoRow: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      marginTop: theme.spacing.sm,
     },
     photoStrip: {
+      flex: 1,
       height: 80,
     },
     photoStripContent: {
@@ -284,6 +267,20 @@ function createStyles(theme: Theme) {
     photoStripThumb: {
       width: 80,
       height: 80,
+    },
+    authorBadge: {
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: theme.radii.full,
+      backgroundColor: theme.colors.chipBg,
+      marginLeft: theme.spacing.sm,
+      marginBottom: theme.spacing.xs,
+      maxWidth: 100,
+    },
+    authorBadgeText: {
+      fontSize: theme.fontSize.xs,
+      fontFamily: theme.fonts.bodyMedium,
+      color: theme.colors.textSecondary,
     },
   });
 }

@@ -8,7 +8,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Dimensions,
 } from "react-native";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,12 +19,16 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import { MomentCard } from "@/components/MomentCard";
 import { CollectionShareSheet } from "@/components/CollectionShareSheet";
+import { IconButton } from "@/components/IconButton";
 import { ErrorState } from "@/components/ErrorState";
+import { EmptyState } from "@/components/EmptyState";
 import { MOODS } from "@/constants/Moods";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
+import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { fetchSharedCollectionMoments, markCollectionViewed } from "@/lib/collections";
 import { friendlyError } from "@/lib/errors";
 import { Collection, Moment } from "@/types";
@@ -44,7 +51,7 @@ async function fetchCollectionData(id: string, userId: string): Promise<{ collec
   // Try owned first
   const { data: owned } = await supabase
     .from("collections")
-    .select("id, user_id, name, created_at, is_public, invite_code, collection_moments(moment_id)")
+    .select("id, user_id, name, created_at, is_public, invite_code, cover_photo_url, collection_moments(moment_id)")
     .eq("id", id)
     .eq("user_id", userId)
     .single();
@@ -59,6 +66,7 @@ async function fetchCollectionData(id: string, userId: string): Promise<{ collec
       isPublic: owned.is_public ?? false,
       inviteCode: owned.invite_code ?? undefined,
       role: "owner",
+      coverPhotoUrl: owned.cover_photo_url ?? undefined,
     };
     const moments = await loadMoments(col);
     return { collection: col, moments };
@@ -75,7 +83,7 @@ async function fetchCollectionData(id: string, userId: string): Promise<{ collec
   if (membership) {
     const { data: joined } = await supabase
       .from("collections")
-      .select("id, user_id, name, created_at, is_public, invite_code, collection_moments(moment_id)")
+      .select("id, user_id, name, created_at, is_public, invite_code, cover_photo_url, collection_moments(moment_id)")
       .eq("id", id)
       .single();
 
@@ -96,6 +104,7 @@ async function fetchCollectionData(id: string, userId: string): Promise<{ collec
         inviteCode: joined.invite_code ?? undefined,
         role: "member",
         ownerName: ownerProfile?.display_name ?? undefined,
+        coverPhotoUrl: joined.cover_photo_url ?? undefined,
       };
       const moments = await loadMoments(col);
       return { collection: col, moments };
@@ -117,11 +126,13 @@ async function loadMoments(col: Collection): Promise<Moment[]> {
   if (ids.length === 0) return [];
   const { data } = await supabase
     .from("moments")
-    .select("*")
+    .select(MOMENT_CARD_COLUMNS)
     .in("id", ids)
     .order("moment_date", { ascending: false });
   return (data ?? []).map(mapRowToMoment);
 }
+
+const ART_SIZE = Math.round(Dimensions.get("window").width * 0.72);
 
 export default function CollectionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -148,7 +159,6 @@ export default function CollectionDetailScreen() {
   const collection = data?.collection ?? null;
   const moments = data?.moments ?? [];
 
-  // Mark viewed after data loads
   useEffect(() => {
     if (!data?.collection || !user) return;
     markCollectionViewed(id!, user.id, data.collection.role).catch(() => {});
@@ -176,7 +186,7 @@ export default function CollectionDetailScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator color={theme.colors.accent} />
+        <ActivityIndicator />
       </View>
     );
   }
@@ -190,71 +200,88 @@ export default function CollectionDetailScreen() {
   const isShared = collection?.isPublic;
   const isOwner = collection?.role === "owner";
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backBtn} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          {isShared && (
-            <Ionicons
-              name="people-outline"
-              size={13}
-              color={theme.colors.accentSecondary}
-              style={{ marginBottom: 2 }}
-            />
-          )}
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]} numberOfLines={1}>
-            {collection?.name ?? "Collection"}
-          </Text>
-          {collection?.ownerName && (
-            <Text style={[styles.headerSub, { color: theme.colors.textSecondary }]}>
-              by {collection.ownerName}
-            </Text>
-          )}
-        </View>
-        <TouchableOpacity
-          onPress={() => setShareSheetVisible(true)}
-          hitSlop={8}
-          style={styles.shareBtn}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={isOwner ? "settings-outline" : "ellipsis-horizontal"}
-            size={22}
-            color={theme.colors.text}
-          />
-        </TouchableOpacity>
+  const coverUrl = collection?.coverPhotoUrl
+    ? getPublicPhotoThumbnailUrl(collection.coverPhotoUrl, Math.round(ART_SIZE * 2), true)
+    : null;
+
+  const subLine = collection?.role === "member" && collection?.ownerName
+    ? `by ${collection.ownerName} · ${moments.length} ${moments.length === 1 ? "moment" : "moments"}`
+    : isShared
+    ? `Shared · ${moments.length} ${moments.length === 1 ? "moment" : "moments"}`
+    : `${moments.length} ${moments.length === 1 ? "moment" : "moments"}`;
+
+  const listHeader = (
+    <View style={styles.listHeader}>
+      {/* Square artwork */}
+      <View style={[styles.artContainer, {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.2,
+        shadowRadius: 16,
+        elevation: 8,
+      }]}>
+        {coverUrl ? (
+          <Image source={{ uri: coverUrl }} style={styles.art} contentFit="cover" />
+        ) : (
+          <LinearGradient colors={["#E8825C", "#6B5F8C"]} style={styles.art}>
+            <Ionicons name="albums-outline" size={48} color="rgba(255,255,255,0.8)" />
+          </LinearGradient>
+        )}
       </View>
 
-      {/* Moments */}
-      {moments.length === 0 ? (
-        <View style={styles.center}>
-          <Ionicons name="musical-notes-outline" size={48} color={theme.colors.textTertiary} />
-          <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>No moments yet</Text>
-          <Text style={[styles.emptySub, { color: theme.colors.textSecondary }]}>
-            {isShared ? "Members can add moments to this collection." : "Add moments to this collection from the timeline."}
+      {/* Title */}
+      <Text style={[styles.collectionTitle, { color: theme.colors.text }]}>
+        {collection?.name ?? "Collection"}
+      </Text>
+
+      {/* Sub-line */}
+      <Text style={[styles.collectionSub, { color: theme.colors.textSecondary }]}>
+        {subLine}
+      </Text>
+    </View>
+  );
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item.id}
+        renderItem={renderMoment}
+        renderSectionHeader={({ section: { title } }) => (
+          <Text style={[styles.sectionHeader, { color: theme.colors.textSecondary, backgroundColor: theme.colors.background }]}>
+            {title}
           </Text>
-        </View>
-      ) : (
-        <SectionList
-          sections={sections}
-          keyExtractor={(item) => item.id}
-          renderItem={renderMoment}
-          renderSectionHeader={({ section: { title } }) => (
-            <Text style={[styles.sectionHeader, { color: theme.colors.textSecondary, backgroundColor: theme.colors.background }]}>
-              {title}
-            </Text>
-          )}
-          contentContainerStyle={styles.listContent}
-          stickySectionHeadersEnabled={false}
-          refreshControl={
-            <RefreshControl refreshing={isFetching && !isLoading} onRefresh={handleRefresh} tintColor={theme.colors.accent} />
-          }
+        )}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={
+          <EmptyState
+            icon="albums-outline"
+            title="Nothing in this collection yet"
+            subtitle={isShared ? "Members can add moments to this collection." : "Add moments to this collection from the timeline."}
+          />
+        }
+        contentContainerStyle={styles.listContent}
+        stickySectionHeadersEnabled={false}
+        refreshControl={
+          <RefreshControl refreshing={isFetching && !isLoading} onRefresh={handleRefresh} tintColor={theme.colors.accent} />
+        }
+      />
+
+      {/* Floating controls — always visible above scroll */}
+      <View style={styles.floatingControls} pointerEvents="box-none">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={[styles.floatingBtn, { backgroundColor: theme.colors.cardBg, borderColor: theme.colors.border }]}
+          activeOpacity={0.7}
+          hitSlop={8}
+        >
+          <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
+        </TouchableOpacity>
+        <IconButton
+          name={isOwner ? "settings-outline" : "ellipsis-horizontal"}
+          onPress={() => setShareSheetVisible(true)}
         />
-      )}
+      </View>
 
       {/* Share sheet */}
       {collection && shareSheetVisible && (
@@ -288,51 +315,63 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: { flex: 1 },
     center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40 },
-    header: {
-      flexDirection: "row",
+    listHeader: {
       alignItems: "center",
-      paddingTop: 56,
-      paddingBottom: 12,
-      paddingHorizontal: theme.spacing.md,
-      borderBottomWidth: StyleSheet.hairlineWidth,
+      paddingTop: 88,
+      paddingHorizontal: 24,
+      paddingBottom: 8,
     },
-    backBtn: { padding: 6, marginRight: 4 },
-    headerCenter: {
-      flex: 1,
+    artContainer: {
+      width: ART_SIZE,
+      height: ART_SIZE,
+      borderRadius: 12,
+      overflow: "hidden",
+    },
+    art: {
+      width: ART_SIZE,
+      height: ART_SIZE,
       alignItems: "center",
+      justifyContent: "center",
     },
-    headerTitle: {
-      fontSize: theme.fontSize.base,
+    collectionTitle: {
+      fontSize: 22,
       fontFamily: theme.fonts.bodySemibold,
+      textAlign: "center",
+      marginTop: 20,
     },
-    headerSub: {
-      fontSize: theme.fontSize.xs,
-      marginTop: 1,
+    collectionSub: {
+      fontSize: 14,
+      marginTop: 4,
+      textAlign: "center",
     },
-    shareBtn: { padding: 6, marginLeft: 4 },
+    floatingControls: {
+      position: "absolute",
+      top: 52,
+      left: theme.spacing.md,
+      right: theme.spacing.md,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    floatingBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      borderWidth: StyleSheet.hairlineWidth,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     sectionHeader: {
       fontSize: theme.fontSize.xs,
       fontFamily: theme.fonts.bodySemibold,
       textTransform: "uppercase",
       letterSpacing: 0.8,
-      paddingHorizontal: theme.spacing.xl,
       paddingTop: theme.spacing.xl,
       paddingBottom: theme.spacing.sm,
     },
     listContent: {
+      paddingHorizontal: theme.spacing.xl,
       paddingBottom: 40,
-    },
-    emptyTitle: {
-      fontSize: theme.fontSize.lg,
-      fontFamily: theme.fonts.bodySemibold,
-      marginTop: theme.spacing.lg,
-      marginBottom: theme.spacing.sm,
-      textAlign: "center",
-    },
-    emptySub: {
-      fontSize: theme.fontSize.base,
-      textAlign: "center",
-      lineHeight: 22,
     },
   });
 }

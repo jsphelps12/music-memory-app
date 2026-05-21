@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
+import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import type { Moment } from "@/types";
 
 const browseCacheKey = (userId: string) => `browse_meta_${userId}`;
@@ -80,11 +81,49 @@ export async function fetchCalendarMonth(
 export async function fetchMoodMoments(userId: string, mood: string): Promise<Moment[]> {
   const { data, error } = await supabase
     .from("moments")
-    .select("*")
+    .select(MOMENT_CARD_COLUMNS)
     .eq("user_id", userId)
     .eq("mood", mood)
     .order("moment_date", { ascending: false, nullsFirst: false });
 
+  if (error) throw error;
+  return (data ?? []).map(mapRowToMoment);
+}
+
+export async function fetchSongMoments(userId: string, title: string, artist: string): Promise<Moment[]> {
+  const { data, error } = await supabase
+    .from("moments")
+    .select(MOMENT_CARD_COLUMNS)
+    .eq("user_id", userId)
+    .eq("song_title", title)
+    .eq("song_artist", artist)
+    .order("moment_date", { ascending: false })
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapRowToMoment);
+}
+
+export async function fetchAlbumMoments(userId: string, album: string, artist: string): Promise<Moment[]> {
+  const { data, error } = await supabase
+    .from("moments")
+    .select(MOMENT_CARD_COLUMNS)
+    .eq("user_id", userId)
+    .eq("song_album_name", album)
+    .eq("song_artist", artist)
+    .order("moment_date", { ascending: false })
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapRowToMoment);
+}
+
+export async function fetchArtistMoments(userId: string, artist: string): Promise<Moment[]> {
+  const { data, error } = await supabase
+    .from("moments")
+    .select(MOMENT_CARD_COLUMNS)
+    .eq("user_id", userId)
+    .eq("song_artist", artist)
+    .order("moment_date", { ascending: false })
+    .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map(mapRowToMoment);
 }

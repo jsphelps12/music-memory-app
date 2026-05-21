@@ -94,7 +94,7 @@ export async function fetchCollections(userId: string): Promise<Collection[]> {
   ] = await Promise.all([
     supabase
       .from("collections")
-      .select("id, user_id, name, created_at, is_public, invite_code, collection_moments(moment_id)")
+      .select("id, user_id, name, created_at, is_public, invite_code, cover_photo_url, collection_moments(moment_id)")
       .eq("user_id", userId)
       .order("created_at", { ascending: true }),
     supabase
@@ -114,7 +114,7 @@ export async function fetchCollections(userId: string): Promise<Collection[]> {
   if (joinedIds.length > 0) {
     const { data: joined, error: joinedError } = await supabase
       .from("collections")
-      .select("id, user_id, name, created_at, is_public, invite_code, collection_moments(moment_id)")
+      .select("id, user_id, name, created_at, is_public, invite_code, cover_photo_url, collection_moments(moment_id)")
       .in("id", joinedIds)
       .order("created_at", { ascending: true });
 
@@ -138,6 +138,7 @@ export async function fetchCollections(userId: string): Promise<Collection[]> {
       inviteCode: row.invite_code ?? undefined,
       role: "member" as const,
       ownerName: profileMap.get(row.user_id) ?? undefined,
+      coverPhotoUrl: row.cover_photo_url ?? undefined,
     }));
   }
 
@@ -151,6 +152,7 @@ export async function fetchCollections(userId: string): Promise<Collection[]> {
     isPublic: row.is_public ?? false,
     inviteCode: row.invite_code ?? undefined,
     role: "owner" as const,
+    coverPhotoUrl: row.cover_photo_url ?? undefined,
   }));
 
   return [...ownedCollections, ...joinedCollections];
@@ -328,6 +330,7 @@ export interface SharedCollectionActivity {
   totalMoments: number;
   newMomentCount: number;
   latestAddedAt: string | null;
+  coverPhotoUrl?: string;
 }
 
 // Fetch all shared collections the user is in, with new-moment counts since last visit.
@@ -337,7 +340,7 @@ export async function fetchSharedCollectionActivity(userId: string): Promise<Sha
   // Owned shared collections
   const { data: ownedRows, error: ownedError } = await supabase
     .from("collections")
-    .select("id, name, invite_code, created_at, owner_last_viewed_at, collection_moments(moment_id, added_at)")
+    .select("id, name, invite_code, cover_photo_url, created_at, owner_last_viewed_at, collection_moments(moment_id, added_at)")
     .eq("user_id", userId)
     .eq("is_public", true);
 
@@ -357,7 +360,7 @@ export async function fetchSharedCollectionActivity(userId: string): Promise<Sha
   if (joinedIds.length > 0) {
     const { data: joinedRows, error: joinedError } = await supabase
       .from("collections")
-      .select("id, name, user_id, invite_code, collection_moments(moment_id, added_at)")
+      .select("id, name, user_id, invite_code, cover_photo_url, collection_moments(moment_id, added_at)")
       .in("id", joinedIds);
 
     if (joinedError) throw joinedError;
@@ -387,6 +390,7 @@ export async function fetchSharedCollectionActivity(userId: string): Promise<Sha
         totalMoments: moments.length,
         newMomentCount: newCount,
         latestAddedAt: latest,
+        coverPhotoUrl: row.cover_photo_url ?? undefined,
       };
     });
   }
@@ -407,6 +411,7 @@ export async function fetchSharedCollectionActivity(userId: string): Promise<Sha
       totalMoments: moments.length,
       newMomentCount: newCount,
       latestAddedAt: latest,
+      coverPhotoUrl: row.cover_photo_url ?? undefined,
     };
   });
 
@@ -461,6 +466,14 @@ export async function fetchSharedCollectionMoments(collectionId: string): Promis
     moment.contributorName = row.contributor_name ?? null;
     return moment;
   });
+}
+
+export async function updateCollectionCover(collectionId: string, path: string | null): Promise<void> {
+  const { error } = await supabase
+    .from("collections")
+    .update({ cover_photo_url: path })
+    .eq("id", collectionId);
+  if (error) throw error;
 }
 
 export async function renameCollection(collectionId: string, name: string): Promise<void> {

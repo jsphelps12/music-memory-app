@@ -321,6 +321,7 @@ Ordered by impact across growth (new users), retention (keep existing), and reve
 | 7 | Era Clustering | Revenue | 🔴 | Premium conversion trigger at 25–30 moments. Hardest feature on the list. |
 | 8 | Yearly Recap | Growth + Revenue | 🟡 | Must ship before December. Annual press moment. Free card + Premium full version. |
 | 9 | Song Anniversaries + Forgotten Songs | Retention | 🟢 | Ship alongside Music Memory Engine work. Date math + simple query. |
+| 9b | Weather Metadata | Retention | 🟢 | Auto-attach weather (condition + temp) to moments at capture time using a free weather API (Open-Meteo — no key required) keyed to moment date + lat/lng. Store on `moments` table. Show as a chip in moment detail alongside location. Day One proved this drives emotional richness; "It was raining the night I heard this" is a real memory layer. |
 | 10 | Save for Later (Song Inbox) | Retention | 🟡 | Share Extension "Save" path + drafts table + inbox UI. |
 | 11 | Memory Game | Growth + Retention | 🟡–🔴 | Async version first (Wordle-style). Needs friends. Killer viral mechanic. |
 | 12 | Smart Playlists (basic) | Retention + Growth | 🟡 | Time-period + mood playlists → Apple Music export. Shareable. |

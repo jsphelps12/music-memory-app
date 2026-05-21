@@ -61,6 +61,7 @@ export interface Collection {
   inviteCode?: string;
   role: "owner" | "member";
   ownerName?: string; // only set for role === "member"
+  coverPhotoUrl?: string;
 }
 
 export interface CollectionPreview {

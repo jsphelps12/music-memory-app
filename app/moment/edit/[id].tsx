@@ -15,6 +15,7 @@ import {
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker, {
   DateTimePickerEvent,
@@ -293,8 +294,8 @@ export default function EditMomentScreen() {
             <Text style={styles.title}>Edit Moment</Text>
             <Text style={styles.subtitle}>Update your moment</Text>
           </View>
-          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-            <Text style={styles.cancelText}>Cancel</Text>
+          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} hitSlop={8}>
+            <Ionicons name="close" size={26} color="rgba(255,255,255,0.6)" />
           </TouchableOpacity>
         </View>
 
@@ -346,10 +347,10 @@ export default function EditMomentScreen() {
         {/* Reflection */}
         <Text style={styles.sectionLabel}>Reflection</Text>
         <TextInput
-          style={[styles.reflectionInput, focusedField === "reflection" && { borderColor: theme.colors.accent }]}
+          style={[styles.reflectionInput, focusedField === "reflection" && { borderColor: "#E8825C" }]}
           placeholder="What does this song remind you of? (optional)"
-          placeholderTextColor={theme.colors.placeholder}
-          cursorColor={theme.colors.accent}
+          placeholderTextColor="rgba(255,255,255,0.3)"
+          cursorColor="#E8825C"
           multiline
           textAlignVertical="top"
           autoCapitalize="sentences"
@@ -450,10 +451,10 @@ export default function EditMomentScreen() {
         {/* Location */}
         <Text style={styles.sectionLabel}>Location</Text>
         <TextInput
-          style={[styles.input, focusedField === "location" && { borderColor: theme.colors.accent }]}
+          style={[styles.input, focusedField === "location" && { borderColor: "#E8825C" }]}
           placeholder="Where were you?"
-          placeholderTextColor={theme.colors.placeholder}
-          cursorColor={theme.colors.accent}
+          placeholderTextColor="rgba(255,255,255,0.3)"
+          cursorColor="#E8825C"
           autoCorrect={false}
           autoCapitalize="words"
           returnKeyType="done"
@@ -474,7 +475,7 @@ export default function EditMomentScreen() {
           activeOpacity={0.7}
         >
           {loading ? (
-            <ActivityIndicator color={theme.colors.buttonText} />
+            <ActivityIndicator color="#0F0D0B" />
           ) : (
             <Text style={styles.saveButtonText}>Save Changes</Text>
           )}
@@ -484,152 +485,159 @@ export default function EditMomentScreen() {
   );
 }
 
-function createStyles(theme: Theme) {
+function createStyles(_theme: Theme) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.background,
+      backgroundColor: "#0F0D0B",
     },
     scrollView: {
       flex: 1,
     },
     scrollContent: {
-      padding: theme.spacing.xl,
-      paddingTop: 80,
-      paddingBottom: theme.spacing["4xl"],
+      padding: 20,
+      paddingTop: 60,
+      paddingBottom: 40,
     },
     headerRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "flex-start",
-      marginBottom: theme.spacing["3xl"],
+      marginBottom: 32,
     },
     title: {
-      fontSize: theme.fontSize["2xl"],
-      fontFamily: theme.fonts.display,
-      color: theme.colors.text,
-      marginBottom: theme.spacing.xs,
+      fontSize: 28,
+      fontFamily: "DMSerifDisplay_400Regular",
+      color: "#fff",
+      marginBottom: 4,
     },
     subtitle: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.textSecondary,
+      fontSize: 14,
+      fontFamily: "DMSans_400Regular",
+      color: "rgba(255,255,255,0.45)",
     },
     cancelText: {
       fontSize: 17,
-      color: theme.colors.accent,
-      marginTop: theme.spacing.xs,
+      color: "#E8825C",
     },
     songCard: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: theme.colors.backgroundSecondary,
-      padding: theme.spacing.md,
-      borderRadius: theme.radii.md,
+      backgroundColor: "rgba(255,255,255,0.06)",
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.10)",
+      padding: 12,
+      borderRadius: 12,
     },
     artwork: {
-      width: 56,
-      height: 56,
-      borderRadius: theme.radii.sm,
+      width: 64,
+      height: 64,
+      borderRadius: 8,
     },
     songInfo: {
       flex: 1,
-      marginLeft: theme.spacing.md,
+      marginLeft: 12,
     },
     songTitle: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.text,
+      fontSize: 16,
+      fontFamily: "DMSans_600SemiBold",
+      color: "#fff",
     },
     songArtist: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
+      fontSize: 14,
+      fontFamily: "DMSans_400Regular",
+      color: "rgba(255,255,255,0.55)",
       marginTop: 2,
     },
     changeText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textTertiary,
-      marginLeft: theme.spacing.sm,
+      fontSize: 14,
+      fontFamily: "DMSans_400Regular",
+      color: "rgba(255,255,255,0.4)",
+      marginLeft: 8,
     },
     selectSongButton: {
-      backgroundColor: theme.colors.buttonBg,
-      paddingVertical: theme.spacing.lg,
-      borderRadius: theme.radii.md,
+      backgroundColor: "#fff",
+      paddingVertical: 16,
+      borderRadius: 12,
       alignItems: "center",
     },
     selectSongButtonText: {
-      color: theme.colors.buttonText,
+      color: "#0F0D0B",
       fontSize: 17,
-      fontFamily: theme.fonts.bodySemibold,
+      fontFamily: "DMSans_600SemiBold",
     },
     sectionLabel: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.text,
-      marginTop: theme.spacing["2xl"],
-      marginBottom: theme.spacing.sm,
+      fontSize: 11,
+      fontFamily: "DMSans_600SemiBold",
+      color: "rgba(255,255,255,0.45)",
+      textTransform: "uppercase",
+      letterSpacing: 1.2,
+      marginTop: 24,
+      marginBottom: 8,
     },
     sectionLabelRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      marginTop: theme.spacing["2xl"],
-      marginBottom: theme.spacing.sm,
+      marginTop: 24,
+      marginBottom: 8,
     },
     dateClearText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.destructive,
+      fontSize: 14,
+      color: "#FF453A",
     },
     dateSetText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.accent,
+      fontSize: 14,
+      color: "#E8825C",
     },
     noDateText: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.placeholder,
-      paddingVertical: theme.spacing.sm,
+      fontSize: 16,
+      fontFamily: "DMSans_400Regular",
+      color: "rgba(255,255,255,0.35)",
+      paddingVertical: 8,
     },
     reflectionInput: {
       height: 120,
       borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.md,
-      paddingHorizontal: theme.spacing.lg,
-      paddingTop: theme.spacing.md,
-      paddingBottom: theme.spacing.md,
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      backgroundColor: theme.colors.backgroundInput,
+      borderColor: "rgba(255,255,255,0.10)",
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 12,
+      fontSize: 16,
+      color: "#fff",
+      backgroundColor: "rgba(255,255,255,0.06)",
     },
     input: {
       height: 52,
       borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.md,
-      paddingHorizontal: theme.spacing.lg,
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      backgroundColor: theme.colors.backgroundInput,
+      borderColor: "rgba(255,255,255,0.10)",
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      fontSize: 16,
+      color: "#fff",
+      backgroundColor: "rgba(255,255,255,0.06)",
     },
     addPhotosButton: {
       borderWidth: 1,
-      borderColor: theme.colors.border,
+      borderColor: "rgba(255,255,255,0.14)",
       borderStyle: "dashed",
-      borderRadius: theme.radii.md,
+      borderRadius: 12,
       paddingVertical: 14,
       alignItems: "center",
-      backgroundColor: theme.colors.backgroundInput,
+      backgroundColor: "rgba(255,255,255,0.04)",
     },
     addPhotosButtonText: {
       fontSize: 15,
-      color: theme.colors.textSecondary,
-      fontFamily: theme.fonts.bodyMedium,
+      fontFamily: "DMSans_500Medium",
+      color: "rgba(255,255,255,0.5)",
     },
     photoScroll: {
       marginTop: 10,
-      marginHorizontal: -theme.spacing.xl,
+      marginHorizontal: -20,
     },
     photoScrollContent: {
-      paddingHorizontal: theme.spacing.xl,
+      paddingHorizontal: 20,
       gap: 10,
     },
     photoThumbContainer: {
@@ -638,7 +646,7 @@ function createStyles(theme: Theme) {
     photoThumb: {
       width: 80,
       height: 80,
-      borderRadius: theme.radii.sm,
+      borderRadius: 8,
     },
     photoRemove: {
       position: "absolute",
@@ -647,38 +655,38 @@ function createStyles(theme: Theme) {
       width: 22,
       height: 22,
       borderRadius: 11,
-      backgroundColor: "rgba(0,0,0,0.6)",
+      backgroundColor: "rgba(0,0,0,0.7)",
       alignItems: "center",
       justifyContent: "center",
     },
     photoRemoveText: {
       color: "#fff",
       fontSize: 11,
-      fontFamily: theme.fonts.bodySemibold,
+      fontFamily: "DMSans_600SemiBold",
     },
     datePicker: {
       alignSelf: "center",
     },
     error: {
-      color: theme.colors.destructive,
-      fontSize: theme.fontSize.sm,
-      marginTop: theme.spacing.lg,
+      color: "#FF453A",
+      fontSize: 14,
+      marginTop: 16,
     },
     saveButton: {
       height: 52,
-      backgroundColor: theme.colors.buttonBg,
-      borderRadius: theme.radii.button,
+      backgroundColor: "#fff",
+      borderRadius: 14,
       alignItems: "center",
       justifyContent: "center",
-      marginTop: theme.spacing["2xl"],
+      marginTop: 24,
     },
     saveButtonDisabled: {
       opacity: 0.6,
     },
     saveButtonText: {
-      color: theme.colors.buttonText,
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+      color: "#0F0D0B",
+      fontSize: 16,
+      fontFamily: "DMSans_600SemiBold",
     },
   });
 }

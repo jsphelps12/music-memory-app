@@ -16,6 +16,8 @@ import {
   Linking,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from "react-native-reanimated";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -92,6 +94,24 @@ export default function ProfileEditScreen() {
   // ── Picker modals ───────────────────────────────────────────────────────
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
   const [countryPickerVisible, setCountryPickerVisible] = useState(false);
+
+  const yearTranslateY = useSharedValue(0);
+  const yearPanGesture = Gesture.Pan()
+    .onUpdate((e) => { if (e.translationY > 0) yearTranslateY.value = e.translationY; })
+    .onEnd((e) => {
+      if (e.translationY > 80 || e.velocityY > 500) { runOnJS(setYearPickerVisible)(false); }
+      yearTranslateY.value = withTiming(0);
+    });
+  const yearAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: yearTranslateY.value }] }));
+
+  const countryTranslateY = useSharedValue(0);
+  const countryPanGesture = Gesture.Pan()
+    .onUpdate((e) => { if (e.translationY > 0) countryTranslateY.value = e.translationY; })
+    .onEnd((e) => {
+      if (e.translationY > 80 || e.velocityY > 500) { runOnJS(setCountryPickerVisible)(false); }
+      countryTranslateY.value = withTiming(0);
+    });
+  const countryAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: countryTranslateY.value }] }));
   const [countrySearch, setCountrySearch] = useState("");
   const filteredCountries = useMemo(
     () => COUNTRIES.filter((c) => c.toLowerCase().includes(countrySearch.toLowerCase())),
@@ -448,7 +468,7 @@ export default function ProfileEditScreen() {
           {selectedArtists.length < 5 && (
             <View ref={artistSectionRef}>
               <View style={[styles.searchRow, { borderColor: theme.colors.border }]}>
-                <Ionicons name="search" size={15} color={theme.colors.textSecondary} style={styles.searchIcon} />
+                <Ionicons name="search-outline" size={15} color={theme.colors.textSecondary} style={styles.searchIcon} />
                 <TextInput
                   style={[styles.searchInput, { color: theme.colors.text }]}
                   placeholder="Search artists…"
@@ -512,7 +532,7 @@ export default function ProfileEditScreen() {
           {selectedSongs.length < 5 && (
             <View ref={songSectionRef}>
               <View style={[styles.searchRow, { borderColor: theme.colors.border }]}>
-                <Ionicons name="search" size={15} color={theme.colors.textSecondary} style={styles.searchIcon} />
+                <Ionicons name="search-outline" size={15} color={theme.colors.textSecondary} style={styles.searchIcon} />
                 <TextInput
                   style={[styles.searchInput, { color: theme.colors.text }]}
                   placeholder="Search songs…"
@@ -584,7 +604,8 @@ export default function ProfileEditScreen() {
       {/* ── Year picker modal ── */}
       <Modal visible={yearPickerVisible} transparent animationType="slide" onRequestClose={() => setYearPickerVisible(false)}>
         <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setYearPickerVisible(false)} />
-        <View style={[styles.pickerSheet, { backgroundColor: theme.colors.background }]}>
+        <GestureDetector gesture={yearPanGesture}>
+          <Animated.View style={[styles.pickerSheet, { backgroundColor: theme.colors.background }, yearAnimatedStyle]}>
           <View style={[styles.pickerSheetHandle, { backgroundColor: theme.colors.border }]} />
           <View style={styles.pickerSheetHeader}>
             <Text style={[styles.pickerSheetTitle, { color: theme.colors.text }]}>Birth Year</Text>
@@ -612,21 +633,23 @@ export default function ProfileEditScreen() {
               );
             }}
           />
-        </View>
+          </Animated.View>
+        </GestureDetector>
       </Modal>
 
       {/* ── Country picker modal ── */}
       <Modal visible={countryPickerVisible} transparent animationType="slide" onRequestClose={() => setCountryPickerVisible(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
           <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setCountryPickerVisible(false)} />
-          <View style={[styles.pickerSheet, { backgroundColor: theme.colors.background }]}>
+          <GestureDetector gesture={countryPanGesture}>
+            <Animated.View style={[styles.pickerSheet, { backgroundColor: theme.colors.background }, countryAnimatedStyle]}>
             <View style={[styles.pickerSheetHandle, { backgroundColor: theme.colors.border }]} />
             <View style={styles.pickerSheetHeader}>
               <Text style={[styles.pickerSheetTitle, { color: theme.colors.text }]}>Country</Text>
               <CloseButton onPress={() => setCountryPickerVisible(false)} />
             </View>
             <View style={[styles.countrySearch, { borderColor: theme.colors.border }]}>
-              <Ionicons name="search" size={15} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
+              <Ionicons name="search-outline" size={15} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
               <TextInput
                 style={[styles.countrySearchInput, { color: theme.colors.text }]}
                 placeholder="Search…"
@@ -665,7 +688,8 @@ export default function ProfileEditScreen() {
                 );
               }}
             />
-          </View>
+            </Animated.View>
+          </GestureDetector>
         </KeyboardAvoidingView>
       </Modal>
     </KeyboardAvoidingView>

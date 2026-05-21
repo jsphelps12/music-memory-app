@@ -280,7 +280,7 @@ function RootLayoutNav() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen
             name="create"
-            options={{ headerShown: false, presentation: "modal" }}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="song-search"
@@ -297,7 +297,7 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="moment/edit/[id]"
-            options={{ headerShown: false, presentation: "modal" }}
+            options={{ headerShown: false, animation: "slide_from_right" }}
           />
           <Stack.Screen
             name="artist"
@@ -310,6 +310,10 @@ function RootLayoutNav() {
           <Stack.Screen
             name="album"
             options={{ headerShown: false, presentation: "fullScreenModal" }}
+          />
+          <Stack.Screen
+            name="help"
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="profile-edit"
@@ -337,6 +341,10 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="tagged-moments"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="browse"
             options={{ headerShown: false }}
           />
         </Stack>

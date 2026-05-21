@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -9,9 +9,8 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/lib/supabase";
-import { mapRowToMoment } from "@/lib/moments";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -20,6 +19,9 @@ import { SkeletonTimelineCard } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { friendlyError } from "@/lib/errors";
 import { MomentCard } from "@/components/MomentCard";
+import { fetchSongMoments } from "@/lib/browse";
+
+const STALE_TIME = 2 * 60 * 1000;
 
 export default function SongScreen() {
   const { title, artist } = useLocalSearchParams<{ title: string; artist: string }>();
@@ -28,54 +30,25 @@ export default function SongScreen() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const [moments, setMoments] = useState<Moment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState("");
-
   const allMoods = useMemo(
     () => [...MOODS, ...(profile?.customMoods ?? [])],
     [profile?.customMoods]
   );
 
-  const fetchMoments = useCallback(
-    async (showLoading: boolean) => {
-      if (!user || !title || !artist) return;
-      if (showLoading) setLoading(true);
-      setError("");
+  const { data: moments = [], isLoading, isError, error, refetch, isFetching, dataUpdatedAt } = useQuery({
+    queryKey: ["song-moments", user?.id, title, artist],
+    queryFn: () => fetchSongMoments(user!.id, title!, artist!),
+    staleTime: STALE_TIME,
+    enabled: !!user && !!title && !!artist,
+  });
 
-      const { data, error: fetchError } = await supabase
-        .from("moments")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("song_title", title)
-        .eq("song_artist", artist)
-        .order("moment_date", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (fetchError) {
-        setError(friendlyError(fetchError));
-        setLoading(false);
-        return;
-      }
-
-      setMoments((data ?? []).map(mapRowToMoment));
-      setLoading(false);
-    },
-    [user, title, artist]
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchMoments(true);
-    }, [fetchMoments])
-  );
+  useFocusEffect(useCallback(() => {
+    if (Date.now() - dataUpdatedAt > STALE_TIME) refetch();
+  }, [refetch, dataUpdatedAt]));
 
   const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchMoments(false);
-    setRefreshing(false);
-  }, [fetchMoments]);
+    await refetch();
+  }, [refetch]);
 
   const renderItem = useCallback(({ item }: { item: Moment }) => (
     <MomentCard
@@ -83,7 +56,7 @@ export default function SongScreen() {
       allMoods={allMoods}
       showArtist={true}
     />
-  ), [router, allMoods]);
+  ), [allMoods]);
 
   return (
     <View style={styles.container}>
@@ -101,19 +74,19 @@ export default function SongScreen() {
         >
           <Text style={styles.artistLink} numberOfLines={1}>{artist}</Text>
         </TouchableOpacity>
-        {!loading && (
+        {!isLoading && (
           <Text style={styles.momentCount}>
             {moments.length} {moments.length === 1 ? "moment" : "moments"}
           </Text>
         )}
       </View>
 
-      {loading ? (
+      {isLoading ? (
         <View style={styles.skeletonList}>
           {[0, 1, 2].map((i) => <SkeletonTimelineCard key={i} />)}
         </View>
-      ) : error ? (
-        <ErrorState message={error} onRetry={() => fetchMoments(true)} onBack={() => router.back()} />
+      ) : isError ? (
+        <ErrorState message={friendlyError(error)} onRetry={() => refetch()} onBack={() => router.back()} />
       ) : moments.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>No moments for this song yet.</Text>
@@ -127,7 +100,7 @@ export default function SongScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
-              refreshing={refreshing}
+              refreshing={isFetching && !isLoading}
               onRefresh={handleRefresh}
               tintColor={theme.colors.text}
             />

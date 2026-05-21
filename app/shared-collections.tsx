@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +12,7 @@ import {
   markCollectionViewed,
   SharedCollectionActivity,
 } from "@/lib/collections";
+import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import { fetchSharedScreenData } from "@/lib/sharedScreen";
 
 export default function SharedCollectionsScreen() {
@@ -66,22 +68,29 @@ export default function SharedCollectionsScreen() {
           keyExtractor={(item) => item.collectionId}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => {
-            const isShared = item.role === "member";
+            const isMember = item.role === "member";
+            const coverThumbUrl = item.coverPhotoUrl
+              ? getPublicPhotoThumbnailUrl(item.coverPhotoUrl, 72, true)
+              : null;
             return (
               <TouchableOpacity style={styles.row} onPress={() => handleTap(item)} activeOpacity={0.7}>
-                <View style={[styles.icon, { backgroundColor: isShared ? theme.colors.accentSecondaryBg : theme.colors.chipBg }]}>
-                  <Ionicons
-                    name={isShared ? "people-outline" : "folder-outline"}
-                    size={18}
-                    color={isShared ? theme.colors.accentSecondary : theme.colors.textSecondary}
-                  />
-                </View>
+                {coverThumbUrl ? (
+                  <Image source={{ uri: coverThumbUrl }} style={styles.coverThumb} contentFit="cover" />
+                ) : (
+                  <View style={[styles.icon, { backgroundColor: theme.colors.chipBg }]}>
+                    <Ionicons
+                      name={isMember ? "people-outline" : "folder-outline"}
+                      size={18}
+                      color={theme.colors.textSecondary}
+                    />
+                  </View>
+                )}
                 <View style={styles.info}>
                   <Text style={[styles.name, { color: theme.colors.text }]} numberOfLines={1}>
                     {item.name}
                   </Text>
                   <Text style={[styles.sub, { color: theme.colors.textSecondary }]}>
-                    {item.ownerName ? `by ${item.ownerName} · ` : ""}
+                    {isMember && item.ownerName ? `by ${item.ownerName} · ` : !isMember ? "your collection · " : ""}
                     {item.totalMoments} {item.totalMoments === 1 ? "moment" : "moments"}
                   </Text>
                 </View>
@@ -142,6 +151,9 @@ function createStyles(theme: Theme) {
     icon: {
       width: 36, height: 36, borderRadius: 8,
       alignItems: "center", justifyContent: "center",
+    },
+    coverThumb: {
+      width: 36, height: 36, borderRadius: 8,
     },
     info: { flex: 1, marginLeft: 12 },
     name: { fontSize: theme.fontSize.base, fontFamily: theme.fonts.bodyMedium },

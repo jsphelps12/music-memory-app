@@ -133,3 +133,26 @@ export function getPublicPhotoThumbnailUrl(path: string, width = 400, square = f
   });
   return data.publicUrl;
 }
+
+export async function uploadCollectionCover(
+  userId: string,
+  collectionId: string,
+  uri: string
+): Promise<string> {
+  const compressed = await compressImage(uri, MAX_MOMENT_PHOTO_DIMENSION);
+  const storagePath = `${userId}/collection_covers/${collectionId}.jpg`;
+
+  const file = new File(compressed);
+  const arrayBuffer = await file.arrayBuffer();
+
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(storagePath, arrayBuffer, {
+      contentType: "image/jpeg",
+      upsert: true,
+    });
+
+  if (error) throw error;
+
+  return storagePath;
+}

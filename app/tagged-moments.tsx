@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
-import { fetchSharedScreenData } from "@/lib/sharedScreen";
+import { fetchTaggedMomentsSharedTab } from "@/lib/friends";
 import type { TaggedMoment } from "@/types";
 
 function timeAgo(iso: string): string {
@@ -29,14 +29,12 @@ export default function TaggedMomentsScreen() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["sharedScreen", user?.id],
-    queryFn: () => fetchSharedScreenData(user!.id),
+  const { data: taggedMoments = [], isLoading } = useQuery({
+    queryKey: ["taggedMoments", user?.id],
+    queryFn: () => fetchTaggedMomentsSharedTab(user!.id),
     enabled: !!user,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 60_000,
   });
-
-  const taggedMoments = data?.taggedMoments ?? [];
 
   const handleTap = useCallback((tag: TaggedMoment) => {
     router.push({

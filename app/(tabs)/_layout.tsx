@@ -13,8 +13,8 @@ export default function TabLayout() {
       screenOptions={{ swipeEnabled: true }}
     >
       <SwipeTabs.Screen name="index"       options={{ title: "Moments" }} />
-      <SwipeTabs.Screen name="browse"      options={{ title: "Browse" }} />
-      <SwipeTabs.Screen name="friends"     options={{ title: "Shared" }} />
+      <SwipeTabs.Screen name="soon"        options={{ title: "Soon" }} />
+      <SwipeTabs.Screen name="friends"     options={{ title: "Collections" }} />
       <SwipeTabs.Screen name="profile"     options={{ title: "Me" }} />
     </SwipeTabs>
   );

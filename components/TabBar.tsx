@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -6,52 +6,61 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
-import { fetchPendingRequests } from "@/lib/friends";
+import { fetchPendingRequests, fetchPendingTaggedMomentsCount } from "@/lib/friends";
 import { fetchSharedCollectionActivity, fetchPendingCollectionInvites } from "@/lib/collections";
-import type { MaterialTopTabBarProps } from "@react-navigation/material-top-tabs";
-import { MiniPlayer } from "@/components/MiniPlayer";
 
-const AnimatedIonicons = Animated.createAnimatedComponent(Ionicons);
-
-async function fetchFriendsBadgeCount(userId: string): Promise<number> {
-  const [requests, collections, invites] = await Promise.all([
-    fetchPendingRequests(userId),
+async function fetchCollectionsBadgeCount(userId: string): Promise<number> {
+  const [collections, invites] = await Promise.all([
     fetchSharedCollectionActivity(userId),
     fetchPendingCollectionInvites(userId).catch(() => []),
   ]);
-  const newCollectionMoments = collections.reduce((sum, c) => sum + c.newMomentCount, 0);
-  return requests.length + newCollectionMoments + invites.length;
+  return collections.reduce((sum, c) => sum + c.newMomentCount, 0) + invites.length;
 }
 
-// Visual tab order: Timeline(0), Browse(1), [Capture], Shared(2), Me(3)
+async function fetchProfileBadgeCount(userId: string): Promise<number> {
+  const [requests, pendingTags] = await Promise.all([
+    fetchPendingRequests(userId),
+    fetchPendingTaggedMomentsCount(userId),
+  ]);
+  return requests.length + pendingTags;
+}
+import type { MaterialTopTabBarProps } from "@react-navigation/material-top-tabs";
+import { MiniPlayer } from "@/components/MiniPlayer";
+
+
+// Visual tab order: Timeline(0), Soon(1), [Capture], Collections(2), Me(3)
 const TAB_DEFS = [
-  { label: "Moments", realIndex: 0 },
-  { label: "Browse",  realIndex: 1 },
-  { label: "CAPTURE", realIndex: -1 }, // action button
-  { label: "Shared",  realIndex: 2 },
-  { label: "Me",      realIndex: 3 },
+  { label: "Moments",     realIndex: 0 },
+  { label: "Soon",        realIndex: 1 },
+  { label: "CAPTURE",     realIndex: -1 },
+  { label: "Collections", realIndex: 2 },
+  { label: "Me",          realIndex: 3 },
 ];
 
-function TabIcon({ name, color }: { name: string; color: string }) {
-  return <Ionicons name={name as any} size={22} color={color} />;
-}
-
 const ICONS: Record<number, { active: string; inactive: string }> = {
-  0: { active: "musical-notes",         inactive: "musical-notes-outline" },
-  1: { active: "compass",               inactive: "compass-outline" },
-  3: { active: "people",                inactive: "people-outline" },
-  4: { active: "person",                inactive: "person-outline" },
+  0: { active: "musical-notes", inactive: "musical-notes-outline" },
+  1: { active: "sparkles",      inactive: "sparkles-outline" },
+  3: { active: "albums",        inactive: "albums-outline" },
+  4: { active: "person",        inactive: "person-outline" },
 };
 
-export function TabBar({ state, navigation, position }: MaterialTopTabBarProps) {
+export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
 
-  const { data: badgeCount = 0 } = useQuery({
-    queryKey: ["friendsBadge", user?.id],
-    queryFn: () => fetchFriendsBadgeCount(user!.id),
+  const { data: collectionsBadge = 0 } = useQuery({
+    queryKey: ["collectionsBadge", user?.id],
+    queryFn: () => fetchCollectionsBadgeCount(user!.id),
+    enabled: !!user,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  });
+
+  const { data: profileBadge = 0 } = useQuery({
+    queryKey: ["profileBadge", user?.id],
+    queryFn: () => fetchProfileBadgeCount(user!.id),
     enabled: !!user,
     staleTime: 60_000,
     refetchInterval: 60_000,
@@ -60,29 +69,6 @@ export function TabBar({ state, navigation, position }: MaterialTopTabBarProps) 
   const barHeight = 49 + insets.bottom;
   const activeColor = theme.colors.tabBarActive;
   const inactiveColor = theme.colors.tabBarInactive;
-  const lastRealIndex = state.routes.length - 1;
-
-  function getTabColor(realIndex: number) {
-    if (realIndex === 0) {
-      return position.interpolate({
-        inputRange: [0, 1],
-        outputRange: [activeColor, inactiveColor],
-        extrapolate: "clamp",
-      });
-    }
-    if (realIndex === lastRealIndex) {
-      return position.interpolate({
-        inputRange: [lastRealIndex - 1, lastRealIndex],
-        outputRange: [inactiveColor, activeColor],
-        extrapolate: "clamp",
-      });
-    }
-    return position.interpolate({
-      inputRange: [realIndex - 1, realIndex, realIndex + 1],
-      outputRange: [inactiveColor, activeColor, inactiveColor],
-      extrapolate: "clamp",
-    });
-  }
 
   return (
     <View style={{ backgroundColor: theme.colors.tabBar }}>
@@ -119,10 +105,11 @@ export function TabBar({ state, navigation, position }: MaterialTopTabBarProps) 
         }
 
         const isActive = state.index === tab.realIndex;
-        const animatedColor = getTabColor(tab.realIndex);
+        const color = isActive ? activeColor : inactiveColor;
         const iconDef = ICONS[visualIndex];
         const iconName = isActive ? iconDef.active : iconDef.inactive;
-        const showBadge = tab.label === "Shared" && badgeCount > 0;
+        const badgeCount = tab.label === "Collections" ? collectionsBadge : tab.label === "Me" ? profileBadge : 0;
+        const showBadge = badgeCount > 0;
 
         return (
           <TouchableOpacity
@@ -141,14 +128,14 @@ export function TabBar({ state, navigation, position }: MaterialTopTabBarProps) 
             activeOpacity={0.7}
           >
             <View style={styles.iconWrapper}>
-              <AnimatedIonicons name={iconName as any} size={22} color={animatedColor} />
+              <Ionicons name={iconName as any} size={22} color={color} />
               {showBadge && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{badgeCount > 9 ? "9+" : badgeCount}</Text>
                 </View>
               )}
             </View>
-            <Animated.Text style={[styles.label, { color: animatedColor }]}>{tab.label}</Animated.Text>
+            <Text style={[styles.label, { color }]}>{tab.label}</Text>
           </TouchableOpacity>
         );
       })}

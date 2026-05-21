@@ -241,10 +241,15 @@ export async function fetchTaggedMomentsInbox(userId: string): Promise<TaggedMom
   const taggerIds = [...new Set(data.map((r: any) => r.tagger_user_id))];
   const momentIds = data.map((r: any) => r.moment_id);
 
-  const [{ data: profiles }, { data: moments }] = await Promise.all([
+  const [
+    { data: profiles, error: profilesError },
+    { data: moments, error: momentsError },
+  ] = await Promise.all([
     supabase.from("profiles").select("id, display_name, avatar_url").in("id", taggerIds),
     supabase.rpc("get_tagged_moment_data", { p_moment_ids: momentIds }),
   ]);
+  if (momentsError) throw momentsError;
+  if (profilesError) throw profilesError;
 
   const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
   const momentMap = new Map((moments ?? []).map((m: any) => [m.id, m]));
@@ -274,10 +279,15 @@ export async function fetchAcceptedTaggedMoments(userId: string): Promise<Tagged
   const taggerIds = [...new Set(data.map((r: any) => r.tagger_user_id))];
   const momentIds = data.map((r: any) => r.moment_id);
 
-  const [{ data: profiles }, { data: moments }] = await Promise.all([
+  const [
+    { data: profiles, error: profilesError },
+    { data: moments, error: momentsError },
+  ] = await Promise.all([
     supabase.from("profiles").select("id, display_name, avatar_url").in("id", taggerIds),
     supabase.rpc("get_tagged_moment_data", { p_moment_ids: momentIds }),
   ]);
+  if (momentsError) throw momentsError;
+  if (profilesError) throw profilesError;
 
   const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
   const momentMap = new Map((moments ?? []).map((m: any) => [m.id, m]));
@@ -390,6 +400,24 @@ export async function hideTaggedMoment(taggedMomentId: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function markAllTaggedMomentsViewed(userId: string): Promise<void> {
+  await supabase
+    .from("tagged_moments")
+    .update({ status: "accepted" })
+    .eq("tagged_user_id", userId)
+    .eq("status", "pending");
+}
+
+export async function fetchPendingTaggedMomentsCount(userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from("tagged_moments")
+    .select("*", { count: "exact", head: true })
+    .eq("tagged_user_id", userId)
+    .eq("status", "pending");
+  if (error) return 0;
+  return count ?? 0;
+}
+
 // Fetch tagged moments for the Shared tab inbox.
 // No released gate — visibility is controlled by the moment's privacy dial via RLS.
 // Returns only tags where the moment is actually readable (RLS filters out private ones).
@@ -406,10 +434,15 @@ export async function fetchTaggedMomentsSharedTab(userId: string): Promise<Tagge
   const taggerIds = [...new Set(data.map((r: any) => r.tagger_user_id))];
   const momentIds = data.map((r: any) => r.moment_id);
 
-  const [{ data: profiles }, { data: moments }] = await Promise.all([
+  const [
+    { data: profiles, error: profilesError },
+    { data: moments, error: momentsError },
+  ] = await Promise.all([
     supabase.from("profiles").select("id, display_name, avatar_url").in("id", taggerIds),
     supabase.rpc("get_tagged_moment_data", { p_moment_ids: momentIds }),
   ]);
+  if (momentsError) throw momentsError;
+  if (profilesError) throw profilesError;
 
   const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
   const momentMap = new Map((moments ?? []).map((m: any) => [m.id, m]));

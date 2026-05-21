@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
+import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { MOODS } from "@/constants/Moods";
 import { ALL_PROMPTS } from "@/constants/Prompts";
 import { useTheme } from "@/hooks/useTheme";
@@ -54,14 +55,14 @@ async function fetchReflectionsData(
   const [onThisDayResult, aMonthAgoResult, aYearAgoResult, forgottenResult] = await Promise.all([
     supabase
       .from("moments")
-      .select("*")
+      .select(MOMENT_CARD_COLUMNS)
       .eq("user_id", userId)
       .in("moment_date", matchingDates)
       .order("moment_date", { ascending: false })
       .order("created_at", { ascending: false }),
     supabase
       .from("moments")
-      .select("*")
+      .select(MOMENT_CARD_COLUMNS)
       .eq("user_id", userId)
       .gte("moment_date", aMonthAgoFrom)
       .lte("moment_date", aMonthAgoTo)
@@ -69,7 +70,7 @@ async function fetchReflectionsData(
       .limit(1),
     supabase
       .from("moments")
-      .select("*")
+      .select(MOMENT_CARD_COLUMNS)
       .eq("user_id", userId)
       .gte("moment_date", aYearAgoFrom)
       .lte("moment_date", aYearAgoTo)
@@ -421,9 +422,11 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.xl,
       paddingTop: 80,
       paddingBottom: theme.spacing.lg,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.border,
     },
     title: {
-      fontSize: theme.fontSize["2xl"],
+      fontSize: 30,
       fontFamily: theme.fonts.display,
       color: theme.colors.text,
     },

@@ -11,9 +11,14 @@ import {
   ScrollView,
   TextInput,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from "react-native-reanimated";
+import { Image } from "expo-image";
 import * as Clipboard from "expo-clipboard";
+import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { CloseButton } from "@/components/CloseButton";
 import * as Haptics from "expo-haptics";
 import { Collection } from "@/types";
@@ -24,6 +29,7 @@ import {
   fetchCollectionMembers,
   removeCollectionMember,
   renameCollection,
+  updateCollectionCover,
   searchUsersForCollection,
   sendCollectionInvite,
   fetchSentCollectionInvites,
@@ -31,6 +37,7 @@ import {
   CollectionMember,
   SentCollectionInvite,
 } from "@/lib/collections";
+import { uploadCollectionCover, getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
@@ -49,6 +56,15 @@ interface Props {
 export function CollectionShareSheet({ visible, collection, onClose, onUpdated, onLeft }: Props) {
   const theme = useTheme();
   const { user } = useAuth();
+
+  const translateY = useSharedValue(0);
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => { if (e.translationY > 0) translateY.value = e.translationY; })
+    .onEnd((e) => {
+      if (e.translationY > 80 || e.velocityY > 500) { runOnJS(onClose)(); }
+      translateY.value = withTiming(0);
+    });
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
   const [converting, setConverting] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -64,6 +80,9 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
   const [renameText, setRenameText] = useState(collection.name);
   const [savingRename, setSavingRename] = useState(false);
 
+  // Cover photo state
+  const [uploadingCover, setUploadingCover] = useState(false);
+
   // Invite member by username
   const [inviteQuery, setInviteQuery] = useState("");
   const [inviteResults, setInviteResults] = useState<{ id: string; displayName: string; username: string }[]>([]);
@@ -72,6 +91,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
   const inviteDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const queryClient = useQueryClient();
   const isOwner = collection.role === "owner";
 
   useEffect(() => {
@@ -142,6 +162,40 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
       setError(friendlyError(e));
     } finally {
       setSavingRename(false);
+    }
+  }
+
+  async function handlePickCover() {
+    if (!user) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.9,
+      allowsEditing: true,
+      aspect: [16, 9],
+    });
+    if (result.canceled || !result.assets[0]) return;
+    setUploadingCover(true);
+    setError("");
+    try {
+      const path = await uploadCollectionCover(user.id, collection.id, result.assets[0].uri);
+      await updateCollectionCover(collection.id, path);
+      onUpdated({ ...collection, coverPhotoUrl: path });
+      queryClient.invalidateQueries({ queryKey: ["sharedScreen", user.id] });
+    } catch (e: any) {
+      setError(friendlyError(e));
+    } finally {
+      setUploadingCover(false);
+    }
+  }
+
+  async function handleRemoveCover() {
+    setError("");
+    try {
+      await updateCollectionCover(collection.id, null);
+      onUpdated({ ...collection, coverPhotoUrl: undefined });
+      queryClient.invalidateQueries({ queryKey: ["sharedScreen", user?.id] });
+    } catch (e: any) {
+      setError(friendlyError(e));
     }
   }
 
@@ -310,14 +364,20 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
       animationType="slide"
       onRequestClose={onClose}
     >
+      <View style={{ flex: 1, justifyContent: "flex-end" }}>
       <TouchableOpacity
-        style={styles.backdrop}
+        style={StyleSheet.absoluteFill}
         activeOpacity={1}
         onPress={onClose}
       />
-      <View style={[styles.sheet, { backgroundColor: theme.colors.background }]}>
+      <Animated.View style={[styles.sheet, { backgroundColor: theme.colors.background }, animatedStyle]}>
         {/* Handle */}
-        <View style={[styles.handle, { backgroundColor: theme.colors.textSecondary }]} />
+        <GestureDetector gesture={panGesture}>
+          <View
+            style={[styles.handle, { backgroundColor: theme.colors.textSecondary }]}
+            hitSlop={{ top: 12, bottom: 16, left: 120, right: 120 }}
+          />
+        </GestureDetector>
 
         {/* Header — inline rename for owners */}
         <View style={[styles.header, { paddingHorizontal: 20 }]}>
@@ -340,7 +400,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                 {savingRename ? (
                   <ActivityIndicator size="small" color={theme.colors.accent} />
                 ) : (
-                  <Text style={[styles.renameSave, { color: theme.colors.accent, opacity: !renameText.trim() || renameText.trim() === collection.name ? 0.35 : 1 }]}>
+                  <Text style={[styles.renameSave, { color: theme.colors.text, opacity: !renameText.trim() || renameText.trim() === collection.name ? 0.35 : 1 }]}>
                     Save
                   </Text>
                 )}
@@ -392,6 +452,45 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
               </View>
             </View>
 
+            {/* Cover photo row — owners only */}
+            <View style={[styles.row, { borderBottomColor: theme.colors.backgroundInput }]}>
+              <View style={styles.rowLeft}>
+                <Ionicons name="image-outline" size={20} color={theme.colors.text} />
+                <View style={styles.rowText}>
+                  <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Cover Photo</Text>
+                  <TouchableOpacity onPress={handlePickCover} disabled={uploadingCover} hitSlop={4}>
+                    <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
+                      {collection.coverPhotoUrl ? "Change photo" : "Add a cover photo"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              {uploadingCover ? (
+                <ActivityIndicator size="small" color={theme.colors.accent} />
+              ) : collection.coverPhotoUrl ? (
+                <TouchableOpacity
+                  onLongPress={handleRemoveCover}
+                  onPress={handlePickCover}
+                  activeOpacity={0.8}
+                  hitSlop={4}
+                >
+                  <Image
+                    source={{ uri: getPublicPhotoThumbnailUrl(collection.coverPhotoUrl, 80, true) }}
+                    style={styles.coverThumb}
+                    contentFit="cover"
+                  />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  onPress={handlePickCover}
+                  style={[styles.coverPlaceholder, { backgroundColor: theme.colors.backgroundInput, borderColor: theme.colors.border }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="camera-outline" size={16} color={theme.colors.textTertiary} />
+                </TouchableOpacity>
+              )}
+            </View>
+
             {error ? (
               <Text style={[styles.error, { color: theme.colors.destructive ?? "#E53E3E" }]}>
                 {error}
@@ -421,7 +520,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                       <Text style={[styles.linkButtonText, { color: theme.colors.text }]}>Copy</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.shareButton, { backgroundColor: theme.colors.accent }]}
+                      style={[styles.shareButton, { backgroundColor: theme.colors.buttonBg }]}
                       onPress={handleShare}
                       activeOpacity={0.8}
                     >
@@ -466,7 +565,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                         <TouchableOpacity
                           style={[
                             styles.addBtn,
-                            { backgroundColor: wasSent ? theme.colors.chipBg : theme.colors.accent, opacity: invitingId === result.id ? 0.6 : 1 },
+                            { backgroundColor: wasSent ? theme.colors.chipBg : theme.colors.buttonBg, opacity: invitingId === result.id ? 0.6 : 1 },
                           ]}
                           onPress={() => !wasSent && handleInvite(result)}
                           disabled={invitingId !== null || wasSent}
@@ -494,7 +593,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                 <TouchableOpacity
                   style={[
                     styles.convertButton,
-                    { borderColor: theme.colors.accent },
+                    { backgroundColor: theme.colors.buttonBg, borderColor: "transparent" },
                     converting && styles.buttonDisabled,
                   ]}
                   onPress={handleConvert}
@@ -502,11 +601,11 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                   activeOpacity={0.8}
                 >
                   {converting ? (
-                    <ActivityIndicator color={theme.colors.accent} />
+                    <ActivityIndicator color={theme.colors.buttonText} />
                   ) : (
                     <>
-                      <Ionicons name="people-outline" size={16} color={theme.colors.accent} />
-                      <Text style={[styles.convertButtonText, { color: theme.colors.accent }]}>
+                      <Ionicons name="people-outline" size={16} color={theme.colors.buttonText} />
+                      <Text style={[styles.convertButtonText, { color: theme.colors.buttonText }]}>
                         Convert to Shared
                       </Text>
                     </>
@@ -645,6 +744,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
             </View>
           </View>
         )}
+      </Animated.View>
       </View>
     </Modal>
   );
@@ -652,7 +752,6 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
 
 const styles = StyleSheet.create({
   backdrop: {
-    flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
   },
   sheet: {
@@ -730,6 +829,19 @@ const styles = StyleSheet.create({
   rowSub: {
     fontSize: 12,
     marginTop: 2,
+  },
+  coverThumb: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+  },
+  coverPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   error: {
     fontSize: 13,
