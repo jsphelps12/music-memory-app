@@ -123,19 +123,18 @@ Tab redesign sprint + architecture improvements.
 - [x] **TanStack Query migration** — timeline + collections migrated; optimistic updates on timeline delete/restore; `lib/sharedScreen.ts` extracted for single shared data source; app-wide tab prefetch fires immediately on session resolve (timeline, collections, browse metadata, shared screen)
 - [x] **Navigation/swipe consistency** — tab swiping with `swipeEnabled: true`; consistent swipe policy: left-edge back on stack screens, swipe-down on modals, swipe-right on moment detail (translateX + opacity animation); custom pan gestures removed from song/album/artist screens
 - [x] **Shared collection fixes** — deduplication fix (Set-based), instant cache update on delete/leave via `setQueryData`, double header fix on drill-down screens
+- [x] **Browse UI consistency pass** — spacing, typography, and component consistency across all Browse screens; startup cache populated on session resolve
+- [x] **Full Apple Music Playback** — full-length playback for Apple Music subscribers via `ApplicationMusicPlayer`; mini player persists across screens; recently played section; graceful 30s preview fallback for non-subscribers; playback polish (scrubber, NowPlaying IDs, gesture conflicts resolved)
+- [x] **Web landing page** — marketing landing page on web app; guest contribution fields made optional; web viewer all-dark redesign; landing page responsive padding
 
 ---
 
 ## NOW — May 2026 Priorities
 
-Six areas to address in order. The first two are prerequisites for everything else — a buggy, inconsistent app can't convert users no matter how good the features are.
-
-### 1. Polish & Bug Fixes 🔴 *Most urgent*
-
-The app has shipped but feels unfinished in places. UI is inconsistent across screens, error states are unhelpful, and there are known bugs in onboarding and friends. Every user who hits a bug or jarring UX is a potential churn. Fix this before pushing growth.
+### 1. Polish & Bug Fixes 🔴 *In progress*
 
 **UI consistency:**
-- [ ] Audit every screen against the design system — spacing, font sizes, button styles, close button usage, empty states
+- [x] Audit every screen against the design system — spacing, font sizes, button styles, close button usage, empty states
 - [ ] Consistent error messaging — replace raw errors with `friendlyError()` everywhere; no technical strings shown to users
 - [ ] Loading states on every async action — no silent spinning or frozen UI
 - [ ] Modal presentation consistency — all modals use the same header pattern and CloseButton
@@ -147,8 +146,8 @@ The app has shipped but feels unfinished in places. UI is inconsistent across sc
 - [ ] Edge function console.log cleanup — remove debug logs from `accept-friend-invite`
 - [ ] Untracked migration file: `20260324_collection_moments_moment_id_index.sql` needs to be committed
 
-**Code quality (do alongside bug fixes, not as a separate pass):**
-- [ ] Audit for duplicated fetch logic — several screens re-implement enrichment patterns that belong in `lib/friends.ts` / `lib/moments.ts`
+**Code quality (in progress — ~40 files, net -846 lines):**
+- [x] Audit for duplicated fetch logic — screens refactored; `EmptyState`, `IconButton`, `TaggedRow` extracted as shared components; `lib/momentColumns.ts` extracted
 - [ ] Consistent error handling pattern — every `try/catch` should use `friendlyError()` before showing to user
 - [ ] Remove dead code and unused imports surfaced during audit
 
@@ -187,23 +186,18 @@ Removes the capture blocker at the worst possible moments (funerals, spontaneous
 
 ---
 
-### 2. Full Apple Music Playback 🟡 *Major experiential gap*
+### 2. Full Apple Music Playback ✅ *Shipped May 2026*
 
-Currently all playback is capped at 30 seconds via iTunes preview URLs. Apple Music subscribers (the majority of iOS users in the target demographic) should get full-length playback of their moments. This is the single biggest quality-of-experience gap in the app.
+- [x] Full playback via `ApplicationMusicPlayer` for Apple Music subscribers
+- [x] Mini player persists across screens; recently played section
+- [x] Graceful 30s preview fallback for non-subscribers
+- [x] Playback polish — scrubber, NowPlaying IDs, gesture conflicts resolved
+- [x] Playback fallback when native Apple Music fails
 
-**What's needed:**
-- [ ] Subscription check — detect if user has active Apple Music subscription via MusicKit
-- [ ] Full playback via `ApplicationMusicPlayer` — replace `expo-av` preview playback with MusicKit `setQueue({ song })` for Apple Music subscribers
-- [ ] Graceful fallback — non-subscribers see the existing 30s preview behavior with a subtle "Subscribe to Apple Music for full songs" prompt
-- [ ] Store `apple_music_id` separately from preview URL — already done; just need to use it for full playback
-- [ ] Moment detail and now-playing context — both use the player; both need updating
-- [ ] Entitlement: MusicKit entitlement already enabled (used for search); full playback uses same entitlement
-
-**Spotify full integration:**
+**Spotify full integration:** (deferred)
 - [ ] Store `spotify_track_id` on moments when song sourced from Spotify search
-- [ ] Deep link out to Spotify app for full playback (no SDK required — `spotify:track:{id}` URL scheme)
-- [ ] Show Spotify icon on moments that have a Spotify ID; tapping opens song in Spotify
-- [ ] This is the 80/20 version — full Spotify SDK integration is a separate multi-week effort
+- [ ] Deep link out to Spotify app for full playback (`spotify:track:{id}` URL scheme)
+- [ ] Show Spotify icon on moments with a Spotify ID; tapping opens in Spotify
 
 ---
 
