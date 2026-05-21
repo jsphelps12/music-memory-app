@@ -28,10 +28,10 @@ import type { MaterialTopTabBarProps } from "@react-navigation/material-top-tabs
 import { MiniPlayer } from "@/components/MiniPlayer";
 
 
-// Visual tab order: Timeline(0), Soon(1), [Capture], Collections(2), Me(3)
+// Visual tab order: Timeline(0), Reflections(1), [Capture], Collections(2), Me(3)
 const TAB_DEFS = [
   { label: "Moments",     realIndex: 0 },
-  { label: "Soon",        realIndex: 1 },
+  { label: "Reflections", realIndex: 1 },
   { label: "CAPTURE",     realIndex: -1 },
   { label: "Collections", realIndex: 2 },
   { label: "Me",          realIndex: 3 },

@@ -16,7 +16,6 @@ import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { MOODS } from "@/constants/Moods";
-import { ALL_PROMPTS } from "@/constants/Prompts";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { MomentCard } from "@/components/MomentCard";
@@ -30,6 +29,9 @@ type ReflectionsData = {
   aMonthAgo: Moment | null;
   aYearAgo: Moment | null;
   forgottenMoment: Moment | null;
+  thisWeekLastYear: Moment[];
+  recentWithPeople: Moment[];
+  recentWithMood: Moment[];
 };
 
 type HeroType = "onThisDay" | "aMonthAgo" | "random";
@@ -42,7 +44,9 @@ async function fetchReflectionsData(
   aMonthAgoFrom: string,
   aMonthAgoTo: string,
   aYearAgoFrom: string,
-  aYearAgoTo: string
+  aYearAgoTo: string,
+  weekLastYearFrom: string,
+  weekLastYearTo: string
 ): Promise<ReflectionsData> {
   const matchingDates: string[] = [];
   for (let y = thisYear - 1; y >= Math.max(thisYear - 30, 2000); y--) {
@@ -52,7 +56,15 @@ async function fetchReflectionsData(
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 180);
 
-  const [onThisDayResult, aMonthAgoResult, aYearAgoResult, forgottenResult] = await Promise.all([
+  const [
+    onThisDayResult,
+    aMonthAgoResult,
+    aYearAgoResult,
+    forgottenResult,
+    weekLastYearResult,
+    withPeopleResult,
+    withMoodResult,
+  ] = await Promise.all([
     supabase
       .from("moments")
       .select(MOMENT_CARD_COLUMNS)
@@ -77,6 +89,28 @@ async function fetchReflectionsData(
       .order("moment_date", { ascending: false })
       .limit(1),
     supabase.rpc("get_random_forgotten_moment", { p_cutoff: cutoff.toISOString() }),
+    supabase
+      .from("moments")
+      .select(MOMENT_CARD_COLUMNS)
+      .eq("user_id", userId)
+      .gte("moment_date", weekLastYearFrom)
+      .lte("moment_date", weekLastYearTo)
+      .order("moment_date", { ascending: false })
+      .limit(3),
+    supabase
+      .from("moments")
+      .select(MOMENT_CARD_COLUMNS)
+      .eq("user_id", userId)
+      .not("people", "eq", "{}")
+      .order("created_at", { ascending: false })
+      .limit(30),
+    supabase
+      .from("moments")
+      .select(MOMENT_CARD_COLUMNS)
+      .eq("user_id", userId)
+      .not("mood", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(30),
   ]);
 
   return {
@@ -87,6 +121,9 @@ async function fetchReflectionsData(
       !forgottenResult.error && forgottenResult.data?.length > 0
         ? mapRowToMoment(forgottenResult.data[0])
         : null,
+    thisWeekLastYear: (weekLastYearResult.data ?? []).map(mapRowToMoment),
+    recentWithPeople: (withPeopleResult.data ?? []).map(mapRowToMoment),
+    recentWithMood: (withMoodResult.data ?? []).map(mapRowToMoment),
   };
 }
 
@@ -116,30 +153,31 @@ export default function ReflectionsScreen() {
     const thisYear = now.getFullYear();
     const todayLabel = now.toLocaleDateString("en-US", { month: "long", day: "numeric" });
 
-    const aMonthAgoFrom = (() => {
-      const d = new Date(now); d.setDate(d.getDate() - 35); return d.toISOString().slice(0, 10);
-    })();
-    const aMonthAgoTo = (() => {
-      const d = new Date(now); d.setDate(d.getDate() - 25); return d.toISOString().slice(0, 10);
-    })();
-    const aYearAgoFrom = (() => {
-      const d = new Date(now); d.setDate(d.getDate() - 380); return d.toISOString().slice(0, 10);
-    })();
-    const aYearAgoTo = (() => {
-      const d = new Date(now); d.setDate(d.getDate() - 350); return d.toISOString().slice(0, 10);
-    })();
+    const offset = (days: number) => {
+      const d = new Date(now); d.setDate(d.getDate() - days); return d.toISOString().slice(0, 10);
+    };
 
-    return { month, day, thisYear, todayLabel, aMonthAgoFrom, aMonthAgoTo, aYearAgoFrom, aYearAgoTo };
+    return {
+      month, day, thisYear, todayLabel,
+      aMonthAgoFrom: offset(35),
+      aMonthAgoTo: offset(25),
+      aYearAgoFrom: offset(380),
+      aYearAgoTo: offset(350),
+      weekLastYearFrom: offset(369),
+      weekLastYearTo: offset(361),
+    };
   }, []);
 
-  const { month, day, thisYear, todayLabel, aMonthAgoFrom, aMonthAgoTo, aYearAgoFrom, aYearAgoTo } = dateParams;
+  const {
+    month, day, thisYear, todayLabel,
+    aMonthAgoFrom, aMonthAgoTo, aYearAgoFrom, aYearAgoTo,
+    weekLastYearFrom, weekLastYearTo,
+  } = dateParams;
 
-  // Daily rotating prompt — deterministic per calendar day
-  const dailyPrompt = useMemo(() => {
+  // Day-of-year seed for deterministic spotlight selection
+  const dayOfYear = useMemo(() => {
     const now = new Date();
-    const start = new Date(now.getFullYear(), 0, 0);
-    const dayOfYear = Math.floor((now.getTime() - start.getTime()) / 86400000);
-    return ALL_PROMPTS[dayOfYear % ALL_PROMPTS.length];
+    return Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000);
   }, []);
 
   // Main data: deterministic sections
@@ -152,7 +190,7 @@ export default function ReflectionsScreen() {
   } = useQuery({
     queryKey: ["reflections", user?.id],
     queryFn: () =>
-      fetchReflectionsData(user!.id, month, day, thisYear, aMonthAgoFrom, aMonthAgoTo, aYearAgoFrom, aYearAgoTo),
+      fetchReflectionsData(user!.id, month, day, thisYear, aMonthAgoFrom, aMonthAgoTo, aYearAgoFrom, aYearAgoTo, weekLastYearFrom, weekLastYearTo),
     staleTime: STALE_TIME,
     enabled: !!user,
   });
@@ -185,6 +223,26 @@ export default function ReflectionsScreen() {
   const aMonthAgo = data?.aMonthAgo ?? null;
   const aYearAgo = data?.aYearAgo ?? null;
   const forgottenMoment = data?.forgottenMoment ?? null;
+  const thisWeekLastYear = data?.thisWeekLastYear ?? [];
+  const recentWithPeople = data?.recentWithPeople ?? [];
+  const recentWithMood = data?.recentWithMood ?? [];
+
+  const personSpotlight = useMemo(() => {
+    const people = [...new Set(recentWithPeople.flatMap((m) => m.people ?? []))];
+    if (!people.length) return null;
+    const person = people[dayOfYear % people.length];
+    const moments = recentWithPeople.filter((m) => m.people?.includes(person)).slice(0, 2);
+    return { person, moments };
+  }, [recentWithPeople, dayOfYear]);
+
+  const moodSpotlight = useMemo(() => {
+    const moods = [...new Set(recentWithMood.map((m) => m.mood).filter((x): x is string => Boolean(x)))];
+    if (!moods.length) return null;
+    const mood = moods[dayOfYear % moods.length];
+    const moodObj = allMoods.find((m) => m.value === mood);
+    const moments = recentWithMood.filter((m) => m.mood === mood).slice(0, 2);
+    return { mood, label: moodObj ? `${moodObj.emoji} ${moodObj.label}` : mood, moments };
+  }, [recentWithMood, dayOfYear, allMoods]);
 
   // Group On This Day moments by year, newest first
   const byYear = useMemo(() => {
@@ -321,6 +379,17 @@ export default function ReflectionsScreen() {
 
         {/* ── SUPPORTING ── */}
 
+        {thisWeekLastYear.length > 0 && (
+          <>
+            <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
+              <Text style={styles.sectionTitle}>This Week Last Year</Text>
+            </View>
+            {thisWeekLastYear.map((m) => (
+              <MomentCard key={m.id} item={m} allMoods={allMoods} />
+            ))}
+          </>
+        )}
+
         {heroType !== "aMonthAgo" && aMonthAgo && (
           <>
             <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
@@ -356,28 +425,27 @@ export default function ReflectionsScreen() {
           </>
         )}
 
-        {/* Journal Prompt — always visible */}
-        <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
-          <Text style={styles.sectionTitle}>Journal Prompt</Text>
-        </View>
-        <View style={styles.promptCard}>
-          <Text style={styles.promptQuestion}>{dailyPrompt.question}</Text>
-          <TouchableOpacity
-            style={styles.promptCta}
-            onPress={() =>
-              router.push({
-                pathname: "/create",
-                params: {
-                  promptQuestion: dailyPrompt.question,
-                  promptStarter: dailyPrompt.starter,
-                },
-              })
-            }
-            activeOpacity={0.7}
-          >
-            <Text style={styles.promptCtaText}>Capture this memory →</Text>
-          </TouchableOpacity>
-        </View>
+        {personSpotlight && personSpotlight.moments.length > 0 && (
+          <>
+            <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
+              <Text style={styles.sectionTitle}>Memories with {personSpotlight.person}</Text>
+            </View>
+            {personSpotlight.moments.map((m) => (
+              <MomentCard key={m.id} item={m} allMoods={allMoods} />
+            ))}
+          </>
+        )}
+
+        {moodSpotlight && moodSpotlight.moments.length > 0 && (
+          <>
+            <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
+              <Text style={styles.sectionTitle}>When you felt {moodSpotlight.label}</Text>
+            </View>
+            {moodSpotlight.moments.map((m) => (
+              <MomentCard key={m.id} item={m} allMoods={allMoods} />
+            ))}
+          </>
+        )}
 
         {heroType !== "random" && randomMoment && (
           <>
@@ -466,27 +534,6 @@ function createStyles(theme: Theme) {
       fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.textSecondary,
       marginBottom: theme.spacing.sm,
-    },
-    promptCard: {
-      backgroundColor: theme.colors.cardBg,
-      borderRadius: theme.radii.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      padding: theme.spacing.lg,
-      gap: theme.spacing.md,
-    },
-    promptQuestion: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      lineHeight: 22,
-    },
-    promptCta: {
-      alignSelf: "flex-start",
-    },
-    promptCtaText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.accent,
-      fontFamily: theme.fonts.bodySemibold,
     },
     emptyState: {
       flex: 1,

@@ -126,6 +126,7 @@ Tab redesign sprint + architecture improvements.
 - [x] **Browse UI consistency pass** — spacing, typography, and component consistency across all Browse screens; startup cache populated on session resolve
 - [x] **Full Apple Music Playback** — full-length playback for Apple Music subscribers via `ApplicationMusicPlayer`; mini player persists across screens; recently played section; graceful 30s preview fallback for non-subscribers; playback polish (scrubber, NowPlaying IDs, gesture conflicts resolved)
 - [x] **Web landing page** — marketing landing page on web app; guest contribution fields made optional; web viewer all-dark redesign; landing page responsive padding
+- [x] **Reflections tab polish** — tab 2 now shows Reflections (was "Soon" placeholder); On This Day strip removed from Timeline (lives only in Reflections); Journal Prompt removed; three new sections added: This Week Last Year, Person Spotlight (day-seed rotating), Mood Spotlight (day-seed rotating)
 
 ---
 
