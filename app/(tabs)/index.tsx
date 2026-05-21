@@ -4,12 +4,15 @@ import {
   View,
   Text,
   SectionList,
+  ScrollView,
   TouchableOpacity,
   RefreshControl,
   StyleSheet,
   FlatList,
   ActivityIndicator,
 } from "react-native";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -39,9 +42,84 @@ import { IconButton } from "@/components/IconButton";
 import { CalendarView } from "@/components/CalendarView";
 import { EmptyState } from "@/components/EmptyState";
 import { fetchTaggedMomentsSharedTab, markAllTaggedMomentsViewed } from "@/lib/friends";
+import { fetchBrowseMetadata, BrowseMeta } from "@/lib/browse";
 import { Moment } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 30_000;
+
+function deriveOnThisDay(meta: BrowseMeta[]) {
+  const today = new Date();
+  const m = today.getMonth();
+  const d = today.getDate();
+  const y = today.getFullYear();
+  return meta.filter((item) => {
+    if (!item.momentDate) return false;
+    const date = new Date(item.momentDate + "T00:00:00");
+    return date.getMonth() === m && date.getDate() === d && date.getFullYear() < y;
+  });
+}
+
+function yearsAgo(dateStr: string): string {
+  const diff = new Date().getFullYear() - new Date(dateStr + "T00:00:00").getFullYear();
+  return diff === 1 ? "1 year ago" : `${diff} years ago`;
+}
+
+function OnThisDayStrip({ items, onPress }: { items: BrowseMeta[]; onPress: (id: string) => void }) {
+  const theme = useTheme();
+  if (items.length === 0) return null;
+  return (
+    <View style={{ marginBottom: 8 }}>
+      <Text style={{
+        fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.2,
+        color: theme.colors.textTertiary, paddingHorizontal: 20, marginBottom: 8, marginTop: 12,
+      }}>
+        ON THIS DAY
+      </Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingLeft: 12, paddingRight: 20 }}
+      >
+        {items.map((item) => (
+          <TouchableOpacity
+            key={item.id}
+            onPress={() => onPress(item.id)}
+            activeOpacity={0.85}
+            style={{ marginRight: 10, width: 180 }}
+          >
+            <LinearGradient
+              colors={["#E8825C", "#6B5F8C"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ borderRadius: 12, height: 96, overflow: "hidden" }}
+            >
+              {item.songArtworkUrl ? (
+                <Image
+                  source={{ uri: item.songArtworkUrl }}
+                  style={{ ...StyleSheet.absoluteFillObject, opacity: 0.35 }}
+                  contentFit="cover"
+                />
+              ) : null}
+              <View style={{ flex: 1, padding: 12, justifyContent: "flex-end" }}>
+                <Text style={{ fontSize: 13, fontFamily: "DMSans_600SemiBold", color: "#fff" }} numberOfLines={1}>
+                  {item.songTitle}
+                </Text>
+                <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.8)", marginTop: 2 }} numberOfLines={1}>
+                  {item.songArtist}
+                </Text>
+                {item.momentDate ? (
+                  <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4, fontFamily: "DMSans_400Regular" }}>
+                    {yearsAgo(item.momentDate)}
+                  </Text>
+                ) : null}
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
 
 export default function TimelineScreen() {
   const router = useRouter();
@@ -391,14 +469,22 @@ export default function TimelineScreen() {
     enabled: !!user,
   });
 
-  // Mark pending tagged moments as viewed when the tab is open and data has loaded
+  // Browse metadata — already prefetched app-wide; used here for On This Day strip
+  const { data: browseMeta = [] } = useQuery({
+    queryKey: ["browseMeta", user?.id],
+    queryFn: () => fetchBrowseMetadata(user!.id),
+    enabled: !!user,
+    staleTime: 60_000,
+  });
+  const onThisDayItems = useMemo(() => deriveOnThisDay(browseMeta), [browseMeta]);
+
   useEffect(() => {
     if (activeTab === "tagged" && taggedMoments.length > 0 && user) {
       markAllTaggedMomentsViewed(user.id).then(() => {
         queryClient.invalidateQueries({ queryKey: ["profileBadge", user.id] });
       });
     }
-  }, [activeTab, taggedMoments.length, user?.id]);
+  }, [activeTab, user?.id, queryClient]);
 
   const allMoods = useMemo(
     () => [...MOODS, ...(profile?.customMoods ?? [])],
@@ -409,13 +495,23 @@ export default function TimelineScreen() {
     <MomentCard item={item} allMoods={allMoods} />
   ), [allMoods]);
 
-  const listHeader = bannerError ? (
-    <ErrorBanner
-      message={bannerError}
-      onRetry={() => fetchMoments(false)}
-      onDismiss={() => setBannerError("")}
-    />
-  ) : null;
+  const listHeader = (
+    <>
+      {onThisDayItems.length > 0 && (
+        <OnThisDayStrip
+          items={onThisDayItems}
+          onPress={(id) => router.push({ pathname: "/moment/[id]", params: { id } })}
+        />
+      )}
+      {bannerError ? (
+        <ErrorBanner
+          message={bannerError}
+          onRetry={() => fetchMoments(false)}
+          onDismiss={() => setBannerError("")}
+        />
+      ) : null}
+    </>
+  );
 
   return (
     <View style={styles.container}>
@@ -522,7 +618,7 @@ export default function TimelineScreen() {
                       loadingMore ? (
                         <ActivityIndicator
                           style={{ paddingVertical: 20 }}
-                          color={theme.colors.textSecondary}
+                          color={theme.colors.accent}
                         />
                       ) : null
                     }
@@ -555,7 +651,7 @@ export default function TimelineScreen() {
           <FlatList
             data={taggedMoments}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={[styles.listContent, taggedMoments.length === 0 && { flex: 1 }]}
+            contentContainerStyle={[styles.listContent, !taggedLoading && taggedMoments.length === 0 && { flex: 1 }]}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
@@ -568,7 +664,11 @@ export default function TimelineScreen() {
               item.moment ? <MomentCard item={item.moment} allMoods={allMoods} /> : null
             }
             ListEmptyComponent={
-              taggedLoading ? null : (
+              taggedLoading ? (
+                <View style={styles.skeletonList}>
+                  {[0, 1, 2, 3].map((i) => <SkeletonTimelineCard key={i} />)}
+                </View>
+              ) : (
                 <EmptyState
                   icon="person-add-outline"
                   title="No tagged moments yet"

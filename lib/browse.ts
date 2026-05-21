@@ -34,13 +34,14 @@ export interface BrowseMeta {
   momentDate: string | null;
   songTitle: string;
   songArtist: string;
+  songAlbumName: string;
   songArtworkUrl: string;
 }
 
 export async function fetchBrowseMetadata(userId: string): Promise<BrowseMeta[]> {
   const { data, error } = await supabase
     .from("moments")
-    .select("id, mood, people, moment_date, song_title, song_artist, song_artwork_url")
+    .select("id, mood, people, moment_date, song_title, song_artist, song_album_name, song_artwork_url")
     .eq("user_id", userId)
     .order("moment_date", { ascending: false, nullsFirst: false });
 
@@ -52,8 +53,34 @@ export async function fetchBrowseMetadata(userId: string): Promise<BrowseMeta[]>
     momentDate: r.moment_date ?? null,
     songTitle: r.song_title ?? "",
     songArtist: r.song_artist ?? "",
+    songAlbumName: r.song_album_name ?? "",
     songArtworkUrl: r.song_artwork_url ?? "",
   }));
+}
+
+export async function fetchPersonMoments(userId: string, personName: string): Promise<Moment[]> {
+  const { data, error } = await supabase
+    .from("moments")
+    .select(MOMENT_CARD_COLUMNS)
+    .eq("user_id", userId)
+    .contains("people", [personName])
+    .order("moment_date", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapRowToMoment);
+}
+
+export async function fetchYearMoments(userId: string, year: number): Promise<Moment[]> {
+  const { data, error } = await supabase
+    .from("moments")
+    .select(MOMENT_CARD_COLUMNS)
+    .eq("user_id", userId)
+    .gte("moment_date", `${year}-01-01`)
+    .lte("moment_date", `${year}-12-31`)
+    .order("moment_date", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapRowToMoment);
 }
 
 export async function fetchCalendarMonth(

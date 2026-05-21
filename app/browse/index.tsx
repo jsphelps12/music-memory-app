@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useRef } from "react";
+import { useMemo, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -22,12 +22,7 @@ import { setCachedMoment } from "@/lib/momentCache";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
-import {
-  fetchBrowseMetadata,
-  fetchCalendarMonth,
-  BrowseMeta,
-} from "@/lib/browse";
-import { getRecentlyPlayed, searchSongs } from "@/lib/musickit";
+import { fetchBrowseMetadata, BrowseMeta } from "@/lib/browse";
 import type { Moment } from "@/types";
 import { EmptyState } from "@/components/EmptyState";
 import { IconButton } from "@/components/IconButton";
@@ -73,59 +68,31 @@ function deriveYearCounts(meta: BrowseMeta[]) {
     .map(([year, count]) => ({ year: Number(year), count }));
 }
 
-function deriveOnThisDay(meta: BrowseMeta[]) {
-  const today = new Date();
-  const m = today.getMonth();
-  const d = today.getDate();
-  const y = today.getFullYear();
-  return meta.filter((item) => {
-    if (!item.momentDate) return false;
-    const date = new Date(item.momentDate + "T00:00:00");
-    return date.getMonth() === m && date.getDate() === d && date.getFullYear() < y;
-  });
-}
-
-function yearsAgo(dateStr: string): string {
-  const then = new Date(dateStr + "T00:00:00").getFullYear();
-  const diff = new Date().getFullYear() - then;
-  return diff === 1 ? "1 year ago today" : `${diff} years ago today`;
+function deriveAlbumCounts(meta: BrowseMeta[]) {
+  const seen = new Map<string, { albumName: string; artist: string; artworkUrl: string; count: number }>();
+  for (const m of meta) {
+    if (!m.songAlbumName) continue;
+    const key = `${m.songAlbumName}|||${m.songArtist}`;
+    const existing = seen.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      seen.set(key, { albumName: m.songAlbumName, artist: m.songArtist, artworkUrl: m.songArtworkUrl, count: 1 });
+    }
+  }
+  return Array.from(seen.values()).sort((a, b) => b.count - a.count);
 }
 
 // ── sub-components ─────────────────────────────────────────
 
-function SectionHeader({ label, right }: { label: string; right?: React.ReactNode }) {
+function SectionHeader({ label }: { label: string }) {
   const theme = useTheme();
   return (
     <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10, paddingHorizontal: 20 }}>
       <Text style={{ fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, color: theme.colors.textTertiary, flex: 1 }}>
         {label}
       </Text>
-      {right}
     </View>
-  );
-}
-
-function ResurfacedCard({ item, onPress }: { item: BrowseMeta; onPress: () => void }) {
-  const theme = useTheme();
-  return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={{ marginLeft: 12, width: 180 }}>
-      <LinearGradient
-        colors={["#E8825C", "#6B5F8C"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{ borderRadius: theme.radii.md, height: 96, padding: 12, justifyContent: "flex-end" }}
-      >
-        <Text style={{ fontSize: 13, fontFamily: "DMSans_600SemiBold", color: "#fff" }} numberOfLines={1}>
-          {item.songTitle}
-        </Text>
-        <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.8)", marginTop: 2 }} numberOfLines={1}>
-          {item.songArtist}
-        </Text>
-        <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 4, fontFamily: "DMSans_400Regular" }}>
-          {item.momentDate ? yearsAgo(item.momentDate) : ""}
-        </Text>
-      </LinearGradient>
-    </TouchableOpacity>
   );
 }
 
@@ -156,10 +123,10 @@ function MoodCard({ emoji, label, count, onPress }: {
   );
 }
 
-function PersonCircle({ name, count }: { name: string; count: number }) {
+function PersonCircle({ name, count, onPress }: { name: string; count: number; onPress: () => void }) {
   const theme = useTheme();
   return (
-    <View style={{ marginLeft: 12, alignItems: "center" }}>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ marginLeft: 12, alignItems: "center" }}>
       <LinearGradient
         colors={["#E8825C", "#6B5F8C"]}
         start={{ x: 0, y: 0 }}
@@ -178,118 +145,60 @@ function PersonCircle({ name, count }: { name: string; count: number }) {
         {name}
       </Text>
       <Text style={{ fontSize: 10, color: theme.colors.textTertiary }}>{count}</Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
-function RecentlyPlayedCard({
-  title, artist, isLoading, onPress,
-}: { title: string; artist: string; isLoading: boolean; onPress: () => void }) {
+function AlbumCard({ albumName, artist, artworkUrl, count, onPress }: {
+  albumName: string; artist: string; artworkUrl: string; count: number; onPress: () => void;
+}) {
   const theme = useTheme();
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ marginLeft: 10, width: 130 }}>
-      <LinearGradient
-        colors={["#E8825C", "#6B5F8C"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{ borderRadius: theme.radii.md, height: 44, alignItems: "center", justifyContent: "center" }}
-      >
-        {isLoading
-          ? <Ionicons name="hourglass-outline" size={18} color="rgba(255,255,255,0.7)" />
-          : <Ionicons name="musical-notes" size={20} color="rgba(255,255,255,0.85)" />
-        }
-      </LinearGradient>
-      <Text style={{ fontSize: 12, fontFamily: "DMSans_600SemiBold", color: theme.colors.text, marginTop: 5 }} numberOfLines={1}>
-        {title}
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ marginLeft: 10, width: 100 }}>
+      {artworkUrl ? (
+        <Image source={{ uri: artworkUrl }} style={{ width: 100, height: 100, borderRadius: theme.radii.md }} contentFit="cover" />
+      ) : (
+        <LinearGradient
+          colors={["#E8825C", "#6B5F8C"]}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={{ width: 100, height: 100, borderRadius: theme.radii.md, alignItems: "center", justifyContent: "center" }}
+        >
+          <Ionicons name="musical-notes" size={28} color="rgba(255,255,255,0.8)" />
+        </LinearGradient>
+      )}
+      <Text style={{ fontSize: 12, fontFamily: "DMSans_600SemiBold", color: theme.colors.text, marginTop: 6 }} numberOfLines={1}>
+        {albumName}
       </Text>
       <Text style={{ fontSize: 10, color: theme.colors.textTertiary, marginTop: 1 }} numberOfLines={1}>
-        {artist}
+        {count} moments
       </Text>
     </TouchableOpacity>
   );
 }
 
-function YearChip({ year, count, active }: { year: number; count: number; active: boolean }) {
+function YearChip({ year, count, onPress }: { year: number; count: number; onPress: () => void }) {
   const theme = useTheme();
   return (
-    <View style={{
-      marginLeft: 8,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      borderRadius: theme.radii.full,
-      backgroundColor: active ? theme.colors.buttonBg : "transparent",
-      borderWidth: 1,
-      borderColor: active ? theme.colors.buttonBg : theme.colors.border,
-      alignItems: "center",
-    }}>
-      <Text style={{
-        fontSize: 16,
-        fontFamily: "DMSerifDisplay_400Regular",
-        color: active ? theme.colors.buttonText : theme.colors.text,
-      }}>{year}</Text>
-      <Text style={{ fontSize: 9, color: active ? theme.colors.buttonText : theme.colors.textTertiary, marginTop: 1 }}>
-        {count} moments
-      </Text>
-    </View>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.8}
+      style={{
+        marginLeft: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: theme.radii.full,
+        backgroundColor: "transparent",
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        alignItems: "center",
+      }}
+    >
+      <Text style={{ fontSize: 16, fontFamily: "DMSerifDisplay_400Regular", color: theme.colors.text }}>{year}</Text>
+      <Text style={{ fontSize: 9, color: theme.colors.textTertiary, marginTop: 1 }}>{count} moments</Text>
+    </TouchableOpacity>
   );
 }
 
-function MiniCalendar({
-  year, month, datesWithMoments, today,
-}: {
-  year: number; month: number; datesWithMoments: Set<string>; today: Date;
-}) {
-  const theme = useTheme();
-  const firstDay = new Date(year, month - 1, 1).getDay(); // 0=Sun
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const mm = String(month).padStart(2, "0");
-  const weekdays = ["S", "M", "T", "W", "T", "F", "S"];
-
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < firstDay; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-
-  const hasMoment = (d: number) => datesWithMoments.has(`${year}-${mm}-${String(d).padStart(2, "0")}`);
-  const isToday = (d: number) => today.getFullYear() === year && today.getMonth() + 1 === month && today.getDate() === d;
-
-  return (
-    <View style={{ paddingHorizontal: 20 }}>
-      {/* Weekday headers */}
-      <View style={{ flexDirection: "row", marginBottom: 6 }}>
-        {weekdays.map((w, i) => (
-          <Text key={i} style={{
-            flex: 1, textAlign: "center", fontSize: 9,
-            fontFamily: "DMSans_700Bold", letterSpacing: 0.5,
-            color: theme.colors.textTertiary,
-          }}>{w}</Text>
-        ))}
-      </View>
-      {/* Day grid */}
-      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-        {cells.map((d, i) => (
-          <View key={i} style={{ width: `${100 / 7}%`, aspectRatio: 1, padding: 2 }}>
-            {d ? (
-              <View style={{
-                flex: 1, borderRadius: 6, alignItems: "center", justifyContent: "center",
-                backgroundColor: hasMoment(d)
-                  ? theme.colors.accent + "33"
-                  : theme.colors.backgroundSecondary,
-                borderWidth: isToday(d) ? 1.5 : 0,
-                borderColor: theme.colors.accent,
-              }}>
-                <Text style={{
-                  fontSize: 11,
-                  fontFamily: hasMoment(d) ? "DMSans_600SemiBold" : "DMSans_400Regular",
-                  color: hasMoment(d) ? theme.colors.accent : theme.colors.textTertiary,
-                }}>{d}</Text>
-              </View>
-            ) : <View style={{ flex: 1 }} />}
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
 
 // ── search results ─────────────────────────────────────────
 
@@ -389,10 +298,6 @@ export default function BrowseScreen() {
   const [searchActive, setSearchActive] = useState(false);
   const [searchText, setSearchText] = useState("");
 
-  const today = useMemo(() => new Date(), []);
-  const currentYear = today.getFullYear();
-  const currentMonth = today.getMonth() + 1;
-
   const allMoods = useMemo(
     () => [...MOODS, ...(profile?.customMoods ?? [])],
     [profile?.customMoods]
@@ -405,51 +310,10 @@ export default function BrowseScreen() {
     staleTime: 60_000,
   });
 
-  const { data: calendarDates = [] } = useQuery({
-    queryKey: ["browseCalendar", user?.id, currentYear, currentMonth],
-    queryFn: () => fetchCalendarMonth(user!.id, currentYear, currentMonth),
-    enabled: !!user,
-    staleTime: 60_000,
-  });
-
-  const { data: recentlyPlayed = [] } = useQuery({
-    queryKey: ["recentlyPlayed"],
-    queryFn: getRecentlyPlayed,
-    enabled: !!user,
-    staleTime: 5 * 60_000,
-  });
-
-  const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null);
-
-  const handleRecentlyPlayedTap = useCallback(async (id: string, title: string, artist: string) => {
-    setLoadingTrackId(id);
-    try {
-      const results = await searchSongs(`${title} ${artist}`);
-      const match = results[0];
-      if (match) {
-        router.push({
-          pathname: "/create",
-          params: {
-            songId: match.id,
-            songTitle: match.title,
-            songArtist: match.artistName,
-            songArtworkUrl: match.artworkUrl,
-            appleMusicId: match.appleMusicId,
-          },
-        });
-      }
-    } catch {}
-    setLoadingTrackId(null);
-  }, [router]);
-
   const moodCounts = useMemo(() => deriveMoodCounts(meta), [meta]);
   const peopleCounts = useMemo(() => derivePeopleCounts(meta), [meta]);
   const yearCounts = useMemo(() => deriveYearCounts(meta), [meta]);
-  const onThisDay = useMemo(() => deriveOnThisDay(meta), [meta]);
-  const datesWithMoments = useMemo(() => new Set(calendarDates), [calendarDates]);
-
-  const daysWithMoments = calendarDates.length;
-  const monthLabel = today.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const albumCounts = useMemo(() => deriveAlbumCounts(meta), [meta]);
 
   const handleSearchClose = useCallback(() => {
     setSearchActive(false);
@@ -459,7 +323,6 @@ export default function BrowseScreen() {
   if (searchActive) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
-        {/* Search header */}
         <View style={styles.searchHeader}>
           <TouchableOpacity onPress={handleSearchClose} hitSlop={8}>
             <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
@@ -489,7 +352,6 @@ export default function BrowseScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* Header */}
       <View style={styles.header}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           {router.canGoBack() && (
@@ -504,48 +366,6 @@ export default function BrowseScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
-        {/* On This Day */}
-        {onThisDay.length > 0 && (
-          <View style={styles.section}>
-            <SectionHeader label="ON THIS DAY" />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingLeft: 8, paddingRight: 20 }}
-            >
-              {onThisDay.map((item) => (
-                <ResurfacedCard
-                  key={item.id}
-                  item={item}
-                  onPress={() => router.push({ pathname: "/moment/[id]", params: { id: item.id } })}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {/* Recently Played */}
-        {recentlyPlayed.length > 0 && (
-          <View style={styles.section}>
-            <SectionHeader label="RECENTLY PLAYED" />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingLeft: 10, paddingRight: 20 }}
-            >
-              {recentlyPlayed.map((track) => (
-                <RecentlyPlayedCard
-                  key={track.id}
-                  title={track.title}
-                  artist={track.artist}
-                  isLoading={loadingTrackId === track.id}
-                  onPress={() => handleRecentlyPlayedTap(track.id, track.title, track.artist)}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
         {/* Moods */}
         {moodCounts.length > 0 && (
           <View style={styles.section}>
@@ -579,7 +399,12 @@ export default function BrowseScreen() {
               contentContainerStyle={{ paddingLeft: 8, paddingRight: 20 }}
             >
               {peopleCounts.map(({ name, count }) => (
-                <PersonCircle key={name} name={name} count={count} />
+                <PersonCircle
+                  key={name}
+                  name={name}
+                  count={count}
+                  onPress={() => router.push({ pathname: "/browse/person", params: { name } })}
+                />
               ))}
             </ScrollView>
           </View>
@@ -599,31 +424,35 @@ export default function BrowseScreen() {
                   key={year}
                   year={year}
                   count={count}
-                  active={year === currentYear}
+                  onPress={() => router.push({ pathname: "/browse/year", params: { year: String(year) } })}
                 />
               ))}
             </ScrollView>
           </View>
         )}
 
-        {/* Calendar */}
-        <View style={styles.section}>
-          <SectionHeader
-            label="CALENDAR"
-            right={
-              <Text style={{ fontSize: 11, color: theme.colors.textTertiary }}>
-                {daysWithMoments} of {new Date(currentYear, currentMonth, 0).getDate()} days
-              </Text>
-            }
-          />
-          <Text style={styles.calendarMonthLabel}>{monthLabel}</Text>
-          <MiniCalendar
-            year={currentYear}
-            month={currentMonth}
-            datesWithMoments={datesWithMoments}
-            today={today}
-          />
-        </View>
+        {/* Albums */}
+        {albumCounts.length > 0 && (
+          <View style={styles.section}>
+            <SectionHeader label="ALBUMS" />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingLeft: 10, paddingRight: 20 }}
+            >
+              {albumCounts.map(({ albumName, artist, artworkUrl, count }) => (
+                <AlbumCard
+                  key={`${albumName}|||${artist}`}
+                  albumName={albumName}
+                  artist={artist}
+                  artworkUrl={artworkUrl}
+                  count={count}
+                  onPress={() => router.push({ pathname: "/browse/album", params: { album: albumName, artist } })}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -659,13 +488,6 @@ function createStyles(theme: Theme) {
     },
     section: {
       marginTop: 28,
-    },
-    calendarMonthLabel: {
-      fontSize: 13,
-      fontFamily: "DMSans_600SemiBold",
-      color: theme.colors.textSecondary,
-      paddingHorizontal: 20,
-      marginBottom: 10,
     },
     searchHeader: {
       flexDirection: "row",

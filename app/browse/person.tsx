@@ -8,18 +8,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
-import { MOODS } from "@/constants/Moods";
 import { setCachedMoment } from "@/lib/momentCache";
-import { fetchBrowseMetadata, fetchMoodMoments } from "@/lib/browse";
+import { fetchBrowseMetadata, fetchPersonMoments } from "@/lib/browse";
 import { DistributionBar } from "@/components/DistributionBar";
-import type { Moment } from "@/types";
 
-export default function MoodScreen() {
+export default function PersonScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { user } = useAuth();
-  const { value: initialValue } = useLocalSearchParams<{ value: string }>();
-  const [activeMood, setActiveMood] = useState(initialValue ?? "");
+  const { name: initialName } = useLocalSearchParams<{ name: string }>();
+  const [activePerson, setActivePerson] = useState(initialName ?? "");
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const { data: meta = [] } = useQuery({
@@ -30,72 +28,62 @@ export default function MoodScreen() {
   });
 
   const { data: moments = [], isLoading } = useQuery({
-    queryKey: ["moodMoments", user?.id, activeMood] as const,
-    queryFn: ({ queryKey }) => fetchMoodMoments(queryKey[1]!, queryKey[2]),
-    enabled: !!user && !!activeMood,
+    queryKey: ["personMoments", user?.id, activePerson] as const,
+    queryFn: ({ queryKey }) => fetchPersonMoments(queryKey[1]!, queryKey[2]),
+    enabled: !!user && !!activePerson,
     staleTime: 60_000,
   });
 
-  // All moods the user has actually used
-  const usedMoods = useMemo(() => {
-    const set = new Set<string>();
-    for (const m of meta) if (m.mood) set.add(m.mood);
-    return MOODS.filter((m) => set.has(m.value));
+  const allPeople = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const m of meta) {
+      for (const p of m.people) counts[p] = (counts[p] ?? 0) + 1;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name]) => name);
   }, [meta]);
-
-  const currentMood = MOODS.find((m) => m.value === activeMood);
-  const tint = theme.colors.accent;
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{moments.length} moments</Text>
-          <Text style={styles.title}>
-            {currentMood ? `${currentMood.emoji}  ${currentMood.label.toLowerCase()}` : activeMood}
-          </Text>
+          <Text style={styles.title}>{activePerson}</Text>
         </View>
       </View>
 
-      {/* Mood switcher */}
+      {/* Person switcher */}
       <FlatList
         horizontal
         showsHorizontalScrollIndicator={false}
         style={{ flexGrow: 0 }}
-        data={usedMoods}
-        keyExtractor={(m) => m.value}
+        data={allPeople}
+        keyExtractor={(p) => p}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12, gap: 6, alignItems: "center" }}
         renderItem={({ item }) => {
-          const isActive = item.value === activeMood;
+          const isActive = item === activePerson;
           return (
             <TouchableOpacity
-              onPress={() => setActiveMood(item.value)}
-              style={[
-                styles.chip,
-                isActive && { backgroundColor: theme.colors.buttonBg, borderColor: theme.colors.buttonBg },
-              ]}
+              onPress={() => setActivePerson(item)}
+              style={[styles.chip, isActive && { backgroundColor: theme.colors.buttonBg, borderColor: theme.colors.buttonBg }]}
               activeOpacity={0.7}
             >
-              <Text style={[styles.chipText, isActive && { color: theme.colors.buttonText }]}>
-                {item.emoji} {item.label}
-              </Text>
+              <Text style={[styles.chipText, isActive && { color: theme.colors.buttonText }]}>{item}</Text>
             </TouchableOpacity>
           );
         }}
       />
 
-      {/* Distribution bar */}
       {!isLoading && moments.length > 0 && (
-        <DistributionBar moments={moments} color={tint} />
+        <DistributionBar moments={moments} color={theme.colors.accent} />
       )}
 
-      {/* Moment list */}
       <FlatList
-        key={activeMood}
+        key={activePerson}
         data={moments}
         keyExtractor={(m) => m.id}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24, gap: 8 }}
@@ -109,11 +97,7 @@ export default function MoodScreen() {
             activeOpacity={0.8}
           >
             {item.songArtworkUrl ? (
-              <Image
-                source={{ uri: item.songArtworkUrl }}
-                style={styles.artwork}
-                contentFit="cover"
-              />
+              <Image source={{ uri: item.songArtworkUrl }} style={styles.artwork} contentFit="cover" />
             ) : (
               <View style={[styles.artwork, { backgroundColor: theme.colors.backgroundSecondary }]} />
             )}
@@ -149,10 +133,7 @@ export default function MoodScreen() {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
+    container: { flex: 1, backgroundColor: theme.colors.background },
     header: {
       flexDirection: "row",
       alignItems: "center",
@@ -162,71 +143,26 @@ function createStyles(theme: Theme) {
       gap: 8,
     },
     backBtn: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
+      width: 34, height: 34, borderRadius: 17,
       backgroundColor: theme.colors.cardBg,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems: "center", justifyContent: "center",
     },
-    eyebrow: {
-      fontSize: 10,
-      fontFamily: "DMSans_700Bold",
-      letterSpacing: 1,
-      color: theme.colors.textTertiary,
-    },
-    title: {
-      fontSize: 24,
-      fontFamily: "DMSerifDisplay_400Regular",
-      color: theme.colors.text,
-    },
+    eyebrow: { fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1, color: theme.colors.textTertiary },
+    title: { fontSize: 24, fontFamily: "DMSerifDisplay_400Regular", color: theme.colors.text },
     chip: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: theme.radii.full,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
+      paddingHorizontal: 12, paddingVertical: 6,
+      borderRadius: theme.radii.full, borderWidth: 1, borderColor: theme.colors.border,
     },
-    chipText: {
-      fontSize: 13,
-      fontFamily: "DMSans_500Medium",
-      color: theme.colors.text,
-    },
+    chipText: { fontSize: 13, fontFamily: "DMSans_500Medium", color: theme.colors.text },
     momentRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 11,
-      backgroundColor: theme.colors.cardBg,
-      borderRadius: theme.radii.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      padding: 10,
+      flexDirection: "row", alignItems: "center", gap: 11,
+      backgroundColor: theme.colors.cardBg, borderRadius: theme.radii.md,
+      borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border, padding: 10,
     },
-    artwork: {
-      width: 44,
-      height: 44,
-      borderRadius: 6,
-    },
-    songTitle: {
-      fontSize: 14,
-      fontFamily: "DMSans_600SemiBold",
-      color: theme.colors.text,
-    },
-    songArtist: {
-      fontSize: 12,
-      color: theme.colors.textSecondary,
-      marginTop: 1,
-    },
-    reflection: {
-      fontSize: 12,
-      color: theme.colors.textTertiary,
-      fontStyle: "italic",
-      marginTop: 3,
-    },
-    date: {
-      fontSize: 11,
-      color: theme.colors.textTertiary,
-      flexShrink: 0,
-    },
+    artwork: { width: 44, height: 44, borderRadius: 6 },
+    songTitle: { fontSize: 14, fontFamily: "DMSans_600SemiBold", color: theme.colors.text },
+    songArtist: { fontSize: 12, color: theme.colors.textSecondary, marginTop: 1 },
+    reflection: { fontSize: 12, color: theme.colors.textTertiary, fontStyle: "italic", marginTop: 3 },
+    date: { fontSize: 11, color: theme.colors.textTertiary, flexShrink: 0 },
   });
 }
