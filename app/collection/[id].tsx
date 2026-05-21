@@ -186,7 +186,7 @@ export default function CollectionDetailScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator />
+        <ActivityIndicator color={theme.colors.accent} />
       </View>
     );
   }

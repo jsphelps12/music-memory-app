@@ -20,8 +20,7 @@ async function sendBatch(messages: ExpoPushMessage[]): Promise<void> {
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(batch),
     });
-    const json = await res.json();
-    console.log("Expo push response:", JSON.stringify(json));
+    await res.json();
   }
 }
 
@@ -89,9 +88,6 @@ Deno.serve(async (req) => {
     )
     .not("push_token", "is", null);
 
-  console.log("tokenUsers count:", tokenUsers?.length ?? 0);
-  if (tokenErr) console.log("tokenErr:", tokenErr.message);
-
   if (tokenErr || !tokenUsers || tokenUsers.length === 0) {
     return new Response(JSON.stringify({ sent: 0, error: tokenErr?.message }), {
       headers: { "Content-Type": "application/json" },
@@ -103,8 +99,6 @@ Deno.serve(async (req) => {
     const localHour = getLocalHour(now, u.timezone || "UTC");
     return localHour === 10;
   });
-
-  console.log("eligibleUsers count:", eligibleUsers.length);
 
   if (eligibleUsers.length === 0) {
     return new Response(JSON.stringify({ sent: 0, skipped: tokenUsers.length }), {
@@ -393,8 +387,6 @@ Deno.serve(async (req) => {
       assignedUserIds.add(userId);
     }
   }
-
-  console.log("messages to send:", JSON.stringify(messages));
 
   if (messages.length > 0) {
     await sendBatch(messages);

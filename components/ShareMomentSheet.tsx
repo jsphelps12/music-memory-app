@@ -241,10 +241,10 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
                   onPress={handleSendLink}
                   disabled={sendingLink}
                 >
-                  <View style={[styles.iconBox, { backgroundColor: "#4A90E220" }]}>
+                  <View style={[styles.iconBox, { backgroundColor: theme.colors.accent + "20" }]}>
                     {sendingLink
-                      ? <ActivityIndicator size="small" color="#4A90E2" />
-                      : <Ionicons name="link-outline" size={20} color="#4A90E2" />
+                      ? <ActivityIndicator size="small" color={theme.colors.accent} />
+                      : <Ionicons name="link-outline" size={20} color={theme.colors.accent} />
                     }
                   </View>
                   <View style={styles.optionText}>

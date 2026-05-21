@@ -7,7 +7,7 @@ export default function SoonScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Ionicons name="sparkles-outline" size={48} color={theme.colors.textTertiary} />
-      <Text style={[styles.title, { color: theme.colors.text }]}>Coming Soon</Text>
+      <Text style={[styles.title, { color: theme.colors.text, fontFamily: theme.fonts.display }]}>Coming Soon</Text>
       <Text style={[styles.sub, { color: theme.colors.textSecondary }]}>
         Something new is on its way.
       </Text>
@@ -25,7 +25,6 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontFamily: "DMSerifDisplay_400Regular",
   },
   sub: {
     fontSize: 15,

@@ -209,7 +209,7 @@ export default function FriendsListScreen() {
                       activeOpacity={0.8}
                     >
                       {acting === friendship.id ? (
-                        <ActivityIndicator size="small" color="#fff" />
+                        <ActivityIndicator size="small" color={theme.colors.buttonText} />
                       ) : (
                         <Text style={s.acceptBtnText}>Accept</Text>
                       )}

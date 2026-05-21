@@ -158,7 +158,7 @@ export function NewSharedCollectionModal({ visible, onClose, userId }: Props) {
             activeOpacity={0.8}
           >
             {loading ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={theme.colors.buttonText} />
             ) : (
               <Text style={styles.createBtnText}>Create</Text>
             )}

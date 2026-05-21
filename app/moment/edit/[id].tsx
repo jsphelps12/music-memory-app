@@ -475,7 +475,7 @@ export default function EditMomentScreen() {
           activeOpacity={0.7}
         >
           {loading ? (
-            <ActivityIndicator color="#0F0D0B" />
+            <ActivityIndicator color={theme.colors.buttonText} />
           ) : (
             <Text style={styles.saveButtonText}>Save Changes</Text>
           )}

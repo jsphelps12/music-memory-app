@@ -33,6 +33,7 @@ import {
 } from "@/lib/collections";
 import { Collection } from "@/types";
 import { friendlyError } from "@/lib/errors";
+import { pluralMoments } from "@/lib/utils";
 
 const GRID_GAP = 12;
 const SCREEN_PAD = 16;
@@ -80,24 +81,29 @@ function CollectionCell({
           </LinearGradient>
         )}
         {newCount > 0 && (
-          <View style={styles.newBadge}>
-            <Text style={styles.newBadgeText}>{newCount} new</Text>
+          <View style={[styles.newBadge, { backgroundColor: theme.colors.accent }]}>
+            <Text style={[styles.newBadgeText, { fontFamily: theme.fonts.bodyBold }]}>{newCount} new</Text>
           </View>
         )}
       </View>
-      <Text style={[styles.cellName, { color: theme.colors.text }]} numberOfLines={1}>
+      <Text style={[styles.cellName, { color: theme.colors.text, fontFamily: theme.fonts.bodySemibold }]} numberOfLines={1}>
         {collection.name}
       </Text>
       <Text style={[styles.cellSub, { color: theme.colors.textSecondary }]} numberOfLines={1}>
         {collection.role === "member" && collection.ownerName
-          ? `by ${collection.ownerName} · ${collection.momentCount} ${collection.momentCount === 1 ? "moment" : "moments"}`
+          ? `by ${collection.ownerName} · ${pluralMoments(collection.momentCount)}`
           : collection.isPublic
-          ? `Shared · ${collection.momentCount} ${collection.momentCount === 1 ? "moment" : "moments"}`
-          : `${collection.momentCount} ${collection.momentCount === 1 ? "moment" : "moments"}`}
+          ? `Shared · ${pluralMoments(collection.momentCount)}`
+          : pluralMoments(collection.momentCount)}
       </Text>
     </TouchableOpacity>
   );
 }
+
+type SectionItem =
+  | { type: "invites" }
+  | { type: "sectionHeader"; label: string }
+  | { type: "row"; items: Collection[] };
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
@@ -105,22 +111,23 @@ export default function CollectionsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const theme = useTheme();
-  const styles2 = useMemo(() => createStyles(theme), [theme]);
+  const dynamicStyles = useMemo(() => createStyles(theme), [theme]);
   const queryClient = useQueryClient();
 
   const [newCollectionVisible, setNewCollectionVisible] = useState(false);
   const [respondingInviteId, setRespondingInviteId] = useState<string | null>(null);
 
-  const { data, isLoading, refetch, isFetching } = useQuery({
+  const STALE_TIME = 2 * 60 * 1000;
+  const { data, isLoading, refetch, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["collectionsScreen", user?.id],
     queryFn: () => fetchCollectionsScreen(user!.id),
-    staleTime: 2 * 60 * 1000,
+    staleTime: STALE_TIME,
     enabled: !!user,
   });
 
   useFocusEffect(useCallback(() => {
-    refetch();
-  }, [refetch]));
+    if (Date.now() - dataUpdatedAt > STALE_TIME) refetch();
+  }, [refetch, dataUpdatedAt]));
 
   const collections = data?.collections ?? [];
   const activityMap = data?.activityMap ?? new Map();
@@ -131,7 +138,7 @@ export default function CollectionsScreen() {
     [collections]
   );
   const sharedCollections = useMemo(
-    () => collections.filter((c) => c.role === "owner" && c.isPublic || c.role === "member"),
+    () => collections.filter((c) => (c.role === "owner" && c.isPublic) || c.role === "member"),
     [collections]
   );
 
@@ -140,7 +147,18 @@ export default function CollectionsScreen() {
     setRespondingInviteId(invite.id);
     try {
       await acceptCollectionInvite(invite.id, invite.collectionId, user.id);
-      queryClient.invalidateQueries({ queryKey: ["collectionsScreen", user.id] });
+      // Don't invalidate — re-fetching invites hits the replication lag window on the DELETE.
+      // Fetch only collections (INSERT replicates first) and write both changes atomically.
+      const updatedCollections = await fetchCollections(user.id);
+      queryClient.setQueryData(["collectionsScreen", user.id], (old: any) =>
+        old
+          ? {
+              ...old,
+              collections: updatedCollections,
+              invites: old.invites.filter((i: CollectionInvite) => i.id !== invite.id),
+            }
+          : old
+      );
     } catch (e: any) {
       Alert.alert("Error", friendlyError(e));
     } finally {
@@ -171,42 +189,110 @@ export default function CollectionsScreen() {
     queryClient.invalidateQueries({ queryKey: ["collectionsScreen", user?.id] });
   }, [queryClient, user?.id]);
 
+  const isEmpty = personalCollections.length === 0 && sharedCollections.length === 0 && invites.length === 0;
+
+  const listData = useMemo<SectionItem[]>(() => {
+    const rows: SectionItem[] = [];
+    if (invites.length > 0) rows.push({ type: "invites" });
+    if (personalCollections.length > 0) {
+      rows.push({ type: "sectionHeader", label: "MY COLLECTIONS" });
+      for (let i = 0; i < personalCollections.length; i += 2) {
+        rows.push({ type: "row", items: personalCollections.slice(i, i + 2) });
+      }
+    }
+    if (sharedCollections.length > 0) {
+      rows.push({ type: "sectionHeader", label: "SHARED" });
+      for (let i = 0; i < sharedCollections.length; i += 2) {
+        rows.push({ type: "row", items: sharedCollections.slice(i, i + 2) });
+      }
+    }
+    return rows;
+  }, [invites, personalCollections, sharedCollections]);
+
+  const renderItem = useCallback(({ item }: { item: SectionItem }) => {
+    if (item.type === "invites") {
+      return (
+        <View style={[dynamicStyles.inviteCard, { backgroundColor: theme.colors.cardBg, borderColor: theme.colors.border }]}>
+          {invites.map((invite, i) => (
+            <View key={invite.id} style={[dynamicStyles.inviteRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border }]}>
+              <View style={[dynamicStyles.inviteIcon, { backgroundColor: theme.colors.accentSecondaryBg }]}>
+                <Ionicons name="people-outline" size={16} color={theme.colors.accentSecondary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[dynamicStyles.inviteName, { color: theme.colors.text }]} numberOfLines={1}>
+                  {invite.collectionName}
+                </Text>
+                {invite.inviterName ? (
+                  <Text style={[dynamicStyles.inviteSub, { color: theme.colors.textSecondary }]}>
+                    Invited by {invite.inviterName}
+                  </Text>
+                ) : null}
+              </View>
+              <View style={dynamicStyles.inviteActions}>
+                <TouchableOpacity
+                  style={[dynamicStyles.inviteBtn, { borderColor: theme.colors.border }]}
+                  onPress={() => handleDeclineInvite(invite.id)}
+                  disabled={respondingInviteId === invite.id}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[dynamicStyles.inviteBtnText, { color: theme.colors.textSecondary }]}>Decline</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[dynamicStyles.inviteBtn, dynamicStyles.inviteBtnAccept, { backgroundColor: theme.colors.accentSecondary }]}
+                  onPress={() => handleAcceptInvite(invite)}
+                  disabled={respondingInviteId === invite.id}
+                  activeOpacity={0.8}
+                >
+                  {respondingInviteId === invite.id ? (
+                    <ActivityIndicator size="small" color={theme.colors.buttonText} />
+                  ) : (
+                    <Text style={[dynamicStyles.inviteBtnText, { color: "#fff" }]}>Accept</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+        </View>
+      );
+    }
+
+    if (item.type === "sectionHeader") {
+      return (
+        <Text style={[dynamicStyles.sectionLabel, { color: theme.colors.textTertiary }]}>
+          {item.label}
+        </Text>
+      );
+    }
+
+    return (
+      <View style={dynamicStyles.gridRow}>
+        {item.items.map((col) => (
+          <CollectionCell
+            key={col.id}
+            collection={col}
+            newCount={activityMap.get(col.id) ?? 0}
+            onPress={() => handleTapCollection(col)}
+            theme={theme}
+          />
+        ))}
+        {item.items.length === 1 && <View style={styles.cell} />}
+      </View>
+    );
+  }, [invites, activityMap, dynamicStyles, theme, handleDeclineInvite, handleAcceptInvite, handleTapCollection, respondingInviteId]);
+
   if (isLoading) {
     return (
-      <View style={[styles2.container, styles2.center]}>
-        <ActivityIndicator />
+      <View style={[dynamicStyles.container, dynamicStyles.center]}>
+        <ActivityIndicator color={theme.colors.accent} />
       </View>
     );
   }
 
-  const isEmpty = personalCollections.length === 0 && sharedCollections.length === 0 && invites.length === 0;
-
-  type SectionItem =
-    | { type: "invites" }
-    | { type: "sectionHeader"; label: string }
-    | { type: "row"; items: Collection[] };
-
-  const listData: SectionItem[] = [];
-  if (invites.length > 0) listData.push({ type: "invites" });
-
-  if (personalCollections.length > 0) {
-    listData.push({ type: "sectionHeader", label: "MY COLLECTIONS" });
-    for (let i = 0; i < personalCollections.length; i += 2) {
-      listData.push({ type: "row", items: personalCollections.slice(i, i + 2) });
-    }
-  }
-  if (sharedCollections.length > 0) {
-    listData.push({ type: "sectionHeader", label: "SHARED" });
-    for (let i = 0; i < sharedCollections.length; i += 2) {
-      listData.push({ type: "row", items: sharedCollections.slice(i, i + 2) });
-    }
-  }
-
   return (
-    <View style={[styles2.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[dynamicStyles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
-      <View style={[styles2.header, { borderBottomColor: theme.colors.border }]}>
-        <Text style={[styles2.headerTitle, { color: theme.colors.text }]}>Collections</Text>
+      <View style={[dynamicStyles.header, { borderBottomColor: theme.colors.border }]}>
+        <Text style={[dynamicStyles.headerTitle, { color: theme.colors.text }]}>Collections</Text>
         <TouchableOpacity onPress={() => setNewCollectionVisible(true)} hitSlop={8} activeOpacity={0.7}>
           <Ionicons name="add-circle-outline" size={26} color={theme.colors.text} />
         </TouchableOpacity>
@@ -223,82 +309,12 @@ export default function CollectionsScreen() {
         <FlatList
           data={listData}
           keyExtractor={(item, i) => `${item.type}-${i}`}
-          contentContainerStyle={styles2.listContent}
+          contentContainerStyle={dynamicStyles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} tintColor={theme.colors.accent} />
           }
-          renderItem={({ item }) => {
-            if (item.type === "invites") {
-              return (
-                <View style={[styles2.inviteCard, { backgroundColor: theme.colors.cardBg, borderColor: theme.colors.border }]}>
-                  {invites.map((invite, i) => (
-                    <View key={invite.id} style={[styles2.inviteRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border }]}>
-                      <View style={[styles2.inviteIcon, { backgroundColor: theme.colors.accentSecondaryBg }]}>
-                        <Ionicons name="people-outline" size={16} color={theme.colors.accentSecondary} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles2.inviteName, { color: theme.colors.text }]} numberOfLines={1}>
-                          {invite.collectionName}
-                        </Text>
-                        {invite.inviterName ? (
-                          <Text style={[styles2.inviteSub, { color: theme.colors.textSecondary }]}>
-                            Invited by {invite.inviterName}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <View style={styles2.inviteActions}>
-                        <TouchableOpacity
-                          style={[styles2.inviteBtn, { borderColor: theme.colors.border }]}
-                          onPress={() => handleDeclineInvite(invite.id)}
-                          disabled={respondingInviteId === invite.id}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={[styles2.inviteBtnText, { color: theme.colors.textSecondary }]}>Decline</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles2.inviteBtn, styles2.inviteBtnAccept, { backgroundColor: theme.colors.accentSecondary }]}
-                          onPress={() => handleAcceptInvite(invite)}
-                          disabled={respondingInviteId === invite.id}
-                          activeOpacity={0.8}
-                        >
-                          {respondingInviteId === invite.id ? (
-                            <ActivityIndicator size="small" color="#fff" />
-                          ) : (
-                            <Text style={[styles2.inviteBtnText, { color: "#fff" }]}>Accept</Text>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              );
-            }
-
-            if (item.type === "sectionHeader") {
-              return (
-                <Text style={[styles2.sectionLabel, { color: theme.colors.textTertiary }]}>
-                  {item.label}
-                </Text>
-              );
-            }
-
-            // row
-            return (
-              <View style={styles2.gridRow}>
-                {item.items.map((col) => (
-                  <CollectionCell
-                    key={col.id}
-                    collection={col}
-                    newCount={activityMap.get(col.id) ?? 0}
-                    onPress={() => handleTapCollection(col)}
-                    theme={theme}
-                  />
-                ))}
-                {item.items.length === 1 && <View style={styles2.cell} />}
-              </View>
-            );
-          }}
+          renderItem={renderItem}
         />
       )}
 
@@ -416,7 +432,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 6,
     right: 6,
-    backgroundColor: "#E8825C",
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 10,
@@ -424,11 +439,9 @@ const styles = StyleSheet.create({
   newBadgeText: {
     color: "#fff",
     fontSize: 10,
-    fontFamily: "DMSans_700Bold",
   },
   cellName: {
     fontSize: 13,
-    fontFamily: "DMSans_600SemiBold",
     marginTop: 7,
   },
   cellSub: {

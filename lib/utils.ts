@@ -1,3 +1,8 @@
+export function pluralMoments(n: number | undefined): string {
+  const count = n ?? 0;
+  return `${count} ${count === 1 ? "moment" : "moments"}`;
+}
+
 /** Returns the most frequent non-null value in an array, or null if empty. */
 export function topValue(items: (string | null | undefined)[]): string | null {
   const freq = new Map<string, number>();

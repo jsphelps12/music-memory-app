@@ -11,6 +11,7 @@ import {
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
+import { CloseButton } from "@/components/CloseButton";
 import { createCollection } from "@/lib/collections";
 import { Collection } from "@/types";
 import { friendlyError } from "@/lib/errors";
@@ -74,7 +75,10 @@ export function CreateCollectionModal({ visible, userId, onCreated, onClose }: P
         >
           <Pressable style={styles.flex} onPress={handleClose} />
           <View style={[styles.card, { backgroundColor: theme.colors.cardBg }]}>
-            <Text style={[styles.title, { color: theme.colors.text }]}>New Collection</Text>
+            <View style={styles.header}>
+              <Text style={[styles.title, { color: theme.colors.text }]}>New Collection</Text>
+              <CloseButton onPress={handleClose} />
+            </View>
 
             {/* Type selector */}
             <View style={[styles.typeRow, { backgroundColor: theme.colors.backgroundInput }]}>
@@ -196,6 +200,11 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: 44,
     gap: 14,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   title: {
     fontSize: 18,

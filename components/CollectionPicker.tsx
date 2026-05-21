@@ -13,6 +13,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from 
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
+import { CloseButton } from "@/components/CloseButton";
 import { Collection } from "@/types";
 import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
 
@@ -118,9 +119,12 @@ export function CollectionPicker({
             hitSlop={{ top: 12, bottom: 16, left: 120, right: 120 }}
           />
         </GestureDetector>
-        <Text style={[styles.sheetTitle, { color: theme.colors.textSecondary }]}>
-          Collections
-        </Text>
+        <View style={styles.sheetHeader}>
+          <Text style={[styles.sheetTitle, { color: theme.colors.textSecondary }]}>
+            Collections
+          </Text>
+          <CloseButton onPress={onClose} />
+        </View>
 
         {/* New Collection — pinned above the scroll list */}
         <TouchableOpacity
@@ -246,13 +250,18 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 4,
   },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
   sheetTitle: {
     fontSize: 12,
     fontFamily: "DMSans_600SemiBold",
     textTransform: "uppercase",
     letterSpacing: 0.8,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
   },
   newCollectionBtn: {
     flexDirection: "row",
