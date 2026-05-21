@@ -70,7 +70,7 @@ export default function AlbumScreen() {
         style={{ flexGrow: 0 }}
         data={allAlbums}
         keyExtractor={(a) => `${a.albumName}|||${a.artist}`}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12, gap: 6, alignItems: "center" }}
+        contentContainerStyle={{ paddingLeft: 16, paddingRight: 24, paddingBottom: 12, gap: 6, alignItems: "center" }}
         renderItem={({ item }) => {
           const key = `${item.albumName}|||${item.artist}`;
           const isActive = key === activeKey;
@@ -165,8 +165,8 @@ function createStyles(theme: Theme) {
     subtitle: { fontSize: 13, color: theme.colors.textSecondary, marginTop: 1 },
     chip: {
       flexDirection: "row", alignItems: "center", gap: 6,
-      paddingHorizontal: 10, paddingVertical: 6,
-      borderRadius: theme.radii.full, borderWidth: 1, borderColor: theme.colors.border,
+      paddingHorizontal: 10, paddingVertical: 8, minHeight: 34,
+      borderRadius: theme.radii.md, borderWidth: 1, borderColor: theme.colors.border,
     },
     chipArt: { width: 20, height: 20, borderRadius: 3 },
     chipText: { fontSize: 13, fontFamily: "DMSans_500Medium", color: theme.colors.text, maxWidth: 120 },

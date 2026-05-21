@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -25,7 +25,6 @@ import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { fetchBrowseMetadata, BrowseMeta } from "@/lib/browse";
 import type { Moment } from "@/types";
 import { EmptyState } from "@/components/EmptyState";
-import { IconButton } from "@/components/IconButton";
 
 
 // ── helpers ────────────────────────────────────────────────
@@ -297,6 +296,7 @@ export default function BrowseScreen() {
 
   const [searchActive, setSearchActive] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const searchInputRef = useRef<TextInput>(null);
 
   const allMoods = useMemo(
     () => [...MOODS, ...(profile?.customMoods ?? [])],
@@ -318,53 +318,56 @@ export default function BrowseScreen() {
   const handleSearchClose = useCallback(() => {
     setSearchActive(false);
     setSearchText("");
+    searchInputRef.current?.blur();
   }, []);
-
-  if (searchActive) {
-    return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.searchHeader}>
-          <TouchableOpacity onPress={handleSearchClose} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
-          </TouchableOpacity>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search songs, reflections, artists…"
-            placeholderTextColor={theme.colors.placeholder}
-            cursorColor={theme.colors.accent}
-            value={searchText}
-            onChangeText={setSearchText}
-            autoFocus
-            autoCorrect={false}
-            autoCapitalize="none"
-            returnKeyType="search"
-          />
-          {searchText.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchText("")} hitSlop={8}>
-              <Ionicons name="close-circle" size={18} color={theme.colors.placeholder} />
-            </TouchableOpacity>
-          )}
-        </View>
-        <SearchResults query={searchText} userId={user?.id ?? ""} allMoods={allMoods} />
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           {router.canGoBack() && (
-            <IconButton name="chevron-back" onPress={() => router.back()} />
+            <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
+              <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
+            </TouchableOpacity>
           )}
           <View>
             <Text style={styles.eyebrow}>THE ARCHIVE</Text>
             <Text style={styles.title}>browse</Text>
           </View>
         </View>
-        <IconButton name="search-outline" onPress={() => setSearchActive(true)} />
       </View>
 
+      {/* Always-visible search bar */}
+      <View style={styles.searchBarWrapper}>
+        <Ionicons name="search-outline" size={16} color={theme.colors.textTertiary} style={{ marginLeft: 12 }} />
+        <TextInput
+          ref={searchInputRef}
+          style={styles.searchBarInput}
+          placeholder="Search songs, artists, reflections…"
+          placeholderTextColor={theme.colors.placeholder}
+          cursorColor={theme.colors.accent}
+          value={searchText}
+          onChangeText={(t) => { setSearchText(t); if (!searchActive) setSearchActive(true); }}
+          onFocus={() => setSearchActive(true)}
+          autoCorrect={false}
+          autoCapitalize="none"
+          returnKeyType="search"
+        />
+        {searchActive ? (
+          <TouchableOpacity onPress={handleSearchClose} hitSlop={8} style={{ marginRight: 12 }}>
+            <Text style={{ fontSize: 14, fontFamily: "DMSans_500Medium", color: theme.colors.accent }}>Cancel</Text>
+          </TouchableOpacity>
+        ) : null}
+        {searchText.length > 0 && !searchActive ? (
+          <TouchableOpacity onPress={() => setSearchText("")} hitSlop={8} style={{ marginRight: 12 }}>
+            <Ionicons name="close-circle" size={16} color={theme.colors.placeholder} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      {searchActive ? (
+        <SearchResults query={searchText} userId={user?.id ?? ""} allMoods={allMoods} />
+      ) : (
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
         {/* Moods */}
         {moodCounts.length > 0 && (
@@ -454,6 +457,7 @@ export default function BrowseScreen() {
           </View>
         )}
       </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -467,7 +471,6 @@ function createStyles(theme: Theme) {
     header: {
       flexDirection: "row",
       alignItems: "flex-start",
-      justifyContent: "space-between",
       paddingHorizontal: 20,
       paddingTop: theme.spacing.md,
       paddingBottom: theme.spacing.sm,
@@ -489,20 +492,29 @@ function createStyles(theme: Theme) {
     section: {
       marginTop: 28,
     },
-    searchHeader: {
+    backBtn: {
+      width: 34, height: 34, borderRadius: 17,
+      backgroundColor: theme.colors.cardBg,
+      alignItems: "center", justifyContent: "center",
+    },
+    searchBarWrapper: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.border,
+      marginHorizontal: 16,
+      marginTop: 10,
+      marginBottom: 4,
+      backgroundColor: theme.colors.cardBg,
+      borderRadius: theme.radii.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+      gap: 8,
     },
-    searchInput: {
+    searchBarInput: {
       flex: 1,
-      fontSize: 16,
+      fontSize: 15,
       fontFamily: "DMSans_400Regular",
       color: theme.colors.text,
+      paddingVertical: 10,
     },
   });
 }

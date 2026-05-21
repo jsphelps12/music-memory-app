@@ -66,7 +66,7 @@ export default function YearScreen() {
         style={{ flexGrow: 0 }}
         data={allYears}
         keyExtractor={(y) => String(y)}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12, gap: 6, alignItems: "center" }}
+        contentContainerStyle={{ paddingLeft: 16, paddingRight: 24, paddingBottom: 12, gap: 6, alignItems: "center" }}
         renderItem={({ item }) => {
           const isActive = item === activeYear;
           return (
@@ -153,8 +153,8 @@ function createStyles(theme: Theme) {
     eyebrow: { fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1, color: theme.colors.textTertiary },
     title: { fontSize: 24, fontFamily: "DMSerifDisplay_400Regular", color: theme.colors.text },
     chip: {
-      paddingHorizontal: 12, paddingVertical: 6,
-      borderRadius: theme.radii.full, borderWidth: 1, borderColor: theme.colors.border,
+      paddingHorizontal: 12, paddingVertical: 8, minHeight: 34,
+      borderRadius: theme.radii.md, borderWidth: 1, borderColor: theme.colors.border,
     },
     chipText: { fontSize: 13, fontFamily: "DMSans_500Medium", color: theme.colors.text },
     momentRow: {
