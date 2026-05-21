@@ -307,7 +307,7 @@ Ordered by impact across growth (new users), retention (keep existing), and reve
 |----------|---------|--------|-----------|-------|
 | 1 | ~~Friends (Phase C)~~ | ~~Growth + Retention~~ | ~~🟡~~ | ✅ Shipped April 2026 — friend invite links, direct accept, push notification, tagged moments. |
 | 1b | ~~Tab redesign~~ | ~~Retention~~ | ~~🟡~~ | ✅ Shipped May 2026 — Browse tab, Shared tab redesign, center capture button, tab swiping, onboarding rebuild, TanStack Query migration. |
-| 2 | Share Profile | Growth | 🟢 | Public profile page (web + deep link) showing display name, avatar, moment count, and a few public highlights. Primary use case: making connections — replaces swapping profile links with a shareable card/URL that can actually convert. |
+| 2 | ~~Share Profile~~ | ~~Growth~~ | ~~🟢~~ | ✅ Shipped May 2026 — share button on profile screen (person-add icon) shares `soundtracks.app/friend/{token}` via native share sheet; receiver lands on existing friend invite web page. |
 | 3 | Wedding refinement | Growth + Revenue | 🟡 | Shareable card generator, vanity short URLs, wedding collection template, post-event claim flow, PDF book export. Builds on shipped web contribution flow. |
 | 4 | Spotify integration (iOS) | Growth | 🟡 | **Moved up from #13.** Currently cuts out ~60% of TAM. 80/20 version: store `spotify_track_id` on moments + deep link out to Spotify app (`spotify:track:{id}`) — no SDK required. Show Spotify icon on moments with a Spotify ID. Full SDK (in-app playback) is a separate follow-on effort. |
 | 5 | Notification refinement | Retention | 🟡 | Tap-rate tracking per type, timing optimization, unengaged user suppression, deep link targets, A/B copy. |

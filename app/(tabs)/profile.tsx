@@ -10,6 +10,7 @@ import {
   Alert,
   ScrollView,
   RefreshControl,
+  Share,
   Switch,
   Linking,
 } from "react-native";
@@ -185,6 +186,12 @@ export default function ProfileScreen() {
     await refetch();
   }, [refetch, refreshProfile]);
 
+  const handleShareProfile = useCallback(() => {
+    if (!profile?.friendInviteToken) return;
+    const url = `https://soundtracks.app/friend/${profile.friendInviteToken}`;
+    Share.share({ message: url, url });
+  }, [profile?.friendInviteToken]);
+
   const handleDeleteAccount = () => {
     Alert.alert(
       "Delete Account",
@@ -304,6 +311,7 @@ export default function ProfileScreen() {
         <Text style={styles.screenTitle}>Profile</Text>
         <View style={styles.headerButtons}>
           <IconButton name="help-circle-outline" onPress={() => router.push("/help")} />
+          <IconButton name="person-add-outline" onPress={handleShareProfile} />
           <IconButton name="settings-outline" onPress={() => router.push("/profile-edit")} />
         </View>
       </View>
