@@ -21,6 +21,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { EmptyState } from "@/components/EmptyState";
+import { IconButton } from "@/components/IconButton";
 import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import {
   fetchCollections,
@@ -293,9 +294,7 @@ export default function CollectionsScreen() {
       {/* Header */}
       <View style={[dynamicStyles.header, { borderBottomColor: theme.colors.border }]}>
         <Text style={[dynamicStyles.headerTitle, { color: theme.colors.text }]}>Collections</Text>
-        <TouchableOpacity onPress={() => setNewCollectionVisible(true)} hitSlop={8} activeOpacity={0.7}>
-          <Ionicons name="add-circle-outline" size={26} color={theme.colors.text} />
-        </TouchableOpacity>
+        <IconButton name="add-outline" onPress={() => setNewCollectionVisible(true)} />
       </View>
 
       {isEmpty ? (
