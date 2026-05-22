@@ -5,7 +5,6 @@ import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { handleAuthDeepLink } from "@/lib/auth-linking";
-import { fetchProfileByFriendToken } from "@/lib/friends";
 import { supabase } from "@/lib/supabase";
 
 export const PENDING_INVITE_CODE_KEY = "pending_invite_code";

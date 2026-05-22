@@ -21,7 +21,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/lib/supabase";
 import { extractExifFromPath } from "@/lib/photoMetadata";
 import { saveMoment } from "@/lib/saveMoment";
 import { MoodSelector } from "@/components/MoodSelector";

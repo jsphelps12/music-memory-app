@@ -9,7 +9,6 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { getNowPlaying, onNowPlayingChange } from "@/lib/now-playing";
 import { searchSongs } from "@/lib/musickit";

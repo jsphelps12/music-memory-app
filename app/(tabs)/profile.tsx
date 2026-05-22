@@ -148,6 +148,7 @@ export default function ProfileScreen() {
   const [notifPrompts, setNotifPrompts] = useState(true);
   const [notifResurfacing, setNotifResurfacing] = useState(true);
   const [notifMilestones, setNotifMilestones] = useState(true);
+  const [savingNotifField, setSavingNotifField] = useState<string | null>(null);
 
   const { data, isLoading, isError, error, refetch, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["profileStats", user?.id],
@@ -233,14 +234,16 @@ export default function ProfileScreen() {
     field: "notif_on_this_day" | "notif_streak" | "notif_prompts" | "notif_resurfacing" | "notif_milestones",
     value: boolean
   ) => {
-    if (!user) return;
+    if (!user || savingNotifField !== null) return;
     if (field === "notif_on_this_day") setNotifOnThisDay(value);
     if (field === "notif_streak") setNotifStreak(value);
     if (field === "notif_prompts") setNotifPrompts(value);
     if (field === "notif_resurfacing") setNotifResurfacing(value);
     if (field === "notif_milestones") setNotifMilestones(value);
     posthog.capture("notification_preferences_changed", { notification_type: field, enabled: value });
+    setSavingNotifField(field);
     const { error } = await supabase.from("profiles").update({ [field]: value }).eq("id", user.id);
+    setSavingNotifField(null);
     if (error) {
       // Roll back optimistic update
       if (field === "notif_on_this_day") setNotifOnThisDay(!value);
@@ -251,7 +254,7 @@ export default function ProfileScreen() {
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-  }, [user, posthog]);
+  }, [user, posthog, savingNotifField]);
 
   const handleSignOut = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -633,6 +636,7 @@ export default function ProfileScreen() {
                     <Switch
                       value={value}
                       onValueChange={(v) => handleNotifToggle(field, v)}
+                      disabled={savingNotifField !== null}
                       trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
                       thumbColor="#fff"
                     />

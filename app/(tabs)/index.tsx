@@ -10,7 +10,6 @@ import {
   FlatList,
   ActivityIndicator,
 } from "react-native";
-import { Image } from "expo-image";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -18,7 +17,6 @@ import Animated, {
   runOnJS,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";

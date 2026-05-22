@@ -15,7 +15,7 @@ import { Theme } from "@/constants/theme";
 import { CloseButton } from "@/components/CloseButton";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { friendlyError } from "@/lib/errors";
-import { fetchProfileByFriendToken, acceptFriendInvite, ProfileResult } from "@/lib/friends";
+import { fetchProfileByFriendToken, acceptFriendInvite } from "@/lib/friends";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function FriendRequestScreen() {
