@@ -125,6 +125,34 @@ export default function Home() {
           box-shadow: 0 12px 32px rgba(232,130,92,0.35);
         }
 
+        /* Hero phone mockup */
+        .hero-phone {
+          position: absolute;
+          right: clamp(32px, 6vw, 80px);
+          top: 50%;
+          transform: translateY(-46%);
+          width: clamp(200px, 22vw, 280px);
+          border-radius: 36px;
+          box-shadow: 0 32px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06);
+          z-index: 3;
+          pointer-events: none;
+          display: block;
+        }
+        @media (max-width: 900px) {
+          .hero-phone { display: none; }
+        }
+
+        /* Step phone screenshots */
+        .step-phone {
+          width: 100%;
+          max-width: 180px;
+          margin: 28px auto 0;
+          display: block;
+          border-radius: 24px;
+          box-shadow: 0 16px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
+        }
+
+
         /* Product cards border grid */
         .product-grid {
           display: grid;
@@ -142,7 +170,7 @@ export default function Home() {
           .feat-row {
             grid-template-columns: 1fr;
             gap: 8px;
-            padding: 24px 24px;
+            padding: 24px clamp(24px,6vw,64px);
           }
           .feat-tag { display: none; }
           .product-grid { grid-template-columns: 1fr; }
@@ -258,6 +286,14 @@ export default function Home() {
           </div>
         </div>
 
+        <Image
+          src="/screenshots/detail.png"
+          alt="Soundtracks moment detail"
+          width={280}
+          height={610}
+          className="hero-phone"
+        />
+
         <div className="scroll-cue" style={{
           position: 'absolute', bottom: 32, left: '50%',
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
@@ -309,11 +345,11 @@ export default function Home() {
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '48px 40px' }}>
             {[
-              { num: '01', title: 'Hear a song', body: 'Search Apple Music or let the app detect what\'s playing. Attach any song to any moment in your life.' },
-              { num: '02', title: 'Capture the memory', body: 'Add a photo, write your reflection, tag the people and the place that made it matter.' },
-              { num: '03', title: 'Revisit forever', body: 'Your timeline grows into the soundtrack of your life — searchable, shareable, entirely yours.' },
-            ].map(({ num, title, body }) => (
-              <div key={num}>
+              { num: '01', title: 'Hear a song', body: 'Search Apple Music or let the app detect what\'s playing. Attach any song to any moment in your life.', img: '/screenshots/capture.png', alt: 'Capture a Moment screen' },
+              { num: '02', title: 'Capture the memory', body: 'Add a photo, write your reflection, tag the people and the place that made it matter.', img: '/screenshots/detail.png', alt: 'Moment detail screen' },
+              { num: '03', title: 'Revisit forever', body: 'Your timeline grows into the soundtrack of your life — searchable, shareable, entirely yours.', img: '/screenshots/timeline.png', alt: 'Timeline screen' },
+            ].map(({ num, title, body, img, alt }) => (
+              <div key={num} style={{ display: 'flex', flexDirection: 'column' }}>
                 <div className="step-num" style={{ marginBottom: 16 }}>{num}</div>
                 <h3 className="display" style={{
                   fontSize: '1.35rem', fontWeight: 700,
@@ -324,6 +360,7 @@ export default function Home() {
                 <p className="body-font" style={{ fontSize: '0.95rem', lineHeight: 1.75, color: 'rgba(255,255,255,0.5)' }}>
                   {body}
                 </p>
+                <Image src={img} alt={alt} width={180} height={392} className="step-phone" />
               </div>
             ))}
           </div>
