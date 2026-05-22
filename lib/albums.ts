@@ -1,93 +1,93 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
-import { Collection, CollectionPreview, Moment } from "@/types";
+import { Album, AlbumPreview, Moment } from "@/types";
 
-const COLLECTIONS_CACHE_PREFIX = "collections_cache_v1_";
+const ALBUMS_CACHE_PREFIX = "collections_cache_v1_";
 
-function collectionsCacheKey(userId: string) {
-  return `${COLLECTIONS_CACHE_PREFIX}${userId}`;
+function albumsCacheKey(userId: string) {
+  return `${ALBUMS_CACHE_PREFIX}${userId}`;
 }
 
-export async function readCollectionsCache(userId: string): Promise<Collection[] | null> {
+export async function readAlbumsCache(userId: string): Promise<Album[] | null> {
   try {
-    const raw = await AsyncStorage.getItem(collectionsCacheKey(userId));
-    return raw ? (JSON.parse(raw) as Collection[]) : null;
+    const raw = await AsyncStorage.getItem(albumsCacheKey(userId));
+    return raw ? (JSON.parse(raw) as Album[]) : null;
   } catch {
     return null;
   }
 }
 
-export async function writeCollectionsCache(userId: string, collections: Collection[]): Promise<void> {
+export async function writeAlbumsCache(userId: string, albums: Album[]): Promise<void> {
   try {
-    await AsyncStorage.setItem(collectionsCacheKey(userId), JSON.stringify(collections));
+    await AsyncStorage.setItem(albumsCacheKey(userId), JSON.stringify(albums));
   } catch {}
 }
 
-export async function clearCollectionsCache(userId: string): Promise<void> {
+export async function clearAlbumsCache(userId: string): Promise<void> {
   try {
-    await AsyncStorage.removeItem(collectionsCacheKey(userId));
+    await AsyncStorage.removeItem(albumsCacheKey(userId));
   } catch {}
 }
 
-// ─── Collection moments cache ─────────────────────────────────────────────────
-// Persists across app restarts so the first tap on a collection is instant.
-// All collections for a user stored under one key to keep clear/enumerate simple.
+// ─── Album moments cache ──────────────────────────────────────────────────────
+// Persists across app restarts so the first tap on an album is instant.
+// All albums for a user stored under one key to keep clear/enumerate simple.
 
-const COLLECTION_MOMENTS_CACHE_KEY_PREFIX = "collection_moments_v1_";
-const COLLECTION_MOMENTS_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const ALBUM_MOMENTS_CACHE_KEY_PREFIX = "collection_moments_v1_";
+const ALBUM_MOMENTS_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-type CollectionMomentsStore = Record<string, { moments: Moment[]; fetchedAt: number }>;
+type AlbumMomentsStore = Record<string, { moments: Moment[]; fetchedAt: number }>;
 
-function collectionMomentsCacheKey(userId: string) {
-  return `${COLLECTION_MOMENTS_CACHE_KEY_PREFIX}${userId}`;
+function albumMomentsCacheKey(userId: string) {
+  return `${ALBUM_MOMENTS_CACHE_KEY_PREFIX}${userId}`;
 }
 
-async function readCollectionMomentsStore(userId: string): Promise<CollectionMomentsStore> {
+async function readAlbumMomentsStore(userId: string): Promise<AlbumMomentsStore> {
   try {
-    const raw = await AsyncStorage.getItem(collectionMomentsCacheKey(userId));
+    const raw = await AsyncStorage.getItem(albumMomentsCacheKey(userId));
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
   }
 }
 
-export async function readCollectionMomentsCache(
+export async function readAlbumMomentsCache(
   userId: string,
-  collectionId: string
+  albumId: string
 ): Promise<{ moments: Moment[]; fetchedAt: number } | null> {
-  const store = await readCollectionMomentsStore(userId);
-  return store[collectionId] ?? null;
+  const store = await readAlbumMomentsStore(userId);
+  return store[albumId] ?? null;
 }
 
-export async function writeCollectionMomentsCache(
+export async function writeAlbumMomentsCache(
   userId: string,
-  collectionId: string,
+  albumId: string,
   moments: Moment[]
 ): Promise<void> {
   try {
-    const store = await readCollectionMomentsStore(userId);
-    store[collectionId] = { moments, fetchedAt: Date.now() };
-    await AsyncStorage.setItem(collectionMomentsCacheKey(userId), JSON.stringify(store));
+    const store = await readAlbumMomentsStore(userId);
+    store[albumId] = { moments, fetchedAt: Date.now() };
+    await AsyncStorage.setItem(albumMomentsCacheKey(userId), JSON.stringify(store));
   } catch {}
 }
 
-export async function clearAllCollectionMomentsCache(userId: string): Promise<void> {
+export async function clearAllAlbumMomentsCache(userId: string): Promise<void> {
   try {
-    await AsyncStorage.removeItem(collectionMomentsCacheKey(userId));
+    await AsyncStorage.removeItem(albumMomentsCacheKey(userId));
   } catch {}
 }
 
-export { COLLECTION_MOMENTS_TTL_MS };
+export { ALBUM_MOMENTS_TTL_MS };
 
-export interface CollectionMember {
+export interface AlbumMember {
   userId: string;
   displayName: string | null;
   joinedAt: string;
 }
 
-export async function fetchCollections(userId: string): Promise<Collection[]> {
-  // Owned collections and member rows don't depend on each other — run in parallel
+export async function fetchAlbums(userId: string): Promise<Album[]> {
+  // Owned albums and member rows don't depend on each other — run in parallel
   const [
     { data: owned, error: ownedError },
     { data: memberRows, error: memberError },
@@ -109,7 +109,7 @@ export async function fetchCollections(userId: string): Promise<Collection[]> {
 
   const joinedIds = (memberRows ?? []).map((r: any) => r.collection_id);
 
-  let joinedCollections: Collection[] = [];
+  let joinedAlbums: Album[] = [];
 
   if (joinedIds.length > 0) {
     const { data: joined, error: joinedError } = await supabase
@@ -120,7 +120,7 @@ export async function fetchCollections(userId: string): Promise<Collection[]> {
 
     if (joinedError) throw joinedError;
 
-    // Fetch owner display names for joined collections
+    // Fetch owner display names for joined albums
     const ownerIds = [...new Set((joined ?? []).map((c: any) => c.user_id))];
     const { data: profiles } = ownerIds.length > 0
       ? await supabase.from("profiles").select("id, display_name").in("id", ownerIds)
@@ -128,7 +128,7 @@ export async function fetchCollections(userId: string): Promise<Collection[]> {
 
     const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p.display_name]));
 
-    joinedCollections = (joined ?? []).map((row: any) => ({
+    joinedAlbums = (joined ?? []).map((row: any) => ({
       id: row.id,
       userId: row.user_id,
       name: row.name,
@@ -142,7 +142,7 @@ export async function fetchCollections(userId: string): Promise<Collection[]> {
     }));
   }
 
-  const ownedCollections: Collection[] = (owned ?? []).map((row: any) => ({
+  const ownedAlbums: Album[] = (owned ?? []).map((row: any) => ({
     id: row.id,
     userId: row.user_id,
     name: row.name,
@@ -155,10 +155,10 @@ export async function fetchCollections(userId: string): Promise<Collection[]> {
     coverPhotoUrl: row.cover_photo_url ?? undefined,
   }));
 
-  return [...ownedCollections, ...joinedCollections];
+  return [...ownedAlbums, ...joinedAlbums];
 }
 
-export async function createCollection(userId: string, name: string, isShared = false): Promise<Collection> {
+export async function createAlbum(userId: string, name: string, isShared = false): Promise<Album> {
   const { data, error } = await supabase
     .from("collections")
     .insert({ user_id: userId, name, is_public: isShared })
@@ -179,7 +179,7 @@ export async function createCollection(userId: string, name: string, isShared = 
   };
 }
 
-export async function convertCollectionToShared(id: string): Promise<void> {
+export async function convertAlbumToShared(id: string): Promise<void> {
   const { error } = await supabase
     .from("collections")
     .update({ is_public: true })
@@ -187,12 +187,12 @@ export async function convertCollectionToShared(id: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function deleteCollection(id: string): Promise<void> {
+export async function deleteAlbum(id: string): Promise<void> {
   const { error } = await supabase.from("collections").delete().eq("id", id);
   if (error) throw error;
 }
 
-export async function addMomentToCollection(
+export async function addMomentToAlbum(
   collectionId: string,
   momentId: string,
   addedByUserId: string
@@ -203,7 +203,7 @@ export async function addMomentToCollection(
   if (error) throw error;
 }
 
-export async function removeMomentFromCollection(collectionId: string, momentId: string): Promise<void> {
+export async function removeMomentFromAlbum(collectionId: string, momentId: string): Promise<void> {
   const { error } = await supabase
     .from("collection_moments")
     .delete()
@@ -212,7 +212,7 @@ export async function removeMomentFromCollection(collectionId: string, momentId:
   if (error) throw error;
 }
 
-export async function fetchMomentCollectionIds(momentId: string): Promise<string[]> {
+export async function fetchMomentAlbumIds(momentId: string): Promise<string[]> {
   const { data, error } = await supabase
     .from("collection_moments")
     .select("collection_id")
@@ -222,39 +222,39 @@ export async function fetchMomentCollectionIds(momentId: string): Promise<string
   return (data ?? []).map((row: any) => row.collection_id);
 }
 
-// Returns a lightweight preview of a public collection for the join screen
-export async function fetchCollectionByInviteCode(inviteCode: string): Promise<CollectionPreview | null> {
-  const { data: collection, error } = await supabase
+// Returns a lightweight preview of a public album for the join screen
+export async function fetchAlbumByInviteCode(inviteCode: string): Promise<AlbumPreview | null> {
+  const { data: album, error } = await supabase
     .from("collections")
     .select("id, user_id, name, is_public, invite_code, collection_moments(moment_id)")
     .eq("invite_code", inviteCode)
     .eq("is_public", true)
     .single();
 
-  if (error || !collection) return null;
+  if (error || !album) return null;
 
   const { data: profile } = await supabase
     .from("profiles")
     .select("display_name")
-    .eq("id", collection.user_id)
+    .eq("id", album.user_id)
     .single();
 
   return {
-    id: collection.id,
-    name: collection.name,
-    ownerId: collection.user_id,
+    id: album.id,
+    name: album.name,
+    ownerId: album.user_id,
     ownerName: profile?.display_name ?? null,
-    momentCount: (collection.collection_moments ?? []).length,
-    isPublic: collection.is_public,
-    inviteCode: collection.invite_code,
+    momentCount: (album.collection_moments ?? []).length,
+    isPublic: album.is_public,
+    inviteCode: album.invite_code,
   };
 }
 
-// Insert the current user into collection_members and return the joined Collection
-export async function joinCollection(inviteCode: string, userId: string): Promise<Collection> {
-  // Look up the collection
-  const preview = await fetchCollectionByInviteCode(inviteCode);
-  if (!preview) throw new Error("Collection not found or is no longer public.");
+// Insert the current user into collection_members and return the joined Album
+export async function joinAlbum(inviteCode: string, userId: string): Promise<Album> {
+  // Look up the album
+  const preview = await fetchAlbumByInviteCode(inviteCode);
+  if (!preview) throw new Error("Album not found or is no longer public.");
 
   const { error } = await supabase
     .from("collection_members")
@@ -275,8 +275,8 @@ export async function joinCollection(inviteCode: string, userId: string): Promis
   };
 }
 
-// Remove the current user from a shared collection
-export async function leaveCollection(collectionId: string, userId: string): Promise<void> {
+// Remove the current user from a shared album
+export async function leaveAlbum(collectionId: string, userId: string): Promise<void> {
   const { error } = await supabase
     .from("collection_members")
     .delete()
@@ -285,8 +285,8 @@ export async function leaveCollection(collectionId: string, userId: string): Pro
   if (error) throw error;
 }
 
-// Fetch all members of a collection (owner use only)
-export async function fetchCollectionMembers(collectionId: string): Promise<CollectionMember[]> {
+// Fetch all members of an album (owner use only)
+export async function fetchAlbumMembers(collectionId: string): Promise<AlbumMember[]> {
   const { data, error } = await supabase
     .from("collection_members")
     .select("user_id, joined_at")
@@ -311,8 +311,8 @@ export async function fetchCollectionMembers(collectionId: string): Promise<Coll
   }));
 }
 
-// Remove a specific member from a collection (owner use only)
-export async function removeCollectionMember(collectionId: string, userId: string): Promise<void> {
+// Remove a specific member from an album (owner use only)
+export async function removeAlbumMember(collectionId: string, userId: string): Promise<void> {
   const { error } = await supabase
     .from("collection_members")
     .delete()
@@ -321,7 +321,7 @@ export async function removeCollectionMember(collectionId: string, userId: strin
   if (error) throw error;
 }
 
-export interface SharedCollectionActivity {
+export interface SharedAlbumActivity {
   collectionId: string;
   name: string;
   role: 'owner' | 'member';
@@ -333,10 +333,10 @@ export interface SharedCollectionActivity {
   coverPhotoUrl?: string;
 }
 
-// Fetch all shared collections the user is in, with new-moment counts since last visit.
+// Fetch all shared albums the user is in, with new-moment counts since last visit.
 // "New" = added_at > last_viewed_at (members) or > owner_last_viewed_at (owners).
 // Falls back to joined_at / created_at when never viewed.
-export async function fetchSharedCollectionActivity(userId: string): Promise<SharedCollectionActivity[]> {
+export async function fetchSharedAlbumActivity(userId: string): Promise<SharedAlbumActivity[]> {
   // Owned shared collections
   const { data: ownedRows, error: ownedError } = await supabase
     .from("collections")
@@ -355,7 +355,7 @@ export async function fetchSharedCollectionActivity(userId: string): Promise<Sha
   if (memberError) throw memberError;
 
   const joinedIds = (memberRows ?? []).map((r: any) => r.collection_id);
-  let joinedActivity: SharedCollectionActivity[] = [];
+  let joinedActivity: SharedAlbumActivity[] = [];
 
   if (joinedIds.length > 0) {
     const { data: joinedRows, error: joinedError } = await supabase
@@ -395,7 +395,7 @@ export async function fetchSharedCollectionActivity(userId: string): Promise<Sha
     });
   }
 
-  const ownedActivity: SharedCollectionActivity[] = (ownedRows ?? []).map((row: any) => {
+  const ownedActivity: SharedAlbumActivity[] = (ownedRows ?? []).map((row: any) => {
     const lastViewed: string | null = row.owner_last_viewed_at ?? row.created_at ?? null;
     const moments: any[] = row.collection_moments ?? [];
     const newCount = lastViewed
@@ -430,8 +430,8 @@ export async function fetchSharedCollectionActivity(userId: string): Promise<Sha
     });
 }
 
-// Mark a shared collection as viewed now — clears its new-moment badge.
-export async function markCollectionViewed(
+// Mark a shared album as viewed now — clears its new-moment badge.
+export async function markAlbumViewed(
   collectionId: string,
   userId: string,
   role: 'owner' | 'member'
@@ -454,9 +454,9 @@ export async function markCollectionViewed(
   }
 }
 
-// Fetch all moments across all contributors in a shared collection via a single
+// Fetch all moments across all contributors in a shared album via a single
 // server-side join (get_shared_collection_moments RPC), avoiding 3 serial queries.
-export async function fetchSharedCollectionMoments(collectionId: string): Promise<Moment[]> {
+export async function fetchSharedAlbumMoments(collectionId: string): Promise<Moment[]> {
   const { data, error } = await supabase.rpc("get_shared_collection_moments", {
     p_collection_id: collectionId,
   });
@@ -468,7 +468,7 @@ export async function fetchSharedCollectionMoments(collectionId: string): Promis
   });
 }
 
-export async function updateCollectionCover(collectionId: string, path: string | null): Promise<void> {
+export async function updateAlbumCover(collectionId: string, path: string | null): Promise<void> {
   const { error } = await supabase
     .from("collections")
     .update({ cover_photo_url: path })
@@ -476,7 +476,7 @@ export async function updateCollectionCover(collectionId: string, path: string |
   if (error) throw error;
 }
 
-export async function renameCollection(collectionId: string, name: string): Promise<void> {
+export async function renameAlbum(collectionId: string, name: string): Promise<void> {
   const { error } = await supabase
     .from("collections")
     .update({ name })
@@ -484,7 +484,7 @@ export async function renameCollection(collectionId: string, name: string): Prom
   if (error) throw error;
 }
 
-export async function addCollectionMemberById(collectionId: string, userId: string): Promise<void> {
+export async function addAlbumMemberById(collectionId: string, userId: string): Promise<void> {
   const { error } = await supabase
     .from("collection_members")
     .insert({ collection_id: collectionId, user_id: userId });
@@ -492,7 +492,7 @@ export async function addCollectionMemberById(collectionId: string, userId: stri
   if (error && error.code !== "23505") throw error;
 }
 
-export async function searchUsersForCollection(
+export async function searchUsersForAlbum(
   query: string,
   excludeIds: string[]
 ): Promise<{ id: string; displayName: string; username: string }[]> {
@@ -514,9 +514,9 @@ export async function searchUsersForCollection(
   }));
 }
 
-// ── Collection invites ────────────────────────────────────────────────────────
+// ── Album invites ─────────────────────────────────────────────────────────────
 
-export interface CollectionInvite {
+export interface AlbumInvite {
   id: string;
   collectionId: string;
   collectionName: string;
@@ -524,7 +524,7 @@ export interface CollectionInvite {
   createdAt: string;
 }
 
-export interface SentCollectionInvite {
+export interface SentAlbumInvite {
   id: string;
   inviteeId: string;
   inviteeName: string | null;
@@ -532,7 +532,7 @@ export interface SentCollectionInvite {
 }
 
 /** Owner sends an invite to a specific user. Silently ignores duplicate. */
-export async function sendCollectionInvite(
+export async function sendAlbumInvite(
   collectionId: string,
   inviterId: string,
   inviteeId: string
@@ -544,7 +544,7 @@ export async function sendCollectionInvite(
 }
 
 /** Fetch pending invites the current user has received. */
-export async function fetchPendingCollectionInvites(userId: string): Promise<CollectionInvite[]> {
+export async function fetchPendingAlbumInvites(userId: string): Promise<AlbumInvite[]> {
   const { data, error } = await supabase
     .from("collection_invites")
     .select("id, collection_id, inviter_id, created_at, collections(name)")
@@ -568,8 +568,8 @@ export async function fetchPendingCollectionInvites(userId: string): Promise<Col
   }));
 }
 
-/** Fetch invites the owner has sent for a collection (pending, not yet accepted). */
-export async function fetchSentCollectionInvites(collectionId: string): Promise<SentCollectionInvite[]> {
+/** Fetch invites the owner has sent for an album (pending, not yet accepted). */
+export async function fetchSentAlbumInvites(collectionId: string): Promise<SentAlbumInvite[]> {
   const { data, error } = await supabase
     .from("collection_invites")
     .select("id, invitee_id, created_at")
@@ -592,13 +592,13 @@ export async function fetchSentCollectionInvites(collectionId: string): Promise<
   }));
 }
 
-/** Accept an invite: join the collection then delete the invite row. */
-export async function acceptCollectionInvite(
+/** Accept an invite: join the album then delete the invite row. */
+export async function acceptAlbumInvite(
   inviteId: string,
   collectionId: string,
   userId: string
 ): Promise<void> {
-  await addCollectionMemberById(collectionId, userId);
+  await addAlbumMemberById(collectionId, userId);
   const { error } = await supabase
     .from("collection_invites")
     .delete()
@@ -607,7 +607,7 @@ export async function acceptCollectionInvite(
 }
 
 /** Decline or revoke an invite (works for both invitee and owner). */
-export async function deleteCollectionInvite(inviteId: string): Promise<void> {
+export async function deleteAlbumInvite(inviteId: string): Promise<void> {
   const { error } = await supabase
     .from("collection_invites")
     .delete()

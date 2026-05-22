@@ -114,9 +114,9 @@ export function useDeepLinkHandler() {
     }
 
     // Universal Links — https://soundtracks.app/c/{inviteCode}
-    const universalCollectionMatch = url.match(/^https:\/\/soundtracks\.app\/c\/([a-zA-Z0-9]+)/);
-    if (universalCollectionMatch) {
-      await handleInviteCode(universalCollectionMatch[1]);
+    const universalAlbumMatch = url.match(/^https:\/\/soundtracks\.app\/c\/([a-zA-Z0-9]+)/);
+    if (universalAlbumMatch) {
+      await handleInviteCode(universalAlbumMatch[1]);
       return;
     }
 

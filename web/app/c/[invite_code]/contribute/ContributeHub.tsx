@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import CollectionMomentList, { type MomentItem } from "@/components/CollectionMomentList";
+import AlbumMomentList, { type MomentItem } from "@/components/AlbumMomentList";
 import Link from "next/link";
 
 interface Props {
@@ -88,7 +88,7 @@ export default function ContributeHub({ collectionName, inviteCode, moments: ini
             No memories yet — be the first!
           </p>
         ) : (
-          <CollectionMomentList moments={moments} />
+          <AlbumMomentList moments={moments} />
         )}
       </div>
 

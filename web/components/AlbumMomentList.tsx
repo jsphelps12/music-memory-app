@@ -16,7 +16,7 @@ export interface MomentItem {
   mood: string | null;
 }
 
-export default function CollectionMomentList({ moments }: { moments: MomentItem[] }) {
+export default function AlbumMomentList({ moments }: { moments: MomentItem[] }) {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 

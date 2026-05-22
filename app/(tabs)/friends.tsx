@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { NewSharedCollectionModal } from "@/components/NewSharedCollectionModal";
+import { NewSharedAlbumModal } from "@/components/NewSharedAlbumModal";
 import {
   View,
   Text,
@@ -24,15 +24,15 @@ import { EmptyState } from "@/components/EmptyState";
 import { IconButton } from "@/components/IconButton";
 import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import {
-  fetchCollections,
-  fetchSharedCollectionActivity,
-  fetchPendingCollectionInvites,
-  acceptCollectionInvite,
-  deleteCollectionInvite,
-  CollectionInvite,
-  SharedCollectionActivity,
-} from "@/lib/collections";
-import { Collection } from "@/types";
+  fetchAlbums,
+  fetchSharedAlbumActivity,
+  fetchPendingAlbumInvites,
+  acceptAlbumInvite,
+  deleteAlbumInvite,
+  AlbumInvite,
+  SharedAlbumActivity,
+} from "@/lib/albums";
+import { Album } from "@/types";
 import { friendlyError } from "@/lib/errors";
 import { pluralMoments } from "@/lib/utils";
 
@@ -42,25 +42,25 @@ const CELL_SIZE = (Dimensions.get("window").width - SCREEN_PAD * 2 - GRID_GAP) /
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
-async function fetchCollectionsScreen(userId: string) {
-  const [collections, sharedActivity, invites] = await Promise.all([
-    fetchCollections(userId),
-    fetchSharedCollectionActivity(userId),
-    fetchPendingCollectionInvites(userId).catch(() => [] as CollectionInvite[]),
+async function fetchAlbumsScreen(userId: string) {
+  const [albums, sharedActivity, invites] = await Promise.all([
+    fetchAlbums(userId),
+    fetchSharedAlbumActivity(userId),
+    fetchPendingAlbumInvites(userId).catch(() => [] as AlbumInvite[]),
   ]);
   const activityMap = new Map(sharedActivity.map((a) => [a.collectionId, a.newMomentCount]));
-  return { collections, activityMap, invites };
+  return { albums, activityMap, invites };
 }
 
-// ── Collection cell ───────────────────────────────────────────────────────────
+// ── Album cell ────────────────────────────────────────────────────────────────
 
-function CollectionCell({
+function AlbumCell({
   collection,
   newCount,
   onPress,
   theme,
 }: {
-  collection: Collection;
+  collection: Album;
   newCount: number;
   onPress: () => void;
   theme: any;
@@ -104,24 +104,24 @@ function CollectionCell({
 type SectionItem =
   | { type: "invites" }
   | { type: "sectionHeader"; label: string }
-  | { type: "row"; items: Collection[] };
+  | { type: "row"; items: Album[] };
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
-export default function CollectionsScreen() {
+export default function AlbumsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const theme = useTheme();
   const dynamicStyles = useMemo(() => createStyles(theme), [theme]);
   const queryClient = useQueryClient();
 
-  const [newCollectionVisible, setNewCollectionVisible] = useState(false);
+  const [newAlbumVisible, setNewAlbumVisible] = useState(false);
   const [respondingInviteId, setRespondingInviteId] = useState<string | null>(null);
 
   const STALE_TIME = 2 * 60 * 1000;
   const { data, isLoading, refetch, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["collectionsScreen", user?.id],
-    queryFn: () => fetchCollectionsScreen(user!.id),
+    queryFn: () => fetchAlbumsScreen(user!.id),
     staleTime: STALE_TIME,
     enabled: !!user,
   });
@@ -130,33 +130,33 @@ export default function CollectionsScreen() {
     if (Date.now() - dataUpdatedAt > STALE_TIME) refetch();
   }, [refetch, dataUpdatedAt]));
 
-  const collections = data?.collections ?? [];
+  const albums = data?.albums ?? [];
   const activityMap = data?.activityMap ?? new Map();
   const invites = data?.invites ?? [];
 
-  const personalCollections = useMemo(
-    () => collections.filter((c) => c.role === "owner" && !c.isPublic),
-    [collections]
+  const personalAlbums = useMemo(
+    () => albums.filter((c) => c.role === "owner" && !c.isPublic),
+    [albums]
   );
-  const sharedCollections = useMemo(
-    () => collections.filter((c) => (c.role === "owner" && c.isPublic) || c.role === "member"),
-    [collections]
+  const sharedAlbums = useMemo(
+    () => albums.filter((c) => (c.role === "owner" && c.isPublic) || c.role === "member"),
+    [albums]
   );
 
-  const handleAcceptInvite = useCallback(async (invite: CollectionInvite) => {
+  const handleAcceptInvite = useCallback(async (invite: AlbumInvite) => {
     if (!user) return;
     setRespondingInviteId(invite.id);
     try {
-      await acceptCollectionInvite(invite.id, invite.collectionId, user.id);
+      await acceptAlbumInvite(invite.id, invite.collectionId, user.id);
       // Don't invalidate — re-fetching invites hits the replication lag window on the DELETE.
-      // Fetch only collections (INSERT replicates first) and write both changes atomically.
-      const updatedCollections = await fetchCollections(user.id);
+      // Fetch only albums (INSERT replicates first) and write both changes atomically.
+      const updatedAlbums = await fetchAlbums(user.id);
       queryClient.setQueryData(["collectionsScreen", user.id], (old: any) =>
         old
           ? {
               ...old,
-              collections: updatedCollections,
-              invites: old.invites.filter((i: CollectionInvite) => i.id !== invite.id),
+              albums: updatedAlbums,
+              invites: old.invites.filter((i: AlbumInvite) => i.id !== invite.id),
             }
           : old
       );
@@ -170,9 +170,9 @@ export default function CollectionsScreen() {
   const handleDeclineInvite = useCallback(async (inviteId: string) => {
     setRespondingInviteId(inviteId);
     try {
-      await deleteCollectionInvite(inviteId);
+      await deleteAlbumInvite(inviteId);
       queryClient.setQueryData(["collectionsScreen", user?.id], (old: any) =>
-        old ? { ...old, invites: old.invites.filter((i: CollectionInvite) => i.id !== inviteId) } : old
+        old ? { ...old, invites: old.invites.filter((i: AlbumInvite) => i.id !== inviteId) } : old
       );
     } catch (e: any) {
       Alert.alert("Error", friendlyError(e));
@@ -181,34 +181,34 @@ export default function CollectionsScreen() {
     }
   }, [user, queryClient]);
 
-  const handleTapCollection = useCallback((col: Collection) => {
-    router.push({ pathname: "/collection/[id]" as any, params: { id: col.id } });
+  const handleTapAlbum = useCallback((col: Album) => {
+    router.push({ pathname: "/album/[id]" as any, params: { id: col.id } });
   }, [router]);
 
-  const handleNewCollectionClose = useCallback(() => {
-    setNewCollectionVisible(false);
+  const handleNewAlbumClose = useCallback(() => {
+    setNewAlbumVisible(false);
     queryClient.invalidateQueries({ queryKey: ["collectionsScreen", user?.id] });
   }, [queryClient, user?.id]);
 
-  const isEmpty = personalCollections.length === 0 && sharedCollections.length === 0 && invites.length === 0;
+  const isEmpty = personalAlbums.length === 0 && sharedAlbums.length === 0 && invites.length === 0;
 
   const listData = useMemo<SectionItem[]>(() => {
     const rows: SectionItem[] = [];
     if (invites.length > 0) rows.push({ type: "invites" });
-    if (personalCollections.length > 0) {
-      rows.push({ type: "sectionHeader", label: "MY COLLECTIONS" });
-      for (let i = 0; i < personalCollections.length; i += 2) {
-        rows.push({ type: "row", items: personalCollections.slice(i, i + 2) });
+    if (personalAlbums.length > 0) {
+      rows.push({ type: "sectionHeader", label: "MY ALBUMS" });
+      for (let i = 0; i < personalAlbums.length; i += 2) {
+        rows.push({ type: "row", items: personalAlbums.slice(i, i + 2) });
       }
     }
-    if (sharedCollections.length > 0) {
+    if (sharedAlbums.length > 0) {
       rows.push({ type: "sectionHeader", label: "SHARED" });
-      for (let i = 0; i < sharedCollections.length; i += 2) {
-        rows.push({ type: "row", items: sharedCollections.slice(i, i + 2) });
+      for (let i = 0; i < sharedAlbums.length; i += 2) {
+        rows.push({ type: "row", items: sharedAlbums.slice(i, i + 2) });
       }
     }
     return rows;
-  }, [invites, personalCollections, sharedCollections]);
+  }, [invites, personalAlbums, sharedAlbums]);
 
   const renderItem = useCallback(({ item }: { item: SectionItem }) => {
     if (item.type === "invites") {
@@ -268,18 +268,18 @@ export default function CollectionsScreen() {
     return (
       <View style={dynamicStyles.gridRow}>
         {item.items.map((col) => (
-          <CollectionCell
+          <AlbumCell
             key={col.id}
             collection={col}
             newCount={activityMap.get(col.id) ?? 0}
-            onPress={() => handleTapCollection(col)}
+            onPress={() => handleTapAlbum(col)}
             theme={theme}
           />
         ))}
         {item.items.length === 1 && <View style={styles.cell} />}
       </View>
     );
-  }, [invites, activityMap, dynamicStyles, theme, handleDeclineInvite, handleAcceptInvite, handleTapCollection, respondingInviteId]);
+  }, [invites, activityMap, dynamicStyles, theme, handleDeclineInvite, handleAcceptInvite, handleTapAlbum, respondingInviteId]);
 
   if (isLoading) {
     return (
@@ -293,16 +293,16 @@ export default function CollectionsScreen() {
     <View style={[dynamicStyles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
       <View style={[dynamicStyles.header, { borderBottomColor: theme.colors.border }]}>
-        <Text style={[dynamicStyles.headerTitle, { color: theme.colors.text }]}>Collections</Text>
-        <IconButton name="add-outline" onPress={() => setNewCollectionVisible(true)} />
+        <Text style={[dynamicStyles.headerTitle, { color: theme.colors.text }]}>Albums</Text>
+        <IconButton name="add-outline" onPress={() => setNewAlbumVisible(true)} />
       </View>
 
       {isEmpty ? (
         <EmptyState
           icon="albums-outline"
-          title="No collections yet"
-          subtitle="Create a collection to organize your moments, or join a shared collection with friends."
-          action={{ label: "Create Collection", onPress: () => setNewCollectionVisible(true) }}
+          title="No albums yet"
+          subtitle="Create an album to organize your moments, or join a shared album with friends."
+          action={{ label: "Create Album", onPress: () => setNewAlbumVisible(true) }}
         />
       ) : (
         <FlatList
@@ -317,9 +317,9 @@ export default function CollectionsScreen() {
         />
       )}
 
-      <NewSharedCollectionModal
-        visible={newCollectionVisible}
-        onClose={handleNewCollectionClose}
+      <NewSharedAlbumModal
+        visible={newAlbumVisible}
+        onClose={handleNewAlbumClose}
         userId={user?.id ?? ""}
       />
     </View>

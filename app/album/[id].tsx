@@ -21,7 +21,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import { MomentCard } from "@/components/MomentCard";
-import { CollectionShareSheet } from "@/components/CollectionShareSheet";
+import { AlbumShareSheet } from "@/components/AlbumShareSheet";
 import { IconButton } from "@/components/IconButton";
 import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
@@ -29,9 +29,9 @@ import { MOODS } from "@/constants/Moods";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
-import { fetchSharedCollectionMoments, markCollectionViewed } from "@/lib/collections";
+import { fetchSharedAlbumMoments, markAlbumViewed } from "@/lib/albums";
 import { friendlyError } from "@/lib/errors";
-import { Collection, Moment } from "@/types";
+import { Album, Moment } from "@/types";
 
 function groupByMonth(moments: Moment[]): { title: string; data: Moment[] }[] {
   const grouped: Record<string, Moment[]> = {};
@@ -47,7 +47,7 @@ function groupByMonth(moments: Moment[]): { title: string; data: Moment[] }[] {
 
 const STALE_TIME = 2 * 60 * 1000;
 
-async function fetchCollectionData(id: string, userId: string): Promise<{ collection: Collection; moments: Moment[] }> {
+async function fetchAlbumData(id: string, userId: string): Promise<{ album: Album; moments: Moment[] }> {
   // Try owned first
   const { data: owned } = await supabase
     .from("collections")
@@ -57,7 +57,7 @@ async function fetchCollectionData(id: string, userId: string): Promise<{ collec
     .single();
 
   if (owned) {
-    const col: Collection = {
+    const col: Album = {
       id: owned.id,
       userId: owned.user_id,
       name: owned.name,
@@ -69,7 +69,7 @@ async function fetchCollectionData(id: string, userId: string): Promise<{ collec
       coverPhotoUrl: owned.cover_photo_url ?? undefined,
     };
     const moments = await loadMoments(col);
-    return { collection: col, moments };
+    return { album: col, moments };
   }
 
   // Try member
@@ -94,7 +94,7 @@ async function fetchCollectionData(id: string, userId: string): Promise<{ collec
         .eq("id", joined.user_id)
         .single();
 
-      const col: Collection = {
+      const col: Album = {
         id: joined.id,
         userId: joined.user_id,
         name: joined.name,
@@ -107,16 +107,16 @@ async function fetchCollectionData(id: string, userId: string): Promise<{ collec
         coverPhotoUrl: joined.cover_photo_url ?? undefined,
       };
       const moments = await loadMoments(col);
-      return { collection: col, moments };
+      return { album: col, moments };
     }
   }
 
-  throw new Error("Collection not found.");
+  throw new Error("Album not found.");
 }
 
-async function loadMoments(col: Collection): Promise<Moment[]> {
+async function loadMoments(col: Album): Promise<Moment[]> {
   if (col.isPublic) {
-    return fetchSharedCollectionMoments(col.id);
+    return fetchSharedAlbumMoments(col.id);
   }
   const { data: cm } = await supabase
     .from("collection_moments")
@@ -134,7 +134,7 @@ async function loadMoments(col: Collection): Promise<Moment[]> {
 
 const ART_SIZE = Math.round(Dimensions.get("window").width * 0.72);
 
-export default function CollectionDetailScreen() {
+export default function AlbumDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user, profile } = useAuth();
@@ -150,19 +150,19 @@ export default function CollectionDetailScreen() {
   );
 
   const { data, isLoading, isError, error, refetch, isFetching, dataUpdatedAt } = useQuery({
-    queryKey: ["collection", id, user?.id],
-    queryFn: () => fetchCollectionData(id!, user!.id),
+    queryKey: ["album", id, user?.id],
+    queryFn: () => fetchAlbumData(id!, user!.id),
     staleTime: STALE_TIME,
     enabled: !!user && !!id,
   });
 
-  const collection = data?.collection ?? null;
+  const collection = data?.album ?? null;
   const moments = data?.moments ?? [];
 
   useEffect(() => {
-    if (!data?.collection || !user) return;
-    markCollectionViewed(id!, user.id, data.collection.role).catch(() => {});
-  }, [data?.collection?.id]);
+    if (!data?.album || !user) return;
+    markAlbumViewed(id!, user.id, data.album.role).catch(() => {});
+  }, [data?.album?.id]);
 
   useFocusEffect(useCallback(() => {
     if (Date.now() - dataUpdatedAt > STALE_TIME) refetch();
@@ -186,7 +186,7 @@ export default function CollectionDetailScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator color={theme.colors.accent} />
+        <ActivityIndicator color={theme.colors.textSecondary} />
       </View>
     );
   }
@@ -231,7 +231,7 @@ export default function CollectionDetailScreen() {
 
       {/* Title */}
       <Text style={[styles.collectionTitle, { color: theme.colors.text }]}>
-        {collection?.name ?? "Collection"}
+        {collection?.name ?? "Album"}
       </Text>
 
       {/* Sub-line */}
@@ -256,8 +256,8 @@ export default function CollectionDetailScreen() {
         ListEmptyComponent={
           <EmptyState
             icon="albums-outline"
-            title="Nothing in this collection yet"
-            subtitle={isShared ? "Members can add moments to this collection." : "Add moments to this collection from the timeline."}
+            title="Nothing in this album yet"
+            subtitle={isShared ? "Members can add moments to this album." : "Add moments to this album from the timeline."}
           />
         }
         contentContainerStyle={styles.listContent}
@@ -285,20 +285,20 @@ export default function CollectionDetailScreen() {
 
       {/* Share sheet */}
       {collection && shareSheetVisible && (
-        <CollectionShareSheet
+        <AlbumShareSheet
           visible={shareSheetVisible}
           collection={collection}
           onClose={() => setShareSheetVisible(false)}
           onUpdated={(updated) =>
-            queryClient.setQueryData(["collection", id, user?.id], (old: any) =>
-              old ? { ...old, collection: updated } : old
+            queryClient.setQueryData(["album", id, user?.id], (old: any) =>
+              old ? { ...old, album: updated } : old
             )
           }
           onLeft={(collectionId) => {
             queryClient.setQueryData(["sharedScreen", user?.id], (old: any) =>
               old ? {
                 ...old,
-                sharedCollections: old.sharedCollections.filter(
+                sharedAlbums: old.sharedAlbums.filter(
                   (c: any) => c.collectionId !== collectionId
                 ),
               } : old

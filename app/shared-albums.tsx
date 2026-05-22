@@ -9,13 +9,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import {
-  markCollectionViewed,
-  SharedCollectionActivity,
-} from "@/lib/collections";
+  markAlbumViewed,
+  SharedAlbumActivity,
+} from "@/lib/albums";
 import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import { fetchSharedScreenData } from "@/lib/sharedScreen";
 
-export default function SharedCollectionsScreen() {
+export default function SharedAlbumsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const theme = useTheme();
@@ -29,19 +29,19 @@ export default function SharedCollectionsScreen() {
     staleTime: 2 * 60 * 1000,
   });
 
-  const sharedCollections = data?.sharedCollections ?? [];
+  const sharedAlbums = data?.sharedAlbums ?? [];
 
-  const handleTap = useCallback((item: SharedCollectionActivity) => {
-    markCollectionViewed(item.collectionId, user!.id, item.role).catch(() => {});
+  const handleTap = useCallback((item: SharedAlbumActivity) => {
+    markAlbumViewed(item.collectionId, user!.id, item.role).catch(() => {});
     queryClient.setQueryData(["sharedScreen", user?.id], (old: any) =>
       old ? {
         ...old,
-        sharedCollections: old.sharedCollections.map((c: SharedCollectionActivity) =>
+        sharedAlbums: old.sharedAlbums.map((c: SharedAlbumActivity) =>
           c.collectionId === item.collectionId ? { ...c, newMomentCount: 0 } : c
         ),
       } : old
     );
-    router.push({ pathname: "/collection/[id]" as any, params: { id: item.collectionId } });
+    router.push({ pathname: "/album/[id]" as any, params: { id: item.collectionId } });
   }, [user, router, queryClient]);
 
   return (
@@ -52,9 +52,9 @@ export default function SharedCollectionsScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[styles.eyebrow, { color: theme.colors.textTertiary }]}>
-            {sharedCollections.length} {sharedCollections.length === 1 ? "collection" : "collections"}
+            {sharedAlbums.length} {sharedAlbums.length === 1 ? "album" : "albums"}
           </Text>
-          <Text style={[styles.title, { color: theme.colors.text }]}>shared collections</Text>
+          <Text style={[styles.title, { color: theme.colors.text }]}>shared albums</Text>
         </View>
       </View>
 
@@ -64,7 +64,7 @@ export default function SharedCollectionsScreen() {
         </View>
       ) : (
         <FlatList
-          data={sharedCollections}
+          data={sharedAlbums}
           keyExtractor={(item) => item.collectionId}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => {
@@ -90,7 +90,7 @@ export default function SharedCollectionsScreen() {
                     {item.name}
                   </Text>
                   <Text style={[styles.sub, { color: theme.colors.textSecondary }]}>
-                    {isMember && item.ownerName ? `by ${item.ownerName} · ` : !isMember ? "your collection · " : ""}
+                    {isMember && item.ownerName ? `by ${item.ownerName} · ` : !isMember ? "your album · " : ""}
                     {item.totalMoments} {item.totalMoments === 1 ? "moment" : "moments"}
                   </Text>
                 </View>
@@ -107,7 +107,7 @@ export default function SharedCollectionsScreen() {
             <View style={[styles.separator, { backgroundColor: theme.colors.border }]} />
           )}
           ListEmptyComponent={
-            <Text style={[styles.empty, { color: theme.colors.textTertiary }]}>No shared collections yet</Text>
+            <Text style={[styles.empty, { color: theme.colors.textTertiary }]}>No shared albums yet</Text>
           }
         />
       )}

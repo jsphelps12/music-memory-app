@@ -40,7 +40,7 @@ export default function PrivacyPolicy() {
           <ul>
             <li><strong>Email address</strong> — used to log you in and contact you about your account.</li>
             <li><strong>Apple ID</strong> — if you sign in with Apple, we receive a unique identifier and, on first sign-in, your name and email address if you choose to share them.</li>
-            <li><strong>Display name and profile photo</strong> — set by you, visible to members of shared collections you create or join.</li>
+            <li><strong>Display name and profile photo</strong> — set by you, visible to members of shared albums you create or join.</li>
           </ul>
         </Section>
 
@@ -75,12 +75,12 @@ export default function PrivacyPolicy() {
           </p>
         </Section>
 
-        <H3>Collections</H3>
+        <H3>Albums</H3>
         <Section>
           <ul>
-            <li><strong>Collection names and invite codes</strong> — stored to enable shared collections between users.</li>
-            <li><strong>Membership</strong> — we track which users have joined which shared collections.</li>
-            <li><strong>Contributor attribution</strong> — in shared collections, your display name is shown alongside moments you contribute.</li>
+            <li><strong>Album names and invite codes</strong> — stored to enable shared albums between users.</li>
+            <li><strong>Membership</strong> — we track which users have joined which shared albums.</li>
+            <li><strong>Contributor attribution</strong> — in shared albums, your display name is shown alongside moments you contribute.</li>
           </ul>
         </Section>
 
@@ -100,7 +100,7 @@ export default function PrivacyPolicy() {
           <ul>
             <li>To store and sync your moments across your devices.</li>
             <li>To surface relevant resurfacing features — On This Day, A Month Ago, and song-prompted notifications.</li>
-            <li>To enable shared collections and contributor attribution.</li>
+            <li>To enable shared albums and contributor attribution.</li>
             <li>To send push notifications you&apos;ve opted into.</li>
             <li>To improve the app using anonymous usage analytics and crash reports.</li>
           </ul>

@@ -7,14 +7,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { fetchPendingRequests, fetchPendingTaggedMomentsCount } from "@/lib/friends";
-import { fetchSharedCollectionActivity, fetchPendingCollectionInvites } from "@/lib/collections";
+import { fetchSharedAlbumActivity, fetchPendingAlbumInvites } from "@/lib/albums";
 
-async function fetchCollectionsBadgeCount(userId: string): Promise<number> {
-  const [collections, invites] = await Promise.all([
-    fetchSharedCollectionActivity(userId),
-    fetchPendingCollectionInvites(userId).catch(() => []),
+async function fetchAlbumsBadgeCount(userId: string): Promise<number> {
+  const [albums, invites] = await Promise.all([
+    fetchSharedAlbumActivity(userId),
+    fetchPendingAlbumInvites(userId).catch(() => []),
   ]);
-  return collections.reduce((sum, c) => sum + c.newMomentCount, 0) + invites.length;
+  return albums.reduce((sum, c) => sum + c.newMomentCount, 0) + invites.length;
 }
 
 async function fetchProfileBadgeCount(userId: string): Promise<number> {
@@ -28,12 +28,12 @@ import type { MaterialTopTabBarProps } from "@react-navigation/material-top-tabs
 import { MiniPlayer } from "@/components/MiniPlayer";
 
 
-// Visual tab order: Timeline(0), Reflections(1), [Capture], Collections(2), Me(3)
+// Visual tab order: Timeline(0), Reflections(1), [Capture], Albums(2), Me(3)
 const TAB_DEFS = [
   { label: "Moments",     realIndex: 0 },
   { label: "Reflections", realIndex: 1 },
   { label: "CAPTURE",     realIndex: -1 },
-  { label: "Collections", realIndex: 2 },
+  { label: "Albums",      realIndex: 2 },
   { label: "Me",          realIndex: 3 },
 ];
 
@@ -52,7 +52,7 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
 
   const { data: collectionsBadge = 0 } = useQuery({
     queryKey: ["collectionsBadge", user?.id],
-    queryFn: () => fetchCollectionsBadgeCount(user!.id),
+    queryFn: () => fetchAlbumsBadgeCount(user!.id),
     enabled: !!user,
     staleTime: 60_000,
     refetchInterval: 60_000,
@@ -108,7 +108,7 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
         const color = isActive ? activeColor : inactiveColor;
         const iconDef = ICONS[visualIndex];
         const iconName = isActive ? iconDef.active : iconDef.inactive;
-        const badgeCount = tab.label === "Collections" ? collectionsBadge : tab.label === "Me" ? profileBadge : 0;
+        const badgeCount = tab.label === "Albums" ? collectionsBadge : tab.label === "Me" ? profileBadge : 0;
         const showBadge = badgeCount > 0;
 
         return (

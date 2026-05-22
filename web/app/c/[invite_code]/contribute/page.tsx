@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
 import ContributeHub from "./ContributeHub";
-import type { MomentItem } from "@/components/CollectionMomentList";
+import type { MomentItem } from "@/components/AlbumMomentList";
 
 export const dynamic = "force-dynamic";
 

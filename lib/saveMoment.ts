@@ -2,8 +2,8 @@ import * as Sentry from "@sentry/react-native";
 import { supabase } from "@/lib/supabase";
 import { fetchPreviewUrl } from "@/lib/musickit";
 import { uploadMomentPhotoWithThumbnail } from "@/lib/storage";
-import { addMomentToCollection } from "@/lib/collections";
-import { Song, Collection, Friendship, Moment } from "@/types";
+import { addMomentToAlbum } from "@/lib/albums";
+import { Song, Album, Friendship, Moment } from "@/types";
 import { GeoResult } from "@/lib/geocoding";
 import { mapRowToMoment } from "@/lib/moments";
 
@@ -25,7 +25,7 @@ export interface SaveMomentInput {
   locationResult: GeoResult | null;
   momentDate: Date | null;
   visibility: 'private' | 'connections' | 'link';
-  selectedCollection?: Collection | null;
+  selectedAlbum?: Album | null;
   taggedFriends?: Array<{ friend: Friendship; send: boolean }>;
   prefetchedPreview?: { previewUrl: string | null; albumName: string | null } | null;
   weatherResult?: { tempF: number; condition: string } | null;
@@ -42,7 +42,7 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
     category: "moment",
     message: "save_moment started",
     level: "info",
-    data: { photoCount: input.photos.length, song: input.song.title, hasCollection: !!input.selectedCollection },
+    data: { photoCount: input.photos.length, song: input.song.title, hasAlbum: !!input.selectedAlbum },
   });
 
   const [preview, photoResults] = await Promise.all([
@@ -96,11 +96,11 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
   const secondaryFailures: string[] = [];
   const secondaryOps: Promise<void>[] = [];
 
-  if (input.selectedCollection && inserted?.id) {
+  if (input.selectedAlbum && inserted?.id) {
     secondaryOps.push(
-      addMomentToCollection(input.selectedCollection.id, inserted.id, input.userId).catch((e) => {
+      addMomentToAlbum(input.selectedAlbum.id, inserted.id, input.userId).catch((e) => {
         Sentry.captureException(e);
-        secondaryFailures.push("couldn't be added to the collection");
+        secondaryFailures.push("couldn't be added to the album");
       })
     );
   }

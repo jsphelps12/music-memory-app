@@ -12,23 +12,23 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { CloseButton } from "@/components/CloseButton";
-import { createCollection } from "@/lib/collections";
-import { Collection } from "@/types";
+import { createAlbum } from "@/lib/albums";
+import { Album } from "@/types";
 import { friendlyError } from "@/lib/errors";
 
-type CollectionType = "personal" | "shared";
+type AlbumType = "personal" | "shared";
 
 interface Props {
   visible: boolean;
   userId: string;
-  onCreated: (collection: Collection) => void;
+  onCreated: (album: Album) => void;
   onClose: () => void;
 }
 
-export function CreateCollectionModal({ visible, userId, onCreated, onClose }: Props) {
+export function CreateAlbumModal({ visible, userId, onCreated, onClose }: Props) {
   const theme = useTheme();
   const [name, setName] = useState("");
-  const [type, setType] = useState<CollectionType>("personal");
+  const [type, setType] = useState<AlbumType>("personal");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef<TextInput>(null);
@@ -46,9 +46,9 @@ export function CreateCollectionModal({ visible, userId, onCreated, onClose }: P
     setSaving(true);
     setError("");
     try {
-      const collection = await createCollection(userId, trimmed, type === "shared");
+      const album = await createAlbum(userId, trimmed, type === "shared");
       reset();
-      onCreated(collection);
+      onCreated(album);
     } catch (e: any) {
       setError(friendlyError(e));
       setSaving(false);
@@ -76,7 +76,7 @@ export function CreateCollectionModal({ visible, userId, onCreated, onClose }: P
           <Pressable style={styles.flex} onPress={handleClose} />
           <View style={[styles.card, { backgroundColor: theme.colors.cardBg }]}>
             <View style={styles.header}>
-              <Text style={[styles.title, { color: theme.colors.text }]}>New Collection</Text>
+              <Text style={[styles.title, { color: theme.colors.text }]}>New Album</Text>
               <CloseButton onPress={handleClose} />
             </View>
 

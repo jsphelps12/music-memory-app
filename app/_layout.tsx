@@ -332,11 +332,11 @@ function RootLayoutNav() {
             options={{ headerShown: false, presentation: "modal" }}
           />
           <Stack.Screen
-            name="collection/[id]"
+            name="album/[id]"
             options={{ headerShown: false }}
           />
           <Stack.Screen
-            name="shared-collections"
+            name="shared-albums"
             options={{ headerShown: false }}
           />
           <Stack.Screen

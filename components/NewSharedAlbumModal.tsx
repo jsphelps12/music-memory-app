@@ -22,8 +22,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { CloseButton } from "@/components/CloseButton";
 import { friendlyError } from "@/lib/errors";
-import { createCollection, updateCollectionCover } from "@/lib/collections";
-import { uploadCollectionCover } from "@/lib/storage";
+import { createAlbum, updateAlbumCover } from "@/lib/albums";
+import { uploadAlbumCover } from "@/lib/storage";
 
 interface Props {
   visible: boolean;
@@ -31,7 +31,7 @@ interface Props {
   userId: string;
 }
 
-export function NewSharedCollectionModal({ visible, onClose, userId }: Props) {
+export function NewSharedAlbumModal({ visible, onClose, userId }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useRouter();
@@ -74,14 +74,14 @@ export function NewSharedCollectionModal({ visible, onClose, userId }: Props) {
     if (!trimmed) return;
     setLoading(true);
     try {
-      const collection = await createCollection(userId, trimmed, isShared);
+      const album = await createAlbum(userId, trimmed, isShared);
       if (coverUri) {
-        const path = await uploadCollectionCover(userId, collection.id, coverUri);
-        await updateCollectionCover(collection.id, path);
+        const path = await uploadAlbumCover(userId, album.id, coverUri);
+        await updateAlbumCover(album.id, path);
       }
       await queryClient.invalidateQueries({ queryKey: ["collectionsScreen", userId] });
       handleClose();
-      router.push({ pathname: "/collection/[id]" as any, params: { id: collection.id } });
+      router.push({ pathname: "/album/[id]" as any, params: { id: album.id } });
     } catch (e: any) {
       Alert.alert("Error", friendlyError(e));
     } finally {
@@ -97,7 +97,7 @@ export function NewSharedCollectionModal({ visible, onClose, userId }: Props) {
           <Animated.View style={[styles.sheet, { backgroundColor: theme.colors.background }, animatedStyle]}>
           <View style={[styles.handle, { backgroundColor: theme.colors.border }]} />
           <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.colors.text }]}>New Collection</Text>
+            <Text style={[styles.title, { color: theme.colors.text }]}>New Album</Text>
             <CloseButton onPress={handleClose} />
           </View>
 
@@ -165,7 +165,7 @@ export function NewSharedCollectionModal({ visible, onClose, userId }: Props) {
           </TouchableOpacity>
           {isShared && (
             <Text style={[styles.hint, { color: theme.colors.textTertiary }]}>
-              You'll be taken to the collection to invite members.
+              You'll be taken to the album to invite members.
             </Text>
           )}
           </Animated.View>

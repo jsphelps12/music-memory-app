@@ -21,23 +21,23 @@ import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CloseButton } from "@/components/CloseButton";
 import * as Haptics from "expo-haptics";
-import { Collection } from "@/types";
+import { Album } from "@/types";
 import {
-  convertCollectionToShared,
-  deleteCollection,
-  leaveCollection,
-  fetchCollectionMembers,
-  removeCollectionMember,
-  renameCollection,
-  updateCollectionCover,
-  searchUsersForCollection,
-  sendCollectionInvite,
-  fetchSentCollectionInvites,
-  deleteCollectionInvite,
-  CollectionMember,
-  SentCollectionInvite,
-} from "@/lib/collections";
-import { uploadCollectionCover, getPublicPhotoThumbnailUrl } from "@/lib/storage";
+  convertAlbumToShared,
+  deleteAlbum,
+  leaveAlbum,
+  fetchAlbumMembers,
+  removeAlbumMember,
+  renameAlbum,
+  updateAlbumCover,
+  searchUsersForAlbum,
+  sendAlbumInvite,
+  fetchSentAlbumInvites,
+  deleteAlbumInvite,
+  AlbumMember,
+  SentAlbumInvite,
+} from "@/lib/albums";
+import { uploadAlbumCover, getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
@@ -47,13 +47,13 @@ const WEB_BASE_URL = "https://soundtracks.app";
 
 interface Props {
   visible: boolean;
-  collection: Collection;
+  collection: Album;
   onClose: () => void;
-  onUpdated: (updated: Collection) => void;
+  onUpdated: (updated: Album) => void;
   onLeft: (collectionId: string) => void;
 }
 
-export function CollectionShareSheet({ visible, collection, onClose, onUpdated, onLeft }: Props) {
+export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLeft }: Props) {
   const theme = useTheme();
   const { user } = useAuth();
 
@@ -69,10 +69,10 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
   const [leaving, setLeaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
-  const [members, setMembers] = useState<CollectionMember[]>([]);
+  const [members, setMembers] = useState<AlbumMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
-  const [sentInvites, setSentInvites] = useState<SentCollectionInvite[]>([]);
+  const [sentInvites, setSentInvites] = useState<SentAlbumInvite[]>([]);
   const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
 
   // Rename state
@@ -98,8 +98,8 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
     if (visible && isOwner) {
       setLoadingMembers(true);
       Promise.all([
-        fetchCollectionMembers(collection.id),
-        collection.isPublic ? fetchSentCollectionInvites(collection.id) : Promise.resolve([]),
+        fetchAlbumMembers(collection.id),
+        collection.isPublic ? fetchSentAlbumInvites(collection.id) : Promise.resolve([]),
       ])
         .then(([mems, invites]) => {
           setMembers(mems);
@@ -135,7 +135,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
         ...members.map((m) => m.userId),
         ...sentInvites.map((i) => i.inviteeId),
       ].filter(Boolean);
-      searchUsersForCollection(inviteQuery.trim(), excludeIds)
+      searchUsersForAlbum(inviteQuery.trim(), excludeIds)
         .then(setInviteResults)
         .catch(() => {})
         .finally(() => setInviteSearching(false));
@@ -155,7 +155,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
     setSavingRename(true);
     setError("");
     try {
-      await renameCollection(collection.id, trimmed);
+      await renameAlbum(collection.id, trimmed);
       onUpdated({ ...collection, name: trimmed });
       setRenaming(false);
     } catch (e: any) {
@@ -177,8 +177,8 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
     setUploadingCover(true);
     setError("");
     try {
-      const path = await uploadCollectionCover(user.id, collection.id, result.assets[0].uri);
-      await updateCollectionCover(collection.id, path);
+      const path = await uploadAlbumCover(user.id, collection.id, result.assets[0].uri);
+      await updateAlbumCover(collection.id, path);
       onUpdated({ ...collection, coverPhotoUrl: path });
       queryClient.invalidateQueries({ queryKey: ["sharedScreen", user.id] });
     } catch (e: any) {
@@ -191,7 +191,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
   async function handleRemoveCover() {
     setError("");
     try {
-      await updateCollectionCover(collection.id, null);
+      await updateAlbumCover(collection.id, null);
       onUpdated({ ...collection, coverPhotoUrl: undefined });
       queryClient.invalidateQueries({ queryKey: ["sharedScreen", user?.id] });
     } catch (e: any) {
@@ -204,7 +204,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
     setInvitingId(result.id);
     setError("");
     try {
-      await sendCollectionInvite(collection.id, user.id, result.id);
+      await sendAlbumInvite(collection.id, user.id, result.id);
       setSentIds((prev) => new Set([...prev, result.id]));
       setSentInvites((prev) => [...prev, { id: "", inviteeId: result.id, inviteeName: result.displayName, createdAt: new Date().toISOString() }]);
       // Clear search after a moment so user sees the "Invited" state
@@ -223,7 +223,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
   async function handleRevokeInvite(inviteId: string) {
     setRevokingInviteId(inviteId);
     try {
-      await deleteCollectionInvite(inviteId);
+      await deleteAlbumInvite(inviteId);
       setSentInvites((prev) => prev.filter((i) => i.id !== inviteId));
     } catch (e: any) {
       setError(friendlyError(e));
@@ -244,7 +244,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
             setConverting(true);
             setError("");
             try {
-              await convertCollectionToShared(collection.id);
+              await convertAlbumToShared(collection.id);
               await supabase.functions.invoke("create-guest-user", {
                 body: { collectionId: collection.id },
               });
@@ -271,7 +271,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
     } catch {}
   }
 
-  function handleRemoveMember(member: CollectionMember) {
+  function handleRemoveMember(member: AlbumMember) {
     Alert.alert(
       "Remove Member",
       `Remove ${member.displayName ?? "this member"} from "${collection.name}"?`,
@@ -284,7 +284,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
             setRemovingMemberId(member.userId);
             setError("");
             try {
-              await removeCollectionMember(collection.id, member.userId);
+              await removeAlbumMember(collection.id, member.userId);
               setMembers((prev) => prev.filter((m) => m.userId !== member.userId));
             } catch (e: any) {
               setError(friendlyError(e));
@@ -299,7 +299,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
 
   function handleLeave() {
     Alert.alert(
-      "Leave Collection",
+      "Leave Album",
       `Leave "${collection.name}"? You can rejoin later with the invite link.`,
       [
         { text: "Cancel", style: "cancel" },
@@ -312,7 +312,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
             setLeaving(true);
             setError("");
             try {
-              await leaveCollection(collection.id, user.id);
+              await leaveAlbum(collection.id, user.id);
               onClose();
               onLeft(collection.id);
             } catch (e: any) {
@@ -330,7 +330,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
       ? ` ${members.length} member${members.length === 1 ? "" : "s"} will be removed.`
       : "";
     Alert.alert(
-      "Delete Collection",
+      "Delete Album",
       `Permanently delete "${collection.name}"?${memberWarning} Moments added by members will remain on their timelines. This can't be undone.`,
       [
         { text: "Cancel", style: "cancel" },
@@ -342,7 +342,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
             setDeleting(true);
             setError("");
             try {
-              await deleteCollection(collection.id);
+              await deleteAlbum(collection.id);
               onClose();
               onLeft(collection.id);
             } catch (e: any) {
@@ -398,7 +398,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                 hitSlop={8}
               >
                 {savingRename ? (
-                  <ActivityIndicator size="small" color={theme.colors.accent} />
+                  <ActivityIndicator size="small" color={theme.colors.textSecondary} />
                 ) : (
                   <Text style={[styles.renameSave, { color: theme.colors.text, opacity: !renameText.trim() || renameText.trim() === collection.name ? 0.35 : 1 }]}>
                     Save
@@ -466,7 +466,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                 </View>
               </View>
               {uploadingCover ? (
-                <ActivityIndicator size="small" color={theme.colors.accent} />
+                <ActivityIndicator size="small" color={theme.colors.textSecondary} />
               ) : collection.coverPhotoUrl ? (
                 <TouchableOpacity
                   onLongPress={handleRemoveCover}
@@ -624,7 +624,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                 <Text style={[styles.memberName, { color: theme.colors.text }]}>You (owner)</Text>
               </View>
               {loadingMembers ? (
-                <ActivityIndicator size="small" color={theme.colors.accent} style={{ marginVertical: 12 }} />
+                <ActivityIndicator size="small" color={theme.colors.textSecondary} style={{ marginVertical: 12 }} />
               ) : (
                 <>
                   {members.map((member) => (
@@ -695,7 +695,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                 <ActivityIndicator color={theme.colors.destructive} />
               ) : (
                 <Text style={[styles.deleteButtonText, { color: theme.colors.destructive ?? "#E53E3E" }]}>
-                  Delete Collection
+                  Delete Album
                 </Text>
               )}
             </TouchableOpacity>
@@ -707,7 +707,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
               <View style={styles.rowLeft}>
                 <Ionicons name="people-outline" size={20} color={theme.colors.text} />
                 <View style={styles.rowText}>
-                  <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Shared Collection</Text>
+                  <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Shared Album</Text>
                   <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
                     {collection.momentCount} {collection.momentCount === 1 ? "moment" : "moments"}
                     {collection.ownerName ? ` · by ${collection.ownerName}` : ""}
@@ -737,7 +737,7 @@ export function CollectionShareSheet({ visible, collection, onClose, onUpdated, 
                   <ActivityIndicator color={theme.colors.destructive} />
                 ) : (
                   <Text style={[styles.leaveButtonText, { color: theme.colors.destructive ?? "#E53E3E" }]}>
-                    Leave Collection
+                    Leave Album
                   </Text>
                 )}
               </TouchableOpacity>

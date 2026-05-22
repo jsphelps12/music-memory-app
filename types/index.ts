@@ -48,17 +48,17 @@ export interface Moment {
   visibility: 'private' | 'connections' | 'link';
   shareToken?: string | null;
   guestUuid?: string | null;
-  // Set when viewing a shared collection — display name of who added this moment
+  // Set when viewing a shared album — display name of who added this moment
   contributorName?: string | null;
 }
 
-export interface Collection {
+export interface Album {
   id: string;
   userId: string;
   name: string;
   createdAt: string;
   momentCount?: number;
-  momentIds?: string[]; // IDs of moments in this collection (personal collections only)
+  momentIds?: string[]; // IDs of moments in this album (personal albums only)
   isPublic?: boolean;
   inviteCode?: string;
   role: "owner" | "member";
@@ -66,7 +66,7 @@ export interface Collection {
   coverPhotoUrl?: string;
 }
 
-export interface CollectionPreview {
+export interface AlbumPreview {
   id: string;
   name: string;
   ownerId: string;

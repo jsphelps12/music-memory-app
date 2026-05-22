@@ -14,19 +14,20 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { CloseButton } from "@/components/CloseButton";
-import { Collection } from "@/types";
+import { Album } from "@/types";
 import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
+import { pluralMoments } from "@/lib/utils";
 
 interface Props {
   visible: boolean;
-  collections: Collection[];
+  collections: Album[];
   selectedId: string | null;
-  onSelect: (collection: Collection | null) => void;
+  onSelect: (album: Album | null) => void;
   onClose: () => void;
   onRequestCreate: () => void;
 }
 
-export function CollectionPicker({
+export function AlbumPicker({
   visible,
   collections,
   selectedId,
@@ -49,12 +50,12 @@ export function CollectionPicker({
   const ownedShared = collections.filter((c) => c.role === "owner" && c.isPublic);
   const shared = collections.filter((c) => c.role === "member");
 
-  const handleSelect = (collection: Collection | null) => {
-    onSelect(collection);
+  const handleSelect = (album: Album | null) => {
+    onSelect(album);
     onClose();
   };
 
-  const renderRow = (item: Collection) => {
+  const renderRow = (item: Album) => {
     const thumbUrl = item.coverPhotoUrl
       ? getPublicPhotoThumbnailUrl(item.coverPhotoUrl, 72, true)
       : null;
@@ -70,7 +71,7 @@ export function CollectionPicker({
           <Image source={{ uri: thumbUrl }} style={styles.rowThumb} contentFit="cover" />
         ) : (
         <Ionicons
-          name={item.role === "member" ? "people-outline" : "folder-outline"}
+          name={item.isPublic ? "people-outline" : "folder-outline"}
           size={20}
           color={theme.colors.textSecondary}
           style={styles.rowIcon}
@@ -86,7 +87,7 @@ export function CollectionPicker({
             </Text>
           ) : item.momentCount !== undefined ? (
             <Text style={[styles.rowSub, { color: theme.colors.textTertiary }]}>
-              {item.momentCount} {item.momentCount === 1 ? "moment" : "moments"}
+              {pluralMoments(item.momentCount)}
             </Text>
           ) : null}
         </View>
@@ -121,19 +122,19 @@ export function CollectionPicker({
         </GestureDetector>
         <View style={styles.sheetHeader}>
           <Text style={[styles.sheetTitle, { color: theme.colors.textSecondary }]}>
-            Collections
+            Albums
           </Text>
           <CloseButton onPress={onClose} />
         </View>
 
-        {/* New Collection — pinned above the scroll list */}
+        {/* New Album — pinned above the scroll list */}
         <TouchableOpacity
-          style={[styles.newCollectionBtn, { borderBottomColor: theme.colors.border }]}
+          style={[styles.newAlbumBtn, { borderBottomColor: theme.colors.border }]}
           onPress={onRequestCreate}
           activeOpacity={0.7}
         >
           <Ionicons name="add-circle-outline" size={20} color={theme.colors.textSecondary} style={styles.rowIcon} />
-          <Text style={[styles.rowName, { color: theme.colors.text }]}>New Collection</Text>
+          <Text style={[styles.rowName, { color: theme.colors.text }]}>New Album</Text>
         </TouchableOpacity>
 
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -158,7 +159,7 @@ export function CollectionPicker({
             <>
               <View style={[styles.sectionDivider, { borderTopColor: theme.colors.border }]}>
                 <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>
-                  MY COLLECTIONS
+                  MY ALBUMS
                 </Text>
               </View>
               {ownedPersonal.map(renderRow)}
@@ -170,48 +171,10 @@ export function CollectionPicker({
             <>
               <View style={[styles.sectionDivider, { borderTopColor: theme.colors.border }]}>
                 <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>
-                  MY SHARED COLLECTIONS
+                  MY SHARED ALBUMS
                 </Text>
               </View>
-              {ownedShared.map((item) => {
-                const sharedThumbUrl = item.coverPhotoUrl
-                  ? getPublicPhotoThumbnailUrl(item.coverPhotoUrl, 72, true)
-                  : null;
-                return (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.row}
-                  onPress={() => handleSelect(item)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.rowLeft}>
-                    {sharedThumbUrl ? (
-                      <Image source={{ uri: sharedThumbUrl }} style={styles.rowThumb} contentFit="cover" />
-                    ) : (
-                    <Ionicons
-                      name="people-outline"
-                      size={20}
-                      color={theme.colors.textSecondary}
-                      style={styles.rowIcon}
-                    />
-                    )}
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.rowName, { color: theme.colors.text }]} numberOfLines={1}>
-                        {item.name}
-                      </Text>
-                      {item.momentCount !== undefined ? (
-                        <Text style={[styles.rowSub, { color: theme.colors.textTertiary }]}>
-                          {item.momentCount} {item.momentCount === 1 ? "moment" : "moments"}
-                        </Text>
-                      ) : null}
-                    </View>
-                  </View>
-                  {selectedId === item.id ? (
-                    <Ionicons name="checkmark" size={20} color={theme.colors.accent} />
-                  ) : null}
-                </TouchableOpacity>
-              );
-              })}
+              {ownedShared.map(renderRow)}
             </>
           ) : null}
 
@@ -263,7 +226,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.8,
   },
-  newCollectionBtn: {
+  newAlbumBtn: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,

@@ -38,12 +38,12 @@ import { supabase } from "@/lib/supabase";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { mapRowToMoment } from "@/lib/moments";
 import {
-  fetchCollections,
-  addMomentToCollection,
-  removeMomentFromCollection,
-  createCollection,
-  readCollectionsCache,
-} from "@/lib/collections";
+  fetchAlbums,
+  addMomentToAlbum,
+  removeMomentFromAlbum,
+  createAlbum,
+  readAlbumsCache,
+} from "@/lib/albums";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -52,7 +52,7 @@ import { SkeletonMomentDetail } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { friendlyError } from "@/lib/errors";
-import { Collection, Moment, MoodOption, TaggedMoment } from "@/types";
+import { Album, Moment, MoodOption, TaggedMoment } from "@/types";
 import { markTimelineStale, markTimelineDeleted } from "@/lib/timelineRefresh";
 import { ShareMomentSheet } from "@/components/ShareMomentSheet";
 import { LinearGradient } from "expo-linear-gradient";
@@ -100,9 +100,9 @@ export default function MomentDetailScreen() {
   // Onboarding share sheet — auto-opens when showShareSheet=true
   const [onboardingShareSheetVisible, setOnboardingShareSheetVisible] = useState(false);
   const [showVolumeHint, setShowVolumeHint] = useState(true);
-  // Collection membership state
+  // Album membership state
   const [collectionModalVisible, setCollectionModalVisible] = useState(false);
-  const [allCollections, setAllCollections] = useState<Collection[]>([]);
+  const [allCollections, setAllCollections] = useState<Album[]>([]);
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [pendingMemberIds, setPendingMemberIds] = useState<string[]>([]);
   const [collectionLoading, setCollectionLoading] = useState(false);
@@ -396,13 +396,13 @@ export default function MomentDetailScreen() {
     setShowingNewInput(false);
     setNewCollectionName("");
     try {
-      // Read from AsyncStorage cache — collections were already fetched by the timeline.
+      // Read from AsyncStorage cache — albums were already fetched by the timeline.
       // Only hit the network on a true cache miss.
-      const cached = await readCollectionsCache(user!.id);
-      const cols = cached ?? await fetchCollections(user!.id);
+      const cached = await readAlbumsCache(user!.id);
+      const cols = cached ?? await fetchAlbums(user!.id);
 
-      // Derive which collections contain this moment from the momentIds already stored
-      // on each collection — no second network call needed.
+      // Derive which albums contain this moment from the momentIds already stored
+      // on each album — no second network call needed.
       const memberCollectionIds = cols
         .filter((c) => c.momentIds?.includes(id))
         .map((c) => c.id);
@@ -414,7 +414,7 @@ export default function MomentDetailScreen() {
     setCollectionLoading(false);
   };
 
-  const toggleCollection = (collection: Collection) => {
+  const toggleCollection = (collection: Album) => {
     setPendingMemberIds((prev) =>
       prev.includes(collection.id)
         ? prev.filter((cid) => cid !== collection.id)
@@ -428,8 +428,8 @@ export default function MomentDetailScreen() {
       const toAdd = pendingMemberIds.filter((cid) => !memberIds.includes(cid));
       const toRemove = memberIds.filter((cid) => !pendingMemberIds.includes(cid));
       await Promise.all([
-        ...toAdd.map((cid) => addMomentToCollection(cid, id, user!.id)),
-        ...toRemove.map((cid) => removeMomentFromCollection(cid, id)),
+        ...toAdd.map((cid) => addMomentToAlbum(cid, id, user!.id)),
+        ...toRemove.map((cid) => removeMomentFromAlbum(cid, id)),
       ]);
       setMemberIds(pendingMemberIds);
     } catch {}
@@ -442,8 +442,8 @@ export default function MomentDetailScreen() {
     if (!trimmed || creatingCollection) return;
     setCreatingCollection(true);
     try {
-      const collection = await createCollection(user!.id, trimmed);
-      await addMomentToCollection(collection.id, id, user!.id);
+      const collection = await createAlbum(user!.id, trimmed);
+      await addMomentToAlbum(collection.id, id, user!.id);
       setAllCollections((prev) => [...prev, collection]);
       setMemberIds((prev) => [...prev, collection.id]);
       setPendingMemberIds((prev) => [...prev, collection.id]);
@@ -487,7 +487,7 @@ export default function MomentDetailScreen() {
     if (!collectionId) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     setMenuOpen(false);
-    Alert.alert("Remove from Collection", "Remove this moment from the collection? The moment won't be deleted.", [
+    Alert.alert("Remove from Album", "Remove this moment from the album? The moment won't be deleted.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Remove",
@@ -613,7 +613,7 @@ export default function MomentDetailScreen() {
                 <>
                   <View style={styles.menuDivider} />
                   <TouchableOpacity style={styles.menuItem} onPress={handleAddToCollection} activeOpacity={0.7}>
-                    <Text style={styles.menuItemText}>Add to Collection</Text>
+                    <Text style={styles.menuItemText}>Add to Album</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -639,7 +639,7 @@ export default function MomentDetailScreen() {
                 <>
                   <View style={styles.menuDivider} />
                   <TouchableOpacity style={styles.menuItem} onPress={handleRemoveFromCollection} activeOpacity={0.7}>
-                    <Text style={styles.menuItemTextDestructive}>Remove from Collection</Text>
+                    <Text style={styles.menuItemTextDestructive}>Remove from Album</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -1142,7 +1142,7 @@ export default function MomentDetailScreen() {
             />
           </GestureDetector>
           <Text style={[collectionStyles.sheetTitle, { color: theme.colors.textSecondary }]}>
-            Add to Collection
+            Add to Album
           </Text>
 
           {collectionLoading ? (
@@ -1156,7 +1156,7 @@ export default function MomentDetailScreen() {
               style={collectionStyles.list}
               ListEmptyComponent={
                 <Text style={[collectionStyles.emptyText, { color: theme.colors.textTertiary }]}>
-                  No collections yet
+                  No albums yet
                 </Text>
               }
               renderItem={({ item }) => {
@@ -1179,7 +1179,7 @@ export default function MomentDetailScreen() {
                       </Text>
                       {item.isPublic && (
                         <Text style={{ fontSize: 11, color: theme.colors.textTertiary, marginTop: 1 }}>
-                          Shared collection
+                          Shared album
                         </Text>
                       )}
                     </View>
@@ -1208,7 +1208,7 @@ export default function MomentDetailScreen() {
                   backgroundColor: theme.colors.backgroundInput,
                   color: theme.colors.text,
                 }]}
-                placeholder="Collection name..."
+                placeholder="Album name..."
                 placeholderTextColor={theme.colors.placeholder}
                 cursorColor={theme.colors.accent}
                 value={newCollectionName}
@@ -1239,7 +1239,7 @@ export default function MomentDetailScreen() {
               activeOpacity={0.7}
             >
               <Text style={[collectionStyles.newCollectionText, { color: theme.colors.accent }]}>
-                + New Collection
+                + New Album
               </Text>
             </TouchableOpacity>
           )}

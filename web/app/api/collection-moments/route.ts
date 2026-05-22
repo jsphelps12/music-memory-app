@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
-import type { MomentItem } from "@/components/CollectionMomentList";
+import type { MomentItem } from "@/components/AlbumMomentList";
 
 export async function GET(req: NextRequest) {
   const inviteCode = req.nextUrl.searchParams.get("inviteCode");

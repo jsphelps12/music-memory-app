@@ -134,7 +134,7 @@ export function getPublicPhotoThumbnailUrl(path: string, width = 400, square = f
   return data.publicUrl;
 }
 
-export async function uploadCollectionCover(
+export async function uploadAlbumCover(
   userId: string,
   collectionId: string,
   uri: string

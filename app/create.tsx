@@ -27,16 +27,16 @@ import { maybeRequestReview } from "@/lib/reviewPrompt";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
 import { VisibilityPicker, Visibility } from "@/components/VisibilityPicker";
-import { CollectionPicker } from "@/components/CollectionPicker";
-import { CreateCollectionModal } from "@/components/CreateCollectionModal";
+import { AlbumPicker } from "@/components/AlbumPicker";
+import { CreateAlbumModal } from "@/components/CreateAlbumModal";
 import { SongPickerSection } from "@/components/SongPickerSection";
 import { PhotoPickerSection } from "@/components/PhotoPickerSection";
 import { LocationField } from "@/components/LocationField";
-import { fetchCollections } from "@/lib/collections";
+import { fetchAlbums } from "@/lib/albums";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
-import { Song, Collection } from "@/types";
+import { Song, Album } from "@/types";
 import { GeoResult } from "@/lib/geocoding";
 import { friendlyError } from "@/lib/errors";
 import { checkAndNotifyMilestone } from "@/lib/notifications";
@@ -163,10 +163,10 @@ export default function CreateMomentScreen() {
   const [metaSuggestion, setMetaSuggestion] = useState<{ date?: Date; location?: string; lat?: number; lng?: number } | null>(null);
   const [dismissedMetaSuggestion, setDismissedMetaSuggestion] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
-  const [collectionPickerVisible, setCollectionPickerVisible] = useState(false);
-  const [createCollectionVisible, setCreateCollectionVisible] = useState(false);
+  const [albums, setAlbums] = useState<Album[]>([]);
+  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
+  const [albumPickerVisible, setAlbumPickerVisible] = useState(false);
+  const [createAlbumVisible, setCreateAlbumVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focusedField, setFocusedField] = useState("");
@@ -185,21 +185,21 @@ export default function CreateMomentScreen() {
   }, [showDetails, user?.id]);
 
   useEffect(() => {
-    if ((showDetails || params.collectionId) && user && collections.length === 0) {
-      fetchCollections(user.id).then(setCollections).catch(() => {});
+    if ((showDetails || params.collectionId) && user && albums.length === 0) {
+      fetchAlbums(user.id).then(setAlbums).catch(() => {});
     }
   }, [showDetails, params.collectionId, user]);
 
-  // Auto-expand details and pre-select collection when opened from a collection view
+  // Auto-expand details and pre-select album when opened from an album view
   useEffect(() => {
     if (params.collectionId) setShowDetails(true);
   }, [params.collectionId]);
 
   useEffect(() => {
-    if (!params.collectionId || collections.length === 0) return;
-    const match = collections.find((c) => c.id === params.collectionId);
-    if (match) setSelectedCollection(match);
-  }, [params.collectionId, collections]);
+    if (!params.collectionId || albums.length === 0) return;
+    const match = albums.find((c) => c.id === params.collectionId);
+    if (match) setSelectedAlbum(match);
+  }, [params.collectionId, albums]);
 
   // Auto-fetch weather when location + date are both set
   useEffect(() => {
@@ -267,7 +267,7 @@ export default function CreateMomentScreen() {
         locationResult,
         momentDate,
         visibility,
-        selectedCollection,
+        selectedAlbum,
         taggedFriends,
         prefetchedPreview,
         weatherResult,
@@ -281,7 +281,7 @@ export default function CreateMomentScreen() {
         photo_count: photos.length,
         has_location: Boolean(locationResult),
         has_people: people.length > 0,
-        has_collection: Boolean(selectedCollection),
+        has_collection: Boolean(selectedAlbum),
       });
 
       checkAndNotifyMilestone(user.id).catch(() => {});
@@ -303,7 +303,7 @@ export default function CreateMomentScreen() {
       setPhotos([]);
       setMomentDate(new Date());
       setLocationResult(null);
-      setSelectedCollection(null);
+      setSelectedAlbum(null);
       setVisibility('private');
       setWeatherResult(null);
       setMetaSuggestion(null);
@@ -411,7 +411,7 @@ export default function CreateMomentScreen() {
 
             {/* Visibility */}
             <Text style={styles.sectionLabel}>
-              {selectedCollection?.isPublic ? "Who else can see this" : "Who can see this"}
+              {selectedAlbum?.isPublic ? "Who else can see this" : "Who can see this"}
             </Text>
             <VisibilityPicker value={visibility} onChange={setVisibility} />
 
@@ -425,49 +425,49 @@ export default function CreateMomentScreen() {
               deleteCustomMood={deleteCustomMood}
             />
 
-            {/* Collection */}
-            <Text style={styles.sectionLabel}>Collection</Text>
-            {selectedCollection ? (
+            {/* Album */}
+            <Text style={styles.sectionLabel}>Album</Text>
+            {selectedAlbum ? (
               <>
                 <View style={styles.collectionChipRow}>
                   <TouchableOpacity
                     style={[
                       styles.collectionChip,
-                      selectedCollection.isPublic && { borderColor: "rgba(152,136,200,0.3)", backgroundColor: "rgba(107,95,140,0.15)" },
+                      selectedAlbum.isPublic && { borderColor: "rgba(152,136,200,0.3)", backgroundColor: "rgba(107,95,140,0.15)" },
                     ]}
-                    onPress={() => setCollectionPickerVisible(true)}
+                    onPress={() => setAlbumPickerVisible(true)}
                     activeOpacity={0.7}
                   >
                     <Ionicons
-                      name={selectedCollection.isPublic ? "people-outline" : "folder-outline"}
+                      name={selectedAlbum.isPublic ? "people-outline" : "folder-outline"}
                       size={14}
-                      color={selectedCollection.isPublic ? "#9888C8" : "rgba(255,255,255,0.75)"}
+                      color={selectedAlbum.isPublic ? "#9888C8" : "rgba(255,255,255,0.75)"}
                     />
                     <Text style={[
                       styles.collectionChipText,
-                      selectedCollection.isPublic && { color: "#9888C8" },
+                      selectedAlbum.isPublic && { color: "#9888C8" },
                     ]}>
-                      {selectedCollection.name}
+                      {selectedAlbum.name}
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setSelectedCollection(null)} hitSlop={8}>
+                  <TouchableOpacity onPress={() => setSelectedAlbum(null)} hitSlop={8}>
                     <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.35)" />
                   </TouchableOpacity>
                 </View>
-                {selectedCollection.isPublic && (
+                {selectedAlbum.isPublic && (
                   <Text style={styles.collectionHint}>
-                    All collection members can see this. "Who else can see this" controls access outside the collection.
+                    All album members can see this. "Who else can see this" controls access outside the album.
                   </Text>
                 )}
               </>
             ) : (
               <TouchableOpacity
                 style={styles.collectionEmpty}
-                onPress={() => setCollectionPickerVisible(true)}
+                onPress={() => setAlbumPickerVisible(true)}
                 activeOpacity={0.7}
               >
                 <Ionicons name="folder-outline" size={16} color="rgba(255,255,255,0.35)" />
-                <Text style={styles.collectionEmptyText}>Add to collection</Text>
+                <Text style={styles.collectionEmptyText}>Add to album</Text>
               </TouchableOpacity>
             )}
 
@@ -534,28 +534,28 @@ export default function CreateMomentScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      <CollectionPicker
-        visible={collectionPickerVisible}
-        collections={collections}
-        selectedId={selectedCollection?.id ?? null}
-        onSelect={(c) => setSelectedCollection(c)}
-        onClose={() => setCollectionPickerVisible(false)}
+      <AlbumPicker
+        visible={albumPickerVisible}
+        collections={albums}
+        selectedId={selectedAlbum?.id ?? null}
+        onSelect={(a) => setSelectedAlbum(a)}
+        onClose={() => setAlbumPickerVisible(false)}
         onRequestCreate={() => {
-          setCollectionPickerVisible(false);
-          setCreateCollectionVisible(true);
+          setAlbumPickerVisible(false);
+          setCreateAlbumVisible(true);
         }}
       />
 
       {user ? (
-        <CreateCollectionModal
-          visible={createCollectionVisible}
+        <CreateAlbumModal
+          visible={createAlbumVisible}
           userId={user.id}
-          onCreated={(collection) => {
-            setCollections((prev) => [...prev, collection]);
-            setSelectedCollection(collection);
-            setCreateCollectionVisible(false);
+          onCreated={(album) => {
+            setAlbums((prev) => [...prev, album]);
+            setSelectedAlbum(album);
+            setCreateAlbumVisible(false);
           }}
-          onClose={() => setCreateCollectionVisible(false)}
+          onClose={() => setCreateAlbumVisible(false)}
         />
       ) : null}
 

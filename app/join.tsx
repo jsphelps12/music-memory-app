@@ -13,12 +13,12 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { CloseButton } from "@/components/CloseButton";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchCollectionByInviteCode, joinCollection } from "@/lib/collections";
-import { setPendingCollectionId } from "@/lib/pendingCollection";
+import { fetchAlbumByInviteCode, joinAlbum } from "@/lib/albums";
+import { setPendingAlbumId } from "@/lib/pendingAlbum";
 import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/hooks/useTheme";
 import { friendlyError } from "@/lib/errors";
-import { CollectionPreview } from "@/types";
+import { AlbumPreview } from "@/types";
 
 type ScreenState = "loading" | "not_found" | "already_owner" | "already_member" | "ready" | "joining";
 
@@ -30,7 +30,7 @@ export default function JoinScreen() {
   const posthog = usePostHog();
 
   const [state, setState] = useState<ScreenState>("loading");
-  const [collection, setCollection] = useState<CollectionPreview | null>(null);
+  const [collection, setCollection] = useState<AlbumPreview | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export default function JoinScreen() {
     setState("loading");
     setError("");
     try {
-      const data = await fetchCollectionByInviteCode(inviteCode);
+      const data = await fetchAlbumByInviteCode(inviteCode);
       if (!data) {
         setState("not_found");
         return;
@@ -75,8 +75,8 @@ export default function JoinScreen() {
     setState("joining");
     setError("");
     try {
-      const joined = await joinCollection(inviteCode, user.id);
-      setPendingCollectionId(joined.id);
+      const joined = await joinAlbum(inviteCode, user.id);
+      setPendingAlbumId(joined.id);
       posthog.capture("collection_joined", { collection_name: collection?.name ?? null });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace("/(tabs)");
@@ -105,7 +105,7 @@ export default function JoinScreen() {
             Link not found
           </Text>
           <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-            This invite link may have expired or the collection was made private.
+            This invite link may have expired or the album was made private.
           </Text>
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: theme.colors.accent }]}
@@ -121,7 +121,7 @@ export default function JoinScreen() {
         <View style={styles.centered}>
           <Ionicons name="star" size={48} color={theme.colors.accent} />
           <Text style={[styles.title, { color: theme.colors.text, marginTop: 20 }]}>
-            This is your collection
+            This is your album
           </Text>
           <Text style={[styles.collectionName, { color: theme.colors.text }]}>
             {collection.name}
@@ -143,7 +143,7 @@ export default function JoinScreen() {
         <View style={styles.centered}>
           <Ionicons name="checkmark-circle" size={48} color={theme.colors.accent} />
           <Text style={[styles.title, { color: theme.colors.text, marginTop: 20 }]}>
-            You're already in this collection
+            You're already in this album
           </Text>
           <Text style={[styles.collectionName, { color: theme.colors.text }]}>
             {collection.name}
@@ -205,7 +205,7 @@ export default function JoinScreen() {
             {state === "joining" ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.primaryButtonText}>Join Collection</Text>
+              <Text style={styles.primaryButtonText}>Join Album</Text>
             )}
           </TouchableOpacity>
 

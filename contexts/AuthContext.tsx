@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { posthog } from "@/lib/posthog";
 import { CustomMoodDefinition, CustomPromptCategory, FavoriteArtist, FavoriteSong, UserProfile } from "@/types";
 import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
-import { fetchCollections, writeCollectionsCache, clearCollectionsCache, clearAllCollectionMomentsCache } from "@/lib/collections";
+import { fetchAlbums, writeAlbumsCache, clearAlbumsCache, clearAllAlbumMomentsCache } from "@/lib/albums";
 import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
 import { fetchBrowseMetadata, readBrowseCache, writeBrowseCache, clearBrowseCache } from "@/lib/browse";
 import { fetchSharedScreenData, readSharedCache, writeSharedCache, clearSharedCache } from "@/lib/sharedScreen";
@@ -137,8 +137,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // ── Tab prefetches — add new tab-level queries here ──────────────────
           // Fire before any awaits so data is warm before tabs mount.
           prefetchTimeline(session.user.id);
-          fetchCollections(session.user.id)
-            .then((data) => writeCollectionsCache(session.user.id, data))
+          fetchAlbums(session.user.id)
+            .then((data) => writeAlbumsCache(session.user.id, data))
             .catch(() => {});
           readBrowseCache(session.user.id).then((cached) => {
             if (cached) queryClient.setQueryData(["browseMeta", session.user.id], cached);
@@ -281,8 +281,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (userId) {
       clearTimelineCache(userId);
       clearProfileCache(userId);
-      clearCollectionsCache(userId);
-      clearAllCollectionMomentsCache(userId);
+      clearAlbumsCache(userId);
+      clearAllAlbumMomentsCache(userId);
       clearBrowseCache(userId);
       clearSharedCache(userId);
     }

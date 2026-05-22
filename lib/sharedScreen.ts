@@ -1,9 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  fetchSharedCollectionActivity,
-  fetchPendingCollectionInvites,
-  CollectionInvite,
-} from "@/lib/collections";
+  fetchSharedAlbumActivity,
+  fetchPendingAlbumInvites,
+  AlbumInvite,
+} from "@/lib/albums";
 import { fetchPendingRequests, fetchFriends } from "@/lib/friends";
 
 export type SharedScreenData = Awaited<ReturnType<typeof fetchSharedScreenData>>;
@@ -32,16 +32,16 @@ export async function clearSharedCache(userId: string): Promise<void> {
 }
 
 export async function fetchSharedScreenData(userId: string) {
-  const [requests, friends, collections, invites] = await Promise.all([
+  const [requests, friends, albums, invites] = await Promise.all([
     fetchPendingRequests(userId),
     fetchFriends(userId),
-    fetchSharedCollectionActivity(userId),
-    fetchPendingCollectionInvites(userId).catch(() => [] as CollectionInvite[]),
+    fetchSharedAlbumActivity(userId),
+    fetchPendingAlbumInvites(userId).catch(() => [] as AlbumInvite[]),
   ]);
   return {
     pendingRequests: requests,
     hasFriends: friends.length > 0,
-    sharedCollections: collections,
-    collectionInvites: invites,
+    sharedAlbums: albums,
+    albumInvites: invites,
   };
 }

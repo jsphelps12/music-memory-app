@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSupabase } from "@/lib/supabase";
-import CollectionMomentList, { type MomentItem } from "@/components/CollectionMomentList";
+import AlbumMomentList, { type MomentItem } from "@/components/AlbumMomentList";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     .eq("is_public", true)
     .single();
 
-  if (!collection) return { title: "Shared Collection · Soundtracks" };
+  if (!collection) return { title: "Shared Album · Soundtracks" };
 
   const { data: profile } = await getSupabase()
     .from("profiles")
@@ -41,8 +41,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const title = collection.name;
   const description = ownerName
-    ? `A shared collection by ${ownerName} on Soundtracks`
-    : "A shared collection on Soundtracks";
+    ? `A shared album by ${ownerName} on Soundtracks`
+    : "A shared album on Soundtracks";
 
   return {
     title,
@@ -63,7 +63,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default async function CollectionPage({ params }: PageProps) {
+export default async function AlbumPage({ params }: PageProps) {
   const { invite_code } = await params;
 
   const { data: collection } = await getSupabase()
@@ -267,7 +267,7 @@ export default async function CollectionPage({ params }: PageProps) {
             No moments yet.
           </p>
         ) : (
-          <CollectionMomentList moments={moments} />
+          <AlbumMomentList moments={moments} />
         )}
       </div>
 

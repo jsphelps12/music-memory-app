@@ -342,7 +342,7 @@ export default function Home() {
         </div>
         {[
           { tag: 'Timeline',     title: 'Your whole life in one scroll.',        body: 'Every moment lives on a beautiful timeline, grouped by month. Scroll back through the years anytime you want.' },
-          { tag: 'Sharing',      title: 'Share with people you love.',           body: 'Send a moment to a friend. Start a shared collection with family. Your memories, together.' },
+          { tag: 'Sharing',      title: 'Share with people you love.',           body: 'Send a moment to a friend. Start a shared album with family. Your memories, together.' },
           { tag: 'Events',       title: 'Guest books for your biggest days.',    body: 'Weddings, reunions, road trips — invite anyone to add their song. No app required.' },
           { tag: 'Now Playing',  title: 'Capture what\'s already playing.',      body: 'Soundtracks detects what\'s playing in Apple Music and pre-fills the moment. Never lose a song again.' },
         ].map(({ tag, title, body }) => (
