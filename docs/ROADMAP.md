@@ -98,7 +98,7 @@ Everything here ships before App Store marketing push.
 Work completed after App Store submission while awaiting review.
 
 - [x] **Wedding / Event guest contribution flow** — web form at `/c/{code}/contribute`; guests add song + reflection + photo with no account; live feed polls for new contributions every 30s; "Add Another" + App Store download CTA post-submit
-- [x] **Web QR code page** — `/c/{code}/qr`; full-screen scannable QR; downloadable PNG; accessible from CollectionShareSheet in app
+- [x] **Web QR code page** — `/c/{code}/qr`; full-screen scannable QR; downloadable PNG; accessible from AlbumShareSheet in app
 - [x] **Guest attribution** — `guest_name` / `guest_uuid` columns on moments; guest moments attributed by name in shared collection views (app + web)
 - [x] **No-download web entry (App Clip equivalent)** — web contribution form covers the core use case (60-year-old uncle can contribute from any browser, no app required); native App Clip deferred unless web conversion data shows it's worth the build complexity
 - [x] **Location autocomplete** — replaced free-text location field with Nominatim-backed search; stores `location_lat` / `location_lng` alongside display name; GPS suggestion banner and EXIF autofill both capture coordinates; foundation for map view
@@ -119,6 +119,7 @@ Tab redesign sprint + architecture improvements.
 - [x] **Tab redesign** — restructured from 4 tabs to 5 (Timeline · Browse · [+] · Shared · Me); center orange→purple gradient capture button floats above bar; material top tabs with swipe-between-tabs enabled; smooth TabBar icon + label color interpolation during swipe
 - [x] **Browse tab** — full personal archive browser; On This Day (horizontal scroll of resurfaced moments), Moods (emoji grid → drill-down with distribution bar + compact rows + in-place mood switching), People (person circles), Years (year chips), Calendar (month grid, days with moments highlighted); nested Stack navigator within Browse tab
 - [x] **Shared tab redesign** — replaces Friends tab; preview sections (4 items each) with "See all →" links; dedicated `shared-collections.tsx` and `tagged-moments.tsx` drill-down screens; [+] button creates new shared collections; pending requests + collection invites shown as action banners at top
+- [x] **Collections → Albums rename** — UI/type name changed to "Albums" throughout (types, components, lib); DB tables unchanged (`collections`, `collection_members`, `collection_moments`); Friends tab file (`app/(tabs)/friends.tsx`) repurposed as Albums tab; direct user invites added via `collection_invites` table (`sendAlbumInvite`, `searchUsersForAlbum`, `fetchPendingAlbumInvites`); `AlbumPicker`, `AlbumShareSheet`, `CreateAlbumModal`, `NewSharedAlbumModal` replace old Collection* components
 - [x] **Onboarding flow rebuild** — new multi-phase flow (index → value-prop → capture-1 → capture-2 → moment-preview → celebration); captures 2 seeded moments during onboarding before celebration screen; auth gate `replace` loop bug fixed
 - [x] **TanStack Query migration** — timeline + collections migrated; optimistic updates on timeline delete/restore; `lib/sharedScreen.ts` extracted for single shared data source; app-wide tab prefetch fires immediately on session resolve (timeline, collections, browse metadata, shared screen)
 - [x] **Navigation/swipe consistency** — tab swiping with `swipeEnabled: true`; consistent swipe policy: left-edge back on stack screens, swipe-down on modals, swipe-right on moment detail (translateX + opacity animation); custom pan gestures removed from song/album/artist screens
@@ -138,7 +139,7 @@ Tab redesign sprint + architecture improvements.
 - [x] Audit every screen against the design system — spacing, font sizes, button styles, close button usage, empty states
 - [x] Consistent error messaging — all catch blocks that surface errors to users use `friendlyError()`; silent `.catch(() => {})` fire-and-forgets are intentional
 - [ ] Loading states on every async action — no silent spinning or frozen UI
-- [x] Modal presentation consistency — CloseButton added to CollectionPicker sheet and CreateCollectionModal header
+- [x] Modal presentation consistency — CloseButton added to AlbumPicker sheet and CreateAlbumModal header
 
 **Known bugs to fix:**
 - [x] Onboarding: username availability check — added distinct "error" status; shows "Couldn't check — try again" instead of incorrectly showing "Taken"; blocks save with a clear alert
@@ -577,7 +578,7 @@ The wedding is a Trojan horse. Guest scans QR → contributes a memory → gets 
 - [x] Collection owner taps "Get QR Code" → web page at `/c/{code}/qr` opens in browser
 - [x] Full-screen scannable QR; renders with `qrcode` npm package on canvas
 - [x] Downloadable as PNG
-- [x] CollectionShareSheet: copy link + share sheet + Get QR Code button
+- [x] AlbumShareSheet: copy link + share sheet + Get QR Code button
 
 ### Wedding Refinement **[Priority 2 — next up]**
 - [ ] Shareable card generator — beautiful image with couple's names, date, short link; looks like an invitation not a tech product; designed to be texted or embedded in wedding website
