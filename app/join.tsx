@@ -18,6 +18,7 @@ import { setPendingAlbumId } from "@/lib/pendingAlbum";
 import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/hooks/useTheme";
 import { friendlyError } from "@/lib/errors";
+import { pluralMoments } from "@/lib/utils";
 import { AlbumPreview } from "@/types";
 
 type ScreenState = "loading" | "not_found" | "already_owner" | "already_member" | "ready" | "joining";
@@ -94,7 +95,7 @@ export default function JoinScreen() {
 
       {state === "loading" && (
         <View style={styles.centered}>
-          <ActivityIndicator color={theme.colors.accent} size="large" />
+          <ActivityIndicator color={theme.colors.textSecondary} size="large" />
         </View>
       )}
 
@@ -184,7 +185,7 @@ export default function JoinScreen() {
           <View style={[styles.statsRow, { borderColor: theme.colors.border }]}>
             <Ionicons name="musical-notes" size={16} color={theme.colors.textSecondary} />
             <Text style={[styles.statsText, { color: theme.colors.textSecondary }]}>
-              {collection.momentCount} {collection.momentCount === 1 ? "moment" : "moments"}
+              {pluralMoments(collection.momentCount)}
             </Text>
           </View>
 

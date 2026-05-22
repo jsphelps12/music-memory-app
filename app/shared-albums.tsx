@@ -14,6 +14,7 @@ import {
 } from "@/lib/albums";
 import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import { fetchSharedScreenData } from "@/lib/sharedScreen";
+import { pluralMoments } from "@/lib/utils";
 
 export default function SharedAlbumsScreen() {
   const router = useRouter();
@@ -60,7 +61,7 @@ export default function SharedAlbumsScreen() {
 
       {isLoading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={theme.colors.accent} />
+          <ActivityIndicator color={theme.colors.textSecondary} />
         </View>
       ) : (
         <FlatList
@@ -91,7 +92,7 @@ export default function SharedAlbumsScreen() {
                   </Text>
                   <Text style={[styles.sub, { color: theme.colors.textSecondary }]}>
                     {isMember && item.ownerName ? `by ${item.ownerName} · ` : !isMember ? "your album · " : ""}
-                    {item.totalMoments} {item.totalMoments === 1 ? "moment" : "moments"}
+                    {pluralMoments(item.totalMoments)}
                   </Text>
                 </View>
                 {item.newMomentCount > 0 && (

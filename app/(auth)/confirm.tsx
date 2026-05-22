@@ -27,7 +27,7 @@ export default function ConfirmScreen() {
       {error ? (
         <Text style={[styles.error, { color: theme.colors.textSecondary }]}>{error}</Text>
       ) : (
-        <ActivityIndicator color={theme.colors.accent} />
+        <ActivityIndicator color={theme.colors.textSecondary} />
       )}
     </View>
   );

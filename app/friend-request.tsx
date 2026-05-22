@@ -73,7 +73,7 @@ export default function FriendRequestScreen() {
 
       {isLoading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={theme.colors.accent} />
+          <ActivityIndicator color={theme.colors.textSecondary} />
         </View>
       ) : !profile ? (
         <View style={styles.center}>

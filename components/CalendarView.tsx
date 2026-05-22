@@ -66,7 +66,7 @@ function CalendarViewComponent({ moments, onDayPress, theme, loading }: Props) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.accent} />
+        <ActivityIndicator size="large" color={theme.colors.textSecondary} />
       </View>
     );
   }

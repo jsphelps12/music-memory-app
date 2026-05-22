@@ -107,7 +107,7 @@ export default function OnboardingMomentPreviewScreen() {
   if (loading || !moment) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator color={theme.colors.accent} />
+        <ActivityIndicator color={theme.colors.textSecondary} />
       </View>
     );
   }

@@ -527,6 +527,9 @@ export default function MomentDetailScreen() {
     return parts.join(" · ");
   };
 
+  const isCurrentSong = isPlaying && currentSong?.appleMusicId === moment?.songAppleMusicId;
+  const playLabel = isCurrentSong ? "Pause" : playError ? "Unavailable" : "Play";
+
   return (
     <GestureDetector gesture={swipeGesture}>
     <Animated.View style={[styles.container, animStyle]}>
@@ -751,7 +754,6 @@ export default function MomentDetailScreen() {
                 activeOpacity={0.7}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  const isCurrentSong = isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId;
                   if (isCurrentSong) {
                     pause();
                   } else {
@@ -771,16 +773,12 @@ export default function MomentDetailScreen() {
                 }}
               >
                 <Ionicons
-                  name={isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId ? "pause" : "play"}
+                  name={isCurrentSong ? "pause" : "play"}
                   size={13}
                   color={playError ? "rgba(255,255,255,0.4)" : "#0F0D0B"}
                 />
                 <Text style={[styles.playPillText, playError && styles.playPillTextError]}>
-                  {isPlaying && currentSong?.appleMusicId === moment.songAppleMusicId
-                    ? "Pause"
-                    : playError
-                    ? "Unavailable"
-                    : "Play"}
+                  {playLabel}
                 </Text>
               </TouchableOpacity>
             ) : null}

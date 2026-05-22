@@ -42,6 +42,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { friendlyError } from "@/lib/errors";
+import { pluralMoments } from "@/lib/utils";
 
 const WEB_BASE_URL = "https://soundtracks.app";
 
@@ -443,7 +444,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                     {collection.isPublic ? "Shared Collection" : "Personal Collection"}
                   </Text>
                   <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
-                    {collection.momentCount} {collection.momentCount === 1 ? "moment" : "moments"}
+                    {pluralMoments(collection.momentCount)}
                     {collection.isPublic
                       ? ` · ${totalMembers} ${totalMembers === 1 ? "member" : "members"}`
                       : " · just you"}
@@ -709,7 +710,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                 <View style={styles.rowText}>
                   <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Shared Album</Text>
                   <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
-                    {collection.momentCount} {collection.momentCount === 1 ? "moment" : "moments"}
+                    {pluralMoments(collection.momentCount)}
                     {collection.ownerName ? ` · by ${collection.ownerName}` : ""}
                   </Text>
                 </View>

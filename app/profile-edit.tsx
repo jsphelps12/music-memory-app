@@ -327,7 +327,7 @@ export default function ProfileEditScreen() {
         <Text style={styles.headerTitle}>Edit Profile</Text>
         <TouchableOpacity onPress={handleSave} disabled={saving} hitSlop={8} activeOpacity={0.7}>
           {saving ? (
-            <ActivityIndicator size="small" color={theme.colors.accent} />
+            <ActivityIndicator size="small" color={theme.colors.textSecondary} />
           ) : (
             <Text style={styles.saveText}>Save</Text>
           )}
@@ -345,7 +345,7 @@ export default function ProfileEditScreen() {
         <TouchableOpacity onPress={handleAvatarPress} disabled={uploadingAvatar} activeOpacity={0.7}>
           <View style={styles.avatarContainer}>
             {uploadingAvatar ? (
-              <ActivityIndicator size="large" color={theme.colors.accent} />
+              <ActivityIndicator size="large" color={theme.colors.textSecondary} />
             ) : avatarUri ? (
               <Image source={{ uri: avatarUri }} style={styles.avatar} />
             ) : (
@@ -493,7 +493,7 @@ export default function ProfileEditScreen() {
                   returnKeyType="search"
                 />
                 {artistSearching ? (
-                  <ActivityIndicator size="small" color={theme.colors.accent} />
+                  <ActivityIndicator size="small" color={theme.colors.textSecondary} />
                 ) : artistQuery.length > 0 ? (
                   <TouchableOpacity onPress={() => { setArtistQuery(""); setArtistResults([]); }} hitSlop={8}>
                     <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />
@@ -557,7 +557,7 @@ export default function ProfileEditScreen() {
                   returnKeyType="search"
                 />
                 {songSearching ? (
-                  <ActivityIndicator size="small" color={theme.colors.accent} />
+                  <ActivityIndicator size="small" color={theme.colors.textSecondary} />
                 ) : songQuery.length > 0 ? (
                   <TouchableOpacity onPress={() => { setSongQuery(""); setSongResults([]); }} hitSlop={8}>
                     <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />

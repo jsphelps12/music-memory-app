@@ -31,7 +31,8 @@ import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { IconButton } from "@/components/IconButton";
 import { friendlyError } from "@/lib/errors";
-import { topValue } from "@/lib/utils";
+import { topValue, pluralMoments } from "@/lib/utils";
+import { pad } from "@/lib/dateUtils";
 import { fetchPendingRequests } from "@/lib/friends";
 
 const STALE_TIME = 2 * 60 * 1000;
@@ -82,7 +83,6 @@ function computeStreaks(dates: string[]): { current: number; longest: number; da
 
 async function fetchProfileStats(userId: string) {
   const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
   const y = now.getFullYear();
   const m = pad(now.getMonth() + 1);
   const firstOfMonth = `${y}-${m}-01`;
@@ -474,7 +474,7 @@ export default function ProfileScreen() {
               <View style={styles.topStatText}>
                 <Text style={styles.topStatLabel}>Moments logged</Text>
                 <Text style={styles.topStatValue}>
-                  {thisMonthCount} {thisMonthCount === 1 ? "moment" : "moments"}
+                  {pluralMoments(thisMonthCount)}
                   {compLabel ? `  ·  ${compLabel}` : ""}
                 </Text>
               </View>

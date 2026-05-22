@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
+import { pad } from "@/lib/dateUtils";
 import type { Moment } from "@/types";
 
 const browseCacheKey = (userId: string) => `browse_meta_${userId}`;
@@ -88,7 +89,7 @@ export async function fetchCalendarMonth(
   year: number,
   month: number // 1-based
 ): Promise<string[]> {
-  const mm = String(month).padStart(2, "0");
+  const mm = pad(month);
   const lastDay = new Date(year, month, 0).getDate();
   const { data, error } = await supabase
     .from("moments")

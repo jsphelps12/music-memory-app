@@ -50,7 +50,8 @@ export async function fetchFriends(userId: string): Promise<Friendship[]> {
     .from("friendships")
     .select("*")
     .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
-    .eq("status", "accepted");
+    .eq("status", "accepted")
+    .limit(500);
   if (error) throw error;
   return enrichFriendships(data ?? [], userId);
 }

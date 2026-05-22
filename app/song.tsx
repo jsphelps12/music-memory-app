@@ -20,6 +20,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { friendlyError } from "@/lib/errors";
 import { MomentCard } from "@/components/MomentCard";
 import { fetchSongMoments } from "@/lib/browse";
+import { pluralMoments } from "@/lib/utils";
 
 const STALE_TIME = 2 * 60 * 1000;
 
@@ -76,7 +77,7 @@ export default function SongScreen() {
         </TouchableOpacity>
         {!isLoading && (
           <Text style={styles.momentCount}>
-            {moments.length} {moments.length === 1 ? "moment" : "moments"}
+            {pluralMoments(moments.length)}
           </Text>
         )}
       </View>

@@ -44,6 +44,7 @@ import { markTimelineStale } from "@/lib/timelineRefresh";
 import { fetchPreviewUrl } from "@/lib/musickit";
 import { PromptPickerModal } from "@/components/PromptPickerModal";
 import { fetchWeather, WeatherResult } from "@/lib/weather";
+import { dateToStr } from "@/lib/dateUtils";
 
 export default function CreateMomentScreen() {
   const router = useRouter();
@@ -209,7 +210,7 @@ export default function CreateMomentScreen() {
     }
     let cancelled = false;
     const d = momentDate;
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const dateStr = dateToStr(d);
     const hour = new Date().getHours();
     const tod =
       hour >= 5 && hour < 12 ? "Morning" :

@@ -11,6 +11,7 @@ import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { fetchTaggedMomentsSharedTab } from "@/lib/friends";
 import type { TaggedMoment } from "@/types";
+import { pluralMoments } from "@/lib/utils";
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -51,7 +52,7 @@ export default function TaggedMomentsScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[styles.eyebrow, { color: theme.colors.textTertiary }]}>
-            {taggedMoments.length} {taggedMoments.length === 1 ? "moment" : "moments"}
+            {pluralMoments(taggedMoments.length)}
           </Text>
           <Text style={[styles.title, { color: theme.colors.text }]}>tagged in</Text>
         </View>
@@ -59,7 +60,7 @@ export default function TaggedMomentsScreen() {
 
       {isLoading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={theme.colors.accent} />
+          <ActivityIndicator color={theme.colors.textSecondary} />
         </View>
       ) : (
         <FlatList

@@ -163,7 +163,7 @@ export default function FriendsListScreen() {
 
       {isLoading ? (
         <View style={s.center}>
-          <ActivityIndicator color={theme.colors.accent} />
+          <ActivityIndicator color={theme.colors.textSecondary} />
         </View>
       ) : (
         <ScrollView

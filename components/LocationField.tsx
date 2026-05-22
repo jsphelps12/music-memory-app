@@ -153,7 +153,7 @@ export function LocationField({ value, onChange, detectCurrentLocation = false }
             returnKeyType="search"
           />
           {locationSearching && (
-            <ActivityIndicator size="small" color={theme.colors.accent} style={{ marginTop: 8 }} />
+            <ActivityIndicator size="small" color={theme.colors.textSecondary} style={{ marginTop: 8 }} />
           )}
           {locationResults.length > 0 && (
             <View style={[styles.resultsList, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>

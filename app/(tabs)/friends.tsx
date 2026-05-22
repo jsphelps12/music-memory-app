@@ -284,7 +284,7 @@ export default function AlbumsScreen() {
   if (isLoading) {
     return (
       <View style={[dynamicStyles.container, dynamicStyles.center]}>
-        <ActivityIndicator color={theme.colors.accent} />
+        <ActivityIndicator color={theme.colors.textSecondary} />
       </View>
     );
   }

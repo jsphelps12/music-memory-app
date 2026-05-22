@@ -6,6 +6,7 @@ import { addMomentToAlbum } from "@/lib/albums";
 import { Song, Album, Friendship, Moment } from "@/types";
 import { GeoResult } from "@/lib/geocoding";
 import { mapRowToMoment } from "@/lib/moments";
+import { dateToStr } from "@/lib/dateUtils";
 
 function getTimeOfDay(): string {
   const hour = new Date().getHours();
@@ -76,7 +77,7 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
       location_lat: input.locationResult?.lat ?? null,
       location_lng: input.locationResult?.lng ?? null,
       moment_date: input.momentDate
-        ? `${input.momentDate.getFullYear()}-${String(input.momentDate.getMonth() + 1).padStart(2, "0")}-${String(input.momentDate.getDate()).padStart(2, "0")}`
+        ? dateToStr(input.momentDate)
         : null,
       time_of_day: getTimeOfDay(),
       weather_temp_f: input.weatherResult?.tempF ?? null,

@@ -32,6 +32,7 @@ import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { fetchSharedAlbumMoments, markAlbumViewed } from "@/lib/albums";
 import { friendlyError } from "@/lib/errors";
 import { Album, Moment } from "@/types";
+import { pluralMoments } from "@/lib/utils";
 
 function groupByMonth(moments: Moment[]): { title: string; data: Moment[] }[] {
   const grouped: Record<string, Moment[]> = {};
@@ -181,7 +182,7 @@ export default function AlbumDetailScreen() {
       collectionId={collection?.id}
       collectionRole={collection?.role}
     />
-  ), [allMoods, collection]);
+  ), [allMoods, collection?.id, collection?.role]);
 
   if (isLoading) {
     return (
@@ -205,10 +206,10 @@ export default function AlbumDetailScreen() {
     : null;
 
   const subLine = collection?.role === "member" && collection?.ownerName
-    ? `by ${collection.ownerName} · ${moments.length} ${moments.length === 1 ? "moment" : "moments"}`
+    ? `by ${collection.ownerName} · ${pluralMoments(moments.length)}`
     : isShared
-    ? `Shared · ${moments.length} ${moments.length === 1 ? "moment" : "moments"}`
-    : `${moments.length} ${moments.length === 1 ? "moment" : "moments"}`;
+    ? `Shared · ${pluralMoments(moments.length)}`
+    : pluralMoments(moments.length);
 
   const listHeader = (
     <View style={styles.listHeader}>

@@ -185,7 +185,7 @@ export function ShareCardModal({ visible, moment, photoUrls, onClose }: Props) {
             disabled={sharing}
           >
             {sharing ? (
-              <ActivityIndicator color={theme.colors.accent} />
+              <ActivityIndicator color={theme.colors.textSecondary} />
             ) : (
               <Text style={[styles.shareButtonText, { color: theme.colors.accent }]}>
                 Save as Image

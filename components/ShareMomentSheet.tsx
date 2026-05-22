@@ -243,7 +243,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
                 >
                   <View style={[styles.iconBox, { backgroundColor: theme.colors.accent + "20" }]}>
                     {sendingLink
-                      ? <ActivityIndicator size="small" color={theme.colors.accent} />
+                      ? <ActivityIndicator size="small" color={theme.colors.textSecondary} />
                       : <Ionicons name="link-outline" size={20} color={theme.colors.accent} />
                     }
                   </View>
@@ -329,7 +329,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
               </View>
               {friendsLoading ? (
                 <View style={styles.friendPickerEmpty}>
-                  <ActivityIndicator color={theme.colors.accent} />
+                  <ActivityIndicator color={theme.colors.textSecondary} />
                 </View>
               ) : (() => {
                 const available = friends.filter((f) => !alreadyTaggedIds.has(f.otherUserId));

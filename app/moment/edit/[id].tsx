@@ -37,6 +37,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { friendlyError } from "@/lib/errors";
 import { onSongSelected } from "@/lib/songEvents";
 import { markTimelineStale } from "@/lib/timelineRefresh";
+import { dateToStr } from "@/lib/dateUtils";
 
 export default function EditMomentScreen() {
   const router = useRouter();
@@ -234,7 +235,7 @@ export default function EditMomentScreen() {
           photo_thumbnails: [...existingThumbnails, ...newThumbPaths],
           location: location.trim() || null,
           moment_date: momentDate
-            ? `${momentDate.getFullYear()}-${String(momentDate.getMonth() + 1).padStart(2, "0")}-${String(momentDate.getDate()).padStart(2, "0")}`
+            ? dateToStr(momentDate)
             : null,
         })
         .eq("id", params.id);
