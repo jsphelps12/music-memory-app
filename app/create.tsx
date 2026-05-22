@@ -23,6 +23,7 @@ import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/dat
 import { useAuth } from "@/contexts/AuthContext";
 import { extractExifFromPath } from "@/lib/photoMetadata";
 import { saveMoment } from "@/lib/saveMoment";
+import { maybeRequestReview } from "@/lib/reviewPrompt";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
 import { VisibilityPicker, Visibility } from "@/components/VisibilityPicker";
@@ -284,6 +285,7 @@ export default function CreateMomentScreen() {
       });
 
       checkAndNotifyMilestone(user.id).catch(() => {});
+      maybeRequestReview().catch(() => {});
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       if (secondaryFailures.length > 0) {
