@@ -126,12 +126,12 @@ function createStyles(theme: Theme) {
     overlay: {
       flex: 1,
       justifyContent: "flex-end",
-      backgroundColor: "rgba(0,0,0,0.45)",
+      backgroundColor: theme.isDark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.3)",
     },
     sheet: {
       backgroundColor: theme.colors.backgroundSecondary,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
+      borderTopLeftRadius: theme.radii.lg,
+      borderTopRightRadius: theme.radii.lg,
       paddingBottom: Platform.OS === "ios" ? 36 : 24,
       minHeight: "55%",
       maxHeight: "65%",
@@ -186,7 +186,7 @@ function createStyles(theme: Theme) {
       fontFamily: theme.fonts.bodyMedium,
     },
     tabTextActive: {
-      color: "#fff",
+      color: theme.colors.chipSelectedText,
     },
     prompts: {
       paddingHorizontal: 24,

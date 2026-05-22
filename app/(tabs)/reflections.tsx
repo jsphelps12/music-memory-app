@@ -309,7 +309,7 @@ export default function ReflectionsScreen() {
                 {shuffling ? (
                   <ActivityIndicator size="small" color={theme.colors.textSecondary} />
                 ) : (
-                  <Ionicons name="shuffle" size={20} color={theme.colors.accent} />
+                  <Ionicons name="shuffle" size={20} color={theme.colors.textSecondary} />
                 )}
               </TouchableOpacity>
             </View>
@@ -360,7 +360,7 @@ export default function ReflectionsScreen() {
                 {shuffling ? (
                   <ActivityIndicator size="small" color={theme.colors.textSecondary} />
                 ) : (
-                  <Ionicons name="shuffle" size={20} color={theme.colors.accent} />
+                  <Ionicons name="shuffle" size={20} color={theme.colors.textSecondary} />
                 )}
               </TouchableOpacity>
             </View>

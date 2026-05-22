@@ -176,14 +176,14 @@ export function SongPickerSection({ song, onChange, photos = [] }: SongPickerSec
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[styles.identifyButton, isShazaming && { borderColor: "#E8825C" }]}
+        style={[styles.identifyButton, isShazaming && { borderColor: theme.colors.accent }]}
         activeOpacity={0.7}
         onPress={handleIdentify}
       >
         {isShazaming ? (
           <View style={styles.identifyRow}>
-            <ActivityIndicator size="small" color="#E8825C" style={{ marginRight: 8 }} />
-            <Text style={[styles.identifyButtonText, { color: "#E8825C" }]}>
+            <ActivityIndicator size="small" color={theme.colors.accent} style={{ marginRight: 8 }} />
+            <Text style={[styles.identifyButtonText, { color: theme.colors.accent }]}>
               Listening… Tap to cancel
             </Text>
           </View>
@@ -225,87 +225,87 @@ export function SongPickerSection({ song, onChange, photos = [] }: SongPickerSec
   );
 }
 
-function createStyles(_theme: Theme) {
+function createStyles(theme: Theme) {
   return StyleSheet.create({
     songCard: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: "rgba(255,255,255,0.06)",
+      backgroundColor: theme.colors.backgroundInput,
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.10)",
-      padding: 12,
-      borderRadius: 12,
+      borderColor: theme.colors.border,
+      padding: theme.spacing.md,
+      borderRadius: theme.radii.md,
     },
     artwork: {
       width: 64,
       height: 64,
-      borderRadius: 8,
+      borderRadius: theme.radii.sm,
     },
     songInfo: {
       flex: 1,
-      marginLeft: 12,
+      marginLeft: theme.spacing.md,
     },
     songTitle: {
-      fontSize: 16,
-      fontFamily: "DMSans_600SemiBold",
-      color: "#fff",
+      fontSize: theme.fontSize.base,
+      fontFamily: theme.fonts.bodySemibold,
+      color: theme.colors.text,
     },
     songArtist: {
-      fontSize: 14,
-      fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.55)",
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
       marginTop: 2,
     },
     changeText: {
-      fontSize: 14,
-      fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.4)",
-      marginLeft: 8,
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textTertiary,
+      marginLeft: theme.spacing.sm,
     },
     selectSongButton: {
-      backgroundColor: "#fff",
+      backgroundColor: theme.colors.buttonBg,
       paddingVertical: 16,
-      borderRadius: 12,
+      borderRadius: theme.radii.md,
       alignItems: "center",
     },
     selectSongButtonText: {
-      color: "#0F0D0B",
-      fontSize: 17,
-      fontFamily: "DMSans_600SemiBold",
+      color: theme.colors.buttonText,
+      fontSize: theme.fontSize.base,
+      fontFamily: theme.fonts.bodySemibold,
     },
     identifyButton: {
-      marginTop: 8,
+      marginTop: theme.spacing.sm,
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.12)",
-      borderRadius: 12,
-      paddingVertical: 12,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radii.md,
+      paddingVertical: theme.spacing.md,
       alignItems: "center",
-      backgroundColor: "rgba(255,255,255,0.06)",
+      backgroundColor: theme.colors.backgroundInput,
     },
     identifyRow: {
       flexDirection: "row",
       alignItems: "center",
     },
     identifyButtonText: {
-      fontSize: 14,
-      fontFamily: "DMSans_500Medium",
-      color: "rgba(255,255,255,0.6)",
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.bodyMedium,
+      color: theme.colors.textSecondary,
     },
     nowPlayingBanner: {
-      backgroundColor: "rgba(20,15,12,0.7)",
-      borderRadius: 12,
-      padding: 12,
-      marginBottom: 16,
+      backgroundColor: theme.colors.cardBg,
+      borderRadius: theme.radii.md,
+      padding: theme.spacing.md,
+      marginBottom: theme.spacing.lg,
       borderWidth: 1,
-      borderColor: "#E8825C",
+      borderColor: theme.colors.accent,
     },
     shazamBanner: {
-      marginTop: 12,
-      backgroundColor: "rgba(20,15,12,0.7)",
-      borderRadius: 12,
-      padding: 12,
+      marginTop: theme.spacing.md,
+      backgroundColor: theme.colors.cardBg,
+      borderRadius: theme.radii.md,
+      padding: theme.spacing.md,
       borderWidth: 1,
-      borderColor: "#E8825C",
+      borderColor: theme.colors.accent,
     },
     bannerContent: {
       flexDirection: "row",
@@ -314,62 +314,62 @@ function createStyles(_theme: Theme) {
     bannerArtwork: {
       width: 44,
       height: 44,
-      borderRadius: 8,
+      borderRadius: theme.radii.sm,
     },
     bannerInfo: {
       flex: 1,
-      marginLeft: 12,
+      marginLeft: theme.spacing.md,
     },
     bannerLabel: {
-      fontSize: 11,
-      fontFamily: "DMSans_600SemiBold",
-      color: "#E8825C",
+      fontSize: theme.fontSize.xs,
+      fontFamily: theme.fonts.bodySemibold,
+      color: theme.colors.accent,
       textTransform: "uppercase",
       letterSpacing: 0.8,
     },
     shazamLabel: {
-      fontSize: 11,
-      fontFamily: "DMSans_600SemiBold",
-      color: "#E8825C",
+      fontSize: theme.fontSize.xs,
+      fontFamily: theme.fonts.bodySemibold,
+      color: theme.colors.accent,
       textTransform: "uppercase",
       letterSpacing: 0.8,
     },
     bannerTitle: {
-      fontSize: 14,
-      fontFamily: "DMSans_600SemiBold",
-      color: "#fff",
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.bodySemibold,
+      color: theme.colors.text,
       marginTop: 1,
     },
     bannerArtist: {
-      fontSize: 12,
-      fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.55)",
+      fontSize: theme.fontSize.xs,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
       marginTop: 1,
     },
     bannerDismiss: {
-      padding: 4,
+      padding: theme.spacing.xs,
     },
     bannerDismissText: {
-      fontSize: 12,
-      color: "rgba(255,255,255,0.4)",
+      fontSize: theme.fontSize.xs,
+      color: theme.colors.textTertiary,
     },
     useButton: {
-      marginTop: 10,
-      backgroundColor: "#fff",
-      borderRadius: 8,
-      paddingVertical: 8,
+      marginTop: theme.spacing.sm,
+      backgroundColor: theme.colors.buttonBg,
+      borderRadius: theme.radii.sm,
+      paddingVertical: theme.spacing.sm,
       alignItems: "center",
     },
     useButtonText: {
-      fontSize: 14,
-      fontFamily: "DMSans_600SemiBold",
-      color: "#0F0D0B",
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.bodySemibold,
+      color: theme.colors.buttonText,
     },
     shazamError: {
-      marginTop: 8,
-      fontSize: 14,
-      fontFamily: "DMSans_400Regular",
-      color: "#FF453A",
+      marginTop: theme.spacing.sm,
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.destructive,
       textAlign: "center",
     },
   });

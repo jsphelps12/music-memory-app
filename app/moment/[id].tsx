@@ -543,7 +543,7 @@ export default function MomentDetailScreen() {
         />
       ) : null}
       <LinearGradient
-        colors={["transparent", "rgba(13,10,8,0.55)", "#0F0D0B"]}
+        colors={["transparent", theme.isDark ? "rgba(13,10,8,0.55)" : "rgba(251,246,241,0.55)", theme.colors.background]}
         locations={[0, 0.4, 0.75]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
@@ -552,7 +552,7 @@ export default function MomentDetailScreen() {
       {/* Glass nav — always visible */}
       <View style={styles.glassNav}>
         <TouchableOpacity style={styles.glassBtn} onPress={() => animateOut(goBack)} activeOpacity={0.8} hitSlop={8}>
-          <Ionicons name="chevron-back" size={20} color="#fff" />
+          <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
         </TouchableOpacity>
         {!loading && moment && (
           <View style={styles.glassBtnRow}>
@@ -566,10 +566,10 @@ export default function MomentDetailScreen() {
               activeOpacity={0.8}
               hitSlop={8}
             >
-              <Ionicons name="share-outline" size={18} color="#fff" />
+              <Ionicons name="share-outline" size={18} color={theme.colors.text} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.glassBtn} onPress={openMenu} activeOpacity={0.8} hitSlop={8}>
-              <Ionicons name="ellipsis-horizontal" size={20} color="#fff" />
+              <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
         )}
@@ -775,7 +775,7 @@ export default function MomentDetailScreen() {
                 <Ionicons
                   name={isCurrentSong ? "pause" : "play"}
                   size={13}
-                  color={playError ? "rgba(255,255,255,0.4)" : "#0F0D0B"}
+                  color={playError ? theme.colors.textTertiary : theme.colors.buttonText}
                 />
                 <Text style={[styles.playPillText, playError && styles.playPillTextError]}>
                   {playLabel}
@@ -872,11 +872,11 @@ export default function MomentDetailScreen() {
                 >
                   <Marker
                     coordinate={{ latitude: moment.locationLat, longitude: moment.locationLng }}
-                    pinColor="#E8825C"
+                    pinColor={theme.colors.accent}
                   />
                 </MapView>
                 <View style={styles.miniMapHint}>
-                  <Ionicons name="map-outline" size={12} color="rgba(255,255,255,0.9)" />
+                  <Ionicons name="map-outline" size={12} color={theme.colors.text} />
                   <Text style={styles.miniMapHintText}>Open in Maps</Text>
                 </View>
               </TouchableOpacity>
@@ -930,7 +930,7 @@ export default function MomentDetailScreen() {
                   activeOpacity={0.7}
                   onPress={() => setShareModalVisible(true)}
                 >
-                  <Ionicons name="people-outline" size={14} color="rgba(255,255,255,0.6)" />
+                  <Ionicons name="people-outline" size={14} color={theme.colors.textSecondary} />
                   <Text style={styles.sharedWithLabel}>Shared with</Text>
                   {visible.map((tag) => (
                     <View key={tag.id} style={styles.sharedWithChip}>
@@ -958,19 +958,19 @@ export default function MomentDetailScreen() {
                   hitSlop={12}
                 >
                   {reactingInFlight ? (
-                    <ActivityIndicator size="small" color={hasReacted ? "#E8825C" : "#fff"} />
+                    <ActivityIndicator size="small" color={hasReacted ? theme.colors.accent : theme.colors.text} />
                   ) : (
                     <Ionicons
                       name={hasReacted ? "heart" : "heart-outline"}
                       size={20}
-                      color={hasReacted ? "#E8825C" : "rgba(255,255,255,0.85)"}
+                      color={hasReacted ? theme.colors.accent : theme.colors.text}
                     />
                   )}
                 </TouchableOpacity>
               )}
               {user && moment.userId === user.id && reactionCount > 0 && (
                 <View style={styles.resonanceGlass}>
-                  <Ionicons name="heart" size={18} color="#E8825C" />
+                  <Ionicons name="heart" size={18} color={theme.colors.accent} />
                 </View>
               )}
             </View>
@@ -1389,15 +1389,15 @@ const collectionStyles = StyleSheet.create({
 });
 
 
-function createStyles(_theme: Theme) {
+function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: "#0F0D0B",
+      backgroundColor: theme.colors.background,
     },
     loadingContainer: {
       flex: 1,
-      backgroundColor: "#0F0D0B",
+      backgroundColor: theme.colors.background,
     },
     // ── Glass nav ────────────────────────────────────────────────────────────
     glassNav: {
@@ -1414,9 +1414,9 @@ function createStyles(_theme: Theme) {
       width: 36,
       height: 36,
       borderRadius: 999,
-      backgroundColor: "rgba(20,15,12,0.45)",
+      backgroundColor: theme.isDark ? "rgba(20,15,12,0.45)" : "rgba(255,255,255,0.45)",
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.12)",
+      borderColor: theme.colors.border,
       alignItems: "center",
       justifyContent: "center",
     },
@@ -1433,7 +1433,7 @@ function createStyles(_theme: Theme) {
       position: "absolute",
       top: 110,
       right: 16,
-      backgroundColor: "rgba(20,15,12,0.5)",
+      backgroundColor: theme.isDark ? "rgba(20,15,12,0.5)" : "rgba(255,255,255,0.5)",
       borderRadius: 999,
       paddingHorizontal: 10,
       paddingVertical: 5,
@@ -1442,7 +1442,7 @@ function createStyles(_theme: Theme) {
       fontSize: 11,
       fontFamily: "DMSans_600SemiBold",
       letterSpacing: 0.8,
-      color: "rgba(255,255,255,0.8)",
+      color: theme.colors.text,
     },
     ambientHero: {
       height: 310,
@@ -1480,7 +1480,7 @@ function createStyles(_theme: Theme) {
       fontSize: 11,
       fontFamily: "DMSans_600SemiBold",
       letterSpacing: 1.2,
-      color: "#E8825C",
+      color: theme.colors.accent,
       marginBottom: 4,
       textTransform: "uppercase",
     },
@@ -1488,27 +1488,27 @@ function createStyles(_theme: Theme) {
       fontFamily: "DMSerifDisplay_400Regular",
       fontSize: 34,
       lineHeight: 36,
-      color: "#fff",
+      color: theme.colors.text,
       marginTop: 4,
     },
     artistHero: {
       fontSize: 15,
       fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.55)",
+      color: theme.colors.textSecondary,
       marginTop: 4,
       marginBottom: 2,
     },
     albumHero: {
       fontSize: 12,
       fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.4)",
+      color: theme.colors.textTertiary,
       marginBottom: 12,
     },
     playPill: {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      backgroundColor: "#fff",
+      backgroundColor: theme.colors.buttonBg,
       paddingHorizontal: 16,
       paddingVertical: 10,
       borderRadius: 999,
@@ -1516,15 +1516,15 @@ function createStyles(_theme: Theme) {
       marginTop: 12,
     },
     playPillError: {
-      backgroundColor: "rgba(255,255,255,0.12)",
+      backgroundColor: theme.colors.border,
     },
     playPillText: {
       fontSize: 14,
       fontFamily: "DMSans_600SemiBold",
-      color: "#0F0D0B",
+      color: theme.colors.buttonText,
     },
     playPillTextError: {
-      color: "rgba(255,255,255,0.4)",
+      color: theme.colors.textTertiary,
     },
     progressContainer: {
       marginTop: 14,
@@ -1536,23 +1536,23 @@ function createStyles(_theme: Theme) {
     },
     progressTrack: {
       height: 2,
-      backgroundColor: "rgba(255,255,255,0.15)",
+      backgroundColor: theme.colors.border,
       borderRadius: 1,
       overflow: "hidden",
     },
     progressFill: {
       height: 2,
-      backgroundColor: "#E8825C",
+      backgroundColor: theme.colors.accent,
       borderRadius: 1,
     },
     progressTime: {
       fontSize: 10,
       fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.4)",
+      color: theme.colors.textTertiary,
     },
     contributor: {
       fontSize: 12,
-      color: "#E8825C",
+      color: theme.colors.accent,
       marginTop: 12,
       fontFamily: "DMSans_500Medium",
     },
@@ -1570,7 +1570,7 @@ function createStyles(_theme: Theme) {
       fontFamily: "DMSerifDisplay_400Regular",
       fontSize: 72,
       lineHeight: 72,
-      color: "#E8825C",
+      color: theme.colors.accent,
       opacity: 0.5,
       zIndex: 0,
     },
@@ -1578,7 +1578,7 @@ function createStyles(_theme: Theme) {
       fontFamily: "DMSerifDisplay_400Regular_Italic",
       fontSize: 20,
       lineHeight: 30,
-      color: "rgba(255,255,255,0.92)",
+      color: theme.colors.text,
       zIndex: 1,
     },
     // ── Chips ─────────────────────────────────────────────────────────────────
@@ -1592,19 +1592,19 @@ function createStyles(_theme: Theme) {
       paddingHorizontal: 12,
       paddingVertical: 7,
       borderRadius: 999,
-      backgroundColor: "rgba(255,255,255,0.08)",
+      backgroundColor: theme.colors.backgroundTertiary,
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.12)",
+      borderColor: theme.colors.border,
     },
     darkChipText: {
       fontSize: 12,
       fontFamily: "DMSans_500Medium",
-      color: "rgba(255,255,255,0.85)",
+      color: theme.colors.text,
     },
     timeOfDay: {
       fontSize: 12,
       fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.5)",
+      color: theme.colors.textSecondary,
       marginTop: 12,
     },
     // ── Mini map ─────────────────────────────────────────────────────────────
@@ -1629,7 +1629,7 @@ function createStyles(_theme: Theme) {
     miniMapHintText: {
       fontSize: 11,
       fontFamily: "DMSans_500Medium",
-      color: "rgba(255,255,255,0.9)",
+      color: "#fff",
     },
     // ── Photo grid ───────────────────────────────────────────────────────────
     photoGrid: {
@@ -1639,7 +1639,7 @@ function createStyles(_theme: Theme) {
       fontSize: 10,
       fontFamily: "DMSans_600SemiBold",
       letterSpacing: 1.4,
-      color: "rgba(255,255,255,0.45)",
+      color: theme.colors.textTertiary,
       marginBottom: 10,
       textTransform: "uppercase",
     },
@@ -1680,20 +1680,20 @@ function createStyles(_theme: Theme) {
     sharedWithLabel: {
       fontSize: 13,
       fontFamily: "DMSans_500Medium",
-      color: "rgba(255,255,255,0.6)",
+      color: theme.colors.textSecondary,
     },
     sharedWithChip: {
       paddingHorizontal: 10,
       paddingVertical: 4,
       borderRadius: 999,
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.15)",
-      backgroundColor: "rgba(255,255,255,0.08)",
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.backgroundTertiary,
     },
     sharedWithChipText: {
       fontSize: 12,
       fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.75)",
+      color: theme.colors.text,
     },
     // ── Action row ───────────────────────────────────────────────────────────
     actionRow: {
@@ -1706,7 +1706,7 @@ function createStyles(_theme: Theme) {
       flex: 1,
       height: 48,
       borderRadius: 14,
-      backgroundColor: "#fff",
+      backgroundColor: theme.colors.buttonBg,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
@@ -1715,15 +1715,15 @@ function createStyles(_theme: Theme) {
     shareMomentBtnText: {
       fontSize: 14,
       fontFamily: "DMSans_600SemiBold",
-      color: "#0F0D0B",
+      color: theme.colors.buttonText,
     },
     resonanceGlass: {
       width: 48,
       height: 48,
       borderRadius: 14,
-      backgroundColor: "rgba(255,255,255,0.08)",
+      backgroundColor: theme.colors.backgroundTertiary,
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.12)",
+      borderColor: theme.colors.border,
       alignItems: "center",
       justifyContent: "center",
     },
@@ -1740,10 +1740,10 @@ function createStyles(_theme: Theme) {
       position: "absolute",
       top: 56 + 36 + 12,
       right: 16,
-      backgroundColor: "#1A1A1F",
+      backgroundColor: theme.colors.backgroundSecondary,
       borderRadius: 14,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: "rgba(255,255,255,0.1)",
+      borderColor: theme.colors.border,
       minWidth: 190,
       zIndex: 11,
       shadowColor: "#000",
@@ -1760,16 +1760,16 @@ function createStyles(_theme: Theme) {
     menuItemText: {
       fontSize: 16,
       fontFamily: "DMSans_400Regular",
-      color: "#fff",
+      color: theme.colors.text,
     },
     menuItemTextDestructive: {
       fontSize: 16,
       fontFamily: "DMSans_400Regular",
-      color: "#FF453A",
+      color: theme.colors.destructive,
     },
     menuDivider: {
       height: StyleSheet.hairlineWidth,
-      backgroundColor: "rgba(255,255,255,0.1)",
+      backgroundColor: theme.colors.border,
     },
     // ── Volume hint ──────────────────────────────────────────────────────────
     volumeHint: {
@@ -1779,7 +1779,7 @@ function createStyles(_theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      backgroundColor: "rgba(30,25,22,0.85)",
+      backgroundColor: theme.isDark ? "rgba(30,25,22,0.85)" : "rgba(255,255,255,0.85)",
       paddingHorizontal: 14,
       paddingVertical: 8,
       borderRadius: 20,
@@ -1787,7 +1787,7 @@ function createStyles(_theme: Theme) {
     volumeHintText: {
       fontSize: 13,
       fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.7)",
+      color: theme.colors.textSecondary,
     },
     // ── Onboarding share card ─────────────────────────────────────────────────
     onboardingShareCard: {
@@ -1798,19 +1798,19 @@ function createStyles(_theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
-      backgroundColor: "rgba(30,25,22,0.85)",
+      backgroundColor: theme.isDark ? "rgba(30,25,22,0.85)" : "rgba(255,255,255,0.85)",
       borderRadius: 14,
       paddingHorizontal: 16,
       paddingVertical: 14,
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.1)",
+      borderColor: theme.colors.border,
       pointerEvents: "none",
     },
     onboardingShareText: {
       flex: 1,
       fontSize: 16,
       fontFamily: "DMSans_500Medium",
-      color: "#fff",
+      color: theme.colors.text,
     },
   });
 }

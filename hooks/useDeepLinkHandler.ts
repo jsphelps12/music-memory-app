@@ -107,9 +107,14 @@ export function useDeepLinkHandler() {
     }
 
     // Universal Links — https://soundtracks.app/friend/{token}
+    // Navigation is handled natively by the app/friend/[token].tsx Expo Router route.
+    // We only need to stash the token in AsyncStorage when the user is not yet signed in
+    // so the pending-token effect can redirect them after auth completes.
     const universalFriendMatch = url.match(/^https:\/\/soundtracks\.app\/friend\/([a-zA-Z0-9-]+)/);
     if (universalFriendMatch) {
-      await handleFriendToken(universalFriendMatch[1]);
+      if (!user) {
+        await AsyncStorage.setItem(PENDING_FRIEND_TOKEN_KEY, universalFriendMatch[1]);
+      }
       return;
     }
 

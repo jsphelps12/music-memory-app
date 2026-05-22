@@ -129,7 +129,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    supabase.auth.getSession()
+    // Supabase refreshes the JWT inside getSession() — on a flaky network this can hang
+    // indefinitely and keep `loading = true` forever (blank screen after OTA reload).
+    // If it times out we resolve with null session so the overlay lifts and shows sign-in;
+    // onAuthStateChange will fire SIGNED_IN once the refresh eventually completes.
+    const SESSION_TIMEOUT_MS = 10_000;
+    Promise.race([
+      supabase.auth.getSession(),
+      new Promise<{ data: { session: null }; error: null }>(
+        (resolve) => setTimeout(() => resolve({ data: { session: null }, error: null }), SESSION_TIMEOUT_MS)
+      ),
+    ])
       .then(async ({ data: { session } }) => {
         if (!isMountedRef.current) return;
         setSession(session);
@@ -174,7 +184,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
 
           try {
-            await fetchProfile(session.user.id, { keepOnError: cached !== null, email: session.user.email });
+            // If the network is down, fetchProfile can hang; race a timeout so the
+            // finally always runs and the overlay doesn't stay up forever.
+            await Promise.race([
+              fetchProfile(session.user.id, { keepOnError: cached !== null, email: session.user.email }),
+              new Promise<void>((resolve) => setTimeout(resolve, 8_000)),
+            ]);
           } finally {
             if (isMountedRef.current) setLoading(false);
           }

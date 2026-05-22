@@ -123,16 +123,16 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
   }
 
   return (
-    <div className="min-h-screen pb-12" style={{ backgroundColor: "#FBF6F1" }}>
+    <div className="min-h-screen pb-12" style={{ backgroundColor: "var(--bg)" }}>
       {/* Header */}
       <div className="px-6 pt-10 pb-6 max-w-xl mx-auto">
-        <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#E8825C" }}>
+        <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--accent)" }}>
           {collectionName}
         </p>
-        <h1 className="text-2xl font-bold" style={{ color: "#2C2C3A" }}>
+        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
           Add Your Memory
         </h1>
-        <p className="mt-1 text-sm" style={{ color: "#999" }}>
+        <p className="mt-1 text-sm" style={{ color: "var(--text-meta)" }}>
           Share a song that reminds you of this moment.
         </p>
       </div>
@@ -140,8 +140,8 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
       <form onSubmit={handleSubmit} className="px-6 max-w-xl mx-auto space-y-6">
         {/* Name */}
         <div>
-          <label className="block text-sm font-semibold mb-1" style={{ color: "#2C2C3A" }}>
-            Your name <span style={{ color: "#E8825C" }}>*</span>
+          <label className="block text-sm font-semibold mb-1" style={{ color: "var(--text)" }}>
+            Your name <span style={{ color: "var(--accent)" }}>*</span>
           </label>
           <input
             type="text"
@@ -151,8 +151,8 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
             placeholder="e.g. Sarah"
             className="w-full rounded-xl px-4 py-3 text-sm outline-none"
             style={{
-              backgroundColor: "#EDE4DA",
-              color: "#2C2C3A",
+              backgroundColor: "var(--input-bg)",
+              color: "var(--text)",
               border: "none",
             }}
           />
@@ -160,15 +160,15 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
 
         {/* Song search */}
         <div>
-          <label className="block text-sm font-semibold mb-1" style={{ color: "#2C2C3A" }}>
-            Song <span style={{ color: "#E8825C" }}>*</span>
+          <label className="block text-sm font-semibold mb-1" style={{ color: "var(--text)" }}>
+            Song <span style={{ color: "var(--accent)" }}>*</span>
           </label>
 
           {selectedSong ? (
             /* Selected song chip */
             <div
               className="flex items-center gap-3 rounded-xl px-4 py-3"
-              style={{ backgroundColor: "#EDE4DA" }}
+              style={{ backgroundColor: "var(--input-bg)" }}
             >
               <Image
                 src={selectedSong.artworkUrl100}
@@ -179,10 +179,10 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
                 unoptimized
               />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate" style={{ color: "#2C2C3A" }}>
+                <p className="text-sm font-semibold truncate" style={{ color: "var(--text)" }}>
                   {selectedSong.trackName}
                 </p>
-                <p className="text-xs truncate" style={{ color: "#999" }}>
+                <p className="text-xs truncate" style={{ color: "var(--text-meta)" }}>
                   {selectedSong.artistName}
                 </p>
               </div>
@@ -190,7 +190,7 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
                 type="button"
                 onClick={handleClearSong}
                 className="shrink-0 text-sm font-semibold"
-                style={{ color: "#E8825C" }}
+                style={{ color: "var(--accent)" }}
               >
                 Change
               </button>
@@ -204,18 +204,18 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
                 placeholder="Search for a song..."
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none"
                 style={{
-                  backgroundColor: "#EDE4DA",
-                  color: "#2C2C3A",
+                  backgroundColor: "var(--input-bg)",
+                  color: "var(--text)",
                   border: "none",
                 }}
               />
               {searching && (
-                <p className="text-xs mt-1" style={{ color: "#999" }}>Searching…</p>
+                <p className="text-xs mt-1" style={{ color: "var(--text-meta)" }}>Searching…</p>
               )}
               {songResults.length > 0 && (
                 <div
                   className="mt-1 rounded-xl overflow-hidden"
-                  style={{ backgroundColor: "#EDE4DA", border: "1px solid #DDD0C5" }}
+                  style={{ backgroundColor: "var(--input-bg)", border: "1px solid var(--input-border)" }}
                 >
                   {songResults.map((song) => (
                     <button
@@ -223,7 +223,7 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
                       type="button"
                       onClick={() => handleSelectSong(song)}
                       className="w-full flex items-center gap-3 px-4 py-3 text-left hover:opacity-80 transition-opacity"
-                      style={{ borderBottom: "1px solid #DDD0C5" }}
+                      style={{ borderBottom: "1px solid var(--input-border)" }}
                     >
                       <Image
                         src={song.artworkUrl100}
@@ -234,10 +234,10 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
                         unoptimized
                       />
                       <div className="min-w-0">
-                        <p className="text-sm font-medium truncate" style={{ color: "#2C2C3A" }}>
+                        <p className="text-sm font-medium truncate" style={{ color: "var(--text)" }}>
                           {song.trackName}
                         </p>
-                        <p className="text-xs truncate" style={{ color: "#999" }}>
+                        <p className="text-xs truncate" style={{ color: "var(--text-meta)" }}>
                           {song.artistName}
                         </p>
                       </div>
@@ -251,8 +251,8 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
 
         {/* Reflection */}
         <div>
-          <label className="block text-sm font-semibold mb-1" style={{ color: "#2C2C3A" }}>
-            Message <span style={{ color: "#999", fontWeight: 400 }}>(optional)</span>
+          <label className="block text-sm font-semibold mb-1" style={{ color: "var(--text)" }}>
+            Message <span style={{ color: "var(--text-meta)", fontWeight: 400 }}>(optional)</span>
           </label>
           <textarea
             value={reflection}
@@ -261,8 +261,8 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
             rows={4}
             className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-none"
             style={{
-              backgroundColor: "#EDE4DA",
-              color: "#2C2C3A",
+              backgroundColor: "var(--input-bg)",
+              color: "var(--text)",
               border: "none",
             }}
           />
@@ -270,8 +270,8 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
 
         {/* Photo */}
         <div>
-          <label className="block text-sm font-semibold mb-1" style={{ color: "#2C2C3A" }}>
-            Photo <span style={{ color: "#999", fontWeight: 400 }}>(optional)</span>
+          <label className="block text-sm font-semibold mb-1" style={{ color: "var(--text)" }}>
+            Photo <span style={{ color: "var(--text-meta)", fontWeight: 400 }}>(optional)</span>
           </label>
           <input
             ref={fileInputRef}
@@ -306,10 +306,10 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className="w-full rounded-xl flex flex-col items-center justify-center gap-2 py-10 transition-opacity hover:opacity-80"
-              style={{ backgroundColor: "#EDE4DA", border: "2px dashed #C8B8AC" }}
+              style={{ backgroundColor: "var(--input-bg)", border: "2px dashed var(--input-border)" }}
             >
               <span className="text-2xl">📷</span>
-              <span className="text-sm font-medium" style={{ color: "#999" }}>
+              <span className="text-sm font-medium" style={{ color: "var(--text-meta)" }}>
                 Tap to add a photo
               </span>
             </button>
@@ -328,7 +328,7 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
           type="submit"
           disabled={submitting || !name.trim() || !selectedSong}
           className="w-full py-4 rounded-full text-white font-semibold text-base transition-opacity hover:opacity-90 disabled:opacity-50"
-          style={{ backgroundColor: "#E8825C" }}
+          style={{ backgroundColor: "var(--accent)" }}
         >
           {submitting ? "Submitting…" : "Share Memory"}
         </button>

@@ -8,6 +8,7 @@
   --color-brand-muted: rgba(255,255,255,0.45);
 }
 
+/* ─── Dark theme (default) ─── */
 :root {
   --bg: #0F0D0B;
   --bg-secondary: #1A1612;
@@ -15,10 +16,42 @@
   --text: #FFFFFF;
   --text-secondary: rgba(255,255,255,0.55);
   --text-tertiary: rgba(255,255,255,0.35);
+  --text-body: rgba(255,255,255,0.75);
+  --text-meta: rgba(255,255,255,0.45);
   --border: rgba(255,255,255,0.08);
+  --border-rule: rgba(255,255,255,0.1);
   --accent: #E8825C;
   --chip-bg: rgba(255,255,255,0.08);
   --chip-text: rgba(255,255,255,0.75);
+  --input-bg: #1A1A1F;
+  --input-border: rgba(255,255,255,0.1);
+  --avatar-bg: #2A2A30;
+  --btn-alt-bg: rgba(255,255,255,0.12);
+  --btn-alt-text: rgba(255,255,255,0.9);
+}
+
+/* ─── Light theme ─── */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #FBF6F1;
+    --bg-secondary: #F0E8DF;
+    --card-bg: #EDE4DA;
+    --text: #2C2C3A;
+    --text-secondary: rgba(44,44,58,0.65);
+    --text-tertiary: rgba(44,44,58,0.4);
+    --text-body: #444444;
+    --text-meta: #999999;
+    --border: rgba(44,44,58,0.1);
+    --border-rule: #E5E0D8;
+    --accent: #E8825C;
+    --chip-bg: rgba(44,44,58,0.08);
+    --chip-text: rgba(44,44,58,0.75);
+    --input-bg: #EDE4DA;
+    --input-border: #DDD0C5;
+    --avatar-bg: #E0D5CC;
+    --btn-alt-bg: #2C2C3A;
+    --btn-alt-text: #FFFFFF;
+  }
 }
 
 body {

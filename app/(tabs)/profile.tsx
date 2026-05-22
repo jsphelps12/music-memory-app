@@ -13,6 +13,7 @@ import {
   Share,
   Switch,
   Linking,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
@@ -190,7 +191,7 @@ export default function ProfileScreen() {
   const handleShareProfile = useCallback(() => {
     if (!profile?.friendInviteToken) return;
     const url = `https://soundtracks.app/friend/${profile.friendInviteToken}`;
-    Share.share({ message: url, url });
+    Share.share(Platform.OS === "ios" ? { url } : { message: url });
   }, [profile?.friendInviteToken]);
 
   const handleDeleteAccount = () => {

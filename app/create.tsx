@@ -344,7 +344,7 @@ export default function CreateMomentScreen() {
         <View style={styles.titleRow}>
           <Text style={styles.title}>Capture a Moment</Text>
           <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)")} hitSlop={8}>
-            <Ionicons name="close" size={26} color="rgba(255,255,255,0.6)" />
+            <Ionicons name="close" size={26} color={theme.colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -355,7 +355,7 @@ export default function CreateMomentScreen() {
         <TextInput
           style={[styles.reflectionInput, focusedField === "reflection" && { borderColor: theme.colors.accent }]}
           placeholder="What does this song remind you of? (optional)"
-          placeholderTextColor="rgba(255,255,255,0.3)"
+          placeholderTextColor={theme.colors.placeholder}
           cursorColor={theme.colors.accent}
           multiline
           textAlignVertical="top"
@@ -434,7 +434,7 @@ export default function CreateMomentScreen() {
                   <TouchableOpacity
                     style={[
                       styles.collectionChip,
-                      selectedAlbum.isPublic && { borderColor: "rgba(152,136,200,0.3)", backgroundColor: "rgba(107,95,140,0.15)" },
+                      selectedAlbum.isPublic && styles.collectionChipPublic,
                     ]}
                     onPress={() => setAlbumPickerVisible(true)}
                     activeOpacity={0.7}
@@ -442,17 +442,17 @@ export default function CreateMomentScreen() {
                     <Ionicons
                       name={selectedAlbum.isPublic ? "people-outline" : "folder-outline"}
                       size={14}
-                      color={selectedAlbum.isPublic ? "#9888C8" : "rgba(255,255,255,0.75)"}
+                      color={selectedAlbum.isPublic ? theme.colors.accentSecondary : theme.colors.textSecondary}
                     />
                     <Text style={[
                       styles.collectionChipText,
-                      selectedAlbum.isPublic && { color: "#9888C8" },
+                      selectedAlbum.isPublic && styles.collectionChipTextPublic,
                     ]}>
                       {selectedAlbum.name}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => setSelectedAlbum(null)} hitSlop={8}>
-                    <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.35)" />
+                    <Ionicons name="close-circle" size={18} color={theme.colors.textTertiary} />
                   </TouchableOpacity>
                 </View>
                 {selectedAlbum.isPublic && (
@@ -467,7 +467,7 @@ export default function CreateMomentScreen() {
                 onPress={() => setAlbumPickerVisible(true)}
                 activeOpacity={0.7}
               >
-                <Ionicons name="folder-outline" size={16} color="rgba(255,255,255,0.35)" />
+                <Ionicons name="folder-outline" size={16} color={theme.colors.textTertiary} />
                 <Text style={styles.collectionEmptyText}>Add to album</Text>
               </TouchableOpacity>
             )}
@@ -612,11 +612,11 @@ export default function CreateMomentScreen() {
   );
 }
 
-function createStyles(_theme: Theme) {
+function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: "#0F0D0B",
+      backgroundColor: theme.colors.background,
     },
     scrollView: {
       flex: 1,
@@ -635,12 +635,12 @@ function createStyles(_theme: Theme) {
     title: {
       fontSize: 28,
       fontFamily: "DMSerifDisplay_400Regular",
-      color: "#fff",
+      color: theme.colors.text,
     },
     sectionLabel: {
       fontSize: 11,
       fontFamily: "DMSans_600SemiBold",
-      color: "rgba(255,255,255,0.45)",
+      color: theme.colors.textTertiary,
       textTransform: "uppercase",
       letterSpacing: 1.2,
       marginTop: 24,
@@ -656,14 +656,14 @@ function createStyles(_theme: Theme) {
     reflectionInput: {
       height: 120,
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.10)",
+      borderColor: theme.colors.border,
       borderRadius: 12,
       paddingHorizontal: 16,
       paddingTop: 12,
       paddingBottom: 12,
       fontSize: 16,
-      color: "#fff",
-      backgroundColor: "rgba(255,255,255,0.06)",
+      color: theme.colors.text,
+      backgroundColor: theme.colors.backgroundInput,
     },
     promptButton: {
       marginTop: 8,
@@ -673,7 +673,7 @@ function createStyles(_theme: Theme) {
     promptButtonText: {
       fontSize: 14,
       fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.35)",
+      color: theme.colors.textTertiary,
     },
     detailsToggle: {
       marginTop: 12,
@@ -684,33 +684,33 @@ function createStyles(_theme: Theme) {
     detailsToggleText: {
       fontSize: 14,
       fontFamily: "DMSans_500Medium",
-      color: "#E8825C",
+      color: theme.colors.accent,
     },
     dateClearText: {
       fontSize: 14,
-      color: "#FF453A",
+      color: theme.colors.destructive,
     },
     dateSetText: {
       fontSize: 14,
-      color: "#E8825C",
+      color: theme.colors.accent,
     },
     noDateText: {
       fontSize: 16,
       fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.35)",
+      color: theme.colors.textTertiary,
       paddingVertical: 8,
     },
     datePicker: {
       alignSelf: "center",
     },
     error: {
-      color: "#FF453A",
+      color: theme.colors.destructive,
       fontSize: 14,
       marginTop: 16,
     },
     saveButton: {
       height: 52,
-      backgroundColor: "#fff",
+      backgroundColor: theme.colors.buttonBg,
       borderRadius: 14,
       alignItems: "center",
       justifyContent: "center",
@@ -720,7 +720,7 @@ function createStyles(_theme: Theme) {
       opacity: 0.6,
     },
     saveButtonText: {
-      color: "#0F0D0B",
+      color: theme.colors.buttonText,
       fontSize: 16,
       fontFamily: "DMSans_600SemiBold",
     },
@@ -738,18 +738,25 @@ function createStyles(_theme: Theme) {
       paddingHorizontal: 12,
       paddingVertical: 8,
       borderRadius: 12,
-      backgroundColor: "rgba(255,255,255,0.08)",
+      backgroundColor: theme.colors.backgroundTertiary,
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.12)",
+      borderColor: theme.colors.border,
+    },
+    collectionChipPublic: {
+      backgroundColor: theme.colors.accentSecondaryBg,
+      borderColor: theme.colors.accentSecondary,
     },
     collectionChipText: {
       fontSize: 14,
       fontFamily: "DMSans_500Medium",
-      color: "rgba(255,255,255,0.85)",
+      color: theme.colors.text,
+    },
+    collectionChipTextPublic: {
+      color: theme.colors.accentSecondary,
     },
     collectionHint: {
       fontSize: 12,
-      color: "rgba(255,255,255,0.45)",
+      color: theme.colors.textTertiary,
       marginTop: 4,
       marginBottom: 8,
     },
@@ -763,12 +770,12 @@ function createStyles(_theme: Theme) {
     collectionEmptyText: {
       fontSize: 14,
       fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.4)",
+      color: theme.colors.textTertiary,
     },
     // Candidate selection modal
     candidateModal: {
       flex: 1,
-      backgroundColor: "#0F0D0B",
+      backgroundColor: theme.colors.background,
       paddingTop: 24,
     },
     candidateHeader: {
@@ -781,17 +788,17 @@ function createStyles(_theme: Theme) {
     candidateTitle: {
       fontSize: 18,
       fontFamily: "DMSans_700Bold",
-      color: "#fff",
+      color: theme.colors.text,
     },
     candidateClose: {
       fontSize: 16,
       fontFamily: "DMSans_400Regular",
-      color: "#E8825C",
+      color: theme.colors.accent,
     },
     candidateSubtitle: {
       fontSize: 14,
       fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.55)",
+      color: theme.colors.textSecondary,
       paddingHorizontal: 20,
       marginBottom: 16,
     },
@@ -803,7 +810,7 @@ function createStyles(_theme: Theme) {
       alignItems: "center",
       paddingVertical: 12,
       borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: "rgba(255,255,255,0.08)",
+      borderBottomColor: theme.colors.border,
     },
     candidateArtwork: {
       width: 48,
@@ -817,12 +824,12 @@ function createStyles(_theme: Theme) {
     candidateSongTitle: {
       fontSize: 16,
       fontFamily: "DMSans_600SemiBold",
-      color: "#fff",
+      color: theme.colors.text,
     },
     candidateArtist: {
       fontSize: 14,
       fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.55)",
+      color: theme.colors.textSecondary,
       marginTop: 2,
     },
     // Tag Friends

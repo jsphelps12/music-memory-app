@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   Modal,
   View,
@@ -13,6 +14,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from 
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
+import { Theme } from "@/constants/theme";
 import { CloseButton } from "@/components/CloseButton";
 import { Album } from "@/types";
 import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
@@ -36,6 +38,7 @@ export function AlbumPicker({
   onRequestCreate,
 }: Props) {
   const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const translateY = useSharedValue(0);
   const panGesture = Gesture.Pan()
@@ -195,85 +198,87 @@ export function AlbumPicker({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-  },
-  sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: Platform.OS === "ios" ? 36 : 20,
-    maxHeight: "70%",
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  sheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  sheetTitle: {
-    fontSize: 12,
-    fontFamily: "DMSans_600SemiBold",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  newAlbumBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  scroll: {
-    flexGrow: 0,
-  },
-  sectionDivider: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 4,
-  },
-  sectionLabel: {
-    fontSize: 11,
-    fontFamily: "DMSans_600SemiBold",
-    letterSpacing: 0.6,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  rowLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  rowIcon: {
-    marginRight: 12,
-  },
-  rowThumb: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    marginRight: 12,
-  },
-  rowName: {
-    fontSize: 16,
-    fontFamily: "DMSans_500Medium",
-  },
-  rowSub: {
-    fontSize: 12,
-    marginTop: 1,
-  },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    backdrop: {
+      flex: 1,
+    },
+    sheet: {
+      borderTopLeftRadius: theme.radii.lg,
+      borderTopRightRadius: theme.radii.lg,
+      paddingBottom: Platform.OS === "ios" ? 36 : 20,
+      maxHeight: "70%",
+    },
+    handle: {
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      alignSelf: "center",
+      marginTop: 10,
+      marginBottom: 4,
+    },
+    sheetHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: theme.spacing.xl,
+      paddingVertical: 10,
+    },
+    sheetTitle: {
+      fontSize: theme.fontSize.xs,
+      fontFamily: theme.fonts.bodySemibold,
+      textTransform: "uppercase",
+      letterSpacing: 0.8,
+    },
+    newAlbumBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: theme.spacing.xl,
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    scroll: {
+      flexGrow: 0,
+    },
+    sectionDivider: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      paddingHorizontal: theme.spacing.xl,
+      paddingTop: 14,
+      paddingBottom: theme.spacing.xs,
+    },
+    sectionLabel: {
+      fontSize: theme.fontSize.xs,
+      fontFamily: theme.fonts.bodySemibold,
+      letterSpacing: 0.6,
+    },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: theme.spacing.xl,
+      paddingVertical: 14,
+    },
+    rowLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      flex: 1,
+    },
+    rowIcon: {
+      marginRight: theme.spacing.md,
+    },
+    rowThumb: {
+      width: 36,
+      height: 36,
+      borderRadius: theme.radii.sm,
+      marginRight: theme.spacing.md,
+    },
+    rowName: {
+      fontSize: theme.fontSize.base,
+      fontFamily: theme.fonts.bodyMedium,
+    },
+    rowSub: {
+      fontSize: theme.fontSize.xs,
+      marginTop: 1,
+    },
+  });
+}

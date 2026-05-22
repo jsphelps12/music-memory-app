@@ -188,7 +188,7 @@ export default async function AlbumPage({ params }: PageProps) {
   const dateRange = formatDateRange(collection.date_from, collection.date_to);
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#0F0D0B" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "var(--bg)" }}>
 
       {/* Hero header — always visible */}
       <div
@@ -198,7 +198,7 @@ export default async function AlbumPage({ params }: PageProps) {
           display: "flex",
           alignItems: "flex-end",
           overflow: "hidden",
-          backgroundColor: "#0F0D0B",
+          backgroundColor: "var(--bg)",
         }}
       >
         {/* Cover image or brand gradient */}
@@ -225,12 +225,12 @@ export default async function AlbumPage({ params }: PageProps) {
           />
         )}
 
-        {/* Gradient overlay — always fades to dark bg */}
+        {/* Gradient overlay — fades to page bg */}
         <div
           style={{
             position: "absolute",
             inset: 0,
-            background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, #0F0D0B 100%)",
+            background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, var(--bg) 100%)",
           }}
         />
 
@@ -263,7 +263,7 @@ export default async function AlbumPage({ params }: PageProps) {
       {/* Moment list */}
       <div style={{ padding: "16px 16px 140px", maxWidth: 600, margin: "0 auto" }}>
         {moments.length === 0 ? (
-          <p style={{ textAlign: "center", padding: "48px 0", color: "rgba(255,255,255,0.35)" }}>
+          <p style={{ textAlign: "center", padding: "48px 0", color: "var(--text-tertiary)" }}>
             No moments yet.
           </p>
         ) : (
@@ -279,12 +279,12 @@ export default async function AlbumPage({ params }: PageProps) {
           left: 0,
           right: 0,
           padding: "12px 20px 20px",
-          backgroundColor: "#0F0D0B",
-          borderTop: "1px solid rgba(255,255,255,0.08)",
+          backgroundColor: "var(--bg)",
+          borderTop: "1px solid var(--border)",
         }}
       >
         <div style={{ maxWidth: 600, margin: "0 auto", display: "flex", flexDirection: "column", gap: 8 }}>
-          <p style={{ fontSize: 12, textAlign: "center", color: "rgba(255,255,255,0.35)", margin: 0 }}>
+          <p style={{ fontSize: 12, textAlign: "center", color: "var(--text-tertiary)", margin: 0 }}>
             Remember a song that takes you back?
           </p>
           <a
@@ -310,7 +310,7 @@ export default async function AlbumPage({ params }: PageProps) {
               textAlign: "center",
               padding: "8px",
               fontSize: 13,
-              color: "rgba(255,255,255,0.35)",
+              color: "var(--text-tertiary)",
               textDecoration: "none",
             }}
           >

@@ -136,7 +136,7 @@ function PersonCircle({ name, count, onPress }: { name: string; count: number; o
           borderWidth: 2, borderColor: theme.colors.background,
         }}
       >
-        <Text style={{ fontSize: 22, fontFamily: "DMSerifDisplay_400Regular", color: "#fff" }}>
+        <Text style={{ fontSize: 22, fontFamily: "DMSerifDisplay_400Regular", color: theme.colors.buttonText }}>
           {name.charAt(0).toUpperCase()}
         </Text>
       </LinearGradient>

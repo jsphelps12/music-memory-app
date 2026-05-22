@@ -152,21 +152,21 @@ export function PhotoPickerSection({
   );
 }
 
-function createStyles(_theme: Theme, horizontalPadding: number) {
+function createStyles(theme: Theme, horizontalPadding: number) {
   return StyleSheet.create({
     addButton: {
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.14)",
+      borderColor: theme.colors.border,
       borderStyle: "dashed",
-      borderRadius: 12,
+      borderRadius: theme.radii.md,
       paddingVertical: 14,
       alignItems: "center",
-      backgroundColor: "rgba(255,255,255,0.04)",
+      backgroundColor: theme.colors.backgroundInput,
     },
     addButtonText: {
-      fontSize: 15,
-      fontFamily: "DMSans_500Medium",
-      color: "rgba(255,255,255,0.5)",
+      fontSize: theme.fontSize.base,
+      fontFamily: theme.fonts.bodyMedium,
+      color: theme.colors.textSecondary,
     },
     photoScroll: {
       marginTop: 10,
@@ -182,7 +182,7 @@ function createStyles(_theme: Theme, horizontalPadding: number) {
     thumb: {
       width: 80,
       height: 80,
-      borderRadius: 8,
+      borderRadius: theme.radii.sm,
     },
     removeButton: {
       position: "absolute",
@@ -197,50 +197,50 @@ function createStyles(_theme: Theme, horizontalPadding: number) {
     },
     removeText: {
       color: "#fff",
-      fontSize: 11,
-      fontFamily: "DMSans_600SemiBold",
+      fontSize: theme.fontSize.xs,
+      fontFamily: theme.fonts.bodySemibold,
     },
     metaBanner: {
-      backgroundColor: "rgba(20,15,12,0.7)",
-      borderRadius: 12,
-      padding: 12,
-      marginTop: 16,
+      backgroundColor: theme.colors.cardBg,
+      borderRadius: theme.radii.md,
+      padding: theme.spacing.md,
+      marginTop: theme.spacing.lg,
       borderWidth: 1,
-      borderColor: "#E8825C",
+      borderColor: theme.colors.accent,
     },
     metaBannerRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      marginBottom: 4,
+      marginBottom: theme.spacing.xs,
     },
     metaBannerLabel: {
-      fontSize: 11,
-      fontFamily: "DMSans_600SemiBold",
-      color: "#E8825C",
+      fontSize: theme.fontSize.xs,
+      fontFamily: theme.fonts.bodySemibold,
+      color: theme.colors.accent,
       textTransform: "uppercase",
       letterSpacing: 0.8,
     },
     metaDismissText: {
-      fontSize: 12,
-      color: "rgba(255,255,255,0.4)",
+      fontSize: theme.fontSize.xs,
+      color: theme.colors.textTertiary,
     },
     metaBannerBody: {
-      fontSize: 14,
-      fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.85)",
-      marginBottom: 8,
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.text,
+      marginBottom: theme.spacing.sm,
     },
     metaUseButton: {
-      backgroundColor: "#fff",
-      borderRadius: 8,
-      paddingVertical: 8,
+      backgroundColor: theme.colors.buttonBg,
+      borderRadius: theme.radii.sm,
+      paddingVertical: theme.spacing.sm,
       alignItems: "center",
     },
     metaUseText: {
-      fontSize: 14,
-      fontFamily: "DMSans_600SemiBold",
-      color: "#0F0D0B",
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.bodySemibold,
+      color: theme.colors.buttonText,
     },
   });
 }

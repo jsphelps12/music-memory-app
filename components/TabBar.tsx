@@ -147,7 +147,7 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
 const styles = StyleSheet.create({
   bar: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "stretch",
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   slot: {

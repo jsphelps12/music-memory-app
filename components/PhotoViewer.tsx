@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo } from "react";
 import {
   FlatList,
   Modal,
@@ -11,6 +11,8 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
+import { useTheme } from "@/hooks/useTheme";
+import { Theme } from "@/constants/theme";
 
 interface Props {
   photos: string[];
@@ -21,6 +23,8 @@ interface Props {
 
 export function PhotoViewer({ photos, initialIndex, visible, onClose }: Props) {
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const listRef = useRef<FlatList>(null);
 
@@ -112,48 +116,50 @@ export function PhotoViewer({ photos, initialIndex, visible, onClose }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-  overlay: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    left: 0,
-  },
-  closeButton: {
-    alignSelf: "flex-end",
-    margin: 16,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  closeButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  dotsContainer: {
-    position: "absolute",
-    bottom: 48,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 6,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.4)",
-  },
-  dotActive: {
-    backgroundColor: "#fff",
-  },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    overlay: {
+      position: "absolute",
+      top: 0,
+      right: 0,
+      left: 0,
+    },
+    closeButton: {
+      alignSelf: "flex-end",
+      margin: 16,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: theme.colors.closeButtonBg,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    closeButtonText: {
+      color: theme.colors.text,
+      fontSize: 16,
+      fontFamily: "DMSans_600SemiBold",
+    },
+    dotsContainer: {
+      position: "absolute",
+      bottom: 48,
+      left: 0,
+      right: 0,
+      flexDirection: "row",
+      justifyContent: "center",
+      gap: 6,
+    },
+    dot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: theme.colors.textTertiary,
+    },
+    dotActive: {
+      backgroundColor: theme.colors.text,
+    },
+  });
+}

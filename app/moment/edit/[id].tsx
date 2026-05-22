@@ -296,7 +296,7 @@ export default function EditMomentScreen() {
             <Text style={styles.subtitle}>Update your moment</Text>
           </View>
           <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} hitSlop={8}>
-            <Ionicons name="close" size={26} color="rgba(255,255,255,0.6)" />
+            <Ionicons name="close" size={26} color={theme.colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -348,10 +348,10 @@ export default function EditMomentScreen() {
         {/* Reflection */}
         <Text style={styles.sectionLabel}>Reflection</Text>
         <TextInput
-          style={[styles.reflectionInput, focusedField === "reflection" && { borderColor: "#E8825C" }]}
+          style={[styles.reflectionInput, focusedField === "reflection" && { borderColor: theme.colors.accent }]}
           placeholder="What does this song remind you of? (optional)"
-          placeholderTextColor="rgba(255,255,255,0.3)"
-          cursorColor="#E8825C"
+          placeholderTextColor={theme.colors.placeholder}
+          cursorColor={theme.colors.accent}
           multiline
           textAlignVertical="top"
           autoCapitalize="sentences"
@@ -452,10 +452,10 @@ export default function EditMomentScreen() {
         {/* Location */}
         <Text style={styles.sectionLabel}>Location</Text>
         <TextInput
-          style={[styles.input, focusedField === "location" && { borderColor: "#E8825C" }]}
+          style={[styles.input, focusedField === "location" && { borderColor: theme.colors.accent }]}
           placeholder="Where were you?"
-          placeholderTextColor="rgba(255,255,255,0.3)"
-          cursorColor="#E8825C"
+          placeholderTextColor={theme.colors.placeholder}
+          cursorColor={theme.colors.accent}
           autoCorrect={false}
           autoCapitalize="words"
           returnKeyType="done"
@@ -486,11 +486,11 @@ export default function EditMomentScreen() {
   );
 }
 
-function createStyles(_theme: Theme) {
+function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: "#0F0D0B",
+      backgroundColor: theme.colors.background,
     },
     scrollView: {
       flex: 1,
@@ -509,24 +509,24 @@ function createStyles(_theme: Theme) {
     title: {
       fontSize: 28,
       fontFamily: "DMSerifDisplay_400Regular",
-      color: "#fff",
+      color: theme.colors.text,
       marginBottom: 4,
     },
     subtitle: {
       fontSize: 14,
       fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.45)",
+      color: theme.colors.textTertiary,
     },
     cancelText: {
       fontSize: 17,
-      color: "#E8825C",
+      color: theme.colors.accent,
     },
     songCard: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: "rgba(255,255,255,0.06)",
+      backgroundColor: theme.colors.backgroundInput,
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.10)",
+      borderColor: theme.colors.border,
       padding: 12,
       borderRadius: 12,
     },
@@ -542,35 +542,35 @@ function createStyles(_theme: Theme) {
     songTitle: {
       fontSize: 16,
       fontFamily: "DMSans_600SemiBold",
-      color: "#fff",
+      color: theme.colors.text,
     },
     songArtist: {
       fontSize: 14,
       fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.55)",
+      color: theme.colors.textSecondary,
       marginTop: 2,
     },
     changeText: {
       fontSize: 14,
       fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.4)",
+      color: theme.colors.textTertiary,
       marginLeft: 8,
     },
     selectSongButton: {
-      backgroundColor: "#fff",
+      backgroundColor: theme.colors.buttonBg,
       paddingVertical: 16,
       borderRadius: 12,
       alignItems: "center",
     },
     selectSongButtonText: {
-      color: "#0F0D0B",
+      color: theme.colors.buttonText,
       fontSize: 17,
       fontFamily: "DMSans_600SemiBold",
     },
     sectionLabel: {
       fontSize: 11,
       fontFamily: "DMSans_600SemiBold",
-      color: "rgba(255,255,255,0.45)",
+      color: theme.colors.textTertiary,
       textTransform: "uppercase",
       letterSpacing: 1.2,
       marginTop: 24,
@@ -585,53 +585,53 @@ function createStyles(_theme: Theme) {
     },
     dateClearText: {
       fontSize: 14,
-      color: "#FF453A",
+      color: theme.colors.destructive,
     },
     dateSetText: {
       fontSize: 14,
-      color: "#E8825C",
+      color: theme.colors.accent,
     },
     noDateText: {
       fontSize: 16,
       fontFamily: "DMSans_400Regular",
-      color: "rgba(255,255,255,0.35)",
+      color: theme.colors.textTertiary,
       paddingVertical: 8,
     },
     reflectionInput: {
       height: 120,
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.10)",
+      borderColor: theme.colors.border,
       borderRadius: 12,
       paddingHorizontal: 16,
       paddingTop: 12,
       paddingBottom: 12,
       fontSize: 16,
-      color: "#fff",
-      backgroundColor: "rgba(255,255,255,0.06)",
+      color: theme.colors.text,
+      backgroundColor: theme.colors.backgroundInput,
     },
     input: {
       height: 52,
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.10)",
+      borderColor: theme.colors.border,
       borderRadius: 12,
       paddingHorizontal: 16,
       fontSize: 16,
-      color: "#fff",
-      backgroundColor: "rgba(255,255,255,0.06)",
+      color: theme.colors.text,
+      backgroundColor: theme.colors.backgroundInput,
     },
     addPhotosButton: {
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.14)",
+      borderColor: theme.colors.border,
       borderStyle: "dashed",
       borderRadius: 12,
       paddingVertical: 14,
       alignItems: "center",
-      backgroundColor: "rgba(255,255,255,0.04)",
+      backgroundColor: theme.colors.backgroundInput,
     },
     addPhotosButtonText: {
       fontSize: 15,
       fontFamily: "DMSans_500Medium",
-      color: "rgba(255,255,255,0.5)",
+      color: theme.colors.textSecondary,
     },
     photoScroll: {
       marginTop: 10,
@@ -656,7 +656,7 @@ function createStyles(_theme: Theme) {
       width: 22,
       height: 22,
       borderRadius: 11,
-      backgroundColor: "rgba(0,0,0,0.7)",
+      backgroundColor: "rgba(0,0,0,0.55)",
       alignItems: "center",
       justifyContent: "center",
     },
@@ -669,13 +669,13 @@ function createStyles(_theme: Theme) {
       alignSelf: "center",
     },
     error: {
-      color: "#FF453A",
+      color: theme.colors.destructive,
       fontSize: 14,
       marginTop: 16,
     },
     saveButton: {
       height: 52,
-      backgroundColor: "#fff",
+      backgroundColor: theme.colors.buttonBg,
       borderRadius: 14,
       alignItems: "center",
       justifyContent: "center",
@@ -685,7 +685,7 @@ function createStyles(_theme: Theme) {
       opacity: 0.6,
     },
     saveButtonText: {
-      color: "#0F0D0B",
+      color: theme.colors.buttonText,
       fontSize: 16,
       fontFamily: "DMSans_600SemiBold",
     },

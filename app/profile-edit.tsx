@@ -472,7 +472,7 @@ export default function ProfileEditScreen() {
                   activeOpacity={0.8}
                 >
                   <Text style={styles.chipText}>{a.name}</Text>
-                  <Ionicons name="close" size={13} color="#fff" style={{ marginLeft: 4 }} />
+                  <Ionicons name="close" size={13} color={theme.colors.chipSelectedText} style={{ marginLeft: 4 }} />
                 </TouchableOpacity>
               ))}
             </View>
@@ -536,7 +536,7 @@ export default function ProfileEditScreen() {
                   activeOpacity={0.8}
                 >
                   <Text style={styles.chipText} numberOfLines={1}>{s.title}</Text>
-                  <Ionicons name="close" size={13} color="#fff" style={{ marginLeft: 4 }} />
+                  <Ionicons name="close" size={13} color={theme.colors.chipSelectedText} style={{ marginLeft: 4 }} />
                 </TouchableOpacity>
               ))}
             </View>
@@ -852,10 +852,10 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       paddingHorizontal: 12,
       paddingVertical: 6,
-      borderRadius: 20,
+      borderRadius: theme.radii.lg,
     },
     chipText: {
-      color: "#fff",
+      color: theme.colors.chipSelectedText,
       fontSize: theme.fontSize.sm,
       fontFamily: theme.fonts.bodyMedium,
       maxWidth: 140,
@@ -877,13 +877,13 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       paddingVertical: 9,
       paddingHorizontal: 10,
-      borderRadius: 8,
+      borderRadius: theme.radii.sm,
       marginBottom: 2,
     },
     songArtwork: {
       width: 36,
       height: 36,
-      borderRadius: 5,
+      borderRadius: theme.radii.sm,
       marginRight: 10,
     },
     resultText: { flex: 1 },
@@ -900,11 +900,11 @@ function createStyles(theme: Theme) {
     // Picker modals
     modalBackdrop: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.4)",
+      backgroundColor: theme.isDark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.3)",
     },
     pickerSheet: {
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
+      borderTopLeftRadius: theme.radii.lg,
+      borderTopRightRadius: theme.radii.lg,
       maxHeight: "60%",
       paddingBottom: Platform.OS === "ios" ? 34 : 20,
     },
@@ -925,7 +925,7 @@ function createStyles(theme: Theme) {
       paddingVertical: 12,
     },
     pickerSheetTitle: {
-      fontSize: 17,
+      fontSize: theme.fontSize.base,
       fontFamily: theme.fonts.bodySemibold,
     },
     pickerItem: {
@@ -962,7 +962,7 @@ function createStyles(theme: Theme) {
     genreChip: {
       paddingHorizontal: 14,
       paddingVertical: 8,
-      borderRadius: 20,
+      borderRadius: theme.radii.lg,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.backgroundInput,
@@ -977,7 +977,7 @@ function createStyles(theme: Theme) {
       fontFamily: theme.fonts.bodyMedium,
     },
     genreChipTextSelected: {
-      color: "#fff",
+      color: theme.colors.chipSelectedText,
     },
   });
 }

@@ -57,7 +57,7 @@ export default function ContributeHub({ collectionName, inviteCode, moments: ini
   const count = moments.length;
 
   return (
-    <div className="min-h-screen pb-36" style={{ backgroundColor: "#FBF6F1" }}>
+    <div className="min-h-screen pb-36" style={{ backgroundColor: "var(--bg)" }}>
       {/* Success banner */}
       {justSubmitted && (
         <div
@@ -70,13 +70,13 @@ export default function ContributeHub({ collectionName, inviteCode, moments: ini
 
       {/* Header */}
       <div className="px-6 pt-10 pb-6 max-w-xl mx-auto">
-        <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#E8825C" }}>
+        <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--accent)" }}>
           Guest Book
         </p>
-        <h1 className="text-3xl font-bold" style={{ color: "#2C2C3A" }}>
+        <h1 className="text-3xl font-bold" style={{ color: "var(--text)" }}>
           {collectionName}
         </h1>
-        <p className="mt-1 text-sm" style={{ color: "#999" }}>
+        <p className="mt-1 text-sm" style={{ color: "var(--text-meta)" }}>
           {count} {count === 1 ? "memory" : "memories"} so far
         </p>
       </div>
@@ -84,7 +84,7 @@ export default function ContributeHub({ collectionName, inviteCode, moments: ini
       {/* Moment feed */}
       <div className="px-6 max-w-xl mx-auto">
         {moments.length === 0 ? (
-          <p className="text-center py-12" style={{ color: "#bbb" }}>
+          <p className="text-center py-12" style={{ color: "var(--text-tertiary)" }}>
             No memories yet — be the first!
           </p>
         ) : (
@@ -95,7 +95,7 @@ export default function ContributeHub({ collectionName, inviteCode, moments: ini
       {/* Sticky bottom CTA */}
       <div
         className="fixed bottom-0 left-0 right-0 px-6 py-4"
-        style={{ backgroundColor: "#FBF6F1", borderTop: "1px solid #E8D8CC" }}
+        style={{ backgroundColor: "var(--bg)", borderTop: "1px solid var(--border-rule)" }}
       >
         <div className="max-w-xl mx-auto flex flex-col gap-2">
           {justSubmitted ? (
@@ -103,14 +103,14 @@ export default function ContributeHub({ collectionName, inviteCode, moments: ini
               <Link
                 href={`/c/${inviteCode}/contribute/new`}
                 className="block text-center py-3 rounded-full font-semibold text-base transition-opacity hover:opacity-90"
-                style={{ backgroundColor: "#2C2C3A", color: "#fff" }}
+                style={{ backgroundColor: "var(--btn-alt-bg)", color: "var(--btn-alt-text)" }}
               >
                 Add Another Memory
               </Link>
               <a
                 href={APP_STORE_URL}
                 className="block text-center py-3 rounded-full font-semibold text-base transition-opacity hover:opacity-90"
-                style={{ backgroundColor: "#E8825C", color: "#fff" }}
+                style={{ backgroundColor: "var(--accent)", color: "#fff" }}
               >
                 Download Soundtracks
               </a>
@@ -119,7 +119,7 @@ export default function ContributeHub({ collectionName, inviteCode, moments: ini
             <Link
               href={`/c/${inviteCode}/contribute/new`}
               className="block text-center py-3 rounded-full font-semibold text-base transition-opacity hover:opacity-90"
-              style={{ backgroundColor: "#E8825C", color: "#fff" }}
+              style={{ backgroundColor: "var(--accent)", color: "#fff" }}
             >
               Add Your Memory →
             </Link>

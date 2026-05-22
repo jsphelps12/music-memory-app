@@ -104,7 +104,7 @@ export default async function GiftedMomentPage({ params }: PageProps) {
 
   return (
     <div
-      style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", backgroundColor: "#0F0D0B" }}
+      style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", backgroundColor: "var(--bg)" }}
     >
       <GiftClipboardWriter shareToken={share_token} />
       <div style={{ width: "100%", maxWidth: 390, padding: "40px 20px 140px" }}>
@@ -118,7 +118,7 @@ export default async function GiftedMomentPage({ params }: PageProps) {
             marginBottom: 16,
             letterSpacing: "0.08em",
             textTransform: "uppercase",
-            color: "rgba(255,255,255,0.35)",
+            color: "var(--text-tertiary)",
           }}
         >
           {senderName} shared a memory with you
@@ -130,8 +130,8 @@ export default async function GiftedMomentPage({ params }: PageProps) {
             borderRadius: 24,
             overflow: "hidden",
             boxShadow: "0 8px 40px rgba(0,0,0,0.4)",
-            backgroundColor: "#0F0D0B",
-            border: "1px solid rgba(255,255,255,0.08)",
+            backgroundColor: "var(--card-bg)",
+            border: "1px solid var(--border)",
           }}
         >
           {/* Hero — 3:2 with gradient fade */}
@@ -189,7 +189,7 @@ export default async function GiftedMomentPage({ params }: PageProps) {
                   left: 0,
                   right: 0,
                   height: "50%",
-                  background: "linear-gradient(to bottom, transparent 0%, #0F0D0B 100%)",
+                  background: "linear-gradient(to bottom, transparent 0%, var(--card-bg) 100%)",
                   pointerEvents: "none",
                 }}
               />
@@ -213,7 +213,7 @@ export default async function GiftedMomentPage({ params }: PageProps) {
                   style={{
                     fontWeight: 700,
                     fontSize: 15,
-                    color: "#fff",
+                    color: "var(--text)",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
@@ -225,7 +225,7 @@ export default async function GiftedMomentPage({ params }: PageProps) {
                 <p
                   style={{
                     fontSize: 12,
-                    color: "rgba(255,255,255,0.55)",
+                    color: "var(--text-secondary)",
                     margin: "2px 0 0",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -245,7 +245,7 @@ export default async function GiftedMomentPage({ params }: PageProps) {
                   fontStyle: "italic",
                   fontSize: 16,
                   lineHeight: 1.6,
-                  color: "rgba(255,255,255,0.85)",
+                  color: "var(--text)",
                   margin: "0 0 14px",
                 }}
               >
@@ -259,7 +259,7 @@ export default async function GiftedMomentPage({ params }: PageProps) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                borderTop: "1px solid rgba(255,255,255,0.08)",
+                borderTop: "1px solid var(--border)",
                 paddingTop: 12,
                 marginTop: row.reflection_text ? 0 : 4,
               }}
@@ -270,15 +270,15 @@ export default async function GiftedMomentPage({ params }: PageProps) {
                     fontSize: 11,
                     padding: "3px 10px",
                     borderRadius: 999,
-                    backgroundColor: "rgba(255,255,255,0.08)",
-                    color: "rgba(255,255,255,0.75)",
-                    border: "1px solid rgba(255,255,255,0.12)",
+                    backgroundColor: "var(--chip-bg)",
+                    color: "var(--chip-text)",
+                    border: "1px solid var(--border)",
                   }}
                 >
                   {moodDef.emoji} {moodDef.label}
                 </span>
               ) : formattedDate ? (
-                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", letterSpacing: "0.05em" }}>
+                <span style={{ fontSize: 11, color: "var(--text-tertiary)", letterSpacing: "0.05em" }}>
                   {formattedDate}
                 </span>
               ) : (
@@ -326,8 +326,8 @@ export default async function GiftedMomentPage({ params }: PageProps) {
           left: 0,
           right: 0,
           padding: "12px 20px 20px",
-          backgroundColor: "#0F0D0B",
-          borderTop: "1px solid rgba(255,255,255,0.08)",
+          backgroundColor: "var(--bg)",
+          borderTop: "1px solid var(--border)",
         }}
       >
         <div style={{ maxWidth: 390, margin: "0 auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>

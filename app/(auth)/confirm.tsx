@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/hooks/useTheme";
+import { Theme } from "@/constants/theme";
 
 export default function ConfirmScreen() {
   const { code } = useLocalSearchParams<{ code?: string }>();
   const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -23,9 +25,9 @@ export default function ConfirmScreen() {
   }, [code]);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={styles.container}>
       {error ? (
-        <Text style={[styles.error, { color: theme.colors.textSecondary }]}>{error}</Text>
+        <Text style={styles.error}>{error}</Text>
       ) : (
         <ActivityIndicator color={theme.colors.textSecondary} />
       )}
@@ -33,7 +35,15 @@ export default function ConfirmScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: "center", justifyContent: "center" },
-  error: { fontSize: 16, textAlign: "center", paddingHorizontal: 32, lineHeight: 24 },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.background },
+    error: {
+      fontSize: theme.fontSize.base,
+      color: theme.colors.textSecondary,
+      textAlign: "center",
+      paddingHorizontal: theme.spacing["3xl"],
+      lineHeight: 24,
+    },
+  });
+}

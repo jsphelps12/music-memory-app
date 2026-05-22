@@ -64,7 +64,7 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      gap: 5,
+      gap: theme.spacing.xs,
       paddingVertical: 10,
     },
     optionBorder: {
@@ -73,7 +73,7 @@ function createStyles(theme: Theme) {
     },
     label: {
       fontSize: 11,
-      fontFamily: "DMSans_600SemiBold",
+      fontFamily: theme.fonts.bodySemibold,
       textAlign: "center",
     },
   });

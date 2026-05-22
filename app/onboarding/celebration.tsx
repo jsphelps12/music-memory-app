@@ -128,35 +128,36 @@ export default function OnboardingCelebrationScreen() {
 }
 
 function CelebrationMomentCard({ moment, theme }: { moment: Moment; theme: Theme }) {
+  const cardStyles = useMemo(() => createCardStyles(theme), [theme]);
   return (
-    <View style={[cardStyles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.cardBg }]}>
+    <View style={cardStyles.card}>
       <View style={cardStyles.row}>
         {moment.songArtworkUrl ? (
           <Image source={{ uri: moment.songArtworkUrl }} style={cardStyles.artwork} contentFit="cover" />
         ) : (
-          <View style={[cardStyles.artworkPlaceholder, { backgroundColor: theme.colors.chipBg }]}>
+          <View style={cardStyles.artworkPlaceholder}>
             <Ionicons name="musical-note" size={20} color={theme.colors.textTertiary} />
           </View>
         )}
         <View style={cardStyles.info}>
-          <Text style={[cardStyles.songName, { color: theme.colors.text }]} numberOfLines={1}>
+          <Text style={cardStyles.songName} numberOfLines={1}>
             {moment.songTitle}
           </Text>
-          <Text style={[cardStyles.artist, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+          <Text style={cardStyles.artist} numberOfLines={1}>
             {moment.songArtist}
           </Text>
         </View>
       </View>
       {Boolean(moment.reflectionText) && (
-        <Text style={[cardStyles.reflection, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+        <Text style={cardStyles.reflection} numberOfLines={2}>
           {moment.reflectionText}
         </Text>
       )}
       {moment.people.length > 0 && (
         <View style={cardStyles.chips}>
           {moment.people.slice(0, 3).map((p) => (
-            <View key={p} style={[cardStyles.chip, { backgroundColor: theme.colors.chipBg }]}>
-              <Text style={[cardStyles.chipText, { color: theme.colors.textSecondary }]}>@ {p}</Text>
+            <View key={p} style={cardStyles.chip}>
+              <Text style={cardStyles.chipText}>@ {p}</Text>
             </View>
           ))}
         </View>
@@ -165,19 +166,50 @@ function CelebrationMomentCard({ moment, theme }: { moment: Moment; theme: Theme
   );
 }
 
-const cardStyles = StyleSheet.create({
-  card: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 10 },
-  row: { flexDirection: "row", alignItems: "center", gap: 12 },
-  artwork: { width: 44, height: 44, borderRadius: 6 },
-  artworkPlaceholder: { width: 44, height: 44, borderRadius: 6, alignItems: "center", justifyContent: "center" },
-  info: { flex: 1 },
-  songName: { fontSize: 15, fontFamily: "DMSans_600SemiBold", marginBottom: 2 },
-  artist: { fontSize: 13 },
-  reflection: { fontSize: 13, lineHeight: 18, fontStyle: "italic" },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-  chipText: { fontSize: 12 },
-});
+function createCardStyles(theme: Theme) {
+  return StyleSheet.create({
+    card: {
+      borderWidth: 1,
+      borderRadius: theme.radii.md,
+      padding: 14,
+      gap: theme.spacing.sm,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.cardBg,
+    },
+    row: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
+    artwork: { width: 44, height: 44, borderRadius: theme.radii.sm },
+    artworkPlaceholder: {
+      width: 44,
+      height: 44,
+      borderRadius: theme.radii.sm,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.chipBg,
+    },
+    info: { flex: 1 },
+    songName: {
+      fontSize: theme.fontSize.base,
+      fontFamily: theme.fonts.bodySemibold,
+      color: theme.colors.text,
+      marginBottom: 2,
+    },
+    artist: { fontSize: theme.fontSize.xs, color: theme.colors.textSecondary },
+    reflection: {
+      fontSize: theme.fontSize.xs,
+      lineHeight: 18,
+      fontStyle: "italic",
+      color: theme.colors.textSecondary,
+    },
+    chips: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.xs + 2 },
+    chip: {
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 3,
+      borderRadius: theme.radii.lg,
+      backgroundColor: theme.colors.chipBg,
+    },
+    chipText: { fontSize: theme.fontSize.xs, color: theme.colors.textSecondary },
+  });
+}
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({

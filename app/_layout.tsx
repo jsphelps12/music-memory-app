@@ -332,6 +332,10 @@ function RootLayoutNav() {
             options={{ headerShown: false, presentation: "modal" }}
           />
           <Stack.Screen
+            name="friend/[token]"
+            options={{ headerShown: false, presentation: "modal" }}
+          />
+          <Stack.Screen
             name="album/[id]"
             options={{ headerShown: false }}
           />
