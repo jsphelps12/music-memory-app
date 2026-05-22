@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Modal,
   View,
@@ -37,25 +37,28 @@ export function NewSharedAlbumModal({ visible, onClose, userId }: Props) {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const translateY = useSharedValue(0);
-  const panGesture = Gesture.Pan()
-    .onUpdate((e) => { if (e.translationY > 0) translateY.value = e.translationY; })
-    .onEnd((e) => {
-      if (e.translationY > 80 || e.velocityY > 500) { runOnJS(handleClose)(); }
-      translateY.value = withTiming(0);
-    });
-  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
   const [name, setName] = useState("");
   const [isShared, setIsShared] = useState(true);
   const [coverUri, setCoverUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleClose = () => {
+  // handleClose must be declared before panGesture so the worklet compiler
+  // captures a defined reference (not TDZ undefined) when building the gesture.
+  const handleClose = useCallback(() => {
     setName("");
     setIsShared(true);
     setCoverUri(null);
     onClose();
-  };
+  }, [onClose]);
+
+  const translateY = useSharedValue(0);
+  const panGesture = useMemo(() => Gesture.Pan()
+    .onUpdate((e) => { if (e.translationY > 0) translateY.value = e.translationY; })
+    .onEnd((e) => {
+      if (e.translationY > 80 || e.velocityY > 500) { runOnJS(handleClose)(); }
+      translateY.value = withTiming(0);
+    }), [handleClose, translateY]);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
 
   const handlePickCover = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
