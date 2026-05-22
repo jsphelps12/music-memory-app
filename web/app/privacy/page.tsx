@@ -19,7 +19,7 @@ export default function PrivacyPolicy() {
         <h1 style={{ fontSize: 36, fontWeight: 700, color: "#2C2C3A", marginBottom: 8 }}>
           Privacy Policy
         </h1>
-        <p style={{ fontSize: 14, color: "#999", marginBottom: 48 }}>Last updated: March 2026</p>
+        <p style={{ fontSize: 14, color: "#999", marginBottom: 48 }}>Last updated: May 2026</p>
 
         <Section>
           <p>
@@ -159,6 +159,7 @@ export default function PrivacyPolicy() {
             <li><strong>Correction</strong> — you can edit or update any moment, your display name, and your profile photo.</li>
             <li><strong>Deletion</strong> — you can delete your account from the Profile screen. This permanently removes your account, all moments, all photos, and all associated data from our systems. This cannot be undone.</li>
             <li><strong>Data portability</strong> — we plan to add an export feature. In the meantime, email us at <a href="mailto:founder@soundtracks.app" style={{ color: "#E8825C" }}>founder@soundtracks.app</a> and we can provide a data export.</li>
+            <li><strong>Complaints</strong> — EU residents have the right to lodge a complaint with their local data protection supervisory authority.</li>
           </ul>
         </Section>
 
