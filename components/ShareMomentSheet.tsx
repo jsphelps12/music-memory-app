@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -50,14 +50,25 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
   const { user } = useAuth();
   const viewShotRef = useRef<ViewShot>(null);
   const [view, setView] = useState<"options" | "card" | "tagFriend">("options");
+  // sentTagIds hoisted here so setSentTagIds is available to handleClose
+  // before panGesture is created (avoids reanimated worklet TDZ capture of undefined)
+  const [sentTagIds, setSentTagIds] = useState<Set<string>>(new Set());
+
+  // handleClose must be declared before panGesture so the worklet compiler
+  // captures a defined reference (not TDZ undefined) when building the gesture.
+  const handleClose = useCallback(() => {
+    setView("options");
+    setSentTagIds(new Set());
+    onClose();
+  }, [onClose]);
 
   const translateY = useSharedValue(0);
-  const panGesture = Gesture.Pan()
+  const panGesture = useMemo(() => Gesture.Pan()
     .onUpdate((e) => { if (e.translationY > 0) translateY.value = e.translationY; })
     .onEnd((e) => {
       if (e.translationY > 80 || e.velocityY > 500) { runOnJS(handleClose)(); }
       translateY.value = withTiming(0);
-    });
+    }), [handleClose, translateY]);
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
 
   const goToCard = () => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setView("card"); };
@@ -65,7 +76,6 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [sharing, setSharing] = useState(false);
   const [sendingLink, setSendingLink] = useState(false);
-  const [sentTagIds, setSentTagIds] = useState<Set<string>>(new Set());
   const [sendingTagId, setSendingTagId] = useState<string | null>(null);
   const [localTags, setLocalTags] = useState<TaggedMoment[]>(tags);
   const [friends, setFriends] = useState<Friendship[]>([]);
@@ -112,11 +122,6 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
     }
   };
 
-  const handleClose = () => {
-    setView("options");
-    setSentTagIds(new Set());
-    onClose();
-  };
 
   const handleSendLink = async () => {
     if (sendingLink) return;
