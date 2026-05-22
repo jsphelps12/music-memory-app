@@ -525,8 +525,8 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                       onPress={handleShare}
                       activeOpacity={0.8}
                     >
-                      <Ionicons name="share-outline" size={16} color="#fff" />
-                      <Text style={styles.shareButtonText}>Share Link</Text>
+                      <Ionicons name="share-outline" size={16} color={theme.colors.buttonText} />
+                      <Text style={[styles.shareButtonText, { color: theme.colors.buttonText }]}>Share Link</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -573,11 +573,11 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                           activeOpacity={0.7}
                         >
                           {invitingId === result.id ? (
-                            <ActivityIndicator size="small" color="#fff" />
+                            <ActivityIndicator size="small" color={theme.colors.buttonText} />
                           ) : wasSent ? (
                             <Text style={[styles.addBtnText, { color: theme.colors.textSecondary }]}>Sent ✓</Text>
                           ) : (
-                            <Text style={styles.addBtnText}>Invite</Text>
+                            <Text style={[styles.addBtnText, { color: theme.colors.buttonText }]}>Invite</Text>
                           )}
                         </TouchableOpacity>
                       </View>
@@ -888,7 +888,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   shareButtonText: {
-    color: "#fff",
     fontSize: 14,
     fontFamily: "DMSans_600SemiBold",
   },
@@ -1000,7 +999,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   addBtnText: {
-    color: "#fff",
     fontSize: 13,
     fontFamily: "DMSans_600SemiBold",
   },
