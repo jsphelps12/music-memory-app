@@ -34,6 +34,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PlayerProvider } from "@/contexts/PlayerContext";
 import { useDeepLinkHandler, PENDING_INVITE_CODE_KEY } from "@/hooks/useDeepLinkHandler";
 import { useShareIntentHandler } from "@/hooks/useShareIntentHandler";
+import { useOtaUpdate } from "@/hooks/useOtaUpdate";
 import { registerForPushNotifications } from "@/lib/notifications";
 
 const HAS_LAUNCHED_KEY = "has_launched";
@@ -209,6 +210,7 @@ function RootLayoutNav() {
   const { user, profile } = useAuth();
   useDeepLinkHandler();
   useShareIntentHandler();
+  useOtaUpdate();
 
   const pathname = usePathname();
   const params = useGlobalSearchParams();
