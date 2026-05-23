@@ -310,6 +310,7 @@ Ordered by impact across growth (new users), retention (keep existing), and reve
 | 1 | ~~Friends (Phase C)~~ | ~~Growth + Retention~~ | ~~🟡~~ | ✅ Shipped April 2026 — friend invite links, direct accept, push notification, tagged moments. |
 | 1b | ~~Tab redesign~~ | ~~Retention~~ | ~~🟡~~ | ✅ Shipped May 2026 — Browse tab, Shared tab redesign, center capture button, tab swiping, onboarding rebuild, TanStack Query migration. |
 | 2 | ~~Share Profile~~ | ~~Growth~~ | ~~🟢~~ | ✅ Shipped May 2026 — share button on profile screen (person-add icon) shares `soundtracks.app/friend/{token}` via native share sheet; receiver lands on existing friend invite web page. |
+| 2b | Public Profile Page | Growth | 🟢 | Replace the friend-invite share with a real public profile page: `soundtracks.app/u/{username}`. Shows the user's avatar/name/username + all their `visibility='link'` moments (song artwork, reflection, mood, date). Beautiful shareable artifact — feels like an artist profile. Also unlocks #13 (QR Print needs a public URL to encode). See spec below. |
 | 3 | Wedding refinement | Growth + Revenue | 🟡 | Shareable card generator, vanity short URLs, wedding collection template, post-event claim flow, PDF book export. Builds on shipped web contribution flow. |
 | 4 | Spotify integration (iOS) | Growth | 🟡 | **Moved up from #13.** Currently cuts out ~60% of TAM. 80/20 version: store `spotify_track_id` on moments + deep link out to Spotify app (`spotify:track:{id}`) — no SDK required. Show Spotify icon on moments with a Spotify ID. Full SDK (in-app playback) is a separate follow-on effort. |
 | 5 | Notification refinement | Retention | 🟡 | Tap-rate tracking per type, timing optimization, unengaged user suppression, deep link targets, A/B copy. |
@@ -378,6 +379,47 @@ Current state: infrastructure exists (edge function, per-type prefs, cold-launch
 **No-download web entry — ✅ shipped via web form.** Guests contribute from any browser at `/c/{code}/contribute`. Native App Clip deferred unless web conversion data justifies the build complexity.
 
 **The competitive advantage:** Soundtracks' window is forever, not just the event. The memory doesn't have to happen at the table — it can happen during the first dance, the next morning, or a month later when the song comes on shuffle.
+
+### Public Profile Page — full spec
+
+#### The idea
+
+Right now "Share Profile" sends a friend invite link — a transactional CTA to connect. The opportunity is something richer: a real public-facing profile page at `soundtracks.app/u/{username}` that shows who you are and the moments you've chosen to share with the world. Feels like an artist profile. Shareable in a bio, on social, texted to a friend. "This is me — the songs that made me."
+
+#### What gets shown
+
+- **Profile header** — avatar, display name, @username
+- **Public moments** — all moments where `visibility = 'link'` ("Anyone with link"), sorted newest first. Each card shows: song artwork, title, artist, date, mood chip, first photo, truncated reflection.
+- **Empty state** — if no public moments yet: "No public memories yet."
+- **Sticky CTA** — "Open in Soundtracks" (deep link) + "Download Soundtracks" (App Store). Same pattern as all other web pages.
+- **OG metadata** — `"{displayName} on Soundtracks"` title; first moment's artwork as og:image; rich link preview in iMessage, Twitter, etc.
+
+#### What to build
+
+**1. DB migration** — new anon RLS policy on `moments`:
+```sql
+CREATE POLICY "Anon can read link-visibility moments"
+  ON public.moments FOR SELECT TO anon
+  USING (visibility = 'link');
+```
+Current anon policy only allows reads via `share_token` or public collections — this gap must be closed for the profile page to work.
+
+**2. Web route** — `web/app/u/[username]/page.tsx` (new server component). Mirrors `web/app/c/[invite_code]/page.tsx` structurally. Reuses `AlbumMomentList` component (already built, handles audio preview + mood chips + photos). Profile header copied from `web/app/friend/[token]/page.tsx`.
+
+**3. App button** — update `handleShareProfile` in `app/(tabs)/profile.tsx` to share `https://soundtracks.app/u/{username}` instead of the friend invite URL. Change icon from `person-add-outline` → `share-outline`. Fallback to friend invite URL if username is somehow null.
+
+#### Unlocks
+
+- **#13 QR Framed Print** — the print product needs a stable public URL to encode into the QR code. `soundtracks.app/u/{username}` (or `soundtracks.app/m/{share_token}` for individual moments) is that URL.
+- **Social distribution** — users can put their profile link in an Instagram bio, TikTok description, Twitter/X bio. Every view is a potential download.
+- **Artist/creator identity** — power users who document their musical life have a shareable artifact that reflects their taste and story.
+
+#### Watch out for
+
+- Auto-generated usernames (`user_abc12345`) look ugly in a shared URL. Profile edit allows customizing this; consider adding a nudge ("Set a custom username to personalize your link") before the share sheet if the username starts with `user_`.
+- Photo URL paths are relative — prepend the full Supabase storage URL as done in all other web pages.
+
+---
 
 ### Platform expansion
 - **Android**: Not before 1,000+ active iOS users + revenue. Abstraction is reasonable — swap points are clean:
