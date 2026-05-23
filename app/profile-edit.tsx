@@ -132,21 +132,23 @@ export default function ProfileEditScreen() {
   const [countryPickerVisible, setCountryPickerVisible] = useState(false);
 
   const yearTranslateY = useSharedValue(0);
-  const yearPanGesture = Gesture.Pan()
+  const yearPanGesture = useMemo(() => Gesture.Pan()
     .onUpdate((e) => { if (e.translationY > 0) yearTranslateY.value = e.translationY; })
     .onEnd((e) => {
       if (e.translationY > 80 || e.velocityY > 500) { runOnJS(setYearPickerVisible)(false); }
       yearTranslateY.value = withTiming(0);
-    });
+    }),
+  [yearTranslateY]);
   const yearAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: yearTranslateY.value }] }));
 
   const countryTranslateY = useSharedValue(0);
-  const countryPanGesture = Gesture.Pan()
+  const countryPanGesture = useMemo(() => Gesture.Pan()
     .onUpdate((e) => { if (e.translationY > 0) countryTranslateY.value = e.translationY; })
     .onEnd((e) => {
       if (e.translationY > 80 || e.velocityY > 500) { runOnJS(setCountryPickerVisible)(false); }
       countryTranslateY.value = withTiming(0);
-    });
+    }),
+  [countryTranslateY]);
   const countryAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: countryTranslateY.value }] }));
   const [countrySearch, setCountrySearch] = useState("");
   const filteredCountries = useMemo(

@@ -1,3 +1,4 @@
+import { NativeModules } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const LAST_PROMPTED_KEY = "review_last_prompted_at";
@@ -10,8 +11,10 @@ function shouldPromptAtCount(count: number) {
 
 export async function maybeRequestReview() {
   try {
-    // Dynamic require so a missing native module (old App Store binary) is caught
-    // by the try/catch rather than crashing at import time.
+    // Guard: if the native module isn't registered the bridge call throws a
+    // C++ exception that bypasses this try/catch, crashing the app. Checking
+    // NativeModules first is a pure-JS lookup that never crosses the bridge.
+    if (!NativeModules.ExpoStoreReview) return;
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const StoreReview = require("expo-store-review") as typeof import("expo-store-review");
     const isAvailable = await StoreReview.isAvailableAsync();

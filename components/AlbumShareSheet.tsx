@@ -17,7 +17,7 @@ import { Image } from "expo-image";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CloseButton } from "@/components/CloseButton";
 import * as Haptics from "expo-haptics";
@@ -59,12 +59,13 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
   const { user } = useAuth();
 
   const translateY = useSharedValue(0);
-  const panGesture = Gesture.Pan()
+  const panGesture = useMemo(() => Gesture.Pan()
     .onUpdate((e) => { if (e.translationY > 0) translateY.value = e.translationY; })
     .onEnd((e) => {
       if (e.translationY > 80 || e.velocityY > 500) { runOnJS(onClose)(); }
       translateY.value = withTiming(0);
-    });
+    }),
+  [onClose, translateY]);
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
   const [converting, setConverting] = useState(false);
   const [leaving, setLeaving] = useState(false);

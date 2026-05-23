@@ -44,7 +44,7 @@ export function PromptPickerModal({ visible, onSelect, onClose, customCategories
   ];
   const category = allCategories[selectedCategory] ?? allCategories[0];
 
-  const panGesture = Gesture.Pan()
+  const panGesture = useMemo(() => Gesture.Pan()
     .onUpdate((e) => {
       if (e.translationY > 0) translateY.value = e.translationY;
     })
@@ -53,7 +53,8 @@ export function PromptPickerModal({ visible, onSelect, onClose, customCategories
         runOnJS(onClose)();
       }
       translateY.value = withTiming(0);
-    });
+    }),
+  [onClose, translateY]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],

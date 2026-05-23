@@ -123,21 +123,46 @@ export default function MomentDetailScreen() {
   const opacity = useSharedValue(origin.active ? 0 : 1);
 
   const collectionTranslateY = useSharedValue(0);
-  const collectionPanGesture = Gesture.Pan()
+  const collectionPanGesture = useMemo(() => Gesture.Pan()
     .onUpdate((e) => { if (e.translationY > 0) collectionTranslateY.value = e.translationY; })
     .onEnd((e) => {
       if (e.translationY > 80 || e.velocityY > 500) { runOnJS(setCollectionModalVisible)(false); }
       collectionTranslateY.value = withTiming(0);
-    });
+    }),
+  [collectionTranslateY]);
   const collectionAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: collectionTranslateY.value }] }));
 
+  // Hoisted from below: exitToCelebration must be declared before
+  // onboardingSharePanGesture or the worklet captures undefined (TDZ crash).
+  const animateOut = useCallback((then: () => void) => {
+    opacity.value = withTiming(0, { duration: 120 });
+    scaleAnim.value = withTiming(0.95, { duration: 120 }, () => {
+      "worklet";
+      runOnJS(then)();
+    });
+  }, []);
+
+  const goBack = useCallback(() => {
+    if (returnTo) {
+      router.replace(returnTo as any);
+    } else {
+      router.back();
+    }
+  }, [router, returnTo]);
+
+  const exitToCelebration = useCallback(() => {
+    setOnboardingShareSheetVisible(false);
+    setTimeout(() => animateOut(goBack), 300);
+  }, [animateOut, goBack]);
+
   const onboardingShareTranslateY = useSharedValue(0);
-  const onboardingSharePanGesture = Gesture.Pan()
+  const onboardingSharePanGesture = useMemo(() => Gesture.Pan()
     .onUpdate((e) => { if (e.translationY > 0) onboardingShareTranslateY.value = e.translationY; })
     .onEnd((e) => {
       if (e.translationY > 80 || e.velocityY > 500) { runOnJS(exitToCelebration)(); }
       onboardingShareTranslateY.value = withTiming(0);
-    });
+    }),
+  [exitToCelebration, onboardingShareTranslateY]);
   const onboardingShareAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: onboardingShareTranslateY.value }] }));
 
   useEffect(() => {
@@ -212,31 +237,6 @@ export default function MomentDetailScreen() {
       { scale: scaleAnim.value },
     ],
   }));
-
-  const animateOut = useCallback((then: () => void) => {
-    opacity.value = withTiming(0, { duration: 120 });
-    scaleAnim.value = withTiming(0.95, { duration: 120 }, () => {
-      "worklet";
-      runOnJS(then)();
-    });
-  }, []);
-
-  const goBack = useCallback(() => {
-    if (returnTo) {
-      router.replace(returnTo as any);
-    } else {
-      router.back();
-    }
-  }, [router, returnTo]);
-
-  // Used by the onboarding share sheet — closes the sheet then exits to
-  // onboarding's celebration phase (which is the screen below after
-  // create.tsx did router.replace to get here).
-  const exitToCelebration = useCallback(() => {
-    setOnboardingShareSheetVisible(false);
-    // Small delay so the sheet slides down before animating out
-    setTimeout(() => animateOut(goBack), 300);
-  }, [animateOut, goBack]);
 
   const swipeGesture = useMemo(
     () =>

@@ -41,12 +41,13 @@ export function AlbumPicker({
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const translateY = useSharedValue(0);
-  const panGesture = Gesture.Pan()
+  const panGesture = useMemo(() => Gesture.Pan()
     .onUpdate((e) => { if (e.translationY > 0) translateY.value = e.translationY; })
     .onEnd((e) => {
       if (e.translationY > 80 || e.velocityY > 500) { runOnJS(onClose)(); }
       translateY.value = withTiming(0);
-    });
+    }),
+  [onClose, translateY]);
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
 
   const ownedPersonal = collections.filter((c) => c.role === "owner" && !c.isPublic);
