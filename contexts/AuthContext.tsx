@@ -209,10 +209,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!suppressAuth.current) {
         setSession(session);
         if (session?.user) {
+          // Stale-while-revalidate: lift overlay immediately from cache for returning users
+          const cached = await readProfileCache(session.user.id);
+          if (isMountedRef.current && cached) {
+            setProfile(cached);
+            setProfileReady(true);
+            setLoading(false);
+          }
+
           try {
-            await fetchProfile(session.user.id, { email: session.user.email });
+            await Promise.race([
+              fetchProfile(session.user.id, { keepOnError: cached !== null, email: session.user.email }),
+              new Promise<void>((_, reject) => setTimeout(() => reject(new Error("timeout")), 8_000)),
+            ]);
           } catch {
             if (isMountedRef.current) setProfileReady(true);
+          } finally {
+            if (isMountedRef.current) setLoading(false);
           }
         } else {
           posthog.reset();
