@@ -49,7 +49,7 @@ export default function ValuePropScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.progressBarTrack}>
-        <View style={[styles.progressBarFill, { width: "33%" }]} />
+        <View style={[styles.progressBarFill, { width: "25%" }]} />
       </View>
 
       <TouchableOpacity
@@ -78,13 +78,28 @@ export default function ValuePropScreen() {
               <MockMomentCard data={MOCK_CARDS[1]} theme={theme} />
             </Animated.View>
           </Animated.View>
+
+          <View style={styles.callouts}>
+            <View style={styles.calloutRow}>
+              <Ionicons name="musical-note-outline" size={16} color={theme.colors.textSecondary} />
+              <Text style={[styles.calloutText, { color: theme.colors.textSecondary }]}>
+                Add a mood, photo, or the people you were with
+              </Text>
+            </View>
+            <View style={styles.calloutRow}>
+              <Ionicons name="time-outline" size={16} color={theme.colors.textSecondary} />
+              <Text style={[styles.calloutText, { color: theme.colors.textSecondary }]}>
+                Every moment joins your personal music timeline
+              </Text>
+            </View>
+          </View>
         </View>
       </View>
 
       <View style={styles.footer}>
         <TouchableOpacity
           style={[styles.primaryButton, { backgroundColor: theme.colors.buttonBg }]}
-          onPress={() => router.push("/onboarding/capture-1" as any)}
+          onPress={() => router.push("/onboarding/timeline-preview" as any)}
           activeOpacity={0.8}
         >
           <Text style={[styles.primaryButtonText, { color: theme.colors.buttonText }]}>
@@ -210,6 +225,20 @@ function createStyles(theme: Theme) {
       paddingBottom: 24,
     },
     stackWrapper: {},
+    callouts: {
+      marginTop: theme.spacing.xl,
+      gap: theme.spacing.md,
+    },
+    calloutRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    calloutText: {
+      fontSize: theme.fontSize.sm,
+      lineHeight: 20,
+      flex: 1,
+    },
     backCard: {
       marginBottom: -108,
       marginHorizontal: 6,
