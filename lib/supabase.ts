@@ -44,7 +44,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: false,
     flowType: "pkce",
-    // @ts-ignore -- lockAcquireTimeout is a valid GoTrueClient runtime option missing from the types
+    // @ts-expect-error -- lockAcquireTimeout is a valid GoTrueClient runtime option missing from the types
     lockAcquireTimeout: -1, // wait for in-flight auth ops; 10s fetch timeout above bounds the worst case
   },
   global: { fetch: fetchWithRetry },

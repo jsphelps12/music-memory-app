@@ -6,7 +6,7 @@ on:
 
 jobs:
   app:
-    name: App — type-check, test
+    name: App — type-check, lint, test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,6 +21,9 @@ jobs:
 
       - name: Type check
         run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
 
       - name: Test
         run: npm test

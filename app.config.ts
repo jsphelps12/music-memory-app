@@ -1,12 +1,14 @@
 import { ExpoConfig, ConfigContext } from "expo/config";
 
+const isPreview = process.env.EXPO_PUBLIC_APP_ENV === "preview";
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: "Soundtracks",
+  name: isPreview ? "Soundtracks β" : "Soundtracks",
   slug: "music-memory",
   version: "1.1.0",
   orientation: "portrait",
-  icon: "./assets/images/app-icon.png",
+  icon: isPreview ? "./assets/images/app-icon-beta.png" : "./assets/images/app-icon.png",
   scheme: "soundtracks",
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
@@ -17,7 +19,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   ios: {
     supportsTablet: false,
-    bundleIdentifier: "com.joshuaphelps.musicmemory",
+    bundleIdentifier: isPreview
+      ? "com.joshuaphelps.musicmemory.preview"
+      : "com.joshuaphelps.musicmemory",
     usesAppleSignIn: true,
     infoPlist: {
       NSAppleMusicUsageDescription:

@@ -1,16 +1,16 @@
-name: Production Build
+name: Promote to Production
 
 on:
   workflow_dispatch:
     inputs:
-      submit:
-        description: Submit to TestFlight after build
-        type: boolean
-        default: false
+      message:
+        description: Release note (shown in EAS update history)
+        required: false
+        default: Promote to production
 
 jobs:
-  build:
-    name: EAS Build + Submit
+  promote:
+    name: OTA → production channel
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,8 +23,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        run: npx eas-cli build --platform ios --profile production --non-interactive
+      - name: Publish OTA update (production channel)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
@@ -32,9 +31,5 @@ jobs:
           EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
           EXPO_PUBLIC_POSTHOG_API_KEY: ${{ secrets.EXPO_PUBLIC_POSTHOG_API_KEY }}
           EXPO_PUBLIC_POSTHOG_HOST: ${{ secrets.EXPO_PUBLIC_POSTHOG_HOST }}
-
-      - name: Submit to TestFlight
-        if: ${{ inputs.submit }}
-        run: npx eas-cli submit --platform ios --profile production --non-interactive
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          RELEASE_MESSAGE: ${{ inputs.message }}
+        run: npx eas-cli update --branch production --message "$RELEASE_MESSAGE" --non-interactive

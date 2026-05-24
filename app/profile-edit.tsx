@@ -116,14 +116,12 @@ export default function ProfileEditScreen() {
     setUsernameStatus("checking");
     usernameDebounce.current = setTimeout(async () => {
       if (!user) return;
-      let available: boolean | null = null;
       try {
-        available = await checkUsernameAvailable(cleaned, user.id);
+        const available = await checkUsernameAvailable(cleaned, user.id);
+        setUsernameStatus(available ? "available" : "taken");
       } catch {
         setUsernameStatus("error");
-        return;
       }
-      setUsernameStatus(available ? "available" : "taken");
     }, 400);
   }, [user, profile?.username]);
 

@@ -11,6 +11,7 @@
     "ios:clean": "expo prebuild --clean && npm run ios:patch-podfile && rm -rf ios/Tracks.xcodeproj && cd ios && pod install --repo-update && cd .. && expo run:ios --device",
     "web": "expo start --web",
     "postinstall": "patch-package",
+    "lint": "eslint . --max-warnings 65",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -71,7 +72,12 @@
     "react-native-worklets": "0.5.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/react": "~19.1.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.4",
+    "@typescript-eslint/parser": "^8.59.4",
+    "eslint": "^10.4.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "react-test-renderer": "19.1.0",
     "supabase": "^2.76.12",
     "typescript": "~5.9.2",
