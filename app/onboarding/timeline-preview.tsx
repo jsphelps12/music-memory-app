@@ -87,6 +87,10 @@ export default function TimelinePreviewScreen() {
             </View>
           ))}
         </Animated.View>
+
+        <Text style={styles.headsUpText}>
+          To start, we'll save two moments together — one quick, one with a bit more depth.
+        </Text>
       </ScrollView>
 
       <View style={styles.footer}>
@@ -222,6 +226,15 @@ function createStyles(theme: Theme) {
     },
     sectionHeaderFirst: {
       marginTop: 0,
+    },
+    headsUpText: {
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+      lineHeight: 20,
+      textAlign: "center",
+      paddingHorizontal: theme.spacing.xl,
+      paddingTop: theme.spacing["2xl"],
+      paddingBottom: theme.spacing.lg,
     },
     footer: {
       paddingHorizontal: theme.spacing.xl,
