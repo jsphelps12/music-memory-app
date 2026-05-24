@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="forestGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8FD68A"></stop>
+      <stop offset="0.5" stop-color="#3C9684"></stop>
+      <stop offset="1" stop-color="#1F4A3F"></stop>
+    </linearGradient>
+    <clipPath id="tileClip"><rect width="1024" height="1024" rx="220"></rect></clipPath>
+  </defs>
+  <g clip-path="url(#tileClip)">
+    <rect width="1024" height="1024" fill="url(#forestGrad)"></rect>
+    <circle cx="512" cy="512" r="370" fill="#0D0810"></circle>
+    <g fill="none" stroke="#F5EEE0" stroke-width="2" opacity="0.16">
+      <circle cx="512" cy="512" r="340"></circle>
+      <circle cx="512" cy="512" r="304"></circle>
+      <circle cx="512" cy="512" r="266"></circle>
+      <circle cx="512" cy="512" r="226"></circle>
+      <circle cx="512" cy="512" r="184"></circle>
+    </g>
+    <circle cx="512" cy="512" r="148" fill="#F5EEE0"></circle>
+    <circle cx="512" cy="512" r="14" fill="#0D0810"></circle>
+    <circle cx="880" cy="180" r="44" fill="#F5EEE0"></circle>
+    <circle cx="880" cy="180" r="14" fill="#0D0810"></circle>
+    <polyline points="880,180 805,625 700,720" fill="none" stroke="#F5EEE0" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"></polyline>
+    <g transform="translate(700, 720) rotate(42)">
+      <rect x="-22" y="-15" width="44" height="30" rx="8" fill="#F5EEE0"></rect>
+    </g>
+    <circle cx="700" cy="720" r="10" fill="#E8825C"></circle>
+  </g>
+</svg>
