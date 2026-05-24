@@ -8,7 +8,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   slug: "music-memory",
   version: "1.1.0",
   orientation: "portrait",
-  icon: isPreview ? "./assets/images/app-icon-beta.png" : "./assets/images/app-icon.png",
+  icon: isPreview ? "./assets/images/app-icon-beta-forest-1024.png" : "./assets/images/app-icon.png",
   scheme: "soundtracks",
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
