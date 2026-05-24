@@ -39,6 +39,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     entitlements: {
       "com.apple.developer.applesignin": ["Default"],
       "com.apple.developer.associated-domains": ["applinks:soundtracks.app"],
+      "com.apple.security.application-groups": [
+        isPreview
+          ? "group.com.joshuaphelps.musicmemory.preview"
+          : "group.com.joshuaphelps.musicmemory",
+      ],
     },
   },
   android: {
