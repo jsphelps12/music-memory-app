@@ -67,16 +67,18 @@ export default function ValuePropScreen() {
           Save what a song meant — right when you hear it.
         </Text>
 
-        <Animated.View style={[styles.stackWrapper, cardAnimStyle]}>
-          {/* Back card */}
-          <Animated.View style={styles.backCard}>
-            <MockMomentCard data={MOCK_CARDS[0]} theme={theme} />
+        <View style={styles.cardArea}>
+          <Animated.View style={[styles.stackWrapper, cardAnimStyle]}>
+            {/* Back card — normal flow, peeks above front card via negative marginBottom */}
+            <Animated.View style={styles.backCard}>
+              <MockMomentCard data={MOCK_CARDS[0]} theme={theme} />
+            </Animated.View>
+            {/* Front card — renders on top (later in tree) */}
+            <Animated.View style={styles.frontCard}>
+              <MockMomentCard data={MOCK_CARDS[1]} theme={theme} />
+            </Animated.View>
           </Animated.View>
-          {/* Front card */}
-          <Animated.View style={styles.frontCard}>
-            <MockMomentCard data={MOCK_CARDS[1]} theme={theme} />
-          </Animated.View>
-        </Animated.View>
+        </View>
       </View>
 
       <View style={styles.footer}>
@@ -202,16 +204,17 @@ function createStyles(theme: Theme) {
       lineHeight: 24,
       marginBottom: theme.spacing["2xl"],
     },
-    stackWrapper: {
-      paddingTop: 20,
+    cardArea: {
+      flex: 1,
+      justifyContent: "center",
+      paddingBottom: 24,
     },
+    stackWrapper: {},
     backCard: {
-      position: "absolute",
-      top: 0,
-      left: 6,
-      right: 6,
-      transform: [{ rotate: "-4deg" }, { scale: 0.96 }],
-      opacity: 0.88,
+      marginBottom: -108,
+      marginHorizontal: 6,
+      transform: [{ rotate: "-4deg" }, { scale: 0.97 }],
+      opacity: 0.85,
     },
     frontCard: {
       transform: [{ rotate: "1.5deg" }],
