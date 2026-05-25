@@ -4,6 +4,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
+
+const MOCK_CARD = {
+  song: "Runaway",
+  artist: "Kanye West",
+  reflection: "Road trip through Utah. This song on repeat for 400 miles.",
+  chips: ["@ emma", "🌄 Nostalgic"],
+} as const;
 
 const STEPS = [
   { icon: "musical-note-outline" as const, label: "Capture", detail: "A song in the moment" },
@@ -52,6 +60,10 @@ export default function ValuePropScreen() {
             </View>
           ))}
         </View>
+
+        <View style={styles.cardWrapper}>
+          <MockMomentCard theme={theme} />
+        </View>
       </View>
 
       <View style={styles.footer}>
@@ -67,6 +79,66 @@ export default function ValuePropScreen() {
       </View>
     </View>
   );
+}
+
+function MockMomentCard({ theme }: { theme: Theme }) {
+  const cardStyles = useMemo(() => createCardStyles(theme), [theme]);
+  return (
+    <View style={cardStyles.card}>
+      <View style={cardStyles.row}>
+        <ArtworkPlaceholder style={cardStyles.artwork} />
+        <View style={cardStyles.info}>
+          <Text style={cardStyles.songName} numberOfLines={1}>{MOCK_CARD.song}</Text>
+          <Text style={cardStyles.artist} numberOfLines={1}>{MOCK_CARD.artist}</Text>
+        </View>
+      </View>
+      <Text style={cardStyles.reflection} numberOfLines={2}>{MOCK_CARD.reflection}</Text>
+      <View style={cardStyles.chips}>
+        {MOCK_CARD.chips.map((chip) => (
+          <View key={chip} style={cardStyles.chip}>
+            <Text style={cardStyles.chipText}>{chip}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function createCardStyles(theme: Theme) {
+  return StyleSheet.create({
+    card: {
+      borderWidth: 1,
+      borderRadius: theme.radii.md,
+      padding: 14,
+      gap: theme.spacing.sm,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.backgroundSecondary,
+    },
+    row: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
+    artwork: { width: 44, height: 44, borderRadius: theme.radii.sm },
+    info: { flex: 1 },
+    songName: {
+      fontSize: theme.fontSize.base,
+      fontFamily: theme.fonts.bodySemibold,
+      color: theme.colors.text,
+      marginBottom: 2,
+    },
+    artist: { fontSize: theme.fontSize.xs, color: theme.colors.textSecondary },
+    reflection: {
+      fontSize: theme.fontSize.xs,
+      lineHeight: 18,
+      fontStyle: "italic",
+      color: theme.colors.textSecondary,
+    },
+    chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+    chip: {
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 3,
+      borderRadius: theme.radii.lg,
+      backgroundColor: theme.colors.chipBg,
+    },
+    chipText: { fontSize: theme.fontSize.xs, color: theme.colors.textSecondary },
+  });
 }
 
 function createStyles(theme: Theme) {
@@ -115,6 +187,9 @@ function createStyles(theme: Theme) {
     },
     steps: {
       gap: theme.spacing.xl,
+    },
+    cardWrapper: {
+      marginTop: theme.spacing["2xl"],
     },
     stepRow: {
       flexDirection: "row",

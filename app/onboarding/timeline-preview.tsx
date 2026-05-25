@@ -13,43 +13,29 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 
-const MOCK_TIMELINE = [
-  {
-    section: "May 2026",
-    song: "Runaway",
-    artist: "Kanye West",
-    reflection: "Road trip through Utah. This song on repeat for 400 miles.",
-  },
-  {
-    section: "March 2024",
-    song: "Ribs",
-    artist: "Lorde",
-    reflection: "Last summer before everything changed.",
-  },
-  {
-    section: "November 2019",
-    song: "Motion Picture Soundtrack",
-    artist: "Radiohead",
-    reflection: "Driving home alone, windows down.",
-  },
-] as const;
+const MOCK_DETAIL = {
+  song: "Otro Atardecer",
+  artist: "Bad Bunny & The Marías",
+  reflection: "That week in Hawaii, watching the sunset with nowhere to be.",
+  chips: ["📍 Waikoloa, HI", "🌅 Joyful", "Aug 2018"],
+} as const;
 
 export default function TimelinePreviewScreen() {
   const router = useRouter();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const listOpacity = useSharedValue(0);
-  const listTranslateY = useSharedValue(18);
+  const cardOpacity = useSharedValue(0);
+  const cardTranslateY = useSharedValue(18);
 
   useEffect(() => {
-    listOpacity.value = withDelay(250, withTiming(1, { duration: 400 }));
-    listTranslateY.value = withDelay(250, withSpring(0, { damping: 18, stiffness: 180 }));
-  }, [listOpacity, listTranslateY]);
+    cardOpacity.value = withDelay(250, withTiming(1, { duration: 400 }));
+    cardTranslateY.value = withDelay(250, withSpring(0, { damping: 18, stiffness: 180 }));
+  }, [cardOpacity, cardTranslateY]);
 
-  const listAnimStyle = useAnimatedStyle(() => ({
-    opacity: listOpacity.value,
-    transform: [{ translateY: listTranslateY.value }],
+  const cardAnimStyle = useAnimatedStyle(() => ({
+    opacity: cardOpacity.value,
+    transform: [{ translateY: cardTranslateY.value }],
   }));
 
   return (
@@ -77,15 +63,8 @@ export default function TimelinePreviewScreen() {
           The more you capture, the richer it gets.
         </Text>
 
-        <Animated.View style={listAnimStyle}>
-          {MOCK_TIMELINE.map((item, index) => (
-            <View key={item.section}>
-              <Text style={[styles.sectionHeader, index === 0 && styles.sectionHeaderFirst]}>
-                {item.section}
-              </Text>
-              <MiniMomentRow song={item.song} artist={item.artist} reflection={item.reflection} theme={theme} />
-            </View>
-          ))}
+        <Animated.View style={cardAnimStyle}>
+          <RichMomentCard theme={theme} />
         </Animated.View>
 
         <Text style={styles.headsUpText}>
@@ -116,63 +95,67 @@ export default function TimelinePreviewScreen() {
   );
 }
 
-function MiniMomentRow({
-  song,
-  artist,
-  reflection,
-  theme,
-}: {
-  song: string;
-  artist: string;
-  reflection: string;
-  theme: Theme;
-}) {
-  const rowStyles = useMemo(() => createRowStyles(theme), [theme]);
+function RichMomentCard({ theme }: { theme: Theme }) {
+  const cardStyles = useMemo(() => createCardStyles(theme), [theme]);
   return (
-    <View style={rowStyles.row}>
-      <ArtworkPlaceholder style={rowStyles.artwork} />
-      <View style={rowStyles.info}>
-        <Text style={rowStyles.song} numberOfLines={1}>{song}</Text>
-        <Text style={rowStyles.artist} numberOfLines={1}>{artist}</Text>
-        <Text style={rowStyles.reflection} numberOfLines={1}>{reflection}</Text>
+    <View style={cardStyles.card}>
+      <ArtworkPlaceholder style={cardStyles.artwork} />
+      <View style={cardStyles.body}>
+        <Text style={cardStyles.songTitle} numberOfLines={1}>{MOCK_DETAIL.song}</Text>
+        <Text style={cardStyles.artist} numberOfLines={1}>{MOCK_DETAIL.artist}</Text>
+        <Text style={cardStyles.reflection} numberOfLines={3}>{MOCK_DETAIL.reflection}</Text>
+        <View style={cardStyles.chips}>
+          {MOCK_DETAIL.chips.map((chip) => (
+            <View key={chip} style={cardStyles.chip}>
+              <Text style={cardStyles.chipText}>{chip}</Text>
+            </View>
+          ))}
+        </View>
       </View>
     </View>
   );
 }
 
-function createRowStyles(theme: Theme) {
+function createCardStyles(theme: Theme) {
   return StyleSheet.create({
-    row: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      gap: theme.spacing.md,
-      paddingVertical: theme.spacing.sm,
+    card: {
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radii.md,
+      overflow: "hidden",
     },
     artwork: {
-      width: 40,
-      height: 40,
-      borderRadius: theme.radii.sm,
-      marginTop: 2,
+      width: "100%",
+      height: 170,
     },
-    info: {
-      flex: 1,
-      gap: 2,
+    body: {
+      backgroundColor: theme.colors.backgroundSecondary,
+      padding: 14,
+      gap: theme.spacing.sm,
     },
-    song: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodySemibold,
+    songTitle: {
+      fontSize: theme.fontSize.xl,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
     },
     artist: {
-      fontSize: theme.fontSize.xs,
+      fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
     },
     reflection: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textTertiary,
+      fontSize: theme.fontSize.sm,
+      lineHeight: 20,
       fontStyle: "italic",
-      marginTop: 2,
+      color: theme.colors.textSecondary,
     },
+    chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+    chip: {
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 3,
+      borderRadius: theme.radii.lg,
+      backgroundColor: theme.colors.chipBg,
+    },
+    chipText: { fontSize: theme.fontSize.xs, color: theme.colors.textSecondary },
   });
 }
 
@@ -216,16 +199,6 @@ function createStyles(theme: Theme) {
       color: theme.colors.textSecondary,
       lineHeight: 24,
       marginBottom: theme.spacing["2xl"],
-    },
-    sectionHeader: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.textSecondary,
-      marginTop: theme.spacing.xl,
-      marginBottom: theme.spacing.sm,
-    },
-    sectionHeaderFirst: {
-      marginTop: 0,
     },
     headsUpText: {
       fontSize: theme.fontSize.sm,
