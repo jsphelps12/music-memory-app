@@ -7,11 +7,18 @@ import Animated, {
   withSpring,
   withDelay,
 } from "react-native-reanimated";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
-import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
+
+/* eslint-disable @typescript-eslint/no-require-imports */
+const HERO_PHOTO = require("@/assets/images/onboarding/photo-hawaii-hero.jpg");
+const SONG_ARTWORK = require("@/assets/images/onboarding/artwork-otro-atardecer.jpg");
+const EXTRA_PHOTO = require("@/assets/images/onboarding/photo-hawaii-2.jpg");
+const MAP_IMAGE = require("@/assets/images/onboarding/map-waikoloa.jpg");
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 const MOCK_DETAIL = {
   song: "Otro Atardecer",
@@ -96,18 +103,64 @@ export default function TimelinePreviewScreen() {
 }
 
 function RichMomentCard({ theme }: { theme: Theme }) {
-  const cardStyles = useMemo(() => createCardStyles(theme), [theme]);
+  const s = useMemo(() => createCardStyles(theme), [theme]);
   return (
-    <View style={cardStyles.card}>
-      <ArtworkPlaceholder style={cardStyles.artwork} />
-      <View style={cardStyles.body}>
-        <Text style={cardStyles.songTitle} numberOfLines={1}>{MOCK_DETAIL.song}</Text>
-        <Text style={cardStyles.artist} numberOfLines={1}>{MOCK_DETAIL.artist}</Text>
-        <Text style={cardStyles.reflection} numberOfLines={3}>{MOCK_DETAIL.reflection}</Text>
-        <View style={cardStyles.chips}>
+    <View style={s.card}>
+      {/* Hero photo — full width */}
+      <Image
+        source={HERO_PHOTO}
+        style={s.heroImage}
+        contentFit="cover"
+      />
+
+      <View style={s.body}>
+        {/* Song row: album art thumbnail + title + artist */}
+        <View style={s.songRow}>
+          <Image
+            source={SONG_ARTWORK}
+            style={s.songArtwork}
+            contentFit="cover"
+          />
+          <View style={s.songInfo}>
+            <Text style={s.songTitle} numberOfLines={1}>{MOCK_DETAIL.song}</Text>
+            <Text style={s.artist} numberOfLines={1}>{MOCK_DETAIL.artist}</Text>
+          </View>
+        </View>
+
+        {/* Play row — static visual scrubber */}
+        <View style={s.playRow}>
+          <Ionicons name="play-circle" size={32} color={theme.colors.accent} />
+          <View style={s.scrubberTrack}>
+            <View style={[s.scrubberFill, { width: "38%" }]} />
+            <View style={s.scrubberThumb} />
+          </View>
+          <Text style={s.timeText}>1:23</Text>
+        </View>
+
+        {/* Reflection */}
+        <Text style={s.reflection} numberOfLines={3}>{MOCK_DETAIL.reflection}</Text>
+
+        {/* Extra photo strip */}
+        <View style={s.photoStrip}>
+          <Image
+            source={EXTRA_PHOTO}
+            style={s.photo}
+            contentFit="cover"
+          />
+        </View>
+
+        {/* Map */}
+        <Image
+          source={MAP_IMAGE}
+          style={s.mapImage}
+          contentFit="cover"
+        />
+
+        {/* Chips */}
+        <View style={s.chips}>
           {MOCK_DETAIL.chips.map((chip) => (
-            <View key={chip} style={cardStyles.chip}>
-              <Text style={cardStyles.chipText}>{chip}</Text>
+            <View key={chip} style={s.chip}>
+              <Text style={s.chipText}>{chip}</Text>
             </View>
           ))}
         </View>
@@ -124,23 +177,68 @@ function createCardStyles(theme: Theme) {
       borderRadius: theme.radii.md,
       overflow: "hidden",
     },
-    artwork: {
+    heroImage: {
       width: "100%",
-      height: 170,
+      height: 200,
     },
     body: {
       backgroundColor: theme.colors.backgroundSecondary,
       padding: 14,
       gap: theme.spacing.sm,
     },
+    songRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md,
+    },
+    songArtwork: {
+      width: 44,
+      height: 44,
+      borderRadius: theme.radii.sm,
+    },
+    songInfo: {
+      flex: 1,
+    },
     songTitle: {
-      fontSize: theme.fontSize.xl,
-      fontFamily: theme.fonts.display,
+      fontSize: theme.fontSize.base,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
+      marginBottom: 2,
     },
     artist: {
-      fontSize: theme.fontSize.sm,
+      fontSize: theme.fontSize.xs,
       color: theme.colors.textSecondary,
+    },
+    playRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    scrubberTrack: {
+      flex: 1,
+      height: 3,
+      borderRadius: 2,
+      backgroundColor: theme.colors.border,
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    scrubberFill: {
+      height: 3,
+      backgroundColor: theme.colors.accent,
+      borderRadius: 2,
+    },
+    scrubberThumb: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: theme.colors.accent,
+      marginLeft: -5,
+      marginTop: 0,
+    },
+    timeText: {
+      fontSize: theme.fontSize.xs,
+      color: theme.colors.textTertiary,
+      fontFamily: theme.fonts.mono,
     },
     reflection: {
       fontSize: theme.fontSize.sm,
@@ -148,14 +246,35 @@ function createCardStyles(theme: Theme) {
       fontStyle: "italic",
       color: theme.colors.textSecondary,
     },
-    chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+    photoStrip: {
+      flexDirection: "row",
+      gap: 6,
+    },
+    photo: {
+      width: 72,
+      height: 72,
+      borderRadius: theme.radii.sm,
+    },
+    mapImage: {
+      width: "100%",
+      height: 100,
+      borderRadius: theme.radii.sm,
+    },
+    chips: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 6,
+    },
     chip: {
       paddingHorizontal: theme.spacing.sm,
       paddingVertical: 3,
       borderRadius: theme.radii.lg,
       backgroundColor: theme.colors.chipBg,
     },
-    chipText: { fontSize: theme.fontSize.xs, color: theme.colors.textSecondary },
+    chipText: {
+      fontSize: theme.fontSize.xs,
+      color: theme.colors.textSecondary,
+    },
   });
 }
 

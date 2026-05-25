@@ -1,10 +1,14 @@
 import { useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
-import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
+
+/* eslint-disable @typescript-eslint/no-require-imports */
+const RUNAWAY_ARTWORK = require("@/assets/images/onboarding/artwork-runaway.jpg");
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 const MOCK_CARD = {
   song: "Runaway",
@@ -86,7 +90,11 @@ function MockMomentCard({ theme }: { theme: Theme }) {
   return (
     <View style={cardStyles.card}>
       <View style={cardStyles.row}>
-        <ArtworkPlaceholder style={cardStyles.artwork} />
+        <Image
+          source={RUNAWAY_ARTWORK}
+          style={cardStyles.artwork}
+          contentFit="cover"
+        />
         <View style={cardStyles.info}>
           <Text style={cardStyles.songName} numberOfLines={1}>{MOCK_CARD.song}</Text>
           <Text style={cardStyles.artist} numberOfLines={1}>{MOCK_CARD.artist}</Text>
@@ -189,7 +197,10 @@ function createStyles(theme: Theme) {
       gap: theme.spacing.xl,
     },
     cardWrapper: {
-      marginTop: theme.spacing["2xl"],
+      flex: 1,
+      justifyContent: "flex-end",
+      paddingTop: theme.spacing["2xl"],
+      paddingBottom: theme.spacing.xl,
     },
     stepRow: {
       flexDirection: "row",
