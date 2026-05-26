@@ -29,7 +29,9 @@ export async function searchSongs(query: string): Promise<Song[]> {
     artistName: item.artistName,
     albumName: item.albumName ?? "",
     artworkUrl: item.artworkUrl ?? "",
+    provider: "apple_music" as const,
     appleMusicId: item.id,
+    spotifyId: null,
     durationMs: item.duration ?? 0,
   }));
 }

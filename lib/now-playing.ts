@@ -10,7 +10,9 @@ function itemToSong(item: NowPlayingItem): Song {
     artistName: item.artistName,
     albumName: "",
     artworkUrl: item.artworkUrl,
+    provider: "apple_music",
     appleMusicId: item.id,
+    spotifyId: null,
     durationMs: item.durationMs,
   };
 }

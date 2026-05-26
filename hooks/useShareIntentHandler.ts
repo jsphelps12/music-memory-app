@@ -16,7 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 export function useShareIntentHandler() {
   const { hasShareIntent, shareIntent, resetShareIntent } =
     useShareIntentContext();
-  const { session } = useAuth();
+  const { session, preferredProvider } = useAuth();
   const router = useRouter();
   const processingRef = useRef(false);
 
@@ -65,7 +65,7 @@ export function useShareIntentHandler() {
           return;
         }
 
-        const result = await lookupSongFromUrl(url);
+        const result = await lookupSongFromUrl(url, preferredProvider);
 
         if (result.song) {
           const params: Record<string, string> = {
@@ -74,7 +74,9 @@ export function useShareIntentHandler() {
             songArtist: result.song.artistName,
             songAlbum: result.song.albumName,
             songArtwork: result.song.artworkUrl,
-            songAppleMusicId: result.song.appleMusicId,
+            songProvider: result.song.provider,
+            songAppleMusicId: result.song.appleMusicId ?? "",
+            songSpotifyId: result.song.spotifyId ?? "",
             songDurationMs: String(result.song.durationMs),
           };
 
@@ -102,5 +104,5 @@ export function useShareIntentHandler() {
         processingRef.current = false;
       }
     })();
-  }, [hasShareIntent, session, router, resetShareIntent]);
+  }, [hasShareIntent, session, preferredProvider, router, resetShareIntent]);
 }

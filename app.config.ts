@@ -35,6 +35,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       NSMicrophoneUsageDescription:
         "Soundtracks uses the microphone to identify songs playing around you with ShazamKit.",
       ITSAppUsesNonExemptEncryption: false,
+      // Required by react-native-spotify-remote so iOS allows querying
+      // whether the Spotify app is installed and opening it for OAuth.
+      LSApplicationQueriesSchemes: ["spotify"],
     },
     entitlements: {
       "com.apple.developer.applesignin": ["Default"],

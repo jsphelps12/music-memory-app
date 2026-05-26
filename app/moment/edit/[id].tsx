@@ -23,7 +23,8 @@ import DateTimePicker, {
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { fetchPreviewUrl } from "@/lib/musickit";
+import { getProvider } from "@/lib/providers";
+import type { MusicProviderType } from "@/types";
 import { uploadMomentPhotoWithThumbnail, getPublicPhotoUrl } from "@/lib/storage";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
@@ -53,7 +54,9 @@ export default function EditMomentScreen() {
     songArtist?: string;
     songAlbum?: string;
     songArtwork?: string;
+    songProvider?: string;
     songAppleMusicId?: string;
+    songSpotifyId?: string;
     songDurationMs?: string;
   }>();
 
@@ -93,12 +96,14 @@ export default function EditMomentScreen() {
 
     const row: any = data;
     setSong({
-      id: row.song_apple_music_id,
+      id: row.song_spotify_id ?? row.song_apple_music_id ?? "",
       title: row.song_title,
       artistName: row.song_artist,
       albumName: row.song_album_name ?? "",
       artworkUrl: row.song_artwork_url ?? "",
-      appleMusicId: row.song_apple_music_id,
+      provider: (row.song_provider as MusicProviderType) ?? 'apple_music',
+      appleMusicId: row.song_apple_music_id ?? null,
+      spotifyId: row.song_spotify_id ?? null,
       durationMs: 0,
     });
     setReflection(row.reflection_text ?? "");
@@ -118,13 +123,16 @@ export default function EditMomentScreen() {
 
   useEffect(() => {
     if (params.songTitle) {
+      const provider = (params.songProvider as MusicProviderType | undefined) ?? 'apple_music';
       setSong({
         id: params.songId ?? "",
         title: params.songTitle,
         artistName: params.songArtist ?? "",
         albumName: params.songAlbum ?? "",
         artworkUrl: params.songArtwork ?? "",
-        appleMusicId: params.songAppleMusicId ?? "",
+        provider,
+        appleMusicId: params.songAppleMusicId || null,
+        spotifyId: params.songSpotifyId || null,
         durationMs: Number(params.songDurationMs) || 0,
       });
     }
@@ -210,7 +218,9 @@ export default function EditMomentScreen() {
       return;
     }
     try {
-      const { previewUrl, albumName: fetchedAlbumName } = await fetchPreviewUrl(song!.appleMusicId);
+      const previewUrlVal = await getProvider(song!.provider).fetchPreviewUrl(song!);
+      const previewUrl = previewUrlVal;
+      const fetchedAlbumName: string | null = null;
 
       const results = await Promise.all(
         newPhotos.map((uri) => uploadMomentPhotoWithThumbnail(user.id, uri))
@@ -225,7 +235,9 @@ export default function EditMomentScreen() {
           song_artist: song!.artistName,
           song_album_name: song!.albumName || fetchedAlbumName || null,
           song_artwork_url: song!.artworkUrl || null,
-          song_apple_music_id: song!.appleMusicId,
+          song_provider: song!.provider,
+          song_apple_music_id: song!.appleMusicId ?? null,
+          song_spotify_id: song!.spotifyId ?? null,
           song_preview_url: previewUrl,
           reflection_text: reflection.trim(),
           mood: selectedMood,

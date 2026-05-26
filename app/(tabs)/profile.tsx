@@ -134,7 +134,7 @@ async function fetchProfileStats(userId: string) {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, profile, signOut, deleteAccount, refreshProfile, saveCustomPromptCategory, deleteCustomPromptCategory } = useAuth();
+  const { user, profile, signOut, deleteAccount, refreshProfile, saveCustomPromptCategory, deleteCustomPromptCategory, preferredProvider, setPreferredProvider } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const posthog = usePostHog();
@@ -648,6 +648,43 @@ export default function ProfileScreen() {
           </View>
         )}
       </View>
+
+      {/* Music Service */}
+      <TouchableOpacity
+        style={[styles.feedbackButton, { flexDirection: 'row', justifyContent: 'space-between' }]}
+        onPress={() => {
+          Haptics.selectionAsync();
+          Alert.alert(
+            "Music Service",
+            `Currently using ${preferredProvider === 'spotify' ? 'Spotify' : 'Apple Music'}.`,
+            [
+              {
+                text: "Apple Music",
+                onPress: async () => {
+                  if (preferredProvider === 'apple_music') return;
+                  const ok = await setPreferredProvider('apple_music');
+                  if (!ok) Alert.alert("Error", "Couldn't switch to Apple Music. Check your Music permissions in Settings.");
+                },
+              },
+              {
+                text: "Spotify",
+                onPress: async () => {
+                  if (preferredProvider === 'spotify') return;
+                  const ok = await setPreferredProvider('spotify');
+                  if (!ok) Alert.alert("Spotify", "Couldn't connect to Spotify. Make sure the Spotify app is installed and you have a Premium subscription.");
+                },
+              },
+              { text: "Cancel", style: "cancel" },
+            ]
+          );
+        }}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.feedbackText}>
+          Music Service: {preferredProvider === 'spotify' ? 'Spotify' : 'Apple Music'}
+        </Text>
+        <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+      </TouchableOpacity>
 
       {/* Feedback */}
       <TouchableOpacity

@@ -1,8 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo, useState, useRef, useEffect } from "react";
 import { Audio } from "expo-av";
-import { Player, PlaybackStatus } from "@lomray/react-native-apple-music";
-import type { ISong } from "@lomray/react-native-apple-music";
-import { playAppleMusic, requestMusicAuthorization } from "@/lib/musickit";
+import { getProvider } from "@/lib/providers";
+import type { MusicProvider } from "@/lib/providers";
 import { Song } from "@/types";
 
 interface PlayerState {
@@ -28,9 +27,24 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [playbackDuration, setPlaybackDuration] = useState(0);
   const [playError, setPlayError] = useState(false);
   const [isPreview, setIsPreview] = useState(false);
+
+  // expo-av Sound ref — used only for 30-sec preview fallback playback
   const soundRef = useRef<Audio.Sound | null>(null);
-  const isNativeRef = useRef(false);
+  // Tracks which provider is currently driving full playback (null = preview or stopped)
+  const activeProviderRef = useRef<MusicProvider | null>(null);
+  // Unsubscribe function for the active provider's state listener
+  const providerUnsubRef = useRef<(() => void) | null>(null);
+  // Generation counter to discard stale playback requests
   const playGenRef = useRef(0);
+
+  useEffect(() => {
+    Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+    return () => {
+      unloadSound();
+      providerUnsubRef.current?.();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const unloadSound = useCallback(async () => {
     if (soundRef.current) {
@@ -42,47 +56,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  useEffect(() => {
-    const stateSub = Player.addListener("onPlaybackStateChange", (state) => {
-      if (!isNativeRef.current) return;
-      const playing =
-        state.playbackStatus === PlaybackStatus.PLAYING ||
-        state.playbackStatus === PlaybackStatus.SEEKING_FORWARD ||
-        state.playbackStatus === PlaybackStatus.SEEKING_BACKWARD;
-      setIsPlaying(playing);
-      if (state.playbackTime != null) setPlaybackTime(state.playbackTime);
-      if (state.playbackStatus === PlaybackStatus.STOPPED) {
-        setCurrentSong(null);
-        setIsPlaying(false);
-        setPlaybackTime(0);
-        setPlaybackDuration(0);
-        isNativeRef.current = false;
-      }
-    });
-
-    const timeSub = Player.addListener("onPlaybackTimeUpdate", (data) => {
-      if (!isNativeRef.current) return;
-      setPlaybackTime(data.playbackTime);
-    });
-
-    const songSub = Player.addListener("onCurrentSongChange", (song: ISong) => {
-      if (!isNativeRef.current) return;
-      if (song.duration) setPlaybackDuration(song.duration);
-    });
-
-    Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-
-    return () => {
-      stateSub.remove();
-      timeSub.remove();
-      songSub.remove();
-      unloadSound();
-    };
-  }, [unloadSound]);
+  const stopProvider = useCallback(() => {
+    if (activeProviderRef.current) {
+      activeProviderRef.current.stop();
+      providerUnsubRef.current?.();
+      providerUnsubRef.current = null;
+      activeProviderRef.current = null;
+    }
+  }, []);
 
   const playPreview = useCallback(async (song: Song, previewUrl: string) => {
     await unloadSound();
-    isNativeRef.current = false;
+    stopProvider();
     setPlayError(false);
     setPlaybackTime(0);
     setPlaybackDuration(0);
@@ -113,45 +98,54 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setCurrentSong(null);
       setPlayError(true);
     }
-  }, [unloadSound]);
+  }, [unloadSound, stopProvider]);
 
   const playFull = useCallback(async (song: Song, previewUrl?: string) => {
     const gen = ++playGenRef.current;
     await unloadSound();
-    if (isNativeRef.current) {
-      try { Player.pause(); } catch {}
-      isNativeRef.current = false;
-    }
+    stopProvider();
     setPlayError(false);
     setPlaybackTime(0);
     setPlaybackDuration(0);
 
-    if (!song.appleMusicId) {
-      if (gen !== playGenRef.current) return;
-      if (previewUrl) await playPreview(song, previewUrl);
-      else { setCurrentSong(null); setPlayError(true); }
-      return;
-    }
+    const provider = getProvider(song.provider);
+    const authorized = await provider.authorize();
 
-    const authorized = await requestMusicAuthorization();
+    if (gen !== playGenRef.current) return;
+
     if (!authorized) {
-      if (gen !== playGenRef.current) return;
       if (previewUrl) await playPreview(song, previewUrl);
       else { setCurrentSong(null); setPlayError(true); }
       return;
     }
 
     try {
-      const durationSecs = await playAppleMusic(song.appleMusicId);
+      await provider.play(song);
       if (gen !== playGenRef.current) return;
-      isNativeRef.current = true;
+
+      activeProviderRef.current = provider;
       setCurrentSong(song);
       setIsPlaying(true);
       setIsPreview(false);
-      setPlaybackDuration(durationSecs);
+
+      providerUnsubRef.current = provider.onStateChange((state) => {
+        if (activeProviderRef.current !== provider) return;
+        setIsPlaying(state.isPlaying);
+        if (state.positionMs > 0) setPlaybackTime(state.positionMs / 1000);
+        if (state.durationMs > 0) setPlaybackDuration(state.durationMs / 1000);
+        if (!state.isPlaying && state.positionMs === 0 && state.durationMs === 0) {
+          // Playback stopped (track ended or SDK disconnected)
+          setCurrentSong(null);
+          setIsPlaying(false);
+          setPlaybackTime(0);
+          setPlaybackDuration(0);
+          activeProviderRef.current = null;
+          providerUnsubRef.current = null;
+        }
+      });
     } catch {
       if (gen !== playGenRef.current) return;
-      isNativeRef.current = false;
+      activeProviderRef.current = null;
       if (previewUrl) {
         await playPreview(song, previewUrl);
       } else {
@@ -160,11 +154,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setPlayError(true);
       }
     }
-  }, [playPreview, unloadSound]);
+  }, [playPreview, unloadSound, stopProvider]);
 
   const pause = useCallback(() => {
-    if (isNativeRef.current) {
-      try { Player.pause(); } catch {}
+    if (activeProviderRef.current) {
+      activeProviderRef.current.pause();
     } else if (soundRef.current) {
       soundRef.current.pauseAsync().catch(() => {});
     }
@@ -172,8 +166,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resume = useCallback(() => {
-    if (isNativeRef.current) {
-      try { Player.play(); } catch {}
+    if (activeProviderRef.current) {
+      activeProviderRef.current.resume();
     } else if (soundRef.current) {
       soundRef.current.playAsync().catch(() => {});
     }
@@ -181,10 +175,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const stop = useCallback(async () => {
-    if (isNativeRef.current) {
-      try { Player.pause(); } catch {}
-      isNativeRef.current = false;
-    }
+    stopProvider();
     await unloadSound();
     setCurrentSong(null);
     setIsPlaying(false);
@@ -192,11 +183,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setPlaybackTime(0);
     setPlaybackDuration(0);
     setPlayError(false);
-  }, [unloadSound]);
+  }, [stopProvider, unloadSound]);
 
   const seekTo = useCallback((seconds: number) => {
-    if (isNativeRef.current) {
-      Player.seekToTime(seconds);
+    if (activeProviderRef.current) {
+      activeProviderRef.current.seekTo(seconds);
     } else if (soundRef.current) {
       soundRef.current.setPositionAsync(seconds * 1000).catch(() => {});
     }

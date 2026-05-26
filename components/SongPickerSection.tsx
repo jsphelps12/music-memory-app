@@ -11,12 +11,13 @@ import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { getNowPlaying, onNowPlayingChange } from "@/lib/now-playing";
-import { searchSongs } from "@/lib/musickit";
+import { getProvider } from "@/lib/providers";
 import { identifyAudio, stopShazamListening, type ShazamResult } from "@/modules/shazam-kit";
 import { onSongSelected } from "@/lib/songEvents";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Song } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
+import { useAuth } from "@/contexts/AuthContext";
 import { Theme } from "@/constants/theme";
 
 interface SongPickerSectionProps {
@@ -30,6 +31,7 @@ export function SongPickerSection({ song, onChange, photos = [] }: SongPickerSec
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const posthog = usePostHog();
+  const { preferredProvider } = useAuth();
 
   const [nowPlayingSong, setNowPlayingSong] = useState<Song | null>(null);
   const [shazamResult, setShazamResult] = useState<ShazamResult | null>(null);
@@ -39,7 +41,8 @@ export function SongPickerSection({ song, onChange, photos = [] }: SongPickerSec
   useEffect(() => onSongSelected((s) => onChange(s)), [onChange]);
 
   useEffect(() => {
-    if (song) return;
+    // MPMusicPlayerController only reflects Apple Music system player
+    if (song || preferredProvider !== 'apple_music') return;
 
     let cancelled = false;
     getNowPlaying().then((nowPlaying) => {
@@ -54,26 +57,25 @@ export function SongPickerSection({ song, onChange, photos = [] }: SongPickerSec
       cancelled = true;
       subscription.remove();
     };
-  }, [song]);
+  }, [song, preferredProvider]);
 
   const handleUseNowPlaying = async () => {
     if (!nowPlayingSong) return;
     Haptics.selectionAsync();
 
-    let song = nowPlayingSong;
-    if (!song.appleMusicId) {
+    let resolved = nowPlayingSong;
+    if (!resolved.appleMusicId) {
       try {
-        const query = [song.title, song.artistName].filter(Boolean).join(" ");
-        const results = await searchSongs(query);
-        const match = results.find((r) => r.title.toLowerCase() === song.title.toLowerCase());
+        const query = [resolved.title, resolved.artistName].filter(Boolean).join(" ");
+        const results = await getProvider('apple_music').search(query);
+        const match = results.find((r) => r.title.toLowerCase() === resolved.title.toLowerCase());
         if (match) {
-          song = { ...song, appleMusicId: match.appleMusicId, durationMs: match.durationMs || song.durationMs };
+          resolved = { ...resolved, appleMusicId: match.appleMusicId, durationMs: match.durationMs || resolved.durationMs };
         }
       } catch {}
     }
-    console.log("[NowPlaying] useThis — appleMusicId before:", nowPlayingSong.appleMusicId, "after:", song.appleMusicId);
 
-    onChange(song);
+    onChange(resolved);
     setNowPlayingSong(null);
   };
 
@@ -105,16 +107,34 @@ export function SongPickerSection({ song, onChange, photos = [] }: SongPickerSec
     }
   };
 
-  const handleUseShazamResult = () => {
+  const handleUseShazamResult = async () => {
     if (!shazamResult) return;
     Haptics.selectionAsync();
+
+    if (preferredProvider === 'spotify') {
+      // Shazam returns Apple Music IDs — cross-search Spotify to find the spotifyId
+      try {
+        const query = [shazamResult.title, shazamResult.artist].filter(Boolean).join(" ");
+        const results = await getProvider('spotify').search(query);
+        const match = results.find((r) => r.title.toLowerCase() === shazamResult.title.toLowerCase()) ?? results[0];
+        if (match) {
+          onChange(match);
+          setShazamResult(null);
+          setShazamError("");
+          return;
+        }
+      } catch {}
+    }
+
     onChange({
       id: shazamResult.appleMusicId,
       title: shazamResult.title,
       artistName: shazamResult.artist,
       albumName: "",
       artworkUrl: shazamResult.artworkUrl,
+      provider: 'apple_music',
       appleMusicId: shazamResult.appleMusicId,
+      spotifyId: null,
       durationMs: 0,
     });
     setShazamResult(null);

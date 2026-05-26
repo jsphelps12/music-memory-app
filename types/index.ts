@@ -1,10 +1,14 @@
+export type MusicProviderType = 'apple_music' | 'spotify';
+
 export interface Song {
   id: string;
   title: string;
   artistName: string;
   albumName: string;
   artworkUrl: string;
-  appleMusicId: string;
+  provider: MusicProviderType;
+  appleMusicId: string | null;
+  spotifyId: string | null;
   durationMs: number;
 }
 
@@ -29,7 +33,9 @@ export interface Moment {
   songArtist: string;
   songAlbumName: string;
   songArtworkUrl: string;
-  songAppleMusicId: string;
+  songProvider: MusicProviderType;
+  songAppleMusicId: string | null;
+  songSpotifyId: string | null;
   songPreviewUrl: string | null;
   reflectionText: string;
   photoUrls: string[];
@@ -104,6 +110,7 @@ export interface UserProfile {
   favoriteSongs: FavoriteSong[];
   onboardingCompleted: boolean;
   genrePreferences: string[];
+  preferredMusicProvider: MusicProviderType;
   notifOnThisDay: boolean;
   notifStreak: boolean;
   notifPrompts: boolean;

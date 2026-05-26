@@ -41,7 +41,8 @@ import { GeoResult } from "@/lib/geocoding";
 import { friendlyError } from "@/lib/errors";
 import { checkAndNotifyMilestone } from "@/lib/notifications";
 import { markTimelineStale } from "@/lib/timelineRefresh";
-import { fetchPreviewUrl } from "@/lib/musickit";
+import { getProvider } from "@/lib/providers";
+import type { MusicProviderType } from "@/types";
 import { PromptPickerModal } from "@/components/PromptPickerModal";
 import { fetchWeather, WeatherResult } from "@/lib/weather";
 import { dateToStr } from "@/lib/dateUtils";
@@ -59,7 +60,9 @@ export default function CreateMomentScreen() {
     songArtist?: string;
     songAlbum?: string;
     songArtwork?: string;
+    songProvider?: string;
     songAppleMusicId?: string;
+    songSpotifyId?: string;
     songDurationMs?: string;
     photos?: string;
     shareCandidates?: string;
@@ -75,7 +78,9 @@ export default function CreateMomentScreen() {
 
   const handleSongChange = useCallback((s: Song | null) => {
     setSong(s);
-    previewFetchRef.current = s ? fetchPreviewUrl(s.appleMusicId) : null;
+    previewFetchRef.current = s
+      ? getProvider(s.provider).fetchPreviewUrl(s).then((url) => ({ previewUrl: url, albumName: null }))
+      : null;
   }, []);
   const [candidates, setCandidates] = useState<Song[]>([]);
   const [showCandidateModal, setShowCandidateModal] = useState(false);
@@ -83,13 +88,16 @@ export default function CreateMomentScreen() {
   // Sync song from params when returning from song-search with a share intent song
   useEffect(() => {
     if (params.songTitle) {
+      const provider = (params.songProvider as MusicProviderType | undefined) ?? 'apple_music';
       handleSongChange({
         id: params.songId ?? "",
         title: params.songTitle,
         artistName: params.songArtist ?? "",
         albumName: params.songAlbum ?? "",
         artworkUrl: params.songArtwork ?? "",
-        appleMusicId: params.songAppleMusicId ?? "",
+        provider,
+        appleMusicId: params.songAppleMusicId || null,
+        spotifyId: params.songSpotifyId || null,
         durationMs: Number(params.songDurationMs) || 0,
       });
     }

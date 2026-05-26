@@ -1,4 +1,4 @@
-import { Moment } from "@/types";
+import { Moment, MusicProviderType } from "@/types";
 
 export function mapRowToMoment(row: any): Moment {
   return {
@@ -8,7 +8,9 @@ export function mapRowToMoment(row: any): Moment {
     songArtist: row.song_artist,
     songAlbumName: row.song_album_name,
     songArtworkUrl: row.song_artwork_url,
-    songAppleMusicId: row.song_apple_music_id,
+    songProvider: (row.song_provider as MusicProviderType) ?? 'apple_music',
+    songAppleMusicId: row.song_apple_music_id ?? null,
+    songSpotifyId: row.song_spotify_id ?? null,
     songPreviewUrl: row.song_preview_url ?? null,
     reflectionText: row.reflection_text,
     photoUrls: row.photo_urls ?? [],

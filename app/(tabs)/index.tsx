@@ -126,7 +126,8 @@ export default function TimelineScreen() {
           userId: "", reflectionText: "", photoUrls: [], photoThumbnails: [],
           mood: null, people: [], location: null, timeOfDay: null,
           weatherTempF: null, weatherCondition: null,
-          createdAt: "", updatedAt: "", songAlbumName: "", songAppleMusicId: "",
+          createdAt: "", updatedAt: "", songAlbumName: "",
+          songProvider: "apple_music", songAppleMusicId: null, songSpotifyId: null,
           songPreviewUrl: null, visibility: "private",
         }))
       );

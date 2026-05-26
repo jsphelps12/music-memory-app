@@ -196,10 +196,15 @@ Removes the capture blocker at the worst possible moments (funerals, spontaneous
 - [x] Playback polish — scrubber, NowPlaying IDs, gesture conflicts resolved
 - [x] Playback fallback when native Apple Music fails
 
-**Spotify full integration:** (deferred)
-- [ ] Store `spotify_track_id` on moments when song sourced from Spotify search
-- [ ] Deep link out to Spotify app for full playback (`spotify:track:{id}` URL scheme)
-- [ ] Show Spotify icon on moments with a Spotify ID; tapping opens in Spotify
+**Spotify full integration:** ✅ Shipped May 2026
+- [x] Account-level music provider preference (Spotify or Apple Music) stored on profile
+- [x] Spotify OAuth via `react-native-spotify-remote`; token stored in SecureStore
+- [x] Search Spotify catalog via Web API; songs carry `song_provider` + `song_spotify_id` in DB
+- [x] In-app playback via Spotify App Remote SDK (requires Spotify app + Premium)
+- [x] 30s preview fallback via Supabase Edge Function (`spotify-preview`) for non-Premium / no-app
+- [x] Share extension respects provider preference — Spotify URL + Spotify pref → Spotify song
+- [x] Music Service toggle in Me tab with immediate OAuth on switch to Spotify
+- [x] Each moment remembers its own `song_provider`; playback always uses the correct SDK
 
 ---
 
@@ -312,7 +317,7 @@ Ordered by impact across growth (new users), retention (keep existing), and reve
 | 2 | ~~Share Profile~~ | ~~Growth~~ | ~~🟢~~ | ✅ Shipped May 2026 — share button on profile screen (person-add icon) shares `soundtracks.app/friend/{token}` via native share sheet; receiver lands on existing friend invite web page. |
 | 2b | Public Profile Page | Growth | 🟢 | Replace the friend-invite share with a real public profile page: `soundtracks.app/u/{username}`. Shows the user's avatar/name/username + all their `visibility='link'` moments (song artwork, reflection, mood, date). Beautiful shareable artifact — feels like an artist profile. Also unlocks #13 (QR Print needs a public URL to encode). See spec below. |
 | 3 | Wedding refinement | Growth + Revenue | 🟡 | Shareable card generator, vanity short URLs, wedding collection template, post-event claim flow, PDF book export. Builds on shipped web contribution flow. |
-| 4 | Spotify integration (iOS) | Growth | 🟡 | **Moved up from #13.** Currently cuts out ~60% of TAM. 80/20 version: store `spotify_track_id` on moments + deep link out to Spotify app (`spotify:track:{id}`) — no SDK required. Show Spotify icon on moments with a Spotify ID. Full SDK (in-app playback) is a separate follow-on effort. |
+| 4 | ~~Spotify integration (iOS)~~ | ~~Growth~~ | ~~🟡~~ | ✅ Shipped May 2026 — full SDK integration via `react-native-spotify-remote`. Account-level provider preference, in-app playback (Spotify Premium), 30s preview fallback, share extension provider-aware, Music Service toggle in Me tab. |
 | 5 | Notification refinement | Retention | 🟡 | Tap-rate tracking per type, timing optimization, unengaged user suppression, deep link targets, A/B copy. |
 | 6 | Music Memory Engine Phase 1 | Retention | 🟡 | Highest-leverage empty-state fix. Edge function + seed dataset + existing notification infra. Questionnaire already built. Seeds moments from listening history; weekly prompted-song push. |
 | 7 | Era Clustering | Revenue | 🔴 | Premium conversion trigger at 25–30 moments. Hardest feature on the list. |
@@ -1168,12 +1173,12 @@ If the product is healthy and the team grows.
 
 - [ ] Android — doubles the addressable market; not soon
 - [ ] Apple Watch app — one tap on wrist logs current Apple Music song; minimal UI; draft saved for later
-- [ ] Full in-app playback (Apple Music / Spotify Premium) — 30s previews are fine for now
+- [x] Full in-app playback (Apple Music / Spotify Premium) — shipped May 2026
 - [ ] Multiple songs per moment — requires data model + UX changes
 - [ ] Offline support — queue uploads when offline
 - [ ] Export / backup — download your data
 - [ ] Accessibility — VoiceOver, dynamic type
-- [ ] Spotify full integration — native playback/auth (cross-search is done)
+- [x] Spotify full integration — native playback/auth shipped May 2026
 - [ ] Physical book (print-on-demand) — annual "year in music" book; QR codes link each page to the song so it plays when you point your phone at it; see monetization section for full product thinking
 - [ ] Printable moment cards — individual moments exported as styled high-res images (song, photo, reflection, date); downloadable for printing at Walgreens/CVS; ideal for dorm walls, gifts, journals; free tier gets the download, Premium gets in-app print fulfillment (see LATER for the free download step)
 - [ ] QR codes on individual moments — physical-digital bridge for journals, gifts, photo walls

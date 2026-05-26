@@ -13,8 +13,9 @@ import {
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { requestMusicAuthorization, searchSongs } from "@/lib/musickit";
+import { getProvider } from "@/lib/providers";
 import { emitSongSelected } from "@/lib/songEvents";
+import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
@@ -26,6 +27,8 @@ export default function SongSearchScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const posthog = usePostHog();
   const { photos } = useLocalSearchParams<{ photos?: string }>();
+  const { preferredProvider } = useAuth();
+  const provider = getProvider(preferredProvider);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Song[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,8 +38,8 @@ export default function SongSearchScreen() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    requestMusicAuthorization().then((ok) => setAuthorized(ok));
-  }, []);
+    provider.isAvailable().then((ok) => setAuthorized(ok));
+  }, [preferredProvider]);
 
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -53,9 +56,9 @@ export default function SongSearchScreen() {
     setError("");
     timerRef.current = setTimeout(async () => {
       try {
-        const songs = await searchSongs(trimmed);
+        const songs = await provider.search(trimmed);
         setResults(songs);
-        posthog.capture("song_searched", { query_length: trimmed.length, result_count: songs.length });
+        posthog.capture("song_searched", { query_length: trimmed.length, result_count: songs.length, provider: preferredProvider });
       } catch {
         setResults([]);
         setError("Something went wrong. Try again.");
@@ -67,7 +70,7 @@ export default function SongSearchScreen() {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [query, retryKey]);
+  }, [query, retryKey, preferredProvider]);
 
   function handleSelect(song: Song) {
     Haptics.selectionAsync();

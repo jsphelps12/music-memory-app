@@ -205,22 +205,25 @@ export default function MomentDetailScreen() {
   useEffect(() => {
     if (hasAutoPlayed.current) return;
     const m = momentRef.current;
-    if (!m?.songAppleMusicId) return;
+    if (!m?.songAppleMusicId && !m?.songSpotifyId) return;
     hasAutoPlayed.current = true;
     const timer = setTimeout(() => {
       const current = momentRef.current;
-      if (!current?.songAppleMusicId) return;
-      console.log("[MomentAutoPlay] songAppleMusicId:", current.songAppleMusicId, "title:", current.songTitle);
+      if (!current?.songAppleMusicId && !current?.songSpotifyId) return;
+      const momentSongId = current.songSpotifyId ?? current.songAppleMusicId;
       const { currentSong: cs, isPlaying: ip } = playerRef.current;
-      if (cs?.appleMusicId === current.songAppleMusicId && ip) return;
+      const playingId = cs?.spotifyId ?? cs?.appleMusicId;
+      if (playingId === momentSongId && ip) return;
       playFull(
         {
-          id: current.songAppleMusicId,
+          id: momentSongId ?? "",
           title: current.songTitle,
           artistName: current.songArtist,
           albumName: current.songAlbumName ?? "",
           artworkUrl: current.songArtworkUrl,
-          appleMusicId: current.songAppleMusicId,
+          provider: current.songProvider ?? 'apple_music',
+          appleMusicId: current.songAppleMusicId ?? null,
+          spotifyId: current.songSpotifyId ?? null,
           durationMs: 0,
         },
         current.songPreviewUrl || undefined
@@ -527,7 +530,9 @@ export default function MomentDetailScreen() {
     return parts.join(" · ");
   };
 
-  const isCurrentSong = isPlaying && currentSong?.appleMusicId === moment?.songAppleMusicId;
+  const momentSongId = moment?.songSpotifyId ?? moment?.songAppleMusicId;
+  const playingSongId = currentSong?.spotifyId ?? currentSong?.appleMusicId;
+  const isCurrentSong = isPlaying && !!momentSongId && momentSongId === playingSongId;
   const playLabel = isCurrentSong ? "Pause" : playError ? "Unavailable" : "Play";
 
   return (
@@ -748,7 +753,7 @@ export default function MomentDetailScreen() {
             ) : null}
 
             {/* Play pill */}
-            {moment.songAppleMusicId ? (
+            {(moment.songAppleMusicId || moment.songSpotifyId) ? (
               <TouchableOpacity
                 style={[styles.playPill, playError && styles.playPillError]}
                 activeOpacity={0.7}
@@ -759,12 +764,14 @@ export default function MomentDetailScreen() {
                   } else {
                     playFull(
                       {
-                        id: moment.songAppleMusicId,
+                        id: moment.songSpotifyId ?? moment.songAppleMusicId ?? "",
                         title: moment.songTitle,
                         artistName: moment.songArtist,
                         albumName: moment.songAlbumName,
                         artworkUrl: moment.songArtworkUrl,
-                        appleMusicId: moment.songAppleMusicId,
+                        provider: moment.songProvider ?? 'apple_music',
+                        appleMusicId: moment.songAppleMusicId ?? null,
+                        spotifyId: moment.songSpotifyId ?? null,
                         durationMs: 0,
                       },
                       moment.songPreviewUrl || undefined
@@ -784,7 +791,7 @@ export default function MomentDetailScreen() {
             ) : null}
 
             {/* Progress bar */}
-            {currentSong?.appleMusicId === moment.songAppleMusicId && playbackDuration > 0 && (
+            {isCurrentSong && playbackDuration > 0 && (
               <View style={styles.progressContainer}>
                 <GestureDetector gesture={seekGesture}>
                   <View

@@ -37,20 +37,24 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
   const animatedRef = useAnimatedRef<Animated.View>();
   const player = usePlayer();
 
-  const isThisPlaying =
-    player.currentSong?.appleMusicId === item.songAppleMusicId && player.isPlaying;
+  // Match by the provider-native ID so both Apple Music and Spotify moments work
+  const momentSongId = item.songSpotifyId ?? item.songAppleMusicId;
+  const playingSongId = player.currentSong?.spotifyId ?? player.currentSong?.appleMusicId;
+  const isThisPlaying = !!momentSongId && momentSongId === playingSongId && player.isPlaying;
 
   const handlePlayPress = useCallback(() => {
     if (isThisPlaying) {
       player.pause();
     } else {
       const song: Song = {
-        id: item.songAppleMusicId,
+        id: item.songSpotifyId ?? item.songAppleMusicId ?? "",
         title: item.songTitle,
         artistName: item.songArtist,
         albumName: item.songAlbumName,
         artworkUrl: item.songArtworkUrl ?? "",
-        appleMusicId: item.songAppleMusicId,
+        provider: item.songProvider ?? 'apple_music',
+        appleMusicId: item.songAppleMusicId ?? null,
+        spotifyId: item.songSpotifyId ?? null,
         durationMs: 0,
       };
       player.playFull(song, item.songPreviewUrl || undefined);

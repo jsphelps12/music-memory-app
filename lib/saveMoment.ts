@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/react-native";
 import { supabase } from "@/lib/supabase";
-import { fetchPreviewUrl } from "@/lib/musickit";
+import { getProvider } from "@/lib/providers";
 import { uploadMomentPhotoWithThumbnail } from "@/lib/storage";
 import { addMomentToAlbum } from "@/lib/albums";
 import { Song, Album, Friendship, Moment } from "@/types";
@@ -49,7 +49,7 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
   const [preview, photoResults] = await Promise.all([
     input.prefetchedPreview !== undefined
       ? Promise.resolve(input.prefetchedPreview ?? { previewUrl: null, albumName: null })
-      : fetchPreviewUrl(input.song.appleMusicId),
+      : getProvider(input.song.provider).fetchPreviewUrl(input.song).then((url) => ({ previewUrl: url, albumName: null })),
     Promise.all(input.photos.map((uri) => uploadMomentPhotoWithThumbnail(input.userId, uri))),
   ]);
   const { previewUrl, albumName: fetchedAlbumName } = preview;
@@ -66,7 +66,9 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
       song_artist: input.song.artistName,
       song_album_name: input.song.albumName || fetchedAlbumName || null,
       song_artwork_url: input.song.artworkUrl || null,
-      song_apple_music_id: input.song.appleMusicId,
+      song_provider: input.song.provider,
+      song_apple_music_id: input.song.appleMusicId ?? null,
+      song_spotify_id: input.song.spotifyId ?? null,
       song_preview_url: previewUrl,
       reflection_text: input.reflection.trim(),
       mood: input.mood,

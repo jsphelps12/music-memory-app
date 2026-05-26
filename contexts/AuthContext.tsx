@@ -5,7 +5,8 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import * as Sentry from "@sentry/react-native";
 import { supabase } from "@/lib/supabase";
 import { posthog } from "@/lib/posthog";
-import { CustomMoodDefinition, CustomPromptCategory, FavoriteArtist, FavoriteSong, UserProfile } from "@/types";
+import { CustomMoodDefinition, CustomPromptCategory, FavoriteArtist, FavoriteSong, MusicProviderType, UserProfile } from "@/types";
+import { getProvider } from "@/lib/providers";
 import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
 import { fetchAlbums, writeAlbumsCache, clearAlbumsCache, clearAllAlbumMomentsCache } from "@/lib/albums";
 import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
@@ -50,6 +51,8 @@ interface AuthState {
   deleteCustomMood: (value: string) => Promise<void>;
   saveCustomPromptCategory: (category: CustomPromptCategory) => Promise<void>;
   deleteCustomPromptCategory: (id: string) => Promise<void>;
+  preferredProvider: MusicProviderType;
+  setPreferredProvider: (type: MusicProviderType) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -97,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       favoriteSongs: data.favorite_songs ?? [],
       onboardingCompleted: data.onboarding_completed ?? false,
       genrePreferences: data.genre_preferences ?? [],
+      preferredMusicProvider: (data.preferred_music_provider as MusicProviderType) ?? 'apple_music',
       notifOnThisDay: data.notif_on_this_day ?? true,
       notifStreak: data.notif_streak ?? true,
       notifPrompts: data.notif_prompts ?? true,
@@ -475,6 +479,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await fetchProfile(session.user.id);
   };
 
+  const setPreferredProvider = async (type: MusicProviderType): Promise<boolean> => {
+    if (!session?.user) return false;
+    // Authorize the provider before persisting — revert if the user cancels
+    const authorized = await getProvider(type).authorize();
+    if (!authorized) return false;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ preferred_music_provider: type })
+      .eq("id", session.user.id);
+    if (error) return false;
+    await fetchProfile(session.user.id);
+    return true;
+  };
+
   const contextValue = useMemo(() => ({
     session,
     user: session?.user ?? null,
@@ -494,6 +513,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     deleteCustomMood,
     saveCustomPromptCategory,
     deleteCustomPromptCategory,
+    preferredProvider: (profile?.preferredMusicProvider ?? 'apple_music') as MusicProviderType,
+    setPreferredProvider,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [session, profile, loading, profileReady]);
 

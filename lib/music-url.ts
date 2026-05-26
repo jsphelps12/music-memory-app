@@ -1,5 +1,5 @@
-import { searchSongs } from "@/lib/musickit";
-import type { Song } from "@/types";
+import { getProvider } from "@/lib/providers";
+import type { Song, MusicProviderType } from "@/types";
 
 interface ParsedMusicUrl {
   service: "apple-music" | "spotify";
@@ -77,7 +77,9 @@ async function lookupAppleMusicSong(id: string): Promise<Song | null> {
       artistName: result.artistName ?? "",
       albumName: result.collectionName ?? "",
       artworkUrl: result.artworkUrl100?.replace("100x100", "600x600") ?? "",
+      provider: "apple_music" as const,
       appleMusicId: String(result.trackId),
+      spotifyId: null,
       durationMs: result.trackTimeMillis ?? 0,
     };
   } catch {
@@ -86,58 +88,43 @@ async function lookupAppleMusicSong(id: string): Promise<Song | null> {
 }
 
 /**
+ * Look up a Spotify track natively — returns a Song with provider='spotify'.
+ * Used when the user's preferred provider is Spotify.
+ */
+async function lookupSpotifyNative(spotifyId: string): Promise<SongLookupResult> {
+  const song = await getProvider("spotify").lookupById(spotifyId);
+  return { song };
+}
+
+/**
  * Look up a Spotify track via oEmbed, then cross-search Apple Music.
+ * Used when the user's preferred provider is Apple Music.
  * Returns the best match or multiple candidates if ambiguous.
  */
-async function lookupSpotifySong(
-  spotifyId: string
-): Promise<SongLookupResult> {
+async function lookupSpotifyViaAppleMusic(spotifyId: string): Promise<SongLookupResult> {
   try {
     const spotifyUrl = `https://open.spotify.com/track/${spotifyId}`;
     const oembedResponse = await fetch(
       `https://open.spotify.com/oembed?url=${encodeURIComponent(spotifyUrl)}`
     );
 
-    if (!oembedResponse.ok) {
-      return { song: null };
-    }
+    if (!oembedResponse.ok) return { song: null };
 
     const oembed = await oembedResponse.json();
-    // oEmbed title format is typically "Song Name" by "Artist Name"
-    // The title field contains the track name
     const title: string = oembed.title ?? "";
-
-    // Extract artist — oEmbed doesn't always have a separate artist field,
-    // but the HTML embed includes it. Try parsing from the title or use
-    // the provider's author field.
     const artist: string = oembed.author_name ?? "";
 
-    if (!title) {
-      return { song: null };
-    }
+    if (!title) return { song: null };
 
     const query = artist ? `${title} ${artist}` : title;
-    const results = await searchSongs(query);
+    const results = await getProvider("apple_music").search(query);
 
-    if (results.length === 0) {
-      return { song: null };
-    }
+    if (results.length === 0) return { song: null };
 
-    // Check for a strong match (title matches closely)
     const titleLower = title.toLowerCase();
-    const exactMatch = results.find(
-      (s) => s.title.toLowerCase() === titleLower
-    );
-
-    if (exactMatch) {
-      return { song: exactMatch };
-    }
-
-    // If no exact match, return first as best guess + candidates
-    if (results.length === 1) {
-      return { song: results[0] };
-    }
-
+    const exactMatch = results.find((s) => s.title.toLowerCase() === titleLower);
+    if (exactMatch) return { song: exactMatch };
+    if (results.length === 1) return { song: results[0] };
     return { song: results[0], candidates: results.slice(0, 5) };
   } catch {
     return { song: null };
@@ -146,22 +133,27 @@ async function lookupSpotifySong(
 
 /**
  * Resolve a shared music URL to a Song object.
- * For Spotify URLs, cross-searches Apple Music via oEmbed metadata.
+ * For Spotify URLs:
+ *   - preferredProvider='spotify'  → returns a native Spotify Song
+ *   - preferredProvider='apple_music' (default) → cross-searches Apple Music via oEmbed
  */
 export async function lookupSongFromUrl(
-  url: string
+  url: string,
+  preferredProvider: MusicProviderType = 'apple_music'
 ): Promise<SongLookupResult> {
   const parsed = parseMusicUrl(url);
-  if (!parsed) {
-    return { song: null };
-  }
+  if (!parsed) return { song: null };
 
   if (parsed.service === "apple-music") {
     const song = await lookupAppleMusicSong(parsed.id);
     return { song };
   }
 
-  return lookupSpotifySong(parsed.id);
+  // Spotify URL
+  if (preferredProvider === 'spotify') {
+    return lookupSpotifyNative(parsed.id);
+  }
+  return lookupSpotifyViaAppleMusic(parsed.id);
 }
 
 /**
