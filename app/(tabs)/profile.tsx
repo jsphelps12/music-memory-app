@@ -420,6 +420,49 @@ export default function ProfileScreen() {
         <Ionicons name="chevron-forward" size={18} color={theme.colors.textTertiary} />
       </TouchableOpacity>
 
+      {/* Music Service */}
+      <TouchableOpacity
+        style={[styles.promptsCard, styles.friendsRow]}
+        onPress={() => {
+          Haptics.selectionAsync();
+          Alert.alert(
+            "Music Service",
+            `Currently using ${preferredProvider === 'spotify' ? 'Spotify' : 'Apple Music'}.`,
+            [
+              {
+                text: "Apple Music",
+                onPress: async () => {
+                  if (preferredProvider === 'apple_music') return;
+                  const ok = await setPreferredProvider('apple_music');
+                  if (!ok) Alert.alert("Error", "Couldn't switch to Apple Music. Check your Music permissions in Settings.");
+                },
+              },
+              {
+                text: "Spotify",
+                onPress: async () => {
+                  if (preferredProvider === 'spotify') return;
+                  const ok = await setPreferredProvider('spotify');
+                  if (!ok) Alert.alert("Spotify", "Couldn't connect to Spotify. Make sure the Spotify app is installed and you have a Premium subscription.");
+                },
+              },
+              { text: "Cancel", style: "cancel" },
+            ]
+          );
+        }}
+        activeOpacity={0.7}
+      >
+        <View style={styles.friendsRowLeft}>
+          <Ionicons name="musical-notes-outline" size={20} color={theme.colors.text} />
+          <Text style={styles.promptsRowLabel}>Music Service</Text>
+        </View>
+        <View style={styles.friendsRowLeft}>
+          <Text style={[styles.promptsRowLabel, { color: theme.colors.textSecondary }]}>
+            {preferredProvider === 'spotify' ? 'Spotify' : 'Apple Music'}
+          </Text>
+          <Ionicons name="chevron-forward" size={18} color={theme.colors.textTertiary} />
+        </View>
+      </TouchableOpacity>
+
       {/* Top Stats */}
       <View style={styles.topStatsSection}>
         <Text style={styles.sectionTitle}>All-Time Favorites</Text>
@@ -648,43 +691,6 @@ export default function ProfileScreen() {
           </View>
         )}
       </View>
-
-      {/* Music Service */}
-      <TouchableOpacity
-        style={[styles.feedbackButton, { flexDirection: 'row', justifyContent: 'space-between' }]}
-        onPress={() => {
-          Haptics.selectionAsync();
-          Alert.alert(
-            "Music Service",
-            `Currently using ${preferredProvider === 'spotify' ? 'Spotify' : 'Apple Music'}.`,
-            [
-              {
-                text: "Apple Music",
-                onPress: async () => {
-                  if (preferredProvider === 'apple_music') return;
-                  const ok = await setPreferredProvider('apple_music');
-                  if (!ok) Alert.alert("Error", "Couldn't switch to Apple Music. Check your Music permissions in Settings.");
-                },
-              },
-              {
-                text: "Spotify",
-                onPress: async () => {
-                  if (preferredProvider === 'spotify') return;
-                  const ok = await setPreferredProvider('spotify');
-                  if (!ok) Alert.alert("Spotify", "Couldn't connect to Spotify. Make sure the Spotify app is installed and you have a Premium subscription.");
-                },
-              },
-              { text: "Cancel", style: "cancel" },
-            ]
-          );
-        }}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.feedbackText}>
-          Music Service: {preferredProvider === 'spotify' ? 'Spotify' : 'Apple Music'}
-        </Text>
-        <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-      </TouchableOpacity>
 
       {/* Feedback */}
       <TouchableOpacity
