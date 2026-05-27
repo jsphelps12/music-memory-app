@@ -1,4 +1,4 @@
-import { Player, PlaybackStatus } from "@lomray/react-native-apple-music";
+// Type-only imports are erased at compile time — safe regardless of native availability
 import type { ISong, IPlaybackState } from "@lomray/react-native-apple-music";
 import {
   requestMusicAuthorization,
@@ -8,6 +8,17 @@ import {
 } from "@/lib/musickit";
 import type { Song } from "@/types";
 import type { MusicProvider, PlaybackState } from "./MusicProvider";
+
+// Lazy require — defers native module access until first use so a missing or
+// misconfigured Apple Music SDK doesn't crash the app on startup.
+function getAMSdk(): typeof import("@lomray/react-native-apple-music") | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require("@lomray/react-native-apple-music");
+  } catch {
+    return null;
+  }
+}
 
 export class AppleMusicProvider implements MusicProvider {
   readonly type = "apple_music" as const;
@@ -57,19 +68,19 @@ export class AppleMusicProvider implements MusicProvider {
   }
 
   pause(): void {
-    try { Player.pause(); } catch {}
+    try { getAMSdk()?.Player.pause(); } catch {}
   }
 
   resume(): void {
-    try { Player.play(); } catch {}
+    try { getAMSdk()?.Player.play(); } catch {}
   }
 
   stop(): void {
-    try { Player.pause(); } catch {}
+    try { getAMSdk()?.Player.pause(); } catch {}
   }
 
   seekTo(seconds: number): void {
-    try { Player.seekToTime(seconds); } catch {}
+    try { getAMSdk()?.Player.seekToTime(seconds); } catch {}
   }
 
   async fetchPreviewUrl(song: Song): Promise<string | null> {
@@ -79,6 +90,11 @@ export class AppleMusicProvider implements MusicProvider {
   }
 
   onStateChange(cb: (state: PlaybackState) => void): () => void {
+    const sdk = getAMSdk();
+    if (!sdk) return () => {};
+
+    const { Player, PlaybackStatus } = sdk;
+
     const stateSub = Player.addListener("onPlaybackStateChange", (state: IPlaybackState) => {
       const isPlaying =
         state.playbackStatus === PlaybackStatus.PLAYING ||
