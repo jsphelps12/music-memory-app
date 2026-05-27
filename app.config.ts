@@ -11,7 +11,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: isPreview ? "./assets/images/app-icon-beta-forest-1024.png" : "./assets/images/app-icon.png",
   scheme: "soundtracks",
   userInterfaceStyle: "automatic",
-  newArchEnabled: false, // react-native-spotify-remote (0.3.10) is not New Arch compatible
+  newArchEnabled: true,
   splash: {
     image: "./assets/images/app-icon.png",
     resizeMode: "contain",
