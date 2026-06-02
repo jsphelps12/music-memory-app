@@ -74,13 +74,13 @@ public class SpotifyRemoteModule: Module {
 
     AsyncFunction("playUri") { (uri: String, promise: Promise) in
       guard let playerAPI = self.appRemote?.playerAPI else {
-        promise.reject("NOT_CONNECTED", "Spotify App Remote is not connected", nil)
+        promise.reject("NOT_CONNECTED", "Spotify App Remote is not connected")
         return
       }
       // SPTAppRemoteCallback = (Any?, Error?) -> Void
       playerAPI.play(uri) { _, error in
         if let error = error {
-          promise.reject("PLAY_FAILED", error.localizedDescription, error)
+          promise.reject(error)
         } else {
           promise.resolve(nil)
         }
