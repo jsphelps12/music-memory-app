@@ -1,103 +1,168 @@
-// Type-only imports are erased at compile time — safe regardless of native availability
-import type { SpotifySession } from "react-native-spotify-remote";
-import type { PlayerState as SpotifyPlayerState } from "react-native-spotify-remote";
 import * as SecureStore from "expo-secure-store";
+import * as WebBrowser from "expo-web-browser";
+import * as Crypto from "expo-crypto";
 import type { Song } from "@/types";
 import type { MusicProvider, PlaybackState } from "./MusicProvider";
+import { SpotifyRemote } from "@/modules/spotify-remote";
 
 const SPOTIFY_CLIENT_ID = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID ?? "";
 const REDIRECT_URL = "soundtracks://spotify-callback";
+const SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize";
+const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 
 const STORE_ACCESS_TOKEN = "spotify_access_token";
+const STORE_REFRESH_TOKEN = "spotify_refresh_token";
 const STORE_EXPIRY = "spotify_token_expiry";
 
-// Lazy require — defers native module access until first use so a missing or
-// misconfigured Spotify SDK doesn't crash the app on startup.
-function getSDK(): typeof import("react-native-spotify-remote") | null {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return require("react-native-spotify-remote");
-  } catch {
-    return null;
-  }
+const SCOPES = [
+  "app-remote-control",
+  "streaming",
+  "user-read-playback-state",
+  "user-read-currently-playing",
+];
+
+// ─── PKCE helpers ─────────────────────────────────────────────────────────────
+
+function generateCodeVerifier(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+  const randomBytes = new Uint8Array(64);
+  crypto.getRandomValues(randomBytes);
+  return Array.from(randomBytes, (b) => chars[b % chars.length]).join("");
 }
+
+async function generateCodeChallenge(verifier: string): Promise<string> {
+  const digest = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    verifier,
+    { encoding: Crypto.CryptoEncoding.BASE64 }
+  );
+  // Base64url encode: + → - / → _ strip trailing =
+  return digest.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
 
 export class SpotifyProvider implements MusicProvider {
   readonly type = "spotify" as const;
 
-  // ─── Authorization ────────────────────────────────────────────────────────
+  // ─── Authorization ──────────────────────────────────────────────────────────
 
   async isAvailable(): Promise<boolean> {
     try {
-      const sdk = getSDK();
-      if (!sdk) return false;
       const token = await this._getValidToken();
-      if (!token) return false;
-      return sdk.remote.isConnectedAsync();
+      return token !== null;
     } catch {
       return false;
     }
   }
 
   async authorize(): Promise<boolean> {
-    const sdk = getSDK();
-    if (!sdk) return false;
-
-    // Check stored token first — re-use if still valid
+    // Re-use valid token if we have one
     const existing = await this._getValidToken();
-    if (existing) {
-      try {
-        await sdk.remote.connect(existing);
-        return true;
-      } catch {
-        // Token may be valid but app remote not yet connected — still authorized
-        return true;
-      }
-    }
+    if (existing) return true;
 
     try {
-      const session: SpotifySession = await sdk.auth.authorize({
-        clientID: SPOTIFY_CLIENT_ID,
-        redirectURL: REDIRECT_URL,
-        scopes: [
-          sdk.ApiScope.AppRemoteControlScope,
-          sdk.ApiScope.StreamingScope,
-          sdk.ApiScope.UserReadPlaybackStateScope,
-          sdk.ApiScope.UserReadCurrentlyPlayingScope,
-        ],
-        showDialog: false,
+      const verifier = generateCodeVerifier();
+      const challenge = await generateCodeChallenge(verifier);
+
+      const params = new URLSearchParams({
+        client_id: SPOTIFY_CLIENT_ID,
+        response_type: "code",
+        redirect_uri: REDIRECT_URL,
+        scope: SCOPES.join(" "),
+        code_challenge_method: "S256",
+        code_challenge: challenge,
+        show_dialog: "false",
       });
 
-      if (!session?.accessToken) return false;
+      const result = await WebBrowser.openAuthSessionAsync(
+        `${SPOTIFY_AUTH_URL}?${params.toString()}`,
+        REDIRECT_URL
+      );
 
-      await SecureStore.setItemAsync(STORE_ACCESS_TOKEN, session.accessToken);
-      const expiry = session.expirationDate
-        ? new Date(session.expirationDate).getTime()
-        : Date.now() + 3600_000;
-      await SecureStore.setItemAsync(STORE_EXPIRY, String(expiry));
+      if (result.type !== "success") return false;
 
-      return true;
+      const url = new URL(result.url);
+      const code = url.searchParams.get("code");
+      if (!code) return false;
+
+      return this._exchangeCode(code, verifier);
     } catch {
       return false;
     }
+  }
+
+  private async _exchangeCode(code: string, verifier: string): Promise<boolean> {
+    try {
+      const res = await fetch(SPOTIFY_TOKEN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: REDIRECT_URL,
+          client_id: SPOTIFY_CLIENT_ID,
+          code_verifier: verifier,
+        }).toString(),
+      });
+      if (!res.ok) return false;
+      return this._storeTokenResponse(await res.json());
+    } catch {
+      return false;
+    }
+  }
+
+  private async _storeTokenResponse(json: Record<string, unknown>): Promise<boolean> {
+    const accessToken = json.access_token as string | undefined;
+    if (!accessToken) return false;
+    await SecureStore.setItemAsync(STORE_ACCESS_TOKEN, accessToken);
+    if (json.refresh_token) {
+      await SecureStore.setItemAsync(STORE_REFRESH_TOKEN, json.refresh_token as string);
+    }
+    const expiry = Date.now() + ((json.expires_in as number ?? 3600) * 1000);
+    await SecureStore.setItemAsync(STORE_EXPIRY, String(expiry));
+    return true;
   }
 
   private async _getValidToken(): Promise<string | null> {
     const token = await SecureStore.getItemAsync(STORE_ACCESS_TOKEN);
     const expiry = await SecureStore.getItemAsync(STORE_EXPIRY);
     if (!token) return null;
-    // Treat as expired if within 2 minutes of expiry
-    if (expiry && Date.now() > Number(expiry) - 120_000) return null;
+    // Expired or within 2 minutes → try refresh
+    if (expiry && Date.now() > Number(expiry) - 120_000) {
+      return this._refreshToken();
+    }
     return token;
   }
 
-  // ─── Search ───────────────────────────────────────────────────────────────
+  private async _refreshToken(): Promise<string | null> {
+    const refreshToken = await SecureStore.getItemAsync(STORE_REFRESH_TOKEN);
+    if (!refreshToken) return null;
+    try {
+      const res = await fetch(SPOTIFY_TOKEN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: refreshToken,
+          client_id: SPOTIFY_CLIENT_ID,
+        }).toString(),
+      });
+      if (!res.ok) return null;
+      const json = await res.json();
+      const ok = await this._storeTokenResponse(json);
+      return ok ? (json.access_token as string) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // ─── Search ──────────────────────────────────────────────────────────────────
 
   async search(query: string): Promise<Song[]> {
     if (!query.trim()) return [];
     const token = await this._getValidToken();
     if (!token) return [];
-
     try {
       const res = await fetch(
         `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=20`,
@@ -114,7 +179,6 @@ export class SpotifyProvider implements MusicProvider {
   async lookupById(spotifyId: string): Promise<Song | null> {
     const token = await this._getValidToken();
     if (!token) return null;
-
     try {
       const res = await fetch(
         `https://api.spotify.com/v1/tracks/${spotifyId}`,
@@ -141,45 +205,43 @@ export class SpotifyProvider implements MusicProvider {
     };
   }
 
-  // ─── Playback ─────────────────────────────────────────────────────────────
+  // ─── Playback ─────────────────────────────────────────────────────────────────
 
   async play(song: Song): Promise<void> {
-    const sdk = getSDK();
-    if (!sdk) throw new Error("spotify_sdk_unavailable");
     if (!song.spotifyId) throw new Error("spotify_no_id");
 
     const token = await this._getValidToken();
     if (!token) throw new Error("spotify_not_authorized");
 
-    // Connect to Spotify App Remote (requires Spotify app + Premium)
-    await sdk.remote.connect(token);
-    await sdk.remote.playUri(`spotify:track:${song.spotifyId}`);
+    if (!SpotifyRemote.isConnected()) {
+      const connected = await SpotifyRemote.connect(SPOTIFY_CLIENT_ID, REDIRECT_URL, token);
+      if (!connected) throw new Error("spotify_connect_failed");
+    }
+
+    await SpotifyRemote.playUri(`spotify:track:${song.spotifyId}`);
   }
 
   pause(): void {
-    getSDK()?.remote.pause().catch(() => {});
+    SpotifyRemote.pause();
   }
 
   resume(): void {
-    getSDK()?.remote.resume().catch(() => {});
+    SpotifyRemote.resume();
   }
 
   stop(): void {
-    const sdk = getSDK();
-    sdk?.remote.pause().catch(() => {});
-    sdk?.remote.disconnect().catch(() => {});
+    SpotifyRemote.pause();
+    SpotifyRemote.disconnect();
   }
 
   seekTo(seconds: number): void {
-    getSDK()?.remote.seek(seconds * 1000).catch(() => {});
+    SpotifyRemote.seekTo(seconds * 1000);
   }
 
-  // ─── Preview URL ──────────────────────────────────────────────────────────
+  // ─── Preview URL ──────────────────────────────────────────────────────────────
 
   async fetchPreviewUrl(song: Song): Promise<string | null> {
     if (!song.spotifyId) return null;
-    // Use the user's own OAuth token — no Edge Function or client credentials needed.
-    // The /v1/tracks/{id} response includes preview_url directly.
     const token = await this._getValidToken();
     if (!token) return null;
     try {
@@ -195,20 +257,16 @@ export class SpotifyProvider implements MusicProvider {
     }
   }
 
-  // ─── State Events ─────────────────────────────────────────────────────────
+  // ─── State Events ─────────────────────────────────────────────────────────────
 
   onStateChange(cb: (state: PlaybackState) => void): () => void {
-    const sdk = getSDK();
-    if (!sdk) return () => {};
-
-    const listener = (state: SpotifyPlayerState) => {
+    const sub = SpotifyRemote.addStateListener((state) => {
       cb({
-        isPlaying: !state.isPaused,
-        positionMs: state.playbackPosition ?? 0,
-        durationMs: state.track?.duration ?? 0,
+        isPlaying: state.isPlaying,
+        positionMs: state.positionMs,
+        durationMs: state.durationMs,
       });
-    };
-    sdk.remote.addListener("playerStateChanged", listener);
-    return () => sdk.remote.removeListener("playerStateChanged", listener);
+    });
+    return () => sub.remove();
   }
 }
