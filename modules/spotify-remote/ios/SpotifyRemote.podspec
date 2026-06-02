@@ -13,7 +13,7 @@ Pod::Spec.new do |s|
 
   s.dependency 'ExpoModulesCore'
 
-  s.source_files   = '**/*.{h,m,swift}'
+  s.source_files   = '*.swift'
   s.vendored_frameworks = 'SpotifyiOS.xcframework'
 
   s.pod_target_xcconfig = {
