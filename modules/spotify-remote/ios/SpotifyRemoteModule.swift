@@ -3,7 +3,7 @@ import SpotifyiOS
 
 // ─── Delegate proxy ───────────────────────────────────────────────────────────
 // Expo's Module class does not inherit NSObject, but Spotify's ObjC protocols
-// require it. This proxy bridges the two worlds.
+// require it. This proxy satisfies that requirement.
 
 private class SpotifyDelegateProxy: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerStateDelegate {
   weak var module: SpotifyRemoteModule?
@@ -28,7 +28,7 @@ public class SpotifyRemoteModule: Module {
 
   private var appRemote: SPTAppRemote?
   private let proxy = SpotifyDelegateProxy()
-  private var connectContinuation: CheckedContinuation<Bool, Never>?
+  private var connectPromise: Promise?
   private var isObservingState = false
 
   public func definition() -> ModuleDefinition {
@@ -37,28 +37,28 @@ public class SpotifyRemoteModule: Module {
     Events("onPlayerStateChanged", "onConnected", "onDisconnected")
 
     // ─── Connection ─────────────────────────────────────────────────────────
+    // Uses Promise (not async/await) — whole-module-optimization compiles
+    // AsyncFunction closures as non-async; SPTAppRemote also isn't Sendable.
 
-    AsyncFunction("connect") { (clientId: String, redirectUrl: String, accessToken: String) -> Bool in
-      return await withCheckedContinuation { [weak self] continuation in
-        guard let self else { continuation.resume(returning: false); return }
-
-        if let existing = self.appRemote, existing.isConnected {
-          existing.disconnect()
-        }
-
-        let config = SPTConfiguration(
-          clientID: clientId,
-          redirectURL: URL(string: redirectUrl)!
-        )
-        let remote = SPTAppRemote(configuration: config, logLevel: .none)
-        remote.connectionParameters.accessToken = accessToken
-        remote.delegate = self.proxy
-        self.proxy.module = self
-        self.appRemote = remote
-        self.connectContinuation = continuation
-
-        DispatchQueue.main.async { remote.connect() }
+    AsyncFunction("connect") { (clientId: String, redirectUrl: String, accessToken: String, promise: Promise) in
+      if let existing = self.appRemote, existing.isConnected {
+        existing.disconnect()
       }
+
+      guard let redirectURL = URL(string: redirectUrl) else {
+        promise.resolve(false)
+        return
+      }
+
+      let config = SPTConfiguration(clientID: clientId, redirectURL: redirectURL)
+      let remote = SPTAppRemote(configuration: config, logLevel: .none)
+      remote.connectionParameters.accessToken = accessToken
+      remote.delegate = self.proxy
+      self.proxy.module = self
+      self.appRemote = remote
+      self.connectPromise = promise
+
+      DispatchQueue.main.async { remote.connect() }
     }
 
     Function("disconnect") { [weak self] in
@@ -72,15 +72,17 @@ public class SpotifyRemoteModule: Module {
 
     // ─── Playback ────────────────────────────────────────────────────────────
 
-    AsyncFunction("playUri") { (uri: String) throws in
+    AsyncFunction("playUri") { (uri: String, promise: Promise) in
       guard let playerAPI = self.appRemote?.playerAPI else {
-        throw SpotifyRemoteError.notConnected
+        promise.reject("NOT_CONNECTED", "Spotify App Remote is not connected", nil)
+        return
       }
-      try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-        // SPTAppRemoteCallback = (Any?, Error?) -> Void — both args required
-        playerAPI.play(uri) { _, error in
-          if let error { continuation.resume(throwing: error) }
-          else { continuation.resume() }
+      // SPTAppRemoteCallback = (Any?, Error?) -> Void
+      playerAPI.play(uri) { _, error in
+        if let error = error {
+          promise.reject("PLAY_FAILED", error.localizedDescription, error)
+        } else {
+          promise.resolve(nil)
         }
       }
     }
@@ -117,14 +119,14 @@ public class SpotifyRemoteModule: Module {
     if isObservingState {
       appRemote.playerAPI?.subscribe(toPlayerState: { _, _ in })
     }
-    connectContinuation?.resume(returning: true)
-    connectContinuation = nil
+    connectPromise?.resolve(true)
+    connectPromise = nil
     sendEvent("onConnected")
   }
 
   func handleConnectionFailed() {
-    connectContinuation?.resume(returning: false)
-    connectContinuation = nil
+    connectPromise?.resolve(false)
+    connectPromise = nil
   }
 
   func handleDisconnected() {
@@ -138,8 +140,4 @@ public class SpotifyRemoteModule: Module {
       "durationMs": state.track.duration,
     ])
   }
-}
-
-private enum SpotifyRemoteError: Error {
-  case notConnected
 }
