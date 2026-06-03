@@ -1,0 +1,20 @@
+diff --git a/node_modules/expo-apple-authentication/ios/AppleAuthenticationRequest.swift b/node_modules/expo-apple-authentication/ios/AppleAuthenticationRequest.swift
+index d933f9c..18655f7 100644
+--- a/node_modules/expo-apple-authentication/ios/AppleAuthenticationRequest.swift
++++ b/node_modules/expo-apple-authentication/ios/AppleAuthenticationRequest.swift
+@@ -81,9 +81,11 @@ final class AppleAuthenticationRequest: NSObject, ASAuthorizationControllerPrese
+   // MARK: - ASAuthorizationControllerPresentationContextProviding
+ 
+   func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+-    guard let window = UIApplication.shared.keyWindow else {
+-      fatalError("Unable to present authentication modal because UIApplication.shared.keyWindow is not available")
+-    }
+-    return window
++    // UIApplication.shared.keyWindow was removed in iOS 26; use connectedScenes instead.
++    return UIApplication.shared.connectedScenes
++      .compactMap { $0 as? UIWindowScene }
++      .flatMap { $0.windows }
++      .first(where: { $0.isKeyWindow })
++      ?? ASPresentationAnchor()
+   }
+ }
