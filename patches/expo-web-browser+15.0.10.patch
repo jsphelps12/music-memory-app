@@ -1,35 +1,39 @@
 diff --git a/node_modules/expo-web-browser/ios/WebAuthSession.swift b/node_modules/expo-web-browser/ios/WebAuthSession.swift
-index fb228d4..b0d5871 100644
+index fb228d4..e8b7f41 100644
 --- a/node_modules/expo-web-browser/ios/WebAuthSession.swift
 +++ b/node_modules/expo-web-browser/ios/WebAuthSession.swift
-@@ -6,7 +6,12 @@ import AuthenticationServices
+@@ -6,7 +6,15 @@ import AuthenticationServices
  private class PresentationContextProvider: NSObject, ASWebAuthenticationPresentationContextProviding {
    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
      #if os(iOS)
 -    return UIApplication.shared.keyWindow ?? ASPresentationAnchor()
-+    // UIApplication.shared.keyWindow was removed in iOS 26; use connectedScenes instead.
++    // UIApplication.shared.keyWindow was removed in iOS 26.
++    // UIWindowScene.keyWindow (iOS 15+) is the canonical replacement.
++    // Fall back to windows.first so we never return a scene-less UIWindow(),
++    // which causes ASWebAuthenticationSession to throw on iOS 26.
 +    return UIApplication.shared.connectedScenes
 +      .compactMap { $0 as? UIWindowScene }
-+      .flatMap { $0.windows }
-+      .first(where: { $0.isKeyWindow })
++      .compactMap { $0.keyWindow ?? $0.windows.first }
++      .first
 +      ?? ASPresentationAnchor()
      #else
      return NSApp.mainWindow ?? ASPresentationAnchor()
      #endif
 diff --git a/node_modules/expo-web-browser/ios/WebBrowserSession.swift b/node_modules/expo-web-browser/ios/WebBrowserSession.swift
-index d3d2981..862fd11 100644
+index d3d2981..fc04fbe 100644
 --- a/node_modules/expo-web-browser/ios/WebBrowserSession.swift
 +++ b/node_modules/expo-web-browser/ios/WebBrowserSession.swift
-@@ -30,7 +30,11 @@ internal class WebBrowserSession: NSObject, SFSafariViewControllerDelegate, UIAd
+@@ -30,7 +30,12 @@ internal class WebBrowserSession: NSObject, SFSafariViewControllerDelegate, UIAd
    }
  
    func open() {
 -    var currentViewController = UIApplication.shared.keyWindow?.rootViewController
-+    // UIApplication.shared.keyWindow was removed in iOS 26; use connectedScenes instead.
++    // UIApplication.shared.keyWindow was removed in iOS 26.
++    // UIWindowScene.keyWindow (iOS 15+) is the canonical replacement.
 +    var currentViewController = UIApplication.shared.connectedScenes
 +      .compactMap { $0 as? UIWindowScene }
-+      .flatMap { $0.windows }
-+      .first(where: { $0.isKeyWindow })?.rootViewController
++      .compactMap { $0.keyWindow ?? $0.windows.first }
++      .first?.rootViewController
      while currentViewController?.presentedViewController != nil {
        currentViewController = currentViewController?.presentedViewController
      }
