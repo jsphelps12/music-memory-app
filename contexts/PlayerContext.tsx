@@ -127,6 +127,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setCurrentSong(song);
       setIsPlaying(true);
       setIsPreview(false);
+      // Seed duration immediately from the song record so the scrubber
+      // shows at once rather than waiting for an SDK state-change event.
+      if (song.durationMs > 0) setPlaybackDuration(song.durationMs / 1000);
 
       providerUnsubRef.current = provider.onStateChange((state) => {
         if (activeProviderRef.current !== provider) return;

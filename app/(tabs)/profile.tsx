@@ -441,8 +441,12 @@ export default function ProfileScreen() {
                 text: "Spotify",
                 onPress: async () => {
                   if (preferredProvider === 'spotify') return;
-                  const ok = await setPreferredProvider('spotify');
-                  if (!ok) Alert.alert("Spotify", "Couldn't connect to Spotify. Make sure the Spotify app is installed and you have a Premium subscription.");
+                  try {
+                    const ok = await setPreferredProvider('spotify');
+                    if (!ok) Alert.alert("Spotify", "Couldn't connect to Spotify. Make sure the Spotify app is installed and you have a Premium subscription.");
+                  } catch {
+                    Alert.alert("Spotify", "Couldn't connect to Spotify. Make sure the Spotify app is installed and you have a Premium subscription.");
+                  }
                 },
               },
               { text: "Cancel", style: "cancel" },
