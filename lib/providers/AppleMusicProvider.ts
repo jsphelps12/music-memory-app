@@ -23,6 +23,12 @@ function getAMSdk(): typeof import("@lomray/react-native-apple-music") | null {
 export class AppleMusicProvider implements MusicProvider {
   readonly type = "apple_music" as const;
 
+  // Duration (seconds) returned by playAppleMusic — stored so onStateChange
+  // can emit it immediately on subscription instead of waiting for the
+  // onCurrentSongChange event (which fires before we subscribe, causing the
+  // scrubber to stay hidden on the first play).
+  private _lastDurationSecs = 0;
+
   async isAvailable(): Promise<boolean> {
     return requestMusicAuthorization();
   }
@@ -64,7 +70,9 @@ export class AppleMusicProvider implements MusicProvider {
 
   async play(song: Song): Promise<void> {
     if (!song.appleMusicId) throw new Error("apple_music_no_id");
-    await playAppleMusic(song.appleMusicId);
+    // playAppleMusic returns duration in seconds — store it so onStateChange
+    // can seed playbackDuration immediately without relying on events.
+    this._lastDurationSecs = await playAppleMusic(song.appleMusicId);
   }
 
   pause(): void {
@@ -94,6 +102,13 @@ export class AppleMusicProvider implements MusicProvider {
     if (!sdk) return () => {};
 
     const { Player, PlaybackStatus } = sdk;
+
+    // Emit the duration captured during play() immediately — the
+    // onCurrentSongChange event fires before PlayerContext subscribes here,
+    // so without this seed the scrubber stays hidden until the next song change.
+    if (this._lastDurationSecs > 0) {
+      cb({ isPlaying: true, positionMs: 0, durationMs: this._lastDurationSecs * 1000 });
+    }
 
     const stateSub = Player.addListener("onPlaybackStateChange", (state: IPlaybackState) => {
       const isPlaying =
