@@ -2,6 +2,13 @@ import { AppleMusicProvider } from "./AppleMusicProvider";
 import type { MusicProvider } from "./MusicProvider";
 import type { MusicProviderType } from "@/types";
 
+// Pre-initialize expo-secure-store at startup so its module factory
+// (which calls requireNativeModule('ExpoSecureStore')) runs while Turbo Module
+// resolution is fully available. Without this, the factory runs inside our
+// lazy require("./SpotifyProvider") and throws "Cannot find native module
+// 'ExpoSecureStore'" on New Architecture (confirmed Sentry REACT-NATIVE-12).
+import "expo-secure-store";
+
 export type { MusicProvider, PlaybackState } from "./MusicProvider";
 export { AppleMusicProvider } from "./AppleMusicProvider";
 // SpotifyProvider is NOT re-exported here — it is require()'d dynamically in
