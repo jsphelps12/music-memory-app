@@ -140,6 +140,9 @@ Revival sprint — production bug fixes + dual-app cleanup after June pause.
 - [x] **Per-variant URL scheme** — beta now uses `soundtracks-beta://` (prod keeps `soundtracks://`) so iOS no longer routes share-extension handoffs / OAuth callbacks to the wrong app when both variants are installed; Spotify redirect URL derives from `EXPO_PUBLIC_APP_ENV`; requires new preview binary (build 20) to take effect. Manual follow-up: whitelist `soundtracks-beta://spotify-callback` in Spotify dev dashboard
 - [x] **OTA workflows env fix** — `EXPO_PUBLIC_APP_ENV` now set in `ota-update.yml` (preview) and `promote-to-production.yml` (production) so beta OTA bundles stop reporting Sentry env "production"
 - [x] **June WIP landed** — Reflections artist-spotlight now derives from full library via browse meta cache (was: last 50 moments); SpotifyProvider lazy-require wrapped in try/catch so binaries without the native module get a friendly error instead of a crash (prerequisite for promoting OTA to App Store build 7)
+- [x] **ExpoSecureStore crash root-caused** — `expo-secure-store@56` (installed via plain `npm i` in June) is incompatible with SDK 54, so CocoaPods silently never linked the pod into ANY binary (builds 17–19); the June "REACT-NATIVE-12 New Arch" theory was wrong. Fixed: pinned `~15.0.8` via `expo install` (pod now links), removed the startup static import (it crashed pod-less binaries at launch — incl. App Store build 7 on OTA). Verified in simulator: pod-less binary + new JS launches clean → OTA promote to build 7 is safe
+- [x] **Paste-prompt fix** — clipboard deferred-link check read the clipboard 3× on every launch, triggering iOS paste-permission prompts for anyone with clipboard content; now reads once and only on first launch after install (`has_launched` gate)
+- [x] **Simulator verification** — Release build against prod: timeline photos render (image fix confirmed visually), auth session works, no startup crash, no paste prompt
 
 ---
 

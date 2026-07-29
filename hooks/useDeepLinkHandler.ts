@@ -16,37 +16,32 @@ const CLIPBOARD_INVITE_PREFIX = "soundtracks-invite:";
 const CLIPBOARD_FRIEND_PREFIX = "soundtracks-friend:";
 const CLIPBOARD_GIFT_PREFIX = "soundtracks-gift:";
 
-export async function checkClipboardForInvite(): Promise<string | null> {
-  try {
-    const text = await Clipboard.getStringAsync();
-    if (text.startsWith(CLIPBOARD_INVITE_PREFIX)) {
-      const code = text.replace(CLIPBOARD_INVITE_PREFIX, "").trim();
-      await Clipboard.setStringAsync("");
-      return code || null;
-    }
-  } catch {}
-  return null;
-}
+const HAS_LAUNCHED_KEY = "has_launched";
 
-export async function checkClipboardForFriendToken(): Promise<string | null> {
-  try {
-    const text = await Clipboard.getStringAsync();
-    if (text.startsWith(CLIPBOARD_FRIEND_PREFIX)) {
-      const token = text.replace(CLIPBOARD_FRIEND_PREFIX, "").trim();
-      await Clipboard.setStringAsync("");
-      return token || null;
-    }
-  } catch {}
-  return null;
-}
+type DeferredLink = { kind: "invite" | "friend" | "gift"; value: string };
 
-export async function checkClipboardForGift(): Promise<string | null> {
+/**
+ * Read the clipboard once and match all deferred-link prefixes.
+ * Reading the clipboard triggers the iOS paste-permission prompt, so this only
+ * runs on the very first launch after install (the only case the web fallback
+ * targets) — has_launched is written after first-launch routing in _layout,
+ * i.e. after this check has already run.
+ */
+export async function checkClipboardForDeferredLink(): Promise<DeferredLink | null> {
   try {
+    if ((await AsyncStorage.getItem(HAS_LAUNCHED_KEY)) === "true") return null;
     const text = await Clipboard.getStringAsync();
-    if (text.startsWith(CLIPBOARD_GIFT_PREFIX)) {
-      const token = text.replace(CLIPBOARD_GIFT_PREFIX, "").trim();
-      await Clipboard.setStringAsync("");
-      return token || null;
+    const kinds = [
+      { kind: "invite", prefix: CLIPBOARD_INVITE_PREFIX },
+      { kind: "friend", prefix: CLIPBOARD_FRIEND_PREFIX },
+      { kind: "gift", prefix: CLIPBOARD_GIFT_PREFIX },
+    ] as const;
+    for (const { kind, prefix } of kinds) {
+      if (text.startsWith(prefix)) {
+        const value = text.replace(prefix, "").trim();
+        await Clipboard.setStringAsync("");
+        return value ? { kind, value } : null;
+      }
     }
   } catch {}
   return null;
@@ -145,14 +140,11 @@ export function useDeepLinkHandler() {
 
   // Clipboard check — deferred deep link fallback for cold installs via web invite/friend/gift pages
   useEffect(() => {
-    checkClipboardForInvite().then((code) => {
-      if (code) handleInviteCode(code);
-    });
-    checkClipboardForFriendToken().then((token) => {
-      if (token) handleFriendToken(token);
-    });
-    checkClipboardForGift().then((token) => {
-      if (token) AsyncStorage.setItem(PENDING_GIFT_TOKEN_KEY, token).catch(() => {});
+    checkClipboardForDeferredLink().then((link) => {
+      if (!link) return;
+      if (link.kind === "invite") handleInviteCode(link.value);
+      else if (link.kind === "friend") handleFriendToken(link.value);
+      else AsyncStorage.setItem(PENDING_GIFT_TOKEN_KEY, link.value).catch(() => {});
     });
   }, [handleInviteCode, handleFriendToken]);
 

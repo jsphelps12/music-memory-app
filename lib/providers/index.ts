@@ -2,12 +2,14 @@ import { AppleMusicProvider } from "./AppleMusicProvider";
 import type { MusicProvider } from "./MusicProvider";
 import type { MusicProviderType } from "@/types";
 
-// Pre-initialize expo-secure-store at startup so its module factory
-// (which calls requireNativeModule('ExpoSecureStore')) runs while Turbo Module
-// resolution is fully available. Without this, the factory runs inside our
-// lazy require("./SpotifyProvider") and throws "Cannot find native module
-// 'ExpoSecureStore'" on New Architecture (confirmed Sentry REACT-NATIVE-12).
-import "expo-secure-store";
+// NOTE: expo-secure-store must NOT be statically imported here (or anywhere
+// reached at startup). Binaries built before June 2026 (incl. App Store build 7)
+// don't contain the ExpoSecureStore pod, and its module factory throws at
+// import time — a static import turns that into an instant startup crash on
+// OTA update. It is only imported inside SpotifyProvider, behind the try/catch
+// below. (The June "REACT-NATIVE-12" crash was actually caused by
+// expo-secure-store@56 being incompatible with SDK 54, so the pod was silently
+// never linked into any binary.)
 
 export type { MusicProvider, PlaybackState } from "./MusicProvider";
 export { AppleMusicProvider } from "./AppleMusicProvider";
