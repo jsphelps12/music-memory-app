@@ -18,7 +18,7 @@ import {
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from "react-native-reanimated";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -377,7 +377,7 @@ export default function ProfileEditScreen() {
             {uploadingAvatar ? (
               <ActivityIndicator size="large" color={theme.colors.textSecondary} />
             ) : avatarUri ? (
-              <Image source={{ uri: avatarUri }} style={styles.avatar} />
+              <AppImage source={{ uri: avatarUri }} style={styles.avatar} />
             ) : (
               <Text style={styles.initials}>{initials}</Text>
             )}
@@ -605,7 +605,7 @@ export default function ProfileEditScreen() {
                     activeOpacity={0.7}
                   >
                     {item.artworkUrl && (
-                      <Image source={{ uri: item.artworkUrl }} style={styles.songArtwork} contentFit="cover" />
+                      <AppImage source={{ uri: item.artworkUrl }} style={styles.songArtwork} contentFit="cover" />
                     )}
                     <View style={styles.resultText}>
                       <Text style={[styles.resultTitle, selected && { color: theme.colors.accent }]} numberOfLines={1}>

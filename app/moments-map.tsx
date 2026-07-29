@@ -5,7 +5,7 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { Image as RNImage } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -130,7 +130,7 @@ export default function MomentsMapScreen() {
           }}
         >
           {selectedMoment.song_artwork_url ? (
-            <Image
+            <AppImage
               source={{ uri: selectedMoment.song_artwork_url }}
               style={styles.previewArtwork}
               contentFit="cover"

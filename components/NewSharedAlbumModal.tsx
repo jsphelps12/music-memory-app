@@ -13,7 +13,7 @@ import {
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from "react-native-reanimated";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -107,7 +107,7 @@ export function NewSharedAlbumModal({ visible, onClose, userId }: Props) {
           {/* Cover photo picker */}
           <TouchableOpacity onPress={handlePickCover} style={[styles.coverPicker, { backgroundColor: theme.colors.backgroundTertiary }]} activeOpacity={0.8}>
             {coverUri ? (
-              <Image source={{ uri: coverUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+              <AppImage source={{ uri: coverUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
             ) : (
               <View style={styles.coverPlaceholder}>
                 <Ionicons name="camera-outline" size={28} color={theme.colors.textTertiary} />

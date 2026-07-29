@@ -13,7 +13,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -73,7 +73,7 @@ function AlbumCell({
     <TouchableOpacity style={styles.cell} onPress={onPress} activeOpacity={0.85}>
       <View style={styles.cellArt}>
         {thumbUrl ? (
-          <Image source={{ uri: thumbUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <AppImage source={{ uri: thumbUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
         ) : (
           <LinearGradient colors={["#E8825C", "#6B5F8C"]} style={StyleSheet.absoluteFill}>
             <View style={styles.cellPlaceholderInner}>

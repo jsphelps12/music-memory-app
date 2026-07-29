@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { submitContribution } from "./actions";
+import { compressImage } from "@/lib/compressImage";
 import Image from "next/image";
 
 interface SongResult {
@@ -87,13 +88,21 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
     setSongResults([]);
   }
 
-  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setPhotoFile(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => setPhotoPreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
+    // Compress before upload, not after: a phone photo is several MB and every
+    // viewer of the album would download the original on every render.
+    try {
+      const compressed = await compressImage(file);
+      setPhotoFile(compressed);
+      setPhotoPreview(URL.createObjectURL(compressed));
+      setError(null);
+    } catch {
+      setPhotoFile(null);
+      setPhotoPreview(null);
+      setError("That image format isn't supported here — please choose a JPEG or PNG.");
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {

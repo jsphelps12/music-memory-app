@@ -7,7 +7,7 @@ import {
   ActionSheetIOS,
   StyleSheet,
 } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { extractPhotoMetadata } from "@/lib/photoMetadata";
@@ -110,7 +110,7 @@ export function PhotoPickerSection({
         >
           {photos.map((uri) => (
             <View key={uri} style={styles.thumbContainer}>
-              <Image source={{ uri }} style={styles.thumb} />
+              <AppImage source={{ uri }} style={styles.thumb} />
               <TouchableOpacity style={styles.removeButton} onPress={() => handleRemovePhoto(uri)}>
                 <Text style={styles.removeText}>✕</Text>
               </TouchableOpacity>

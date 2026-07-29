@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -173,7 +173,7 @@ export default function FriendInviteScreen() {
         <View style={styles.center}>
           <View style={[styles.avatarContainer, { backgroundColor: theme.colors.backgroundTertiary }]}>
             {avatarUri ? (
-              <Image source={{ uri: avatarUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+              <AppImage source={{ uri: avatarUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
             ) : (
               <Text style={[styles.initials, { color: theme.colors.textTertiary }]}>{initials}</Text>
             )}
@@ -210,7 +210,7 @@ export default function FriendInviteScreen() {
         <View style={styles.content}>
           <View style={[styles.avatarContainer, { backgroundColor: theme.colors.backgroundTertiary }]}>
             {avatarUri ? (
-              <Image source={{ uri: avatarUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+              <AppImage source={{ uri: avatarUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
             ) : (
               <Text style={[styles.initials, { color: theme.colors.textTertiary }]}>{initials}</Text>
             )}

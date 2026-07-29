@@ -17,7 +17,7 @@ import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
 import { supabase } from "@/lib/supabase";
 import * as Crypto from "expo-crypto";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { ShareCard, CARD_WIDTH, CARD_HEIGHT } from "@/components/ShareCard";
 import { Moment } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -142,7 +142,7 @@ export function ShareCardModal({ visible, moment, photoUrls, onClose }: Props) {
                         selected && { borderColor: theme.colors.accent, borderWidth: 2.5 },
                       ]}
                     >
-                      <Image
+                      <AppImage
                         source={{ uri: item }}
                         style={styles.thumbImage}
                         contentFit="cover"

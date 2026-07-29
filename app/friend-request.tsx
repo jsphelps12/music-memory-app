@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -89,7 +89,7 @@ export default function FriendRequestScreen() {
           {/* Avatar */}
           <View style={[styles.avatarContainer, { backgroundColor: theme.colors.backgroundTertiary }]}>
             {avatarUri ? (
-              <Image source={{ uri: avatarUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+              <AppImage source={{ uri: avatarUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
             ) : (
               <Text style={[styles.initials, { color: theme.colors.textTertiary }]}>{initials}</Text>
             )}

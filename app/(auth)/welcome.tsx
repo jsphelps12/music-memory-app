@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useRouter } from "expo-router";
@@ -56,7 +56,7 @@ export default function WelcomeScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <Image source={ICON} style={styles.icon} contentFit="contain" />
+        <AppImage source={ICON} style={styles.icon} contentFit="contain" />
 
         <Text style={styles.title}>Soundtracks</Text>
         <Text style={styles.tagline}>

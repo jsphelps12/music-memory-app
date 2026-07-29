@@ -10,7 +10,7 @@ import {
   RefreshControl,
   Dimensions,
 } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -222,7 +222,7 @@ export default function AlbumDetailScreen() {
         elevation: 8,
       }]}>
         {coverUrl ? (
-          <Image source={{ uri: coverUrl }} style={styles.art} contentFit="cover" />
+          <AppImage source={{ uri: coverUrl }} style={styles.art} contentFit="cover" />
         ) : (
           <LinearGradient colors={["#E8825C", "#6B5F8C"]} style={styles.art}>
             <Ionicons name="albums-outline" size={48} color="rgba(255,255,255,0.8)" />

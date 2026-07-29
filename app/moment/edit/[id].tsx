@@ -13,7 +13,7 @@ import {
   Linking,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -359,7 +359,7 @@ export default function EditMomentScreen() {
             }
           >
             {song!.artworkUrl ? (
-              <Image
+              <AppImage
                 source={{ uri: song!.artworkUrl }}
                 style={styles.artwork}
               />
@@ -444,7 +444,7 @@ export default function EditMomentScreen() {
           >
             {existingPhotoUrls.map((url, index) => (
               <View key={`existing-${index}`} style={styles.photoThumbContainer}>
-                <Image source={{ uri: url }} style={styles.photoThumb} />
+                <AppImage source={{ uri: url }} style={styles.photoThumb} />
                 <TouchableOpacity
                   style={styles.photoRemove}
                   onPress={() => handleRemoveExistingPhoto(index)}
@@ -455,7 +455,7 @@ export default function EditMomentScreen() {
             ))}
             {newPhotos.map((uri) => (
               <View key={uri} style={styles.photoThumbContainer}>
-                <Image source={{ uri }} style={styles.photoThumb} />
+                <AppImage source={{ uri }} style={styles.photoThumb} />
                 <TouchableOpacity
                   style={styles.photoRemove}
                   onPress={() => handleRemoveNewPhoto(uri)}

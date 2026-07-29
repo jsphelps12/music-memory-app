@@ -15,7 +15,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -617,7 +617,7 @@ export default function CreateMomentScreen() {
                 onPress={() => handleSelectCandidate(item)}
               >
                 {item.artworkUrl ? (
-                  <Image source={{ uri: item.artworkUrl }} style={styles.candidateArtwork} />
+                  <AppImage source={{ uri: item.artworkUrl }} style={styles.candidateArtwork} />
                 ) : (
                   <ArtworkPlaceholder style={styles.candidateArtwork} />
                 )}

@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { getNowPlaying, onNowPlayingChange } from "@/lib/now-playing";
@@ -148,7 +148,7 @@ export function SongPickerSection({ song, onChange, photos = [] }: SongPickerSec
     return (
       <TouchableOpacity style={styles.songCard} activeOpacity={0.7} onPress={goToSongSearch}>
         {song.artworkUrl ? (
-          <Image source={{ uri: song.artworkUrl }} style={styles.artwork} />
+          <AppImage source={{ uri: song.artworkUrl }} style={styles.artwork} />
         ) : (
           <ArtworkPlaceholder style={styles.artwork} />
         )}
@@ -168,7 +168,7 @@ export function SongPickerSection({ song, onChange, photos = [] }: SongPickerSec
         <View style={styles.nowPlayingBanner}>
           <View style={styles.bannerContent}>
             {nowPlayingSong.artworkUrl ? (
-              <Image source={{ uri: nowPlayingSong.artworkUrl }} style={styles.bannerArtwork} />
+              <AppImage source={{ uri: nowPlayingSong.artworkUrl }} style={styles.bannerArtwork} />
             ) : (
               <ArtworkPlaceholder style={styles.bannerArtwork} />
             )}
@@ -217,7 +217,7 @@ export function SongPickerSection({ song, onChange, photos = [] }: SongPickerSec
         <View style={styles.shazamBanner}>
           <View style={styles.bannerContent}>
             {shazamResult.artworkUrl ? (
-              <Image source={{ uri: shazamResult.artworkUrl }} style={styles.bannerArtwork} />
+              <AppImage source={{ uri: shazamResult.artworkUrl }} style={styles.bannerArtwork} />
             ) : (
               <ArtworkPlaceholder style={styles.bannerArtwork} />
             )}

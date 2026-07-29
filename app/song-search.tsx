@@ -10,7 +10,7 @@ import {
   Linking,
   StyleSheet,
 } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { getProvider } from "@/lib/providers";
@@ -163,7 +163,7 @@ export default function SongSearchScreen() {
               activeOpacity={0.7}
             >
               {item.artworkUrl ? (
-                <Image
+                <AppImage
                   source={{ uri: item.artworkUrl }}
                   style={styles.artwork}
                 />

@@ -123,15 +123,25 @@ Deno.serve(async (req) => {
 
     const artworkUrl = song.artworkUrl100.replace("100x100", "600x600");
 
-    // Upload photo
+    // Upload photo. photo.type is caller-controlled, so allowlist it rather
+    // than passing it through: the bucket is public, and serving an arbitrary
+    // content type (text/html) from the storage origin is a real hazard.
+    // Anything outside the list is stored as JPEG, and the file extension is
+    // always derived from the type we actually set, never from the claim.
+    const ALLOWED_IMAGE_TYPES: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+    };
     const photoBuffer = await photo.arrayBuffer();
-    const photoExt = photo.type === "image/png" ? "png" : "jpg";
+    const contentType = ALLOWED_IMAGE_TYPES[photo.type] ? photo.type : "image/jpeg";
+    const photoExt = ALLOWED_IMAGE_TYPES[contentType];
     const photoPath = `guest/${guestUuid}/${crypto.randomUUID()}.${photoExt}`;
 
     const { error: uploadError } = await adminClient.storage
       .from("moment-photos")
       .upload(photoPath, photoBuffer, {
-        contentType: photo.type,
+        contentType,
         upsert: false,
       });
 

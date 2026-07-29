@@ -10,7 +10,7 @@ import {
   RefreshControl,
   Alert,
 } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
@@ -50,7 +50,7 @@ function Avatar({ avatarUrl, displayName }: { avatarUrl: string | null; displayN
   return (
     <View style={[styles.avatar, { backgroundColor: theme.colors.backgroundTertiary }]}>
       {avatarUrl ? (
-        <Image source={{ uri: getPublicPhotoUrl(avatarUrl) }} style={StyleSheet.absoluteFill} contentFit="cover" />
+        <AppImage source={{ uri: getPublicPhotoUrl(avatarUrl) }} style={StyleSheet.absoluteFill} contentFit="cover" />
       ) : (
         <Text style={[styles.avatarInitial, { color: theme.colors.textTertiary }]}>{initials}</Text>
       )}

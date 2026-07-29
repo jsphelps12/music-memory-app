@@ -59,7 +59,6 @@ Copy `.env.example` to `.env` and fill in:
 - Now playing detection uses `MPMusicPlayerController.systemMusicPlayer` (not the library's `ApplicationMusicPlayer` which only sees app-initiated playback)
 - **Albums** (UI/type name) = user-defined moment groupings; DB tables use `collections` / `collection_members` / `collection_moments` / `collection_invites`; types are `Album` / `AlbumPreview` in `types/index.ts`; all DB operations in `lib/albums.ts`
 - Tab bar: Moments | Reflections | Albums | Me — the Albums tab file is `app/(tabs)/friends.tsx` (route name unchanged from when it was the Friends tab)
-- `lib/pendingAlbum.ts` — consume-once module-level var for post-join auto-selection
 - Direct invite system: `collection_invites` table; `sendAlbumInvite` / `fetchPendingAlbumInvites` / `acceptAlbumInvite` / `deleteAlbumInvite` / `searchUsersForAlbum` in `lib/albums.ts`
 
 ## Data Fetching (React Query / TanStack Query)
@@ -83,7 +82,6 @@ Several libs use a module-level variable with a setter and a `consume*()` that r
 - `lib/momentCache.ts` — `setCachedMoment` / `consumeCachedMoment`: pass full Moment data from card tap into detail screen to avoid re-fetch on entry
 - `lib/cardTransition.ts` — `setCardOrigin` / `consumeCardOrigin`: measured card position for entry animation in detail screen
 - `lib/timelineRefresh.ts` — `markTimelineStale` / `markTimelineDeleted` / `consumeTimelineStale`: signal from create/edit/delete that timeline needs refresh on next focus; optionally carries a newly created Moment for instant prepend
-- `lib/pendingAlbum.ts` — `setPendingAlbumId` / `consumePendingAlbumId`: auto-select an album after navigating to tabs (e.g. after joining via invite link)
 
 All follow the same shape: module-level `let x = null`, setter, and `consume()` that returns the value and resets it.
 

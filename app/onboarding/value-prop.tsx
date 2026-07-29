@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/hooks/useTheme";
@@ -90,7 +90,7 @@ function MockMomentCard({ theme }: { theme: Theme }) {
   return (
     <View style={cardStyles.card}>
       <View style={cardStyles.row}>
-        <Image
+        <AppImage
           source={RUNAWAY_ARTWORK}
           style={cardStyles.artwork}
           contentFit="cover"

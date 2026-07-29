@@ -10,7 +10,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
@@ -82,7 +82,7 @@ export function PhotoViewer({ photos, initialIndex, visible, onClose }: Props) {
               showsVerticalScrollIndicator={false}
               centerContent
             >
-              <Image
+              <AppImage
                 source={{ uri: item }}
                 style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}
                 contentFit="contain"

@@ -27,7 +27,7 @@ type DeferredLink = { kind: "invite" | "friend" | "gift"; value: string };
  * targets) — has_launched is written after first-launch routing in _layout,
  * i.e. after this check has already run.
  */
-export async function checkClipboardForDeferredLink(): Promise<DeferredLink | null> {
+async function checkClipboardForDeferredLink(): Promise<DeferredLink | null> {
   try {
     if ((await AsyncStorage.getItem(HAS_LAUNCHED_KEY)) === "true") return null;
     const text = await Clipboard.getStringAsync();

@@ -30,32 +30,6 @@ async function compressImage(uri: string, maxDimension: number): Promise<string>
 }
 
 /**
- * Upload a photo to Supabase Storage and return the storage path.
- * The path can later be used with createSignedUrl() to display the image.
- */
-export async function uploadMomentPhoto(
-  userId: string,
-  uri: string
-): Promise<string> {
-  const compressed = await compressImage(uri, MAX_MOMENT_PHOTO_DIMENSION);
-  const storagePath = `${userId}/${Crypto.randomUUID()}.jpg`;
-
-  const file = new File(compressed);
-  const arrayBuffer = await file.arrayBuffer();
-
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(storagePath, arrayBuffer, {
-      contentType: "image/jpeg",
-      upsert: false,
-    });
-
-  if (error) throw error;
-
-  return storagePath;
-}
-
-/**
  * Upload a photo and a 400px thumbnail in parallel.
  * Returns both storage paths.
  */

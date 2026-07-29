@@ -37,39 +37,8 @@ export async function clearAlbumsCache(userId: string): Promise<void> {
 const ALBUM_MOMENTS_CACHE_KEY_PREFIX = "collection_moments_v1_";
 const ALBUM_MOMENTS_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-type AlbumMomentsStore = Record<string, { moments: Moment[]; fetchedAt: number }>;
-
 function albumMomentsCacheKey(userId: string) {
   return `${ALBUM_MOMENTS_CACHE_KEY_PREFIX}${userId}`;
-}
-
-async function readAlbumMomentsStore(userId: string): Promise<AlbumMomentsStore> {
-  try {
-    const raw = await AsyncStorage.getItem(albumMomentsCacheKey(userId));
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-export async function readAlbumMomentsCache(
-  userId: string,
-  albumId: string
-): Promise<{ moments: Moment[]; fetchedAt: number } | null> {
-  const store = await readAlbumMomentsStore(userId);
-  return store[albumId] ?? null;
-}
-
-export async function writeAlbumMomentsCache(
-  userId: string,
-  albumId: string,
-  moments: Moment[]
-): Promise<void> {
-  try {
-    const store = await readAlbumMomentsStore(userId);
-    store[albumId] = { moments, fetchedAt: Date.now() };
-    await AsyncStorage.setItem(albumMomentsCacheKey(userId), JSON.stringify(store));
-  } catch {}
 }
 
 export async function clearAllAlbumMomentsCache(userId: string): Promise<void> {
@@ -210,16 +179,6 @@ export async function removeMomentFromAlbum(collectionId: string, momentId: stri
     .eq("collection_id", collectionId)
     .eq("moment_id", momentId);
   if (error) throw error;
-}
-
-export async function fetchMomentAlbumIds(momentId: string): Promise<string[]> {
-  const { data, error } = await supabase
-    .from("collection_moments")
-    .select("collection_id")
-    .eq("moment_id", momentId);
-
-  if (error) throw error;
-  return (data ?? []).map((row: any) => row.collection_id);
 }
 
 // Returns a lightweight preview of a public album for the join screen
@@ -484,7 +443,7 @@ export async function renameAlbum(collectionId: string, name: string): Promise<v
   if (error) throw error;
 }
 
-export async function addAlbumMemberById(collectionId: string, userId: string): Promise<void> {
+async function addAlbumMemberById(collectionId: string, userId: string): Promise<void> {
   const { error } = await supabase
     .from("collection_members")
     .insert({ collection_id: collectionId, user_id: userId });

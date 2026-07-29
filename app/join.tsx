@@ -14,7 +14,6 @@ import * as Haptics from "expo-haptics";
 import { CloseButton } from "@/components/CloseButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchAlbumByInviteCode, joinAlbum } from "@/lib/albums";
-import { setPendingAlbumId } from "@/lib/pendingAlbum";
 import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/hooks/useTheme";
 import { friendlyError } from "@/lib/errors";
@@ -77,7 +76,9 @@ export default function JoinScreen() {
     setError("");
     try {
       const joined = await joinAlbum(inviteCode, user.id);
-      setPendingAlbumId(joined.id);
+      // NOTE: post-join album auto-select is not implemented — the consumer
+      // that read this was removed some time ago, so the write was a no-op.
+      // To restore it, have the Albums tab select `joined.id` on focus.
       posthog.capture("collection_joined", { collection_name: collection?.name ?? null });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace("/(tabs)");

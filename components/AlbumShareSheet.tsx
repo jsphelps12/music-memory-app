@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from "react-native-reanimated";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -476,7 +476,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                   activeOpacity={0.8}
                   hitSlop={4}
                 >
-                  <Image
+                  <AppImage
                     source={{ uri: getPublicPhotoThumbnailUrl(collection.coverPhotoUrl) }}
                     style={styles.coverThumb}
                     contentFit="cover"
