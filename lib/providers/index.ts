@@ -26,8 +26,14 @@ export function getProvider(type: MusicProviderType): MusicProvider {
     if (!_spotify) {
       // Dynamic require keeps SpotifyRemote native module load deferred until
       // the first moment someone actually uses Spotify.
-      const { SpotifyProvider } = require("./SpotifyProvider") as typeof import("./SpotifyProvider");
-      _spotify = new SpotifyProvider();
+      try {
+        const { SpotifyProvider } = require("./SpotifyProvider") as typeof import("./SpotifyProvider");
+        _spotify = new SpotifyProvider();
+      } catch (e) {
+        // Module load failures (e.g. native module unavailable) should surface
+        // as the "Couldn't connect" alert, not a fatal crash.
+        throw new Error("spotify_module_unavailable", { cause: e });
+      }
     }
     return _spotify;
   }
