@@ -1,4 +1,4 @@
-import { StyleSheet, ViewStyle } from "react-native";
+import { ViewStyle } from "react-native";
 
 export const fonts = {
   display: "DMSerifDisplay_400Regular",

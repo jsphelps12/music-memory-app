@@ -131,6 +131,18 @@ Tab redesign sprint + architecture improvements.
 
 ---
 
+## Shipped July 2026
+
+Revival sprint — production bug fixes + dual-app cleanup after June pause.
+
+- [x] **Prod image previews fixed** — moment-card thumbnails used Supabase image-transformation URLs (`/render/image/...`), a paid feature that returns `403 FeatureNotEnabled` on this project; `getPublicPhotoThumbnailUrl()` now returns plain public URLs (thumbnails are already pre-resized to 400px at upload); all 6 call sites updated
+- [x] **Thumbnail backfill** — `scripts/backfill-thumbnails.mjs` (sharp + macOS `sips` fallback for HEIC-masquerading-as-jpg guest uploads); ran against prod: 31 moments backfilled, 0 remaining
+- [x] **Per-variant URL scheme** — beta now uses `soundtracks-beta://` (prod keeps `soundtracks://`) so iOS no longer routes share-extension handoffs / OAuth callbacks to the wrong app when both variants are installed; Spotify redirect URL derives from `EXPO_PUBLIC_APP_ENV`; requires new preview binary (build 20) to take effect. Manual follow-up: whitelist `soundtracks-beta://spotify-callback` in Spotify dev dashboard
+- [x] **OTA workflows env fix** — `EXPO_PUBLIC_APP_ENV` now set in `ota-update.yml` (preview) and `promote-to-production.yml` (production) so beta OTA bundles stop reporting Sentry env "production"
+- [x] **June WIP landed** — Reflections artist-spotlight now derives from full library via browse meta cache (was: last 50 moments); SpotifyProvider lazy-require wrapped in try/catch so binaries without the native module get a friendly error instead of a crash (prerequisite for promoting OTA to App Store build 7)
+
+---
+
 ## NOW — May 2026 Priorities
 
 ### 1. Polish & Bug Fixes 🔴 *In progress*

@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 
-// Mock native musickit before importing music-url (which imports musickit at top level)
-vi.mock("@/lib/musickit", () => ({
-  searchSongs: vi.fn(),
+// Mock the provider registry before importing music-url — lib/providers pulls
+// in react-native, which vitest can't parse.
+vi.mock("@/lib/providers", () => ({
+  getProvider: vi.fn(),
 }));
 
 import { parseMusicUrl, extractMusicUrl } from "../music-url";
