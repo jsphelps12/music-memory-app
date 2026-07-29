@@ -322,7 +322,7 @@ export default function Home() {
             lineHeight: 1.45, color: '#FBF6F1',
             marginBottom: 28,
           }}>
-            "Music is the most powerful memory trigger we have. A song can take you back to a specific moment, place, and feeling — instantly."
+            &ldquo;Music is the most powerful memory trigger we have. A song can take you back to a specific moment, place, and feeling — instantly.&rdquo;
           </p>
           <p className="body-font" style={{ fontSize: '1rem', lineHeight: 1.7, color: 'rgba(255,255,255,0.45)' }}>
             Soundtracks is built around that truth — a personal timeline of your life, told through music.

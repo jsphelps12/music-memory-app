@@ -13,7 +13,6 @@ import type { MusicProvider, PlaybackState } from "./MusicProvider";
 // misconfigured Apple Music SDK doesn't crash the app on startup.
 function getAMSdk(): typeof import("@lomray/react-native-apple-music") | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     return require("@lomray/react-native-apple-music");
   } catch {
     return null;

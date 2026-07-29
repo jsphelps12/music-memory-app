@@ -202,7 +202,7 @@ export default function AlbumDetailScreen() {
   const isOwner = collection?.role === "owner";
 
   const coverUrl = collection?.coverPhotoUrl
-    ? getPublicPhotoThumbnailUrl(collection.coverPhotoUrl, Math.round(ART_SIZE * 2), true)
+    ? getPublicPhotoThumbnailUrl(collection.coverPhotoUrl)
     : null;
 
   const subLine = collection?.role === "member" && collection?.ownerName

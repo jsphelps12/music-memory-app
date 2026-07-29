@@ -37,7 +37,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     .limit(1)
     .single();
 
-  const ogImage = (firstMoment?.moments as any)?.song_artwork_url ?? undefined;
+  const ogImage =
+    (firstMoment?.moments as { song_artwork_url?: string } | null)?.song_artwork_url ?? undefined;
 
   const title = collection.name;
   const description = ownerName

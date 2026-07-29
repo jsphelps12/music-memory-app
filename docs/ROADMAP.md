@@ -131,6 +131,21 @@ Tab redesign sprint + architecture improvements.
 
 ---
 
+## Shipped July 2026
+
+Revival sprint — production bug fixes + dual-app cleanup after June pause.
+
+- [x] **Prod image previews fixed** — moment-card thumbnails used Supabase image-transformation URLs (`/render/image/...`), a paid feature that returns `403 FeatureNotEnabled` on this project; `getPublicPhotoThumbnailUrl()` now returns plain public URLs (thumbnails are already pre-resized to 400px at upload); all 6 call sites updated
+- [x] **Thumbnail backfill** — `scripts/backfill-thumbnails.mjs` (sharp + macOS `sips` fallback for HEIC-masquerading-as-jpg guest uploads); ran against prod: 31 moments backfilled, 0 remaining
+- [x] **Per-variant URL scheme** — beta now uses `soundtracks-beta://` (prod keeps `soundtracks://`) so iOS no longer routes share-extension handoffs / OAuth callbacks to the wrong app when both variants are installed; Spotify redirect URL derives from `EXPO_PUBLIC_APP_ENV`; requires new preview binary (build 20) to take effect. Manual follow-up: whitelist `soundtracks-beta://spotify-callback` in Spotify dev dashboard
+- [x] **OTA workflows env fix** — `EXPO_PUBLIC_APP_ENV` now set in `ota-update.yml` (preview) and `promote-to-production.yml` (production) so beta OTA bundles stop reporting Sentry env "production"
+- [x] **June WIP landed** — Reflections artist-spotlight now derives from full library via browse meta cache (was: last 50 moments); SpotifyProvider lazy-require wrapped in try/catch so binaries without the native module get a friendly error instead of a crash (prerequisite for promoting OTA to App Store build 7)
+- [x] **ExpoSecureStore crash root-caused** — `expo-secure-store@56` (installed via plain `npm i` in June) is incompatible with SDK 54, so CocoaPods silently never linked the pod into ANY binary (builds 17–19); the June "REACT-NATIVE-12 New Arch" theory was wrong. Fixed: pinned `~15.0.8` via `expo install` (pod now links), removed the startup static import (it crashed pod-less binaries at launch — incl. App Store build 7 on OTA). Verified in simulator: pod-less binary + new JS launches clean → OTA promote to build 7 is safe
+- [x] **Paste-prompt fix** — clipboard deferred-link check read the clipboard 3× on every launch, triggering iOS paste-permission prompts for anyone with clipboard content; now reads once and only on first launch after install (`has_launched` gate)
+- [x] **Simulator verification** — Release build against prod: timeline photos render (image fix confirmed visually), auth session works, no startup crash, no paste prompt
+
+---
+
 ## NOW — May 2026 Priorities
 
 ### 1. Polish & Bug Fixes 🔴 *In progress*

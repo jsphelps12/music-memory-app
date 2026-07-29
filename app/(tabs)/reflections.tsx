@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
+import { fetchBrowseMetadata, fetchArtistMoments } from "@/lib/browse";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -29,7 +30,6 @@ type ReflectionsData = {
   onThisDay: Moment[];
   recentWithPeople: Moment[];
   recentWithMood: Moment[];
-  recentByArtist: Moment[];
 };
 
 type HeroType = "onThisDay" | "random";
@@ -45,7 +45,7 @@ async function fetchReflectionsData(
     matchingDates.push(`${y}-${month}-${day}`);
   }
 
-  const [onThisDayResult, withPeopleResult, withMoodResult, byArtistResult] =
+  const [onThisDayResult, withPeopleResult, withMoodResult] =
     await Promise.all([
       supabase
         .from("moments")
@@ -67,20 +67,12 @@ async function fetchReflectionsData(
         .not("mood", "is", null)
         .order("created_at", { ascending: false })
         .limit(30),
-      supabase
-        .from("moments")
-        .select(MOMENT_CARD_COLUMNS)
-        .eq("user_id", userId)
-        .not("song_artist", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(50),
     ]);
 
   return {
     onThisDay: (onThisDayResult.data ?? []).map(mapRowToMoment),
     recentWithPeople: (withPeopleResult.data ?? []).map(mapRowToMoment),
     recentWithMood: (withMoodResult.data ?? []).map(mapRowToMoment),
-    recentByArtist: (byArtistResult.data ?? []).map(mapRowToMoment),
   };
 }
 
@@ -146,6 +138,14 @@ export default function ReflectionsScreen() {
     enabled: !!user,
   });
 
+  // Browse metadata — shared cache with Browse tab; used to find spotlight artist across full library
+  const { data: meta = [] } = useQuery({
+    queryKey: ["browseMeta", user?.id],
+    queryFn: () => fetchBrowseMetadata(user!.id),
+    enabled: !!user,
+    staleTime: STALE_TIME,
+  });
+
   useFocusEffect(
     useCallback(() => {
       if (!dataUpdatedAt || Date.now() - dataUpdatedAt > STALE_TIME) {
@@ -161,7 +161,6 @@ export default function ReflectionsScreen() {
   const onThisDay = data?.onThisDay ?? [];
   const recentWithPeople = data?.recentWithPeople ?? [];
   const recentWithMood = data?.recentWithMood ?? [];
-  const recentByArtist = data?.recentByArtist ?? [];
 
   const personSpotlight = useMemo(() => {
     const withPeople = recentWithPeople.filter((m) => m.people && m.people.length > 0);
@@ -181,19 +180,27 @@ export default function ReflectionsScreen() {
     return { mood, label: moodObj ? `${moodObj.emoji} ${moodObj.label}` : mood, moments };
   }, [recentWithMood, dayOfYear, allMoods]);
 
-  const artistSpotlight = useMemo(() => {
-    const counts = new Map<string, Moment[]>();
-    for (const m of recentByArtist) {
+  // Derive spotlight artist from full library via browse meta cache
+  const spotlightArtist = useMemo(() => {
+    if (!meta.length) return null;
+    const counts = new Map<string, number>();
+    for (const m of meta) {
       if (!m.songArtist) continue;
-      const arr = counts.get(m.songArtist) ?? [];
-      arr.push(m);
-      counts.set(m.songArtist, arr);
+      counts.set(m.songArtist, (counts.get(m.songArtist) ?? 0) + 1);
     }
-    const eligible = [...counts.entries()].filter(([, ms]) => ms.length >= 2);
+    const eligible = [...counts.entries()].filter(([, cnt]) => cnt >= 2);
     if (!eligible.length) return null;
-    const [artist, moments] = eligible[dayOfYear % eligible.length];
-    return { artist, moments: moments.slice(0, 2) };
-  }, [recentByArtist, dayOfYear]);
+    return eligible[dayOfYear % eligible.length][0];
+  }, [meta, dayOfYear]);
+
+  // Fetch 2 moments for the selected artist — small targeted query, only fires once artist is known
+  const { data: spotlightMoments = [] } = useQuery({
+    queryKey: ["artistSpotlightMoments", user?.id, spotlightArtist],
+    queryFn: () => fetchArtistMoments(user!.id, spotlightArtist!),
+    enabled: !!user && !!spotlightArtist,
+    staleTime: STALE_TIME,
+    select: (moments) => moments.slice(0, 2),
+  });
 
   // Group On This Day moments by year, newest first
   const byYear = useMemo(() => {
@@ -341,12 +348,12 @@ export default function ReflectionsScreen() {
           </>
         )}
 
-        {artistSpotlight && artistSpotlight.moments.length > 0 && (
+        {spotlightArtist && spotlightMoments.length > 0 && (
           <>
             <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
-              <Text style={styles.sectionTitle}>More from {artistSpotlight.artist}</Text>
+              <Text style={styles.sectionTitle}>More from {spotlightArtist}</Text>
             </View>
-            {artistSpotlight.moments.map((m) => (
+            {spotlightMoments.map((m) => (
               <MomentCard key={m.id} item={m} allMoods={allMoods} />
             ))}
           </>

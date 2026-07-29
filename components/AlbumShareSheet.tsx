@@ -477,7 +477,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                   hitSlop={4}
                 >
                   <Image
-                    source={{ uri: getPublicPhotoThumbnailUrl(collection.coverPhotoUrl, 80, true) }}
+                    source={{ uri: getPublicPhotoThumbnailUrl(collection.coverPhotoUrl) }}
                     style={styles.coverThumb}
                     contentFit="cover"
                   />

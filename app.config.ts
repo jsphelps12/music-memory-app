@@ -9,7 +9,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   version: "1.1.0",
   orientation: "portrait",
   icon: isPreview ? "./assets/images/app-icon-beta-forest-1024.png" : "./assets/images/app-icon.png",
-  scheme: "soundtracks",
+  // Per-variant scheme: with both apps installed, iOS routes a shared custom
+  // scheme to an arbitrary one — share-extension handoffs and OAuth callbacks
+  // would land in the wrong app. Public soundtracks:// links stay prod-only.
+  scheme: isPreview ? "soundtracks-beta" : "soundtracks",
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
   splash: {

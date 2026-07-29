@@ -9,16 +9,22 @@ export interface SpotifyPlayerState {
 // requireNativeModule throws if the native module failed to register (e.g.
 // xcframework runtime error). Wrap defensively so a Spotify init failure
 // doesn't crash the whole app — Spotify methods will return no-ops instead.
+// expo-modules-core's EventEmitter typings changed under SDK 54 (the generic
+// instance type no longer exposes addListener), so type the emitter surface
+// ourselves; runtime behavior is unchanged.
+type SpotifyEmitter = {
+  addListener(
+    event: "onPlayerStateChanged" | "onConnected" | "onDisconnected",
+    cb: (...args: any[]) => void
+  ): EventSubscription;
+};
+
 let Native: any = null;
-let emitter: EventEmitter<{
-  onPlayerStateChanged: (state: SpotifyPlayerState) => void;
-  onConnected: () => void;
-  onDisconnected: () => void;
-}> | null = null;
+let emitter: SpotifyEmitter | null = null;
 
 try {
   Native = requireNativeModule("SpotifyRemote");
-  emitter = new EventEmitter(Native);
+  emitter = new (EventEmitter as any)(Native) as SpotifyEmitter;
 } catch (e) {
   console.warn("[SpotifyRemote] Native module failed to load:", e);
 }

@@ -71,7 +71,7 @@ export default function SharedAlbumsScreen() {
           renderItem={({ item }) => {
             const isMember = item.role === "member";
             const coverThumbUrl = item.coverPhotoUrl
-              ? getPublicPhotoThumbnailUrl(item.coverPhotoUrl, 72, true)
+              ? getPublicPhotoThumbnailUrl(item.coverPhotoUrl)
               : null;
             return (
               <TouchableOpacity style={styles.row} onPress={() => handleTap(item)} activeOpacity={0.7}>

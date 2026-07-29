@@ -6,7 +6,12 @@ import type { MusicProvider, PlaybackState } from "./MusicProvider";
 import { SpotifyRemote } from "@/modules/spotify-remote";
 
 const SPOTIFY_CLIENT_ID = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID ?? "";
-const REDIRECT_URL = "soundtracks://spotify-callback";
+// Must match the per-variant scheme in app.config.ts, and each variant's
+// redirect URI must be whitelisted in the Spotify developer dashboard.
+const REDIRECT_URL =
+  process.env.EXPO_PUBLIC_APP_ENV === "preview"
+    ? "soundtracks-beta://spotify-callback"
+    : "soundtracks://spotify-callback";
 const SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize";
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 
