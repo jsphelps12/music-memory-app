@@ -11,3 +11,8 @@ export const posthog = new PostHog(apiKey || "placeholder_key", {
   flushAt: 20,
   flushInterval: 10000,
 });
+
+// Both app variants share one PostHog project, so without this beta-tester
+// events are indistinguishable from real user events. Registered as a super
+// property, so it rides along on every event for filtering/breakdowns.
+posthog.register({ app_env: process.env.EXPO_PUBLIC_APP_ENV ?? "production" });

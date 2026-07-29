@@ -38,16 +38,47 @@ Deno.serve(async (req) => {
   }
   const userId = user.id;
 
-  // Delete all storage files under moment-photos/{user_id}/
-  // This covers both moment photos and the avatar (stored at {user_id}/avatar.jpg)
-  const { data: files } = await adminClient.storage
-    .from("moment-photos")
-    .list(userId, { limit: 1000 });
+  // Delete every storage object under moment-photos/{user_id}/.
+  // Must recurse (album covers live in {user_id}/collection_covers/) and page
+  // (a single list() call caps out, silently stranding heavy users' photos in
+  // a public bucket after they asked for deletion).
+  async function removeAllUnder(prefix: string): Promise<number> {
+    const PAGE = 100;
+    let removed = 0;
+    let offset = 0;
 
-  if (files && files.length > 0) {
-    const paths = files.map((f) => `${userId}/${f.name}`);
-    await adminClient.storage.from("moment-photos").remove(paths);
+    for (;;) {
+      const { data: entries, error: listError } = await adminClient.storage
+        .from("moment-photos")
+        .list(prefix, { limit: PAGE, offset });
+      if (listError || !entries || entries.length === 0) break;
+
+      // Entries without an `id` are folders (Supabase returns them as
+      // synthetic rows) and must be recursed into rather than removed.
+      const files = entries.filter((e) => e.id !== null);
+      const folders = entries.filter((e) => e.id === null);
+
+      if (files.length > 0) {
+        const paths = files.map((f) => `${prefix}/${f.name}`);
+        const { error: removeError } = await adminClient.storage
+          .from("moment-photos")
+          .remove(paths);
+        if (!removeError) removed += paths.length;
+      }
+
+      for (const folder of folders) {
+        removed += await removeAllUnder(`${prefix}/${folder.name}`);
+      }
+
+      if (entries.length < PAGE) break;
+      // Removed files disappear from the listing, so only advance past folders.
+      offset += folders.length;
+    }
+
+    return removed;
   }
+
+  await removeAllUnder(userId);
 
   // Delete the auth user — cascades to profiles, moments, collections,
   // collection_moments, and any other tables with ON DELETE CASCADE

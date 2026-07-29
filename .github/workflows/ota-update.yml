@@ -4,16 +4,25 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+# Two quick pushes would otherwise race and the older commit could win.
+concurrency:
+  group: ota-preview
+  cancel-in-progress: true
+
 jobs:
   update:
     name: Publish EAS Update (preview channel)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies

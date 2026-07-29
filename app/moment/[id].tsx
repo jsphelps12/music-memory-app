@@ -35,7 +35,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
-import { getPublicPhotoUrl } from "@/lib/storage";
+import { getPublicPhotoUrl, deleteMomentPhotos } from "@/lib/storage";
 import { mapRowToMoment } from "@/lib/moments";
 import {
   fetchAlbums,
@@ -483,6 +483,12 @@ export default function MomentDetailScreen() {
             setDeleting(false);
             Alert.alert("Error", friendlyError(deleteError));
             return;
+          }
+
+          // Row is gone — now remove the objects, or they stay publicly
+          // readable at their deterministic URLs forever.
+          if (moment) {
+            void deleteMomentPhotos(moment.photoUrls, moment.photoThumbnails);
           }
 
           posthog.capture("moment_deleted", { song_title: moment?.songTitle ?? null, song_artist: moment?.songArtist ?? null });

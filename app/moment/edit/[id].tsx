@@ -25,7 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { getProvider } from "@/lib/providers";
 import type { MusicProviderType } from "@/types";
-import { uploadMomentPhotoWithThumbnail, getPublicPhotoUrl } from "@/lib/storage";
+import { uploadMomentPhotoWithThumbnail, getPublicPhotoUrl, deleteMomentPhotos } from "@/lib/storage";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
 import { VisibilityPicker, Visibility } from "@/components/VisibilityPicker";
@@ -67,6 +67,12 @@ export default function EditMomentScreen() {
   const [visibility, setVisibility] = useState<Visibility>('private');
   const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
   const [existingThumbnails, setExistingThumbnails] = useState<string[]>([]);
+  // Snapshot of what was on the row when we loaded it, so photos the user
+  // removed can be deleted from storage after a successful save.
+  const originalPhotosRef = useRef<{ photos: string[]; thumbnails: string[] }>({
+    photos: [],
+    thumbnails: [],
+  });
   const [newPhotos, setNewPhotos] = useState<string[]>([]);
   const [momentDate, setMomentDate] = useState<Date | null>(new Date());
   const [location, setLocation] = useState("");
@@ -112,6 +118,10 @@ export default function EditMomentScreen() {
     setVisibility((row.visibility ?? 'private') as Visibility);
     setExistingPhotos(row.photo_urls ?? []);
     setExistingThumbnails(row.photo_thumbnails ?? []);
+    originalPhotosRef.current = {
+      photos: row.photo_urls ?? [],
+      thumbnails: row.photo_thumbnails ?? [],
+    };
     setMomentDate(row.moment_date ? new Date(row.moment_date + "T00:00:00") : null);
     setLocation(row.location ?? "");
     setLoadingMoment(false);
@@ -265,6 +275,18 @@ export default function EditMomentScreen() {
         .eq("id", params.id);
 
       if (updateError) throw updateError;
+
+      // Delete objects for photos the user removed — the row no longer points
+      // at them, but they'd stay publicly readable at their known URLs.
+      const removedPhotos = originalPhotosRef.current.photos.filter(
+        (p) => !existingPhotos.includes(p)
+      );
+      const removedThumbnails = originalPhotosRef.current.thumbnails.filter(
+        (t) => !existingThumbnails.includes(t)
+      );
+      if (removedPhotos.length || removedThumbnails.length) {
+        void deleteMomentPhotos(removedPhotos, removedThumbnails);
+      }
 
       posthog.capture("moment_edited", {
         has_reflection: reflection.trim().length > 0,

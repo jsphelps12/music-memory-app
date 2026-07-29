@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"systemMessage\": \"📋 Docs check — did anything today affect:\\n  Strategy: VISION · PRODUCT-STRATEGY · ROADMAP · FEATURE-IDEAS\\n  Social/Tech: SOCIAL-ARCHITECTURE · MUSIC-MEMORY-ENGINE · TECHNICAL-CHEATSHEET · DEPLOY\\n  Ops: PRODUCTION-READINESS · GROWTH-STRATEGY\"}'"
+          }
+        ]
+      }
+    ]
+  }
+}
