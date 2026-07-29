@@ -66,7 +66,7 @@ function AlbumCell({
   theme: any;
 }) {
   const thumbUrl = collection.coverPhotoUrl
-    ? getPublicPhotoThumbnailUrl(collection.coverPhotoUrl, Math.round(CELL_SIZE * 2), true)
+    ? getPublicPhotoThumbnailUrl(collection.coverPhotoUrl)
     : null;
 
   return (

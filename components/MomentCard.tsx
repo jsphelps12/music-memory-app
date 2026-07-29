@@ -16,7 +16,7 @@ import { setCardOrigin } from "@/lib/cardTransition";
 import { setCachedMoment } from "@/lib/momentCache";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
-import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
+import { getPublicPhotoUrl, getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Moment, Song } from "@/types";
@@ -87,8 +87,8 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
 
   const thumbUrls =
     item.photoThumbnails.length > 0
-      ? item.photoThumbnails.map((p) => getPublicPhotoThumbnailUrl(p, 160, true))
-      : item.photoUrls.map((p) => getPublicPhotoThumbnailUrl(p, 160, true));
+      ? item.photoThumbnails.map((p) => getPublicPhotoThumbnailUrl(p))
+      : item.photoUrls.map((p) => getPublicPhotoUrl(p));
 
   const formattedDate = item.momentDate
     ? new Date(item.momentDate + "T00:00:00").toLocaleDateString("en-US", {

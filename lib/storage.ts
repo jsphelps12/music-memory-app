@@ -127,10 +127,14 @@ export function getPublicPhotoUrl(path: string): string {
   return data.publicUrl;
 }
 
-export function getPublicPhotoThumbnailUrl(path: string, width = 400, square = false): string {
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path, {
-    transform: { width, ...(square && { height: width, resize: "cover" }), quality: 80 },
-  });
+/**
+ * Public URL for a thumbnail storage path. Thumbnails are pre-resized to 400px
+ * at upload time (uploadMomentPhotoWithThumbnail), so this is a plain public
+ * URL — Supabase's on-the-fly transform endpoint is a paid feature and returns
+ * 403 FeatureNotEnabled on this project.
+ */
+export function getPublicPhotoThumbnailUrl(path: string): string {
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }
 

@@ -61,7 +61,7 @@ export function AlbumPicker({
 
   const renderRow = (item: Album) => {
     const thumbUrl = item.coverPhotoUrl
-      ? getPublicPhotoThumbnailUrl(item.coverPhotoUrl, 72, true)
+      ? getPublicPhotoThumbnailUrl(item.coverPhotoUrl)
       : null;
     return (
     <TouchableOpacity
