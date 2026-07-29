@@ -22,7 +22,13 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const doDelete = process.argv.includes("--delete");
 
 if (!url || !serviceKey) {
-  console.error("Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.");
+  console.error(
+    "Missing credentials. The service-role key bypasses RLS, so it is read from\n" +
+      "the environment rather than stored here. Your copy is in web/.env.local:\n\n" +
+      "  set -a; source web/.env.local; set +a; \\\n" +
+      "  SUPABASE_URL=\"$NEXT_PUBLIC_SUPABASE_URL\" node scripts/sweep-orphaned-photos.mjs\n\n" +
+      "Add --delete once you've reviewed the dry-run output."
+  );
   process.exit(1);
 }
 
