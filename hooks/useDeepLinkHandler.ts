@@ -134,8 +134,18 @@ export function useDeepLinkHandler() {
       return;
     }
 
-    // Auth deep link (email confirmation, PKCE)
-    handleAuthDeepLink(url);
+    // Auth deep link (PKCE). Only handle codes that arrive on the bare scheme —
+    // the /confirm route owns https://soundtracks.app/confirm and calls
+    // exchangeCodeForSession itself. Handling it here too raced that call on a
+    // single-use code, so ~half of email confirmations showed a false "link
+    // expired" error. An allowlist also keeps unrelated callbacks (e.g.
+    // spotify-callback?code=) from being POSTed to Supabase's token endpoint.
+    const isAuthCallback =
+      /^soundtracks(-beta)?:\/\/(\?|$)/.test(url) ||
+      /^soundtracks(-beta)?:\/\/confirm\b/.test(url);
+    if (isAuthCallback) {
+      handleAuthDeepLink(url).catch(() => {});
+    }
   }, [handleInviteCode, handleFriendToken, handleShareToken]);
 
   // Clipboard check — deferred deep link fallback for cold installs via web invite/friend/gift pages

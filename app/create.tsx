@@ -101,7 +101,21 @@ export default function CreateMomentScreen() {
         durationMs: Number(params.songDurationMs) || 0,
       });
     }
-  }, [params.songId]);
+    // Depend on every field read above, not just songId: share-intent songs
+    // often arrive without an id, so consecutive selections would collide on
+    // "" and the second one would be silently dropped — saving the wrong song.
+  }, [
+    params.songId,
+    params.songTitle,
+    params.songArtist,
+    params.songAlbum,
+    params.songArtwork,
+    params.songProvider,
+    params.songAppleMusicId,
+    params.songSpotifyId,
+    params.songDurationMs,
+    handleSongChange,
+  ]);
 
   // Handle Spotify cross-search candidates from share intent
   useEffect(() => {

@@ -29,19 +29,27 @@ Deno.serve(async (req) => {
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-  const token = authHeader.replace(/^Bearer\s+/i, "");
-  const { data: { user }, error: authError } = await adminClient.auth.getUser(token);
+  // Verify the caller's JWT signature server-side. Never trust a decoded
+  // payload here — this endpoint writes friendships with the service role,
+  // so a forged `sub` would let anyone force a friendship with any user.
+  const jwt = authHeader.replace(/^Bearer\s+/i, "");
+  const { data: { user }, error: authError } = await adminClient.auth.getUser(jwt);
   if (authError || !user) return error(401, "unauthorized");
   const visitorId = user.id;
 
-  const { token } = await req.json();
-  if (!token) return error(400, "token required");
+  let inviteToken: string | undefined;
+  try {
+    ({ token: inviteToken } = await req.json());
+  } catch {
+    return error(400, "invalid_body");
+  }
+  if (!inviteToken) return error(400, "token required");
 
   // 1. Look up the link owner by token
   const { data: ownerProfile } = await adminClient
     .from("profiles")
     .select("id, display_name")
-    .eq("friend_invite_token", token)
+    .eq("friend_invite_token", inviteToken)
     .single();
   if (!ownerProfile) return error(404, "not_found");
 

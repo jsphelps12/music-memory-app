@@ -89,7 +89,14 @@ export default function MomentDetailScreen() {
   const theme = useTheme();
   const posthog = usePostHog();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [moment, setMoment] = useState<Moment | null>(() => consumeCachedMoment());
+  // Only accept the cached moment if it's actually the one being opened. A
+  // swallowed navigation leaves a stale value in the module-level slot, and
+  // entries that don't populate it (push-notification taps) would otherwise
+  // render — and autoplay — someone else's moment.
+  const [moment, setMoment] = useState<Moment | null>(() => {
+    const cached = consumeCachedMoment();
+    return cached && cached.id === id ? cached : null;
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);

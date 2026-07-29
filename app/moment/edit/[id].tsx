@@ -136,7 +136,19 @@ export default function EditMomentScreen() {
         durationMs: Number(params.songDurationMs) || 0,
       });
     }
-  }, [params.songId]);
+    // Depend on every field read above — songId alone lets two songs that both
+    // lack an id collide on "", silently dropping the second selection.
+  }, [
+    params.songId,
+    params.songTitle,
+    params.songArtist,
+    params.songAlbum,
+    params.songArtwork,
+    params.songProvider,
+    params.songAppleMusicId,
+    params.songSpotifyId,
+    params.songDurationMs,
+  ]);
 
   const existingPhotoUrls = useMemo(
     () => existingPhotos.map(getPublicPhotoUrl),

@@ -76,7 +76,7 @@ Notifications.setNotificationHandler({
 });
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { session, loading, profile, profileReady } = useAuth();
+  const { session, loading, profile, profileReady, profileError } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -107,7 +107,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         router.replace("/(auth)/sign-in");
       }
     } else if (session && (inAuthGroup || inOnboarding)) {
-      if (!profile?.onboardingCompleted) {
+      // profileError means the fetch failed, not that onboarding is incomplete —
+      // routing an existing user into onboarding lets it overwrite their profile.
+      if (!profile?.onboardingCompleted && !profileError) {
         // Only redirect to onboarding from the auth group — if already on onboarding,
         // do nothing. Calling replace("/onboarding") while already there remounts the
         // component and wipes all phase/step state mid-flow.
@@ -132,7 +134,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         });
       }
     } else if (session && !inAuthGroup && !inOnboardingCreate) {
-      if (!profile?.onboardingCompleted) {
+      if (!profile?.onboardingCompleted && !profileError) {
         router.replace("/onboarding" as any);
       } else if (!hasLaunched) {
         // Backfill the key for users who were already signed in on first open
@@ -141,7 +143,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         setHasLaunched(true);
       }
     }
-  }, [session, loading, profileReady, hasLaunched, segments, router, profile?.onboardingCompleted]);
+  }, [session, loading, profileReady, profileError, hasLaunched, segments, router, profile?.onboardingCompleted]);
 
   // Keep children always mounted so the navigation Stack is never torn down.
   // An opaque overlay covers everything during the loading window, preventing

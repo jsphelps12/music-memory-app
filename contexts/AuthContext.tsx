@@ -29,6 +29,7 @@ interface AuthState {
   profile: UserProfile | null;
   loading: boolean;
   profileReady: boolean; // true once first profile fetch has completed
+  profileError: boolean; // true when the last profile fetch failed (vs. genuinely having no profile)
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signInWithApple: () => Promise<void>;
@@ -63,6 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileReady, setProfileReady] = useState(false);
+  const [profileError, setProfileError] = useState(false);
   const suppressAuth = useRef(false);
   const isMountedRef = useRef(true);
   const currentFetchUserIdRef = useRef<string | null>(null);
@@ -80,10 +82,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (currentFetchUserIdRef.current !== userId) return;
 
     if (error || !data) {
+      // A failed fetch is NOT the same as "this user has no profile". Routing
+      // on profile===null alone sends an existing user into onboarding, where
+      // completing it overwrites their real profile data.
+      setProfileError(true);
       if (!keepOnError) setProfile(null);
       setProfileReady(true);
       return;
     }
+    setProfileError(false);
 
     const profile: UserProfile = {
       id: data.id,
@@ -500,6 +507,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     profile,
     loading,
     profileReady,
+    profileError,
     signIn,
     signUp,
     signInWithApple,
@@ -516,7 +524,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     preferredProvider: (profile?.preferredMusicProvider ?? 'apple_music') as MusicProviderType,
     setPreferredProvider,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [session, profile, loading, profileReady]);
+  }), [session, profile, loading, profileReady, profileError]);
 
   return (
     <AuthContext.Provider value={contextValue}>
