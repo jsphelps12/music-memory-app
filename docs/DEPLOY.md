@@ -61,10 +61,44 @@ Ensure `eas.json` maps builds to channels:
 - `production` channel → App Store users (production Supabase)
 
 Supabase URL/key per environment come from EAS environment variables
-(`eas env:list preview` / `production`), not from these `env` blocks. They must
-be named `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` in both —
-the app reads those exact names, and a suffixed name silently ships a binary
-with no backend.
+(`eas env:list --environment preview` / `production`), not from these `env`
+blocks. They must be named `EXPO_PUBLIC_SUPABASE_URL` /
+`EXPO_PUBLIC_SUPABASE_ANON_KEY` in both — the app reads those exact names, and a
+suffixed name silently ships a binary with no backend.
+
+Both OTA workflows publish with `eas update --environment <preview|production>`,
+so bundles read the *same* EAS variables the binaries are built with. There is
+no separate set of GitHub secrets for these values to drift from.
+`EXPO_PUBLIC_APP_ENV` is the exception — it lives in the eas.json profile `env`
+block, which `eas update` does not read, so the workflows set it explicitly.
+
+---
+
+## Local Development
+
+`.env` points at **staging** and builds the **beta** identity. That is deliberate:
+
+- `EXPO_PUBLIC_APP_ENV=preview` makes `app.config.ts` produce "Soundtracks β",
+  bundle `com.joshuaphelps.musicmemory.preview`, scheme `soundtracks-beta://`.
+  Without it, `expo run:ios` builds `com.joshuaphelps.musicmemory` — the same
+  bundle id as the App Store app, so a device build **replaces the store app on
+  your phone**.
+- The Supabase URL/key are the staging project (`bqyrpahvdukllasafdpv`), so
+  local reads and writes never touch production data.
+
+Your local build therefore installs *alongside* the App Store app and alongside
+the beta you got from an EAS install link — same identity as the latter, so it
+will replace that one.
+
+To reproduce something against production, copy the saved production config
+over: `cp .env.prod.local .env`. Copy it back when you're done. Don't hand-edit
+production values into `.env`.
+
+To see whether the current tree can safely ship an OTA to either channel:
+
+```bash
+node scripts/fingerprint-check.mjs
+```
 
 ---
 
@@ -72,10 +106,17 @@ with no backend.
 
 Use this for JS/TS-only changes. No App Store review. Ships in minutes.
 
+**Preview is automatic.** `.github/workflows/ota-update.yml` publishes to the
+`preview` channel on every push to `main`. You do not run `eas update` by hand
+for beta, and there is no way to opt out short of not merging.
+
 ### Steps
 
 **1. Verify the change is OTA-safe**
-No new native packages, no permission changes, no `app.config.ts` entitlement changes.
+No new native packages, no permission changes, no `app.config.ts` entitlement
+changes. `node scripts/fingerprint-check.mjs` answers this definitively — CI
+runs the same check (`scripts/fingerprint-gate.mjs`) and will fail the OTA
+rather than crash the installed binary.
 
 **2. Test locally**
 ```bash
@@ -83,16 +124,19 @@ npx expo start
 ```
 Smoke test the affected flow on a physical device.
 
-**3. Push to preview first**
-```bash
-eas update --branch preview --message "Brief description of change"
-```
-Install on TestFlight, verify the fix works and nothing else broke.
+**3. Merge to main**
+The OTA workflow publishes to `preview` automatically and uploads sourcemaps to
+Sentry. Install the beta, verify the fix works and nothing else broke.
 
-**4. Push to production**
-```bash
-eas update --branch production --message "Brief description of change"
-```
+**4. Promote to production**
+Run the **Promote to Production** workflow from the Actions tab. Paste the exact
+SHA you verified on beta into the `sha` input — leaving it blank promotes
+whatever `main` is at that moment, which may not be what you tested.
+
+The workflow re-checks the native fingerprint against the live App Store build
+and refuses to publish on a mismatch. That refusal is correct: it means
+production needs a new binary, not an OTA. `skip_fingerprint_check` exists for
+emergencies and will crash the app if you are wrong about why you're using it.
 
 **5. Monitor Sentry for 30 minutes**
 Watch for new crash spikes or error rate increases after the update lands.
@@ -295,35 +339,43 @@ Example progression:
 
 ## Channels Reference
 
-| Channel | Build profile | Who gets it |
-|---------|--------------|-------------|
-| `preview` | `preview` | TestFlight testers |
-| `production` | `production` | App Store users |
+| Channel | Build profile | Distribution | Who gets it | Published by |
+|---------|--------------|--------------|-------------|--------------|
+| `preview` | `preview` | `internal` (install link, **not** TestFlight) | Beta testers, "Soundtracks β" | `ota-update.yml`, automatically on every push to main |
+| `production` | `production` | `store` | App Store users | `promote-to-production.yml`, manual dispatch |
 
 Never push directly to `production` without testing on `preview` first.
+
+Each channel only receives updates whose `runtimeVersion` matches the installed
+binary's. That match is currently on `version` alone (`runtimeVersion.policy:
+"appVersion"`), which does **not** move when native code changes — which is why
+the fingerprint gate exists as a separate check. See `scripts/fingerprint-gate.mjs`.
 
 ---
 
 ## Common Commands
 
+Both OTA channels are published by CI — see the Channels Reference above. The
+`eas update` commands below are for emergencies when Actions is unavailable;
+note they bypass the fingerprint gate entirely.
+
 ```bash
-# Start dev server
+# Start dev server (staging + beta identity, per .env)
 npx expo start
 
-# OTA update to preview (testers)
-eas update --branch preview --message "Description"
-
-# OTA update to production (all users)
-eas update --branch production --message "Description"
+# Can this tree safely OTA? Checks both profiles against their live builds
+node scripts/fingerprint-check.mjs
 
 # Rollback production OTA
 eas update --rollback-to-embedded --branch production
 
-# Binary build → TestFlight
-eas build --platform ios --profile preview
+# Emergency manual OTA — NO fingerprint gate, can crash installed binaries
+eas update --branch preview --environment preview --message "Description"
+eas update --branch production --environment production --message "Description"
 
-# Binary build → App Store
-eas build --platform ios --profile production
+# Binary builds run via the "Binary Build" workflow (profile input). Locally:
+eas build --platform ios --profile preview      # internal install link
+eas build --platform ios --profile production   # App Store
 
 # Submit to App Store
 eas submit --platform ios --profile production
