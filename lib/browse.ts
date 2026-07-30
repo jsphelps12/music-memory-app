@@ -4,12 +4,48 @@ import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import type { Moment } from "@/types";
 
-const browseCacheKey = (userId: string) => `browse_meta_${userId}`;
+// Versioned, like timeline_cache_v1_ / profile_cache_v1_. What lands here is
+// JSON.parsed straight into BrowseMeta[] and handed to queryClient.setQueryData,
+// so a shape change would feed stale-shaped objects to five screens with nothing
+// to notice. Bump the suffix whenever BrowseMeta changes and add the old prefix
+// to BROWSE_CACHE_PREFIXES_TO_CLEAR below.
+const BROWSE_CACHE_PREFIX = "browse_meta_v1_";
+
+// Every prefix this module has ever written, cleared together on sign-out and
+// account deletion — bumping a version orphans the old key otherwise, leaving a
+// full copy of the user's browse metadata on disk forever.
+const BROWSE_CACHE_PREFIXES_TO_CLEAR = [BROWSE_CACHE_PREFIX, "browse_meta_"];
+
+const browseCacheKey = (userId: string) => `${BROWSE_CACHE_PREFIX}${userId}`;
+
+// Cheap structural check, not validation: the version prefix protects against
+// shapes we know changed, this catches a truncated or hand-edited payload. On
+// mismatch we return null so the caller falls through to the network.
+const BROWSE_META_KEYS: (keyof BrowseMeta)[] = [
+  "id",
+  "mood",
+  "people",
+  "momentDate",
+  "songTitle",
+  "songArtist",
+  "songAlbumName",
+  "songArtworkUrl",
+];
+
+function isBrowseMetaArray(value: unknown): value is BrowseMeta[] {
+  if (!Array.isArray(value)) return false;
+  if (value.length === 0) return true; // a user with no moments caches []
+  const first: unknown = value[0];
+  if (typeof first !== "object" || first === null) return false;
+  return BROWSE_META_KEYS.every((key) => key in first);
+}
 
 export async function readBrowseCache(userId: string): Promise<BrowseMeta[] | null> {
   try {
     const raw = await AsyncStorage.getItem(browseCacheKey(userId));
-    return raw ? (JSON.parse(raw) as BrowseMeta[]) : null;
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return isBrowseMetaArray(parsed) ? parsed : null;
   } catch {
     return null;
   }
@@ -23,7 +59,7 @@ export async function writeBrowseCache(userId: string, data: BrowseMeta[]): Prom
 
 export async function clearBrowseCache(userId: string): Promise<void> {
   try {
-    await AsyncStorage.removeItem(browseCacheKey(userId));
+    await AsyncStorage.multiRemove(BROWSE_CACHE_PREFIXES_TO_CLEAR.map((p) => `${p}${userId}`));
   } catch {}
 }
 
