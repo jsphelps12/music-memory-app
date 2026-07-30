@@ -21,6 +21,7 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { getProvider } from "@/lib/providers";
@@ -38,12 +39,14 @@ import { ErrorState } from "@/components/ErrorState";
 import { friendlyError } from "@/lib/errors";
 import { onSongSelected } from "@/lib/songEvents";
 import { markTimelineStale } from "@/lib/timelineRefresh";
+import { invalidateMomentCaches } from "@/lib/cacheInvalidation";
 import { dateToStr } from "@/lib/dateUtils";
 
 export default function EditMomentScreen() {
   const router = useRouter();
   const { user, profile, saveCustomMood, deleteCustomMood } = useAuth();
   const posthog = usePostHog();
+  const queryClient = useQueryClient();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -297,6 +300,7 @@ export default function EditMomentScreen() {
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       markTimelineStale();
+      invalidateMomentCaches(queryClient, user?.id);
       router.back();
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

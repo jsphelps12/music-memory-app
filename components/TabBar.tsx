@@ -56,6 +56,7 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
     enabled: !!user,
     staleTime: 60_000,
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
 
   const { data: profileBadge = 0 } = useQuery({
@@ -64,6 +65,7 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
     enabled: !!user,
     staleTime: 60_000,
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
 
   const barHeight = 49 + insets.bottom;

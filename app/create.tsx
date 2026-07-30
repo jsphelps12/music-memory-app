@@ -20,6 +20,7 @@ import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { extractExifFromPath } from "@/lib/photoMetadata";
 import { saveMoment } from "@/lib/saveMoment";
@@ -41,6 +42,7 @@ import { GeoResult } from "@/lib/geocoding";
 import { friendlyError } from "@/lib/errors";
 import { checkAndNotifyMilestone } from "@/lib/notifications";
 import { markTimelineStale } from "@/lib/timelineRefresh";
+import { invalidateMomentCaches, invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { getProvider } from "@/lib/providers";
 import type { MusicProviderType } from "@/types";
 import { PromptPickerModal } from "@/components/PromptPickerModal";
@@ -53,6 +55,7 @@ export default function CreateMomentScreen() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const posthog = usePostHog();
+  const queryClient = useQueryClient();
   const scrollViewRef = useRef<ScrollView>(null);
   const params = useLocalSearchParams<{
     songId?: string;
@@ -296,6 +299,9 @@ export default function CreateMomentScreen() {
         weatherResult,
       });
 
+      // Captured before the form reset below clears selectedAlbum.
+      const savedToAlbumId = selectedAlbum?.id;
+
       posthog.capture("moment_created", {
         song_title: song!.title,
         song_artist: song!.artistName,
@@ -336,6 +342,10 @@ export default function CreateMomentScreen() {
       setTaggedFriends([]);
 
       markTimelineStale(savedMoment);
+      invalidateMomentCaches(queryClient, user.id);
+      // saveMoment adds the moment to the album for us, so the album caches are
+      // stale too — invalidate here rather than widening saveMoment's signature.
+      if (savedToAlbumId) invalidateAlbumCaches(queryClient, user.id, savedToAlbumId);
 
       if (router.canGoBack()) {
         router.back();

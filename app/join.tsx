@@ -11,9 +11,11 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useQueryClient } from "@tanstack/react-query";
 import { CloseButton } from "@/components/CloseButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchAlbumByInviteCode, joinAlbum } from "@/lib/albums";
+import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/hooks/useTheme";
 import { friendlyError } from "@/lib/errors";
@@ -28,6 +30,7 @@ export default function JoinScreen() {
   const router = useRouter();
   const theme = useTheme();
   const posthog = usePostHog();
+  const queryClient = useQueryClient();
 
   const [state, setState] = useState<ScreenState>("loading");
   const [collection, setCollection] = useState<AlbumPreview | null>(null);
@@ -81,6 +84,9 @@ export default function JoinScreen() {
       // To restore it, have the Albums tab select `joined.id` on focus.
       posthog.capture("collection_joined", { collection_name: collection?.name ?? null });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // The Albums tab / badge / shared-activity caches still predate this
+      // membership — without this the joined album isn't listed on arrival.
+      invalidateAlbumCaches(queryClient, user.id, joined.id);
       router.replace("/(tabs)");
     } catch (e) {
       setError(friendlyError(e));

@@ -20,6 +20,17 @@ export function markTimelineDeleted(momentId: string): void {
   _deletedMomentId = momentId;
 }
 
+/**
+ * Drop any pending state. Called on sign-out: the pending Moment is not scoped
+ * to a user, so leaving it set would prepend the signed-out user's moment to the
+ * next user's timeline on this device.
+ */
+export function resetTimelineRefresh(): void {
+  _stale = false;
+  _pendingMoment = null;
+  _deletedMomentId = null;
+}
+
 export function consumeTimelineStale(): { stale: boolean; pendingMoment: Moment | null; deletedMomentId: string | null } {
   const stale = _stale;
   const pendingMoment = _pendingMoment;

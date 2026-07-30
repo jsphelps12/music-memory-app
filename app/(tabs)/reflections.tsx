@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   View,
@@ -21,6 +21,8 @@ import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { MomentCard } from "@/components/MomentCard";
+import { ErrorBanner } from "@/components/ErrorBanner";
+import { friendlyError } from "@/lib/errors";
 import { pad } from "@/lib/dateUtils";
 import { Moment } from "@/types";
 
@@ -117,14 +119,20 @@ export default function ReflectionsScreen() {
     isLoading,
     isFetching,
     isError,
+    error,
     refetch,
     dataUpdatedAt,
+    errorUpdatedAt,
   } = useQuery({
     queryKey: ["reflections", user?.id],
     queryFn: () => fetchReflectionsData(user!.id, month, day, thisYear),
     staleTime: STALE_TIME,
     enabled: !!user,
   });
+
+  // A failed background refetch keeps the previous data — show a banner, not a full-screen error
+  const [bannerDismissedAt, setBannerDismissedAt] = useState(0);
+  const showBanner = isError && !!data && errorUpdatedAt > bannerDismissedAt;
 
   // Random moment: staleTime Infinity — sticky between tab navigations, only changes on shuffle
   const {
@@ -230,7 +238,7 @@ export default function ReflectionsScreen() {
     );
   }
 
-  if (isError) {
+  if (isError && !data) {
     return (
       <View style={[styles.container, styles.centered]}>
         <Text style={styles.errorText}>Something went wrong loading your memories.</Text>
@@ -284,6 +292,14 @@ export default function ReflectionsScreen() {
           />
         }
       >
+        {showBanner ? (
+          <ErrorBanner
+            message={friendlyError(error)}
+            onRetry={() => refetch()}
+            onDismiss={() => setBannerDismissedAt(errorUpdatedAt)}
+          />
+        ) : null}
+
         {/* ── HERO ── */}
         {heroType === "onThisDay" && (
           <>
