@@ -270,16 +270,12 @@ describe("clearTimelineCache", () => {
     expect(storage.map.has(CACHE_KEY)).toBe(false);
   });
 
-  it("does not cancel an in-flight fetch, which then rewrites the cache it just cleared", async () => {
-    // Documented, not asserted-as-desirable. clearTimelineCache drops the
-    // singletons and deletes the key, but the network promise it orphaned is
-    // still going to call writeCache when it lands — so signing out while the
-    // launch prefetch is in flight leaves that user's moments back on disk.
-    // Harmless today (the key is user-scoped and the next sign-in for the same
-    // user would have refetched anyway), but it means clearTimelineCache is not
-    // a guarantee, and a caller treating it as "this user's data is now gone
-    // from disk" would be wrong. Fixing it needs an AbortController or a
-    // generation counter in lib/timelinePrefetch.ts — not owned here.
+  it("an in-flight fetch does not rewrite the cache it just cleared", async () => {
+    // The fetch can't be aborted once issued, so it is superseded instead: a
+    // generation counter is bumped by clearTimelineCache, and the fetch checks
+    // it before writing. Without that, signing out (or deleting an account)
+    // while the launch prefetch was in flight put that user's moments straight
+    // back on disk — clearTimelineCache looked like a guarantee and wasn't.
     sb.queueData([row("a", "A")]);
 
     const mod = await loadModule();
@@ -288,6 +284,22 @@ describe("clearTimelineCache", () => {
     await settle();
 
     expect(storage.removeItem).toHaveBeenCalledWith(CACHE_KEY);
+    expect(storage.map.has(CACHE_KEY)).toBe(false);
+  });
+
+  it("a later prefetch for the same user still writes the cache", async () => {
+    // Guards against over-correcting: the generation check must only suppress
+    // superseded fetches, not permanently disable caching after a sign-out.
+    sb.queueData([row("a", "A")]);
+    const mod = await loadModule();
+    mod.prefetchTimeline(USER);
+    await mod.clearTimelineCache(USER);
+    await settle();
+
+    sb.queueData([row("b", "B")]);
+    mod.prefetchTimeline(USER);
+    await settle();
+
     expect(storage.map.has(CACHE_KEY)).toBe(true);
   });
 

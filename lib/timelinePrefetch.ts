@@ -23,6 +23,9 @@ let _prefetch: { promise: Promise<Moment[] | null>; userId: string } | null = nu
 // and the timeline can still apply the authoritative result after rendering
 // from cache.
 let _network: { promise: Promise<Moment[] | null>; userId: string } | null = null;
+// Incremented by each prefetch and by clearTimelineCache; an in-flight fetch
+// whose generation is stale must not write to disk. See prefetchTimeline.
+let _generation = 0;
 
 function cacheKey(userId: string) {
   return `${CACHE_KEY_PREFIX}${userId}`;
@@ -47,6 +50,13 @@ async function writeCache(userId: string, moments: Moment[]): Promise<void> {
 export function prefetchTimeline(userId: string): void {
   if (_prefetch?.userId === userId) return; // already in flight for this user
 
+  // Generation counter, checked before the cache write below. Clearing the cache
+  // (on sign-out or account deletion) can't cancel a fetch that's already in
+  // flight, and that fetch used to write its rows back to disk AFTER the clear —
+  // putting the signed-out user's moments back on the device. Bumping the
+  // generation makes any in-flight fetch recognise it has been superseded.
+  const generation = ++_generation;
+
   // Fire network fetch immediately (runs in background)
   const networkFetch = Promise.resolve(
     supabase
@@ -61,7 +71,7 @@ export function prefetchTimeline(userId: string): void {
         return (data ?? []).map(mapRowToMoment);
       })
       .then((moments) => {
-        writeCache(userId, moments);
+        if (generation === _generation) writeCache(userId, moments);
         return moments;
       })
   ).catch((err: unknown) => {
@@ -112,6 +122,10 @@ export function consumePrefetchNetworkPromise(userId: string): Promise<Moment[] 
 export async function clearTimelineCache(userId: string): Promise<void> {
   if (_prefetch?.userId === userId) _prefetch = null;
   if (_network?.userId === userId) _network = null;
+  // Supersede any in-flight fetch so it can't write this user's rows back to
+  // disk after we've removed them — the fetch can't be aborted, but it checks
+  // this before writing. Sign-out mid-prefetch used to restore the cache.
+  _generation++;
   try {
     await AsyncStorage.removeItem(cacheKey(userId));
   } catch {}
