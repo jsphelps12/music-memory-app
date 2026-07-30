@@ -2,6 +2,7 @@ import { File } from "expo-file-system";
 import * as Crypto from "expo-crypto";
 import * as ImageManipulator from "expo-image-manipulator";
 import { supabase } from "@/lib/supabase";
+import type { Moment } from "@/types";
 
 const BUCKET = "moment-photos";
 
@@ -110,6 +111,30 @@ export function getPublicPhotoUrl(path: string): string {
 export function getPublicPhotoThumbnailUrl(path: string): string {
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl;
+}
+
+/**
+ * Image URLs for a moment card's photo strip: the pre-resized thumbnails when
+ * the moment has them, otherwise the full-size photos.
+ *
+ * Extracted from MomentCard because the blank-thumbnail bug in production was
+ * URL construction, not rendering — the card asked for a `/render/image/`
+ * transform URL, which is a paid Supabase feature this project doesn't have, so
+ * storage returned 403 and every card showed an empty frame. That class of bug
+ * is testable without a renderer, but only if the URLs are built somewhere a
+ * test can call.
+ *
+ * The fallback is not cosmetic: moments created before thumbnails existed have
+ * an empty `photo_thumbnails`, and mapping over it would render nothing at all.
+ */
+export function momentCardImageUrls(
+  moment: Pick<Moment, "photoUrls" | "photoThumbnails">
+): string[] {
+  const thumbnails = moment.photoThumbnails ?? [];
+  if (thumbnails.length > 0) {
+    return thumbnails.map((path) => getPublicPhotoThumbnailUrl(path));
+  }
+  return (moment.photoUrls ?? []).map((path) => getPublicPhotoUrl(path));
 }
 
 /**
