@@ -150,46 +150,61 @@ export function useDeepLinkHandler() {
 
   // Clipboard check — deferred deep link fallback for cold installs via web invite/friend/gift pages
   useEffect(() => {
-    checkClipboardForDeferredLink().then((link) => {
-      if (!link) return;
-      if (link.kind === "invite") handleInviteCode(link.value);
-      else if (link.kind === "friend") handleFriendToken(link.value);
-      else AsyncStorage.setItem(PENDING_GIFT_TOKEN_KEY, link.value).catch(() => {});
-    });
+    // The handlers are async and write to AsyncStorage, so returning their
+    // promise keeps them inside this chain — otherwise a failed write becomes
+    // an unhandled rejection at startup.
+    checkClipboardForDeferredLink()
+      .then((link) => {
+        if (!link) return;
+        if (link.kind === "invite") return handleInviteCode(link.value);
+        if (link.kind === "friend") return handleFriendToken(link.value);
+        return AsyncStorage.setItem(PENDING_GIFT_TOKEN_KEY, link.value);
+      })
+      .catch((err) => { if (__DEV__) console.warn("[deep-link] clipboard fallback failed:", err); });
   }, [handleInviteCode, handleFriendToken]);
 
   // After auth + onboarding complete, check for pending friend token
   useEffect(() => {
     if (!user || !profile?.onboardingCompleted) return;
-    AsyncStorage.getItem(PENDING_FRIEND_TOKEN_KEY).then((token) => {
-      if (token) {
-        AsyncStorage.removeItem(PENDING_FRIEND_TOKEN_KEY);
-        setTimeout(() => handleFriendToken(token), 500);
-      }
-    });
+    AsyncStorage.getItem(PENDING_FRIEND_TOKEN_KEY)
+      .then((token) => {
+        if (!token) return;
+        AsyncStorage.removeItem(PENDING_FRIEND_TOKEN_KEY)
+          .catch((err) => { if (__DEV__) console.warn("[deep-link] failed to clear pending friend token:", err); });
+        setTimeout(() => {
+          handleFriendToken(token)
+            .catch((err) => { if (__DEV__) console.warn("[deep-link] friend token routing failed:", err); });
+        }, 500);
+      })
+      .catch((err) => { if (__DEV__) console.warn("[deep-link] pending friend token read failed:", err); });
   }, [user?.id, profile?.onboardingCompleted]);
 
   // After auth + onboarding complete, claim any pending gifted moment
   useEffect(() => {
     if (!user || !profile?.onboardingCompleted) return;
-    AsyncStorage.getItem(PENDING_GIFT_TOKEN_KEY).then(async (shareToken) => {
-      if (!shareToken) return;
-      await AsyncStorage.removeItem(PENDING_GIFT_TOKEN_KEY);
-      try {
-        await supabase.rpc("claim_gifted_moment", { p_share_token: shareToken });
-      } catch {}
-      // No navigation needed — moment will appear in With Me on next load
-    });
+    AsyncStorage.getItem(PENDING_GIFT_TOKEN_KEY)
+      .then(async (shareToken) => {
+        if (!shareToken) return;
+        // removeItem sits outside the inner try/catch, so the chain needs its
+        // own catch — a failed write here would otherwise reject unhandled.
+        await AsyncStorage.removeItem(PENDING_GIFT_TOKEN_KEY);
+        try {
+          await supabase.rpc("claim_gifted_moment", { p_share_token: shareToken });
+        } catch {}
+        // No navigation needed — moment will appear in With Me on next load
+      })
+      .catch((err) => { if (__DEV__) console.warn("[deep-link] pending gift claim failed:", err); });
   }, [user?.id, profile?.onboardingCompleted]);
 
   // URI scheme deep links — app already installed
   useEffect(() => {
-    Linking.getInitialURL().then((url) => {
-      if (url) handleUrl(url);
-    });
+    Linking.getInitialURL()
+      .then((url) => (url ? handleUrl(url) : undefined))
+      .catch((err) => { if (__DEV__) console.warn("[deep-link] initial URL handling failed:", err); });
 
     const subscription = Linking.addEventListener("url", ({ url }) => {
-      handleUrl(url);
+      handleUrl(url)
+        .catch((err) => { if (__DEV__) console.warn("[deep-link] URL handling failed:", err); });
     });
 
     return () => subscription.remove();
