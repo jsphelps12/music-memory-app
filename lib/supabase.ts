@@ -37,6 +37,9 @@ async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Pro
   return fetch(input, init);
 }
 
+// TODO(types): createClient<Database> (types/database.ts) surfaces ~223 type
+// errors across 65 files — real findings, but a dedicated migration. Until
+// then, annotate row shapes explicitly with Tables<"..."> from types/database.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: AsyncStorage,
