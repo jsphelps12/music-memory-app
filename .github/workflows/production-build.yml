@@ -6,7 +6,9 @@ on:
       profile:
         description: EAS build profile
         type: choice
-        options: [preview, production]
+        # preview-simulator produces the .app the E2E Smoke workflow installs.
+        # Rebuild it whenever the preview fingerprint moves.
+        options: [preview, preview-simulator, production]
         default: preview
       submit:
         description: Submit to App Store Connect after build (production only)

@@ -19,6 +19,8 @@ on:
 
 permissions:
   contents: read
+  # Required to query E2E Smoke run status for the commit being promoted.
+  actions: read
 
 concurrency:
   group: promote-to-production
@@ -48,6 +50,31 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # The E2E smoke flow must have passed for THIS exact commit, not merely
+      # at some point on main. Without the SHA match a green run from an
+      # unrelated commit would vouch for whatever is being promoted.
+      - name: Require a passing E2E run for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ inputs.sha || github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # A dispatch input reaches a query string here; anything but a hex SHA
+          # could append its own parameters and change what is being asked.
+          if ! printf '%s' "$TARGET_SHA" | grep -qE '^[0-9a-f]{7,40}$'; then
+            echo "::error::sha input is not a valid commit SHA: $TARGET_SHA"
+            exit 1
+          fi
+          COUNT=$(gh api \
+            "repos/$REPO/actions/workflows/e2e.yml/runs?head_sha=$TARGET_SHA&status=success" \
+            --jq '.total_count')
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::No successful E2E Smoke run for $TARGET_SHA. Run the 'E2E Smoke' workflow against this commit before promoting."
+            exit 1
+          fi
+          echo "Found $COUNT successful E2E run(s) for $TARGET_SHA."
 
       # An OTA update only ships JS. If this commit's native fingerprint differs
       # from the binary users actually have, the update can reference native

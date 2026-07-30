@@ -96,6 +96,7 @@ export default function SignInScreen() {
         ) : null}
 
         <TextInput
+          testID="signin-email"
           style={[styles.input, focusedField === "email" && { borderColor: theme.colors.accent }]}
           placeholder="Email"
           placeholderTextColor={theme.colors.placeholder}
@@ -114,6 +115,7 @@ export default function SignInScreen() {
 
         <View style={[styles.inputRow, focusedField === "password" && { borderColor: theme.colors.accent }]}>
           <TextInput
+            testID="signin-password"
             style={styles.inputInner}
             placeholder="Password"
             placeholderTextColor={theme.colors.placeholder}
@@ -138,6 +140,7 @@ export default function SignInScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <TouchableOpacity
+          testID="signin-submit"
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleSignIn}
           disabled={loading}

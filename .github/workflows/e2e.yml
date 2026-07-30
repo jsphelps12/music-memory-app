@@ -1,0 +1,124 @@
+name: E2E Smoke
+
+on:
+  workflow_call:
+    inputs:
+      sha:
+        description: Commit to test
+        type: string
+        required: false
+        default: ""
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Commit to test (defaults to the head of the selected branch)
+        required: false
+        default: ""
+  schedule:
+    # Weekly, Monday 09:00 UTC. Catches rot in the staging account, the Apple
+    # Music catalog search, and Supabase auth without waiting for a promote.
+    - cron: "0 9 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  # Serialized: every run resets the same staging account, so two at once would
+  # delete each other's moment mid-flow.
+  group: e2e-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Maestro smoke flow (iOS simulator)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Resolve the newest finished simulator build rather than building here.
+      # An EAS build is ~15 minutes; the simulator binary only needs rebuilding
+      # when the preview fingerprint moves, which is exactly what
+      # scripts/fingerprint-check.mjs reports.
+      - name: Resolve latest simulator build
+        id: build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          URL=$(npx eas-cli build:list --platform ios --profile preview-simulator \
+            --status finished --limit 1 --json --non-interactive \
+            | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s)[0];console.log(b?b.artifacts.buildUrl:'')})")
+          if [ -z "$URL" ]; then
+            echo "::error::No finished build for the preview-simulator profile. Run the Binary Build workflow with profile=preview-simulator first."
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Download and unpack the app
+        env:
+          # Via env rather than inline ${{ }} so the value is never spliced into
+          # the shell command text.
+          BUILD_URL: ${{ steps.build.outputs.url }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -o build.tar.gz "$BUILD_URL"
+          mkdir -p build && tar -xzf build.tar.gz -C build
+          echo "APP_PATH=$(find build -name '*.app' -maxdepth 2 | head -1)" >> "$GITHUB_ENV"
+
+      - name: Boot simulator
+        run: |
+          set -euo pipefail
+          UDID=$(xcrun simctl create e2e-iphone com.apple.CoreSimulator.SimDeviceType.iPhone-16)
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
+
+      - name: Install app
+        run: xcrun simctl install "$SIM_UDID" "$APP_PATH"
+
+      # Must run after install and before the flow: the flow's final assertion
+      # is only meaningful against an account with no pre-existing moments.
+      - name: Reset the staging E2E account
+        env:
+          E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          E2E_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: node scripts/seed-e2e.mjs
+
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Run smoke flow
+        env:
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: |
+          maestro test .maestro/smoke.yaml \
+            --env E2E_PASSWORD="$E2E_PASSWORD" \
+            --format junit --output maestro-report.xml
+
+      - name: Upload Maestro artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-debug
+          path: |
+            maestro-report.xml
+            ~/.maestro/tests/**
+          retention-days: 7
+
+      - name: Tear down simulator
+        if: always()
+        run: xcrun simctl delete "$SIM_UDID" || true
