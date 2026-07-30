@@ -15,7 +15,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -101,7 +101,21 @@ export default function CreateMomentScreen() {
         durationMs: Number(params.songDurationMs) || 0,
       });
     }
-  }, [params.songId]);
+    // Depend on every field read above, not just songId: share-intent songs
+    // often arrive without an id, so consecutive selections would collide on
+    // "" and the second one would be silently dropped — saving the wrong song.
+  }, [
+    params.songId,
+    params.songTitle,
+    params.songArtist,
+    params.songAlbum,
+    params.songArtwork,
+    params.songProvider,
+    params.songAppleMusicId,
+    params.songSpotifyId,
+    params.songDurationMs,
+    handleSongChange,
+  ]);
 
   // Handle Spotify cross-search candidates from share intent
   useEffect(() => {
@@ -603,7 +617,7 @@ export default function CreateMomentScreen() {
                 onPress={() => handleSelectCandidate(item)}
               >
                 {item.artworkUrl ? (
-                  <Image source={{ uri: item.artworkUrl }} style={styles.candidateArtwork} />
+                  <AppImage source={{ uri: item.artworkUrl }} style={styles.candidateArtwork} />
                 ) : (
                   <ArtworkPlaceholder style={styles.candidateArtwork} />
                 )}

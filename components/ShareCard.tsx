@@ -2,7 +2,7 @@
 // Rendered inside a ViewShot ref in ShareCardModal; keep this pure RN with no animations.
 
 import { View, Text, StyleSheet, Dimensions } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { Moment } from "@/types";
 import { MOODS } from "@/constants/Moods";
 
@@ -41,7 +41,7 @@ export function ShareCard({ moment, photoUrl }: Props) {
       {/* ── Hero (top 60%) ─────────────────────────────────────────────── */}
       <View style={[styles.hero, { height: heroHeight }]}>
         {heroSource ? (
-          <Image
+          <AppImage
             source={{ uri: heroSource }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
@@ -67,7 +67,7 @@ export function ShareCard({ moment, photoUrl }: Props) {
         {/* Song row */}
         <View style={styles.songRow}>
           {moment.songArtworkUrl ? (
-            <Image
+            <AppImage
               source={{ uri: moment.songArtworkUrl }}
               style={styles.artwork}
               contentFit="cover"

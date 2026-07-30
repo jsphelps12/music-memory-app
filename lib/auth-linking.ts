@@ -6,8 +6,12 @@ import { supabase } from "./supabase";
  */
 export async function handleAuthDeepLink(url: string): Promise<boolean> {
   // PKCE flow: code arrives as a query parameter
-  const params = new URL(url);
-  const code = params.searchParams.get("code");
+  let code: string | null;
+  try {
+    code = new URL(url).searchParams.get("code");
+  } catch {
+    return false; // malformed deep link — don't reject into an unhandled promise
+  }
 
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);

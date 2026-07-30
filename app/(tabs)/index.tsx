@@ -58,6 +58,9 @@ export default function TimelineScreen() {
   const [bannerError, setBannerError] = useState("");
   const lastFetchTime = useRef(0);
   const pageRef = useRef(0);
+  // Blocks load-more while a refresh is resetting pageRef, so the two can't
+  // interleave and leave pageRef describing something other than what's rendered.
+  const refreshInFlightRef = useRef(false);
   const [totalCount, setTotalCount] = useState<number | null>(null);
 
   // Toggle between personal timeline and tagged moments
@@ -233,10 +236,13 @@ export default function TimelineScreen() {
     }
   }, [pendingScrollId, sections]);
 
-  const fetchMoments = useCallback(
+  const fetchMomentsInner = useCallback(
     async (showLoading: boolean, append = false) => {
       if (!user) return;
-      if (!append) pageRef.current = 0;
+      if (!append) {
+        pageRef.current = 0;
+        refreshInFlightRef.current = true;
+      }
       if (showLoading) setLoading(true);
       const t0 = Date.now();
 
@@ -293,6 +299,10 @@ export default function TimelineScreen() {
         } else {
           setBannerError(friendlyError(fetchError));
         }
+        // Roll back the optimistic page increment from handleLoadMore. Without
+        // this, the next load-more skips a whole page and those moments never
+        // appear until the app restarts.
+        if (append && pageRef.current > 0) pageRef.current -= 1;
         setLoading(false);
         return;
       }
@@ -335,8 +345,21 @@ export default function TimelineScreen() {
     [user, posthog]
   );
 
+  const fetchMoments = useCallback(
+    async (showLoading: boolean, append = false) => {
+      try {
+        await fetchMomentsInner(showLoading, append);
+      } finally {
+        if (!append) refreshInFlightRef.current = false;
+      }
+    },
+    [fetchMomentsInner]
+  );
+
   const handleLoadMore = useCallback(async () => {
-    if (!hasMore || loadingMore) return;
+    // Don't append while a refresh is resetting pageRef — the two racing would
+    // leave pageRef out of sync with what's rendered and skip a page.
+    if (!hasMore || loadingMore || refreshInFlightRef.current) return;
     setLoadingMore(true);
     pageRef.current += 1;
     await fetchMoments(false, true);

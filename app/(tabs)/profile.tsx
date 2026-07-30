@@ -15,7 +15,7 @@ import {
   Linking,
   Platform,
 } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
@@ -347,7 +347,7 @@ export default function ProfileScreen() {
       >
         <View style={styles.avatarContainer}>
           {avatarUri ? (
-            <Image source={{ uri: avatarUri }} style={styles.avatar} />
+            <AppImage source={{ uri: avatarUri }} style={styles.avatar} />
           ) : (
             <Text style={styles.initials}>{initials}</Text>
           )}

@@ -24,7 +24,7 @@ Reference this before every build and submission. Update it when the process cha
 - New iOS permission (camera, location, etc.)
 - Expo SDK version bump
 - New or changed native module
-- Changes to `app.json` permissions, entitlements, or bundle ID
+- Changes to `app.config.ts` permissions, entitlements, or bundle ID
 
 ---
 
@@ -41,26 +41,30 @@ Ensure `eas.json` maps builds to channels:
 ```json
 {
   "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal",
-      "ios": { "simulator": true }
-    },
     "preview": {
       "distribution": "internal",
       "channel": "preview",
-      "ios": { "buildConfiguration": "Release" }
+      "ios": { "autoIncrement": true, "simulator": false },
+      "env": { "EXPO_PUBLIC_APP_ENV": "preview" }
     },
     "production": {
+      "distribution": "store",
       "channel": "production",
-      "autoIncrement": true
+      "ios": { "autoIncrement": true },
+      "env": { "EXPO_PUBLIC_APP_ENV": "production" }
     }
   }
 }
 ```
 
-- `preview` channel → TestFlight testers
-- `production` channel → App Store users
+- `preview` channel → "Soundtracks β" (internal install link, staging Supabase)
+- `production` channel → App Store users (production Supabase)
+
+Supabase URL/key per environment come from EAS environment variables
+(`eas env:list preview` / `production`), not from these `env` blocks. They must
+be named `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` in both —
+the app reads those exact names, and a suffixed name silently ships a binary
+with no backend.
 
 ---
 
@@ -71,7 +75,7 @@ Use this for JS/TS-only changes. No App Store review. Ships in minutes.
 ### Steps
 
 **1. Verify the change is OTA-safe**
-No new native packages, no permission changes, no `app.json` entitlement changes.
+No new native packages, no permission changes, no `app.config.ts` entitlement changes.
 
 **2. Test locally**
 ```bash
@@ -112,26 +116,23 @@ Use this when native code changed. Requires App Store review.
 
 **1. Bump the version**
 
-In `app.json`:
-```json
-{
-  "expo": {
-    "version": "1.2.0",
-    "ios": {
-      "buildNumber": "43"
-    }
-  }
-}
+In `app.config.ts` (there is no `app.json`):
+```ts
+version: "1.2.0",
 ```
 
 - `version`: bump patch for bug fixes, minor for new features, major for breaking changes
-- `buildNumber`: increment by 1 every binary build — never reuse a number
+- Do **not** set a build number by hand: `eas.json` uses
+  `appVersionSource: "remote"` with `autoIncrement`, so EAS assigns it. Editing
+  it locally has no effect.
 
-**2. Cut a preview build for TestFlight**
+**2. Cut a preview build (internal distribution, not TestFlight)**
 ```bash
 eas build --platform ios --profile preview
 ```
-This uploads to TestFlight automatically. Takes 15–30 minutes to build + process.
+The `preview` profile is `distribution: "internal"` — EAS emails an install
+link; it does not go to TestFlight. For TestFlight use the `production`
+profile via the "Production Build" workflow. Takes 15–30 minutes.
 
 **3. Test on TestFlight**
 
@@ -211,7 +212,6 @@ submission. Check each item — don't skim.
 ### Profile
 - [ ] Avatar upload
 - [ ] Display name edit
-- [ ] Stats are correct (moment count, storage)
 - [ ] Stats are correct (moment count, storage)
 - [ ] Delete Account — confirm all data removed (check Supabase dashboard)
 - [ ] Sign out
@@ -352,10 +352,10 @@ supabase db push
 
 ## Before Every App Store Submission
 
-- [ ] Version and build number bumped in `app.json`
+- [ ] Version bumped in `app.config.ts` (build number is automatic — `appVersionSource: remote`)
 - [ ] Manual regression checklist complete on physical device
 - [ ] Sentry is connected and receiving events
 - [ ] Release notes written (what's new in this version)
-- [ ] Privacy policy URL confirmed live at `music-memory-app.vercel.app/privacy`
+- [ ] Privacy policy URL confirmed live at `soundtracks.app/privacy`
 - [ ] No console.log statements with sensitive data in the build
 - [ ] Supabase Pro plan active (before any real user scale)

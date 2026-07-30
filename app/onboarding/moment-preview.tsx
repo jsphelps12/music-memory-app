@@ -8,7 +8,7 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Audio } from "expo-av";
@@ -128,9 +128,9 @@ export default function OnboardingMomentPreviewScreen() {
       {/* Moment card */}
       <View style={styles.card}>
         {moment.photoUrls?.[0] ? (
-          <Image source={{ uri: getPublicPhotoUrl(moment.photoUrls[0]) }} style={styles.artwork} contentFit="cover" />
+          <AppImage source={{ uri: getPublicPhotoUrl(moment.photoUrls[0]) }} style={styles.artwork} contentFit="cover" />
         ) : moment.songArtworkUrl ? (
-          <Image source={{ uri: moment.songArtworkUrl }} style={styles.artwork} contentFit="cover" />
+          <AppImage source={{ uri: moment.songArtworkUrl }} style={styles.artwork} contentFit="cover" />
         ) : (
           <View style={[styles.artworkPlaceholder, { backgroundColor: theme.colors.accentBg }]}>
             <Ionicons name="musical-note" size={48} color={theme.colors.accent} />
@@ -139,7 +139,7 @@ export default function OnboardingMomentPreviewScreen() {
 
         <View style={styles.songRow}>
           {moment.photoUrls?.[0] && moment.songArtworkUrl ? (
-            <Image source={{ uri: moment.songArtworkUrl }} style={styles.songArtwork} contentFit="cover" />
+            <AppImage source={{ uri: moment.songArtworkUrl }} style={styles.songArtwork} contentFit="cover" />
           ) : null}
           <View style={styles.songInfo}>
             <Text style={styles.songTitle} numberOfLines={1}>{moment.songTitle}</Text>

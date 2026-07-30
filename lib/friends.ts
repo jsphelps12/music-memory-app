@@ -76,26 +76,6 @@ export async function fetchSentRequests(userId: string): Promise<Friendship[]> {
   return enrichFriendships(data ?? [], userId);
 }
 
-export async function sendFriendRequest(toUserId: string): Promise<void> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error("Not authenticated");
-  if (session.user.id === toUserId) throw new Error("self_request");
-
-  const { error } = await supabase
-    .from("friendships")
-    .insert({ requester_id: session.user.id, addressee_id: toUserId });
-  if (error) {
-    // Unique constraint = already connected
-    if (error.code === "23505") throw new Error("already_connected");
-    throw error;
-  }
-
-  // Notify the recipient
-  await supabase.functions.invoke("notify-friend", {
-    body: { toUserId, type: "friend_request", payload: {} },
-  }).catch((err) => { if (__DEV__) console.warn("[notify-friend]", err); });
-}
-
 export async function acceptFriendInvite(token: string): Promise<void> {
   const { data, error } = await supabase.functions.invoke("accept-friend-invite", {
     body: { token },
@@ -150,38 +130,6 @@ export async function cancelFriendRequest(friendshipId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function searchByUsername(query: string, currentUserId: string): Promise<ProfileResult[]> {
-  if (!query.trim()) return [];
-
-  // Exclude users already in any friendship (pending, accepted, declined)
-  const { data: existingFriendships } = await supabase
-    .from("friendships")
-    .select("requester_id, addressee_id")
-    .or(`requester_id.eq.${currentUserId},addressee_id.eq.${currentUserId}`);
-  const excludeIds = new Set([currentUserId]);
-  (existingFriendships ?? []).forEach((f: any) => {
-    excludeIds.add(f.requester_id === currentUserId ? f.addressee_id : f.requester_id);
-  });
-
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, display_name, avatar_url, username")
-    .ilike("username", `%${query.trim()}%`)
-    .not("id", "in", `(${[...excludeIds].join(",")})`)
-    .limit(20);
-  if (error) throw error;
-  return (data ?? []).map((row: any) => ({
-    id: row.id,
-    displayName: row.display_name,
-    avatarUrl: row.avatar_url,
-    username: row.username,
-  }));
-}
-
-export function getFriendInviteUrl(token: string): string {
-  return `https://soundtracks.app/friend/${token}`;
-}
-
 export async function fetchProfileByFriendToken(token: string): Promise<ProfileResult | null> {
   const { data, error } = await supabase
     .from("profiles")
@@ -226,83 +174,6 @@ function mapTaggedMomentRow(row: any): TaggedMoment {
     taggerAvatarUrl: row.tagger_avatar_url ?? null,
     moment: row.moment_row ? mapRowToMoment(row.moment_row) : undefined,
   };
-}
-
-export async function fetchTaggedMomentsInbox(userId: string): Promise<TaggedMoment[]> {
-  const { data, error } = await supabase
-    .from("tagged_moments")
-    .select("*")
-    .eq("tagged_user_id", userId)
-    .eq("released", true)
-    .eq("status", "pending")
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  if (!data || data.length === 0) return [];
-
-  const taggerIds = [...new Set(data.map((r: any) => r.tagger_user_id))];
-  const momentIds = data.map((r: any) => r.moment_id);
-
-  const [
-    { data: profiles, error: profilesError },
-    { data: moments, error: momentsError },
-  ] = await Promise.all([
-    supabase.from("profiles").select("id, display_name, avatar_url").in("id", taggerIds),
-    supabase.rpc("get_tagged_moment_data", { p_moment_ids: momentIds }),
-  ]);
-  if (momentsError) throw momentsError;
-  if (profilesError) throw profilesError;
-
-  const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
-  const momentMap = new Map((moments ?? []).map((m: any) => [m.id, m]));
-
-  return data.map((row: any) => {
-    const taggerProfile = profileMap.get(row.tagger_user_id);
-    const momentRow = momentMap.get(row.moment_id);
-    return mapTaggedMomentRow({
-      ...row,
-      tagger_display_name: taggerProfile?.display_name ?? null,
-      tagger_avatar_url: taggerProfile?.avatar_url ?? null,
-      moment_row: momentRow ?? null,
-    });
-  });
-}
-
-export async function fetchAcceptedTaggedMoments(userId: string): Promise<TaggedMoment[]> {
-  const { data, error } = await supabase
-    .from("tagged_moments")
-    .select("*")
-    .eq("tagged_user_id", userId)
-    .eq("status", "accepted")
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  if (!data || data.length === 0) return [];
-
-  const taggerIds = [...new Set(data.map((r: any) => r.tagger_user_id))];
-  const momentIds = data.map((r: any) => r.moment_id);
-
-  const [
-    { data: profiles, error: profilesError },
-    { data: moments, error: momentsError },
-  ] = await Promise.all([
-    supabase.from("profiles").select("id, display_name, avatar_url").in("id", taggerIds),
-    supabase.rpc("get_tagged_moment_data", { p_moment_ids: momentIds }),
-  ]);
-  if (momentsError) throw momentsError;
-  if (profilesError) throw profilesError;
-
-  const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
-  const momentMap = new Map((moments ?? []).map((m: any) => [m.id, m]));
-
-  return data.map((row: any) => {
-    const taggerProfile = profileMap.get(row.tagger_user_id);
-    const momentRow = momentMap.get(row.moment_id);
-    return mapTaggedMomentRow({
-      ...row,
-      tagger_display_name: taggerProfile?.display_name ?? null,
-      tagger_avatar_url: taggerProfile?.avatar_url ?? null,
-      moment_row: momentRow ?? null,
-    });
-  });
 }
 
 export async function fetchTagsOnMoment(momentId: string): Promise<TaggedMoment[]> {
@@ -383,22 +254,6 @@ export async function releaseTag(taggedMomentId: string): Promise<void> {
   await supabase.functions.invoke("notify-friend", {
     body: { toUserId: row.tagged_user_id, type: "moment_tagged", payload: { momentId: row.moment_id } },
   }).catch((err) => { if (__DEV__) console.warn("[notify-friend]", err); });
-}
-
-export async function acceptTaggedMoment(taggedMomentId: string): Promise<void> {
-  const { error } = await supabase
-    .from("tagged_moments")
-    .update({ status: "accepted", updated_at: new Date().toISOString() })
-    .eq("id", taggedMomentId);
-  if (error) throw error;
-}
-
-export async function hideTaggedMoment(taggedMomentId: string): Promise<void> {
-  const { error } = await supabase
-    .from("tagged_moments")
-    .update({ status: "hidden", updated_at: new Date().toISOString() })
-    .eq("id", taggedMomentId);
-  if (error) throw error;
 }
 
 export async function markAllTaggedMomentsViewed(userId: string): Promise<void> {

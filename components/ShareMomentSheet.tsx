@@ -24,7 +24,7 @@ import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import * as Crypto from "expo-crypto";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { ShareCard, CARD_WIDTH, CARD_HEIGHT } from "@/components/ShareCard";
 import { Moment, TaggedMoment, Friendship } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -429,7 +429,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
                             activeOpacity={0.8}
                             style={[styles.thumb, selected && { borderColor: theme.colors.accent, borderWidth: 2.5 }]}
                           >
-                            <Image source={{ uri: item }} style={styles.thumbImage} contentFit="cover" />
+                            <AppImage source={{ uri: item }} style={styles.thumbImage} contentFit="cover" />
                           </TouchableOpacity>
                         );
                       }}

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
@@ -81,7 +81,7 @@ export default function AlbumScreen() {
               activeOpacity={0.7}
             >
               {item.artworkUrl ? (
-                <Image source={{ uri: item.artworkUrl }} style={styles.chipArt} contentFit="cover" />
+                <AppImage source={{ uri: item.artworkUrl }} style={styles.chipArt} contentFit="cover" />
               ) : null}
               <Text style={[styles.chipText, isActive && { color: theme.colors.buttonText }]} numberOfLines={1}>
                 {item.albumName}
@@ -110,7 +110,7 @@ export default function AlbumScreen() {
             activeOpacity={0.8}
           >
             {item.songArtworkUrl ? (
-              <Image source={{ uri: item.songArtworkUrl }} style={styles.artwork} contentFit="cover" />
+              <AppImage source={{ uri: item.songArtworkUrl }} style={styles.artwork} contentFit="cover" />
             ) : (
               <View style={[styles.artwork, { backgroundColor: theme.colors.backgroundSecondary }]} />
             )}

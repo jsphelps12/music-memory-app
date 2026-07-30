@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
@@ -72,7 +72,7 @@ export default function TaggedMomentsScreen() {
             return (
               <TouchableOpacity style={styles.row} onPress={() => handleTap(item)} activeOpacity={0.7}>
                 {artwork ? (
-                  <Image source={{ uri: artwork }} style={styles.artwork} contentFit="cover" />
+                  <AppImage source={{ uri: artwork }} style={styles.artwork} contentFit="cover" />
                 ) : (
                   <ArtworkPlaceholder style={styles.artwork} />
                 )}

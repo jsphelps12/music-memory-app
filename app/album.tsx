@@ -7,7 +7,7 @@ import {
   StyleSheet,
   RefreshControl,
 } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
@@ -73,7 +73,7 @@ export default function AlbumScreen() {
 
       <View style={styles.albumHeader}>
         {artworkUrl ? (
-          <Image source={{ uri: artworkUrl }} style={styles.albumArtwork} />
+          <AppImage source={{ uri: artworkUrl }} style={styles.albumArtwork} />
         ) : (
           <ArtworkPlaceholder style={styles.albumArtwork} />
         )}

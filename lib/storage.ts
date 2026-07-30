@@ -30,32 +30,6 @@ async function compressImage(uri: string, maxDimension: number): Promise<string>
 }
 
 /**
- * Upload a photo to Supabase Storage and return the storage path.
- * The path can later be used with createSignedUrl() to display the image.
- */
-export async function uploadMomentPhoto(
-  userId: string,
-  uri: string
-): Promise<string> {
-  const compressed = await compressImage(uri, MAX_MOMENT_PHOTO_DIMENSION);
-  const storagePath = `${userId}/${Crypto.randomUUID()}.jpg`;
-
-  const file = new File(compressed);
-  const arrayBuffer = await file.arrayBuffer();
-
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(storagePath, arrayBuffer, {
-      contentType: "image/jpeg",
-      upsert: false,
-    });
-
-  if (error) throw error;
-
-  return storagePath;
-}
-
-/**
  * Upload a photo and a 400px thumbnail in parallel.
  * Returns both storage paths.
  */
@@ -136,6 +110,26 @@ export function getPublicPhotoUrl(path: string): string {
 export function getPublicPhotoThumbnailUrl(path: string): string {
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl;
+}
+
+/**
+ * Delete photo objects for a moment (full-size paths and their thumbnails).
+ *
+ * The bucket is public and paths are deterministic, so an object left behind
+ * after its row is gone stays readable by anyone who saw the URL — deleting
+ * the row is not enough. Fire-and-forget by design: the DB delete is the
+ * user-visible operation, and a storage failure shouldn't block or fail it.
+ * Returns the paths it attempted so callers can log/report if they want.
+ */
+export async function deleteMomentPhotos(
+  photoPaths: string[],
+  thumbnailPaths: string[] = []
+): Promise<string[]> {
+  const paths = [...new Set([...photoPaths, ...thumbnailPaths])].filter(Boolean);
+  if (paths.length === 0) return [];
+  const { error } = await supabase.storage.from(BUCKET).remove(paths);
+  if (error && __DEV__) console.warn("[storage] failed to delete photos:", error.message);
+  return paths;
 }
 
 export async function uploadAlbumCover(

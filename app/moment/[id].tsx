@@ -28,14 +28,14 @@ import Animated, {
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { consumeCardOrigin } from "@/lib/cardTransition";
 import { consumeCachedMoment } from "@/lib/momentCache";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
-import { getPublicPhotoUrl } from "@/lib/storage";
+import { getPublicPhotoUrl, deleteMomentPhotos } from "@/lib/storage";
 import { mapRowToMoment } from "@/lib/moments";
 import {
   fetchAlbums,
@@ -89,7 +89,14 @@ export default function MomentDetailScreen() {
   const theme = useTheme();
   const posthog = usePostHog();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [moment, setMoment] = useState<Moment | null>(() => consumeCachedMoment());
+  // Only accept the cached moment if it's actually the one being opened. A
+  // swallowed navigation leaves a stale value in the module-level slot, and
+  // entries that don't populate it (push-notification taps) would otherwise
+  // render — and autoplay — someone else's moment.
+  const [moment, setMoment] = useState<Moment | null>(() => {
+    const cached = consumeCachedMoment();
+    return cached && cached.id === id ? cached : null;
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -478,6 +485,12 @@ export default function MomentDetailScreen() {
             return;
           }
 
+          // Row is gone — now remove the objects, or they stay publicly
+          // readable at their deterministic URLs forever.
+          if (moment) {
+            void deleteMomentPhotos(moment.photoUrls, moment.photoThumbnails);
+          }
+
           posthog.capture("moment_deleted", { song_title: moment?.songTitle ?? null, song_artist: moment?.songArtist ?? null });
           markTimelineDeleted(id);
           animateOut(goBack);
@@ -540,7 +553,7 @@ export default function MomentDetailScreen() {
     <Animated.View style={[styles.container, animStyle]}>
       {/* Ambient blurred artwork backdrop */}
       {moment?.songArtworkUrl ? (
-        <Image
+        <AppImage
           source={{ uri: moment.songArtworkUrl }}
           style={StyleSheet.absoluteFill}
           blurRadius={50}
@@ -684,7 +697,7 @@ export default function MomentDetailScreen() {
                 onPress={() => { setViewerIndex(0); setViewerVisible(true); }}
                 style={StyleSheet.absoluteFill}
               >
-                <Image source={{ uri: photoUrls[0] }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                <AppImage source={{ uri: photoUrls[0] }} style={StyleSheet.absoluteFill} contentFit="cover" />
               </TouchableOpacity>
               <LinearGradient
                 colors={["transparent", "rgba(15,13,11,0.88)"]}
@@ -701,7 +714,7 @@ export default function MomentDetailScreen() {
           ) : (
             <View style={styles.ambientHero}>
               {moment.songArtworkUrl ? (
-                <Image source={{ uri: moment.songArtworkUrl }} style={styles.artworkHero} contentFit="cover" />
+                <AppImage source={{ uri: moment.songArtworkUrl }} style={styles.artworkHero} contentFit="cover" />
               ) : (
                 <ArtworkPlaceholder style={styles.artworkHero} />
               )}
@@ -716,7 +729,7 @@ export default function MomentDetailScreen() {
           >
             {/* Small artwork thumbnail — only shown in photo-first layout */}
             {hasPhotos && moment.songArtworkUrl ? (
-              <Image source={{ uri: moment.songArtworkUrl }} style={styles.artworkThumb} contentFit="cover" />
+              <AppImage source={{ uri: moment.songArtworkUrl }} style={styles.artworkThumb} contentFit="cover" />
             ) : null}
 
             {/* Date + location eyebrow */}
@@ -899,7 +912,7 @@ export default function MomentDetailScreen() {
                     activeOpacity={0.85}
                     onPress={() => { setViewerIndex(0); setViewerVisible(true); }}
                   >
-                    <Image source={{ uri: photoUrls[0] }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+                    <AppImage source={{ uri: photoUrls[0] }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
                   </TouchableOpacity>
                   <View style={styles.photoGridStack}>
                     {photoUrls.slice(1, 3).map((url, idx) => (
@@ -909,7 +922,7 @@ export default function MomentDetailScreen() {
                         activeOpacity={0.85}
                         onPress={() => { setViewerIndex(idx + 1); setViewerVisible(true); }}
                       >
-                        <Image source={{ uri: url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+                        <AppImage source={{ uri: url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -923,7 +936,7 @@ export default function MomentDetailScreen() {
                 activeOpacity={0.85}
                 onPress={() => { setViewerIndex(0); setViewerVisible(true); }}
               >
-                <Image source={{ uri: photoUrls[0] }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+                <AppImage source={{ uri: photoUrls[0] }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
               </TouchableOpacity>
             )}
 

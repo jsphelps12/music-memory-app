@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, {
@@ -113,7 +113,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
         <View style={styles.cardBody}>
           <View style={styles.cardRow}>
             {item.songArtworkUrl ? (
-              <Image source={{ uri: item.songArtworkUrl }} style={styles.artwork} transition={200} />
+              <AppImage source={{ uri: item.songArtworkUrl }} style={styles.artwork} transition={200} />
             ) : (
               <ArtworkPlaceholder style={styles.artwork} />
             )}
@@ -148,7 +148,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
                   contentContainerStyle={styles.photoStripContent}
                 >
                   {thumbUrls.map((url, i) => (
-                    <Image
+                    <AppImage
                       key={i}
                       source={{ uri: url }}
                       style={styles.photoStripThumb}

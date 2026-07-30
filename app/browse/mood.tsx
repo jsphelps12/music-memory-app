@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
@@ -109,7 +109,7 @@ export default function MoodScreen() {
             activeOpacity={0.8}
           >
             {item.songArtworkUrl ? (
-              <Image
+              <AppImage
                 source={{ uri: item.songArtworkUrl }}
                 style={styles.artwork}
                 contentFit="cover"

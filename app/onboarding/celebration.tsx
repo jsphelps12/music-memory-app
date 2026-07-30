@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
@@ -133,7 +133,7 @@ function CelebrationMomentCard({ moment, theme }: { moment: Moment; theme: Theme
     <View style={cardStyles.card}>
       <View style={cardStyles.row}>
         {moment.songArtworkUrl ? (
-          <Image source={{ uri: moment.songArtworkUrl }} style={cardStyles.artwork} contentFit="cover" />
+          <AppImage source={{ uri: moment.songArtworkUrl }} style={cardStyles.artwork} contentFit="cover" />
         ) : (
           <View style={cardStyles.artworkPlaceholder}>
             <Ionicons name="musical-note" size={20} color={theme.colors.textTertiary} />

@@ -8,7 +8,7 @@ import {
   Dimensions,
   ActivityIndicator,
 } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Moment } from "@/types";
@@ -125,7 +125,7 @@ function CalendarViewComponent({ moments, onDayPress, theme, loading }: Props) {
                   >
                     {hasMoment && first?.songArtworkUrl ? (
                       <>
-                        <Image
+                        <AppImage
                           source={{ uri: first.songArtworkUrl }}
                           style={[StyleSheet.absoluteFill, styles.cellArtwork]}
                           contentFit="cover"
@@ -170,7 +170,7 @@ function CalendarViewComponent({ moments, onDayPress, theme, loading }: Props) {
               onPress={() => onDayPress(m.id)}
             >
               {m.songArtworkUrl ? (
-                <Image source={{ uri: m.songArtworkUrl }} style={styles.undatedArt} />
+                <AppImage source={{ uri: m.songArtworkUrl }} style={styles.undatedArt} />
               ) : (
                 <ArtworkPlaceholder style={styles.undatedArt} />
               )}

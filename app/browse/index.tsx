@@ -9,7 +9,7 @@ import {
   FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -155,7 +155,7 @@ function AlbumCard({ albumName, artist, artworkUrl, count, onPress }: {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ marginLeft: 10, width: 100 }}>
       {artworkUrl ? (
-        <Image source={{ uri: artworkUrl }} style={{ width: 100, height: 100, borderRadius: theme.radii.md }} contentFit="cover" />
+        <AppImage source={{ uri: artworkUrl }} style={{ width: 100, height: 100, borderRadius: theme.radii.md }} contentFit="cover" />
       ) : (
         <LinearGradient
           colors={["#E8825C", "#6B5F8C"]}
@@ -258,7 +258,7 @@ function SearchResults({ query, userId, allMoods }: { query: string; userId: str
           activeOpacity={0.8}
         >
           {item.songArtworkUrl ? (
-            <Image source={{ uri: item.songArtworkUrl }} style={{ width: 44, height: 44, borderRadius: 6 }} />
+            <AppImage source={{ uri: item.songArtworkUrl }} style={{ width: 44, height: 44, borderRadius: 6 }} />
           ) : (
             <View style={{ width: 44, height: 44, borderRadius: 6, backgroundColor: theme.colors.backgroundSecondary }} />
           )}

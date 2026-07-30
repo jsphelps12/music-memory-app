@@ -356,12 +356,13 @@ tooltip or a "what's here" sheet on first launch. Not a blocker — but worth tr
 
 ## CI/CD and DevOps
 
-### 19. Zero Test Coverage
-No test files exist. No Jest config. No testing-library setup. `react-test-renderer`
-is in devDependencies but unused.
+### 19. Test Coverage — partially addressed
+**Updated 2026-07-29.** Vitest is configured (`vitest.config.ts`) with 8 suites /
+118 tests in `lib/__tests__/`, and `npm test` runs in PR checks. Coverage is
+pure-logic only: no component tests, no E2E, and nothing that renders a screen —
+which is why the blank-thumbnail bug shipped undetected for months.
 
-**Risk:** Regressions reach TestFlight undetected. As the codebase grows this becomes
-painful to manage manually.
+**Risk:** UI and integration regressions still reach users undetected.
 
 **Pragmatic approach for a solo/small team:**
 - Don't try to retrofit unit tests everywhere
@@ -372,9 +373,13 @@ painful to manage manually.
 ---
 
 ### 20. CI Pipeline ✅ Done
-`.github/workflows/` has two workflows:
-- **OTA Update** — triggers on push to main; runs `eas update --branch production` automatically
-- **PR Checks** — runs `npx tsc --noEmit` + `npm test` on every PR; web app also gets type-checked + built
+`.github/workflows/` has four workflows:
+- **PR Checks** — `tsc --noEmit` + lint + `npm test` on every PR; web app type-checked, linted, built
+- **OTA Update** — on push to main, publishes to the **preview** channel (staging Supabase). It does **not** touch production
+- **Promote to Production** — manual dispatch; publishes the same commit to the **production** channel, gated on a native-fingerprint check against the live build
+- **Production Build** — manual dispatch; EAS binary build + optional TestFlight submit
+
+The Vercel web app auto-deploys on push to main.
 
 The Vercel web app auto-deploys on push to main.
 

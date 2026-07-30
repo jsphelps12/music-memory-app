@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -76,7 +76,7 @@ export default function SharedAlbumsScreen() {
             return (
               <TouchableOpacity style={styles.row} onPress={() => handleTap(item)} activeOpacity={0.7}>
                 {coverThumbUrl ? (
-                  <Image source={{ uri: coverThumbUrl }} style={styles.coverThumb} contentFit="cover" />
+                  <AppImage source={{ uri: coverThumbUrl }} style={styles.coverThumb} contentFit="cover" />
                 ) : (
                   <View style={[styles.icon, { backgroundColor: theme.colors.chipBg }]}>
                     <Ionicons

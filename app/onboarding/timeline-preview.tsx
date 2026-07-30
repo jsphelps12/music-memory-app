@@ -7,7 +7,7 @@ import Animated, {
   withSpring,
   withDelay,
 } from "react-native-reanimated";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/hooks/useTheme";
@@ -107,7 +107,7 @@ function RichMomentCard({ theme }: { theme: Theme }) {
   return (
     <View style={s.card}>
       {/* Hero photo — full width */}
-      <Image
+      <AppImage
         source={HERO_PHOTO}
         style={s.heroImage}
         contentFit="cover"
@@ -116,7 +116,7 @@ function RichMomentCard({ theme }: { theme: Theme }) {
       <View style={s.body}>
         {/* Song row: album art thumbnail + title + artist */}
         <View style={s.songRow}>
-          <Image
+          <AppImage
             source={SONG_ARTWORK}
             style={s.songArtwork}
             contentFit="cover"
@@ -142,7 +142,7 @@ function RichMomentCard({ theme }: { theme: Theme }) {
 
         {/* Extra photo strip */}
         <View style={s.photoStrip}>
-          <Image
+          <AppImage
             source={EXTRA_PHOTO}
             style={s.photo}
             contentFit="cover"
@@ -150,7 +150,7 @@ function RichMomentCard({ theme }: { theme: Theme }) {
         </View>
 
         {/* Map */}
-        <Image
+        <AppImage
           source={MAP_IMAGE}
           style={s.mapImage}
           contentFit="cover"

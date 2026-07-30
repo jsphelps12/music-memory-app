@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, PanResponder } from "react-native";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
@@ -42,7 +42,7 @@ export function MiniPlayer() {
     ]}>
       <View style={styles.mainRow}>
         {currentSong.artworkUrl ? (
-          <Image source={{ uri: currentSong.artworkUrl }} style={styles.artwork} contentFit="cover" />
+          <AppImage source={{ uri: currentSong.artworkUrl }} style={styles.artwork} contentFit="cover" />
         ) : (
           <View style={[styles.artwork, { backgroundColor: theme.colors.backgroundSecondary }]} />
         )}

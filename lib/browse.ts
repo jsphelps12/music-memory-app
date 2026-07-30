@@ -2,7 +2,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
-import { pad } from "@/lib/dateUtils";
 import type { Moment } from "@/types";
 
 const browseCacheKey = (userId: string) => `browse_meta_${userId}`;
@@ -82,28 +81,6 @@ export async function fetchYearMoments(userId: string, year: number): Promise<Mo
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map(mapRowToMoment);
-}
-
-export async function fetchCalendarMonth(
-  userId: string,
-  year: number,
-  month: number // 1-based
-): Promise<string[]> {
-  const mm = pad(month);
-  const lastDay = new Date(year, month, 0).getDate();
-  const { data, error } = await supabase
-    .from("moments")
-    .select("moment_date")
-    .eq("user_id", userId)
-    .gte("moment_date", `${year}-${mm}-01`)
-    .lte("moment_date", `${year}-${mm}-${lastDay}`);
-
-  if (error) throw error;
-  const dates = new Set<string>();
-  for (const r of data ?? []) {
-    if (r.moment_date) dates.add(r.moment_date);
-  }
-  return Array.from(dates);
 }
 
 export async function fetchMoodMoments(userId: string, mood: string): Promise<Moment[]> {

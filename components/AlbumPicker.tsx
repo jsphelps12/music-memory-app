@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from "react-native-reanimated";
-import { Image } from "expo-image";
+import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -72,7 +72,7 @@ export function AlbumPicker({
     >
       <View style={styles.rowLeft}>
         {thumbUrl ? (
-          <Image source={{ uri: thumbUrl }} style={styles.rowThumb} contentFit="cover" />
+          <AppImage source={{ uri: thumbUrl }} style={styles.rowThumb} contentFit="cover" />
         ) : (
         <Ionicons
           name={item.isPublic ? "people-outline" : "folder-outline"}

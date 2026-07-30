@@ -9,12 +9,14 @@ Soundtracks — an iOS app for capturing and revisiting music-linked memories ("
 - **Framework**: Expo SDK 54 (React Native) with Expo Router v6 (file-based routing)
 - **Language**: TypeScript
 - **Backend**: Supabase (auth, Postgres database, storage)
-- **Music**: Apple MusicKit via `@lomray/react-native-apple-music`, custom NowPlaying Expo module for system player
+- **Music**: Apple MusicKit via `@lomray/react-native-apple-music`, custom NowPlaying Expo module for system player, custom SpotifyRemote Expo module in `modules/spotify-remote` (lazy-loaded; see `lib/providers/`)
 - **Share Extension**: `expo-share-intent` for receiving shared songs from Apple Music & Spotify
 - **Audio**: `expo-av` for preview playback
 - **Auth**: Supabase Auth (email/password with PKCE flow, Apple Sign-In via native `expo-apple-authentication`)
 - **State**: React Context (AuthContext with profile state, PlayerContext)
-- **Builds**: EAS Build + Submit for TestFlight distribution
+- **Builds**: EAS Build + Submit for TestFlight distribution; OTA via EAS Update (preview + production channels — see `docs/DEPLOY.md`)
+- **Monitoring**: Sentry (`EXPO_PUBLIC_APP_ENV` sets the environment tag), PostHog (events carry an `app_env` super property)
+- **Tests**: Vitest (`npm test`) — pure-logic suites in `lib/__tests__/`
 
 ## Common Commands
 
@@ -43,7 +45,11 @@ Copy `.env.example` to `.env` and fill in:
 - Row Level Security enforces per-user data isolation in Supabase
 - Photo storage uses public `moment-photos` bucket with `{user_id}/` folder prefixes; avatars stored at `{user_id}/avatar.jpg`
 - Photo/avatar URLs are generated synchronously via `getPublicPhotoUrl()` — no API calls needed (bucket is public for reads; RLS still protects uploads/deletes)
-- Deep link scheme is `soundtracks://`; used for email confirmation redirects via PKCE auth flow
+- Deep link scheme is per-variant: `soundtracks://` in production, `soundtracks-beta://` in the preview build (`app.config.ts` switches on `EXPO_PUBLIC_APP_ENV`). Both apps installed at once would otherwise fight over one scheme
+- Only bare-scheme and `/confirm` deep links are treated as auth callbacks — never add a catch-all, it races the confirm route on single-use PKCE codes
+- Supabase image transformations are NOT enabled on this project: never call `getPublicUrl(path, { transform })`, it 403s. Thumbnails are pre-resized at upload
+- Deleting a moment or removing a photo must also delete the storage objects (`deleteMomentPhotos` in `lib/storage.ts`) — the bucket is public and URLs are guessable
+- Use `npx expo install <pkg>`, never bare `npm i`, for expo-* packages; a mismatched version silently fails to link natively
 - Profile data (display_name, avatar_url) lives in `profiles` table; AuthContext fetches and exposes it
 - Error handling uses `friendlyError()` from `lib/errors.ts` — never show raw Supabase/network errors to users
 - Use `ErrorState` for full-screen errors (load failures) and `ErrorBanner` for inline errors (background refresh failures that shouldn't replace existing content)
@@ -53,7 +59,6 @@ Copy `.env.example` to `.env` and fill in:
 - Now playing detection uses `MPMusicPlayerController.systemMusicPlayer` (not the library's `ApplicationMusicPlayer` which only sees app-initiated playback)
 - **Albums** (UI/type name) = user-defined moment groupings; DB tables use `collections` / `collection_members` / `collection_moments` / `collection_invites`; types are `Album` / `AlbumPreview` in `types/index.ts`; all DB operations in `lib/albums.ts`
 - Tab bar: Moments | Reflections | Albums | Me — the Albums tab file is `app/(tabs)/friends.tsx` (route name unchanged from when it was the Friends tab)
-- `lib/pendingAlbum.ts` — consume-once module-level var for post-join auto-selection
 - Direct invite system: `collection_invites` table; `sendAlbumInvite` / `fetchPendingAlbumInvites` / `acceptAlbumInvite` / `deleteAlbumInvite` / `searchUsersForAlbum` in `lib/albums.ts`
 
 ## Data Fetching (React Query / TanStack Query)
@@ -77,7 +82,6 @@ Several libs use a module-level variable with a setter and a `consume*()` that r
 - `lib/momentCache.ts` — `setCachedMoment` / `consumeCachedMoment`: pass full Moment data from card tap into detail screen to avoid re-fetch on entry
 - `lib/cardTransition.ts` — `setCardOrigin` / `consumeCardOrigin`: measured card position for entry animation in detail screen
 - `lib/timelineRefresh.ts` — `markTimelineStale` / `markTimelineDeleted` / `consumeTimelineStale`: signal from create/edit/delete that timeline needs refresh on next focus; optionally carries a newly created Moment for instant prepend
-- `lib/pendingAlbum.ts` — `setPendingAlbumId` / `consumePendingAlbumId`: auto-select an album after navigating to tabs (e.g. after joining via invite link)
 
 All follow the same shape: module-level `let x = null`, setter, and `consume()` that returns the value and resets it.
 
