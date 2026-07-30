@@ -114,9 +114,10 @@ for beta, and there is no way to opt out short of not merging.
 
 **1. Verify the change is OTA-safe**
 No new native packages, no permission changes, no `app.config.ts` entitlement
-changes. `node scripts/fingerprint-check.mjs` answers this definitively — CI
-runs the same check (`scripts/fingerprint-gate.mjs`) and will fail the OTA
-rather than crash the installed binary.
+changes, no `eas.json` or `package.json` `scripts` edits.
+`node scripts/fingerprint-check.mjs` answers this definitively — CI runs the same
+check (`scripts/fingerprint-gate.mjs`) and fails the job rather than publishing
+an update that reaches nobody.
 
 **2. Test locally**
 ```bash
@@ -133,10 +134,10 @@ Run the **Promote to Production** workflow from the Actions tab. Paste the exact
 SHA you verified on beta into the `sha` input — leaving it blank promotes
 whatever `main` is at that moment, which may not be what you tested.
 
-The workflow re-checks the native fingerprint against the live App Store build
-and refuses to publish on a mismatch. That refusal is correct: it means
-production needs a new binary, not an OTA. `skip_fingerprint_check` exists for
-emergencies and will crash the app if you are wrong about why you're using it.
+The workflow checks that a live App Store build actually serves this commit's
+runtime version, and refuses to publish otherwise. That refusal is correct: it
+means production needs a new binary, not an OTA. There is no bypass, because
+bypassing it would publish an update to zero users rather than to some of them.
 
 **5. Monitor Sentry for 30 minutes**
 Watch for new crash spikes or error rate increases after the update lands.
@@ -346,18 +347,33 @@ Example progression:
 
 Never push directly to `production` without testing on `preview` first.
 
-Each channel only receives updates whose `runtimeVersion` matches the installed
-binary's. That match is currently on `version` alone (`runtimeVersion.policy:
-"appVersion"`), which does **not** move when native code changes — which is why
-the fingerprint gate exists as a separate check. See `scripts/fingerprint-gate.mjs`.
+Each channel only receives updates whose `runtimeVersion` exactly matches the one
+compiled into the installed binary. `runtimeVersion.policy` is **`fingerprint`**,
+so that label is derived from everything affecting the native build rather than
+from the `version` string.
+
+What this buys: EAS can never serve JS to a binary lacking the native modules it
+references. What it costs: an update built from different native code reaches
+**nobody**, and that failure is silent — it reports as a successful publish.
+`scripts/fingerprint-gate.mjs` is what turns that silence into a failed job.
+
+JS-only changes do not move the label, so ordinary OTAs keep flowing to the same
+binary indefinitely. Only native-affecting changes force a new build — including
+`eas.json` and the `scripts` block of `package.json`, both of which feed the
+fingerprint and are easy to touch by accident.
+
+Binaries cut before this switch carry a version-string runtime (`1.1.0`) and can
+never receive a fingerprint-labelled update. They are frozen on the last JS they
+got until replaced.
 
 ---
 
 ## Common Commands
 
 Both OTA channels are published by CI — see the Channels Reference above. The
-`eas update` commands below are for emergencies when Actions is unavailable;
-note they bypass the fingerprint gate entirely.
+`eas update` commands below are for emergencies when Actions is unavailable.
+They skip the reachability gate, so they cannot crash a binary but can silently
+publish to nobody — run `fingerprint-check` first.
 
 ```bash
 # Start dev server (staging + beta identity, per .env)
@@ -369,7 +385,7 @@ node scripts/fingerprint-check.mjs
 # Rollback production OTA
 eas update --rollback-to-embedded --branch production
 
-# Emergency manual OTA — NO fingerprint gate, can crash installed binaries
+# Emergency manual OTA — no reachability gate; may publish to zero users
 eas update --branch preview --environment preview --message "Description"
 eas update --branch production --environment production --message "Description"
 

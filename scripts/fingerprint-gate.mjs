@@ -1,23 +1,23 @@
 /**
- * CI gate: refuse to publish an OTA whose native fingerprint differs from the
- * binary users actually have.
+ * CI gate: refuse to publish an OTA that no installed binary would receive.
  *
- * An OTA ships JS only. If this commit's native fingerprint differs from the
- * live build's, the update can reference native modules that binary does not
- * contain. In this app that is a hard crash, not a degraded feature —
- * modules/now-playing and modules/shazam-kit both call `requireNativeModule` at
- * module top level with no try/catch, so the throw happens at import time.
- * `runtimeVersion` is "appVersion", so EAS will NOT catch this for us.
+ * `runtimeVersion.policy` is "fingerprint", so the label an update is published
+ * under is derived from everything affecting the native build, and a binary
+ * only receives updates whose label matches the one compiled into it. That
+ * makes the crash-on-launch case impossible — EAS can no longer serve JS to a
+ * binary lacking the native modules it references.
+ *
+ * What it does NOT prevent is publishing into the void. A mismatched update is
+ * accepted, reported as a successful publish, and delivered to nobody. That
+ * failure is silent and looks exactly like success, so it needs a gate of its
+ * own: does a finished build for this profile actually carry this runtime
+ * version?
  *
  * Usage:
  *   node scripts/fingerprint-gate.mjs --profile preview
  *   node scripts/fingerprint-gate.mjs --profile production
- *
- * Exits non-zero on mismatch, on a missing live build, and on a live build with
- * no recorded fingerprint. That last pair used to warn-and-proceed, which is
- * indistinguishable from passing in a green check — unverifiable is not safe.
  */
-import { appEnvForProfile, liveBuild, localFingerprint } from "./lib/fingerprint.mjs";
+import { appEnvForProfile, liveBuilds, localFingerprint } from "./lib/fingerprint.mjs";
 
 const profileArg = process.argv.indexOf("--profile");
 if (profileArg === -1 || !process.argv[profileArg + 1]) {
@@ -33,32 +33,37 @@ const fail = (msg) => {
 };
 
 const appEnv = appEnvForProfile(profile);
-const [local, live] = await Promise.all([localFingerprint(appEnv), liveBuild(profile)]);
+const [runtimeVersion, builds] = await Promise.all([
+  localFingerprint(appEnv),
+  liveBuilds(profile),
+]);
 
-console.log(`local fingerprint:      ${local}`);
+console.log(`update runtimeVersion: ${runtimeVersion}`);
 
-if (!live) {
+if (builds.length === 0) {
   fail(
-    `No finished iOS build exists for profile "${profile}", so there is nothing to verify this ` +
-      `update against. Cut a build before publishing to this channel.`
+    `No finished iOS build exists for profile "${profile}". Publishing would reach nobody. ` +
+      `Cut a build first.`
   );
 }
 
-console.log(`live build fingerprint: ${live.fingerprint ?? "<not recorded>"} (build ${live.buildNumber}, v${live.appVersion})`);
+console.log(`finished "${profile}" builds:`);
+for (const b of builds) {
+  const marker = b.runtimeVersion === runtimeVersion ? "  <- match" : "";
+  console.log(`  build ${b.buildNumber} (v${b.appVersion})  runtimeVersion ${b.runtimeVersion}${marker}`);
+}
 
-if (!live.fingerprint) {
+const match = builds.find((b) => b.runtimeVersion === runtimeVersion);
+
+if (!match) {
+  const newest = builds[0];
   fail(
-    `The latest finished "${profile}" build (build ${live.buildNumber}) has no recorded fingerprint, ` +
-      `so this update cannot be verified against it. Cut a new build rather than publishing blind.`
+    `No installed binary would receive this update.\n` +
+      `This commit's runtime version is ${runtimeVersion}; the newest "${profile}" build ` +
+      `(build ${newest.buildNumber}) serves ${newest.runtimeVersion}.\n` +
+      `Publishing anyway would succeed and reach zero users. Cut a new "${profile}" build ` +
+      `from this commit, then re-run.`
   );
 }
 
-if (live.fingerprint !== local) {
-  fail(
-    `Native fingerprint mismatch for "${profile}". This commit changes native code relative to ` +
-      `build ${live.buildNumber}, so an OTA update would likely crash it. Cut a new build instead.\n` +
-      `Run \`node scripts/fingerprint-check.mjs\` locally to see both profiles.`
-  );
-}
-
-console.log(`Fingerprints match — safe to publish a JS-only update to "${profile}".`);
+console.log(`Build ${match.buildNumber} serves this runtime version — safe to publish.`);

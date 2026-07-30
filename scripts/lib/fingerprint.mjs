@@ -45,8 +45,15 @@ export async function localFingerprint(appEnv) {
   return JSON.parse(stdout).hash;
 }
 
-/** Latest finished iOS build for the profile, or null if there is none. */
-export async function liveBuild(profile) {
+/**
+ * Recent finished iOS builds for the profile, newest first.
+ *
+ * Plural on purpose. Under `policy: "fingerprint"` the question is whether ANY
+ * installed binary would receive an update, and the newest build is not
+ * necessarily the matching one — cutting a build, reverting a native change,
+ * and republishing leaves the match on an older build.
+ */
+export async function liveBuilds(profile, limit = 10) {
   const { stdout } = await run(
     "npx",
     [
@@ -54,20 +61,25 @@ export async function liveBuild(profile) {
       "--platform", "ios",
       "--profile", profile,
       "--status", "finished",
-      "--limit", "1",
+      "--limit", String(limit),
       "--json", "--non-interactive",
     ],
     { maxBuffer: MAX_BUFFER }
   );
-  const build = JSON.parse(stdout)[0];
-  if (!build) return null;
-  return {
+  return JSON.parse(stdout).map((build) => ({
     buildNumber: build.appBuildVersion,
     appVersion: build.appVersion,
+    // What the installed binary actually asks the update server for. Builds cut
+    // under the old "appVersion" policy carry a version string like "1.1.0" and
+    // can never match a fingerprint-derived update — that is the strand.
     runtimeVersion: build.runtimeVersion,
     completedAt: build.completedAt,
-    // Absent on builds cut before EAS recorded fingerprints. Always treated as
-    // "unknown", never as "matches" — unverifiable is not the same as safe.
     fingerprint: build.fingerprint?.hash ?? null,
-  };
+  }));
+}
+
+/** Newest finished build, or null. */
+export async function liveBuild(profile) {
+  const builds = await liveBuilds(profile, 1);
+  return builds[0] ?? null;
 }

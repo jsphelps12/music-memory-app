@@ -1,20 +1,23 @@
 /**
- * Compare this working tree's native fingerprint against the live EAS builds,
- * per profile. Informational — the enforcing version is
- * scripts/fingerprint-gate.mjs, which CI runs.
+ * Report, per profile, whether this working tree can ship an OTA — and if not,
+ * why. Informational; the enforcing version is scripts/fingerprint-gate.mjs,
+ * which CI runs.
  *
- * WHY THIS EXISTS
- * ---------------
- * An OTA update ships JS only. Whether that JS is safe for a given binary
- * depends on whether the native code matches — and with
- * `runtimeVersion: { policy: "appVersion" }` the runtime version is just the
- * `version` string in app.config.ts, so it does NOT move when native code
- * changes. EAS therefore cannot tell two binaries apart and will happily serve
- * a bundle to one that lacks the native modules it references.
+ * `runtimeVersion.policy` is "fingerprint": the label an update is published
+ * under is derived from everything affecting the native build (app.config.ts
+ * and its plugins, autolinked native modules, patches/, eas.json, the
+ * package.json `scripts` block, the native project dir). A binary receives an
+ * update only when that label exactly matches the one compiled into it.
  *
- * The fingerprint is the thing that actually tracks native code. This prints it
- * next to the live builds' so drift is visible BEFORE you dispatch a promote,
- * rather than as a crash report afterwards.
+ * So an update either reaches binaries built from equivalent native code, or it
+ * reaches nobody at all. It can no longer reach a binary that would crash on it
+ * — but "reaches nobody" is silent and looks identical to a successful publish,
+ * which is what this exists to make visible.
+ *
+ * Production and preview labels always differ from each other even on an
+ * identical commit, because app.config.ts swaps bundle identifier, app group,
+ * scheme, name and icon on EXPO_PUBLIC_APP_ENV. Only compare a profile with
+ * itself.
  *
  * Usage:
  *   node scripts/fingerprint-check.mjs
@@ -24,50 +27,43 @@
  * DELIBERATELY NOT an npm script. package.json's entire `scripts` block feeds
  * the fingerprint — Expo cannot tell a benign script from `postinstall:
  * patch-package`, which really does change native output, so it hashes all of
- * it. Adding one line there moved the preview fingerprint from 084fc315 to
- * a44b261e with no native change whatsoever, which would have stranded beta
- * build 20 behind a gate failure. A tool for observing fingerprint drift must
- * not cause it.
- *
- * The same trap applies to anything that edits `scripts`. Under
- * `policy: "fingerprint"` it is worse: adding a script strands every installed
- * binary until a new build ships. (Files under scripts/ are fine — only the
+ * it. Adding one line there moved the preview label with no native change
+ * whatsoever, which would strand every installed binary. A tool for observing
+ * this must not cause it. (Files under scripts/ are fine — only the
  * package.json block is hashed.)
  */
-import { TARGETS, liveBuild, localFingerprint } from "./lib/fingerprint.mjs";
+import { TARGETS, liveBuilds, localFingerprint } from "./lib/fingerprint.mjs";
 
 async function checkTarget({ profile, appEnv, label }) {
-  const [local, live] = await Promise.all([
+  const [runtimeVersion, builds] = await Promise.all([
     localFingerprint(appEnv),
-    liveBuild(profile).catch(() => null),
+    liveBuilds(profile).catch(() => []),
   ]);
 
   console.log(`\n${label} — profile "${profile}"`);
-  console.log(`  local (this tree)  ${local}`);
+  console.log(`  this tree publishes as  ${runtimeVersion}`);
 
-  if (!live) {
-    console.log("  live build         none found (or eas-cli is not authenticated)");
-    return "unknown";
+  if (builds.length === 0) {
+    console.log("  no finished builds found (or eas-cli is not authenticated)");
+    return "unreachable";
   }
 
-  const when = live.completedAt ? live.completedAt.slice(0, 10) : "unknown date";
-  console.log(
-    `  live build         ${live.fingerprint ?? "not recorded"}` +
-      `  (build ${live.buildNumber}, v${live.appVersion}, ${when})`
-  );
-  console.log(`  runtimeVersion     ${live.runtimeVersion}`);
+  for (const b of builds.slice(0, 3)) {
+    const when = b.completedAt ? b.completedAt.slice(0, 10) : "unknown date";
+    const marker = b.runtimeVersion === runtimeVersion ? "  <- would receive it" : "";
+    console.log(
+      `  build ${String(b.buildNumber).padEnd(3)} serves       ${b.runtimeVersion}  (${when})${marker}`
+    );
+  }
 
-  if (!live.fingerprint) {
-    console.log("  → UNKNOWN. This build predates fingerprint recording; cannot verify.");
-    return "unknown";
+  if (builds.some((b) => b.runtimeVersion === runtimeVersion)) {
+    console.log("  → OK. An OTA from this tree reaches that build.");
+    return "reachable";
   }
-  if (live.fingerprint === local) {
-    console.log("  → MATCH. A JS-only OTA is safe for this binary.");
-    return "match";
-  }
-  console.log("  → MISMATCH. This tree's native code differs from that binary.");
-  console.log("    An OTA would reference native modules it does not contain. Cut a new build.");
-  return "mismatch";
+
+  console.log("  → UNREACHABLE. Publishing would succeed and reach zero users.");
+  console.log("    Cut a new build from this commit for this profile.");
+  return "unreachable";
 }
 
 const results = [];
@@ -75,15 +71,14 @@ for (const target of TARGETS) {
   results.push(await checkTarget(target));
 }
 
-const mismatches = results.filter((r) => r === "mismatch").length;
-const unknowns = results.filter((r) => r === "unknown").length;
+const unreachable = results.filter((r) => r === "unreachable").length;
 
 console.log("");
-if (mismatches === 0 && unknowns === 0) {
-  console.log("All profiles match their live build.");
+if (unreachable === 0) {
+  console.log("Both profiles are reachable from this tree.");
 } else {
   console.log(
-    `${mismatches} mismatch(es), ${unknowns} unverifiable. ` +
-      "A mismatched profile needs a new binary before its channel can receive an OTA."
+    `${unreachable} profile(s) unreachable. Native code has moved since those binaries were ` +
+      "cut, so they need a new build before an OTA can reach them."
   );
 }

@@ -11,11 +11,6 @@ on:
         description: Release note (shown in EAS update history)
         required: false
         default: Promote to production
-      skip_fingerprint_check:
-        description: "DANGER: publish even if native code differs from the live build"
-        type: boolean
-        required: false
-        default: false
 
 permissions:
   contents: read
@@ -76,16 +71,15 @@ jobs:
           fi
           echo "Found $COUNT successful E2E run(s) for $TARGET_SHA."
 
-      # An OTA update only ships JS. If this commit's native fingerprint differs
-      # from the binary users actually have, the update can reference native
-      # modules that binary doesn't contain — which crashes the app on launch.
-      # runtimeVersion is "appVersion", so EAS will NOT catch this for us.
+      # runtimeVersion is "fingerprint", so EAS itself will never serve this
+      # bundle to a binary built from different native code — the crash case is
+      # gone, and there is nothing left worth bypassing (hence no skip input).
       #
-      # The gate also fails when there is no live build, or the live build has
-      # no recorded fingerprint. Those two cases used to warn and proceed, which
-      # looks identical to passing in a green check — unverifiable is not safe.
-      - name: Verify native fingerprint matches the live production build
-        if: ${{ !inputs.skip_fingerprint_check }}
+      # What remains is publishing into the void: a mismatched update is
+      # accepted, reported as published, and delivered to nobody. That is silent
+      # and looks exactly like success, so the gate now asks whether any live
+      # build actually serves this runtime version.
+      - name: Verify a live production build serves this runtime version
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: node scripts/fingerprint-gate.mjs --profile production
