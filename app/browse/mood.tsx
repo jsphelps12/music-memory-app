@@ -11,6 +11,7 @@ import { Theme } from "@/constants/theme";
 import { MOODS } from "@/constants/Moods";
 import { setCachedMoment } from "@/lib/momentCache";
 import { fetchBrowseMetadata, fetchMoodMoments } from "@/lib/browse";
+import { BROWSE_META_STALE, BROWSE_DRILLDOWN_STALE } from "@/lib/queryConfig";
 import { DistributionBar } from "@/components/DistributionBar";
 import type { Moment } from "@/types";
 
@@ -26,14 +27,14 @@ export default function MoodScreen() {
     queryKey: ["browseMeta", user?.id],
     queryFn: () => fetchBrowseMetadata(user!.id),
     enabled: !!user,
-    staleTime: 60_000,
+    staleTime: BROWSE_META_STALE,
   });
 
   const { data: moments = [], isLoading } = useQuery({
     queryKey: ["moodMoments", user?.id, activeMood] as const,
     queryFn: ({ queryKey }) => fetchMoodMoments(queryKey[1]!, queryKey[2]),
     enabled: !!user && !!activeMood,
-    staleTime: 60_000,
+    staleTime: BROWSE_DRILLDOWN_STALE,
   });
 
   // All moods the user has actually used

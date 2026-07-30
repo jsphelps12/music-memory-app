@@ -25,8 +25,14 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
 import { pad } from "@/lib/dateUtils";
 import { Moment } from "@/types";
+import {
+  BROWSE_META_STALE,
+  REFLECTIONS_STALE,
+  REFLECTIONS_RANDOM_STALE,
+} from "@/lib/queryConfig";
 
-const STALE_TIME = 2 * 60 * 1000;
+// Focus-refetch cooldown for this screen, kept in step with the query itself.
+const STALE_TIME = REFLECTIONS_STALE;
 
 type ReflectionsData = {
   onThisDay: Moment[];
@@ -142,7 +148,7 @@ export default function ReflectionsScreen() {
   } = useQuery({
     queryKey: ["reflections-random", user?.id],
     queryFn: fetchRandomMoment,
-    staleTime: Infinity,
+    staleTime: REFLECTIONS_RANDOM_STALE,
     enabled: !!user,
   });
 
@@ -151,7 +157,7 @@ export default function ReflectionsScreen() {
     queryKey: ["browseMeta", user?.id],
     queryFn: () => fetchBrowseMetadata(user!.id),
     enabled: !!user,
-    staleTime: STALE_TIME,
+    staleTime: BROWSE_META_STALE,
   });
 
   useFocusEffect(

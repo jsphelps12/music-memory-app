@@ -10,6 +10,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { setCachedMoment } from "@/lib/momentCache";
 import { fetchBrowseMetadata, fetchYearMoments } from "@/lib/browse";
+import { BROWSE_META_STALE, BROWSE_DRILLDOWN_STALE } from "@/lib/queryConfig";
 import { DistributionBar } from "@/components/DistributionBar";
 
 export default function YearScreen() {
@@ -24,14 +25,14 @@ export default function YearScreen() {
     queryKey: ["browseMeta", user?.id],
     queryFn: () => fetchBrowseMetadata(user!.id),
     enabled: !!user,
-    staleTime: 60_000,
+    staleTime: BROWSE_META_STALE,
   });
 
   const { data: moments = [], isLoading } = useQuery({
     queryKey: ["yearMoments", user?.id, activeYear] as const,
     queryFn: ({ queryKey }) => fetchYearMoments(queryKey[1]!, queryKey[2]),
     enabled: !!user && !!activeYear,
-    staleTime: 60_000,
+    staleTime: BROWSE_DRILLDOWN_STALE,
   });
 
   const allYears = useMemo(() => {
