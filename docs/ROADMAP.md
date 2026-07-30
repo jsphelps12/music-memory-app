@@ -187,7 +187,9 @@ Follow-on from the cold-start work: two audits found the app issuing ~28-38 REST
 
 **Not device-verified:** the cold-start changes. Check before promoting: create a moment → force-quit → reopen → present on the *first* paint.
 
-**Follow-ups:** wire `MomentCard` / `app/_layout.tsx` to the extracted functions; decide on `guest_name` (selected every page, silently dropped); `supabase/functions` is outside tsconfig/eslint so the new edge module isn't type-checked; WS-I (E2E) and WS-J (delete two unreachable screens) still pending.
+**Follow-ups:** wire `MomentCard` / `app/_layout.tsx` to the extracted functions; decide on `guest_name` (selected every page, silently dropped); `supabase/functions` is outside tsconfig/eslint so the new edge module isn't type-checked; WS-I (E2E) still pending.
+
+- [x] **WS-J — unreachable screens deleted**: `app/shared-albums.tsx` and `app/tagged-moments.tsx` plus their route registrations. Two corrections to the original scope: `["taggedMoments"]` and `fetchTaggedMomentsSharedTab` are **live** in the timeline tab, so the drill-down key stays; and `lib/sharedScreen.ts` shrank to `clearSharedCache` rather than being deleted — installs predating this still hold `shared_screen_v1_{userId}` on disk (a full copy of friends + shared albums) and sign-out is the only thing that sheds it. Orphaned `["sharedScreen"]` invalidations removed from `lib/cacheInvalidation.ts` and `app/album/[id].tsx`; the leave-album path was already covered by `invalidateAlbumCaches`. Lint warnings 65 → 63.
 
 ---
 
@@ -404,6 +406,7 @@ Current state: infrastructure exists (edge function, per-type prefs, cold-launch
 - [ ] Weekly prompted song (Music Memory Engine) — not yet wired to edge function
 - [ ] Weekly text prompt — not yet wired to edge function
 - [ ] Collection activity notifications — member adds to your shared collection (real-time, not batched)
+- [ ] Expo delivery-receipt poller — **deferred, revisit at ~5k push tokens** (27 today). `send-notifications` reaps `DeviceNotRegistered` from send *tickets*, which catch the smaller half; most uninstalls only surface in delivery *receipts* (POST `/push/getReceipts`, 15+ min after send). Needs a `push_receipts` table, a second cron'd edge function, and a 24h TTL sweep since Expo omits not-yet-ready receipts and discards them after a day. Zero cost at current scale — dead tokens don't affect live sends; the rate-limiting risk is a tens-of-thousands-of-tokens problem. See the `FOLLOW-UP:` comment on `sendBatch`.
 
 ### Wedding / Event — full spec
 

@@ -317,15 +317,7 @@ export default function AlbumDetailScreen() {
               old ? { ...old, album: updated } : old
             )
           }
-          onLeft={(collectionId) => {
-            queryClient.setQueryData(["sharedScreen", user?.id], (old: any) =>
-              old ? {
-                ...old,
-                sharedAlbums: old.sharedAlbums.filter(
-                  (c: any) => c.collectionId !== collectionId
-                ),
-              } : old
-            );
+          onLeft={() => {
             router.back();
           }}
         />

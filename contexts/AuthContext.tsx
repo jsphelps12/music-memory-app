@@ -212,12 +212,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           staleTime: 0,
         });
       });
-      // No ["sharedScreen"] prefetch: its only consumer is app/shared-albums.tsx,
-      // which nothing navigates to — the route is registered in app/_layout but
-      // has no router.push and no Link anywhere in the app. Warming it cost 5-10
-      // REST calls (friend requests, friends, owned + joined collections, their
-      // owner profiles, album invites) plus a disk write on every cold start,
-      // competing with the fetches the first paint actually depends on.
+      // No ["sharedScreen"] prefetch: the screen it warmed
+      // (app/shared-albums.tsx) was unreachable and has been deleted. Warming it
+      // cost 5-10 REST calls (friend requests, friends, owned + joined
+      // collections, their owner profiles, album invites) plus a disk write on
+      // every cold start, competing with the fetches the first paint actually
+      // depends on. `clearSharedCache` below still runs so existing installs
+      // shed the key they already have.
     }
 
     /**
