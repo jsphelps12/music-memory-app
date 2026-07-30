@@ -12,7 +12,7 @@ import { resetTimelineRefresh } from "@/lib/timelineRefresh";
 import { clearLegacyAlbumCaches } from "@/lib/albums";
 import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
 import { fetchBrowseMetadata, readBrowseCache, writeBrowseCache, clearBrowseCache } from "@/lib/browse";
-import { fetchSharedScreenData, readSharedCache, writeSharedCache, clearSharedCache } from "@/lib/sharedScreen";
+import { clearSharedCache } from "@/lib/sharedScreen";
 
 export interface OnboardingData {
   displayName: string;
@@ -80,6 +80,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Mirror of `session` readable from callbacks without stale closure capture.
   const sessionRef = useRef<Session | null>(null);
   sessionRef.current = session;
+  // Last email we successfully identified with. See resolveIdentityEmail.
+  const lastKnownEmailRef = useRef<string | null>(null);
+
+  /**
+   * The email to identify this user with in Sentry and PostHog.
+   *
+   * Only the two hydration paths have a session object to hand; the eight other
+   * fetchProfile callers (refreshProfile on every Me-tab focus, updateProfile,
+   * saveCustomMood, setPreferredProvider, onboarding…) pass nothing. Both
+   * posthog.identify's $set and Sentry.setUser OVERWRITE what they are given, so
+   * those callers were writing `email: null` over the value startup hydration had
+   * just set — every profile mutation silently wiped the user's email.
+   *
+   * Resolution order, each step a fallback for the one before:
+   *   1. the explicit argument — the only source during a cold start, where
+   *      `session` state has not been committed yet
+   *   2. sessionRef — current for every call after hydration settles
+   *   3. the last email we identified with — covers the gap in between
+   * If all three are empty we have genuinely never seen an email, and callers
+   * below omit the field rather than writing null over a stored value.
+   */
+  function resolveIdentityEmail(email?: string | null): string | null {
+    const resolved = email ?? sessionRef.current?.user?.email ?? lastKnownEmailRef.current;
+    if (resolved) lastKnownEmailRef.current = resolved;
+    return resolved ?? null;
+  }
 
   // keepOnError: don't wipe cached profile on network failure (prevents bouncing user to onboarding)
   async function fetchProfile(userId: string, { keepOnError = false, email }: { keepOnError?: boolean; email?: string | null } = {}) {
@@ -138,13 +164,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfileReady(true);
     writeProfileCache(userId, profile);
 
-    // Sentry user context — enables filtering errors by user in the Sentry dashboard
-    Sentry.setUser({ id: userId, email: email ?? undefined });
+    const identityEmail = resolveIdentityEmail(email);
+
+    // Sentry user context — enables filtering errors by user in the Sentry
+    // dashboard. setUser replaces the whole object, so the email key is omitted
+    // rather than set to undefined when we don't have one.
+    Sentry.setUser(identityEmail ? { id: userId, email: identityEmail } : { id: userId });
 
     // PostHog identify with full properties for retention/cohort analysis
     posthog.identify(userId, {
       $set: {
-        email: email ?? null,
+        // Spread, not `email: identityEmail ?? null` — writing null here clears
+        // the person property, and "this caller didn't have the email" is not
+        // the same as "this user has no email".
+        ...(identityEmail ? { email: identityEmail } : {}),
         display_name: profile.displayName,
         username: profile.username,
         onboarding_completed: profile.onboardingCompleted,
@@ -179,18 +212,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           staleTime: 0,
         });
       });
-      readSharedCache(userId).then((cached) => {
-        if (cached) queryClient.setQueryData(["sharedScreen", userId], cached);
-        queryClient.prefetchQuery({
-          queryKey: ["sharedScreen", userId],
-          queryFn: () =>
-            fetchSharedScreenData(userId).then((data) => {
-              writeSharedCache(userId, data).catch(() => {});
-              return data;
-            }),
-          staleTime: 0,
-        });
-      });
+      // No ["sharedScreen"] prefetch: its only consumer is app/shared-albums.tsx,
+      // which nothing navigates to — the route is registered in app/_layout but
+      // has no router.push and no Link anywhere in the app. Warming it cost 5-10
+      // REST calls (friend requests, friends, owned + joined collections, their
+      // owner profiles, album invites) plus a disk write on every cold start,
+      // competing with the fetches the first paint actually depends on.
     }
 
     /**
@@ -363,6 +390,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  /**
+   * Everything that must leave this device when a user stops being the signed-in
+   * user. Shared by signOut and deleteAccount — deleteAccount used to do none of
+   * it, so a "permanently delete your account and all your moments" left every
+   * moment sitting in timeline_cache_v1_*, the profile in profile_cache_v1_*, and
+   * browse/shared metadata on disk, plus the whole query cache in memory.
+   *
+   * Each clear* helper removes its legacy key names alongside the current ones,
+   * so a cache-version bump never strands a copy of the data it replaced.
+   */
+  const clearLocalUserState = async (userId: string | undefined) => {
+    if (userId) {
+      await Promise.all([
+        clearTimelineCache(userId),
+        clearProfileCache(userId),
+        clearLegacyAlbumCaches(userId),
+        clearBrowseCache(userId),
+        clearSharedCache(userId),
+      ]);
+    }
+    // Drop in-memory query state and the one-shot cross-screen stores too.
+    // Query keys are user-scoped so the next user can't *see* this data, but
+    // consumeTimelineStale carries a pending Moment with no user scoping — it
+    // could prepend the previous user's moment to the next user's timeline.
+    queryClient.clear();
+    resetTimelineRefresh();
+    // The onAuthStateChange else-branch also resets these when the session goes
+    // null. Doing it here as well keeps teardown deterministic: it is ordered
+    // with the rest of the cleanup rather than whenever the listener happens to
+    // run, and it still holds if the listener is suppressed (suppressAuth).
+    lastKnownEmailRef.current = null;
+    posthog.reset();
+    Sentry.setUser(null);
+  };
+
   const signOut = async () => {
     const userId = session?.user?.id;
     // Clear push token fire-and-forget — don't block sign-out on this network call
@@ -371,26 +433,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     // Always clear locally even if the network call fails
     await supabase.auth.signOut().catch(() => supabase.auth.signOut({ scope: "local" }));
-    if (userId) {
-      clearTimelineCache(userId);
-      clearProfileCache(userId);
-      clearLegacyAlbumCaches(userId);
-      clearBrowseCache(userId);
-      clearSharedCache(userId);
-    }
-    // Drop in-memory query state and the one-shot cross-screen stores too.
-    // Query keys are user-scoped so the next user can't *see* this data, but
-    // consumeTimelineStale carries a pending Moment with no user scoping — it
-    // could prepend the previous user's moment to the next user's timeline.
-    queryClient.clear();
-    resetTimelineRefresh();
-    posthog.reset();
-    Sentry.setUser(null);
+    await clearLocalUserState(userId);
   };
 
   const deleteAccount = async () => {
     const { data: { session: currentSession } } = await supabase.auth.getSession();
     if (!currentSession) throw new Error("Not authenticated");
+    const userId = currentSession.user.id;
 
     const fnUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`;
     const res = await fetch(fnUrl, {
@@ -413,6 +462,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Sign out locally only — the auth user no longer exists server-side
     await supabase.auth.signOut({ scope: "local" });
+    // Same teardown as signOut. Without it the server row was gone but every
+    // moment, the profile and the browse/shared metadata stayed on disk, and the
+    // unscoped pending Moment in lib/timelineRefresh could still surface a
+    // deleted account's moment in the next account signed in on this device.
+    await clearLocalUserState(userId);
   };
 
   const updateProfile = async (updates: {

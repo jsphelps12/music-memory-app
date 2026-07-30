@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useRef } from "react";
+import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import { AppImage } from "@/components/AppImage";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -23,11 +23,25 @@ import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { fetchBrowseMetadata, BrowseMeta } from "@/lib/browse";
+import { BROWSE_META_STALE, BROWSE_SEARCH_STALE, SEARCH_DEBOUNCE_MS } from "@/lib/queryConfig";
 import type { Moment } from "@/types";
 import { EmptyState } from "@/components/EmptyState";
 
 
 // ── helpers ────────────────────────────────────────────────
+
+/**
+ * Trailing-edge debounce. Local to this screen on purpose — the only consumer
+ * is the search box below.
+ */
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(timer);
+  }, [value, delayMs]);
+  return debounced;
+}
 
 function deriveMoodCounts(meta: BrowseMeta[]) {
   const counts: Record<string, number> = {};
@@ -205,11 +219,16 @@ function SearchResults({ query, userId, allMoods }: { query: string; userId: str
   const router = useRouter();
   const theme = useTheme();
 
-  const { data: results = [], isFetching } = useQuery({
-    queryKey: ["browseSearch", userId, query],
+  // The query key is built from the debounced text: typing "beatles" is one
+  // request at the end, not one per keystroke.
+  const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
+  const debouncePending = query.trim() !== debouncedQuery.trim();
+
+  const { data: results = [], isLoading } = useQuery({
+    queryKey: ["browseSearch", userId, debouncedQuery],
     queryFn: async () => {
-      if (!query.trim()) return [];
-      const term = query.replace(/%/g, "\\%").replace(/_/g, "\\_");
+      if (!debouncedQuery.trim()) return [];
+      const term = debouncedQuery.replace(/%/g, "\\%").replace(/_/g, "\\_");
       const { data, error } = await supabase
         .from("moments")
         .select(MOMENT_CARD_COLUMNS)
@@ -220,8 +239,14 @@ function SearchResults({ query, userId, allMoods }: { query: string; userId: str
       if (error) throw error;
       return (data ?? []).map(mapRowToMoment);
     },
-    enabled: query.trim().length > 0,
-    staleTime: 10_000,
+    // `!!userId` matters: the screen passes `user?.id ?? ""` while auth settles,
+    // and an empty string reaches Postgres as `user_id = ''` — an invalid-uuid
+    // error, retried.
+    enabled: !!userId && debouncedQuery.trim().length > 0,
+    staleTime: BROWSE_SEARCH_STALE,
+    // Each keystroke lands on a cold cache entry; without this the list would
+    // empty out and repaint between every letter.
+    placeholderData: keepPreviousData,
   });
 
   if (!query.trim()) return (
@@ -232,13 +257,17 @@ function SearchResults({ query, userId, allMoods }: { query: string; userId: str
     </View>
   );
 
-  if (isFetching) return (
-    <EmptyState icon="search-outline" title="Searching…" />
-  );
-
-  if (results.length === 0) return (
-    <EmptyState icon="search-outline" title="No results" subtitle="Try a different song, artist, or reflection." />
-  );
+  if (results.length === 0) {
+    // Only distinguish "still working" from "genuinely nothing" when there is
+    // nothing to show — with keepPreviousData a background refetch keeps the
+    // previous results on screen instead of blanking them.
+    if (isLoading || debouncePending) return (
+      <EmptyState icon="search-outline" title="Searching…" />
+    );
+    return (
+      <EmptyState icon="search-outline" title="No results" subtitle="Try a different song, artist, or reflection." />
+    );
+  }
 
   return (
     <FlatList
@@ -307,7 +336,7 @@ export default function BrowseScreen() {
     queryKey: ["browseMeta", user?.id],
     queryFn: () => fetchBrowseMetadata(user!.id),
     enabled: !!user,
-    staleTime: 60_000,
+    staleTime: BROWSE_META_STALE,
   });
 
   const moodCounts = useMemo(() => deriveMoodCounts(meta), [meta]);

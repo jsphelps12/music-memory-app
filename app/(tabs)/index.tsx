@@ -42,6 +42,7 @@ import { IconButton } from "@/components/IconButton";
 import { CalendarView } from "@/components/CalendarView";
 import { EmptyState } from "@/components/EmptyState";
 import { fetchTaggedMomentsSharedTab, markAllTaggedMomentsViewed } from "@/lib/friends";
+import { TAGGED_MOMENTS_STALE } from "@/lib/queryConfig";
 import { Moment } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 30_000;
@@ -432,17 +433,28 @@ export default function TimelineScreen() {
   const { data: taggedMoments = [], isFetching: taggedFetching, isLoading: taggedLoading, refetch: refetchTagged } = useQuery({
     queryKey: ["taggedMoments", user?.id],
     queryFn: () => fetchTaggedMomentsSharedTab(user!.id),
-    staleTime: 2 * 60 * 1000,
+    staleTime: TAGGED_MOMENTS_STALE,
     enabled: !!user,
   });
 
+  // `taggedMoments.length` must be a dependency: opening the Tagged pill before
+  // the query resolves runs this against the default `[]`, and without the dep
+  // it never re-runs when the rows land — the unread badge stays lit forever.
+  // Length rather than the array itself, so a refetch returning an equal-length
+  // list doesn't re-fire the write.
+  const taggedCount = taggedMoments.length;
   useEffect(() => {
-    if (activeTab === "tagged" && taggedMoments.length > 0 && user) {
-      markAllTaggedMomentsViewed(user.id).then(() => {
-        queryClient.invalidateQueries({ queryKey: ["profileBadge", user.id] });
-      });
+    if (activeTab === "tagged" && taggedCount > 0 && user) {
+      markAllTaggedMomentsViewed(user.id)
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ["profileBadge", user.id] });
+        })
+        .catch(() => {
+          // Marking as viewed is best-effort — the badge simply stays until the
+          // next visit. Nothing to show the user here.
+        });
     }
-  }, [activeTab, user?.id, queryClient]);
+  }, [activeTab, taggedCount, user?.id, queryClient]);
 
   const allMoods = useMemo(
     () => [...MOODS, ...(profile?.customMoods ?? [])],

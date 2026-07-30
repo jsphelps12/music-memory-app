@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useCallback, useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, PanResponder } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,16 +15,40 @@ export function MiniPlayer() {
   const seekToRef = useRef(seekTo);
   seekToRef.current = seekTo;
 
+  // True once the drag has committed to scrubbing. Until then the responder is
+  // held loosely: a parent can take it back, and nothing has been seeked.
+  const scrubbingRef = useRef(false);
+
+  const seekToTouch = useCallback((locationX: number) => {
+    const ratio = Math.max(0, Math.min(1, locationX / barWidthRef.current));
+    seekToRef.current(ratio * playbackDurationRef.current);
+  }, []);
+
+  // The track is a 28pt band around a 3px bar, so a finger lands in it easily
+  // by accident. Granting the responder is fine; seeking on the grant is not —
+  // that made merely touching down jump playback, and would hijack any drag
+  // that was only passing through on its way to scrolling a parent list. The
+  // seek is deferred until the drag proves horizontal, or until a lift proves
+  // it was a tap.
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => playbackDurationRef.current > 0,
-    onPanResponderGrant: (e) => {
-      const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / barWidthRef.current));
-      seekToRef.current(ratio * playbackDurationRef.current);
+    onPanResponderTerminationRequest: () => !scrubbingRef.current,
+    onPanResponderGrant: () => { scrubbingRef.current = false; },
+    onPanResponderMove: (e, g) => {
+      if (!scrubbingRef.current) {
+        if (Math.abs(g.dx) <= 12 || Math.abs(g.dx) <= Math.abs(g.dy)) return;
+        scrubbingRef.current = true;
+      }
+      seekToTouch(e.nativeEvent.locationX);
     },
-    onPanResponderMove: (e) => {
-      const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / barWidthRef.current));
-      seekToRef.current(ratio * playbackDurationRef.current);
+    onPanResponderRelease: (e, g) => {
+      // A lift that never became a scrub is a tap-to-seek.
+      if (!scrubbingRef.current && Math.abs(g.dx) < 10 && Math.abs(g.dy) < 10) {
+        seekToTouch(e.nativeEvent.locationX);
+      }
+      scrubbingRef.current = false;
     },
+    onPanResponderTerminate: () => { scrubbingRef.current = false; },
   })).current;
 
   if (!currentSong) return null;

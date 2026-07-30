@@ -195,6 +195,13 @@ export default function MomentDetailScreen() {
     return () => clearTimeout(t);
   }, [showShareSheet]);
 
+  // A handle on the ScrollView's own scroll gesture, so the pans on this screen
+  // can declare a relation to it instead of leaving arbitration to emerge from
+  // whichever recognizer happens to fire first. A plain ref would not do: RNGH
+  // resolves relation refs through a `handlerTag` that RN's ScrollView doesn't
+  // carry, so passing one silently registers nothing.
+  const scrollNativeGesture = useMemo(() => Gesture.Native(), []);
+
   const progressBarWidthRef = useRef(1);
   const progressDurationRef = useRef(playbackDuration);
   progressDurationRef.current = playbackDuration;
@@ -250,11 +257,17 @@ export default function MomentDetailScreen() {
     ],
   }));
 
+  // Swipe right to dismiss. This screen is a transparentModal with no native
+  // swipe-back, so the pan has to exist — but it must never be the reason a
+  // vertical drag failed to scroll. It declares itself simultaneous with the
+  // ScrollView so the scroll is never cancelled while the pan is deciding, and
+  // fails on 8px of vertical travel so an ambiguous drag resolves to a scroll.
   const swipeGesture = useMemo(
     () =>
       Gesture.Pan()
         .activeOffsetX([40, Infinity])
-        .failOffsetY([-15, 15])
+        .failOffsetY([-8, 8])
+        .simultaneousWithExternalGesture(scrollNativeGesture)
         .onUpdate((e) => {
           "worklet";
           translateX.value = Math.max(0, e.translationX);
@@ -269,18 +282,46 @@ export default function MomentDetailScreen() {
             opacity.value = withTiming(1, { duration: 200 });
           }
         }),
-    [animateOut, goBack]
+    [animateOut, goBack, scrollNativeGesture]
   );
 
-  const seekGesture = useMemo(
+  // Scrubbing. The seek fires on `.onStart` (activation), never `.onBegin`
+  // (touch-down) — the old onBegin meant resting a finger anywhere in the 28pt
+  // band around the 2px bar jumped playback, including on a drag that was only
+  // passing through on its way to scrolling the page.
+  //
+  // The 2:1 ratio between the offsets is what separates a scrub from a scroll:
+  // the seek only wins on drags within ~27° of horizontal, anything steeper
+  // trips failOffsetY and goes back to the ScrollView. Both numbers are kept
+  // small on purpose — activating at 12px lost a fast rightward flick to
+  // swipeGesture's 40px close (verified on device), so the seek needs to claim
+  // the drag well before the dismiss threshold is anywhere in reach.
+  const seekPanGesture = useMemo(
     () =>
       Gesture.Pan()
-        .activeOffsetX([-5, 5])
-        .failOffsetY([-10, 10])
-        .onBegin((e) => { runOnJS(handleProgressSeek)(e.x); })
+        .activeOffsetX([-6, 6])
+        .failOffsetY([-3, 3])
+        .onStart((e) => { runOnJS(handleProgressSeek)(e.x); })
         .onUpdate((e) => { runOnJS(handleProgressSeek)(e.x); })
         .blocksExternalGesture(swipeGesture),
     [handleProgressSeek, swipeGesture]
+  );
+
+  // Tap-to-seek, which onBegin used to provide for free. A tap can't be
+  // confused with a scroll: it needs the finger to lift within 250ms having
+  // moved less than 10px.
+  const seekTapGesture = useMemo(
+    () =>
+      Gesture.Tap()
+        .maxDuration(250)
+        .maxDistance(10)
+        .onEnd((e, success) => { if (success) { runOnJS(handleProgressSeek)(e.x); } }),
+    [handleProgressSeek]
+  );
+
+  const seekGesture = useMemo(
+    () => Gesture.Race(seekPanGesture, seekTapGesture),
+    [seekPanGesture, seekTapGesture]
   );
 
   const fetchMoment = useCallback(async (showLoading: boolean) => {
@@ -579,8 +620,10 @@ export default function MomentDetailScreen() {
         pointerEvents="none"
       />
 
-      {/* Glass nav — always visible */}
-      <View style={styles.glassNav}>
+      {/* Glass nav — pinned above the scroll. box-none so the full-width strip
+          itself is transparent to touches and only the two buttons capture
+          them; as a plain View it was eating drags across the top of the page. */}
+      <View style={styles.glassNav} pointerEvents="box-none">
         <TouchableOpacity style={styles.glassBtn} onPress={() => animateOut(goBack)} activeOpacity={0.8} hitSlop={8}>
           <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
         </TouchableOpacity>
@@ -700,7 +743,15 @@ export default function MomentDetailScreen() {
           onBack={() => animateOut(goBack)}
         />
       ) : (
-        <>
+        // The hero lives INSIDE the scroll view. As a sibling above it, the top
+        // ~280pt of the screen — photo, artwork, photo-count pill — was inert to
+        // vertical drags, which is most of what "scrolling is hard" meant.
+        <GestureDetector gesture={scrollNativeGesture}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Hero section */}
           {hasPhotos ? (
             <View style={styles.photoHero}>
@@ -733,12 +784,11 @@ export default function MomentDetailScreen() {
             </View>
           )}
 
-          {/* Scrollable content */}
-          <ScrollView
-            style={[styles.scrollView, !hasPhotos && { marginTop: 0 }]}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
+          {/* Body. The -40 top margin reproduces the overlap the old
+              `scrollView: { marginTop: -40 }` created between the photo hero
+              and the first line of content; the ambient (artwork) hero never
+              had it. */}
+          <View style={[styles.scrollBody, !hasPhotos && styles.scrollBodyFlush]}>
             {/* Small artwork thumbnail — only shown in photo-first layout */}
             {hasPhotos && moment.songArtworkUrl ? (
               <AppImage source={{ uri: moment.songArtworkUrl }} style={styles.artworkThumb} contentFit="cover" />
@@ -1006,8 +1056,9 @@ export default function MomentDetailScreen() {
                 </View>
               )}
             </View>
-          </ScrollView>
-        </>
+          </View>
+        </ScrollView>
+        </GestureDetector>
       )}
 
       <PhotoViewer
@@ -1495,12 +1546,19 @@ function createStyles(theme: Theme) {
     // ── Scroll body ──────────────────────────────────────────────────────────
     scrollView: {
       flex: 1,
-      marginTop: -40,
     },
     scrollContent: {
+      paddingBottom: 80,
+    },
+    // The hero is full-bleed, so the horizontal inset moved off the content
+    // container and onto the body wrapper that follows it.
+    scrollBody: {
       paddingHorizontal: 24,
       paddingTop: 8,
-      paddingBottom: 80,
+      marginTop: -40,
+    },
+    scrollBodyFlush: {
+      marginTop: 0,
     },
     artworkThumb: {
       width: 52,

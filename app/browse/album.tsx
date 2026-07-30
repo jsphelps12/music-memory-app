@@ -10,6 +10,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { setCachedMoment } from "@/lib/momentCache";
 import { fetchBrowseMetadata, fetchAlbumMoments } from "@/lib/browse";
+import { BROWSE_META_STALE, BROWSE_DRILLDOWN_STALE } from "@/lib/queryConfig";
 import { DistributionBar } from "@/components/DistributionBar";
 
 export default function AlbumScreen() {
@@ -24,7 +25,7 @@ export default function AlbumScreen() {
     queryKey: ["browseMeta", user?.id],
     queryFn: () => fetchBrowseMetadata(user!.id),
     enabled: !!user,
-    staleTime: 60_000,
+    staleTime: BROWSE_META_STALE,
   });
 
   const allAlbums = useMemo(() => {
@@ -45,7 +46,7 @@ export default function AlbumScreen() {
     queryKey: ["albumMoments", user?.id, activeAlbum?.albumName, activeAlbum?.artist] as const,
     queryFn: ({ queryKey }) => fetchAlbumMoments(queryKey[1]!, queryKey[2]!, queryKey[3]!),
     enabled: !!user && !!activeAlbum,
-    staleTime: 60_000,
+    staleTime: BROWSE_DRILLDOWN_STALE,
   });
 
   return (

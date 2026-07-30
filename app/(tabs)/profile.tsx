@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePostHog } from "posthog-react-native";
 import {
@@ -35,8 +35,9 @@ import { friendlyError } from "@/lib/errors";
 import { topValue, pluralMoments } from "@/lib/utils";
 import { pad } from "@/lib/dateUtils";
 import { fetchPendingRequests } from "@/lib/friends";
+import { PROFILE_STATS_STALE, PENDING_REQUESTS_STALE } from "@/lib/queryConfig";
 
-const STALE_TIME = 2 * 60 * 1000;
+const STALE_TIME = PROFILE_STATS_STALE;
 const AVATAR_SIZE = 80;
 
 
@@ -161,14 +162,23 @@ export default function ProfileScreen() {
   const { data: pendingRequests = [] } = useQuery({
     queryKey: ["pendingRequests", user?.id],
     queryFn: () => fetchPendingRequests(user!.id),
-    staleTime: 60_000,
+    staleTime: PENDING_REQUESTS_STALE,
     enabled: !!user,
   });
   const pendingCount = pendingRequests.length;
 
+  // `refreshProfile` is not a React Query observer, so it has no staleTime of
+  // its own — left ungated it ran a full `profiles` select, an AsyncStorage
+  // write and the Sentry/PostHog identify calls on every single tap of the Me
+  // tab. Same cooldown the stats query uses.
+  const lastProfileRefresh = useRef(0);
   useFocusEffect(useCallback(() => {
-    refreshProfile();
-    if (Date.now() - dataUpdatedAt > STALE_TIME) refetch();
+    const now = Date.now();
+    if (now - lastProfileRefresh.current > STALE_TIME) {
+      lastProfileRefresh.current = now;
+      refreshProfile();
+    }
+    if (now - dataUpdatedAt > STALE_TIME) refetch();
   }, [refetch, dataUpdatedAt, refreshProfile]));
 
   // Sync notif prefs from profile into local toggle state
@@ -183,7 +193,10 @@ export default function ProfileScreen() {
 
   const avatarUri = profile?.avatarUrl ? getPublicPhotoUrl(profile.avatarUrl) : null;
 
+  // Pull-to-refresh is an explicit ask, so it bypasses the cooldown — but it
+  // still stamps it, so the focus effect doesn't repeat the work moments later.
   const handleRefresh = useCallback(async () => {
+    lastProfileRefresh.current = Date.now();
     refreshProfile();
     await refetch();
   }, [refetch, refreshProfile]);

@@ -172,6 +172,25 @@ Triggered by a real report: "for some friends the app never loads right the firs
 
 ---
 
+## Shipped July 30 2026 — six parallel workstreams (PR #6)
+
+Follow-on from the cold-start work: two audits found the app issuing ~28-38 REST calls in the first ~2s of a signed-in cold start, ~1/4 of them warming caches for unreachable screens. Six workstreams ran in parallel on isolated worktrees with disjoint file ownership; all merged with zero conflicts.
+
+- [x] **Cold start**: deleted the launch prefetch feeding an unreachable screen (**5-10 fewer REST calls per cold start**); made `deleteAccount` share `signOut`'s teardown (a deleted account's moments were persisting on disk across four caches); versioned two unversioned cache prefixes with shape guards.
+- [x] **Privacy**: `clearTimelineCache` couldn't cancel an in-flight fetch, which then rewrote the cache it had just cleared — signing out mid-prefetch put that user's moments back on disk. Superseded via a generation counter. *Found by a test that had pinned the buggy behavior.*
+- [x] **Analytics**: every Me-tab focus and profile mutation wrote `email: null` over the user's PostHog identity and dropped it from Sentry. Now resolved from a fallback chain and **omitted** when unresolvable, so a failure can never clear a stored value.
+- [x] **Stale UI**: new `invalidateFriendCaches`; two existing invalidations targeted `["friendsBadge"]`, a key **no query uses**; remove-friend and cancel-request invalidated nothing at all. `markAlbumViewed` now clears its badge. Unified a `staleTime` observed at three different values across six sites (mount order silently decided freshness).
+- [x] **Search/perf**: browse search fired one triple-column `ilike` per keystroke, blanked results each character, and issued invalid-UUID queries before auth settled — now debounced 275ms with `keepPreviousData`. Me-tab profile refetch gated.
+- [x] **Moment-detail scroll** (reported bug): the hero sat *outside* the ScrollView, so the top ~280-310pt was inert and an `absoluteFill` touchable ate drags; the scrubber seeked on touch-*down*. Hero moved inside, seek moved to activation. Two on-device corrections: `simultaneousWithExternalGesture(scrollRef)` **silently does nothing** (RN ScrollView carries no `handlerTag`) → used `Gesture.Native()`; and the first threshold values let a fast flick dismiss the screen instead of seeking → re-tuned and A/B'd on device.
+- [x] **Push reliability**: Expo's response was parsed and discarded, so dead tokens accumulated until Expo rate-limits the project. Now reaps `DeviceNotRegistered`. Cascade extracted to a pure `selectNotifications`, **verified behavior-preserving** by diffing old-vs-new over 3,000 randomized scenarios (11,202 messages, byte-identical) plus 18 injected mutations. Deployed to prod as **v17**.
+- [x] **Tests 59 → 183**: fixed vitest collecting duplicate worktree copies (the "118 tests" figure was double-counting; CI really ran 59) and `__DEV__` being undefined on the exact error paths tests exercise. Shared mocks at the supabase client boundary. Covers the shipped regression, the auth-routing state table, moment mapping + column contract, and image-URL construction.
+
+**Not device-verified:** the cold-start changes. Check before promoting: create a moment → force-quit → reopen → present on the *first* paint.
+
+**Follow-ups:** wire `MomentCard` / `app/_layout.tsx` to the extracted functions; decide on `guest_name` (selected every page, silently dropped); `supabase/functions` is outside tsconfig/eslint so the new edge module isn't type-checked; WS-I (E2E) and WS-J (delete two unreachable screens) still pending.
+
+---
+
 ## NOW — May 2026 Priorities
 
 ### 1. Polish & Bug Fixes 🔴 *In progress*

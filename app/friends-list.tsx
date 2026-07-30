@@ -19,6 +19,7 @@ import { Theme } from "@/constants/theme";
 import { CloseButton } from "@/components/CloseButton";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { friendlyError } from "@/lib/errors";
+import { invalidateFriendCaches } from "@/lib/cacheInvalidation";
 import {
   fetchFriends,
   fetchPendingRequests,
@@ -91,7 +92,7 @@ export default function FriendsListScreen() {
           friends: [...old.friends, { ...friendship, status: "accepted" }],
         };
       });
-      queryClient.invalidateQueries({ queryKey: ["friendsBadge", user?.id] });
+      invalidateFriendCaches(queryClient, user?.id);
     } catch (e) {
       Alert.alert("Error", friendlyError(e));
     }
@@ -106,7 +107,7 @@ export default function FriendsListScreen() {
         if (!old) return old;
         return { ...old, pending: old.pending.filter((f) => f.id !== friendship.id) };
       });
-      queryClient.invalidateQueries({ queryKey: ["friendsBadge", user?.id] });
+      invalidateFriendCaches(queryClient, user?.id);
     } catch (e) {
       Alert.alert("Error", friendlyError(e));
     }
@@ -130,6 +131,7 @@ export default function FriendsListScreen() {
                 if (!old) return old;
                 return { ...old, friends: old.friends.filter((f) => f.id !== friendship.id) };
               });
+              invalidateFriendCaches(queryClient, user?.id);
             } catch (e) {
               Alert.alert("Error", friendlyError(e));
             }
@@ -147,6 +149,7 @@ export default function FriendsListScreen() {
         if (!old) return old;
         return { ...old, sent: old.sent.filter((f) => f.id !== friendship.id) };
       });
+      invalidateFriendCaches(queryClient, user?.id);
     } catch (e) {
       Alert.alert("Error", friendlyError(e));
     }

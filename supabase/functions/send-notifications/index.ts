@@ -1,40 +1,106 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  selectNotifications,
+  type EligibleUser,
+  type ExpoPushMessage,
+  type MomentRow,
+  type UserMomentRow,
+} from "./selectNotifications.ts";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const BATCH_SIZE = 100;
 
-const STREAK_MILESTONES = new Set([5, 10, 25, 50]);
-
-interface ExpoPushMessage {
-  to: string;
-  title: string;
-  body: string;
-  data?: Record<string, unknown>;
+/**
+ * A single entry in Expo's push-send response. The `data` array is positionally
+ * aligned with the request array — index N of the response describes index N of
+ * the batch we posted.
+ */
+interface ExpoPushTicket {
+  status: "ok" | "error";
+  id?: string;
+  message?: string;
+  details?: { error?: string };
 }
 
-async function sendBatch(messages: ExpoPushMessage[]): Promise<void> {
+interface ExpoPushResponse {
+  data?: ExpoPushTicket[];
+}
+
+/**
+ * POST messages to Expo in batches of 100 and inspect the resulting tickets.
+ *
+ * Returns the push tokens Expo reported as DeviceNotRegistered (app uninstalled
+ * or notification permission revoked) so the caller can null them out. Left
+ * unreaped, dead tokens accumulate forever and eventually get the whole project
+ * rate-limited. Returning them instead of writing them here keeps this function
+ * free of the supabase client, and therefore testable.
+ *
+ * FOLLOW-UP: this reads send *tickets*, which only catch failures Expo knows
+ * about immediately. Delivery *receipts* (GET /push/getReceipts, polled 15+
+ * minutes after a send) surface DeviceNotRegistered cases that are only
+ * discovered at delivery time. That needs a second scheduled function to
+ * persist ticket ids and poll them later — deliberately out of scope here.
+ */
+async function sendBatch(messages: ExpoPushMessage[]): Promise<string[]> {
+  const deadTokens: string[] = [];
+
   for (let i = 0; i < messages.length; i += BATCH_SIZE) {
     const batch = messages.slice(i, i + BATCH_SIZE);
+
     const res = await fetch(EXPO_PUSH_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(batch),
     });
-    await res.json();
-  }
-}
 
-function computeStreak(momentDates: string[], todayStr: string): number {
-  if (!momentDates.length) return 0;
-  const dates = [...new Set(momentDates.map(d => d.slice(0, 10)))].sort().reverse();
-  if (dates[0] !== todayStr) return 0;
-  let streak = 1;
-  for (let i = 1; i < dates.length; i++) {
-    const diff = (new Date(dates[i - 1]).getTime() - new Date(dates[i]).getTime()) / 86400000;
-    if (diff === 1) streak++;
-    else break;
+    // A 4xx/5xx from Expo means there are no usable tickets in the body. Log and
+    // move on to the next batch rather than throwing — one rejected batch
+    // shouldn't abort the run and skip the cooldown stamping that follows.
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "<unreadable body>");
+      console.error(
+        `[expo-push] HTTP ${res.status} for batch at offset ${i} (${batch.length} messages): ${detail.slice(0, 500)}`
+      );
+      continue;
+    }
+
+    let body: ExpoPushResponse;
+    try {
+      body = await res.json();
+    } catch (err) {
+      console.error(`[expo-push] unparseable response for batch at offset ${i}:`, err);
+      continue;
+    }
+
+    const tickets = body?.data ?? [];
+    if (tickets.length !== batch.length) {
+      console.error(
+        `[expo-push] ticket count mismatch for batch at offset ${i}: ${tickets.length} tickets for ${batch.length} messages`
+      );
+    }
+
+    for (let j = 0; j < tickets.length; j++) {
+      const ticket = tickets[j];
+      if (!ticket || ticket.status === "ok") continue;
+
+      const token = batch[j]?.to;
+      const code = ticket.details?.error;
+
+      if (code === "DeviceNotRegistered") {
+        // Uninstalled, or notifications revoked. Clear it so we stop sending.
+        if (token) deadTokens.push(token);
+        continue;
+      }
+
+      // MessageTooBig, MessageRateExceeded, InvalidCredentials, etc. These used
+      // to be silently discarded; surface them so they're actionable in logs.
+      console.error(
+        `[expo-push] ticket error (${code ?? "unknown"}) for token ${token ?? "<unknown>"}: ${ticket.message ?? ""}`
+      );
+    }
   }
-  return streak;
+
+  return deadTokens;
 }
 
 function getLocalHour(utcDate: Date, timezone: string): number {
@@ -95,7 +161,7 @@ Deno.serve(async (req) => {
   }
 
   // Filter to users whose local hour is 10
-  const eligibleUsers = tokenUsers.filter((u) => {
+  const eligibleUsers: EligibleUser[] = tokenUsers.filter((u) => {
     const localHour = getLocalHour(now, u.timezone || "UTC");
     return localHour === 10;
   });
@@ -120,12 +186,12 @@ Deno.serve(async (req) => {
     .order("created_at", { ascending: false });
 
   // Build per-user data maps from the single moments fetch
-  type MomentRow = { id: string; moment_date: string; song_title: string; song_artist: string; created_at: string };
+  const momentRows = (allMoments ?? []) as UserMomentRow[];
   const momentsByUser: Record<string, MomentRow[]> = {};
   const loggedYesterdayByUser = new Map<string, string>(); // userId -> song_title
   const loggedTodaySet = new Set<string>();
 
-  for (const row of allMoments ?? []) {
+  for (const row of momentRows) {
     if (!momentsByUser[row.user_id]) momentsByUser[row.user_id] = [];
     momentsByUser[row.user_id].push({
       id: row.id,
@@ -141,271 +207,40 @@ Deno.serve(async (req) => {
     if (loggedDate === todayStr) loggedTodaySet.add(row.user_id);
   }
 
-  const messages: ExpoPushMessage[] = [];
-  const assignedUserIds = new Set<string>();
+  // Step 3: the 7-priority cascade — pure, see selectNotifications.ts
+  const { messages, reengagedUserIds } = selectNotifications({
+    eligibleUsers,
+    momentsByUser,
+    loggedYesterdayByUser,
+    loggedTodaySet,
+    allMoments: momentRows,
+    now,
+    todayStr,
+    todayYear,
+    todayMM,
+    todayDD,
+    todayDow,
+    daySeed,
+    prefsByUserId,
+    tokenByUserId,
+  });
 
-  // ── Priority 1: LIFECYCLE ──────────────────────────────────────────────────
-  // Fires on exactly the Nth day after account creation. No pref toggle.
-  for (const { id: userId, created_at } of eligibleUsers) {
-    if (!created_at) continue;
-    const accountAgeDays = Math.floor(
-      (now.getTime() - new Date(created_at).getTime()) / 86400000
-    );
-
-    const userMoments = momentsByUser[userId] ?? [];
-    const momentCount = userMoments.length;
-    const lastMoment = userMoments[0] ?? null; // sorted desc, so first = most recent
-
-    let notification: ExpoPushMessage | null = null;
-
-    if (accountAgeDays === 1 && momentCount < 1) {
-      notification = {
-        to: tokenByUserId[userId],
-        title: "Start your story 🎵",
-        body: "What are you listening to right now? Log your first moment — takes 30 seconds.",
-        data: { type: "create" },
-      };
-    } else if (accountAgeDays === 3 && momentCount < 5) {
-      notification = {
-        to: tokenByUserId[userId],
-        title: "3 days in 🎶",
-        body: "Keep the story going — what's been in your ears?",
-        data: { type: "create" },
-      };
-    } else if (accountAgeDays === 7 && momentCount >= 1) {
-      notification = {
-        to: tokenByUserId[userId],
-        title: "One week! 🎉",
-        body: `You've saved ${momentCount} moment${momentCount !== 1 ? "s" : ""}. Keep it coming.`,
-        data: { type: "tabs" },
-      };
-    } else if (accountAgeDays === 7 && momentCount < 1) {
-      notification = {
-        to: tokenByUserId[userId],
-        title: "One week in",
-        body: "Your musical story is still waiting to start.",
-        data: { type: "create" },
-      };
-    } else if (accountAgeDays === 14 && lastMoment) {
-      const daysSinceLast = Math.floor(
-        (now.getTime() - new Date(lastMoment.moment_date + "T00:00:00Z").getTime()) / 86400000
-      );
-      if (daysSinceLast > 7) {
-        notification = {
-          to: tokenByUserId[userId],
-          title: "We miss your story",
-          body: `${lastMoment.song_title} was your last. Add another?`,
-          data: { momentId: lastMoment.id },
-        };
-      }
-    }
-
-    if (notification) {
-      messages.push(notification);
-      assignedUserIds.add(userId);
-    }
-  }
-
-  // ── Priority 2: STREAK MILESTONE ──────────────────────────────────────────
-  const milestoneCopyMap: Record<number, string> = {
-    5: "5-day streak 🔥 — Your music story is taking shape.",
-    10: "10 days straight. You're on a roll.",
-    25: "25-day streak — your timeline is something worth looking back on.",
-    50: "50 days. That's real dedication.",
-  };
-
-  for (const { id: userId } of eligibleUsers) {
-    if (assignedUserIds.has(userId)) continue;
-    if (prefsByUserId[userId]?.notif_milestones === false) continue;
-    // Streak can only be non-zero if user logged today
-    if (!loggedTodaySet.has(userId)) continue;
-
-    const dates = (momentsByUser[userId] ?? []).map(m => m.created_at.slice(0, 10));
-    const streak = computeStreak(dates, todayStr);
-    if (!STREAK_MILESTONES.has(streak)) continue;
-
-    messages.push({
-      to: tokenByUserId[userId],
-      title: `${streak}-Day Streak 🔥`,
-      body: milestoneCopyMap[streak],
-      data: { type: "tabs", streak },
-    });
-    assignedUserIds.add(userId);
-  }
-
-  // ── Priority 3: ON THIS DAY ────────────────────────────────────────────────
-  const onThisDayCopies: Array<(n: number, song: string, artist: string) => string> = [
-    (n, song, artist) => `${n} year${n !== 1 ? "s" : ""} ago: ${song} by ${artist}`,
-    (n, song, _artist) => `This memory found you ${n} year${n !== 1 ? "s" : ""} ago → ${song}`,
-    (n, song, _artist) => `${n} year${n !== 1 ? "s" : ""} back, you saved ${song}. Does it still sound the same?`,
-  ];
-
-  const byUserOnThisDay = new Map<
-    string,
-    { momentId: string; songTitle: string; songArtist: string; momentYear: number }
-  >();
-
-  for (const row of allMoments ?? []) {
-    if (assignedUserIds.has(row.user_id)) continue;
-    if (!row.moment_date) continue;
-    const [yearStr, month, day] = row.moment_date.split("-");
-    const rowYear = Number(yearStr);
-    if (month === todayMM && day === todayDD && rowYear < todayYear) {
-      const existing = byUserOnThisDay.get(row.user_id);
-      if (!existing || rowYear > existing.momentYear) {
-        byUserOnThisDay.set(row.user_id, {
-          momentId: row.id,
-          songTitle: row.song_title,
-          songArtist: row.song_artist,
-          momentYear: rowYear,
-        });
-      }
-    }
-  }
-
-  for (const [userId, { momentId, songTitle, songArtist, momentYear }] of byUserOnThisDay) {
-    if (prefsByUserId[userId]?.notif_on_this_day === false) continue;
-    const yearsAgo = todayYear - momentYear;
-    const copyFn = onThisDayCopies[daySeed % onThisDayCopies.length];
-    messages.push({
-      to: tokenByUserId[userId],
-      title: "On This Day 🎵",
-      body: copyFn(yearsAgo, songTitle, songArtist),
-      data: { momentId },
-    });
-    assignedUserIds.add(userId);
-  }
-
-  // ── Priority 4: STREAK REMINDER ───────────────────────────────────────────
-  const streakReminderCopies: Array<(song: string) => string> = [
-    (_song) => "You logged yesterday. Keep it going — what are you hearing today?",
-    (_song) => "Don't break it. What song describes today?",
-    (song) => `${song} was yesterday. Add today's.`,
-  ];
-
-  for (const { id: userId } of eligibleUsers) {
-    if (assignedUserIds.has(userId)) continue;
-    if (prefsByUserId[userId]?.notif_streak === false) continue;
-    if (!loggedYesterdayByUser.has(userId) || loggedTodaySet.has(userId)) continue;
-
-    const yesterdaySong = loggedYesterdayByUser.get(userId)!;
-    const copyFn = streakReminderCopies[daySeed % streakReminderCopies.length];
-    messages.push({
-      to: tokenByUserId[userId],
-      title: "Keep your streak going 🔥",
-      body: copyFn(yesterdaySong),
-      data: { type: "create" },
-    });
-    assignedUserIds.add(userId);
-  }
-
-  // ── Priority 5: RE-ENGAGEMENT ─────────────────────────────────────────────
-  // Grouped with notif_prompts toggle (both are about creating).
-  //
-  // Cooldown is essential here: this branch matches on "hasn't posted in N
-  // days", which stays true indefinitely once someone goes dormant. Without a
-  // gap, every dormant user got "Still there?" every single day forever, which
-  // drives uninstalls rather than returns. Longer gaps for longer-dormant
-  // users — someone silent for a month doesn't want a weekly reminder either.
-  const reengagedUserIds: string[] = [];
-  for (const { id: userId, last_reengagement_at } of eligibleUsers) {
-    if (assignedUserIds.has(userId)) continue;
-    if (prefsByUserId[userId]?.notif_prompts === false) continue;
-
-    const lastMoment = (momentsByUser[userId] ?? [])[0] ?? null;
-    if (!lastMoment) continue; // No moments yet — lifecycle or prompt will handle
-
-    const daysSince = Math.floor(
-      (now.getTime() - new Date(lastMoment.created_at).getTime()) / 86400000
-    );
-    if (daysSince < 7) continue;
-
-    const cooldownDays = daysSince >= 30 ? 30 : daysSince >= 14 ? 14 : 7;
-    if (last_reengagement_at) {
-      const daysSinceLastNudge = Math.floor(
-        (now.getTime() - new Date(last_reengagement_at as string).getTime()) / 86400000
-      );
-      if (daysSinceLastNudge < cooldownDays) continue;
-    }
-
-    let body: string;
-    let notifData: Record<string, unknown>;
-
-    if (daysSince >= 30) {
-      body = "Still there? Even one song keeps the story alive.";
-      notifData = { type: "create" };
-    } else if (daysSince >= 14) {
-      body = `${lastMoment.song_title} was your last moment. What's playing now?`;
-      notifData = { momentId: lastMoment.id };
-    } else {
-      const copies = [
-        "It's been a week. What's been in your ears?",
-        "What song describes this week?",
-      ];
-      body = copies[daySeed % copies.length];
-      notifData = { type: "create" };
-    }
-
-    messages.push({
-      to: tokenByUserId[userId],
-      title: "Your music story is waiting 🎶",
-      body,
-      data: notifData,
-    });
-    assignedUserIds.add(userId);
-    reengagedUserIds.push(userId);
-  }
-
-  // ── Priority 6: JOURNAL PROMPT (Tue=2 or Thu=4) ───────────────────────────
-  if (todayDow === 2 || todayDow === 4) {
-    const promptCopies = [
-      { title: "What are you listening to? 🎶", body: "Log it before you forget." },
-      { title: "A song is playing somewhere 🎵", body: "What does it remind you of?" },
-      { title: "Quick capture ⚡", body: "What are you listening to? Drop a moment." },
-    ];
-    const promptCopy = promptCopies[daySeed % promptCopies.length];
-
-    for (const { id: userId } of eligibleUsers) {
-      if (assignedUserIds.has(userId)) continue;
-      if (prefsByUserId[userId]?.notif_prompts === false) continue;
-      messages.push({
-        to: tokenByUserId[userId],
-        title: promptCopy.title,
-        body: promptCopy.body,
-        data: { type: "create" },
-      });
-      assignedUserIds.add(userId);
-    }
-  }
-
-  // ── Priority 7: RANDOM RESURFACING (Mon=1) ────────────────────────────────
-  if (todayDow === 1) {
-    const resurfaceCopies: Array<(song: string, artist: string) => string> = [
-      (song, _artist) => `Remember when you saved ${song}?`,
-      (song, artist) => `${song} by ${artist} — you logged this.`,
-      (song, artist) => `This came up in your history: ${song} by ${artist}`,
-    ];
-    const resurfaceCopyFn = resurfaceCopies[daySeed % resurfaceCopies.length];
-
-    for (const { id: userId } of eligibleUsers) {
-      if (assignedUserIds.has(userId)) continue;
-      if (prefsByUserId[userId]?.notif_resurfacing === false) continue;
-      const userMoments = momentsByUser[userId] ?? [];
-      if (userMoments.length === 0) continue;
-
-      const randomMoment = userMoments[Math.floor(Math.random() * userMoments.length)];
-      messages.push({
-        to: tokenByUserId[userId],
-        title: "Remember this? 🎵",
-        body: resurfaceCopyFn(randomMoment.song_title, randomMoment.song_artist),
-        data: { momentId: randomMoment.id },
-      });
-      assignedUserIds.add(userId);
-    }
-  }
-
+  // Step 4: send, then reap every token Expo told us is dead.
+  let deadTokensCleared = 0;
   if (messages.length > 0) {
-    await sendBatch(messages);
+    const deadTokens = [...new Set(await sendBatch(messages))];
+    if (deadTokens.length > 0) {
+      const { error: reapError } = await supabase
+        .from("profiles")
+        .update({ push_token: null })
+        .in("push_token", deadTokens);
+      if (reapError) {
+        console.error("Failed to clear dead push tokens:", reapError.message);
+      } else {
+        deadTokensCleared = deadTokens.length;
+        console.log(`Cleared ${deadTokens.length} dead push token(s)`);
+      }
+    }
   }
 
   // Stamp the cooldown only for users who actually got a re-engagement push.
@@ -420,7 +255,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  return new Response(JSON.stringify({ sent: messages.length }), {
+  return new Response(JSON.stringify({ sent: messages.length, deadTokensCleared }), {
     headers: { "Content-Type": "application/json" },
   });
 });
