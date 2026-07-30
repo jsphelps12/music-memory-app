@@ -38,7 +38,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const playGenRef = useRef(0);
 
   useEffect(() => {
-    Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+    // Fire-and-forget: if the audio session can't be configured, preview
+    // playback still works, it just won't play through the silent switch.
+    Audio.setAudioModeAsync({ playsInSilentModeIOS: true }).catch(() => {});
     return () => {
       unloadSound();
       providerUnsubRef.current?.();
