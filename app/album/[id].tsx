@@ -32,6 +32,7 @@ import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { fetchSharedAlbumMoments, markAlbumViewed } from "@/lib/albums";
 import { friendlyError } from "@/lib/errors";
+import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { Album, Moment } from "@/types";
 import { pluralMoments } from "@/lib/utils";
 
@@ -167,7 +168,13 @@ export default function AlbumDetailScreen() {
 
   useEffect(() => {
     if (!data?.album || !user) return;
-    markAlbumViewed(id!, user.id, data.album.role).catch(() => {});
+    // Clearing the unread marker changes the tab bar badge and the "N new"
+    // pill on the Albums tab — both live in other caches, so refresh them.
+    // Deliberately no albumId: this screen's own data was just fetched and the
+    // viewed marker doesn't affect it.
+    markAlbumViewed(id!, user.id, data.album.role)
+      .then(() => invalidateAlbumCaches(queryClient, user.id))
+      .catch(() => {});
   }, [data?.album?.id]);
 
   useFocusEffect(useCallback(() => {
