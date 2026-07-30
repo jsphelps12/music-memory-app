@@ -146,6 +146,12 @@ Revival sprint — production bug fixes + dual-app cleanup after June pause.
 
 ---
 
+## Shipped July 30 2026
+
+- [x] **Re-engagement notification cooldown** — Priority 5 matched on "hasn't posted in N days", which stays true forever once a user goes dormant, so every dormant user got "Still there?" **every single day**. With 22 of 27 push-enabled users dormant, this was an uninstall driver rather than a re-engagement campaign. Added `profiles.last_reengagement_at` with a tiered cooldown (7/14/30 days, scaled to how dormant the user is), stamped after send. Migration applied to prod and backfilled so nobody gets one more nag before the cooldown takes effect; edge function deployed as v16 and verified booting.
+
+---
+
 ## NOW — May 2026 Priorities
 
 ### 1. Polish & Bug Fixes 🔴 *In progress*

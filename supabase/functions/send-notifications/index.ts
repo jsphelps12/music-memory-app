@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
   const { data: tokenUsers, error: tokenErr } = await supabase
     .from("profiles")
     .select(
-      "id, push_token, notif_on_this_day, notif_streak, notif_prompts, notif_resurfacing, notif_milestones, created_at, timezone"
+      "id, push_token, notif_on_this_day, notif_streak, notif_prompts, notif_resurfacing, notif_milestones, created_at, timezone, last_reengagement_at"
     )
     .not("push_token", "is", null);
 
@@ -301,7 +301,14 @@ Deno.serve(async (req) => {
 
   // ── Priority 5: RE-ENGAGEMENT ─────────────────────────────────────────────
   // Grouped with notif_prompts toggle (both are about creating).
-  for (const { id: userId } of eligibleUsers) {
+  //
+  // Cooldown is essential here: this branch matches on "hasn't posted in N
+  // days", which stays true indefinitely once someone goes dormant. Without a
+  // gap, every dormant user got "Still there?" every single day forever, which
+  // drives uninstalls rather than returns. Longer gaps for longer-dormant
+  // users — someone silent for a month doesn't want a weekly reminder either.
+  const reengagedUserIds: string[] = [];
+  for (const { id: userId, last_reengagement_at } of eligibleUsers) {
     if (assignedUserIds.has(userId)) continue;
     if (prefsByUserId[userId]?.notif_prompts === false) continue;
 
@@ -312,6 +319,14 @@ Deno.serve(async (req) => {
       (now.getTime() - new Date(lastMoment.created_at).getTime()) / 86400000
     );
     if (daysSince < 7) continue;
+
+    const cooldownDays = daysSince >= 30 ? 30 : daysSince >= 14 ? 14 : 7;
+    if (last_reengagement_at) {
+      const daysSinceLastNudge = Math.floor(
+        (now.getTime() - new Date(last_reengagement_at as string).getTime()) / 86400000
+      );
+      if (daysSinceLastNudge < cooldownDays) continue;
+    }
 
     let body: string;
     let notifData: Record<string, unknown>;
@@ -338,6 +353,7 @@ Deno.serve(async (req) => {
       data: notifData,
     });
     assignedUserIds.add(userId);
+    reengagedUserIds.push(userId);
   }
 
   // ── Priority 6: JOURNAL PROMPT (Tue=2 or Thu=4) ───────────────────────────
@@ -390,6 +406,18 @@ Deno.serve(async (req) => {
 
   if (messages.length > 0) {
     await sendBatch(messages);
+  }
+
+  // Stamp the cooldown only for users who actually got a re-engagement push.
+  // Done after sending so a send failure doesn't silently suppress the next one.
+  if (reengagedUserIds.length > 0) {
+    const { error: stampError } = await supabase
+      .from("profiles")
+      .update({ last_reengagement_at: now.toISOString() })
+      .in("id", reengagedUserIds);
+    if (stampError) {
+      console.error("Failed to stamp last_reengagement_at:", stampError.message);
+    }
   }
 
   return new Response(JSON.stringify({ sent: messages.length }), {
