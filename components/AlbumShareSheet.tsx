@@ -42,6 +42,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { friendlyError } from "@/lib/errors";
+import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { pluralMoments } from "@/lib/utils";
 
 const WEB_BASE_URL = "https://soundtracks.app";
@@ -159,6 +160,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
     try {
       await renameAlbum(collection.id, trimmed);
       onUpdated({ ...collection, name: trimmed });
+      invalidateAlbumCaches(queryClient, user?.id, collection.id);
       setRenaming(false);
     } catch (e: any) {
       setError(friendlyError(e));
@@ -182,7 +184,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
       const path = await uploadAlbumCover(user.id, collection.id, result.assets[0].uri);
       await updateAlbumCover(collection.id, path);
       onUpdated({ ...collection, coverPhotoUrl: path });
-      queryClient.invalidateQueries({ queryKey: ["sharedScreen", user.id] });
+      invalidateAlbumCaches(queryClient, user.id, collection.id);
     } catch (e: any) {
       setError(friendlyError(e));
     } finally {
@@ -195,7 +197,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
     try {
       await updateAlbumCover(collection.id, null);
       onUpdated({ ...collection, coverPhotoUrl: undefined });
-      queryClient.invalidateQueries({ queryKey: ["sharedScreen", user?.id] });
+      invalidateAlbumCaches(queryClient, user?.id, collection.id);
     } catch (e: any) {
       setError(friendlyError(e));
     }
@@ -251,6 +253,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                 body: { collectionId: collection.id },
               });
               onUpdated({ ...collection, isPublic: true });
+              invalidateAlbumCaches(queryClient, user?.id, collection.id);
             } catch (e: any) {
               setError(friendlyError(e));
             } finally {
@@ -315,6 +318,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
             setError("");
             try {
               await leaveAlbum(collection.id, user.id);
+              invalidateAlbumCaches(queryClient, user.id, collection.id);
               onClose();
               onLeft(collection.id);
             } catch (e: any) {
@@ -345,6 +349,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
             setError("");
             try {
               await deleteAlbum(collection.id);
+              invalidateAlbumCaches(queryClient, user?.id, collection.id);
               onClose();
               onLeft(collection.id);
             } catch (e: any) {

@@ -21,7 +21,7 @@ import { useEffect, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PostHogProvider } from "posthog-react-native";
 import { posthog } from "@/lib/posthog";
-import { View } from "react-native";
+import { View, ActivityIndicator } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import "react-native-reanimated";
@@ -82,10 +82,23 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const colorScheme = useColorScheme();
   const [hasLaunched, setHasLaunched] = useState<boolean | null>(null);
 
+  // Escape hatch for the blocking overlay. Every wait below is individually
+  // bounded, but a bug or a pathological network shouldn't be able to leave the
+  // user staring at a featureless rectangle forever — after this we render
+  // whatever we have and let the screens show their own loading/error states.
+  const [overlayExpired, setOverlayExpired] = useState(false);
   useEffect(() => {
-    AsyncStorage.getItem(HAS_LAUNCHED_KEY).then((launched) => {
-      setHasLaunched(launched === "true");
-    });
+    const t = setTimeout(() => setOverlayExpired(true), 12_000);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.getItem(HAS_LAUNCHED_KEY)
+      .then((launched) => setHasLaunched(launched === "true"))
+      // A rejected read (corrupt storage, disk pressure on first launch) used to
+      // leave hasLaunched === null forever, which pinned the overlay up and
+      // blocked all routing. Treat failure as "not launched before".
+      .catch(() => setHasLaunched(false));
   }, []);
 
   useEffect(() => {
@@ -125,13 +138,18 @@ function AuthGate({ children }: { children: React.ReactNode }) {
             if (!v) AsyncStorage.setItem(`first_moment_saved_${session.user.id}`, "true");
           });
         }
-        AsyncStorage.getItem(PENDING_INVITE_CODE_KEY).then((code) => {
-          AsyncStorage.removeItem(PENDING_INVITE_CODE_KEY);
-          router.replace("/(tabs)");
-          if (code) {
-            setTimeout(() => router.push({ pathname: "/join" as any, params: { inviteCode: code } }), 300);
-          }
-        });
+        // The .catch matters: this read gates the navigation below, so a
+        // rejected read used to leave a signed-in user stuck on the auth screen
+        // with no retry.
+        AsyncStorage.getItem(PENDING_INVITE_CODE_KEY)
+          .then((code) => {
+            AsyncStorage.removeItem(PENDING_INVITE_CODE_KEY).catch(() => {});
+            router.replace("/(tabs)");
+            if (code) {
+              setTimeout(() => router.push({ pathname: "/join" as any, params: { inviteCode: code } }), 300);
+            }
+          })
+          .catch(() => router.replace("/(tabs)"));
       }
     } else if (session && !inAuthGroup && !inOnboardingCreate) {
       if (!profile?.onboardingCompleted && !profileError) {
@@ -148,14 +166,31 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   // Keep children always mounted so the navigation Stack is never torn down.
   // An opaque overlay covers everything during the loading window, preventing
   // any flash of the wrong screen (e.g. welcome) before routing resolves.
-  const isBlocking = loading || hasLaunched === null || (session && !profileReady);
+  const isBlocking =
+    !overlayExpired && (loading || hasLaunched === null || (session && !profileReady));
   const bg = colorScheme === "dark" ? "#000000" : "#FBF6F1";
 
   return (
     <>
       {children}
       {isBlocking && (
-        <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: bg }} />
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: bg,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {/* The splash hides as soon as fonts load, so without this the user
+              stares at a featureless rectangle while auth resolves and assumes
+              the app is broken. */}
+          <ActivityIndicator color={colorScheme === "dark" ? "#8A8A8E" : "#6E6E73"} />
+        </View>
       )}
     </>
   );

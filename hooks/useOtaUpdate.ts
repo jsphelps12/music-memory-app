@@ -38,8 +38,13 @@ export function useOtaUpdate() {
       }
     }
 
-    checkAndDownload();
-
+    // Deliberately NOT checking on mount: the native runtime is configured with
+    // checkOnLaunch=ALWAYS, so it is already downloading this same update. Doing
+    // it again here meant two concurrent full-bundle downloads competing with
+    // ~7 startup REST calls on precisely the launch after a publish — enough to
+    // push the profile fetch past its timeout on a slow connection and make the
+    // app look broken "the first time". Foreground transitions still check,
+    // which is where the native check doesn't help.
     const sub = AppState.addEventListener("change", (state: AppStateStatus) => {
       if (state === "background") {
         backgroundedAtRef.current = Date.now();

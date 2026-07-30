@@ -32,6 +32,7 @@ import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
@@ -42,7 +43,6 @@ import {
   addMomentToAlbum,
   removeMomentFromAlbum,
   createAlbum,
-  readAlbumsCache,
 } from "@/lib/albums";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
@@ -54,6 +54,7 @@ import { PhotoViewer } from "@/components/PhotoViewer";
 import { friendlyError } from "@/lib/errors";
 import { Album, Moment, MoodOption, TaggedMoment } from "@/types";
 import { markTimelineStale, markTimelineDeleted } from "@/lib/timelineRefresh";
+import { invalidateMomentCaches, invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { ShareMomentSheet } from "@/components/ShareMomentSheet";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -88,6 +89,7 @@ export default function MomentDetailScreen() {
   const { currentSong, isPlaying, playbackTime, playbackDuration, playError, playFull, pause, resume, seekTo } = usePlayer();
   const theme = useTheme();
   const posthog = usePostHog();
+  const queryClient = useQueryClient();
   const styles = useMemo(() => createStyles(theme), [theme]);
   // Only accept the cached moment if it's actually the one being opened. A
   // swallowed navigation leaves a stale value in the module-level slot, and
@@ -406,13 +408,13 @@ export default function MomentDetailScreen() {
     setShowingNewInput(false);
     setNewCollectionName("");
     try {
-      // Read from AsyncStorage cache — albums were already fetched by the timeline.
-      // Only hit the network on a true cache miss.
-      const cached = await readAlbumsCache(user!.id);
-      const cols = cached ?? await fetchAlbums(user!.id);
+      // Always fetch fresh: the AsyncStorage albums cache is only written by the
+      // launch prefetch, so reading it here showed wrong checkmarks (and hid
+      // albums created later in the session) for the rest of the session.
+      const cols = await fetchAlbums(user!.id);
 
-      // Derive which albums contain this moment from the momentIds already stored
-      // on each album — no second network call needed.
+      // Derive which albums contain this moment from the momentIds stored on
+      // each album — no second network call needed.
       const memberCollectionIds = cols
         .filter((c) => c.momentIds?.includes(id))
         .map((c) => c.id);
@@ -442,6 +444,11 @@ export default function MomentDetailScreen() {
         ...toRemove.map((cid) => removeMomentFromAlbum(cid, id)),
       ]);
       setMemberIds(pendingMemberIds);
+      const changedIds = [...toAdd, ...toRemove];
+      if (changedIds.length > 0) {
+        invalidateMomentCaches(queryClient, user!.id);
+        changedIds.forEach((cid) => invalidateAlbumCaches(queryClient, user!.id, cid));
+      }
     } catch {}
     setSavingCollections(false);
     setCollectionModalVisible(false);
@@ -459,6 +466,8 @@ export default function MomentDetailScreen() {
       setPendingMemberIds((prev) => [...prev, collection.id]);
       setNewCollectionName("");
       setShowingNewInput(false);
+      invalidateMomentCaches(queryClient, user!.id);
+      invalidateAlbumCaches(queryClient, user!.id, collection.id);
     } catch {}
     setCreatingCollection(false);
   };
@@ -493,6 +502,7 @@ export default function MomentDetailScreen() {
 
           posthog.capture("moment_deleted", { song_title: moment?.songTitle ?? null, song_artist: moment?.songArtist ?? null });
           markTimelineDeleted(id);
+          invalidateMomentCaches(queryClient, user?.id);
           animateOut(goBack);
         },
       },
@@ -523,6 +533,8 @@ export default function MomentDetailScreen() {
           }
 
           markTimelineStale();
+          invalidateMomentCaches(queryClient, user?.id);
+          invalidateAlbumCaches(queryClient, user?.id, collectionId);
           animateOut(goBack);
         },
       },

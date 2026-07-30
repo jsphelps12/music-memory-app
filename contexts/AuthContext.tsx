@@ -8,7 +8,8 @@ import { posthog } from "@/lib/posthog";
 import { CustomMoodDefinition, CustomPromptCategory, FavoriteArtist, FavoriteSong, MusicProviderType, UserProfile } from "@/types";
 import { getProvider } from "@/lib/providers";
 import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
-import { fetchAlbums, writeAlbumsCache, clearAlbumsCache, clearAllAlbumMomentsCache } from "@/lib/albums";
+import { resetTimelineRefresh } from "@/lib/timelineRefresh";
+import { clearLegacyAlbumCaches } from "@/lib/albums";
 import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
 import { fetchBrowseMetadata, readBrowseCache, writeBrowseCache, clearBrowseCache } from "@/lib/browse";
 import { fetchSharedScreenData, readSharedCache, writeSharedCache, clearSharedCache } from "@/lib/sharedScreen";
@@ -56,6 +57,11 @@ interface AuthState {
   setPreferredProvider: (type: MusicProviderType) => Promise<boolean>;
 }
 
+// Upper bound on how long the blocking overlay waits for a profile fetch before
+// giving up and letting the app render. Every request also has its own abort
+// timeout in lib/supabase.ts; this is the belt to that suspenders.
+const PROFILE_TIMEOUT_MS = 8_000;
+
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -68,6 +74,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const suppressAuth = useRef(false);
   const isMountedRef = useRef(true);
   const currentFetchUserIdRef = useRef<string | null>(null);
+  // Guards against the duplicate concurrent hydration that getSession +
+  // onAuthStateChange used to trigger on every cold start.
+  const hydratingUserIdRef = useRef<string | null>(null);
+  // Mirror of `session` readable from callbacks without stale closure capture.
+  const sessionRef = useRef<Session | null>(null);
+  sessionRef.current = session;
 
   // keepOnError: don't wipe cached profile on network failure (prevents bouncing user to onboarding)
   async function fetchProfile(userId: string, { keepOnError = false, email }: { keepOnError?: boolean; email?: string | null } = {}) {
@@ -85,7 +97,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // A failed fetch is NOT the same as "this user has no profile". Routing
       // on profile===null alone sends an existing user into onboarding, where
       // completing it overwrites their real profile data.
-      setProfileError(true);
+      //
+      // PGRST116 is the exception: it means the row genuinely doesn't exist
+      // (the handle_new_user trigger hasn't run or the row was removed), and
+      // that user *should* go through onboarding. Treating it as an error would
+      // strand them on an empty timeline with no profile instead.
+      const isMissingRow = (error as { code?: string } | null)?.code === "PGRST116";
+      setProfileError(!isMissingRow);
       if (!keepOnError) setProfile(null);
       setProfileReady(true);
       return;
@@ -140,72 +158,118 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    // Warm the caches every tab reads on mount. Safe to call more than once:
+    // each entry is idempotent and cheap when already warm.
+    function startPrefetches(userId: string) {
+      prefetchTimeline(userId);
+      // No albums prefetch: its only purpose was writing a disk cache nothing
+      // reads. The Albums tab fetches its own data under ["collectionsScreen"].
+      readBrowseCache(userId).then((cached) => {
+        if (cached) queryClient.setQueryData(["browseMeta", userId], cached);
+        // staleTime 0: setQueryData above stamps dataUpdatedAt=now, so a non-zero
+        // staleTime would make prefetchQuery a no-op and the disk cache would
+        // never be refreshed again after the first ever launch.
+        queryClient.prefetchQuery({
+          queryKey: ["browseMeta", userId],
+          queryFn: () =>
+            fetchBrowseMetadata(userId).then((data) => {
+              writeBrowseCache(userId, data).catch(() => {});
+              return data;
+            }),
+          staleTime: 0,
+        });
+      });
+      readSharedCache(userId).then((cached) => {
+        if (cached) queryClient.setQueryData(["sharedScreen", userId], cached);
+        queryClient.prefetchQuery({
+          queryKey: ["sharedScreen", userId],
+          queryFn: () =>
+            fetchSharedScreenData(userId).then((data) => {
+              writeSharedCache(userId, data).catch(() => {});
+              return data;
+            }),
+          staleTime: 0,
+        });
+      });
+    }
+
+    /**
+     * Resolve everything the app needs before it can route: the cached profile
+     * (for an instant overlay lift) and then the fresh one.
+     *
+     * Guarantees, because the blocking overlay in app/_layout waits on these:
+     * profileReady and loading are ALWAYS settled, on every path, including
+     * timeout — an earlier version only rejected-and-caught on one of the two
+     * entry paths, so a timeout on the other left the overlay up indefinitely.
+     *
+     * A timeout sets profileError so AuthGate does not mistake "we couldn't
+     * load your profile" for "you haven't onboarded" and walk an existing user
+     * into onboarding (which overwrites their real profile).
+     */
+    async function hydrateUser(userId: string, email?: string | null) {
+      // Dedupe: getSession and onAuthStateChange both fire on a cold start
+      // (SIGNED_IN and/or INITIAL_SESSION), and without this the same profile
+      // was fetched up to three times concurrently on the one launch where
+      // bandwidth is scarcest.
+      if (hydratingUserIdRef.current === userId) return;
+      hydratingUserIdRef.current = userId;
+
+      startPrefetches(userId);
+
+      try {
+        const cached = await readProfileCache(userId);
+        if (isMountedRef.current && cached) {
+          setProfile(cached);
+          setProfileReady(true);
+          setLoading(false); // release the overlay immediately
+        }
+
+        let timedOut = false;
+        await Promise.race([
+          fetchProfile(userId, { keepOnError: cached !== null, email }),
+          new Promise<void>((resolve) =>
+            setTimeout(() => {
+              timedOut = true;
+              resolve();
+            }, PROFILE_TIMEOUT_MS)
+          ),
+        ]);
+        if (timedOut && isMountedRef.current) setProfileError(true);
+      } finally {
+        // Only settle if we're still the current hydration: a slower run for a
+        // previous user must not mark the incoming user's profile as ready.
+        if (isMountedRef.current && hydratingUserIdRef.current === userId) {
+          setProfileReady(true);
+          setLoading(false);
+          hydratingUserIdRef.current = null;
+        }
+      }
+    }
+
     // Supabase refreshes the JWT inside getSession() — on a flaky network this can hang
     // indefinitely and keep `loading = true` forever (blank screen after OTA reload).
     // If it times out we resolve with null session so the overlay lifts and shows sign-in;
     // onAuthStateChange will fire SIGNED_IN once the refresh eventually completes.
     const SESSION_TIMEOUT_MS = 10_000;
+    const TIMED_OUT = Symbol("getSession timeout");
     Promise.race([
       supabase.auth.getSession(),
-      new Promise<{ data: { session: null }; error: null }>(
-        (resolve) => setTimeout(() => resolve({ data: { session: null }, error: null }), SESSION_TIMEOUT_MS)
-      ),
+      new Promise<typeof TIMED_OUT>((resolve) => setTimeout(() => resolve(TIMED_OUT), SESSION_TIMEOUT_MS)),
     ])
-      .then(async ({ data: { session } }) => {
+      .then((result) => {
         if (!isMountedRef.current) return;
+        // A timeout is NOT the same as "signed out". Resolving it as a null
+        // session used to overwrite a valid session the auth listener had
+        // already set and bounce the user to the sign-in screen until the token
+        // refresh finally landed. On timeout we do nothing and let the listener
+        // deliver the session; the overlay's own escape hatch covers the rest.
+        if (result === TIMED_OUT) return;
+        const session = result.data.session;
         setSession(session);
         if (session?.user) {
-          // ── Tab prefetches — add new tab-level queries here ──────────────────
-          // Fire before any awaits so data is warm before tabs mount.
-          prefetchTimeline(session.user.id);
-          fetchAlbums(session.user.id)
-            .then((data) => writeAlbumsCache(session.user.id, data))
-            .catch(() => {});
-          readBrowseCache(session.user.id).then((cached) => {
-            if (cached) queryClient.setQueryData(["browseMeta", session.user.id], cached);
-            queryClient.prefetchQuery({
-              queryKey: ["browseMeta", session.user.id],
-              queryFn: () =>
-                fetchBrowseMetadata(session.user.id).then((data) => {
-                  writeBrowseCache(session.user.id, data).catch(() => {});
-                  return data;
-                }),
-              staleTime: 60_000,
-            });
-          });
-          readSharedCache(session.user.id).then((cached) => {
-            if (cached) queryClient.setQueryData(["sharedScreen", session.user.id], cached);
-            queryClient.prefetchQuery({
-              queryKey: ["sharedScreen", session.user.id],
-              queryFn: () =>
-                fetchSharedScreenData(session.user.id).then((data) => {
-                  writeSharedCache(session.user.id, data).catch(() => {});
-                  return data;
-                }),
-              staleTime: 2 * 60 * 1000,
-            });
-          });
-
-          // Stale-while-revalidate: lift AuthGate overlay immediately from cache, then refresh
-          const cached = await readProfileCache(session.user.id);
-          if (isMountedRef.current && cached) {
-            setProfile(cached);
-            setProfileReady(true);
-            setLoading(false); // release overlay immediately
-          }
-
-          try {
-            // If the network is down, fetchProfile can hang; race a timeout so the
-            // finally always runs and the overlay doesn't stay up forever.
-            await Promise.race([
-              fetchProfile(session.user.id, { keepOnError: cached !== null, email: session.user.email }),
-              new Promise<void>((resolve) => setTimeout(resolve, 8_000)),
-            ]);
-          } finally {
-            if (isMountedRef.current) setLoading(false);
-          }
+          void hydrateUser(session.user.id, session.user.email);
         } else {
-          if (isMountedRef.current) setLoading(false);
+          setLoading(false);
         }
       })
       .catch(async () => {
@@ -216,34 +280,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!suppressAuth.current) {
-        setSession(session);
-        if (session?.user) {
-          // Stale-while-revalidate: lift overlay immediately from cache for returning users
-          const cached = await readProfileCache(session.user.id);
-          if (isMountedRef.current && cached) {
-            setProfile(cached);
-            setProfileReady(true);
-            setLoading(false);
-          }
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (suppressAuth.current) return;
+      setSession(session);
 
-          try {
-            await Promise.race([
-              fetchProfile(session.user.id, { keepOnError: cached !== null, email: session.user.email }),
-              new Promise<void>((_, reject) => setTimeout(() => reject(new Error("timeout")), 8_000)),
-            ]);
-          } catch {
-            if (isMountedRef.current) setProfileReady(true);
-          } finally {
-            if (isMountedRef.current) setLoading(false);
-          }
-        } else {
-          posthog.reset();
-          Sentry.setUser(null);
-          setProfile(null);
-          setProfileReady(false);
-        }
+      if (session?.user) {
+        // Deliberately NOT awaited, and this callback is deliberately not async:
+        // supabase-js awaits subscriber callbacks inside its auth lock for
+        // SIGNED_IN / TOKEN_REFRESHED, so doing profile I/O here stalled session
+        // recovery and the token-refresh tick behind our own network call.
+        const { id, email } = session.user;
+        setTimeout(() => void hydrateUser(id, email), 0);
+      } else {
+        posthog.reset();
+        Sentry.setUser(null);
+        setProfile(null);
+        setProfileReady(false);
+        setProfileError(false);
+        hydratingUserIdRef.current = null;
       }
     });
 
@@ -320,11 +374,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (userId) {
       clearTimelineCache(userId);
       clearProfileCache(userId);
-      clearAlbumsCache(userId);
-      clearAllAlbumMomentsCache(userId);
+      clearLegacyAlbumCaches(userId);
       clearBrowseCache(userId);
       clearSharedCache(userId);
     }
+    // Drop in-memory query state and the one-shot cross-screen stores too.
+    // Query keys are user-scoped so the next user can't *see* this data, but
+    // consumeTimelineStale carries a pending Moment with no user scoping — it
+    // could prepend the previous user's moment to the next user's timeline.
+    queryClient.clear();
+    resetTimelineRefresh();
     posthog.reset();
     Sentry.setUser(null);
   };

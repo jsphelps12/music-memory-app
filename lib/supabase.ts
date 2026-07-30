@@ -5,7 +5,17 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
-// 520 = Supabase cold start; auth requests get a 10s abort timeout to prevent a stuck token refresh from blocking sign-out
+// 520 = Supabase cold start.
+//
+// EVERY request gets an abort timeout, not just auth. iOS's default URL timeout
+// is ~60s (and effectively never on a blackholed connection), and a hung REST
+// call was able to stall startup indefinitely: the auth state listener awaits a
+// profiles query, GoTrue serializes listener callbacks against session
+// recovery, and the root layout's blocking overlay waits on the result. A
+// bounded failure is always better than a hang.
+const AUTH_TIMEOUT_MS = 10_000;
+const REQUEST_TIMEOUT_MS = 15_000;
+
 async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = String(input);
   const isAuthRequest = url.includes("/auth/v1/");
@@ -16,9 +26,14 @@ async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Pro
     let reqInit = init;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-    if (isAuthRequest) {
+    // Respect a caller-supplied signal (e.g. React Query cancellation) rather
+    // than clobbering it.
+    if (!init?.signal) {
       const controller = new AbortController();
-      timeoutId = setTimeout(() => controller.abort(), 10_000);
+      timeoutId = setTimeout(
+        () => controller.abort(),
+        isAuthRequest ? AUTH_TIMEOUT_MS : REQUEST_TIMEOUT_MS
+      );
       reqInit = { ...init, signal: controller.signal };
     }
 

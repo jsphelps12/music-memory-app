@@ -24,6 +24,7 @@ import { MomentCard } from "@/components/MomentCard";
 import { AlbumShareSheet } from "@/components/AlbumShareSheet";
 import { IconButton } from "@/components/IconButton";
 import { ErrorState } from "@/components/ErrorState";
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { EmptyState } from "@/components/EmptyState";
 import { MOODS } from "@/constants/Moods";
 import { supabase } from "@/lib/supabase";
@@ -150,7 +151,7 @@ export default function AlbumDetailScreen() {
     [profile?.customMoods]
   );
 
-  const { data, isLoading, isError, error, refetch, isFetching, dataUpdatedAt } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching, dataUpdatedAt, errorUpdatedAt } = useQuery({
     queryKey: ["album", id, user?.id],
     queryFn: () => fetchAlbumData(id!, user!.id),
     staleTime: STALE_TIME,
@@ -159,6 +160,10 @@ export default function AlbumDetailScreen() {
 
   const collection = data?.album ?? null;
   const moments = data?.moments ?? [];
+
+  // A failed background refetch keeps the previous data — show a banner, not a full-screen error
+  const [bannerDismissedAt, setBannerDismissedAt] = useState(0);
+  const showBanner = isError && !!data && errorUpdatedAt > bannerDismissedAt;
 
   useEffect(() => {
     if (!data?.album || !user) return;
@@ -192,7 +197,7 @@ export default function AlbumDetailScreen() {
     );
   }
 
-  if (isError) {
+  if (isError && !data) {
     return (
       <ErrorState message={friendlyError(error)} onRetry={() => refetch()} onBack={() => router.back()} />
     );
@@ -213,6 +218,16 @@ export default function AlbumDetailScreen() {
 
   const listHeader = (
     <View style={styles.listHeader}>
+      {showBanner ? (
+        <View style={styles.bannerWrap}>
+          <ErrorBanner
+            message={friendlyError(error)}
+            onRetry={() => refetch()}
+            onDismiss={() => setBannerDismissedAt(errorUpdatedAt)}
+          />
+        </View>
+      ) : null}
+
       {/* Square artwork */}
       <View style={[styles.artContainer, {
         shadowColor: "#000",
@@ -321,6 +336,9 @@ function createStyles(theme: Theme) {
       paddingTop: 88,
       paddingHorizontal: 24,
       paddingBottom: 8,
+    },
+    bannerWrap: {
+      alignSelf: "stretch",
     },
     artContainer: {
       width: ART_SIZE,

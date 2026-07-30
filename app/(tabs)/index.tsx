@@ -24,7 +24,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { consumeTimelineStale } from "@/lib/timelineRefresh";
-import { consumePrefetchPromise, TIMELINE_PAGE_SIZE } from "@/lib/timelinePrefetch";
+import {
+  consumePrefetchPromise,
+  consumePrefetchNetworkPromise,
+  TIMELINE_PAGE_SIZE,
+} from "@/lib/timelinePrefetch";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
@@ -270,6 +274,23 @@ export default function TimelineScreen() {
               duration_ms: Date.now() - t0,
               moment_count: prefetched.length,
             });
+
+            // The paint above may have come from the disk cache, i.e. the server
+            // state as of the previous launch. Apply the network result when it
+            // lands so a moment created last session isn't silently missing.
+            const networkPromise = consumePrefetchNetworkPromise(user.id);
+            if (networkPromise) {
+              networkPromise
+                .then((fresh) => {
+                  if (fresh === null) return; // offline — keep showing cache
+                  const freshHasMore = fresh.length === TIMELINE_PAGE_SIZE;
+                  setMoments(fresh);
+                  setHasMore(freshHasMore);
+                  timelineSnapshotRef.current = { moments: fresh, hasMore: freshHasMore };
+                  if (!freshHasMore) setTotalCount(fresh.length);
+                })
+                .catch(() => {});
+            }
             return;
           }
         }

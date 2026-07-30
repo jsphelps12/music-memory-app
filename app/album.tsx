@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Moment } from "@/types";
 import { SkeletonTimelineCard } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
 import { MomentCard } from "@/components/MomentCard";
 import { fetchAlbumMoments } from "@/lib/browse";
@@ -38,12 +39,18 @@ export default function AlbumScreen() {
     [profile?.customMoods]
   );
 
-  const { data: moments = [], isLoading, isError, error, refetch, isFetching, dataUpdatedAt } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching, dataUpdatedAt, errorUpdatedAt } = useQuery({
     queryKey: ["album-moments", user?.id, album, artist],
     queryFn: () => fetchAlbumMoments(user!.id, album!, artist!),
     staleTime: STALE_TIME,
     enabled: !!user && !!album && !!artist,
   });
+
+  const moments = data ?? [];
+
+  // A failed background refetch keeps the previous data — show a banner, not a full-screen error
+  const [bannerDismissedAt, setBannerDismissedAt] = useState(0);
+  const showBanner = isError && !!data && errorUpdatedAt > bannerDismissedAt;
 
   useFocusEffect(useCallback(() => {
     if (Date.now() - dataUpdatedAt > STALE_TIME) refetch();
@@ -93,11 +100,21 @@ export default function AlbumScreen() {
         </View>
       </View>
 
+      {showBanner ? (
+        <View style={styles.bannerWrap}>
+          <ErrorBanner
+            message={friendlyError(error)}
+            onRetry={() => refetch()}
+            onDismiss={() => setBannerDismissedAt(errorUpdatedAt)}
+          />
+        </View>
+      ) : null}
+
       {isLoading ? (
         <View style={styles.skeletonList}>
           {[0, 1, 2].map((i) => <SkeletonTimelineCard key={i} />)}
         </View>
-      ) : isError ? (
+      ) : isError && !data ? (
         <ErrorState message={friendlyError(error)} onRetry={() => refetch()} onBack={() => router.back()} />
       ) : moments.length === 0 ? (
         <View style={styles.empty}>
@@ -167,6 +184,9 @@ function createStyles(theme: Theme) {
     momentCount: {
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
+    },
+    bannerWrap: {
+      paddingHorizontal: theme.spacing.xl,
     },
     skeletonList: {
       paddingHorizontal: theme.spacing.xl,

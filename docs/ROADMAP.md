@@ -152,6 +152,26 @@ Revival sprint — production bug fixes + dual-app cleanup after June pause.
 
 ---
 
+## Shipped July 30 2026 — cold-start & cache correctness
+
+Triggered by a real report: "for some friends the app never loads right the first time."
+
+- [x] **Timeline first paint was always one launch behind** — the launch prefetch raced disk cache vs network, but the network result was never applied to state, and the cache path stamped `lastFetchTime` so the 30s focus cooldown suppressed the correcting refetch. A moment created last session was simply missing until pull-to-refresh. Now the fresh result is applied when it lands (`consumePrefetchNetworkPromise`). This reproduced the bug deterministically even on fast wifi.
+- [x] **No request timeout outside auth** — only `/auth/v1/` calls had an abort timeout, so a hung REST call could stall startup indefinitely (iOS default ~60s, never on a blackholed connection). All requests now bounded; caller-supplied signals are respected.
+- [x] **Profile I/O moved out of the auth listener** — supabase-js awaits subscriber callbacks inside its auth lock for SIGNED_IN/TOKEN_REFRESHED, so fetching the profile there stalled session recovery and the refresh tick behind our own network call. Also deduped: cold start used to fire the same profile fetch up to 3× concurrently.
+- [x] **Blank-screen paths closed** — the blocking overlay now has a spinner (splash hides before auth resolves, so users saw a featureless rectangle), a 12s escape hatch, and `.catch` on the two AsyncStorage reads that gated routing and could pin it up forever.
+- [x] **getSession timeout no longer masquerades as signed-out** — it used to overwrite a valid session and bounce users to the sign-in screen until the refresh landed.
+- [x] **Onboarding-overwrite door closed for timeouts too** — a profile timeout now sets `profileError`, and a genuinely missing row (PGRST116) correctly does *not*, so new users still onboard.
+- [x] **Duplicate OTA download removed** — the JS-side check on mount raced the native `checkOnLaunch=ALWAYS` download, two full bundles competing with startup requests on exactly the launch after a publish.
+- [x] **Cache coherence after mutations** — new `lib/cacheInvalidation.ts`; moment create/edit/delete and album join/rename/cover/leave/delete/add/remove now invalidate every surface that renders them (previously the map, Browse counts, Reflections, profile stats and the Albums tab all served pre-mutation data for up to 2 min).
+- [x] **`setQueryData` before `prefetchQuery` made the prefetch a no-op** — browse/shared disk caches were written on the first ever launch and never refreshed again. Fixed with `staleTime: 0`.
+- [x] **Background refetch failures no longer wipe good content** — 5 screens showed a full-screen `ErrorState` on a failed revalidation; now `ErrorBanner` when data is present, per CLAUDE.md.
+- [x] **Sign-out hygiene** — `queryClient.clear()` plus reset of the module-level timeline store, which carried an unscoped pending Moment that could prepend the previous user's moment to the next user's timeline.
+- [x] **Removed two write-only disk caches** (`collections_cache_v1_*`, `collection_moments_v1_*`) and the wasted launch fetch that fed one of them; legacy keys cleaned up on sign-out.
+- [x] Badge polls no longer run while backgrounded (`refetchIntervalInBackground: false`).
+
+---
+
 ## NOW — May 2026 Priorities
 
 ### 1. Polish & Bug Fixes 🔴 *In progress*

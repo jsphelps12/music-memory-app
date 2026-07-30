@@ -3,51 +3,24 @@ import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { Album, AlbumPreview, Moment } from "@/types";
 
-const ALBUMS_CACHE_PREFIX = "collections_cache_v1_";
+// ─── Legacy AsyncStorage caches (removed) ────────────────────────────────────
+// Two disk caches used to live here and both had become write-only:
+//
+//  * collections_cache_v1_*  — written by a launch prefetch, and its last reader
+//    (the album-picker membership check) now fetches fresh instead. The launch
+//    write was a wasted startup network request competing with the fetches the
+//    first paint actually depends on.
+//  * collection_moments_v1_* — never written by anything; only cleared.
+//
+// Both are cleaned up on sign-out below so upgrading users don't leave orphaned
+// keys on disk. Don't reintroduce a cache without a reader.
+const LEGACY_CACHE_PREFIXES = ["collections_cache_v1_", "collection_moments_v1_"];
 
-function albumsCacheKey(userId: string) {
-  return `${ALBUMS_CACHE_PREFIX}${userId}`;
-}
-
-export async function readAlbumsCache(userId: string): Promise<Album[] | null> {
+export async function clearLegacyAlbumCaches(userId: string): Promise<void> {
   try {
-    const raw = await AsyncStorage.getItem(albumsCacheKey(userId));
-    return raw ? (JSON.parse(raw) as Album[]) : null;
-  } catch {
-    return null;
-  }
-}
-
-export async function writeAlbumsCache(userId: string, albums: Album[]): Promise<void> {
-  try {
-    await AsyncStorage.setItem(albumsCacheKey(userId), JSON.stringify(albums));
+    await AsyncStorage.multiRemove(LEGACY_CACHE_PREFIXES.map((p) => `${p}${userId}`));
   } catch {}
 }
-
-export async function clearAlbumsCache(userId: string): Promise<void> {
-  try {
-    await AsyncStorage.removeItem(albumsCacheKey(userId));
-  } catch {}
-}
-
-// ─── Album moments cache ──────────────────────────────────────────────────────
-// Persists across app restarts so the first tap on an album is instant.
-// All albums for a user stored under one key to keep clear/enumerate simple.
-
-const ALBUM_MOMENTS_CACHE_KEY_PREFIX = "collection_moments_v1_";
-const ALBUM_MOMENTS_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-function albumMomentsCacheKey(userId: string) {
-  return `${ALBUM_MOMENTS_CACHE_KEY_PREFIX}${userId}`;
-}
-
-export async function clearAllAlbumMomentsCache(userId: string): Promise<void> {
-  try {
-    await AsyncStorage.removeItem(albumMomentsCacheKey(userId));
-  } catch {}
-}
-
-export { ALBUM_MOMENTS_TTL_MS };
 
 export interface AlbumMember {
   userId: string;

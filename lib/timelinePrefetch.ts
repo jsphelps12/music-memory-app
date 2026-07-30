@@ -19,6 +19,10 @@ const CACHE_KEY_PREFIX = "timeline_cache_v1_";
 
 // null means "network failed with no cache" — distinct from [] which means "user has 0 moments"
 let _prefetch: { promise: Promise<Moment[] | null>; userId: string } | null = null;
+// The network leg, tracked separately so it survives consumePrefetchPromise()
+// and the timeline can still apply the authoritative result after rendering
+// from cache.
+let _network: { promise: Promise<Moment[] | null>; userId: string } | null = null;
 
 function cacheKey(userId: string) {
   return `${CACHE_KEY_PREFIX}${userId}`;
@@ -76,6 +80,12 @@ export function prefetchTimeline(userId: string): void {
       return networkFetch;
     }),
   };
+  // Tracked separately so it can be applied to the UI after a cache hit.
+  // Without this, the first paint of every launch showed the server state as of
+  // the *previous* launch — a moment created last session was simply missing,
+  // and the 30s focus cooldown suppressed the refetch that would have corrected
+  // it. A deterministic "doesn't load right the first time", even on fast wifi.
+  _network = { userId, promise: networkFetch };
 }
 
 export function consumePrefetchPromise(userId: string): Promise<Moment[] | null> | null {
@@ -85,8 +95,23 @@ export function consumePrefetchPromise(userId: string): Promise<Moment[] | null>
   return p;
 }
 
+/**
+ * The in-flight network fetch behind the prefetch, if any.
+ *
+ * Call after consumePrefetchPromise resolved from cache: awaiting this gives the
+ * authoritative first page so the UI can be corrected. Returns null when there
+ * is nothing in flight for this user.
+ */
+export function consumePrefetchNetworkPromise(userId: string): Promise<Moment[] | null> | null {
+  if (_network?.userId !== userId) return null;
+  const p = _network.promise;
+  _network = null;
+  return p;
+}
+
 export async function clearTimelineCache(userId: string): Promise<void> {
   if (_prefetch?.userId === userId) _prefetch = null;
+  if (_network?.userId === userId) _network = null;
   try {
     await AsyncStorage.removeItem(cacheKey(userId));
   } catch {}
