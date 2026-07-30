@@ -3,6 +3,10 @@ name: Promote to Production
 on:
   workflow_dispatch:
     inputs:
+      sha:
+        description: Commit SHA to promote (defaults to the head of the selected branch)
+        required: false
+        default: ""
       message:
         description: Release note (shown in EAS update history)
         required: false
@@ -26,7 +30,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # Pinning to a SHA means you promote the commit you actually reviewed and
+      # tested on beta, not whatever main happened to be when you clicked Run.
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+
+      - name: Report what is being promoted
+        run: |
+          echo "Promoting $(git rev-parse HEAD)"
+          git log -1 --format='%s (%an, %ci)'
 
       - uses: actions/setup-node@v5
         with:
@@ -40,61 +53,41 @@ jobs:
       # from the binary users actually have, the update can reference native
       # modules that binary doesn't contain — which crashes the app on launch.
       # runtimeVersion is "appVersion", so EAS will NOT catch this for us.
+      #
+      # The gate also fails when there is no live build, or the live build has
+      # no recorded fingerprint. Those two cases used to warn and proceed, which
+      # looks identical to passing in a green check — unverifiable is not safe.
       - name: Verify native fingerprint matches the live production build
         if: ${{ !inputs.skip_fingerprint_check }}
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: |
-          set -euo pipefail
-          LOCAL=$(npx expo-updates fingerprint:generate --platform ios \
-            | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).hash))")
-          echo "local fingerprint:      $LOCAL"
-          LIVE=$(npx eas-cli build:list --platform ios --profile production --status finished \
-            --limit 1 --json --non-interactive \
-            | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s)[0];console.log(b&&b.fingerprint?b.fingerprint.hash:'')})")
-          echo "live build fingerprint: ${LIVE:-<none>}"
-          if [ -z "$LIVE" ]; then
-            echo "::warning::Live production build has no fingerprint recorded — cannot verify. Proceeding."
-            exit 0
-          fi
-          if [ "$LOCAL" != "$LIVE" ]; then
-            echo "::error::Native fingerprint mismatch. This commit changes native code relative to the live production binary, so an OTA update would likely crash it. Cut a new production build instead, or re-run with skip_fingerprint_check if you are certain."
-            exit 1
-          fi
-          echo "Fingerprints match — safe to publish JS-only update."
+        run: node scripts/fingerprint-gate.mjs --profile production
 
+      # `--environment production` pulls EXPO_PUBLIC_* from the EAS production
+      # environment, so this bundle and the production binary are built from one
+      # source of truth. EXPO_PUBLIC_APP_ENV stays explicit — it comes from
+      # eas.json's build profile, which `eas update` does not read.
       - name: Publish OTA update (production channel)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EXPO_PUBLIC_APP_ENV: production
-          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
-          EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
-          EXPO_PUBLIC_POSTHOG_API_KEY: ${{ secrets.EXPO_PUBLIC_POSTHOG_API_KEY }}
-          EXPO_PUBLIC_POSTHOG_HOST: ${{ secrets.EXPO_PUBLIC_POSTHOG_HOST }}
           RELEASE_MESSAGE: ${{ inputs.message }}
-        run: npx eas-cli update --branch production --message "$RELEASE_MESSAGE" --non-interactive
+        run: |
+          npx eas-cli update --branch production --environment production \
+            --message "$RELEASE_MESSAGE" --non-interactive
 
-      # Without this, every JS error from an OTA bundle lands in Sentry minified.
-      # Runs after publishing and never fails the job: the export is
+      # Without this, every JS error from an OTA bundle lands in Sentry
+      # minified. Runs after publishing and never fails the job: the export is
       # deterministic for a given commit + env, so re-exporting here produces
       # the same bundle that was just published.
       - name: Upload sourcemaps to Sentry
         continue-on-error: true
         env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_APP_ENV: production
           SENTRY_ORG: soundtracks
           SENTRY_PROJECT: react-native
-          EXPO_PUBLIC_APP_ENV: production
-          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
-          EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
-          EXPO_PUBLIC_POSTHOG_API_KEY: ${{ secrets.EXPO_PUBLIC_POSTHOG_API_KEY }}
-          EXPO_PUBLIC_POSTHOG_HOST: ${{ secrets.EXPO_PUBLIC_POSTHOG_HOST }}
         run: |
-          if [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
-            echo "::warning::SENTRY_AUTH_TOKEN not set — skipping sourcemap upload (Sentry traces will be minified)."
-            exit 0
-          fi
-          npx expo export --platform ios --output-dir dist
-          npx sentry-expo-upload-sourcemaps dist
+          npx eas-cli env:exec production \
+            "npx expo export --platform ios --output-dir dist && npx sentry-expo-upload-sourcemaps dist" \
+            --non-interactive

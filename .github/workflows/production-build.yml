@@ -1,40 +1,60 @@
-name: Production Build
+name: Binary Build
 
 on:
   workflow_dispatch:
     inputs:
+      profile:
+        description: EAS build profile
+        type: choice
+        options: [preview, production]
+        default: preview
       submit:
-        description: Submit to TestFlight after build
+        description: Submit to App Store Connect after build (production only)
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
+# Per-profile so a preview build and a production build don't cancel each other.
+concurrency:
+  group: binary-build-${{ inputs.profile }}
+  cancel-in-progress: false
+
 jobs:
   build:
-    name: EAS Build + Submit
+    name: EAS Build (${{ inputs.profile }})
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
+      # EXPO_PUBLIC_* are not passed here on purpose. `eas build` compiles on
+      # EAS servers, where the EAS environment variables for this profile apply;
+      # the eas.json profile `env` block supplies EXPO_PUBLIC_APP_ENV. Passing
+      # GitHub secrets as well just created a second source of truth that could
+      # disagree with the one actually used.
       - name: Build
-        run: npx eas-cli build --platform ios --profile production --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
-          EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
-          EXPO_PUBLIC_POSTHOG_API_KEY: ${{ secrets.EXPO_PUBLIC_POSTHOG_API_KEY }}
-          EXPO_PUBLIC_POSTHOG_HOST: ${{ secrets.EXPO_PUBLIC_POSTHOG_HOST }}
+        run: npx eas-cli build --platform ios --profile ${{ inputs.profile }} --non-interactive
 
-      - name: Submit to TestFlight
-        if: ${{ inputs.submit }}
-        run: npx eas-cli submit --platform ios --profile production --non-interactive
+      # The preview profile is distribution: "internal" — it emails an install
+      # link and has no App Store Connect submission path.
+      - name: Submit to App Store Connect
+        if: ${{ inputs.submit && inputs.profile == 'production' }}
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas-cli submit --platform ios --profile production --non-interactive
+
+      - name: Note on skipped submit
+        if: ${{ inputs.submit && inputs.profile != 'production' }}
+        run: echo "::warning::submit was requested but the '${{ inputs.profile }}' profile is internal-distribution; nothing to submit."
