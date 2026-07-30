@@ -1,5 +1,5 @@
 /**
- * Centralised React Query invalidation for moment + album mutations.
+ * Centralised React Query invalidation for moment, album + friend mutations.
  *
  * WHY THIS EXISTS
  * ---------------
@@ -8,7 +8,10 @@
  * the profile stats counters, the map, and every drill-down list ("all moments
  * for this artist", "all moments tagged 2019", …). Same story for albums: the
  * Albums tab, its unread badge, the shared-activity screen, and the album
- * detail screen each hold their own copy.
+ * detail screen each hold their own copy. Same again for the friend graph: one
+ * `fetchPendingRequests` result is cached three times over — the Me tab's
+ * request list, the tab bar's "Me" badge, and the Albums tab's bundled
+ * `sharedScreen` payload.
  *
  * Historically each mutation only invalidated whatever the screen it lived on
  * happened to read, so after a create/edit/delete the *other* surfaces kept
@@ -16,9 +19,10 @@
  * the UI lied about what the user had just done (deleted moments still listed,
  * new moments missing from browse, stats counters off by one).
  *
- * Every moment/album mutation must therefore go through these helpers instead
- * of hand-picking keys at the call site. When a new moment- or album-backed
- * query is added, add its key here rather than to one screen's mutation.
+ * Every moment/album/friend mutation must therefore go through these helpers
+ * instead of hand-picking keys at the call site. When a new moment-, album- or
+ * friend-backed query is added, add its key here rather than to one screen's
+ * mutation.
  *
  * NOTE: the timeline tab does not use React Query — it keeps its own state and
  * AsyncStorage cache — so `markTimelineStale` / `markTimelineDeleted` from
@@ -93,4 +97,23 @@ export function invalidateAlbumCaches(
   if (albumId) {
     void queryClient.invalidateQueries({ queryKey: ["album", albumId, userId] });
   }
+}
+
+/**
+ * Invalidate every cache that renders the friend graph for this user. Call
+ * after a friend request is accepted, declined or cancelled, or a friend is
+ * removed.
+ *
+ * `["profileBadge"]` would eventually self-heal via its 60s refetchInterval,
+ * but `["pendingRequests"]` has no interval at all — without this it only
+ * refetches when the Me tab remounts, so a handled request can sit in the list
+ * indefinitely.
+ */
+export function invalidateFriendCaches(queryClient: QueryClient, userId: string | undefined): void {
+  if (!userId) return;
+
+  void queryClient.invalidateQueries({ queryKey: ["pendingRequests", userId] });
+  void queryClient.invalidateQueries({ queryKey: ["profileBadge", userId] });
+  void queryClient.invalidateQueries({ queryKey: ["sharedScreen", userId] });
+  void queryClient.invalidateQueries({ queryKey: ["friendsList", userId] });
 }
