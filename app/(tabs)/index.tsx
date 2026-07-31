@@ -467,6 +467,7 @@ export default function TimelineScreen() {
   const handleCardDeleted = useCallback((deletedId: string) => {
     setMoments((prev) => prev.filter((m) => m.id !== deletedId));
     setCalendarMoments((prev) => prev.filter((m) => m.id !== deletedId));
+    setTotalCount((prev) => (prev !== null && prev > 0 ? prev - 1 : prev));
   }, []);
 
   const renderMoment = useCallback(({ item }: { item: Moment }) => (
