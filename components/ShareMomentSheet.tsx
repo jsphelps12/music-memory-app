@@ -19,6 +19,7 @@ import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import * as Crypto from "expo-crypto";
+import * as Clipboard from "expo-clipboard";
 import { AppImage } from "@/components/AppImage";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ShareCard, CARD_WIDTH, CARD_HEIGHT } from "@/components/ShareCard";
@@ -61,8 +62,28 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
   const [friends, setFriends] = useState<Friendship[]>([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [taggingUserId, setTaggingUserId] = useState<string | null>(null);
+  const [shareToken, setShareToken] = useState<string | null>(moment.shareToken ?? null);
+  const [revoking, setRevoking] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => { setLocalTags(tags); }, [tags]);
+
+  // Card-column-shaped moments always carry shareToken: null (MOMENT_CARD_COLUMNS
+  // omits it), so trusting the prop could mint a second token over a live one.
+  // Re-read the truth from the row every time the sheet opens.
+  useEffect(() => {
+    if (!visible) return;
+    setShareToken(moment.shareToken ?? null);
+    setLinkCopied(false);
+    supabase
+      .from("moments")
+      .select("share_token")
+      .eq("id", moment.id)
+      .single()
+      .then(({ data, error }) => {
+        if (!error && data) setShareToken(data.share_token);
+      });
+  }, [visible, moment.id, moment.shareToken]);
 
   const alreadyTaggedIds = new Set(localTags.map((t) => t.taggedUserId));
 
@@ -108,7 +129,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSendingLink(true);
     try {
-      let token = moment.shareToken;
+      let token = shareToken;
       if (!token) {
         token = Crypto.randomUUID();
         const { error } = await supabase
@@ -116,6 +137,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
           .update({ share_token: token })
           .eq("id", moment.id);
         if (error) throw error;
+        setShareToken(token);
       }
       const url = `https://soundtracks.app/m/${token}`;
       await Share.share({ message: url, url });
@@ -127,6 +149,45 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
     } finally {
       setSendingLink(false);
     }
+  };
+
+  const handleCopyLink = async () => {
+    if (!shareToken) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await Clipboard.setStringAsync(`https://soundtracks.app/m/${shareToken}`);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+
+  const handleRevokeLink = () => {
+    if (!shareToken || revoking) return;
+    Alert.alert(
+      "Turn off link?",
+      "Anyone who has this link will no longer be able to view this moment.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Turn Off",
+          style: "destructive",
+          onPress: async () => {
+            setRevoking(true);
+            try {
+              const { error } = await supabase
+                .from("moments")
+                .update({ share_token: null })
+                .eq("id", moment.id);
+              if (error) throw error;
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              setShareToken(null);
+            } catch {
+              Alert.alert("Couldn't turn off link", "Please try again.");
+            } finally {
+              setRevoking(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleShareCard = async () => {
@@ -230,6 +291,37 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
             </TouchableOpacity>
+
+            {/* Link state — the honest row. A live token means anyone with the
+                URL can view this moment, whatever the owner assumes. */}
+            {!!shareToken && user && moment.userId === user.id && (
+              <>
+                <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                <View style={styles.optionRow}>
+                  <View style={[styles.iconBox, { backgroundColor: theme.colors.success + "20" }]}>
+                    <Ionicons name="radio-button-on" size={20} color={theme.colors.success} />
+                  </View>
+                  <View style={styles.optionText}>
+                    <Text style={[styles.optionTitle, { color: theme.colors.text }]}>Link is live</Text>
+                    <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>
+                      Anyone with the link can view this moment
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={handleCopyLink} hitSlop={8} activeOpacity={0.7} style={styles.linkAction}>
+                    {linkCopied
+                      ? <Ionicons name="checkmark" size={18} color={theme.colors.success} />
+                      : <Ionicons name="copy-outline" size={18} color={theme.colors.textSecondary} />
+                    }
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleRevokeLink} hitSlop={8} activeOpacity={0.7} style={styles.linkAction} disabled={revoking}>
+                    {revoking
+                      ? <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                      : <Ionicons name="close-circle-outline" size={18} color={theme.colors.destructive} />
+                    }
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
 
           {/* Tagged friends */}
@@ -439,6 +531,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     gap: 14,
+  },
+  linkAction: {
+    padding: 6,
   },
   iconBox: {
     width: 44,
