@@ -8,16 +8,13 @@ import {
   Pressable,
   Alert,
   StyleSheet,
-  Modal,
   FlatList,
-  Platform,
   ActivityIndicator,
   TextInput,
   Linking,
   Share,
   InteractionManager,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -57,6 +54,7 @@ import { Album, Moment, MoodOption, TaggedMoment } from "@/types";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches, invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { ShareMomentSheet } from "@/components/ShareMomentSheet";
+import { BottomSheet } from "@/components/BottomSheet";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchMyReaction, fetchReactionCount, addReaction, removeReaction } from "@/lib/reactions";
@@ -132,18 +130,6 @@ export default function MomentDetailScreen() {
   const scaleAnim = useSharedValue(origin.active ? origin.scale : 1);
   const opacity = useSharedValue(origin.active ? 0 : 1);
 
-  const collectionTranslateY = useSharedValue(0);
-  const collectionPanGesture = useMemo(() => Gesture.Pan()
-    .onUpdate((e) => { if (e.translationY > 0) collectionTranslateY.value = e.translationY; })
-    .onEnd((e) => {
-      if (e.translationY > 80 || e.velocityY > 500) { runOnJS(setCollectionModalVisible)(false); }
-      collectionTranslateY.value = withTiming(0);
-    }),
-  [collectionTranslateY]);
-  const collectionAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: collectionTranslateY.value }] }));
-
-  // Hoisted from below: exitToCelebration must be declared before
-  // onboardingSharePanGesture or the worklet captures undefined (TDZ crash).
   const animateOut = useCallback((then: () => void) => {
     opacity.value = withTiming(0, { duration: 120 });
     scaleAnim.value = withTiming(0.95, { duration: 120 }, () => {
@@ -164,16 +150,6 @@ export default function MomentDetailScreen() {
     setOnboardingShareSheetVisible(false);
     setTimeout(() => animateOut(goBack), 300);
   }, [animateOut, goBack]);
-
-  const onboardingShareTranslateY = useSharedValue(0);
-  const onboardingSharePanGesture = useMemo(() => Gesture.Pan()
-    .onUpdate((e) => { if (e.translationY > 0) onboardingShareTranslateY.value = e.translationY; })
-    .onEnd((e) => {
-      if (e.translationY > 80 || e.velocityY > 500) { runOnJS(exitToCelebration)(); }
-      onboardingShareTranslateY.value = withTiming(0);
-    }),
-  [exitToCelebration, onboardingShareTranslateY]);
-  const onboardingShareAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: onboardingShareTranslateY.value }] }));
 
   useEffect(() => {
     const config = { duration: 320, easing: Easing.out(Easing.cubic) };
@@ -1112,36 +1088,14 @@ export default function MomentDetailScreen() {
           : "https://soundtracks.app";
 
         return (
-          <Modal
+          <BottomSheet
             visible={onboardingShareSheetVisible}
-            transparent
-            animationType="slide"
-            onRequestClose={exitToCelebration}
+            onClose={exitToCelebration}
+            title={`Share with ${personName}?`}
           >
-            {/* Tapping the backdrop exits to celebration */}
-            <TouchableOpacity
-              style={shareSheetStyles.backdrop}
-              activeOpacity={1}
-              onPress={exitToCelebration}
-            />
-            <GestureDetector gesture={onboardingSharePanGesture}>
-              <Animated.View style={[shareSheetStyles.sheet, { backgroundColor: theme.colors.background }, onboardingShareAnimatedStyle]}>
-              <View style={[shareSheetStyles.handle, { backgroundColor: theme.colors.border }]} />
-
-              {/* Header row: title + X */}
-              <View style={shareSheetStyles.headerRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[shareSheetStyles.title, { color: theme.colors.text }]}>
-                    Share with {personName}?
-                  </Text>
-                  <Text style={[shareSheetStyles.sub, { color: theme.colors.textSecondary }]}>
-                    They were part of this memory.
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={exitToCelebration} hitSlop={12} activeOpacity={0.7}>
-                  <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
+              <Text style={[shareSheetStyles.sub, { color: theme.colors.textSecondary }]}>
+                They were part of this memory.
+              </Text>
 
               {/* Share options */}
               <View style={shareSheetStyles.optionsList}>
@@ -1197,38 +1151,18 @@ export default function MomentDetailScreen() {
                   </View>
                 </View>
               </View>
-              </Animated.View>
-            </GestureDetector>
-          </Modal>
+          </BottomSheet>
         );
       })()}
 
-      {/* Collection membership modal */}
-      <Modal
+      {/* Collection membership sheet */}
+      <BottomSheet
         visible={collectionModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setCollectionModalVisible(false)}
+        onClose={() => setCollectionModalVisible(false)}
+        title="Add to Album"
+        keyboardAvoiding
+        maxHeight="60%"
       >
-        <KeyboardAvoidingView
-          behavior="padding"
-          style={collectionStyles.flex}
-        >
-        <Pressable
-          style={collectionStyles.backdrop}
-          onPress={() => setCollectionModalVisible(false)}
-        />
-        <Animated.View style={[collectionStyles.sheet, { backgroundColor: theme.colors.cardBg }, collectionAnimatedStyle]}>
-          <GestureDetector gesture={collectionPanGesture}>
-            <View
-              style={[collectionStyles.handle, { backgroundColor: theme.colors.border }]}
-              hitSlop={{ top: 12, bottom: 16, left: 120, right: 120 }}
-            />
-          </GestureDetector>
-          <Text style={[collectionStyles.sheetTitle, { color: theme.colors.textSecondary }]}>
-            Add to Album
-          </Text>
-
           {collectionLoading ? (
             <View style={collectionStyles.loadingRow}>
               <ActivityIndicator color={theme.colors.textSecondary} />
@@ -1343,41 +1277,13 @@ export default function MomentDetailScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-        </Animated.View>
-        </KeyboardAvoidingView>
-      </Modal>
+      </BottomSheet>
     </Animated.View>
     </GestureDetector>
   );
 }
 
 const collectionStyles = StyleSheet.create({
-  flex: { flex: 1 },
-  backdrop: {
-    flex: 1,
-  },
-  sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: Platform.OS === "ios" ? 36 : 20,
-    maxHeight: "60%",
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  sheetTitle: {
-    fontSize: 12,
-    fontFamily: "DMSans_600SemiBold",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
   list: {
     flexGrow: 0,
     maxHeight: 280,
@@ -1910,39 +1816,10 @@ function createStyles(theme: Theme) {
 
 // ── Onboarding share sheet styles (static — no theme dependency) ───────────
 const shareSheetStyles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
-  sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: Platform.OS === "ios" ? 34 : 20,
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginTop: 12,
-    marginBottom: 4,
-    opacity: 0.4,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
-    gap: 12,
-  },
-  title: {
-    fontSize: 17,
-    fontFamily: "DMSans_700Bold",
-    marginBottom: 3,
-  },
   sub: {
     fontSize: 14,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
   optionsList: {
     paddingHorizontal: 20,

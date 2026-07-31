@@ -1,5 +1,5 @@
 // Snapshot-friendly share card — 9:16 Story format (TikTok/Reels/Instagram).
-// Rendered inside a ViewShot ref in ShareCardModal; keep this pure RN with no animations.
+// Rendered inside a ViewShot ref in ShareMomentSheet's card view; keep this pure RN with no animations.
 
 import { View, Text, StyleSheet, Dimensions } from "react-native";
 import { AppImage } from "@/components/AppImage";
