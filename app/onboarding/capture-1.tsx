@@ -46,7 +46,7 @@ export default function OnboardingCapture1Screen() {
         reflection,
         photos: [],
         people: [],
-        mood: null,
+        moods: [],
         locationResult: null,
         momentDate: new Date(),
         visibility: 'private',

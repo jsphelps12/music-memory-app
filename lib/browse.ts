@@ -9,12 +9,12 @@ import type { Moment } from "@/types";
 // so a shape change would feed stale-shaped objects to five screens with nothing
 // to notice. Bump the suffix whenever BrowseMeta changes and add the old prefix
 // to BROWSE_CACHE_PREFIXES_TO_CLEAR below.
-const BROWSE_CACHE_PREFIX = "browse_meta_v1_";
+const BROWSE_CACHE_PREFIX = "browse_meta_v2_"; // v2: mood → moods (multi-mood)
 
 // Every prefix this module has ever written, cleared together on sign-out and
 // account deletion — bumping a version orphans the old key otherwise, leaving a
 // full copy of the user's browse metadata on disk forever.
-const BROWSE_CACHE_PREFIXES_TO_CLEAR = [BROWSE_CACHE_PREFIX, "browse_meta_"];
+const BROWSE_CACHE_PREFIXES_TO_CLEAR = [BROWSE_CACHE_PREFIX, "browse_meta_v1_", "browse_meta_"];
 
 const browseCacheKey = (userId: string) => `${BROWSE_CACHE_PREFIX}${userId}`;
 
@@ -23,7 +23,7 @@ const browseCacheKey = (userId: string) => `${BROWSE_CACHE_PREFIX}${userId}`;
 // mismatch we return null so the caller falls through to the network.
 const BROWSE_META_KEYS: (keyof BrowseMeta)[] = [
   "id",
-  "mood",
+  "moods",
   "people",
   "momentDate",
   "songTitle",
@@ -65,7 +65,7 @@ export async function clearBrowseCache(userId: string): Promise<void> {
 
 export interface BrowseMeta {
   id: string;
-  mood: string | null;
+  moods: string[];
   people: string[];
   momentDate: string | null;
   songTitle: string;
@@ -77,14 +77,15 @@ export interface BrowseMeta {
 export async function fetchBrowseMetadata(userId: string): Promise<BrowseMeta[]> {
   const { data, error } = await supabase
     .from("moments")
-    .select("id, mood, people, moment_date, song_title, song_artist, song_album_name, song_artwork_url")
+    .select("id, mood, moods, people, moment_date, song_title, song_artist, song_album_name, song_artwork_url")
     .eq("user_id", userId)
     .order("moment_date", { ascending: false, nullsFirst: false });
 
   if (error) throw error;
   return (data ?? []).map((r: any) => ({
     id: r.id,
-    mood: r.mood ?? null,
+    // Dual-read: single-mood rows from binaries <= build 22 wrap into an array.
+    moods: r.moods ?? (r.mood ? [r.mood] : []),
     people: r.people ?? [],
     momentDate: r.moment_date ?? null,
     songTitle: r.song_title ?? "",
@@ -124,7 +125,11 @@ export async function fetchMoodMoments(userId: string, mood: string): Promise<Mo
     .from("moments")
     .select(MOMENT_CARD_COLUMNS)
     .eq("user_id", userId)
-    .eq("mood", mood)
+    // Match either representation: moods array containment for rows written by
+    // multi-mood clients, the legacy mood column for rows binaries <= build 22
+    // wrote after the backfill. Mood values are [a-z0-9_] so the raw PostgREST
+    // or-syntax needs no escaping.
+    .or(`moods.cs.{${mood}},mood.eq.${mood}`)
     .order("moment_date", { ascending: false, nullsFirst: false });
 
   if (error) throw error;

@@ -167,11 +167,11 @@ export default function OnboardingMomentPreviewScreen() {
               </Text>
             </View>
           )}
-          {moment.mood && (
-            <View style={[styles.chip, { backgroundColor: theme.colors.chipBg }]}>
-              <Text style={[styles.chipText, { color: theme.colors.textSecondary }]}>{moment.mood}</Text>
+          {moment.moods.map((mood) => (
+            <View key={mood} style={[styles.chip, { backgroundColor: theme.colors.chipBg }]}>
+              <Text style={[styles.chipText, { color: theme.colors.textSecondary }]}>{mood}</Text>
             </View>
-          )}
+          ))}
           {moment.location && (
             <View style={[styles.chip, { backgroundColor: theme.colors.chipBg }]}>
               <Ionicons name="location-outline" size={11} color={theme.colors.textSecondary} />

@@ -132,7 +132,7 @@ export default function TimelineScreen() {
           locationLat: null,
           locationLng: null,
           userId: "", reflectionText: "", photoUrls: [], photoThumbnails: [],
-          mood: null, people: [], location: null, timeOfDay: null,
+          moods: [], people: [], location: null, timeOfDay: null,
           weatherTempF: null, weatherCondition: null,
           createdAt: "", updatedAt: "", songAlbumName: "",
           songProvider: "apple_music", songAppleMusicId: null, songSpotifyId: null,

@@ -180,7 +180,7 @@ export default function CreateMomentScreen() {
     }
   }, [params.promptStarter]);
 
-  const [selectedMood, setSelectedMood] = useState<string | null>(null);
+  const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [people, setPeople] = useState<string[]>([]);
   const [visibility, setVisibility] = useState<Visibility>('private');
   const [momentDate, setMomentDate] = useState<Date | null>(new Date());
@@ -289,7 +289,7 @@ export default function CreateMomentScreen() {
         reflection,
         photos,
         people,
-        mood: selectedMood,
+        moods: selectedMoods,
         locationResult,
         momentDate,
         visibility,
@@ -306,7 +306,8 @@ export default function CreateMomentScreen() {
         song_title: song!.title,
         song_artist: song!.artistName,
         has_reflection: reflection.trim().length > 0,
-        has_mood: Boolean(selectedMood),
+        has_mood: selectedMoods.length > 0,
+        mood_count: selectedMoods.length,
         photo_count: photos.length,
         has_location: Boolean(locationResult),
         has_people: people.length > 0,
@@ -327,7 +328,7 @@ export default function CreateMomentScreen() {
       // Reset form
       handleSongChange(null);
       setReflection("");
-      setSelectedMood(null);
+      setSelectedMoods([]);
       setPeople([]);
       setPhotos([]);
       setMomentDate(new Date());
@@ -452,8 +453,8 @@ export default function CreateMomentScreen() {
             {/* Mood selector */}
             <Text style={styles.sectionLabel}>Mood</Text>
             <MoodSelector
-              selectedMood={selectedMood}
-              onSelectMood={setSelectedMood}
+              selectedMoods={selectedMoods}
+              onChangeMoods={setSelectedMoods}
               customMoods={profile?.customMoods ?? []}
               saveCustomMood={saveCustomMood}
               deleteCustomMood={deleteCustomMood}

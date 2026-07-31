@@ -34,7 +34,9 @@ export function ShareCard({ moment, photoUrl }: Props) {
   const heroHeight = Math.round(CARD_HEIGHT * 0.60);
   const contentHeight = CARD_HEIGHT - heroHeight;
   const heroSource = photoUrl ?? moment.songArtworkUrl ?? null;
-  const moodDef = moment.mood ? MOODS.find((m) => m.value === moment.mood) : null;
+  // First mood only — the share card is a compact layout and the first mood is
+  // the primary one (selection order, mirrored in the legacy mood column).
+  const moodDef = moment.moods[0] ? MOODS.find((m) => m.value === moment.moods[0]) : null;
 
   return (
     <View style={[styles.card, { width: CARD_WIDTH, height: CARD_HEIGHT }]}>

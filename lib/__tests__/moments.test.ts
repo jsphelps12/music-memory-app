@@ -30,6 +30,7 @@ function fullRow() {
     photo_urls: ["u1/a.jpg"],
     photo_thumbnails: ["u1/thumb_a.jpg"],
     mood: "nostalgic",
+    moods: ["nostalgic", "energetic"],
     people: ["Sam"],
     location: "Provo, UT",
     location_lat: 40.2338,
@@ -62,7 +63,7 @@ describe("mapRowToMoment", () => {
       reflectionText: "Driving home at 2am.",
       photoUrls: ["u1/a.jpg"],
       photoThumbnails: ["u1/thumb_a.jpg"],
-      mood: "nostalgic",
+      moods: ["nostalgic", "energetic"],
       people: ["Sam"],
       location: "Provo, UT",
       locationLat: 40.2338,
@@ -106,6 +107,18 @@ describe("mapRowToMoment", () => {
     expect(m.weatherCondition).toBeNull();
     expect(m.shareToken).toBeNull();
     expect(m.guestUuid).toBeNull();
+  });
+
+  it("dual-reads moods, falling back to the legacy single mood column", () => {
+    // Rows written by binaries <= build 22 have only `mood`; rows written by
+    // multi-mood clients have both (mood = first). moods wins when present.
+    expect(mapRowToMoment({ id: "m1", mood: "nostalgic" }).moods).toEqual(["nostalgic"]);
+    expect(mapRowToMoment({ id: "m1", mood: null }).moods).toEqual([]);
+    expect(
+      mapRowToMoment({ id: "m1", mood: "nostalgic", moods: ["nostalgic", "joyful"] }).moods
+    ).toEqual(["nostalgic", "joyful"]);
+    // An empty moods array is a real value (moods cleared), not an absence.
+    expect(mapRowToMoment({ id: "m1", mood: "nostalgic", moods: [] }).moods).toEqual([]);
   });
 
   it("defaults visibility to private, the safe direction", () => {
@@ -152,7 +165,7 @@ const CARD_BACKED_FIELDS = [
   "songAppleMusicId",
   "songSpotifyId",
   "songPreviewUrl",
-  "mood",
+  "moods",
   "photoUrls",
   "photoThumbnails",
   "reflectionText",
@@ -192,6 +205,7 @@ describe("MOMENT_CARD_COLUMNS contract", () => {
         "id",
         "user_id",
         "mood",
+        "moods",
         "moment_date",
         "photo_thumbnails",
         "photo_urls",

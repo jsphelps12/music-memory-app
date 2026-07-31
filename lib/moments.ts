@@ -15,7 +15,9 @@ export function mapRowToMoment(row: any): Moment {
     reflectionText: row.reflection_text,
     photoUrls: row.photo_urls ?? [],
     photoThumbnails: row.photo_thumbnails ?? [],
-    mood: row.mood,
+    // Dual-read during the multi-mood transition: rows written by binaries
+    // <= build 22 only have the single mood column.
+    moods: row.moods ?? (row.mood ? [row.mood] : []),
     people: row.people ?? [],
     location: row.location,
     locationLat: row.location_lat ?? null,

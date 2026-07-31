@@ -39,7 +39,7 @@ export default function OnboardingCapture2Screen() {
   const [reflection, setReflection] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
   const [people, setPeople] = useState<string[]>([]);
-  const [selectedMood, setSelectedMood] = useState<string | null>(null);
+  const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [momentDate, setMomentDate] = useState<Date | null>(new Date());
   const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
   const [focusedField, setFocusedField] = useState(false);
@@ -66,7 +66,7 @@ export default function OnboardingCapture2Screen() {
         reflection,
         photos,
         people,
-        mood: selectedMood,
+        moods: selectedMoods,
         locationResult,
         momentDate,
         visibility: 'private',
@@ -159,8 +159,8 @@ export default function OnboardingCapture2Screen() {
 
         <Text style={styles.sectionLabel}>Mood</Text>
         <MoodSelector
-          selectedMood={selectedMood}
-          onSelectMood={setSelectedMood}
+          selectedMoods={selectedMoods}
+          onChangeMoods={setSelectedMoods}
           customMoods={profile?.customMoods ?? []}
           saveCustomMood={saveCustomMood}
           deleteCustomMood={deleteCustomMood}

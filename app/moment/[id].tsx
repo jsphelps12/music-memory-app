@@ -404,8 +404,8 @@ export default function MomentDetailScreen() {
   };
 
   const allMoods = useMemo(() => [...MOODS, ...(profile?.customMoods ?? [])], [profile?.customMoods]);
-  const getMood = useCallback((value: MoodOption | null) =>
-    value ? allMoods.find((m) => m.value === value) : undefined, [allMoods]);
+  const getMood = useCallback((value: MoodOption) =>
+    allMoods.find((m) => m.value === value), [allMoods]);
 
   const openMenu = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -561,7 +561,11 @@ export default function MomentDetailScreen() {
     ]);
   };
 
-  const mood = moment ? getMood(moment.mood) : undefined;
+  // Unknown values (a custom mood someone else defined) fall back to a raw chip
+  // rather than disappearing.
+  const moodDefs = moment
+    ? moment.moods.map((value) => getMood(value) ?? { value, emoji: "🎵", label: value })
+    : [];
 
   const hasPhotos = photoUrls.length > 0;
 
@@ -879,13 +883,13 @@ export default function MomentDetailScreen() {
             ) : null}
 
             {/* Chips (dark pill style) */}
-            {(mood || moment.people.length > 0 || moment.weatherCondition) ? (
+            {(moodDefs.length > 0 || moment.people.length > 0 || moment.weatherCondition) ? (
               <View style={styles.chipsRow}>
-                {mood ? (
-                  <View style={styles.darkChip}>
-                    <Text style={styles.darkChipText}>{mood.emoji} {mood.label}</Text>
+                {moodDefs.map((m) => (
+                  <View key={m.value} style={styles.darkChip}>
+                    <Text style={styles.darkChipText}>{m.emoji} {m.label}</Text>
                   </View>
-                ) : null}
+                ))}
                 {moment.people.map((person) => (
                   <View key={person} style={styles.darkChip}>
                     <Text style={styles.darkChipText}>👥 {person}</Text>

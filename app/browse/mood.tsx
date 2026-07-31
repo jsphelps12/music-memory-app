@@ -40,7 +40,7 @@ export default function MoodScreen() {
   // All moods the user has actually used
   const usedMoods = useMemo(() => {
     const set = new Set<string>();
-    for (const m of meta) if (m.mood) set.add(m.mood);
+    for (const m of meta) for (const mood of m.moods) set.add(mood);
     return MOODS.filter((m) => set.has(m.value));
   }, [meta]);
 
