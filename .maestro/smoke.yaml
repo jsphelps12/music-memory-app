@@ -22,35 +22,123 @@ env:
 - launchApp:
     clearState: true
 
+# Apple Music initializes at app boot and, with no Apple Account on the
+# simulator, may pop a system "Sign in to your Apple Account" alert — iOS
+# throttles it, so it appears on some launches and not others. While any system
+# alert is up, the app's own hierarchy is EMPTY to XCUITest, so nothing below
+# can be found until it's dismissed. Give it a window, dismiss if it came.
+- extendedWaitUntil:
+    visible: "Sign in to your Apple Account"
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible: "Sign in to your Apple Account"
+    commands:
+      - tapOn: "Close"
+
+# Cold start also races the first tap: the JS bundle isn't loaded yet (seconds
+# in a release build, tens of seconds through Metro in dev). Wait for the
+# sign-in screen to actually exist.
+- extendedWaitUntil:
+    visible:
+      id: "signin-email"
+    timeout: 45000
+
 # --- Sign in -----------------------------------------------------------------
+# Maestro enters text by pasting, and iOS asks per-app paste permission on a
+# fresh install — the dialog swallows the input, leaving the field empty. On a
+# long-lived simulator, pre-set Settings → Apps → Soundtracks β → Paste from
+# Other Apps → Allow. The conditional blocks below cover fresh simulators (CI
+# creates one per run): allow the paste, then re-enter the text that was lost.
 - tapOn:
     id: "signin-email"
 - inputText: ${E2E_EMAIL}
+- runFlow:
+    when:
+      visible: "Allow Paste"
+    commands:
+      - tapOn: "Allow Paste"
+      - tapOn:
+          id: "signin-email"
+      - eraseText
+      - inputText: ${E2E_EMAIL}
 - tapOn:
     id: "signin-password"
 # Passed in with `maestro test --env E2E_PASSWORD=...`; never committed.
 - inputText: ${E2E_PASSWORD}
-- hideKeyboard
+- runFlow:
+    when:
+      visible: "Allow Paste"
+    commands:
+      - tapOn: "Allow Paste"
+      - tapOn:
+          id: "signin-password"
+      - eraseText
+      - inputText: ${E2E_PASSWORD}
+# No hideKeyboard: it fails on this screen ("Couldn't hide the keyboard"), and
+# the submit button sits above the keyboard anyway.
 - tapOn:
     id: "signin-submit"
 
+# Dialogs must be cleared BEFORE waiting for the timeline: while any system
+# sheet is up the app's hierarchy is empty to XCUITest, so a wait placed first
+# just times out blind. iOS offers to save the password right as submit
+# resolves (not on every run), and the Apple Account alert can arrive late.
+- extendedWaitUntil:
+    visible: "Save Password?"
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible: "Save Password?"
+    commands:
+      - tapOn: "Not Now"
+- runFlow:
+    when:
+      visible: "Sign in to your Apple Account"
+    commands:
+      - tapOn: "Close"
+
 # Landing on the timeline is what proves auth resolved and the auth gate in
 # app/_layout.tsx routed correctly.
-- assertVisible:
-    id: "tab-create"
+- extendedWaitUntil:
+    visible:
+      id: "tab-create"
     timeout: 30000
 
 # --- Create a moment ---------------------------------------------------------
-- tapOn:
-    id: "tab-create"
+- waitForAnimationToEnd
+# NOT the floating "+" (id: tab-create): it overflows the custom tab bar, and
+# XCUITest's element tap lands on its clipped accessibility frame — the tap
+# reports success and nothing happens (verified: a coordinate tap on the same
+# button navigates fine). The empty-state CTA is a plain text button that taps
+# reliably, and the seed script guarantees the account is empty, so it is
+# always present at this point.
+- tapOn: "Create Your First Moment"
 
+# The create screen doesn't open song search itself — its "Select Song" button
+# (components/SongPickerSection.tsx) pushes /song-search. Waiting for it also
+# confirms the create screen actually opened.
+- extendedWaitUntil:
+    visible:
+      id: "create-select-song"
+    timeout: 10000
+- tapOn:
+    id: "create-select-song"
+
+- extendedWaitUntil:
+    visible:
+      id: "song-search-input"
+    timeout: 10000
 - tapOn:
     id: "song-search-input"
 - inputText: ${SONG_QUERY}
 # The search is debounced 275ms and hits the Apple Music catalog over the
 # network, so the first result needs a real timeout, not the default.
-- assertVisible:
-    id: "song-search-result-0"
+- extendedWaitUntil:
+    visible:
+      id: "song-search-result-0"
     timeout: 20000
 - tapOn:
     id: "song-search-result-0"
@@ -58,13 +146,17 @@ env:
 - tapOn:
     id: "create-reflection"
 - inputText: ${REFLECTION}
-- hideKeyboard
+# hideKeyboard is unreliable on iOS; the screen's ScrollView uses
+# keyboardShouldPersistTaps="handled", so tapping the non-interactive section
+# label dismisses the keyboard and uncovers the save button.
+- tapOn: "Reflection"
 - tapOn:
     id: "create-save"
 
 # --- Assert it landed on the timeline ----------------------------------------
-- assertVisible:
-    id: "moment-card-title"
+- extendedWaitUntil:
+    visible:
+      id: "moment-card-title"
     timeout: 30000
 
 # --- The actual point: survive a cold start ----------------------------------
@@ -72,9 +164,25 @@ env:
 # that must rebuild the timeline from the AsyncStorage cache + prefetch.
 - stopApp
 - launchApp
-# No timeout extension here on purpose. The claim under test is that the moment
-# is present on the FIRST paint — a generous timeout would let a slow network
+# New process → the Apple Account alert may fire again (throttled, so not
+# always), and while it's up the app's hierarchy is empty to XCUITest. Short
+# window on purpose: every second spent here is a second the timeline gets for
+# a network refetch, which dilutes the first-paint claim below.
+- extendedWaitUntil:
+    visible: "Sign in to your Apple Account"
+    timeout: 8000
+    optional: true
+- runFlow:
+    when:
+      visible: "Sign in to your Apple Account"
+    commands:
+      - tapOn: "Close"
+# Tight 5s deadline on purpose. The claim under test is that the moment is
+# present on the FIRST paint — a generous timeout would let a slow network
 # refetch satisfy the assertion and hide exactly the regression this guards.
-- assertVisible:
-    id: "moment-card-title"
+# (The alert wait above does give the app extra seconds before this check; the
+# assertion is really "present without waiting for a refetch after the alert".)
+- extendedWaitUntil:
+    visible:
+      id: "moment-card-title"
     timeout: 5000

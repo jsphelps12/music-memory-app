@@ -91,7 +91,7 @@ the beta you got from an EAS install link — same identity as the latter, so it
 will replace that one.
 
 To reproduce something against production, copy the saved production config
-over: `cp .env.prod.local .env`. Copy it back when you're done. Don't hand-edit
+over: `cp scripts/.env.prod.local .env`. Copy it back when you're done. Don't hand-edit
 production values into `.env`.
 
 To see whether the current tree can safely ship an OTA to either channel:

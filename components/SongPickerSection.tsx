@@ -191,7 +191,7 @@ export function SongPickerSection({ song, onChange, photos = [] }: SongPickerSec
         </View>
       )}
 
-      <TouchableOpacity style={styles.selectSongButton} activeOpacity={0.7} onPress={goToSongSearch}>
+      <TouchableOpacity testID="create-select-song" style={styles.selectSongButton} activeOpacity={0.7} onPress={goToSongSearch}>
         <Text style={styles.selectSongButtonText}>Select Song</Text>
       </TouchableOpacity>
 
