@@ -1,5 +1,5 @@
-import { memo, useCallback, useMemo } from "react";
-import { ActionSheetIOS, Alert, View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions } from "react-native";
+import { memo, useCallback, useMemo, useState } from "react";
+import { Alert, View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions } from "react-native";
 import * as Haptics from "expo-haptics";
 import { usePostHog } from "posthog-react-native";
 import { useQueryClient } from "@tanstack/react-query";
@@ -26,6 +26,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { getPublicPhotoUrl, getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
+import { MomentActionMenu, MenuAnchor } from "@/components/MomentActionMenu";
 import { Moment, Song } from "@/types";
 
 interface Props {
@@ -57,45 +58,57 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
   // shared lists render other users' moments through this same card.
   const canModify = !!onDeleted && !!user && item.userId === user.id;
 
-  const handleLongPress = useCallback(() => {
-    if (!canModify) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        options: ["Edit", "Delete", "Cancel"],
-        destructiveButtonIndex: 1,
-        cancelButtonIndex: 2,
-      },
-      (buttonIndex) => {
-        if (buttonIndex === 0) {
-          router.push(`/moment/edit/${item.id}`);
-        } else if (buttonIndex === 1) {
-          Alert.alert("Delete Moment", "Are you sure? This cannot be undone.", [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Delete",
-              style: "destructive",
-              onPress: async () => {
-                const { error } = await deleteMomentWithCleanup(item);
-                if (error) {
-                  Alert.alert("Error", friendlyError(error));
-                  return;
-                }
-                posthog.capture("moment_deleted", { song_title: item.songTitle, song_artist: item.songArtist });
-                invalidateMomentCaches(queryClient, user?.id);
-                onDeleted?.(item.id);
-              },
-            },
-          ]);
-        }
-      }
-    );
-  }, [canModify, item, router, posthog, queryClient, user?.id, onDeleted]);
-
   // Match by the provider-native ID so both Apple Music and Spotify moments work
   const momentSongId = item.songSpotifyId ?? item.songAppleMusicId;
   const playingSongId = player.currentSong?.spotifyId ?? player.currentSong?.appleMusicId;
   const isThisPlaying = !!momentSongId && momentSongId === playingSongId && player.isPlaying;
+
+  const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
+
+  const handleLongPress = useCallback(() => {
+    if (!canModify) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Anchor the menu to the card's screen position so it hovers just above
+    // the moment being acted on, not in a detached sheet at the bottom.
+    runOnUI(() => {
+      "worklet";
+      const m = measure(animatedRef);
+      if (m) {
+        runOnJS(setMenuAnchor)({ x: m.pageX, y: m.pageY, width: m.width, height: m.height });
+      }
+    })();
+  }, [canModify, animatedRef]);
+
+  const handleMenuEdit = useCallback(() => {
+    setMenuAnchor(null);
+    router.push(`/moment/edit/${item.id}`);
+  }, [item.id, router]);
+
+  const handleMenuDelete = useCallback(() => {
+    setMenuAnchor(null);
+    Alert.alert("Delete Moment", "Are you sure? This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          const { error } = await deleteMomentWithCleanup(item);
+          if (error) {
+            Alert.alert("Error", friendlyError(error));
+            return;
+          }
+          // The moment is gone — its song shouldn't keep playing (or linger
+          // paused in the mini player).
+          if (momentSongId && momentSongId === playingSongId) {
+            void player.stop();
+          }
+          posthog.capture("moment_deleted", { song_title: item.songTitle, song_artist: item.songArtist });
+          invalidateMomentCaches(queryClient, user?.id);
+          onDeleted?.(item.id);
+        },
+      },
+    ]);
+  }, [item, posthog, queryClient, user?.id, onDeleted, momentSongId, playingSongId, player]);
 
   const handlePlayPress = useCallback(() => {
     if (isThisPlaying) {
@@ -238,6 +251,12 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
           />
         </TouchableOpacity>
       ) : null}
+      <MomentActionMenu
+        anchor={menuAnchor}
+        onEdit={handleMenuEdit}
+        onDelete={handleMenuDelete}
+        onClose={() => setMenuAnchor(null)}
+      />
     </Animated.View>
   );
 }
