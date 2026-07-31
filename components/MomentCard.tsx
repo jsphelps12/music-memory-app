@@ -119,7 +119,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
             )}
             <View style={styles.cardContent}>
               <View style={styles.titleRow}>
-                <Text style={styles.songTitle} numberOfLines={1}>
+                <Text testID="moment-card-title" style={styles.songTitle} numberOfLines={1}>
                   {item.songTitle}
                 </Text>
                 {formattedDate ? (

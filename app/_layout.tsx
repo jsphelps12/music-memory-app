@@ -379,14 +379,6 @@ function RootLayoutNav() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
-            name="shared-albums"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="tagged-moments"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
             name="browse"
             options={{ headerShown: false }}
           />

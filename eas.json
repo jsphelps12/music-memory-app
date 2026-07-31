@@ -15,6 +15,12 @@
         "EXPO_PUBLIC_APP_ENV": "preview"
       }
     },
+    "preview-simulator": {
+      "extends": "preview",
+      "ios": {
+        "simulator": true
+      }
+    },
     "production": {
       "distribution": "store",
       "channel": "production",

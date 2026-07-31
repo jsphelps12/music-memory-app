@@ -127,16 +127,14 @@ describe("invalidateMomentCaches", () => {
 });
 
 describe("invalidateAlbumCaches", () => {
-  it("invalidates the albums tab, its badge and the shared-activity screen", () => {
+  it("invalidates the albums tab and its badge", () => {
     seed(["collectionsScreen", USER]);
     seed(["collectionsBadge", USER]);
-    seed(["sharedScreen", USER]);
 
     invalidateAlbumCaches(qc, USER);
 
     expect(isInvalidated(["collectionsScreen", USER])).toBe(true);
     expect(isInvalidated(["collectionsBadge", USER])).toBe(true);
-    expect(isInvalidated(["sharedScreen", USER])).toBe(true);
   });
 
   it("invalidates the album detail key only when an albumId is supplied", () => {
@@ -184,14 +182,12 @@ describe("invalidateAlbumCaches", () => {
   it("is a no-op when userId is undefined", () => {
     seed(["collectionsScreen", USER]);
     seed(["collectionsBadge", USER]);
-    seed(["sharedScreen", USER]);
     seed(["album", "album-1", USER]);
 
     invalidateAlbumCaches(qc, undefined, "album-1");
 
     expect(isInvalidated(["collectionsScreen", USER])).toBe(false);
     expect(isInvalidated(["collectionsBadge", USER])).toBe(false);
-    expect(isInvalidated(["sharedScreen", USER])).toBe(false);
     expect(isInvalidated(["album", "album-1", USER])).toBe(false);
   });
 });

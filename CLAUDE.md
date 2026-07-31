@@ -116,10 +116,6 @@ const [state, setState] = useState<ScreenState>("loading");
 ```
 This avoids impossible state combinations (e.g. `loading && error` both true).
 
-## Shared/Albums Tab Data
-
-`lib/sharedScreen.ts` is the single data source for the Albums tab — fetches pending friend requests, friends list, shared album activity, and pending album invites in parallel via `Promise.all`. Has its own AsyncStorage cache (`shared_screen_{userId}`). Always fetch via `fetchSharedScreenData` to get all of this in one shot.
-
 ## Current Status
 
 MVP complete. App runs on iPhone 17 Pro (iOS 26), Supabase live, first TestFlight build submitted. All auth, timeline, moment create/edit/delete, photo support, search/filtering, share extension, and now-playing auto-fill features are implemented. See `docs/ROADMAP.md` for roadmap.

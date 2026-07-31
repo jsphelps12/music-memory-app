@@ -7,11 +7,9 @@
  * the Reflections tab, the browse metadata (moods/people/years/albums/artists),
  * the profile stats counters, the map, and every drill-down list ("all moments
  * for this artist", "all moments tagged 2019", …). Same story for albums: the
- * Albums tab, its unread badge, the shared-activity screen, and the album
- * detail screen each hold their own copy. Same again for the friend graph: one
- * `fetchPendingRequests` result is cached three times over — the Me tab's
- * request list, the tab bar's "Me" badge, and the Albums tab's bundled
- * `sharedScreen` payload.
+ * Albums tab, its unread badge, and the album detail screen each hold their own
+ * copy. Same again for the friend graph: one `fetchPendingRequests` result is
+ * cached twice over — the Me tab's request list and the tab bar's "Me" badge.
  *
  * Historically each mutation only invalidated whatever the screen it lived on
  * happened to read, so after a create/edit/delete the *other* surfaces kept
@@ -92,7 +90,6 @@ export function invalidateAlbumCaches(
 
   void queryClient.invalidateQueries({ queryKey: ["collectionsScreen", userId] });
   void queryClient.invalidateQueries({ queryKey: ["collectionsBadge", userId] });
-  void queryClient.invalidateQueries({ queryKey: ["sharedScreen", userId] });
 
   if (albumId) {
     void queryClient.invalidateQueries({ queryKey: ["album", albumId, userId] });
@@ -114,6 +111,5 @@ export function invalidateFriendCaches(queryClient: QueryClient, userId: string 
 
   void queryClient.invalidateQueries({ queryKey: ["pendingRequests", userId] });
   void queryClient.invalidateQueries({ queryKey: ["profileBadge", userId] });
-  void queryClient.invalidateQueries({ queryKey: ["sharedScreen", userId] });
   void queryClient.invalidateQueries({ queryKey: ["friendsList", userId] });
 }

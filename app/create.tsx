@@ -385,6 +385,7 @@ export default function CreateMomentScreen() {
         {/* Reflection */}
         <Text style={styles.sectionLabel}>Reflection</Text>
         <TextInput
+          testID="create-reflection"
           style={[styles.reflectionInput, focusedField === "reflection" && { borderColor: theme.colors.accent }]}
           placeholder="What does this song remind you of? (optional)"
           placeholderTextColor={theme.colors.placeholder}
@@ -554,6 +555,7 @@ export default function CreateMomentScreen() {
 
         {/* Save button */}
         <TouchableOpacity
+          testID="create-save"
           style={[styles.saveButton, loading && styles.saveButtonDisabled]}
           onPress={handleSave}
           disabled={loading}

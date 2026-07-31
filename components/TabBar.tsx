@@ -89,6 +89,7 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
           return (
             <View key="capture" style={styles.slot}>
               <TouchableOpacity
+                testID="tab-create"
                 onPress={() => router.push("/create")}
                 activeOpacity={0.85}
                 style={[styles.captureWrapper, { borderColor: theme.colors.tabBar }]}

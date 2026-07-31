@@ -28,14 +28,49 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # runtimeVersion is "fingerprint", so a bundle can never be served to a
+      # binary built from different native code. What it CAN do is publish into
+      # the void — accepted, reported as success, delivered to nobody.
+      #
+      # This fires on every merge with no human in the loop, so a silent
+      # no-delivery would otherwise go unnoticed for however long it takes
+      # someone to wonder why beta stopped changing. Fail loudly instead: it
+      # means a new preview build is needed.
+      - name: Verify a live preview build serves this runtime version
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: node scripts/fingerprint-gate.mjs --profile preview
+
+      # `--environment preview` pulls EXPO_PUBLIC_SUPABASE_* / SENTRY_DSN /
+      # POSTHOG_* from the EAS preview environment — the same values the preview
+      # *binary* is built with, so bundle and binary can no longer drift apart.
+      # This replaces a set of GitHub secrets that remapped
+      # EXPO_PUBLIC_SUPABASE_URL_PREVIEW onto the unsuffixed name; getting that
+      # remap wrong would have shipped production credentials to beta.
+      #
+      # EXPO_PUBLIC_APP_ENV stays explicit: it lives in eas.json's build profile
+      # `env` block, which `eas update` does not read.
       - name: Publish OTA update (preview channel)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EXPO_PUBLIC_APP_ENV: preview
-          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL_PREVIEW }}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY_PREVIEW }}
-          EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
-          EXPO_PUBLIC_POSTHOG_API_KEY: ${{ secrets.EXPO_PUBLIC_POSTHOG_API_KEY }}
-          EXPO_PUBLIC_POSTHOG_HOST: ${{ secrets.EXPO_PUBLIC_POSTHOG_HOST }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: npx eas-cli update --branch preview --message "$COMMIT_MESSAGE" --non-interactive
+        run: |
+          npx eas-cli update --branch preview --environment preview \
+            --message "$COMMIT_MESSAGE" --non-interactive
+
+      # Without this, every JS error from a beta OTA bundle lands in Sentry
+      # minified — the production promote got this step months ago and preview
+      # never did. Never fails the job: the export is deterministic for a given
+      # commit + env, so re-exporting here reproduces the bundle just published.
+      - name: Upload sourcemaps to Sentry
+        continue-on-error: true
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_APP_ENV: preview
+          SENTRY_ORG: soundtracks
+          SENTRY_PROJECT: react-native
+        run: |
+          npx eas-cli env:exec preview \
+            "npx expo export --platform ios --output-dir dist && npx sentry-expo-upload-sourcemaps dist" \
+            --non-interactive

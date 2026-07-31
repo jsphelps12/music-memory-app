@@ -115,6 +115,7 @@ export default function SongSearchScreen() {
       </View>
 
       <TextInput
+        testID="song-search-input"
         style={styles.searchInput}
         placeholder="Search for a song..."
         placeholderTextColor={theme.colors.placeholder}
@@ -156,8 +157,11 @@ export default function SongSearchScreen() {
           data={results}
           keyExtractor={(item) => item.id}
           keyboardShouldPersistTaps="handled"
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
             <TouchableOpacity
+              // Indexed so the E2E flow can tap the first result deterministically
+              // without depending on which song the Apple Music catalog returns.
+              testID={`song-search-result-${index}`}
               style={styles.row}
               onPress={() => handleSelect(item)}
               activeOpacity={0.7}

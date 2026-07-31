@@ -116,8 +116,25 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   updates: {
     url: "https://u.expo.dev/f0add7d9-3321-4ba3-a4c0-c91b97dc462b",
   },
+  // The runtime version decides which binaries an OTA update is served to —
+  // exact string match, no cleverness. Under the previous "appVersion" policy it
+  // was literally the `version` field above, so it only moved when a human
+  // edited it: App Store build 7 and beta build 20 had genuinely different
+  // native code and were both labelled "1.1.0", and EAS could not tell them
+  // apart. It would happily serve JS referencing native modules a binary lacks,
+  // which is a hard crash at import time for modules/now-playing and
+  // modules/shazam-kit (bare requireNativeModule, no try/catch).
+  //
+  // "fingerprint" derives the label from everything that affects the native
+  // build, so a mismatch can no longer happen: the update simply lands in a
+  // bucket no binary occupies and reaches nobody. Safe, but silent — hence the
+  // reachability check in scripts/fingerprint-gate.mjs.
+  //
+  // Consequence: any native-affecting change now needs a new binary before any
+  // user receives JS. That includes eas.json and package.json's `scripts` block,
+  // both of which feed the fingerprint and are easy to touch by accident.
   runtimeVersion: {
-    policy: "appVersion",
+    policy: "fingerprint",
   },
   extra: {
     eas: {

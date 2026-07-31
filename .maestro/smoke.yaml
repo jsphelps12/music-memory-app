@@ -1,0 +1,80 @@
+# Critical-path smoke flow. Target: under 90 seconds.
+#
+# The last three steps are the reason this exists. docs/ROADMAP.md flags the
+# cold-start work as never device-verified: "create a moment → force-quit →
+# reopen → present on the *first* paint". A test that only asserts the moment
+# appears after saving would pass even if the timeline cache never persisted it.
+#
+# Runs against the STAGING project with the account scripts/seed-e2e.mjs resets
+# to empty beforehand — otherwise a leftover moment from a previous run
+# satisfies the final assertion while the feature is broken.
+#
+# If this grows past ~90s, split it rather than extending. A slow gate gets
+# skipped.
+appId: com.joshuaphelps.musicmemory.preview
+env:
+  E2E_EMAIL: e2e@soundtracks.test
+  # SONG_QUERY is deliberately a well-known track: the assertion is that *a*
+  # result is selectable, not which one the catalog ranks first.
+  SONG_QUERY: "Bohemian Rhapsody"
+  REFLECTION: "e2e smoke reflection"
+---
+- launchApp:
+    clearState: true
+
+# --- Sign in -----------------------------------------------------------------
+- tapOn:
+    id: "signin-email"
+- inputText: ${E2E_EMAIL}
+- tapOn:
+    id: "signin-password"
+# Passed in with `maestro test --env E2E_PASSWORD=...`; never committed.
+- inputText: ${E2E_PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "signin-submit"
+
+# Landing on the timeline is what proves auth resolved and the auth gate in
+# app/_layout.tsx routed correctly.
+- assertVisible:
+    id: "tab-create"
+    timeout: 30000
+
+# --- Create a moment ---------------------------------------------------------
+- tapOn:
+    id: "tab-create"
+
+- tapOn:
+    id: "song-search-input"
+- inputText: ${SONG_QUERY}
+# The search is debounced 275ms and hits the Apple Music catalog over the
+# network, so the first result needs a real timeout, not the default.
+- assertVisible:
+    id: "song-search-result-0"
+    timeout: 20000
+- tapOn:
+    id: "song-search-result-0"
+
+- tapOn:
+    id: "create-reflection"
+- inputText: ${REFLECTION}
+- hideKeyboard
+- tapOn:
+    id: "create-save"
+
+# --- Assert it landed on the timeline ----------------------------------------
+- assertVisible:
+    id: "moment-card-title"
+    timeout: 30000
+
+# --- The actual point: survive a cold start ----------------------------------
+# stopApp is a real termination, so the next launchApp is a genuine cold start
+# that must rebuild the timeline from the AsyncStorage cache + prefetch.
+- stopApp
+- launchApp
+# No timeout extension here on purpose. The claim under test is that the moment
+# is present on the FIRST paint — a generous timeout would let a slow network
+# refetch satisfy the assertion and hide exactly the regression this guards.
+- assertVisible:
+    id: "moment-card-title"
+    timeout: 5000
