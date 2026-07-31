@@ -152,9 +152,15 @@ async function reset(userId) {
 
   // The profile row is created by a trigger on signup, but an account created
   // before that trigger existed would have none — and the app assumes one.
+  // onboarding_completed must be true: authRouting sends any profile without it
+  // into the onboarding flow instead of the timeline, and the smoke flow's
+  // "wait for tab-create" would spin forever.
   const { error: profileError } = await supabase
     .from("profiles")
-    .upsert({ id: userId, display_name: "E2E" }, { onConflict: "id" });
+    .upsert(
+      { id: userId, display_name: "E2E", onboarding_completed: true },
+      { onConflict: "id" }
+    );
   if (profileError) throw new Error(`upsert profile failed: ${profileError.message}`);
 
   return { moments: moments?.length ?? 0, photos: photoCount };
