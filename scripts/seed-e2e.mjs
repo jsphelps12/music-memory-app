@@ -16,7 +16,28 @@
  * SAFETY: refuses to run against the production project. The service-role key
  * bypasses RLS entirely, so a misconfigured URL would delete real users' data.
  */
+import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
+
+/**
+ * Load .env.e2e.local if present, so local runs don't need the values typed on
+ * the command line every time. Hand-parsed rather than pulling in dotenv: a new
+ * dependency would move the native fingerprint and strand every installed
+ * binary. Already-set environment variables win, so CI (which supplies these as
+ * secrets, with no file on disk) is unaffected.
+ */
+function loadLocalEnvFile(path = ".env.e2e.local") {
+  if (!fs.existsSync(path)) return;
+  for (const line of fs.readFileSync(path, "utf8").split("\n")) {
+    const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/);
+    if (!match) continue;
+    const [, key, rawValue] = match;
+    if (process.env[key]) continue;
+    process.env[key] = rawValue.trim().replace(/^["']|["']$/g, "");
+  }
+}
+
+loadLocalEnvFile();
 
 const PRODUCTION_REF = "izfhbtipzuvinyacttin";
 const E2E_EMAIL = "e2e@soundtracks.test";
@@ -29,6 +50,18 @@ const password = process.env.E2E_PASSWORD;
 if (!url || !serviceKey || !password) {
   console.error(
     "Missing config. Required: E2E_SUPABASE_URL, E2E_SUPABASE_SERVICE_ROLE_KEY, E2E_PASSWORD"
+  );
+  process.exit(1);
+}
+
+// Without this the placeholder sails through to the API and comes back as an
+// opaque "listUsers failed: Invalid API key" from three frames deep.
+const placeholder = [url, serviceKey, password].find((v) => v.startsWith("PASTE_"));
+if (placeholder) {
+  console.error(
+    "Config still contains a placeholder value.\n" +
+      "Fill in .env.e2e.local — the service_role key comes from\n" +
+      "https://supabase.com/dashboard/project/bqyrpahvdukllasafdpv/settings/api"
   );
   process.exit(1);
 }
