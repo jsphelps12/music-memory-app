@@ -200,6 +200,17 @@ Follow-on from the cold-start work: two audits found the app issuing ~28-38 REST
 
 ---
 
+## User feedback — July 2026 (beta tester)
+
+Four suggestions from a beta user, triaged 2026-07-30:
+
+1. **Stop music when leaving the app** 🟢 *small* — expo-av previews already pause on background (no `staysActiveInBackground`); the leak is **full Apple Music playback**, which keeps playing after backgrounding. Fix: `AppState` listener in `PlayerContext` that calls `pause()` on background. Pause, don't `stop()` — position survives if the user comes right back. Product call: this is a memories app, not a music player; surprise background audio reads as a bug.
+2. **Tap avatar to view it full-size** 🟢 *small, with a catch* — `PhotoViewer` already exists (moment detail). But avatars are compressed to **400px** at upload (`MAX_AVATAR_DIMENSION`), so full-screen would look blurry. Do it with a dual-size upload (full + 400px thumb, mirroring `uploadMomentPhotoWithThumbnail`); existing avatars stay 400px until re-uploaded.
+3. **Hear the song while choosing it** 🟡 *medium, highest value of the four* — `app/song-search.tsx` has no preview playback; users pick songs by reading titles. Add tap-to-preview on result rows via `PlayerContext.playPreview` (already unloads the previous sound, so one-at-a-time is free). Stop playback on select/dismiss. This is the core interaction of the app — confirming by ear beats guessing from artwork.
+4. **Multiple moods per moment** 🟡 *medium, needs migration care* — `mood` is a single text column, `MoodOption | null` in types, single-select `MoodSelector`, `has_mood` analytics. Needs `moods text[]`, backfill, and **dual-write during transition**: old binaries (builds ≤21) still write `mood`, so the old column can't be dropped until the fingerprint strands them anyway. Touches create, edit, detail, filters, PostHog. Legit request — memories are rarely one feeling — but sequence after 1–3.
+
+---
+
 ## NOW — May 2026 Priorities
 
 ### 1. Polish & Bug Fixes 🔴 *In progress*
