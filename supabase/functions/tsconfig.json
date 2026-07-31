@@ -1,0 +1,29 @@
+{
+  // Scoped project for the Deno edge functions, which the root tsconfig
+  // excludes (different runtime/import model). Checked via `npm run
+  // typecheck:functions` locally and in pr-checks. Deno itself is not
+  // installed locally or in CI, so this approximates it: the Deno global
+  // comes from deno.d.ts, and the URL/jsr imports of supabase-js are remapped
+  // onto the app's own copy of its types.
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "baseUrl": ".",
+    "paths": {
+      "https://esm.sh/@supabase/supabase-js@2": [
+        "../../node_modules/@supabase/supabase-js/dist/index.d.mts"
+      ],
+      "jsr:@supabase/supabase-js@2": [
+        "../../node_modules/@supabase/supabase-js/dist/index.d.mts"
+      ]
+    }
+  },
+  "include": ["./**/*.ts"]
+}

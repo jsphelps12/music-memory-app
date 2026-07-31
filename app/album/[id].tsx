@@ -280,7 +280,7 @@ export default function AlbumDetailScreen() {
           <EmptyState
             icon="albums-outline"
             title="Nothing in this album yet"
-            subtitle={isShared ? "Members can add moments to this album." : "Add moments to this album from the timeline."}
+            subtitle={isShared ? "Tap + to add the first moment — members can contribute too." : "Tap + to add your first moment to this album."}
           />
         }
         contentContainerStyle={styles.listContent}
@@ -300,10 +300,18 @@ export default function AlbumDetailScreen() {
         >
           <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
         </TouchableOpacity>
-        <IconButton
-          name={isOwner ? "settings-outline" : "ellipsis-horizontal"}
-          onPress={() => setShareSheetVisible(true)}
-        />
+        <View style={styles.floatingRight}>
+          {/* Everyone who can open this screen is the owner or a member, and
+              members can already contribute to shared albums — so no role gate. */}
+          <IconButton
+            name="add"
+            onPress={() => router.push({ pathname: "/create", params: { collectionId: id! } })}
+          />
+          <IconButton
+            name={isOwner ? "settings-outline" : "ellipsis-horizontal"}
+            onPress={() => setShareSheetVisible(true)}
+          />
+        </View>
       </View>
 
       {/* Share sheet */}
@@ -370,6 +378,11 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
+    },
+    floatingRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
     },
     floatingBtn: {
       width: 34,

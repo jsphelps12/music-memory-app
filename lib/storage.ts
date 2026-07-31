@@ -67,8 +67,19 @@ export async function uploadMomentPhotoWithThumbnail(
 }
 
 /**
- * Upload an avatar image to Supabase Storage, overwriting any previous avatar.
- * Returns the storage path.
+ * Full-size avatar path. Uploaded alongside the 400px `avatar.jpg` since the
+ * dual-size change — avatars uploaded before then have no full-size object,
+ * so callers must probe for it (they stay 400px until re-uploaded).
+ */
+export function avatarFullPath(userId: string): string {
+  return `${userId}/avatar_full.jpg`;
+}
+
+/**
+ * Upload an avatar at two sizes in parallel, overwriting any previous avatar:
+ * a full-size image for the tap-to-view viewer, and the 400px version that
+ * `profiles.avatar_url` keeps pointing at so every list row and header still
+ * downloads the small file. Returns the 400px path for avatar_url.
  */
 export async function uploadAvatar(
   userId: string,
@@ -76,18 +87,24 @@ export async function uploadAvatar(
 ): Promise<string> {
   const storagePath = `${userId}/avatar.jpg`;
 
-  const compressed = await compressImage(uri, MAX_AVATAR_DIMENSION);
-  const file = new File(compressed);
-  const arrayBuffer = await file.arrayBuffer();
-
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(storagePath, arrayBuffer, {
-      contentType: "image/jpeg",
-      upsert: true,
-    });
-
-  if (error) throw error;
+  await Promise.all([
+    (async () => {
+      const full = await compressImage(uri, MAX_MOMENT_PHOTO_DIMENSION);
+      const file = new File(full);
+      const { error } = await supabase.storage
+        .from(BUCKET)
+        .upload(avatarFullPath(userId), await file.arrayBuffer(), { contentType: "image/jpeg", upsert: true });
+      if (error) throw error;
+    })(),
+    (async () => {
+      const compressed = await compressImage(uri, MAX_AVATAR_DIMENSION);
+      const file = new File(compressed);
+      const { error } = await supabase.storage
+        .from(BUCKET)
+        .upload(storagePath, await file.arrayBuffer(), { contentType: "image/jpeg", upsert: true });
+      if (error) throw error;
+    })(),
+  ]);
 
   return storagePath;
 }

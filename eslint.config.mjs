@@ -13,8 +13,6 @@ export default [
       "web/**",
       "modules/**",
       ".claude/**",
-      // Supabase edge functions use Deno runtime — different import model
-      "supabase/functions/**",
     ],
   },
   js.configs.recommended,

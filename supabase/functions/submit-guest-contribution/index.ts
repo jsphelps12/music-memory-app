@@ -134,14 +134,14 @@ Deno.serve(async (req) => {
       "image/webp": "webp",
     };
     const photoBuffer = await photo.arrayBuffer();
-    const contentType = ALLOWED_IMAGE_TYPES[photo.type] ? photo.type : "image/jpeg";
-    const photoExt = ALLOWED_IMAGE_TYPES[contentType];
+    const photoContentType = ALLOWED_IMAGE_TYPES[photo.type] ? photo.type : "image/jpeg";
+    const photoExt = ALLOWED_IMAGE_TYPES[photoContentType];
     const photoPath = `guest/${guestUuid}/${crypto.randomUUID()}.${photoExt}`;
 
     const { error: uploadError } = await adminClient.storage
       .from("moment-photos")
       .upload(photoPath, photoBuffer, {
-        contentType,
+        contentType: photoContentType,
         upsert: false,
       });
 

@@ -29,5 +29,11 @@ export function mapRowToMoment(row: any): Moment {
     visibility: row.visibility ?? 'private',
     shareToken: row.share_token ?? null,
     guestUuid: row.guest_uuid ?? null,
+    // Guest contributions carry their attribution on the row itself; for
+    // authenticated contributors the shared-album RPC supplies contributorName
+    // from profiles instead (and overwrites this with the same value for guests).
+    // Keyed conditionally so non-guest moments keep the exact field set the
+    // card-column contract tests pin.
+    ...(row.guest_uuid && row.guest_name ? { contributorName: row.guest_name } : {}),
   };
 }

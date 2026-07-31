@@ -30,6 +30,11 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+      # Deliberately not an npm script: package.json's scripts block feeds the
+      # native fingerprint, and adding a line there strands installed binaries.
+      - name: Type check edge functions
+        run: npx tsc -p supabase/functions
+
       - name: Lint
         run: npm run lint
 

@@ -24,7 +24,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/contexts/AuthContext";
 import { PromptsSection } from "@/components/PromptsSection";
 import { supabase } from "@/lib/supabase";
-import { getPublicPhotoUrl } from "@/lib/storage";
+import { getPublicPhotoUrl, avatarFullPath } from "@/lib/storage";
+import { PhotoViewer } from "@/components/PhotoViewer";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { SkeletonProfile } from "@/components/Skeleton";
@@ -193,6 +194,23 @@ export default function ProfileScreen() {
 
   const avatarUri = profile?.avatarUrl ? getPublicPhotoUrl(profile.avatarUrl) : null;
 
+  // URL currently shown in the full-screen viewer; null = closed.
+  const [avatarViewerUrl, setAvatarViewerUrl] = useState<string | null>(null);
+
+  // Avatars uploaded before the dual-size change have no avatar_full.jpg, so
+  // probe for it (public bucket, one HEAD per tap) and fall back to the 400px
+  // file rather than opening a blank viewer.
+  const handleAvatarPress = useCallback(async () => {
+    if (!user || !avatarUri) return;
+    const fullUrl = getPublicPhotoUrl(avatarFullPath(user.id));
+    try {
+      const res = await fetch(fullUrl, { method: "HEAD" });
+      setAvatarViewerUrl(res.ok ? fullUrl : avatarUri);
+    } catch {
+      setAvatarViewerUrl(avatarUri);
+    }
+  }, [user, avatarUri]);
+
   // Pull-to-refresh is an explicit ask, so it bypasses the cooldown — but it
   // still stamps it, so the focus effect doesn't repeat the work moments later.
   const handleRefresh = useCallback(async () => {
@@ -358,13 +376,17 @@ export default function ProfileScreen() {
         onPress={() => router.push("/profile-edit")}
         activeOpacity={0.7}
       >
-        <View style={styles.avatarContainer}>
-          {avatarUri ? (
-            <AppImage source={{ uri: avatarUri }} style={styles.avatar} />
-          ) : (
+        {avatarUri ? (
+          <TouchableOpacity onPress={handleAvatarPress} activeOpacity={0.7}>
+            <View style={styles.avatarContainer}>
+              <AppImage source={{ uri: avatarUri }} style={styles.avatar} />
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.avatarContainer}>
             <Text style={styles.initials}>{initials}</Text>
-          )}
-        </View>
+          </View>
+        )}
         <View style={styles.userCardText}>
           <Text style={styles.displayName} numberOfLines={1}>
             {displayName ?? "Add your name"}
@@ -752,6 +774,13 @@ export default function ProfileScreen() {
         )}
       </TouchableOpacity>
       </ScrollView>
+
+      <PhotoViewer
+        photos={avatarViewerUrl ? [avatarViewerUrl] : []}
+        initialIndex={0}
+        visible={avatarViewerUrl !== null}
+        onClose={() => setAvatarViewerUrl(null)}
+      />
     </View>
   );
 }
