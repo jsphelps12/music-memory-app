@@ -230,6 +230,16 @@ Carried-forward follow-ups (from PR #6/#8, now tracked here):
 
 ---
 
+## Sharing v2 — locked 2026-07-31, next major project
+
+Full spec: `docs/SOCIAL-ARCHITECTURE.md` (rewritten as v2 same day; audit that motivated it summarized in the doc's header). Four primitives — People (mutual-by-link), moment_shares, Albums, share links — replacing ten; privacy becomes "absence of grants" (visibility column + picker deleted); every wave ships its web counterpart. Culminates, with the rest of the polish batch, in the big App Store update (build 23 + expo-audio riding along).
+
+- [ ] **Phase A — honesty patch**: share-token revoke + link-state row in the current share sheet (closes the 17 world-readable-while-"private" moments gap). Ships first, standalone.
+- [ ] **Phase B — teardown**: delete tagging/reactions/visibility/collection_invites/friend-request machinery + dead code per the audit kill list; RLS rewritten to the access rule; DB migration for dropped objects; `friends.tsx` → `albums.tsx` rename last.
+- [ ] **Phase C — new core**: `moment_shares` + RLS branch; friendships → mutual-by-link; "Shared with me" pill (renamed Tagged, signal-driven); People row on Profile; `share_received`/`friend_added` pushes (replaces notify-friend).
+- [ ] **Phase D — facelift**: share sheet rebuilt (Send to person · Add to album · Share link + honest state); share card redesign (photo hero, no dark smother, brand chrome, 9:16 variant); web `/m/`, `/c/`, `/friend/` redesigned to match.
+- [ ] **Phase E — later**: branded QR toggle on card + `/m/`; "Keep this" gift claim; parked items reconsidered.
+
 ## Ops hardening — queued 2026-07-31 (build all three)
 
 Follow-ups from the 2026-07-31 migration-tracking repair (prod history had MCP-stamped drifted versions; staging history was empty and its schema silently missed three changes; `submit-guest-contribution` sat fixed-in-repo but undeployed for ~10 weeks). Make drift impossible rather than documented:
