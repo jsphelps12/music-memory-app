@@ -7,7 +7,15 @@
  * test passes while the feature is broken.
  *
  * Deletes the account's moments and their storage objects, then makes sure the
- * auth user and profile row exist. Never touches any other user.
+ * auth user and profile row exist with the configured password. Never touches
+ * any other user.
+ *
+ * It does NOT create moments — creating one through the UI is what the Maestro
+ * flow tests. This only guarantees the account starts empty.
+ *
+ * E2E_SUPABASE_SERVICE_ROLE_KEY needs service-role privileges: either a legacy
+ * `service_role` JWT (eyJhbGci...) or a new-style `sb_secret_...` key. The
+ * publishable/anon key will not work — admin calls require the elevated key.
  *
  * Usage:
  *   E2E_SUPABASE_URL=... E2E_SUPABASE_SERVICE_ROLE_KEY=... \
@@ -86,7 +94,16 @@ async function ensureUser() {
   if (error) throw new Error(`listUsers failed: ${error.message}`);
 
   const existing = data.users.find((u) => u.email === E2E_EMAIL);
-  if (existing) return existing;
+  if (existing) {
+    // Re-assert the password every run. Otherwise changing E2E_PASSWORD after
+    // the account exists leaves the old one in place, and the flow fails at
+    // sign-in with no hint that the config and the account have diverged.
+    const { error: updateError } = await supabase.auth.admin.updateUserById(existing.id, {
+      password,
+    });
+    if (updateError) throw new Error(`updateUser failed: ${updateError.message}`);
+    return existing;
+  }
 
   const { data: created, error: createError } = await supabase.auth.admin.createUser({
     email: E2E_EMAIL,
