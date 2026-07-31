@@ -1,6 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
 import * as Crypto from "expo-crypto";
+import { rankSongResults } from "@/lib/musicSearch";
 import type { Song } from "@/types";
 import type { MusicProvider, PlaybackState } from "./MusicProvider";
 import { SpotifyRemote } from "@/modules/spotify-remote";
@@ -175,7 +176,10 @@ export class SpotifyProvider implements MusicProvider {
       );
       if (!res.ok) return [];
       const json = await res.json();
-      return (json.tracks?.items ?? []).map((track: any) => this._trackToSong(track));
+      return rankSongResults(
+        query,
+        (json.tracks?.items ?? []).map((track: any) => this._trackToSong(track))
+      );
     } catch {
       return [];
     }

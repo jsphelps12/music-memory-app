@@ -6,6 +6,7 @@ import {
   playAppleMusic,
   fetchPreviewUrl as fetchItunesPreviewUrl,
 } from "@/lib/musickit";
+import { rankSongResults } from "@/lib/musicSearch";
 import type { Song } from "@/types";
 import type { MusicProvider, PlaybackState } from "./MusicProvider";
 
@@ -38,11 +39,14 @@ export class AppleMusicProvider implements MusicProvider {
 
   async search(query: string): Promise<Song[]> {
     const results = await searchAppleMusic(query);
-    return results.map((s) => ({
-      ...s,
-      provider: "apple_music" as const,
-      spotifyId: null,
-    }));
+    return rankSongResults(
+      query,
+      results.map((s) => ({
+        ...s,
+        provider: "apple_music" as const,
+        spotifyId: null,
+      }))
+    );
   }
 
   async lookupById(id: string): Promise<Song | null> {

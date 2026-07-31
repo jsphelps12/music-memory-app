@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useState, useRef, useEffect } from "react";
+import { AppState } from "react-native";
 import { Audio } from "expo-av";
 import { getProvider } from "@/lib/providers";
 import type { MusicProvider } from "@/lib/providers";
@@ -11,6 +12,7 @@ interface PlayerState {
   playbackTime: number;
   playbackDuration: number;
   playError: boolean;
+  playPreview: (song: Song, previewUrl: string) => Promise<void>;
   playFull: (song: Song, previewUrl?: string) => Promise<void>;
   pause: () => void;
   resume: () => void;
@@ -167,6 +169,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setIsPlaying(false);
   }, []);
 
+  // Pause when the app leaves the foreground. This is a memories app, not a
+  // music player — audio continuing after the user switches away reads as a
+  // bug (beta feedback, 2026-07). Previews already stop on suspension (expo-av
+  // has no background mode), but provider playback drives the system player,
+  // which would otherwise keep going indefinitely. "inactive" is deliberately
+  // excluded: it fires on Control Center pulls and the app switcher peek,
+  // where stopping would be wrong.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "background") pause();
+    });
+    return () => sub.remove();
+  }, [pause]);
+
   const resume = useCallback(() => {
     if (activeProviderRef.current) {
       activeProviderRef.current.resume();
@@ -197,8 +213,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const contextValue = useMemo(
-    () => ({ currentSong, isPlaying, isPreview, playbackTime, playbackDuration, playError, playFull, pause, resume, stop, seekTo }),
-    [currentSong, isPlaying, isPreview, playbackTime, playbackDuration, playError, playFull, pause, resume, stop, seekTo]
+    () => ({ currentSong, isPlaying, isPreview, playbackTime, playbackDuration, playError, playPreview, playFull, pause, resume, stop, seekTo }),
+    [currentSong, isPlaying, isPreview, playbackTime, playbackDuration, playError, playPreview, playFull, pause, resume, stop, seekTo]
   );
 
   return (

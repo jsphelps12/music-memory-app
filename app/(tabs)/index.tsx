@@ -461,9 +461,17 @@ export default function TimelineScreen() {
     [profile?.customMoods]
   );
 
+  // In-place removal for long-press delete: the stale signal set by
+  // deleteMomentWithCleanup only takes effect on the next focus, and deleting
+  // from the card never leaves the screen.
+  const handleCardDeleted = useCallback((deletedId: string) => {
+    setMoments((prev) => prev.filter((m) => m.id !== deletedId));
+    setCalendarMoments((prev) => prev.filter((m) => m.id !== deletedId));
+  }, []);
+
   const renderMoment = useCallback(({ item }: { item: Moment }) => (
-    <MomentCard item={item} allMoods={allMoods} />
-  ), [allMoods]);
+    <MomentCard item={item} allMoods={allMoods} onDeleted={handleCardDeleted} />
+  ), [allMoods, handleCardDeleted]);
 
   const listHeader = (
     <>

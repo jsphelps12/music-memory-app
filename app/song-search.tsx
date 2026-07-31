@@ -11,11 +11,15 @@ import {
   StyleSheet,
 } from "react-native";
 import { AppImage } from "@/components/AppImage";
+import { CloseButton } from "@/components/CloseButton";
+import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getProvider } from "@/lib/providers";
 import { emitSongSelected } from "@/lib/songEvents";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePlayer } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
@@ -24,7 +28,11 @@ import type { Song } from "@/types";
 export default function SongSearchScreen() {
   const router = useRouter();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  // Full-screen presentation puts the header under the status bar; the inset
+  // is device state, not theme, so it stays out of createStyles.
+  const headerStyle = [styles.header, { paddingTop: insets.top + theme.spacing.sm }];
   const posthog = usePostHog();
   const { photos } = useLocalSearchParams<{ photos?: string }>();
   const { preferredProvider } = useAuth();
@@ -36,6 +44,50 @@ export default function SongSearchScreen() {
   const [authorized, setAuthorized] = useState(true);
   const [retryKey, setRetryKey] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const player = usePlayer();
+  const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
+  const [previewUnavailable, setPreviewUnavailable] = useState<Record<string, boolean>>({});
+  // Preview URLs are fetched per song on first tap; cache so replays are instant.
+  const previewUrlCache = useRef(new Map<string, string | null>());
+  // Only tear down playback we started — entering and cancelling out of this
+  // screen must not kill full playback the user had going beforehand.
+  const startedPreviewRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      if (startedPreviewRef.current) void player.stop();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handlePreviewPress(song: Song) {
+    if (player.isPreview && player.currentSong?.id === song.id) {
+      if (player.isPlaying) player.pause();
+      else player.resume();
+      return;
+    }
+    if (previewUnavailable[song.id] || previewLoadingId) return;
+
+    Haptics.selectionAsync();
+    setPreviewLoadingId(song.id);
+    try {
+      let url = previewUrlCache.current.get(song.id);
+      if (url === undefined) {
+        url = await provider.fetchPreviewUrl(song);
+        previewUrlCache.current.set(song.id, url);
+      }
+      if (!url) {
+        setPreviewUnavailable((prev) => ({ ...prev, [song.id]: true }));
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        return;
+      }
+      startedPreviewRef.current = true;
+      await player.playPreview(song, url);
+      posthog.capture("song_preview_played", { provider: song.provider });
+    } finally {
+      setPreviewLoadingId(null);
+    }
+  }
 
   useEffect(() => {
     provider.isAvailable().then((ok) => setAuthorized(ok));
@@ -73,6 +125,10 @@ export default function SongSearchScreen() {
   }, [query, retryKey, preferredProvider]);
 
   function handleSelect(song: Song) {
+    if (startedPreviewRef.current) {
+      startedPreviewRef.current = false;
+      void player.stop();
+    }
     Haptics.selectionAsync();
     posthog.capture("song_selected", { song_title: song.title, song_artist: song.artistName });
     emitSongSelected(song);
@@ -82,10 +138,8 @@ export default function SongSearchScreen() {
   if (!authorized) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
+        <View style={headerStyle}>
+          <CloseButton onPress={() => router.back()} />
         </View>
         <View style={styles.centered}>
           <Text style={styles.emptyText}>
@@ -108,10 +162,8 @@ export default function SongSearchScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
+      <View style={headerStyle}>
+        <CloseButton onPress={() => router.back()} />
       </View>
 
       <TextInput
@@ -166,14 +218,40 @@ export default function SongSearchScreen() {
               onPress={() => handleSelect(item)}
               activeOpacity={0.7}
             >
-              {item.artworkUrl ? (
-                <AppImage
-                  source={{ uri: item.artworkUrl }}
-                  style={styles.artwork}
-                />
-              ) : (
-                <ArtworkPlaceholder style={styles.artwork} />
-              )}
+              <TouchableOpacity
+                testID={`song-search-preview-${index}`}
+                onPress={() => handlePreviewPress(item)}
+                activeOpacity={0.7}
+                disabled={!!previewUnavailable[item.id]}
+              >
+                {item.artworkUrl ? (
+                  <AppImage
+                    source={{ uri: item.artworkUrl }}
+                    style={styles.artwork}
+                  />
+                ) : (
+                  <ArtworkPlaceholder style={styles.artwork} />
+                )}
+                {previewUnavailable[item.id] ? null : (
+                  <View style={styles.previewBadge}>
+                    {previewLoadingId === item.id ? (
+                      <ActivityIndicator size={10} color="#fff" />
+                    ) : (
+                      <Ionicons
+                        name={
+                          player.isPreview &&
+                          player.currentSong?.id === item.id &&
+                          player.isPlaying
+                            ? "pause"
+                            : "play"
+                        }
+                        size={11}
+                        color="#fff"
+                      />
+                    )}
+                  </View>
+                )}
+              </TouchableOpacity>
               <View style={styles.songInfo}>
                 <Text style={styles.songTitle} numberOfLines={1}>
                   {item.title}
@@ -202,10 +280,6 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.lg,
       paddingTop: theme.spacing.lg,
       paddingBottom: theme.spacing.sm,
-    },
-    cancelText: {
-      fontSize: 17,
-      color: theme.colors.text,
     },
     searchInput: {
       marginHorizontal: theme.spacing.lg,
@@ -276,6 +350,17 @@ function createStyles(theme: Theme) {
       width: 48,
       height: 48,
       borderRadius: 6,
+    },
+    previewBadge: {
+      position: "absolute",
+      bottom: 2,
+      right: 2,
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: "rgba(0,0,0,0.6)",
+      alignItems: "center",
+      justifyContent: "center",
     },
     songInfo: {
       flex: 1,
