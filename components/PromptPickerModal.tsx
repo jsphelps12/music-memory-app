@@ -2,25 +2,15 @@ import { useMemo, useState } from "react";
 import {
   View,
   Text,
-  Modal,
-  Pressable,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Platform,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  runOnJS,
-} from "react-native-reanimated";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { PROMPT_CATEGORIES } from "@/constants/Prompts";
 import { CustomPromptCategory } from "@/types";
-import { CloseButton } from "@/components/CloseButton";
+import { BottomSheet } from "@/components/BottomSheet";
 
 interface Props {
   visible: boolean;
@@ -33,7 +23,6 @@ export function PromptPickerModal({ visible, onSelect, onClose, customCategories
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [selectedCategory, setSelectedCategory] = useState(0);
-  const translateY = useSharedValue(0);
 
   const allCategories = [
     ...PROMPT_CATEGORIES,
@@ -44,123 +33,59 @@ export function PromptPickerModal({ visible, onSelect, onClose, customCategories
   ];
   const category = allCategories[selectedCategory] ?? allCategories[0];
 
-  const panGesture = useMemo(() => Gesture.Pan()
-    .onUpdate((e) => {
-      if (e.translationY > 0) translateY.value = e.translationY;
-    })
-    .onEnd((e) => {
-      if (e.translationY > 80) {
-        runOnJS(onClose)();
-      }
-      translateY.value = withTiming(0);
-    }),
-  [onClose, translateY]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
   return (
-    <Modal
+    <BottomSheet
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      onClose={onClose}
+      title="Need a nudge?"
+      minHeight="55%"
+      maxHeight="65%"
     >
-      <View style={styles.overlay}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <GestureDetector gesture={panGesture}>
-          <Animated.View style={[styles.sheet, animatedStyle]}>
-          <View style={styles.handle} />
-
-          <View style={styles.header}>
-            <Text style={styles.title}>Need a nudge?</Text>
-            <CloseButton onPress={onClose} />
-          </View>
-
-          {/* Category tabs */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabs}
-            style={{ flexShrink: 0, flexGrow: 0 }}
+      {/* Category tabs */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.tabs}
+        style={{ flexShrink: 0, flexGrow: 0 }}
+      >
+        {allCategories.map((cat, i) => (
+          <TouchableOpacity
+            key={cat.label}
+            style={[styles.tab, i === selectedCategory && styles.tabActive]}
+            onPress={() => setSelectedCategory(i)}
+            activeOpacity={0.7}
           >
-            {allCategories.map((cat, i) => (
-              <TouchableOpacity
-                key={cat.label}
-                style={[styles.tab, i === selectedCategory && styles.tabActive]}
-                onPress={() => setSelectedCategory(i)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.tabText, i === selectedCategory && styles.tabTextActive]}>
-                  {cat.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+            <Text style={[styles.tabText, i === selectedCategory && styles.tabTextActive]}>
+              {cat.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
-          {/* Prompts */}
-          <ScrollView style={styles.promptsScroll} contentContainerStyle={styles.prompts}>
-            {category.prompts.map((prompt) => (
-              <TouchableOpacity
-                key={prompt.question}
-                style={styles.promptRow}
-                onPress={() => {
-                  onSelect(prompt.starter);
-                  onClose();
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.promptText}>{prompt.question}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-          </Animated.View>
-        </GestureDetector>
-      </View>
-    </Modal>
+      {/* Prompts */}
+      <ScrollView style={styles.promptsScroll} contentContainerStyle={styles.prompts}>
+        {category.prompts.map((prompt) => (
+          <TouchableOpacity
+            key={prompt.question}
+            style={styles.promptRow}
+            onPress={() => {
+              onSelect(prompt.starter);
+              onClose();
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.promptText}>{prompt.question}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </BottomSheet>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    overlay: {
-      flex: 1,
-      justifyContent: "flex-end",
-      backgroundColor: theme.isDark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.3)",
-    },
-    sheet: {
-      backgroundColor: theme.colors.backgroundSecondary,
-      borderTopLeftRadius: theme.radii.lg,
-      borderTopRightRadius: theme.radii.lg,
-      paddingBottom: Platform.OS === "ios" ? 36 : 24,
-      minHeight: "55%",
-      maxHeight: "65%",
-    },
     promptsScroll: {
       flex: 1,
-    },
-    handle: {
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: theme.colors.border,
-      alignSelf: "center",
-      marginTop: 10,
-      marginBottom: 4,
-    },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: 24,
-      paddingTop: 12,
-      paddingBottom: 4,
-    },
-    title: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.text,
     },
     tabs: {
       flexDirection: "row",
