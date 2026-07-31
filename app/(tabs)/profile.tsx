@@ -98,8 +98,8 @@ async function fetchProfileStats(userId: string) {
     { count: friendCount },
     { status: notifStatus },
   ] = await Promise.all([
-    supabase.from("moments").select("created_at, song_artist, song_title, mood").eq("user_id", userId),
-    supabase.from("moments").select("moment_date, song_artist, mood").eq("user_id", userId)
+    supabase.from("moments").select("created_at, song_artist, song_title, mood, moods").eq("user_id", userId),
+    supabase.from("moments").select("moment_date, song_artist, mood, moods").eq("user_id", userId)
       .gte("moment_date", firstOfLastMonth).lte("moment_date", lastOfMonth),
     supabase.from("friendships").select("id", { count: "exact", head: true })
       .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
@@ -123,11 +123,12 @@ async function fetchProfileStats(userId: string) {
     ...streaks,
     topArtist: topValue(rows.map((r: any) => r.song_artist)),
     topSong: topValue(rows.map((r: any) => r.song_title)),
-    topMood: topValue(rows.map((r: any) => r.mood)),
+    // Every selected mood counts toward Top Mood, not just the legacy first one.
+    topMood: topValue(rows.flatMap((r: any) => r.moods ?? (r.mood ? [r.mood] : []))),
     thisMonthCount: tmRows.length,
     lastMonthCount: lmRows.length,
     thisMonthTopArtist: topValue(tmRows.map((r: any) => r.song_artist)),
-    thisMonthTopMood: topValue(tmRows.map((r: any) => r.mood)),
+    thisMonthTopMood: topValue(tmRows.flatMap((r: any) => r.moods ?? (r.mood ? [r.mood] : []))),
     friendCount: friendCount ?? 0,
     uniqueArtistCount,
     notifPermission: (notifStatus === "granted" ? "granted" : notifStatus === "denied" ? "denied" : "undetermined") as "granted" | "denied" | "undetermined",

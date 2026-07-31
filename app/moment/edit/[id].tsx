@@ -65,7 +65,7 @@ export default function EditMomentScreen() {
 
   const [song, setSong] = useState<Song | null>(null);
   const [reflection, setReflection] = useState("");
-  const [selectedMood, setSelectedMood] = useState<string | null>(null);
+  const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [people, setPeople] = useState<string[]>([]);
   const [visibility, setVisibility] = useState<Visibility>('private');
   const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
@@ -116,7 +116,7 @@ export default function EditMomentScreen() {
       durationMs: 0,
     });
     setReflection(row.reflection_text ?? "");
-    setSelectedMood(row.mood ?? null);
+    setSelectedMoods(row.moods ?? (row.mood ? [row.mood] : []));
     setPeople(row.people ?? []);
     setVisibility((row.visibility ?? 'private') as Visibility);
     setExistingPhotos(row.photo_urls ?? []);
@@ -265,7 +265,9 @@ export default function EditMomentScreen() {
           song_spotify_id: song!.spotifyId ?? null,
           song_preview_url: previewUrl,
           reflection_text: reflection.trim(),
-          mood: selectedMood,
+          // Dual-write during the multi-mood transition (see lib/saveMoment.ts).
+          mood: selectedMoods[0] ?? null,
+          moods: selectedMoods,
           people,
           visibility,
           photo_urls: [...existingPhotos, ...newPaths],
@@ -293,7 +295,8 @@ export default function EditMomentScreen() {
 
       posthog.capture("moment_edited", {
         has_reflection: reflection.trim().length > 0,
-        has_mood: !!selectedMood,
+        has_mood: selectedMoods.length > 0,
+        mood_count: selectedMoods.length,
         has_people: people.length > 0,
         photo_count: existingPhotos.length + newPhotos.length,
         has_location: !!(location.trim()),
@@ -415,8 +418,8 @@ export default function EditMomentScreen() {
         {/* Mood selector */}
         <Text style={styles.sectionLabel}>Mood</Text>
         <MoodSelector
-          selectedMood={selectedMood}
-          onSelectMood={setSelectedMood}
+          selectedMoods={selectedMoods}
+          onChangeMoods={setSelectedMoods}
           customMoods={profile?.customMoods ?? []}
           saveCustomMood={saveCustomMood}
           deleteCustomMood={deleteCustomMood}

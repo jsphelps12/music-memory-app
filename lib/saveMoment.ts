@@ -22,7 +22,7 @@ export interface SaveMomentInput {
   reflection: string;
   photos: string[];
   people: string[];
-  mood: string | null;
+  moods: string[];
   locationResult: GeoResult | null;
   momentDate: Date | null;
   visibility: 'private' | 'connections' | 'link';
@@ -71,7 +71,10 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
       song_spotify_id: input.song.spotifyId ?? null,
       song_preview_url: previewUrl,
       reflection_text: input.reflection.trim(),
-      mood: input.mood,
+      // Dual-write during the multi-mood transition: binaries <= build 22 read
+      // only the single mood column, so it carries the first selected mood.
+      mood: input.moods[0] ?? null,
+      moods: input.moods,
       people: input.people,
       photo_urls: photoPaths,
       photo_thumbnails: thumbnailPaths,

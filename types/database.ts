@@ -197,6 +197,7 @@ export type Database = {
           location_lng: number | null
           moment_date: string | null
           mood: string | null
+          moods: string[] | null
           people: string[] | null
           photo_thumbnails: string[] | null
           photo_urls: string[] | null
@@ -227,6 +228,7 @@ export type Database = {
           location_lng?: number | null
           moment_date?: string | null
           mood?: string | null
+          moods?: string[] | null
           people?: string[] | null
           photo_thumbnails?: string[] | null
           photo_urls?: string[] | null
@@ -257,6 +259,7 @@ export type Database = {
           location_lng?: number | null
           moment_date?: string | null
           mood?: string | null
+          moods?: string[] | null
           people?: string[] | null
           photo_thumbnails?: string[] | null
           photo_urls?: string[] | null

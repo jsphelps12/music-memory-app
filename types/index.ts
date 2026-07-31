@@ -40,7 +40,10 @@ export interface Moment {
   reflectionText: string;
   photoUrls: string[];
   photoThumbnails: string[];
-  mood: MoodOption | null;
+  // Multi-mood since Wave 4; first entry doubles as the legacy single `mood`
+  // column that binaries <= build 22 still read and write (dual-write in
+  // lib/saveMoment.ts, dual-read in mapRowToMoment).
+  moods: MoodOption[];
   people: string[];
   location: string | null;
   locationLat: number | null;

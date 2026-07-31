@@ -46,7 +46,7 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 function deriveMoodCounts(meta: BrowseMeta[]) {
   const counts: Record<string, number> = {};
   for (const m of meta) {
-    if (m.mood) counts[m.mood] = (counts[m.mood] ?? 0) + 1;
+    for (const mood of m.moods) counts[mood] = (counts[mood] ?? 0) + 1;
   }
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])

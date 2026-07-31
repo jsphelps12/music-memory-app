@@ -16,16 +16,18 @@ import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 
 interface Props {
-  selectedMood: string | null;
-  onSelectMood: (value: string | null) => void;
+  // Selection order is meaningful: the first mood is written to the legacy
+  // single `mood` column for binaries <= build 22 (see lib/saveMoment.ts).
+  selectedMoods: string[];
+  onChangeMoods: (moods: string[]) => void;
   customMoods: CustomMoodDefinition[];
   saveCustomMood: (mood: CustomMoodDefinition) => Promise<void>;
   deleteCustomMood: (value: string) => Promise<void>;
 }
 
 export function MoodSelector({
-  selectedMood,
-  onSelectMood,
+  selectedMoods,
+  onChangeMoods,
   customMoods,
   saveCustomMood,
   deleteCustomMood,
@@ -44,7 +46,7 @@ export function MoodSelector({
     try {
       const value = `custom_${Date.now()}`;
       await saveCustomMood({ value, label, emoji });
-      onSelectMood(value);
+      onChangeMoods([...selectedMoods, value]);
       setShowAddForm(false);
       setNewEmoji("");
       setNewLabel("");
@@ -59,7 +61,9 @@ export function MoodSelector({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await deleteCustomMood(mood.value);
-      if (selectedMood === mood.value) onSelectMood(null);
+      if (selectedMoods.includes(mood.value)) {
+        onChangeMoods(selectedMoods.filter((v) => v !== mood.value));
+      }
     } catch (e) {
       Alert.alert("Error", friendlyError(e));
     }
@@ -74,7 +78,7 @@ export function MoodSelector({
         contentContainerStyle={styles.scrollContent}
       >
         {[...MOODS, ...customMoods].map((mood) => {
-          const isSelected = selectedMood === mood.value;
+          const isSelected = selectedMoods.includes(mood.value);
           const isCustom = mood.value.startsWith("custom_");
           return (
             <TouchableOpacity
@@ -83,7 +87,11 @@ export function MoodSelector({
               activeOpacity={0.7}
               onPress={() => {
                 Haptics.selectionAsync();
-                onSelectMood(isSelected ? null : mood.value);
+                onChangeMoods(
+                  isSelected
+                    ? selectedMoods.filter((v) => v !== mood.value)
+                    : [...selectedMoods, mood.value]
+                );
               }}
               onLongPress={
                 isCustom

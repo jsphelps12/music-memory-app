@@ -186,11 +186,11 @@ export default function ReflectionsScreen() {
   }, [recentWithPeople, dayOfYear]);
 
   const moodSpotlight = useMemo(() => {
-    const moods = [...new Set(recentWithMood.map((m) => m.mood).filter((x): x is string => Boolean(x)))];
+    const moods = [...new Set(recentWithMood.flatMap((m) => m.moods))];
     if (!moods.length) return null;
     const mood = moods[dayOfYear % moods.length];
     const moodObj = allMoods.find((m) => m.value === mood);
-    const moments = recentWithMood.filter((m) => m.mood === mood).slice(0, 2);
+    const moments = recentWithMood.filter((m) => m.moods.includes(mood)).slice(0, 2);
     return { mood, label: moodObj ? `${moodObj.emoji} ${moodObj.label}` : mood, moments };
   }, [recentWithMood, dayOfYear, allMoods]);
 
