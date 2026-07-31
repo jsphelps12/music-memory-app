@@ -213,15 +213,17 @@ describe("MOMENT_CARD_COLUMNS contract", () => {
     expect(new Set(cols).size).toBe(cols.length);
   });
 
-  it("selects guest_name, which mapRowToMoment drops on the floor", () => {
-    // Not a bug to fix here, but worth pinning: the column is fetched over the
-    // wire on every timeline page and then discarded, because the contributor
-    // name reaches MomentCard as `contributorName`, set by the shared-album
-    // fetch path rather than by mapRowToMoment.
+  it("maps guest_name into contributorName for guest rows", () => {
+    // guest_name is only meaningful alongside guest_uuid (both set by the
+    // guest-contribution edge function). Mapping it here means every fetch
+    // path — including the moment-detail plain select, which has no RPC to
+    // supply contributorName — attributes guest moments correctly.
     expect(parseColumns(MOMENT_CARD_COLUMNS)).toContain("guest_name");
-    const mapped = mapRowToMoment({ id: "m1", guest_name: "Aunt Carol" });
-    expect((mapped as unknown as Record<string, unknown>).guestName).toBeUndefined();
-    expect(mapped.contributorName).toBeUndefined();
+    const guest = mapRowToMoment({ id: "m1", guest_uuid: "g1", guest_name: "Aunt Carol" });
+    expect(guest.contributorName).toBe("Aunt Carol");
+    // A guest_name without guest_uuid is not a guest row — don't attribute.
+    const own = mapRowToMoment({ id: "m2", guest_name: "Aunt Carol" });
+    expect(own.contributorName).toBeUndefined();
   });
 
   it("populates every card-backed field from a card-column row", () => {
@@ -291,7 +293,9 @@ describe("MOMENT_CARD_COLUMNS contract", () => {
 describe("Moment type coverage", () => {
   it("declares no Moment field that mapRowToMoment silently forgets", () => {
     // `contributorName` is the one intentional exception: it is not a column on
-    // `moments`, it is stitched on by the shared-album fetch path.
+    // `moments`. The shared-album fetch path stitches it on, and mapRowToMoment
+    // itself derives it from guest_name — but only for guest rows (fullRow has
+    // guest_uuid without guest_name, so it stays absent here).
     const produced = new Set(Object.keys(mapRowToMoment(fullRow())));
     const expectedOptionalExtras: (keyof Moment)[] = ["contributorName"];
 
