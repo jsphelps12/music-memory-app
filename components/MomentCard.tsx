@@ -1,5 +1,8 @@
 import { memo, useCallback, useMemo } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions } from "react-native";
+import { ActionSheetIOS, Alert, View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions } from "react-native";
+import * as Haptics from "expo-haptics";
+import { usePostHog } from "posthog-react-native";
+import { useQueryClient } from "@tanstack/react-query";
 import { AppImage } from "@/components/AppImage";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,6 +17,10 @@ import Animated, {
 } from "react-native-reanimated";
 import { setCardOrigin } from "@/lib/cardTransition";
 import { setCachedMoment } from "@/lib/momentCache";
+import { deleteMomentWithCleanup } from "@/lib/deleteMoment";
+import { invalidateMomentCaches } from "@/lib/cacheInvalidation";
+import { friendlyError } from "@/lib/errors";
+import { useAuth } from "@/contexts/AuthContext";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { getPublicPhotoUrl, getPublicPhotoThumbnailUrl } from "@/lib/storage";
@@ -27,15 +34,63 @@ interface Props {
   collectionId?: string;
   collectionRole?: string;
   showArtist?: boolean;
+  /**
+   * Enables long-press edit/delete. The host list owns its data, so it must
+   * remove the moment from local state here — the timeline's stale signal only
+   * fires on the next focus, which never comes for an in-place delete.
+   */
+  onDeleted?: (id: string) => void;
 }
 
-function MomentCardComponent({ item, allMoods, collectionId, collectionRole, showArtist = true }: Props) {
+function MomentCardComponent({ item, allMoods, collectionId, collectionRole, showArtist = true, onDeleted }: Props) {
   const theme = useTheme();
   const router = useRouter();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const scale = useSharedValue(1);
   const animatedRef = useAnimatedRef<Animated.View>();
   const player = usePlayer();
+  const { user } = useAuth();
+  const posthog = usePostHog();
+  const queryClient = useQueryClient();
+
+  // Long-press actions are for the owner's own moments only — tagged and
+  // shared lists render other users' moments through this same card.
+  const canModify = !!onDeleted && !!user && item.userId === user.id;
+
+  const handleLongPress = useCallback(() => {
+    if (!canModify) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        options: ["Edit", "Delete", "Cancel"],
+        destructiveButtonIndex: 1,
+        cancelButtonIndex: 2,
+      },
+      (buttonIndex) => {
+        if (buttonIndex === 0) {
+          router.push(`/moment/edit/${item.id}`);
+        } else if (buttonIndex === 1) {
+          Alert.alert("Delete Moment", "Are you sure? This cannot be undone.", [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Delete",
+              style: "destructive",
+              onPress: async () => {
+                const { error } = await deleteMomentWithCleanup(item);
+                if (error) {
+                  Alert.alert("Error", friendlyError(error));
+                  return;
+                }
+                posthog.capture("moment_deleted", { song_title: item.songTitle, song_artist: item.songArtist });
+                invalidateMomentCaches(queryClient, user?.id);
+                onDeleted?.(item.id);
+              },
+            },
+          ]);
+        }
+      }
+    );
+  }, [canModify, item, router, posthog, queryClient, user?.id, onDeleted]);
 
   // Match by the provider-native ID so both Apple Music and Spotify moments work
   const momentSongId = item.songSpotifyId ?? item.songAppleMusicId;
@@ -109,6 +164,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
           scale.value = withSpring(1, { damping: 15, stiffness: 300 });
         }}
         onPress={handlePress}
+        onLongPress={canModify ? handleLongPress : undefined}
       >
         <View style={styles.cardBody}>
           <View style={styles.cardRow}>

@@ -36,7 +36,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
-import { getPublicPhotoUrl, deleteMomentPhotos } from "@/lib/storage";
+import { getPublicPhotoUrl } from "@/lib/storage";
+import { deleteMomentWithCleanup } from "@/lib/deleteMoment";
 import { mapRowToMoment } from "@/lib/moments";
 import {
   fetchAlbums,
@@ -53,7 +54,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { friendlyError } from "@/lib/errors";
 import { Album, Moment, MoodOption, TaggedMoment } from "@/types";
-import { markTimelineStale, markTimelineDeleted } from "@/lib/timelineRefresh";
+import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches, invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { ShareMomentSheet } from "@/components/ShareMomentSheet";
 import { LinearGradient } from "expo-linear-gradient";
@@ -524,10 +525,11 @@ export default function MomentDetailScreen() {
         style: "destructive",
         onPress: async () => {
           setDeleting(true);
-          const { error: deleteError } = await supabase
-            .from("moments")
-            .delete()
-            .eq("id", id);
+          const { error: deleteError } = await deleteMomentWithCleanup({
+            id,
+            photoUrls: moment?.photoUrls ?? [],
+            photoThumbnails: moment?.photoThumbnails ?? [],
+          });
 
           if (deleteError) {
             setDeleting(false);
@@ -535,14 +537,7 @@ export default function MomentDetailScreen() {
             return;
           }
 
-          // Row is gone — now remove the objects, or they stay publicly
-          // readable at their deterministic URLs forever.
-          if (moment) {
-            void deleteMomentPhotos(moment.photoUrls, moment.photoThumbnails);
-          }
-
           posthog.capture("moment_deleted", { song_title: moment?.songTitle ?? null, song_artist: moment?.songArtist ?? null });
-          markTimelineDeleted(id);
           invalidateMomentCaches(queryClient, user?.id);
           animateOut(goBack);
         },
