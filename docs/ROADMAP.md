@@ -230,6 +230,14 @@ Carried-forward follow-ups (from PR #6/#8, now tracked here):
 
 ---
 
+## Ops hardening — queued 2026-07-31 (build all three)
+
+Follow-ups from the 2026-07-31 migration-tracking repair (prod history had MCP-stamped drifted versions; staging history was empty and its schema silently missed three changes; `submit-guest-contribution` sat fixed-in-repo but undeployed for ~10 weeks). Make drift impossible rather than documented:
+
+1. [ ] **CI drift check** — workflow (weekly + on PRs touching `supabase/migrations/`) using a `SUPABASE_ACCESS_TOKEN` secret: compare both projects' remote migration history against repo filenames; diff prod vs staging schema; fail red on mismatch.
+2. [ ] **Edge-function deploy-on-merge** — deploy `supabase/functions/**` changes to prod AND staging when they land on main; `verify_jwt` per function kept in a repo manifest the workflow applies (staging's seeded `verify_jwt:true` on submit-guest-contribution would have silently blocked anonymous guests).
+3. [ ] **Weekly advisors sweep** — fold `get_advisors` (security + performance) into the Monday cron slot next to the E2E run; surface new findings as a red run.
+
 ## NOW — May 2026 Priorities
 
 ### 1. Polish & Bug Fixes 🔴 *In progress*
