@@ -34,7 +34,12 @@ import { createClient } from "@supabase/supabase-js";
  * binary. Already-set environment variables win, so CI (which supplies these as
  * secrets, with no file on disk) is unaffected.
  */
-function loadLocalEnvFile(path = ".env.e2e.local") {
+// Lives under .maestro/ (not project root) because Metro pulled a root-level
+// .env.e2e.local into the bundle graph and failed the whole app on its first
+// `#` comment. The basename still matches .gitignore's existing `.env*.local`
+// pattern, which matters because editing .gitignore itself would move the
+// native fingerprint.
+function loadLocalEnvFile(path = ".maestro/.env.e2e.local") {
   if (!fs.existsSync(path)) return;
   for (const line of fs.readFileSync(path, "utf8").split("\n")) {
     const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/);
@@ -68,7 +73,7 @@ const placeholder = [url, serviceKey, password].find((v) => v.startsWith("PASTE_
 if (placeholder) {
   console.error(
     "Config still contains a placeholder value.\n" +
-      "Fill in .env.e2e.local — the service_role key comes from\n" +
+      "Fill in .maestro/.env.e2e.local — the service_role key comes from\n" +
       "https://supabase.com/dashboard/project/bqyrpahvdukllasafdpv/settings/api"
   );
   process.exit(1);
