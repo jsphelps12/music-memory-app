@@ -138,6 +138,10 @@ function parseColumns(list: string): string[] {
  */
 const CARD_BACKED_FIELDS = [
   "id",
+  // user_id added 2026-07-31: MomentCard's long-press edit/delete gates on
+  // `item.userId === user.id`, which silently disabled itself when card rows
+  // had no owner.
+  "userId",
   "momentDate",
   "createdAt",
   "songTitle",
@@ -163,7 +167,6 @@ const CARD_BACKED_FIELDS = [
  * object that came off the timeline.
  */
 const CARD_FABRICATED_FIELDS = [
-  "userId",
   "people",
   "location",
   "locationLat",
@@ -187,6 +190,7 @@ describe("MOMENT_CARD_COLUMNS contract", () => {
         "guest_name",
         "guest_uuid",
         "id",
+        "user_id",
         "mood",
         "moment_date",
         "photo_thumbnails",
@@ -247,9 +251,8 @@ describe("MOMENT_CARD_COLUMNS contract", () => {
     const moment = mapRowToMoment(cardRow);
     const complete = mapRowToMoment(full);
 
-    // Typed as a complete Moment, but: no owner, no people, and it claims to be
+    // Typed as a complete Moment, but: no people, and it claims to be
     // private when the stored row says "connections".
-    expect(moment.userId).toBeUndefined();
     expect(moment.people).toEqual([]);
     expect(moment.visibility).toBe("private");
     expect(moment.shareToken).toBeNull();
