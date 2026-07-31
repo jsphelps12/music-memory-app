@@ -312,6 +312,14 @@ supabase db push
 Or apply manually in the Supabase dashboard SQL editor for quick fixes.
 Always commit the migration file to `supabase/migrations/` even if applied manually.
 
+When applying outside `supabase db push` (SQL editor, MCP tools): write the migration
+file in the repo first, run its SQL with `execute_sql`, then insert the history row
+yourself so the tracked version matches the filename —
+`insert into supabase_migrations.schema_migrations (version, name) values ('<filename timestamp>', '<name>')`.
+The MCP `apply_migration` tool stamps its own apply-time version, which drifts the
+history from the repo (this is how prod and staging diverged before the 2026-07-31
+history repair). Apply every migration to **both** prod and staging.
+
 ---
 
 ## Versioning Reference
