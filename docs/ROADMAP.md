@@ -212,7 +212,7 @@ Four suggestions from a beta user, triaged 2026-07-30. **Wave 1 shipped 2026-07-
 Owner-reported (2026-07-31):
 
 5. [x] **Song search ranking** *(Wave 1)* — `rankSongResults` in `lib/musicSearch.ts` (accent/case-normalized; exact title → prefix → provider order, stable), applied in both providers' `search()`. 8 vitest cases. Exact title typed = first result, always.
-6. [x] **Long-press a timeline card → edit/delete** *(Wave 1)* — `onLongPress` (own moments only) → haptic → `ActionSheetIOS` → edit route or destructive confirm. Delete goes through new shared `lib/deleteMoment.ts` (`deleteMomentWithCleanup`: row + storage objects + stale signal), which the detail screen now uses too. Timeline hosts pass `onDeleted` for in-place removal (stale signal alone only fires on next focus).
+6. [x] **Long-press a timeline card → edit/delete** *(Wave 1; reworked same day per owner feedback)* — `onLongPress` (own moments only) → haptic → **`MomentActionMenu`, a floating context menu anchored just above the pressed card** (falls below when the card is at the top; replaced the detached bottom `ActionSheetIOS`). Delete goes through shared `lib/deleteMoment.ts` (`deleteMomentWithCleanup`: row + storage objects + stale signal), which the detail screen also uses; both delete paths **stop playback if the deleted moment's song is the one playing**. Timeline hosts pass `onDeleted` for in-place removal. Post-ship fix: `user_id` had to be added to `MOMENT_CARD_COLUMNS` — the ownership gate compared against a field the card query never fetched.
 
 Carried-forward follow-ups (from PR #6/#8, now tracked here):
 

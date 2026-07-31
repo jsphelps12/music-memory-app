@@ -87,7 +87,7 @@ export default function MomentDetailScreen() {
   }>();
   const router = useRouter();
   const { user, profile } = useAuth();
-  const { currentSong, isPlaying, playbackTime, playbackDuration, playError, playFull, pause, resume, seekTo } = usePlayer();
+  const { currentSong, isPlaying, playbackTime, playbackDuration, playError, playFull, pause, resume, seekTo, stop } = usePlayer();
   const theme = useTheme();
   const posthog = usePostHog();
   const queryClient = useQueryClient();
@@ -535,6 +535,14 @@ export default function MomentDetailScreen() {
             setDeleting(false);
             Alert.alert("Error", friendlyError(deleteError));
             return;
+          }
+
+          // The moment is gone — its song shouldn't keep playing (or linger
+          // paused in the mini player).
+          const deletedSongId = moment?.songSpotifyId ?? moment?.songAppleMusicId;
+          const playingSongId = currentSong?.spotifyId ?? currentSong?.appleMusicId;
+          if (deletedSongId && deletedSongId === playingSongId) {
+            void stop();
           }
 
           posthog.capture("moment_deleted", { song_title: moment?.songTitle ?? null, song_artist: moment?.songArtist ?? null });
