@@ -1,9 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
-  Modal,
-  Pressable,
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
@@ -12,12 +10,9 @@ import {
   Platform,
   Alert,
   ScrollView,
-  Dimensions,
   LayoutAnimation,
   UIManager,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from "react-native-reanimated";
 import ViewShot from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
@@ -25,13 +20,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import * as Crypto from "expo-crypto";
 import { AppImage } from "@/components/AppImage";
+import { BottomSheet } from "@/components/BottomSheet";
 import { ShareCard, CARD_WIDTH, CARD_HEIGHT } from "@/components/ShareCard";
 import { Moment, TaggedMoment, Friendship } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
-import { CloseButton } from "@/components/CloseButton";
 import { useAuth } from "@/contexts/AuthContext";
-
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -50,26 +43,13 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
   const { user } = useAuth();
   const viewShotRef = useRef<ViewShot>(null);
   const [view, setView] = useState<"options" | "card" | "tagFriend">("options");
-  // sentTagIds hoisted here so setSentTagIds is available to handleClose
-  // before panGesture is created (avoids reanimated worklet TDZ capture of undefined)
   const [sentTagIds, setSentTagIds] = useState<Set<string>>(new Set());
 
-  // handleClose must be declared before panGesture so the worklet compiler
-  // captures a defined reference (not TDZ undefined) when building the gesture.
   const handleClose = useCallback(() => {
     setView("options");
     setSentTagIds(new Set());
     onClose();
   }, [onClose]);
-
-  const translateY = useSharedValue(0);
-  const panGesture = useMemo(() => Gesture.Pan()
-    .onUpdate((e) => { if (e.translationY > 0) translateY.value = e.translationY; })
-    .onEnd((e) => {
-      if (e.translationY > 80 || e.velocityY > 500) { runOnJS(handleClose)(); }
-      translateY.value = withTiming(0);
-    }), [handleClose, translateY]);
-  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
 
   const goToCard = () => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setView("card"); };
   const goToOptions = () => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setView("options"); };
@@ -194,304 +174,257 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
 
   const songSubtitle = [moment.songTitle, moment.songArtist].filter(Boolean).join(" · ");
 
+  const sheetTitle =
+    view === "options" ? "Share this moment"
+    : view === "card" ? "Share card"
+    : "Tag a friend";
+
   return (
-    <Modal
+    <BottomSheet
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={handleClose}
+      onClose={handleClose}
+      title={sheetTitle}
+      keyboardAvoiding
+      maxHeight="92%"
     >
-      <View style={styles.overlay}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
-
-        <GestureDetector gesture={panGesture}>
-          <Animated.View style={[styles.sheet, { backgroundColor: theme.colors.backgroundSecondary }, animatedStyle]}>
-          <View style={[styles.handle, { backgroundColor: theme.colors.border }]} />
-
-          {view === "options" ? (
-            <>
-              {/* Header */}
-              <View style={styles.header}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.title, { color: theme.colors.text }]}>Share this moment</Text>
-                  {!!songSubtitle && (
-                    <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-                      {songSubtitle}
-                    </Text>
-                  )}
-                </View>
-                <CloseButton onPress={handleClose} />
-              </View>
-
-              {/* Option rows */}
-              <View style={[styles.optionCard, { backgroundColor: theme.colors.cardBg, borderColor: theme.colors.border }]}>
-                {/* Create share card */}
-                <TouchableOpacity style={styles.optionRow} activeOpacity={0.7} onPress={goToCard}>
-                  <View style={[styles.iconBox, { backgroundColor: theme.colors.accent + "20" }]}>
-                    <Ionicons name="sparkles-outline" size={20} color={theme.colors.accent} />
-                  </View>
-                  <View style={styles.optionText}>
-                    <Text style={[styles.optionTitle, { color: theme.colors.text }]}>Create share card</Text>
-                    <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>A designed image for Stories</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                </TouchableOpacity>
-
-                <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-
-                {/* Share link */}
-                <TouchableOpacity
-                  style={styles.optionRow}
-                  activeOpacity={0.7}
-                  onPress={handleSendLink}
-                  disabled={sendingLink}
-                >
-                  <View style={[styles.iconBox, { backgroundColor: theme.colors.accent + "20" }]}>
-                    {sendingLink
-                      ? <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                      : <Ionicons name="link-outline" size={20} color={theme.colors.accent} />
-                    }
-                  </View>
-                  <View style={styles.optionText}>
-                    <Text style={[styles.optionTitle, { color: theme.colors.text }]}>Share link</Text>
-                    <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>Send via text, email or anywhere</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Tagged friends */}
-              {localTags.map((tag) => {
-                const name = tag.taggerDisplayName ?? "Friend";
-                const sent = sentTagIds.has(tag.id) || tag.released;
-                const sending = sendingTagId === tag.id;
-                return (
-                  <TouchableOpacity
-                    key={tag.id}
-                    style={[
-                      styles.friendCard,
-                      {
-                        backgroundColor: theme.colors.accentSecondaryBg,
-                        borderColor: theme.colors.accentSecondary + "55",
-                      },
-                    ]}
-                    activeOpacity={sent ? 1 : 0.7}
-                    onPress={() => !sent && handleSendToFriend(tag)}
-                    disabled={sent || !!sendingTagId}
-                  >
-                    <View style={[styles.iconBox, { backgroundColor: theme.colors.accentSecondary + "25" }]}>
-                      {sending
-                        ? <ActivityIndicator size="small" color={theme.colors.accentSecondary} />
-                        : <Ionicons name="people-outline" size={20} color={theme.colors.accentSecondary} />
-                      }
-                    </View>
-                    <View style={styles.optionText}>
-                      <Text style={[styles.optionTitle, { color: theme.colors.text }]}>
-                        {sent ? `Sent to ${name}` : `Send to ${name} in app`}
-                      </Text>
-                      <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>
-                        They were part of this memory
-                      </Text>
-                    </View>
-                    {sent
-                      ? <Ionicons name="checkmark-circle" size={20} color={theme.colors.accentSecondary} />
-                      : <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                    }
-                  </TouchableOpacity>
-                );
-              })}
-
-              {/* Tag another friend */}
-              {user && moment.userId === user.id && (
-                <TouchableOpacity
-                  style={[styles.friendCard, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
-                  activeOpacity={0.7}
-                  onPress={openTagFriendPicker}
-                >
-                  <View style={[styles.iconBox, { backgroundColor: theme.colors.chipBg }]}>
-                    <Ionicons name="person-add-outline" size={20} color={theme.colors.textSecondary} />
-                  </View>
-                  <View style={styles.optionText}>
-                    <Text style={[styles.optionTitle, { color: theme.colors.text }]}>Tag a friend</Text>
-                    <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>Send this moment to someone in app</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity style={styles.cancelButton} onPress={handleClose} activeOpacity={0.7}>
-                <Text style={[styles.cancelText, { color: theme.colors.textSecondary }]}>Cancel</Text>
-              </TouchableOpacity>
-            </>
-          ) : view === "tagFriend" ? (
-            <>
-              <View style={styles.cardHeader}>
-                <TouchableOpacity onPress={goToOptions} hitSlop={12} activeOpacity={0.7} style={styles.backButton}>
-                  <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
-                </TouchableOpacity>
-                <Text style={[styles.cardTitle, { color: theme.colors.text }]}>Tag a friend</Text>
-                <CloseButton onPress={handleClose} />
-              </View>
-              {friendsLoading ? (
-                <View style={styles.friendPickerEmpty}>
-                  <ActivityIndicator color={theme.colors.textSecondary} />
-                </View>
-              ) : (() => {
-                const available = friends.filter((f) => !alreadyTaggedIds.has(f.otherUserId));
-                if (available.length === 0) {
-                  return (
-                    <View style={styles.friendPickerEmpty}>
-                      <Text style={[styles.optionDesc, { color: theme.colors.textSecondary, textAlign: "center" }]}>
-                        All your friends have already been tagged.
-                      </Text>
-                    </View>
-                  );
-                }
-                return (
-                  <ScrollView style={styles.friendPickerList} showsVerticalScrollIndicator={false}>
-                    {available.map((friend) => {
-                      const isTagging = taggingUserId === friend.otherUserId;
-                      return (
-                        <TouchableOpacity
-                          key={friend.id}
-                          style={[styles.friendPickerRow, { borderBottomColor: theme.colors.border }]}
-                          onPress={() => handleTagFriend(friend)}
-                          disabled={!!taggingUserId}
-                          activeOpacity={0.7}
-                        >
-                          <View style={[styles.friendAvatar, { backgroundColor: theme.colors.backgroundTertiary }]}>
-                            <Text style={[styles.friendAvatarInitial, { color: theme.colors.textTertiary }]}>
-                              {(friend.otherUserDisplayName ?? friend.otherUserUsername ?? "?")[0]?.toUpperCase()}
-                            </Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.optionTitle, { color: theme.colors.text }]} numberOfLines={1}>
-                              {friend.otherUserDisplayName ?? friend.otherUserUsername ?? "Friend"}
-                            </Text>
-                            {friend.otherUserUsername && (
-                              <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>@{friend.otherUserUsername}</Text>
-                            )}
-                          </View>
-                          {isTagging
-                            ? <ActivityIndicator size="small" color={theme.colors.accentSecondary} />
-                            : <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                          }
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                );
-              })()}
-            </>
-          ) : (
-            <>
-              {/* Card view header — always visible, outside scroll */}
-              <View style={styles.cardHeader}>
-                <TouchableOpacity onPress={goToOptions} hitSlop={12} activeOpacity={0.7} style={styles.backButton}>
-                  <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
-                </TouchableOpacity>
-                <Text style={[styles.cardTitle, { color: theme.colors.text }]}>Share card</Text>
-                <CloseButton onPress={handleClose} />
-              </View>
-
-              {/* Scrollable: card preview + photo picker + share button */}
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                bounces={false}
-                contentContainerStyle={styles.cardScrollContent}
-              >
-                {/* Card preview */}
-                <View style={styles.cardWrapper}>
-                  <ViewShot
-                    ref={viewShotRef}
-                    options={{ format: "png", quality: 1.0 }}
-                    style={{ width: CARD_WIDTH, height: CARD_HEIGHT }}
-                  >
-                    <ShareCard moment={moment} photoUrl={photoUrls.length > 0 ? photoUrls[selectedIndex] : null} />
-                  </ViewShot>
-                </View>
-
-                {/* Photo picker */}
-                {photoUrls.length > 1 && (
-                  <View style={styles.pickerSection}>
-                    <Text style={[styles.pickerLabel, { color: theme.colors.textTertiary }]}>Choose photo</Text>
-                    <FlatList
-                      data={photoUrls}
-                      horizontal
-                      keyExtractor={(_, i) => String(i)}
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.pickerContent}
-                      renderItem={({ item, index }) => {
-                        const selected = index === selectedIndex;
-                        return (
-                          <TouchableOpacity
-                            onPress={() => { Haptics.selectionAsync(); setSelectedIndex(index); }}
-                            activeOpacity={0.8}
-                            style={[styles.thumb, selected && { borderColor: theme.colors.accent, borderWidth: 2.5 }]}
-                          >
-                            <AppImage source={{ uri: item }} style={styles.thumbImage} contentFit="cover" />
-                          </TouchableOpacity>
-                        );
-                      }}
-                    />
-                  </View>
-                )}
-
-                {/* Share button */}
-                <TouchableOpacity
-                  style={[styles.shareButton, { backgroundColor: theme.colors.buttonBg, opacity: sharing ? 0.7 : 1 }]}
-                  onPress={handleShareCard}
-                  activeOpacity={0.8}
-                  disabled={sharing}
-                >
-                  {sharing
-                    ? <ActivityIndicator color={theme.colors.buttonText} />
-                    : <Text style={[styles.shareButtonText, { color: theme.colors.buttonText }]}>Share image</Text>
-                  }
-                </TouchableOpacity>
-              </ScrollView>
-            </>
+      {view === "options" ? (
+        <>
+          {!!songSubtitle && (
+            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+              {songSubtitle}
+            </Text>
           )}
-          </Animated.View>
-        </GestureDetector>
-      </View>
-    </Modal>
+
+          {/* Option rows */}
+          <View style={[styles.optionCard, { backgroundColor: theme.colors.cardBg, borderColor: theme.colors.border }]}>
+            {/* Create share card */}
+            <TouchableOpacity style={styles.optionRow} activeOpacity={0.7} onPress={goToCard}>
+              <View style={[styles.iconBox, { backgroundColor: theme.colors.accent + "20" }]}>
+                <Ionicons name="sparkles-outline" size={20} color={theme.colors.accent} />
+              </View>
+              <View style={styles.optionText}>
+                <Text style={[styles.optionTitle, { color: theme.colors.text }]}>Create share card</Text>
+                <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>A designed image for Stories</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+            </TouchableOpacity>
+
+            <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+            {/* Share link */}
+            <TouchableOpacity
+              style={styles.optionRow}
+              activeOpacity={0.7}
+              onPress={handleSendLink}
+              disabled={sendingLink}
+            >
+              <View style={[styles.iconBox, { backgroundColor: theme.colors.accent + "20" }]}>
+                {sendingLink
+                  ? <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                  : <Ionicons name="link-outline" size={20} color={theme.colors.accent} />
+                }
+              </View>
+              <View style={styles.optionText}>
+                <Text style={[styles.optionTitle, { color: theme.colors.text }]}>Share link</Text>
+                <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>Send via text, email or anywhere</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Tagged friends */}
+          {localTags.map((tag) => {
+            const name = tag.taggerDisplayName ?? "Friend";
+            const sent = sentTagIds.has(tag.id) || tag.released;
+            const sending = sendingTagId === tag.id;
+            return (
+              <TouchableOpacity
+                key={tag.id}
+                style={[
+                  styles.friendCard,
+                  {
+                    backgroundColor: theme.colors.accentSecondaryBg,
+                    borderColor: theme.colors.accentSecondary + "55",
+                  },
+                ]}
+                activeOpacity={sent ? 1 : 0.7}
+                onPress={() => !sent && handleSendToFriend(tag)}
+                disabled={sent || !!sendingTagId}
+              >
+                <View style={[styles.iconBox, { backgroundColor: theme.colors.accentSecondary + "25" }]}>
+                  {sending
+                    ? <ActivityIndicator size="small" color={theme.colors.accentSecondary} />
+                    : <Ionicons name="people-outline" size={20} color={theme.colors.accentSecondary} />
+                  }
+                </View>
+                <View style={styles.optionText}>
+                  <Text style={[styles.optionTitle, { color: theme.colors.text }]}>
+                    {sent ? `Sent to ${name}` : `Send to ${name} in app`}
+                  </Text>
+                  <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>
+                    They were part of this memory
+                  </Text>
+                </View>
+                {sent
+                  ? <Ionicons name="checkmark-circle" size={20} color={theme.colors.accentSecondary} />
+                  : <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                }
+              </TouchableOpacity>
+            );
+          })}
+
+          {/* Tag another friend */}
+          {user && moment.userId === user.id && (
+            <TouchableOpacity
+              style={[styles.friendCard, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
+              activeOpacity={0.7}
+              onPress={openTagFriendPicker}
+            >
+              <View style={[styles.iconBox, { backgroundColor: theme.colors.chipBg }]}>
+                <Ionicons name="person-add-outline" size={20} color={theme.colors.textSecondary} />
+              </View>
+              <View style={styles.optionText}>
+                <Text style={[styles.optionTitle, { color: theme.colors.text }]}>Tag a friend</Text>
+                <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>Send this moment to someone in app</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity style={styles.cancelButton} onPress={handleClose} activeOpacity={0.7}>
+            <Text style={[styles.cancelText, { color: theme.colors.textSecondary }]}>Cancel</Text>
+          </TouchableOpacity>
+        </>
+      ) : view === "tagFriend" ? (
+        <>
+          <TouchableOpacity onPress={goToOptions} hitSlop={12} activeOpacity={0.7} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
+          </TouchableOpacity>
+          {friendsLoading ? (
+            <View style={styles.friendPickerEmpty}>
+              <ActivityIndicator color={theme.colors.textSecondary} />
+            </View>
+          ) : (() => {
+            const available = friends.filter((f) => !alreadyTaggedIds.has(f.otherUserId));
+            if (available.length === 0) {
+              return (
+                <View style={styles.friendPickerEmpty}>
+                  <Text style={[styles.optionDesc, { color: theme.colors.textSecondary, textAlign: "center" }]}>
+                    All your friends have already been tagged.
+                  </Text>
+                </View>
+              );
+            }
+            return (
+              <ScrollView style={styles.friendPickerList} showsVerticalScrollIndicator={false}>
+                {available.map((friend) => {
+                  const isTagging = taggingUserId === friend.otherUserId;
+                  return (
+                    <TouchableOpacity
+                      key={friend.id}
+                      style={[styles.friendPickerRow, { borderBottomColor: theme.colors.border }]}
+                      onPress={() => handleTagFriend(friend)}
+                      disabled={!!taggingUserId}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.friendAvatar, { backgroundColor: theme.colors.backgroundTertiary }]}>
+                        <Text style={[styles.friendAvatarInitial, { color: theme.colors.textTertiary }]}>
+                          {(friend.otherUserDisplayName ?? friend.otherUserUsername ?? "?")[0]?.toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.optionTitle, { color: theme.colors.text }]} numberOfLines={1}>
+                          {friend.otherUserDisplayName ?? friend.otherUserUsername ?? "Friend"}
+                        </Text>
+                        {friend.otherUserUsername && (
+                          <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>@{friend.otherUserUsername}</Text>
+                        )}
+                      </View>
+                      {isTagging
+                        ? <ActivityIndicator size="small" color={theme.colors.accentSecondary} />
+                        : <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                      }
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            );
+          })()}
+        </>
+      ) : (
+        <>
+          {/* Back to options — header title/close live in the shared BottomSheet header */}
+          <TouchableOpacity onPress={goToOptions} hitSlop={12} activeOpacity={0.7} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
+          </TouchableOpacity>
+
+          {/* Scrollable: card preview + photo picker + share button */}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            contentContainerStyle={styles.cardScrollContent}
+          >
+            {/* Card preview */}
+            <View style={styles.cardWrapper}>
+              <ViewShot
+                ref={viewShotRef}
+                options={{ format: "png", quality: 1.0 }}
+                style={{ width: CARD_WIDTH, height: CARD_HEIGHT }}
+              >
+                <ShareCard moment={moment} photoUrl={photoUrls.length > 0 ? photoUrls[selectedIndex] : null} />
+              </ViewShot>
+            </View>
+
+            {/* Photo picker */}
+            {photoUrls.length > 1 && (
+              <View style={styles.pickerSection}>
+                <Text style={[styles.pickerLabel, { color: theme.colors.textTertiary }]}>Choose photo</Text>
+                <FlatList
+                  data={photoUrls}
+                  horizontal
+                  keyExtractor={(_, i) => String(i)}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.pickerContent}
+                  renderItem={({ item, index }) => {
+                    const selected = index === selectedIndex;
+                    return (
+                      <TouchableOpacity
+                        onPress={() => { Haptics.selectionAsync(); setSelectedIndex(index); }}
+                        activeOpacity={0.8}
+                        style={[styles.thumb, selected && { borderColor: theme.colors.accent, borderWidth: 2.5 }]}
+                      >
+                        <AppImage source={{ uri: item }} style={styles.thumbImage} contentFit="cover" />
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+              </View>
+            )}
+
+            {/* Share button */}
+            <TouchableOpacity
+              style={[styles.shareButton, { backgroundColor: theme.colors.buttonBg, opacity: sharing ? 0.7 : 1 }]}
+              onPress={handleShareCard}
+              activeOpacity={0.8}
+              disabled={sharing}
+            >
+              {sharing
+                ? <ActivityIndicator color={theme.colors.buttonText} />
+                : <Text style={[styles.shareButtonText, { color: theme.colors.buttonText }]}>Share image</Text>
+              }
+            </TouchableOpacity>
+          </ScrollView>
+        </>
+      )}
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: Platform.OS === "ios" ? 36 : 24,
-    maxHeight: SCREEN_HEIGHT * 0.92,
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  title: {
-    fontSize: 20,
-    fontFamily: "DMSans_700Bold",
-    marginBottom: 2,
-  },
   subtitle: {
     fontSize: 14,
+    paddingHorizontal: 20,
+    marginBottom: 10,
   },
   optionCard: {
     marginHorizontal: 16,
@@ -552,21 +485,10 @@ const styles = StyleSheet.create({
   cardScrollContent: {
     paddingBottom: 8,
   },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
   backButton: {
-    width: 32,
-    alignItems: "flex-start",
-  },
-  cardTitle: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: "DMSans_600SemiBold",
-    textAlign: "center",
+    alignSelf: "flex-start",
+    paddingHorizontal: 16,
+    paddingVertical: 4,
   },
   cardWrapper: {
     alignSelf: "center",

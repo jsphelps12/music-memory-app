@@ -10,7 +10,6 @@ import {
   ScrollView,
   ActivityIndicator,
   ActionSheetIOS,
-  Modal,
   FlatList,
   StyleSheet,
 } from "react-native";
@@ -29,7 +28,7 @@ import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
 import { VisibilityPicker, Visibility } from "@/components/VisibilityPicker";
 import { AlbumPicker } from "@/components/AlbumPicker";
-import { CreateAlbumModal } from "@/components/CreateAlbumModal";
+import { CreateAlbumSheet } from "@/components/CreateAlbumSheet";
 import { SongPickerSection } from "@/components/SongPickerSection";
 import { PhotoPickerSection } from "@/components/PhotoPickerSection";
 import { LocationField } from "@/components/LocationField";
@@ -46,6 +45,7 @@ import { invalidateMomentCaches, invalidateAlbumCaches } from "@/lib/cacheInvali
 import { getProvider } from "@/lib/providers";
 import type { MusicProviderType } from "@/types";
 import { PromptPickerModal } from "@/components/PromptPickerModal";
+import { BottomSheet } from "@/components/BottomSheet";
 import { fetchWeather, WeatherResult } from "@/lib/weather";
 import { dateToStr } from "@/lib/dateUtils";
 
@@ -582,9 +582,10 @@ export default function CreateMomentScreen() {
       />
 
       {user ? (
-        <CreateAlbumModal
+        <CreateAlbumSheet
           visible={createAlbumVisible}
           userId={user.id}
+          defaultShared={false}
           onCreated={(album) => {
             setAlbums((prev) => [...prev, album]);
             setSelectedAlbum(album);
@@ -601,28 +602,21 @@ export default function CreateMomentScreen() {
         customCategories={profile?.customPromptCategories ?? []}
       />
 
-      {/* Spotify candidate selection modal */}
-      <Modal
+      {/* Spotify candidate selection — quick pick, so a compact sheet */}
+      <BottomSheet
         visible={showCandidateModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowCandidateModal(false)}
+        onClose={() => setShowCandidateModal(false)}
+        title="Select the right match"
+        maxHeight="75%"
       >
-        <View style={styles.candidateModal}>
-          <View style={styles.candidateHeader}>
-            <Text style={styles.candidateTitle}>Select the right match</Text>
-            <TouchableOpacity onPress={() => setShowCandidateModal(false)}>
-              <Text style={styles.candidateClose}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.candidateSubtitle}>
-            We found several Apple Music matches for this Spotify song.
-          </Text>
-          <FlatList
-            data={candidates}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.candidateList}
-            renderItem={({ item }) => (
+        <Text style={styles.candidateSubtitle}>
+          We found several Apple Music matches for this Spotify song.
+        </Text>
+        <FlatList
+          data={candidates}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.candidateList}
+          renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.candidateRow}
                 activeOpacity={0.7}
@@ -640,8 +634,7 @@ export default function CreateMomentScreen() {
               </TouchableOpacity>
             )}
           />
-        </View>
-      </Modal>
+      </BottomSheet>
     </KeyboardAvoidingView>
   );
 }
@@ -806,29 +799,7 @@ function createStyles(theme: Theme) {
       fontFamily: "DMSans_400Regular",
       color: theme.colors.textTertiary,
     },
-    // Candidate selection modal
-    candidateModal: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-      paddingTop: 24,
-    },
-    candidateHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingHorizontal: 20,
-      paddingBottom: 12,
-    },
-    candidateTitle: {
-      fontSize: 18,
-      fontFamily: "DMSans_700Bold",
-      color: theme.colors.text,
-    },
-    candidateClose: {
-      fontSize: 16,
-      fontFamily: "DMSans_400Regular",
-      color: theme.colors.accent,
-    },
+    // Candidate selection sheet
     candidateSubtitle: {
       fontSize: 14,
       fontFamily: "DMSans_400Regular",

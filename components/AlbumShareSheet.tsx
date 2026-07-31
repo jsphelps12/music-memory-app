@@ -1,7 +1,6 @@
 import {
   View,
   Text,
-  Modal,
   Share,
   TouchableOpacity,
   ActivityIndicator,
@@ -11,15 +10,13 @@ import {
   ScrollView,
   TextInput,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from "react-native-reanimated";
 import { AppImage } from "@/components/AppImage";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CloseButton } from "@/components/CloseButton";
+import { BottomSheet } from "@/components/BottomSheet";
 import * as Haptics from "expo-haptics";
 import { Album } from "@/types";
 import {
@@ -59,15 +56,6 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
   const theme = useTheme();
   const { user } = useAuth();
 
-  const translateY = useSharedValue(0);
-  const panGesture = useMemo(() => Gesture.Pan()
-    .onUpdate((e) => { if (e.translationY > 0) translateY.value = e.translationY; })
-    .onEnd((e) => {
-      if (e.translationY > 80 || e.velocityY > 500) { runOnJS(onClose)(); }
-      translateY.value = withTiming(0);
-    }),
-  [onClose, translateY]);
-  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
   const [converting, setConverting] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -365,77 +353,56 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
   const totalMembers = members.length + 1; // +1 for owner
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <View style={{ flex: 1, justifyContent: "flex-end" }}>
-      <TouchableOpacity
-        style={StyleSheet.absoluteFill}
-        activeOpacity={1}
-        onPress={onClose}
-      />
-      <Animated.View style={[styles.sheet, { backgroundColor: theme.colors.background }, animatedStyle]}>
-        {/* Handle */}
-        <GestureDetector gesture={panGesture}>
-          <View
-            style={[styles.handle, { backgroundColor: theme.colors.textSecondary }]}
-            hitSlop={{ top: 12, bottom: 16, left: 120, right: 120 }}
-          />
-        </GestureDetector>
-
-        {/* Header — inline rename for owners */}
-        <View style={[styles.header, { paddingHorizontal: 20 }]}>
-          {isOwner && renaming ? (
-            <View style={styles.renameRow}>
-              <TextInput
-                style={[styles.renameInput, { color: theme.colors.text, backgroundColor: theme.colors.backgroundInput }]}
-                value={renameText}
-                onChangeText={setRenameText}
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={handleRename}
-                maxLength={60}
-              />
-              <TouchableOpacity
-                onPress={handleRename}
-                disabled={savingRename || !renameText.trim() || renameText.trim() === collection.name}
-                hitSlop={8}
-              >
-                {savingRename ? (
-                  <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                ) : (
-                  <Text style={[styles.renameSave, { color: theme.colors.text, opacity: !renameText.trim() || renameText.trim() === collection.name ? 0.35 : 1 }]}>
-                    Save
-                  </Text>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => { setRenaming(false); setRenameText(collection.name); }} hitSlop={8}>
-                <Text style={[styles.renameCancel, { color: theme.colors.textSecondary }]}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <>
-              <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
-                {collection.name}
-              </Text>
-              {isOwner && (
-                <TouchableOpacity
-                  onPress={() => { setRenaming(true); setRenameText(collection.name); }}
-                  hitSlop={8}
-                  style={{ marginRight: 10 }}
-                >
-                  <Ionicons name="pencil-outline" size={18} color={theme.colors.textSecondary} />
-                </TouchableOpacity>
+    <BottomSheet visible={visible} onClose={onClose} keyboardAvoiding maxHeight="88%">
+      {/* Header — inline rename for owners (custom, so no BottomSheet title) */}
+      <View style={[styles.header, { paddingHorizontal: 20 }]}>
+        {isOwner && renaming ? (
+          <View style={styles.renameRow}>
+            <TextInput
+              style={[styles.renameInput, { color: theme.colors.text, backgroundColor: theme.colors.backgroundInput }]}
+              value={renameText}
+              onChangeText={setRenameText}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleRename}
+              maxLength={60}
+            />
+            <TouchableOpacity
+              onPress={handleRename}
+              disabled={savingRename || !renameText.trim() || renameText.trim() === collection.name}
+              hitSlop={8}
+            >
+              {savingRename ? (
+                <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+              ) : (
+                <Text style={[styles.renameSave, { color: theme.colors.text, opacity: !renameText.trim() || renameText.trim() === collection.name ? 0.35 : 1 }]}>
+                  Save
+                </Text>
               )}
-              <CloseButton onPress={onClose} />
-            </>
-          )}
-        </View>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setRenaming(false); setRenameText(collection.name); }} hitSlop={8}>
+              <Text style={[styles.renameCancel, { color: theme.colors.textSecondary }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
+              {collection.name}
+            </Text>
+            {isOwner && (
+              <TouchableOpacity
+                onPress={() => { setRenaming(true); setRenameText(collection.name); }}
+                hitSlop={8}
+                style={{ marginRight: 10 }}
+              >
+                <Ionicons name="pencil-outline" size={18} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+      </View>
 
-        {isOwner ? (
+      {isOwner ? (
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             {/* Metadata row */}
             <View style={[styles.row, { borderBottomColor: theme.colors.backgroundInput }]}>
@@ -750,34 +717,15 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
               </TouchableOpacity>
             </View>
           </View>
-        )}
-      </Animated.View>
-      </View>
-    </Modal>
+      )}
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
-  sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: "88%",
-  },
   scrollContent: {
     paddingHorizontal: 20,
     paddingBottom: 48,
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginTop: 12,
-    marginBottom: 8,
-    opacity: 0.3,
   },
   header: {
     flexDirection: "row",

@@ -1,21 +1,16 @@
 import { useMemo } from "react";
 import {
-  Modal,
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Pressable,
-  Platform,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from "react-native-reanimated";
 import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
-import { CloseButton } from "@/components/CloseButton";
+import { BottomSheet } from "@/components/BottomSheet";
 import { Album } from "@/types";
 import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import { pluralMoments } from "@/lib/utils";
@@ -39,16 +34,6 @@ export function AlbumPicker({
 }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-
-  const translateY = useSharedValue(0);
-  const panGesture = useMemo(() => Gesture.Pan()
-    .onUpdate((e) => { if (e.translationY > 0) translateY.value = e.translationY; })
-    .onEnd((e) => {
-      if (e.translationY > 80 || e.velocityY > 500) { runOnJS(onClose)(); }
-      translateY.value = withTiming(0);
-    }),
-  [onClose, translateY]);
-  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
 
   const ownedPersonal = collections.filter((c) => c.role === "owner" && !c.isPublic);
   const ownedShared = collections.filter((c) => c.role === "owner" && c.isPublic);
@@ -104,133 +89,76 @@ export function AlbumPicker({
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <Pressable
-        style={[
-          styles.backdrop,
-          { backgroundColor: theme.isDark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.3)" },
-        ]}
-        onPress={onClose}
-      />
-      <Animated.View style={[styles.sheet, { backgroundColor: theme.colors.cardBg }, animatedStyle]}>
-        <GestureDetector gesture={panGesture}>
-          <View
-            style={[styles.handle, { backgroundColor: theme.colors.border }]}
-            hitSlop={{ top: 12, bottom: 16, left: 120, right: 120 }}
-          />
-        </GestureDetector>
-        <View style={styles.sheetHeader}>
-          <Text style={[styles.sheetTitle, { color: theme.colors.textSecondary }]}>
-            Albums
-          </Text>
-          <CloseButton onPress={onClose} />
-        </View>
+    <BottomSheet visible={visible} onClose={onClose} title="Albums" maxHeight="70%">
+      {/* New Album — pinned above the scroll list */}
+      <TouchableOpacity
+        style={[styles.newAlbumBtn, { borderBottomColor: theme.colors.border }]}
+        onPress={onRequestCreate}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="add-circle-outline" size={20} color={theme.colors.textSecondary} style={styles.rowIcon} />
+        <Text style={[styles.rowName, { color: theme.colors.text }]}>New Album</Text>
+      </TouchableOpacity>
 
-        {/* New Album — pinned above the scroll list */}
-        <TouchableOpacity
-          style={[styles.newAlbumBtn, { borderBottomColor: theme.colors.border }]}
-          onPress={onRequestCreate}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="add-circle-outline" size={20} color={theme.colors.textSecondary} style={styles.rowIcon} />
-          <Text style={[styles.rowName, { color: theme.colors.text }]}>New Album</Text>
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* All Moments */}
+        <TouchableOpacity style={styles.row} onPress={() => handleSelect(null)} activeOpacity={0.7}>
+          <View style={styles.rowLeft}>
+            <Ionicons
+              name="albums-outline"
+              size={20}
+              color={theme.colors.textSecondary}
+              style={styles.rowIcon}
+            />
+            <Text style={[styles.rowName, { color: theme.colors.text }]}>All Moments</Text>
+          </View>
+          {selectedId === null ? (
+            <Ionicons name="checkmark" size={20} color={theme.colors.accent} />
+          ) : null}
         </TouchableOpacity>
 
-        <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-          {/* All Moments */}
-          <TouchableOpacity style={styles.row} onPress={() => handleSelect(null)} activeOpacity={0.7}>
-            <View style={styles.rowLeft}>
-              <Ionicons
-                name="albums-outline"
-                size={20}
-                color={theme.colors.textSecondary}
-                style={styles.rowIcon}
-              />
-              <Text style={[styles.rowName, { color: theme.colors.text }]}>All Moments</Text>
+        {/* My Collections (personal/private) */}
+        {ownedPersonal.length > 0 ? (
+          <>
+            <View style={[styles.sectionDivider, { borderTopColor: theme.colors.border }]}>
+              <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>
+                MY ALBUMS
+              </Text>
             </View>
-            {selectedId === null ? (
-              <Ionicons name="checkmark" size={20} color={theme.colors.accent} />
-            ) : null}
-          </TouchableOpacity>
+            {ownedPersonal.map(renderRow)}
+          </>
+        ) : null}
 
-          {/* My Collections (personal/private) */}
-          {ownedPersonal.length > 0 ? (
-            <>
-              <View style={[styles.sectionDivider, { borderTopColor: theme.colors.border }]}>
-                <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>
-                  MY ALBUMS
-                </Text>
-              </View>
-              {ownedPersonal.map(renderRow)}
-            </>
-          ) : null}
+        {/* My Shared Collections */}
+        {ownedShared.length > 0 ? (
+          <>
+            <View style={[styles.sectionDivider, { borderTopColor: theme.colors.border }]}>
+              <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>
+                MY SHARED ALBUMS
+              </Text>
+            </View>
+            {ownedShared.map(renderRow)}
+          </>
+        ) : null}
 
-          {/* My Shared Collections */}
-          {ownedShared.length > 0 ? (
-            <>
-              <View style={[styles.sectionDivider, { borderTopColor: theme.colors.border }]}>
-                <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>
-                  MY SHARED ALBUMS
-                </Text>
-              </View>
-              {ownedShared.map(renderRow)}
-            </>
-          ) : null}
-
-          {/* Shared With Me */}
-          {shared.length > 0 ? (
-            <>
-              <View style={[styles.sectionDivider, { borderTopColor: theme.colors.border }]}>
-                <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>
-                  SHARED WITH ME
-                </Text>
-              </View>
-              {shared.map(renderRow)}
-            </>
-          ) : null}
-        </ScrollView>
-      </Animated.View>
-    </Modal>
+        {/* Shared With Me */}
+        {shared.length > 0 ? (
+          <>
+            <View style={[styles.sectionDivider, { borderTopColor: theme.colors.border }]}>
+              <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>
+                SHARED WITH ME
+              </Text>
+            </View>
+            {shared.map(renderRow)}
+          </>
+        ) : null}
+      </ScrollView>
+    </BottomSheet>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    backdrop: {
-      flex: 1,
-    },
-    sheet: {
-      borderTopLeftRadius: theme.radii.lg,
-      borderTopRightRadius: theme.radii.lg,
-      paddingBottom: Platform.OS === "ios" ? 36 : 20,
-      maxHeight: "70%",
-    },
-    handle: {
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      alignSelf: "center",
-      marginTop: 10,
-      marginBottom: 4,
-    },
-    sheetHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: theme.spacing.xl,
-      paddingVertical: 10,
-    },
-    sheetTitle: {
-      fontSize: theme.fontSize.xs,
-      fontFamily: theme.fonts.bodySemibold,
-      textTransform: "uppercase",
-      letterSpacing: 0.8,
-    },
     newAlbumBtn: {
       flexDirection: "row",
       alignItems: "center",

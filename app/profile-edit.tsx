@@ -11,19 +11,15 @@ import {
   Alert,
   ScrollView,
   FlatList,
-  Modal,
-  Platform,
   Linking,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from "react-native-reanimated";
 import { AppImage } from "@/components/AppImage";
+import { BottomSheet } from "@/components/BottomSheet";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
-import { CloseButton } from "@/components/CloseButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { uploadAvatar, getPublicPhotoUrl } from "@/lib/storage";
 import { useTheme } from "@/hooks/useTheme";
@@ -128,26 +124,6 @@ export default function ProfileEditScreen() {
   // ── Picker modals ───────────────────────────────────────────────────────
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
   const [countryPickerVisible, setCountryPickerVisible] = useState(false);
-
-  const yearTranslateY = useSharedValue(0);
-  const yearPanGesture = useMemo(() => Gesture.Pan()
-    .onUpdate((e) => { if (e.translationY > 0) yearTranslateY.value = e.translationY; })
-    .onEnd((e) => {
-      if (e.translationY > 80 || e.velocityY > 500) { runOnJS(setYearPickerVisible)(false); }
-      yearTranslateY.value = withTiming(0);
-    }),
-  [yearTranslateY]);
-  const yearAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: yearTranslateY.value }] }));
-
-  const countryTranslateY = useSharedValue(0);
-  const countryPanGesture = useMemo(() => Gesture.Pan()
-    .onUpdate((e) => { if (e.translationY > 0) countryTranslateY.value = e.translationY; })
-    .onEnd((e) => {
-      if (e.translationY > 80 || e.velocityY > 500) { runOnJS(setCountryPickerVisible)(false); }
-      countryTranslateY.value = withTiming(0);
-    }),
-  [countryTranslateY]);
-  const countryAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: countryTranslateY.value }] }));
   const [countrySearch, setCountrySearch] = useState("");
   const filteredCountries = useMemo(
     () => COUNTRIES.filter((c) => c.toLowerCase().includes(countrySearch.toLowerCase())),
@@ -644,97 +620,86 @@ export default function ProfileEditScreen() {
         </View>
       </ScrollView>
 
-      {/* ── Year picker modal ── */}
-      <Modal visible={yearPickerVisible} transparent animationType="slide" onRequestClose={() => setYearPickerVisible(false)}>
-        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setYearPickerVisible(false)} />
-        <GestureDetector gesture={yearPanGesture}>
-          <Animated.View style={[styles.pickerSheet, { backgroundColor: theme.colors.background }, yearAnimatedStyle]}>
-          <View style={[styles.pickerSheetHandle, { backgroundColor: theme.colors.border }]} />
-          <View style={styles.pickerSheetHeader}>
-            <Text style={[styles.pickerSheetTitle, { color: theme.colors.text }]}>Birth Year</Text>
-            <CloseButton onPress={() => setYearPickerVisible(false)} />
-          </View>
-          <FlatList
-            data={BIRTH_YEARS}
-            keyExtractor={(y) => String(y)}
-            showsVerticalScrollIndicator={false}
-            initialScrollIndex={birthYear ? BIRTH_YEARS.indexOf(birthYear) : 0}
-            getItemLayout={(_, index) => ({ length: 52, offset: 52 * index, index })}
-            renderItem={({ item }) => {
-              const selected = item === birthYear;
-              return (
-                <TouchableOpacity
-                  style={[styles.pickerItem, selected && { backgroundColor: theme.colors.chipBg }]}
-                  onPress={() => { Haptics.selectionAsync(); setBirthYear(item); setYearPickerVisible(false); }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.pickerItemText, { color: selected ? theme.colors.accent : theme.colors.text }, selected && { fontFamily: theme.fonts.bodyBold }]}>
-                    {item}
-                  </Text>
-                  {selected && <Ionicons name="checkmark" size={18} color={theme.colors.accent} />}
-                </TouchableOpacity>
-              );
-            }}
-          />
-          </Animated.View>
-        </GestureDetector>
-      </Modal>
+      {/* ── Year picker sheet ── */}
+      <BottomSheet
+        visible={yearPickerVisible}
+        onClose={() => setYearPickerVisible(false)}
+        title="Birth Year"
+        maxHeight="60%"
+      >
+        <FlatList
+          data={BIRTH_YEARS}
+          keyExtractor={(y) => String(y)}
+          showsVerticalScrollIndicator={false}
+          initialScrollIndex={birthYear ? BIRTH_YEARS.indexOf(birthYear) : 0}
+          getItemLayout={(_, index) => ({ length: 52, offset: 52 * index, index })}
+          renderItem={({ item }) => {
+            const selected = item === birthYear;
+            return (
+              <TouchableOpacity
+                style={[styles.pickerItem, selected && { backgroundColor: theme.colors.chipBg }]}
+                onPress={() => { Haptics.selectionAsync(); setBirthYear(item); setYearPickerVisible(false); }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.pickerItemText, { color: selected ? theme.colors.accent : theme.colors.text }, selected && { fontFamily: theme.fonts.bodyBold }]}>
+                  {item}
+                </Text>
+                {selected && <Ionicons name="checkmark" size={18} color={theme.colors.accent} />}
+              </TouchableOpacity>
+            );
+          }}
+        />
+      </BottomSheet>
 
-      {/* ── Country picker modal ── */}
-      <Modal visible={countryPickerVisible} transparent animationType="slide" onRequestClose={() => setCountryPickerVisible(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setCountryPickerVisible(false)} />
-          <GestureDetector gesture={countryPanGesture}>
-            <Animated.View style={[styles.pickerSheet, { backgroundColor: theme.colors.background }, countryAnimatedStyle]}>
-            <View style={[styles.pickerSheetHandle, { backgroundColor: theme.colors.border }]} />
-            <View style={styles.pickerSheetHeader}>
-              <Text style={[styles.pickerSheetTitle, { color: theme.colors.text }]}>Country</Text>
-              <CloseButton onPress={() => setCountryPickerVisible(false)} />
-            </View>
-            <View style={[styles.countrySearch, { borderColor: theme.colors.border }]}>
-              <Ionicons name="search-outline" size={15} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
-              <TextInput
-                style={[styles.countrySearchInput, { color: theme.colors.text }]}
-                placeholder="Search…"
-                placeholderTextColor={theme.colors.placeholder}
-                value={countrySearch}
-                onChangeText={setCountrySearch}
-                autoFocus
-                autoCorrect={false}
-                autoCapitalize="words"
-                returnKeyType="search"
-              />
-              {countrySearch.length > 0 && (
-                <TouchableOpacity onPress={() => setCountrySearch("")} hitSlop={8}>
-                  <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />
-                </TouchableOpacity>
-              )}
-            </View>
-            <FlatList
-              data={filteredCountries}
-              keyExtractor={(c) => c}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              renderItem={({ item }) => {
-                const selected = item === country;
-                return (
-                  <TouchableOpacity
-                    style={[styles.pickerItem, selected && { backgroundColor: theme.colors.chipBg }]}
-                    onPress={() => { Haptics.selectionAsync(); setCountry(item); setCountryPickerVisible(false); }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.pickerItemText, { color: selected ? theme.colors.accent : theme.colors.text }, selected && { fontFamily: theme.fonts.bodyBold }]}>
-                      {item}
-                    </Text>
-                    {selected && <Ionicons name="checkmark" size={18} color={theme.colors.accent} />}
-                  </TouchableOpacity>
-                );
-              }}
-            />
-            </Animated.View>
-          </GestureDetector>
-        </KeyboardAvoidingView>
-      </Modal>
+      {/* ── Country picker sheet ── */}
+      <BottomSheet
+        visible={countryPickerVisible}
+        onClose={() => setCountryPickerVisible(false)}
+        title="Country"
+        keyboardAvoiding
+        maxHeight="60%"
+      >
+        <View style={[styles.countrySearch, { borderColor: theme.colors.border }]}>
+          <Ionicons name="search-outline" size={15} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
+          <TextInput
+            style={[styles.countrySearchInput, { color: theme.colors.text }]}
+            placeholder="Search…"
+            placeholderTextColor={theme.colors.placeholder}
+            value={countrySearch}
+            onChangeText={setCountrySearch}
+            autoFocus
+            autoCorrect={false}
+            autoCapitalize="words"
+            returnKeyType="search"
+          />
+          {countrySearch.length > 0 && (
+            <TouchableOpacity onPress={() => setCountrySearch("")} hitSlop={8}>
+              <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+        <FlatList
+          data={filteredCountries}
+          keyExtractor={(c) => c}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item }) => {
+            const selected = item === country;
+            return (
+              <TouchableOpacity
+                style={[styles.pickerItem, selected && { backgroundColor: theme.colors.chipBg }]}
+                onPress={() => { Haptics.selectionAsync(); setCountry(item); setCountryPickerVisible(false); }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.pickerItemText, { color: selected ? theme.colors.accent : theme.colors.text }, selected && { fontFamily: theme.fonts.bodyBold }]}>
+                  {item}
+                </Text>
+                {selected && <Ionicons name="checkmark" size={18} color={theme.colors.accent} />}
+              </TouchableOpacity>
+            );
+          }}
+        />
+      </BottomSheet>
     </KeyboardAvoidingView>
   );
 }
@@ -927,37 +892,7 @@ function createStyles(theme: Theme) {
       color: theme.colors.textSecondary,
       marginTop: 1,
     },
-    // Picker modals
-    modalBackdrop: {
-      flex: 1,
-      backgroundColor: theme.isDark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.3)",
-    },
-    pickerSheet: {
-      borderTopLeftRadius: theme.radii.lg,
-      borderTopRightRadius: theme.radii.lg,
-      maxHeight: "60%",
-      paddingBottom: Platform.OS === "ios" ? 34 : 20,
-    },
-    pickerSheetHandle: {
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      alignSelf: "center",
-      marginTop: 12,
-      marginBottom: 4,
-      opacity: 0.4,
-    },
-    pickerSheetHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-    },
-    pickerSheetTitle: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-    },
+    // Picker sheets
     pickerItem: {
       flexDirection: "row",
       alignItems: "center",

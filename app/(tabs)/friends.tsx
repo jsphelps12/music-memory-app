@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { NewSharedAlbumModal } from "@/components/NewSharedAlbumModal";
+import { CreateAlbumSheet } from "@/components/CreateAlbumSheet";
 import {
   View,
   Text,
@@ -317,7 +317,7 @@ export default function AlbumsScreen() {
         />
       )}
 
-      <NewSharedAlbumModal
+      <CreateAlbumSheet
         visible={newAlbumVisible}
         onClose={handleNewAlbumClose}
         userId={user?.id ?? ""}
