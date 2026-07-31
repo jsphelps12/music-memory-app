@@ -323,7 +323,9 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="song-search"
-            options={{ headerShown: false, presentation: "modal" }}
+            // fullScreenModal, not "modal": pageSheet-style cards that cover
+            // most of the parent screen are banned (see CLAUDE.md conventions)
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="moment/[id]"
