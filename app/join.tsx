@@ -96,8 +96,6 @@ export default function JoinScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Handle + close */}
-      <View style={[styles.handle, { backgroundColor: theme.colors.textTertiary }]} />
       <CloseButton style={styles.closeButton} onPress={() => router.replace("/(tabs)")} />
 
       {state === "loading" && (
@@ -231,21 +229,14 @@ export default function JoinScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginTop: 12,
-    opacity: 0.3,
   },
   closeButton: {
     position: "absolute",
-    top: 20,
+    // Full-screen presentation: clear the status bar (matches the other
+    // fullScreenModal screens' 60pt header clearance).
+    top: 60,
     right: 20,
+    zIndex: 1,
   },
   centered: {
     flex: 1,

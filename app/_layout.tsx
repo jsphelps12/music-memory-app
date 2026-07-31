@@ -358,23 +358,23 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="profile-edit"
-            options={{ headerShown: false, presentation: "modal" }}
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="join"
-            options={{ headerShown: false, presentation: "modal" }}
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="friends-list"
-            options={{ headerShown: false, presentation: "modal" }}
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="friend-request"
-            options={{ headerShown: false, presentation: "modal" }}
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="friend/[token]"
-            options={{ headerShown: false, presentation: "modal" }}
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="album/[id]"
