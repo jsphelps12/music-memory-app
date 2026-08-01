@@ -30,6 +30,7 @@ import {
   TIMELINE_PAGE_SIZE,
 } from "@/lib/timelinePrefetch";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
+import { requestReflectionsSearch } from "@/lib/reflectionsSearch";
 import {
   fetchSharedWithMe,
   fetchUnviewedSharedCount,
@@ -579,9 +580,13 @@ export default function TimelineScreen() {
             <Text style={styles.title}>your soundtrack</Text>
           </View>
           <View style={styles.headerRight}>
+            {/* The archive lives in Reflections now — land there with search up */}
             <IconButton
               name="search-outline"
-              onPress={() => router.push("/browse" as any)}
+              onPress={() => {
+                requestReflectionsSearch();
+                router.push("/(tabs)/reflections" as any);
+              }}
             />
             <IconButton
               name="map-outline"
