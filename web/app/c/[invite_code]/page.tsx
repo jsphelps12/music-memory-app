@@ -179,8 +179,9 @@ export default async function AlbumPage({ params }: PageProps) {
 
   function formatDateRange(from: string | null, to: string | null) {
     if (!from && !to) return null;
+    // date_from/date_to are bare YYYY-MM-DD; see the T00:00:00 note in MomentCard.
     const fmt = (d: string) =>
-      new Date(d).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+      new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", year: "numeric" });
     if (from && to) return `${fmt(from)} – ${fmt(to)}`;
     if (from) return `From ${fmt(from)}`;
     return `Until ${fmt(to!)}`;

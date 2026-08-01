@@ -94,8 +94,10 @@ export default async function GiftedMomentPage({ params }: PageProps) {
   const heroUrl = photoUrls[0] ?? row.song_artwork_url ?? null;
   const remainingPhotos = photoUrls.slice(1);
 
+  // moment_date is a bare YYYY-MM-DD; parsed alone it becomes UTC midnight and
+  // renders a day off in western timezones. T00:00:00 matches the app's parse.
   const formattedDate = row.moment_date
-    ? new Date(row.moment_date)
+    ? new Date(row.moment_date + "T00:00:00")
         .toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
         .toUpperCase()
     : null;

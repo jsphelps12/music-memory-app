@@ -29,7 +29,9 @@ interface MomentCardProps {
 
 function formatDate(dateStr: string | null): string | null {
   if (!dateStr) return null;
-  return new Date(dateStr).toLocaleDateString("en-US", {
+  // Bare YYYY-MM-DD parses as UTC midnight and renders a day off in western
+  // timezones; T00:00:00 matches the app's local-time parse.
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
