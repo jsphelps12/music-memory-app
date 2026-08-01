@@ -59,7 +59,6 @@ export const BROWSE_DRILLDOWN_STALE = DEFAULT_SCREEN_STALE;
 export const BROWSE_SEARCH_STALE = 10_000;
 
 /** `["taggedMoments", userId]` — moments other users tagged you in. */
-export const TAGGED_MOMENTS_STALE = DEFAULT_SCREEN_STALE;
 
 /** `["reflections", userId]` and `["artistSpotlightMoments", userId, artist]`. */
 export const REFLECTIONS_STALE = DEFAULT_SCREEN_STALE;
@@ -76,12 +75,6 @@ export const REFLECTIONS_RANDOM_STALE = Infinity;
  * Also the cooldown for the profile row refresh on that tab's focus effect.
  */
 export const PROFILE_STATS_STALE = DEFAULT_SCREEN_STALE;
-
-/**
- * `["pendingRequests", userId]` — count query behind the Friends row badge.
- * 60s per the badge convention.
- */
-export const PENDING_REQUESTS_STALE = 60_000;
 
 /**
  * Debounce applied to the browse search box before the text reaches the query

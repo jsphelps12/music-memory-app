@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   View,
@@ -11,7 +11,6 @@ import {
   Alert,
 } from "react-native";
 import { AppImage } from "@/components/AppImage";
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
@@ -20,30 +19,11 @@ import { CloseButton } from "@/components/CloseButton";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { friendlyError } from "@/lib/errors";
 import { invalidateFriendCaches } from "@/lib/cacheInvalidation";
-import {
-  fetchFriends,
-  fetchPendingRequests,
-  fetchSentRequests,
-  acceptFriendRequest,
-  declineFriendRequest,
-  removeFriend,
-  cancelFriendRequest,
-} from "@/lib/friends";
+import { fetchFriends, removeFriend } from "@/lib/friends";
 import type { Friendship } from "@/types";
 
 const AVATAR_SIZE = 40;
 const STALE_TIME = 2 * 60 * 1000;
-
-type FriendsListData = { friends: Friendship[]; pending: Friendship[]; sent: Friendship[] };
-
-async function fetchFriendsListData(userId: string): Promise<FriendsListData> {
-  const [friends, pending, sent] = await Promise.all([
-    fetchFriends(userId),
-    fetchPendingRequests(userId),
-    fetchSentRequests(userId),
-  ]);
-  return { friends, pending, sent };
-}
 
 function Avatar({ avatarUrl, displayName }: { avatarUrl: string | null; displayName: string | null }) {
   const theme = useTheme();
@@ -59,6 +39,8 @@ function Avatar({ avatarUrl, displayName }: { avatarUrl: string | null; displayN
   );
 }
 
+// Mutual-by-link friends (Social Architecture v2): there are no pending or
+// sent requests — a friendship exists the moment someone opens your link.
 export default function FriendsListScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -66,53 +48,12 @@ export default function FriendsListScreen() {
   const s = useMemo(() => createStyles(theme), [theme]);
   const queryClient = useQueryClient();
 
-  const [sentCollapsed, setSentCollapsed] = useState(true);
-  const [acting, setActing] = useState<string | null>(null);
-
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const { data: friends = [], isLoading, isFetching, refetch } = useQuery({
     queryKey: ["friendsList", user?.id],
-    queryFn: () => fetchFriendsListData(user!.id),
+    queryFn: () => fetchFriends(user!.id),
     staleTime: STALE_TIME,
     enabled: !!user,
   });
-
-  const friends = data?.friends ?? [];
-  const pending = data?.pending ?? [];
-  const sent = data?.sent ?? [];
-
-  const handleAccept = async (friendship: Friendship) => {
-    setActing(friendship.id);
-    try {
-      await acceptFriendRequest(friendship.id);
-      queryClient.setQueryData(["friendsList", user?.id], (old: FriendsListData | undefined) => {
-        if (!old) return old;
-        return {
-          ...old,
-          pending: old.pending.filter((f) => f.id !== friendship.id),
-          friends: [...old.friends, { ...friendship, status: "accepted" }],
-        };
-      });
-      invalidateFriendCaches(queryClient, user?.id);
-    } catch (e) {
-      Alert.alert("Error", friendlyError(e));
-    }
-    setActing(null);
-  };
-
-  const handleDecline = async (friendship: Friendship) => {
-    setActing(friendship.id);
-    try {
-      await declineFriendRequest(friendship.id);
-      queryClient.setQueryData(["friendsList", user?.id], (old: FriendsListData | undefined) => {
-        if (!old) return old;
-        return { ...old, pending: old.pending.filter((f) => f.id !== friendship.id) };
-      });
-      invalidateFriendCaches(queryClient, user?.id);
-    } catch (e) {
-      Alert.alert("Error", friendlyError(e));
-    }
-    setActing(null);
-  };
 
   const handleRemoveFriend = (friendship: Friendship) => {
     const name = friendship.otherUserDisplayName ?? "this person";
@@ -127,10 +68,9 @@ export default function FriendsListScreen() {
           onPress: async () => {
             try {
               await removeFriend(friendship.id);
-              queryClient.setQueryData(["friendsList", user?.id], (old: FriendsListData | undefined) => {
-                if (!old) return old;
-                return { ...old, friends: old.friends.filter((f) => f.id !== friendship.id) };
-              });
+              queryClient.setQueryData(["friendsList", user?.id], (old: Friendship[] | undefined) =>
+                old ? old.filter((f) => f.id !== friendship.id) : old
+              );
               invalidateFriendCaches(queryClient, user?.id);
             } catch (e) {
               Alert.alert("Error", friendlyError(e));
@@ -141,26 +81,11 @@ export default function FriendsListScreen() {
     );
   };
 
-  const handleCancelRequest = async (friendship: Friendship) => {
-    setActing(friendship.id);
-    try {
-      await cancelFriendRequest(friendship.id);
-      queryClient.setQueryData(["friendsList", user?.id], (old: FriendsListData | undefined) => {
-        if (!old) return old;
-        return { ...old, sent: old.sent.filter((f) => f.id !== friendship.id) };
-      });
-      invalidateFriendCaches(queryClient, user?.id);
-    } catch (e) {
-      Alert.alert("Error", friendlyError(e));
-    }
-    setActing(null);
-  };
-
   return (
     <View style={[s.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
       <View style={[s.header, { borderBottomColor: theme.colors.border }]}>
-        <Text style={[s.headerTitle, { color: theme.colors.text }]}>Manage Friends</Text>
+        <Text style={[s.headerTitle, { color: theme.colors.text }]}>Friends</Text>
         <CloseButton onPress={() => router.back()} />
       </View>
 
@@ -180,50 +105,6 @@ export default function FriendsListScreen() {
             />
           }
         >
-
-          {/* Incoming Requests */}
-          {pending.length > 0 && (
-            <View style={s.section}>
-              <Text style={[s.sectionLabel, { color: theme.colors.textTertiary }]}>
-                Friend Requests
-              </Text>
-              {pending.map((friendship) => (
-                <View key={friendship.id} style={[s.row, { borderBottomColor: theme.colors.border }]}>
-                  <Avatar avatarUrl={friendship.otherUserAvatarUrl} displayName={friendship.otherUserDisplayName} />
-                  <View style={s.rowInfo}>
-                    <Text style={[s.rowName, { color: theme.colors.text }]}>{friendship.otherUserDisplayName ?? "Unknown"}</Text>
-                    {friendship.otherUserUsername && (
-                      <Text style={[s.rowUsername, { color: theme.colors.textSecondary }]}>@{friendship.otherUserUsername}</Text>
-                    )}
-                  </View>
-                  <View style={s.requestActions}>
-                    <TouchableOpacity
-                      style={[s.actionBtn, s.declineBtn, { borderColor: theme.colors.border }]}
-                      onPress={() => handleDecline(friendship)}
-                      disabled={acting === friendship.id}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[s.declineBtnText, { color: theme.colors.textSecondary }]}>Decline</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[s.actionBtn, s.acceptBtn, { backgroundColor: theme.colors.accent }]}
-                      onPress={() => handleAccept(friendship)}
-                      disabled={acting === friendship.id}
-                      activeOpacity={0.8}
-                    >
-                      {acting === friendship.id ? (
-                        <ActivityIndicator size="small" color={theme.colors.buttonText} />
-                      ) : (
-                        <Text style={s.acceptBtnText}>Accept</Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* My Friends */}
           <View style={s.section}>
             <Text style={[s.sectionLabel, { color: theme.colors.textTertiary }]}>
               My Friends ({friends.length})
@@ -253,49 +134,6 @@ export default function FriendsListScreen() {
               ))
             )}
           </View>
-
-          {/* Sent Requests */}
-          {sent.length > 0 && (
-            <View style={s.section}>
-              <TouchableOpacity
-                style={s.sectionToggle}
-                onPress={() => setSentCollapsed((v) => !v)}
-                activeOpacity={0.7}
-              >
-                <Text style={[s.sectionLabel, { color: theme.colors.textTertiary }]}>
-                  Sent Requests ({sent.length})
-                </Text>
-                <Ionicons
-                  name={sentCollapsed ? "chevron-down" : "chevron-up"}
-                  size={14}
-                  color={theme.colors.textTertiary}
-                />
-              </TouchableOpacity>
-              {!sentCollapsed && sent.map((friendship) => (
-                <View key={friendship.id} style={[s.row, { borderBottomColor: theme.colors.border }]}>
-                  <Avatar avatarUrl={friendship.otherUserAvatarUrl} displayName={friendship.otherUserDisplayName} />
-                  <View style={s.rowInfo}>
-                    <Text style={[s.rowName, { color: theme.colors.text }]}>{friendship.otherUserDisplayName ?? "Unknown"}</Text>
-                    {friendship.otherUserUsername && (
-                      <Text style={[s.rowUsername, { color: theme.colors.textSecondary }]}>@{friendship.otherUserUsername}</Text>
-                    )}
-                  </View>
-                  <TouchableOpacity
-                    style={[s.actionBtn, s.cancelBtn, { borderColor: theme.colors.border }]}
-                    onPress={() => handleCancelRequest(friendship)}
-                    disabled={acting === friendship.id}
-                    activeOpacity={0.7}
-                  >
-                    {acting === friendship.id ? (
-                      <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                    ) : (
-                      <Text style={[s.cancelBtnText, { color: theme.colors.textSecondary }]}>Cancel</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
         </ScrollView>
       )}
     </View>
@@ -348,12 +186,6 @@ function createStyles(theme: Theme) {
       letterSpacing: 0.5,
       marginBottom: 12,
     },
-    sectionToggle: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      marginBottom: 12,
-    },
     row: {
       flexDirection: "row",
       alignItems: "center",
@@ -374,38 +206,6 @@ function createStyles(theme: Theme) {
     },
     longPressHint: {
       fontSize: theme.fontSize.xs,
-    },
-    requestActions: {
-      flexDirection: "row",
-      gap: 8,
-    },
-    actionBtn: {
-      paddingHorizontal: 14,
-      paddingVertical: 7,
-      borderRadius: 20,
-      alignItems: "center",
-      justifyContent: "center",
-      minWidth: 70,
-    },
-    declineBtn: {
-      borderWidth: 1,
-    },
-    declineBtnText: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
-    },
-    acceptBtn: {},
-    acceptBtnText: {
-      color: "#fff",
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodySemibold,
-    },
-    cancelBtn: {
-      borderWidth: 1,
-    },
-    cancelBtnText: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
     },
     emptyText: {
       fontSize: theme.fontSize.sm,

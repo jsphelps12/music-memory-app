@@ -369,10 +369,6 @@ function RootLayoutNav() {
             options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
-            name="friend-request"
-            options={{ headerShown: false, presentation: "fullScreenModal" }}
-          />
-          <Stack.Screen
             name="friend/[token]"
             options={{ headerShown: false, presentation: "fullScreenModal" }}
           />

@@ -12,7 +12,6 @@ import {
   ActivityIndicator,
   TextInput,
   Linking,
-  Share,
   InteractionManager,
 } from "react-native";
 import Animated, {
@@ -50,14 +49,13 @@ import { SkeletonMomentDetail } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { friendlyError } from "@/lib/errors";
-import { Album, Moment, MoodOption, TaggedMoment } from "@/types";
+import { Album, Moment, MoodOption } from "@/types";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches, invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { ShareMomentSheet } from "@/components/ShareMomentSheet";
 import { BottomSheet } from "@/components/BottomSheet";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { fetchMyReaction, fetchReactionCount, addReaction, removeReaction } from "@/lib/reactions";
 import { formatTime } from "@/lib/formatTime";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 
@@ -65,20 +63,12 @@ export default function MomentDetailScreen() {
   const {
     id,
     returnTo,
-    fromOnboarding,
-    showShareSheet,
-    taggedPersonName: taggedPersonNameParam,
-    taggedPersonUserId: taggedPersonUserIdParam,
     collectionId,
     collectionRole,
     contributorName,
   } = useLocalSearchParams<{
     id: string;
     returnTo?: string;
-    fromOnboarding?: string;
-    showShareSheet?: string;
-    taggedPersonName?: string;
-    taggedPersonUserId?: string;
     collectionId?: string;
     collectionRole?: string;
     contributorName?: string;
@@ -105,9 +95,6 @@ export default function MomentDetailScreen() {
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [shareModalVisible, setShareModalVisible] = useState(false);
-  // Onboarding share sheet — auto-opens when showShareSheet=true
-  const [onboardingShareSheetVisible, setOnboardingShareSheetVisible] = useState(false);
-  const [showVolumeHint, setShowVolumeHint] = useState(true);
   // Album membership state
   const [collectionModalVisible, setCollectionModalVisible] = useState(false);
   const [allCollections, setAllCollections] = useState<Album[]>([]);
@@ -118,11 +105,6 @@ export default function MomentDetailScreen() {
   const [newCollectionName, setNewCollectionName] = useState("");
   const [showingNewInput, setShowingNewInput] = useState(false);
   const [creatingCollection, setCreatingCollection] = useState(false);
-  // Resonance
-  const [hasReacted, setHasReacted] = useState(false);
-  const [reactionCount, setReactionCount] = useState(0);
-  const [reactingInFlight, setReactingInFlight] = useState(false);
-  const [friendTags, setFriendTags] = useState<TaggedMoment[]>([]);
 
   const [origin] = useState(() => consumeCardOrigin());
   const translateX = useSharedValue(origin.active ? origin.x : 0);
@@ -146,11 +128,6 @@ export default function MomentDetailScreen() {
     }
   }, [router, returnTo]);
 
-  const exitToCelebration = useCallback(() => {
-    setOnboardingShareSheetVisible(false);
-    setTimeout(() => animateOut(goBack), 300);
-  }, [animateOut, goBack]);
-
   useEffect(() => {
     const config = { duration: 320, easing: Easing.out(Easing.cubic) };
     opacity.value = withTiming(1, { duration: 180 });
@@ -158,19 +135,6 @@ export default function MomentDetailScreen() {
     translateY.value = withTiming(0, config);
     scaleAnim.value = withTiming(1, config);
   }, []);
-
-  useEffect(() => {
-    if (fromOnboarding !== "true") return;
-    const t = setTimeout(() => setShowVolumeHint(false), 6000);
-    return () => clearTimeout(t);
-  }, [fromOnboarding]);
-
-  // Auto-open the share sheet after the entrance animation completes.
-  useEffect(() => {
-    if (showShareSheet !== "true") return;
-    const t = setTimeout(() => setOnboardingShareSheetVisible(true), 450);
-    return () => clearTimeout(t);
-  }, [showShareSheet]);
 
   // A handle on the ScrollView's own scroll gesture, so the pans on this screen
   // can declare a relation to it instead of leaving arbitration to emerge from
@@ -313,16 +277,6 @@ export default function MomentDetailScreen() {
       .single();
 
     if (fetchError) {
-      // PGRST116 = 0 rows — may be a tagged moment owned by another user; try RPC
-      if (fetchError.code === "PGRST116") {
-        const { data: rpcData } = await supabase
-          .rpc("get_tagged_moment_data", { p_moment_ids: [id] });
-        if (rpcData && rpcData.length > 0) {
-          setMoment(mapRowToMoment(rpcData[0]));
-          setLoading(false);
-          return;
-        }
-      }
       if (showLoading) setError(friendlyError(fetchError));
       setLoading(false);
       return;
@@ -344,50 +298,6 @@ export default function MomentDetailScreen() {
       return () => { task.cancel(); };
     }, [fetchMoment])
   );
-
-  // Load friend tags for own moments
-  useEffect(() => {
-    if (!moment || !user || moment.userId !== user.id) return;
-    import("@/lib/friends").then(({ fetchTagsOnMoment }) => {
-      fetchTagsOnMoment(moment.id).then(setFriendTags).catch(() => {});
-    });
-  }, [moment?.id, user?.id]);
-
-  // Load reaction state
-  useEffect(() => {
-    if (!moment || !user) return;
-    if (moment.userId !== user.id) {
-      // Non-owner: check if current user has reacted
-      fetchMyReaction(moment.id).then(setHasReacted).catch(() => {});
-    } else {
-      // Owner: fetch total reaction count
-      fetchReactionCount(moment.id).then(setReactionCount).catch(() => {});
-    }
-  }, [moment?.id, user?.id]);
-
-  const handleResonance = useCallback(async () => {
-    if (!moment || !user || reactingInFlight) return;
-    const next = !hasReacted;
-    setHasReacted(next);
-    Haptics.impactAsync(next ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
-    setReactingInFlight(true);
-    try {
-      if (next) {
-        await addReaction(moment.id, user.id);
-        // Fire-and-forget push to owner
-        supabase.functions.invoke("notify-friend", {
-          body: { toUserId: moment.userId, type: "moment_resonated", payload: { momentId: moment.id, songTitle: moment.songTitle } },
-        }).catch(() => {});
-      } else {
-        await removeReaction(moment.id, user.id);
-      }
-    } catch {
-      // Revert optimistic update on failure
-      setHasReacted(!next);
-    } finally {
-      setReactingInFlight(false);
-    }
-  }, [moment, user, hasReacted, reactingInFlight]);
 
   const photoUrls = useMemo(
     () => moment?.photoUrls.map(getPublicPhotoUrl) ?? [],
@@ -985,60 +895,6 @@ export default function MomentDetailScreen() {
               </TouchableOpacity>
             )}
 
-            {/* Shared with — owner only */}
-            {user && moment.userId === user.id && friendTags.length > 0 && (() => {
-              const visible = friendTags.slice(0, 2);
-              const overflow = friendTags.length - visible.length;
-              return (
-                <TouchableOpacity
-                  style={styles.sharedWithRow}
-                  activeOpacity={0.7}
-                  onPress={() => setShareModalVisible(true)}
-                >
-                  <Ionicons name="people-outline" size={14} color={theme.colors.textSecondary} />
-                  <Text style={styles.sharedWithLabel}>Shared with</Text>
-                  {visible.map((tag) => (
-                    <View key={tag.id} style={styles.sharedWithChip}>
-                      <Text style={styles.sharedWithChipText} numberOfLines={1}>
-                        {tag.taggerDisplayName ?? "Friend"}
-                      </Text>
-                    </View>
-                  ))}
-                  {overflow > 0 && (
-                    <View style={styles.sharedWithChip}>
-                      <Text style={styles.sharedWithChipText}>+{overflow} more</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })()}
-
-            {/* Bottom action row */}
-            <View style={styles.actionRow}>
-              {user && moment.userId !== user.id && (
-                <TouchableOpacity
-                  style={[styles.resonanceGlass, hasReacted && styles.resonanceGlassActive]}
-                  onPress={handleResonance}
-                  activeOpacity={0.75}
-                  hitSlop={12}
-                >
-                  {reactingInFlight ? (
-                    <ActivityIndicator size="small" color={hasReacted ? theme.colors.accent : theme.colors.text} />
-                  ) : (
-                    <Ionicons
-                      name={hasReacted ? "heart" : "heart-outline"}
-                      size={20}
-                      color={hasReacted ? theme.colors.accent : theme.colors.text}
-                    />
-                  )}
-                </TouchableOpacity>
-              )}
-              {user && moment.userId === user.id && reactionCount > 0 && (
-                <View style={styles.resonanceGlass}>
-                  <Ionicons name="heart" size={18} color={theme.colors.accent} />
-                </View>
-              )}
-            </View>
           </View>
         </ScrollView>
         </GestureDetector>
@@ -1056,108 +912,9 @@ export default function MomentDetailScreen() {
           visible={shareModalVisible}
           moment={moment}
           photoUrls={photoUrls}
-          tags={friendTags}
-          onClose={() => {
-            setShareModalVisible(false);
-            // If we arrived here from the onboarding share sheet, exit to celebration
-            if (showShareSheet === "true") {
-              setTimeout(() => animateOut(goBack), 300);
-            }
-          }}
+          onClose={() => setShareModalVisible(false)}
         />
       )}
-
-      {/* Onboarding: volume nudge banner */}
-      {fromOnboarding === "true" && showVolumeHint && (
-        <View style={styles.volumeHint} pointerEvents="none">
-          <Ionicons name="volume-high-outline" size={16} color={theme.colors.textSecondary} />
-          <Text style={styles.volumeHintText}>Turn up your volume to hear it</Text>
-        </View>
-      )}
-
-      {/* Onboarding: share nudge card — hidden when the share sheet auto-opens */}
-      {fromOnboarding === "true" && showShareSheet !== "true" && moment && (
-        <View style={styles.onboardingShareCard}>
-          <Ionicons name="gift-outline" size={18} color={theme.colors.accent} />
-          <Text style={styles.onboardingShareText}>Tap <Text style={{ fontFamily: theme.fonts.bodyBold }}>•••</Text> above to give this memory to someone</Text>
-        </View>
-      )}
-
-      {/* ── Onboarding share sheet ── */}
-      {showShareSheet === "true" && moment && (() => {
-        const personName = taggedPersonNameParam ?? "them";
-        const isOnApp = Boolean(taggedPersonUserIdParam);
-        const inviteUrl = profile?.friendInviteToken
-          ? `https://soundtracks.app/friend/${profile.friendInviteToken}`
-          : "https://soundtracks.app";
-
-        return (
-          <BottomSheet
-            visible={onboardingShareSheetVisible}
-            onClose={exitToCelebration}
-            title={`Share with ${personName}?`}
-          >
-              <Text style={[shareSheetStyles.sub, { color: theme.colors.textSecondary }]}>
-                They were part of this memory.
-              </Text>
-
-              {/* Share options */}
-              <View style={shareSheetStyles.optionsList}>
-                {/* Create share card */}
-                <TouchableOpacity
-                  style={[shareSheetStyles.option, { borderColor: theme.colors.border }]}
-                  onPress={() => {
-                    setOnboardingShareSheetVisible(false);
-                    setTimeout(() => setShareModalVisible(true), 300);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[shareSheetStyles.optionIcon, { backgroundColor: theme.colors.accentBg }]}>
-                    <Ionicons name="image-outline" size={22} color={theme.colors.accent} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[shareSheetStyles.optionTitle, { color: theme.colors.text }]}>Save as Image</Text>
-                    <Text style={[shareSheetStyles.optionSub, { color: theme.colors.textSecondary }]}>A designed card for Stories or texting</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                </TouchableOpacity>
-
-                {/* Share invite link */}
-                <TouchableOpacity
-                  style={[shareSheetStyles.option, { borderColor: theme.colors.border }]}
-                  onPress={async () => {
-                    setOnboardingShareSheetVisible(false);
-                    try { await Share.share({ message: inviteUrl, url: inviteUrl }); } catch {}
-                    setTimeout(() => animateOut(goBack), 300);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[shareSheetStyles.optionIcon, { backgroundColor: theme.colors.accentBg }]}>
-                    <Ionicons name="link-outline" size={22} color={theme.colors.accent} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[shareSheetStyles.optionTitle, { color: theme.colors.text }]}>Share invite link</Text>
-                    <Text style={[shareSheetStyles.optionSub, { color: theme.colors.textSecondary }]}>Send via text, email or anywhere</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                </TouchableOpacity>
-
-                {/* Send in app — greyed until person joins */}
-                <View style={[shareSheetStyles.option, { borderColor: theme.colors.border, opacity: isOnApp ? 1 : 0.4 }]}>
-                  <View style={[shareSheetStyles.optionIcon, { backgroundColor: theme.colors.chipBg }]}>
-                    <Ionicons name="phone-portrait-outline" size={22} color={theme.colors.textSecondary} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[shareSheetStyles.optionTitle, { color: theme.colors.text }]}>Send in app</Text>
-                    <Text style={[shareSheetStyles.optionSub, { color: theme.colors.textSecondary }]}>
-                      {isOnApp ? `${personName} is on soundtracks` : `Available when ${personName} joins`}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-          </BottomSheet>
-        );
-      })()}
 
       {/* Collection membership sheet */}
       <BottomSheet
@@ -1672,39 +1429,6 @@ function createStyles(theme: Theme) {
       borderRadius: 14,
       overflow: "hidden",
     },
-    // ── Shared with ──────────────────────────────────────────────────────────
-    sharedWithRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      flexWrap: "wrap",
-      gap: 8,
-      marginTop: 20,
-    },
-    sharedWithLabel: {
-      fontSize: 13,
-      fontFamily: "DMSans_500Medium",
-      color: theme.colors.textSecondary,
-    },
-    sharedWithChip: {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.backgroundTertiary,
-    },
-    sharedWithChipText: {
-      fontSize: 12,
-      fontFamily: "DMSans_400Regular",
-      color: theme.colors.text,
-    },
-    // ── Action row ───────────────────────────────────────────────────────────
-    actionRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      marginTop: 32,
-    },
     shareMomentBtn: {
       flex: 1,
       height: 48,
@@ -1719,20 +1443,6 @@ function createStyles(theme: Theme) {
       fontSize: 14,
       fontFamily: "DMSans_600SemiBold",
       color: theme.colors.buttonText,
-    },
-    resonanceGlass: {
-      width: 48,
-      height: 48,
-      borderRadius: 14,
-      backgroundColor: theme.colors.backgroundTertiary,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    resonanceGlassActive: {
-      backgroundColor: "rgba(232,130,92,0.15)",
-      borderColor: "rgba(232,130,92,0.3)",
     },
     // ── Context menu ─────────────────────────────────────────────────────────
     menuBackdrop: {
@@ -1774,84 +1484,6 @@ function createStyles(theme: Theme) {
       height: StyleSheet.hairlineWidth,
       backgroundColor: theme.colors.border,
     },
-    // ── Volume hint ──────────────────────────────────────────────────────────
-    volumeHint: {
-      position: "absolute",
-      bottom: 100,
-      alignSelf: "center",
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      backgroundColor: theme.isDark ? "rgba(30,25,22,0.85)" : "rgba(255,255,255,0.85)",
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 20,
-    },
-    volumeHintText: {
-      fontSize: 13,
-      fontFamily: "DMSans_400Regular",
-      color: theme.colors.textSecondary,
-    },
-    // ── Onboarding share card ─────────────────────────────────────────────────
-    onboardingShareCard: {
-      position: "absolute",
-      bottom: 48,
-      left: 20,
-      right: 20,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      backgroundColor: theme.isDark ? "rgba(30,25,22,0.85)" : "rgba(255,255,255,0.85)",
-      borderRadius: 14,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      pointerEvents: "none",
-    },
-    onboardingShareText: {
-      flex: 1,
-      fontSize: 16,
-      fontFamily: "DMSans_500Medium",
-      color: theme.colors.text,
-    },
   });
 }
 
-// ── Onboarding share sheet styles (static — no theme dependency) ───────────
-const shareSheetStyles = StyleSheet.create({
-  sub: {
-    fontSize: 14,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-  },
-  optionsList: {
-    paddingHorizontal: 20,
-    gap: 10,
-    paddingBottom: 16,
-  },
-  option: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    gap: 14,
-  },
-  optionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  optionTitle: {
-    fontSize: 15,
-    fontFamily: "DMSans_600SemiBold",
-    marginBottom: 2,
-  },
-  optionSub: {
-    fontSize: 13,
-  },
-});

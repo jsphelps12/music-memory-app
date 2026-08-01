@@ -12,7 +12,6 @@ import { resetTimelineRefresh } from "@/lib/timelineRefresh";
 import { clearLegacyAlbumCaches } from "@/lib/albums";
 import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
 import { fetchBrowseMetadata, readBrowseCache, writeBrowseCache, clearBrowseCache } from "@/lib/browse";
-import { clearSharedCache } from "@/lib/sharedScreen";
 
 export interface OnboardingData {
   displayName: string;
@@ -212,13 +211,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           staleTime: 0,
         });
       });
-      // No ["sharedScreen"] prefetch: the screen it warmed
-      // (app/shared-albums.tsx) was unreachable and has been deleted. Warming it
-      // cost 5-10 REST calls (friend requests, friends, owned + joined
-      // collections, their owner profiles, album invites) plus a disk write on
-      // every cold start, competing with the fetches the first paint actually
-      // depends on. `clearSharedCache` below still runs so existing installs
-      // shed the key they already have.
     }
 
     /**
@@ -408,7 +400,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearProfileCache(userId),
         clearLegacyAlbumCaches(userId),
         clearBrowseCache(userId),
-        clearSharedCache(userId),
       ]);
     }
     // Drop in-memory query state and the one-shot cross-screen stores too.

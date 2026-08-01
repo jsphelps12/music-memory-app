@@ -23,7 +23,7 @@ import * as Clipboard from "expo-clipboard";
 import { AppImage } from "@/components/AppImage";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ShareCard, CARD_WIDTH, CARD_HEIGHT } from "@/components/ShareCard";
-import { Moment, TaggedMoment, Friendship } from "@/types";
+import { Moment } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -35,20 +35,17 @@ interface Props {
   visible: boolean;
   moment: Moment;
   photoUrls: string[];
-  tags: TaggedMoment[];
   onClose: () => void;
 }
 
-export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: Props) {
+export function ShareMomentSheet({ visible, moment, photoUrls, onClose }: Props) {
   const theme = useTheme();
   const { user } = useAuth();
   const viewShotRef = useRef<ViewShot>(null);
-  const [view, setView] = useState<"options" | "card" | "tagFriend">("options");
-  const [sentTagIds, setSentTagIds] = useState<Set<string>>(new Set());
+  const [view, setView] = useState<"options" | "card">("options");
 
   const handleClose = useCallback(() => {
     setView("options");
-    setSentTagIds(new Set());
     onClose();
   }, [onClose]);
 
@@ -57,16 +54,9 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [sharing, setSharing] = useState(false);
   const [sendingLink, setSendingLink] = useState(false);
-  const [sendingTagId, setSendingTagId] = useState<string | null>(null);
-  const [localTags, setLocalTags] = useState<TaggedMoment[]>(tags);
-  const [friends, setFriends] = useState<Friendship[]>([]);
-  const [friendsLoading, setFriendsLoading] = useState(false);
-  const [taggingUserId, setTaggingUserId] = useState<string | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(moment.shareToken ?? null);
   const [revoking, setRevoking] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
-
-  useEffect(() => { setLocalTags(tags); }, [tags]);
 
   // Card-column-shaped moments always carry shareToken: null (MOMENT_CARD_COLUMNS
   // omits it), so trusting the prop could mint a second token over a live one.
@@ -84,45 +74,6 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
         if (!error && data) setShareToken(data.share_token);
       });
   }, [visible, moment.id, moment.shareToken]);
-
-  const alreadyTaggedIds = new Set(localTags.map((t) => t.taggedUserId));
-
-  const openTagFriendPicker = async () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setView("tagFriend");
-    if (friends.length > 0) return;
-    setFriendsLoading(true);
-    try {
-      const { fetchFriends } = await import("@/lib/friends");
-      const result = await fetchFriends(user!.id);
-      setFriends(result);
-    } catch {
-      Alert.alert("Couldn't load friends", "Please try again.");
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setView("options");
-    } finally {
-      setFriendsLoading(false);
-    }
-  };
-
-  const handleTagFriend = async (friend: Friendship) => {
-    if (taggingUserId) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setTaggingUserId(friend.otherUserId);
-    try {
-      const { insertTaggedMoment } = await import("@/lib/friends");
-      const newTag = await insertTaggedMoment(moment.id, friend.otherUserId, true);
-      setLocalTags((prev) => [...prev, { ...newTag, taggerDisplayName: friend.otherUserDisplayName }]);
-      setSentTagIds((prev) => new Set([...prev, newTag.id]));
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setView("options");
-    } catch {
-      Alert.alert("Couldn't tag friend", "Please try again.");
-    } finally {
-      setTaggingUserId(null);
-    }
-  };
-
 
   const handleSendLink = async () => {
     if (sendingLink) return;
@@ -212,33 +163,9 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
     }
   };
 
-  const handleSendToFriend = async (tag: TaggedMoment) => {
-    if (sendingTagId) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setSendingTagId(tag.id);
-    try {
-      if (!tag.released) {
-        const { releaseTag } = await import("@/lib/friends");
-        await releaseTag(tag.id);
-      } else {
-        await supabase.functions.invoke("notify-friend", {
-          body: { toUserId: tag.taggedUserId, type: "moment_tagged", payload: { momentId: moment.id } },
-        });
-      }
-      setSentTagIds((prev) => new Set([...prev, tag.id]));
-    } catch {
-      Alert.alert("Couldn't send", "Please try again.");
-    } finally {
-      setSendingTagId(null);
-    }
-  };
-
   const songSubtitle = [moment.songTitle, moment.songArtist].filter(Boolean).join(" · ");
 
-  const sheetTitle =
-    view === "options" ? "Share this moment"
-    : view === "card" ? "Share card"
-    : "Tag a friend";
+  const sheetTitle = view === "options" ? "Share this moment" : "Share card";
 
   return (
     <BottomSheet
@@ -324,124 +251,9 @@ export function ShareMomentSheet({ visible, moment, photoUrls, tags, onClose }: 
             )}
           </View>
 
-          {/* Tagged friends */}
-          {localTags.map((tag) => {
-            const name = tag.taggerDisplayName ?? "Friend";
-            const sent = sentTagIds.has(tag.id) || tag.released;
-            const sending = sendingTagId === tag.id;
-            return (
-              <TouchableOpacity
-                key={tag.id}
-                style={[
-                  styles.friendCard,
-                  {
-                    backgroundColor: theme.colors.accentSecondaryBg,
-                    borderColor: theme.colors.accentSecondary + "55",
-                  },
-                ]}
-                activeOpacity={sent ? 1 : 0.7}
-                onPress={() => !sent && handleSendToFriend(tag)}
-                disabled={sent || !!sendingTagId}
-              >
-                <View style={[styles.iconBox, { backgroundColor: theme.colors.accentSecondary + "25" }]}>
-                  {sending
-                    ? <ActivityIndicator size="small" color={theme.colors.accentSecondary} />
-                    : <Ionicons name="people-outline" size={20} color={theme.colors.accentSecondary} />
-                  }
-                </View>
-                <View style={styles.optionText}>
-                  <Text style={[styles.optionTitle, { color: theme.colors.text }]}>
-                    {sent ? `Sent to ${name}` : `Send to ${name} in app`}
-                  </Text>
-                  <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>
-                    They were part of this memory
-                  </Text>
-                </View>
-                {sent
-                  ? <Ionicons name="checkmark-circle" size={20} color={theme.colors.accentSecondary} />
-                  : <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                }
-              </TouchableOpacity>
-            );
-          })}
-
-          {/* Tag another friend */}
-          {user && moment.userId === user.id && (
-            <TouchableOpacity
-              style={[styles.friendCard, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
-              activeOpacity={0.7}
-              onPress={openTagFriendPicker}
-            >
-              <View style={[styles.iconBox, { backgroundColor: theme.colors.chipBg }]}>
-                <Ionicons name="person-add-outline" size={20} color={theme.colors.textSecondary} />
-              </View>
-              <View style={styles.optionText}>
-                <Text style={[styles.optionTitle, { color: theme.colors.text }]}>Tag a friend</Text>
-                <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>Send this moment to someone in app</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-            </TouchableOpacity>
-          )}
-
           <TouchableOpacity style={styles.cancelButton} onPress={handleClose} activeOpacity={0.7}>
             <Text style={[styles.cancelText, { color: theme.colors.textSecondary }]}>Cancel</Text>
           </TouchableOpacity>
-        </>
-      ) : view === "tagFriend" ? (
-        <>
-          <TouchableOpacity onPress={goToOptions} hitSlop={12} activeOpacity={0.7} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
-          </TouchableOpacity>
-          {friendsLoading ? (
-            <View style={styles.friendPickerEmpty}>
-              <ActivityIndicator color={theme.colors.textSecondary} />
-            </View>
-          ) : (() => {
-            const available = friends.filter((f) => !alreadyTaggedIds.has(f.otherUserId));
-            if (available.length === 0) {
-              return (
-                <View style={styles.friendPickerEmpty}>
-                  <Text style={[styles.optionDesc, { color: theme.colors.textSecondary, textAlign: "center" }]}>
-                    All your friends have already been tagged.
-                  </Text>
-                </View>
-              );
-            }
-            return (
-              <ScrollView style={styles.friendPickerList} showsVerticalScrollIndicator={false}>
-                {available.map((friend) => {
-                  const isTagging = taggingUserId === friend.otherUserId;
-                  return (
-                    <TouchableOpacity
-                      key={friend.id}
-                      style={[styles.friendPickerRow, { borderBottomColor: theme.colors.border }]}
-                      onPress={() => handleTagFriend(friend)}
-                      disabled={!!taggingUserId}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.friendAvatar, { backgroundColor: theme.colors.backgroundTertiary }]}>
-                        <Text style={[styles.friendAvatarInitial, { color: theme.colors.textTertiary }]}>
-                          {(friend.otherUserDisplayName ?? friend.otherUserUsername ?? "?")[0]?.toUpperCase()}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.optionTitle, { color: theme.colors.text }]} numberOfLines={1}>
-                          {friend.otherUserDisplayName ?? friend.otherUserUsername ?? "Friend"}
-                        </Text>
-                        {friend.otherUserUsername && (
-                          <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>@{friend.otherUserUsername}</Text>
-                        )}
-                      </View>
-                      {isTagging
-                        ? <ActivityIndicator size="small" color={theme.colors.accentSecondary} />
-                        : <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                      }
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            );
-          })()}
         </>
       ) : (
         <>
@@ -557,17 +369,6 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     marginLeft: 74,
   },
-  friendCard: {
-    marginHorizontal: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 14,
-    marginBottom: 10,
-  },
   cancelButton: {
     alignItems: "center",
     paddingVertical: 14,
@@ -636,33 +437,5 @@ const styles = StyleSheet.create({
   shareButtonText: {
     fontSize: 16,
     fontFamily: "DMSans_700Bold",
-  },
-  friendPickerList: {
-    maxHeight: 320,
-    paddingHorizontal: 16,
-  },
-  friendPickerEmpty: {
-    height: 120,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-  },
-  friendPickerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  friendAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  friendAvatarInitial: {
-    fontSize: 15,
-    fontFamily: "DMSans_600SemiBold",
   },
 });

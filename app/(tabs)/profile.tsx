@@ -35,8 +35,7 @@ import { IconButton } from "@/components/IconButton";
 import { friendlyError } from "@/lib/errors";
 import { topValue, pluralMoments } from "@/lib/utils";
 import { pad } from "@/lib/dateUtils";
-import { fetchPendingRequests } from "@/lib/friends";
-import { PROFILE_STATS_STALE, PENDING_REQUESTS_STALE } from "@/lib/queryConfig";
+import { PROFILE_STATS_STALE } from "@/lib/queryConfig";
 
 const STALE_TIME = PROFILE_STATS_STALE;
 const AVATAR_SIZE = 80;
@@ -160,14 +159,6 @@ export default function ProfileScreen() {
     staleTime: STALE_TIME,
     enabled: !!user,
   });
-
-  const { data: pendingRequests = [] } = useQuery({
-    queryKey: ["pendingRequests", user?.id],
-    queryFn: () => fetchPendingRequests(user!.id),
-    staleTime: PENDING_REQUESTS_STALE,
-    enabled: !!user,
-  });
-  const pendingCount = pendingRequests.length;
 
   // `refreshProfile` is not a React Query observer, so it has no staleTime of
   // its own — left ungated it ran a full `profiles` select, an AsyncStorage
@@ -447,11 +438,6 @@ export default function ProfileScreen() {
         <View style={styles.friendsRowLeft}>
           <Ionicons name="people-outline" size={20} color={theme.colors.text} />
           <Text style={styles.promptsRowLabel}>Friends</Text>
-          {pendingCount > 0 && (
-            <View style={styles.friendsBadge}>
-              <Text style={styles.friendsBadgeText}>{pendingCount > 9 ? "9+" : pendingCount}</Text>
-            </View>
-          )}
         </View>
         <Ionicons name="chevron-forward" size={18} color={theme.colors.textTertiary} />
       </TouchableOpacity>

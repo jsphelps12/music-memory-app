@@ -27,12 +27,7 @@ import {
   removeAlbumMember,
   renameAlbum,
   updateAlbumCover,
-  searchUsersForAlbum,
-  sendAlbumInvite,
-  fetchSentAlbumInvites,
-  deleteAlbumInvite,
   AlbumMember,
-  SentAlbumInvite,
 } from "@/lib/albums";
 import { uploadAlbumCover, getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import { supabase } from "@/lib/supabase";
@@ -63,8 +58,6 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
   const [members, setMembers] = useState<AlbumMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
-  const [sentInvites, setSentInvites] = useState<SentAlbumInvite[]>([]);
-  const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
 
   // Rename state
   const [renaming, setRenaming] = useState(false);
@@ -75,12 +68,6 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
   const [uploadingCover, setUploadingCover] = useState(false);
 
   // Invite member by username
-  const [inviteQuery, setInviteQuery] = useState("");
-  const [inviteResults, setInviteResults] = useState<{ id: string; displayName: string; username: string }[]>([]);
-  const [invitingId, setInvitingId] = useState<string | null>(null);
-  const [inviteSearching, setInviteSearching] = useState(false);
-  const [sentIds, setSentIds] = useState<Set<string>>(new Set());
-  const inviteDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const queryClient = useQueryClient();
   const isOwner = collection.role === "owner";
@@ -88,53 +75,17 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
   useEffect(() => {
     if (visible && isOwner) {
       setLoadingMembers(true);
-      Promise.all([
-        fetchAlbumMembers(collection.id),
-        collection.isPublic ? fetchSentAlbumInvites(collection.id) : Promise.resolve([]),
-      ])
-        .then(([mems, invites]) => {
-          setMembers(mems);
-          setSentInvites(invites);
-        })
+      fetchAlbumMembers(collection.id)
+        .then(setMembers)
         .catch(() => {})
         .finally(() => setLoadingMembers(false));
     }
     if (!visible) {
       setMembers([]);
-      setSentInvites([]);
       setError("");
       setRenaming(false);
-      setInviteQuery("");
-      setInviteResults([]);
-      setSentIds(new Set());
     }
   }, [visible, isOwner, collection.id, collection.isPublic]);
-
-  // Debounced username search for invite
-  useEffect(() => {
-    if (inviteDebounce.current) clearTimeout(inviteDebounce.current);
-    if (inviteQuery.trim().length < 2) {
-      setInviteResults([]);
-      setInviteSearching(false);
-      return;
-    }
-    setInviteSearching(true);
-    inviteDebounce.current = setTimeout(() => {
-      const excludeIds = [
-        collection.userId,
-        user?.id ?? "",
-        ...members.map((m) => m.userId),
-        ...sentInvites.map((i) => i.inviteeId),
-      ].filter(Boolean);
-      searchUsersForAlbum(inviteQuery.trim(), excludeIds)
-        .then(setInviteResults)
-        .catch(() => {})
-        .finally(() => setInviteSearching(false));
-    }, 350);
-    return () => {
-      if (inviteDebounce.current) clearTimeout(inviteDebounce.current);
-    };
-  }, [inviteQuery, members, sentInvites, collection.userId, user?.id]);
 
   const inviteUrl = collection.inviteCode
     ? `${WEB_BASE_URL}/c/${collection.inviteCode}`
@@ -188,39 +139,6 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
       invalidateAlbumCaches(queryClient, user?.id, collection.id);
     } catch (e: any) {
       setError(friendlyError(e));
-    }
-  }
-
-  async function handleInvite(result: { id: string; displayName: string; username: string }) {
-    if (!user) return;
-    setInvitingId(result.id);
-    setError("");
-    try {
-      await sendAlbumInvite(collection.id, user.id, result.id);
-      setSentIds((prev) => new Set([...prev, result.id]));
-      setSentInvites((prev) => [...prev, { id: "", inviteeId: result.id, inviteeName: result.displayName, createdAt: new Date().toISOString() }]);
-      // Clear search after a moment so user sees the "Invited" state
-      setTimeout(() => {
-        setInviteQuery("");
-        setInviteResults([]);
-        setSentIds(new Set());
-      }, 1500);
-    } catch (e: any) {
-      setError(friendlyError(e));
-    } finally {
-      setInvitingId(null);
-    }
-  }
-
-  async function handleRevokeInvite(inviteId: string) {
-    setRevokingInviteId(inviteId);
-    try {
-      await deleteAlbumInvite(inviteId);
-      setSentInvites((prev) => prev.filter((i) => i.id !== inviteId));
-    } catch (e: any) {
-      setError(friendlyError(e));
-    } finally {
-      setRevokingInviteId(null);
     }
   }
 
@@ -504,62 +422,6 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                   </View>
                 </View>
 
-                {/* Invite member by username */}
-                <View style={styles.addMemberSection}>
-                  <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>INVITE MEMBER</Text>
-                  <View style={[styles.addMemberInputRow, { backgroundColor: theme.colors.backgroundInput }]}>
-                    <Ionicons name="at-outline" size={16} color={theme.colors.placeholder} />
-                    <TextInput
-                      style={[styles.addMemberInput, { color: theme.colors.text }]}
-                      placeholder="Search by username"
-                      placeholderTextColor={theme.colors.placeholder}
-                      value={inviteQuery}
-                      onChangeText={setInviteQuery}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      returnKeyType="search"
-                    />
-                    {inviteSearching && (
-                      <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                    )}
-                    {inviteQuery.length > 0 && !inviteSearching && (
-                      <TouchableOpacity onPress={() => { setInviteQuery(""); setInviteResults([]); }} hitSlop={8}>
-                        <Ionicons name="close-circle" size={16} color={theme.colors.placeholder} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                  {inviteResults.map((result) => {
-                    const wasSent = sentIds.has(result.id);
-                    return (
-                      <View key={result.id} style={[styles.addMemberResult, { borderBottomColor: theme.colors.backgroundInput }]}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.addMemberName, { color: theme.colors.text }]}>{result.displayName}</Text>
-                          <Text style={[styles.addMemberUsername, { color: theme.colors.textSecondary }]}>@{result.username}</Text>
-                        </View>
-                        <TouchableOpacity
-                          style={[
-                            styles.addBtn,
-                            { backgroundColor: wasSent ? theme.colors.chipBg : theme.colors.buttonBg, opacity: invitingId === result.id ? 0.6 : 1 },
-                          ]}
-                          onPress={() => !wasSent && handleInvite(result)}
-                          disabled={invitingId !== null || wasSent}
-                          activeOpacity={0.7}
-                        >
-                          {invitingId === result.id ? (
-                            <ActivityIndicator size="small" color={theme.colors.buttonText} />
-                          ) : wasSent ? (
-                            <Text style={[styles.addBtnText, { color: theme.colors.textSecondary }]}>Sent ✓</Text>
-                          ) : (
-                            <Text style={[styles.addBtnText, { color: theme.colors.buttonText }]}>Invite</Text>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
-                  {inviteQuery.trim().length >= 2 && !inviteSearching && inviteResults.length === 0 && (
-                    <Text style={[styles.addMemberEmpty, { color: theme.colors.textTertiary }]}>No users found</Text>
-                  )}
-                </View>
               </>
             ) : (
               /* Personal: convert button */
@@ -622,34 +484,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                       </TouchableOpacity>
                     </View>
                   ))}
-                  {/* Pending invites */}
-                  {sentInvites.filter((i) => i.id).map((invite) => (
-                    <View
-                      key={invite.id}
-                      style={[styles.memberRow, { borderBottomColor: theme.colors.backgroundInput }]}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.memberName, { color: theme.colors.textSecondary }]}>
-                          {invite.inviteeName ?? "Unknown"}
-                        </Text>
-                        <Text style={{ fontSize: 11, color: theme.colors.textTertiary, marginTop: 1 }}>
-                          Invited · pending
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => invite.id && handleRevokeInvite(invite.id)}
-                        disabled={revokingInviteId === invite.id}
-                        hitSlop={8}
-                      >
-                        {revokingInviteId === invite.id ? (
-                          <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                        ) : (
-                          <Ionicons name="close-outline" size={18} color={theme.colors.textSecondary} />
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                  {members.length === 0 && sentInvites.filter((i) => i.id).length === 0 && (
+                  {members.length === 0 && (
                     <Text style={[styles.emptyMembers, { color: theme.colors.textTertiary }]}>
                       No one else has joined yet.
                     </Text>

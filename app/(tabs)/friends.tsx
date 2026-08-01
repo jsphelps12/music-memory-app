@@ -26,11 +26,6 @@ import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import {
   fetchAlbums,
   fetchSharedAlbumActivity,
-  fetchPendingAlbumInvites,
-  acceptAlbumInvite,
-  deleteAlbumInvite,
-  AlbumInvite,
-  SharedAlbumActivity,
 } from "@/lib/albums";
 import { Album } from "@/types";
 import { friendlyError } from "@/lib/errors";
@@ -43,13 +38,12 @@ const CELL_SIZE = (Dimensions.get("window").width - SCREEN_PAD * 2 - GRID_GAP) /
 // ── Data ──────────────────────────────────────────────────────────────────────
 
 async function fetchAlbumsScreen(userId: string) {
-  const [albums, sharedActivity, invites] = await Promise.all([
+  const [albums, sharedActivity] = await Promise.all([
     fetchAlbums(userId),
     fetchSharedAlbumActivity(userId),
-    fetchPendingAlbumInvites(userId).catch(() => [] as AlbumInvite[]),
   ]);
   const activityMap = new Map(sharedActivity.map((a) => [a.collectionId, a.newMomentCount]));
-  return { albums, activityMap, invites };
+  return { albums, activityMap };
 }
 
 // ── Album cell ────────────────────────────────────────────────────────────────
@@ -102,7 +96,6 @@ function AlbumCell({
 }
 
 type SectionItem =
-  | { type: "invites" }
   | { type: "sectionHeader"; label: string }
   | { type: "row"; items: Album[] };
 
@@ -116,7 +109,6 @@ export default function AlbumsScreen() {
   const queryClient = useQueryClient();
 
   const [newAlbumVisible, setNewAlbumVisible] = useState(false);
-  const [respondingInviteId, setRespondingInviteId] = useState<string | null>(null);
 
   const STALE_TIME = 2 * 60 * 1000;
   const { data, isLoading, refetch, isFetching, dataUpdatedAt } = useQuery({
@@ -132,7 +124,6 @@ export default function AlbumsScreen() {
 
   const albums = data?.albums ?? [];
   const activityMap = data?.activityMap ?? new Map();
-  const invites = data?.invites ?? [];
 
   const personalAlbums = useMemo(
     () => albums.filter((c) => c.role === "owner" && !c.isPublic),
@@ -143,44 +134,6 @@ export default function AlbumsScreen() {
     [albums]
   );
 
-  const handleAcceptInvite = useCallback(async (invite: AlbumInvite) => {
-    if (!user) return;
-    setRespondingInviteId(invite.id);
-    try {
-      await acceptAlbumInvite(invite.id, invite.collectionId, user.id);
-      // Don't invalidate — re-fetching invites hits the replication lag window on the DELETE.
-      // Fetch only albums (INSERT replicates first) and write both changes atomically.
-      const updatedAlbums = await fetchAlbums(user.id);
-      queryClient.setQueryData(["collectionsScreen", user.id], (old: any) =>
-        old
-          ? {
-              ...old,
-              albums: updatedAlbums,
-              invites: old.invites.filter((i: AlbumInvite) => i.id !== invite.id),
-            }
-          : old
-      );
-    } catch (e: any) {
-      Alert.alert("Error", friendlyError(e));
-    } finally {
-      setRespondingInviteId(null);
-    }
-  }, [user, queryClient]);
-
-  const handleDeclineInvite = useCallback(async (inviteId: string) => {
-    setRespondingInviteId(inviteId);
-    try {
-      await deleteAlbumInvite(inviteId);
-      queryClient.setQueryData(["collectionsScreen", user?.id], (old: any) =>
-        old ? { ...old, invites: old.invites.filter((i: AlbumInvite) => i.id !== inviteId) } : old
-      );
-    } catch (e: any) {
-      Alert.alert("Error", friendlyError(e));
-    } finally {
-      setRespondingInviteId(null);
-    }
-  }, [user, queryClient]);
-
   const handleTapAlbum = useCallback((col: Album) => {
     router.push({ pathname: "/album/[id]" as any, params: { id: col.id } });
   }, [router]);
@@ -190,11 +143,10 @@ export default function AlbumsScreen() {
     queryClient.invalidateQueries({ queryKey: ["collectionsScreen", user?.id] });
   }, [queryClient, user?.id]);
 
-  const isEmpty = personalAlbums.length === 0 && sharedAlbums.length === 0 && invites.length === 0;
+  const isEmpty = personalAlbums.length === 0 && sharedAlbums.length === 0;
 
   const listData = useMemo<SectionItem[]>(() => {
     const rows: SectionItem[] = [];
-    if (invites.length > 0) rows.push({ type: "invites" });
     if (personalAlbums.length > 0) {
       rows.push({ type: "sectionHeader", label: "MY ALBUMS" });
       for (let i = 0; i < personalAlbums.length; i += 2) {
@@ -208,55 +160,9 @@ export default function AlbumsScreen() {
       }
     }
     return rows;
-  }, [invites, personalAlbums, sharedAlbums]);
+  }, [personalAlbums, sharedAlbums]);
 
   const renderItem = useCallback(({ item }: { item: SectionItem }) => {
-    if (item.type === "invites") {
-      return (
-        <View style={[dynamicStyles.inviteCard, { backgroundColor: theme.colors.cardBg, borderColor: theme.colors.border }]}>
-          {invites.map((invite, i) => (
-            <View key={invite.id} style={[dynamicStyles.inviteRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border }]}>
-              <View style={[dynamicStyles.inviteIcon, { backgroundColor: theme.colors.accentSecondaryBg }]}>
-                <Ionicons name="people-outline" size={16} color={theme.colors.accentSecondary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[dynamicStyles.inviteName, { color: theme.colors.text }]} numberOfLines={1}>
-                  {invite.collectionName}
-                </Text>
-                {invite.inviterName ? (
-                  <Text style={[dynamicStyles.inviteSub, { color: theme.colors.textSecondary }]}>
-                    Invited by {invite.inviterName}
-                  </Text>
-                ) : null}
-              </View>
-              <View style={dynamicStyles.inviteActions}>
-                <TouchableOpacity
-                  style={[dynamicStyles.inviteBtn, { borderColor: theme.colors.border }]}
-                  onPress={() => handleDeclineInvite(invite.id)}
-                  disabled={respondingInviteId === invite.id}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[dynamicStyles.inviteBtnText, { color: theme.colors.textSecondary }]}>Decline</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[dynamicStyles.inviteBtn, dynamicStyles.inviteBtnAccept, { backgroundColor: theme.colors.accentSecondary }]}
-                  onPress={() => handleAcceptInvite(invite)}
-                  disabled={respondingInviteId === invite.id}
-                  activeOpacity={0.8}
-                >
-                  {respondingInviteId === invite.id ? (
-                    <ActivityIndicator size="small" color={theme.colors.buttonText} />
-                  ) : (
-                    <Text style={[dynamicStyles.inviteBtnText, { color: "#fff" }]}>Accept</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
-        </View>
-      );
-    }
-
     if (item.type === "sectionHeader") {
       return (
         <Text style={[dynamicStyles.sectionLabel, { color: theme.colors.textTertiary }]}>
@@ -279,7 +185,7 @@ export default function AlbumsScreen() {
         {item.items.length === 1 && <View style={styles.cell} />}
       </View>
     );
-  }, [invites, activityMap, dynamicStyles, theme, handleDeclineInvite, handleAcceptInvite, handleTapAlbum, respondingInviteId]);
+  }, [activityMap, dynamicStyles, theme, handleTapAlbum]);
 
   if (isLoading) {
     return (
