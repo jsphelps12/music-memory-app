@@ -8,8 +8,7 @@
  * the profile stats counters, the map, and every drill-down list ("all moments
  * for this artist", "all moments tagged 2019", …). Same story for albums: the
  * Albums tab, its unread badge, and the album detail screen each hold their own
- * copy. Same again for the friend graph: one `fetchPendingRequests` result is
- * cached twice over — the Me tab's request list and the tab bar's "Me" badge.
+ * copy.
  *
  * Historically each mutation only invalidated whatever the screen it lived on
  * happened to read, so after a create/edit/delete the *other* surfaces kept
@@ -53,7 +52,6 @@ const MOMENT_DRILLDOWN_KEYS: ReadonlySet<string> = new Set([
   "personMoments",
   "yearMoments",
   "moodMoments",
-  "taggedMoments",
   "browseSearch",
 ]);
 
@@ -97,19 +95,11 @@ export function invalidateAlbumCaches(
 }
 
 /**
- * Invalidate every cache that renders the friend graph for this user. Call
- * after a friend request is accepted, declined or cancelled, or a friend is
- * removed.
- *
- * `["profileBadge"]` would eventually self-heal via its 60s refetchInterval,
- * but `["pendingRequests"]` has no interval at all — without this it only
- * refetches when the Me tab remounts, so a handled request can sit in the list
- * indefinitely.
+ * Invalidate every cache that renders the friend list for this user. Call
+ * after a friend is added (invite link accepted) or removed.
  */
 export function invalidateFriendCaches(queryClient: QueryClient, userId: string | undefined): void {
   if (!userId) return;
 
-  void queryClient.invalidateQueries({ queryKey: ["pendingRequests", userId] });
-  void queryClient.invalidateQueries({ queryKey: ["profileBadge", userId] });
   void queryClient.invalidateQueries({ queryKey: ["friendsList", userId] });
 }

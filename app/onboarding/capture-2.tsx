@@ -69,7 +69,6 @@ export default function OnboardingCapture2Screen() {
         moods: selectedMoods,
         locationResult,
         momentDate,
-        visibility: 'private',
       });
       markTimelineStale();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

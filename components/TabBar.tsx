@@ -6,23 +6,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
-import { fetchPendingRequests, fetchPendingTaggedMomentsCount } from "@/lib/friends";
-import { fetchSharedAlbumActivity, fetchPendingAlbumInvites } from "@/lib/albums";
+import { fetchSharedAlbumActivity } from "@/lib/albums";
 
 async function fetchAlbumsBadgeCount(userId: string): Promise<number> {
-  const [albums, invites] = await Promise.all([
-    fetchSharedAlbumActivity(userId),
-    fetchPendingAlbumInvites(userId).catch(() => []),
-  ]);
-  return albums.reduce((sum, c) => sum + c.newMomentCount, 0) + invites.length;
-}
-
-async function fetchProfileBadgeCount(userId: string): Promise<number> {
-  const [requests, pendingTags] = await Promise.all([
-    fetchPendingRequests(userId),
-    fetchPendingTaggedMomentsCount(userId),
-  ]);
-  return requests.length + pendingTags;
+  const albums = await fetchSharedAlbumActivity(userId);
+  return albums.reduce((sum, c) => sum + c.newMomentCount, 0);
 }
 import type { MaterialTopTabBarProps } from "@react-navigation/material-top-tabs";
 import { MiniPlayer } from "@/components/MiniPlayer";
@@ -53,15 +41,6 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
   const { data: collectionsBadge = 0 } = useQuery({
     queryKey: ["collectionsBadge", user?.id],
     queryFn: () => fetchAlbumsBadgeCount(user!.id),
-    enabled: !!user,
-    staleTime: 60_000,
-    refetchInterval: 60_000,
-    refetchIntervalInBackground: false,
-  });
-
-  const { data: profileBadge = 0 } = useQuery({
-    queryKey: ["profileBadge", user?.id],
-    queryFn: () => fetchProfileBadgeCount(user!.id),
     enabled: !!user,
     staleTime: 60_000,
     refetchInterval: 60_000,
@@ -111,7 +90,7 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
         const color = isActive ? activeColor : inactiveColor;
         const iconDef = ICONS[visualIndex];
         const iconName = isActive ? iconDef.active : iconDef.inactive;
-        const badgeCount = tab.label === "Albums" ? collectionsBadge : tab.label === "Me" ? profileBadge : 0;
+        const badgeCount = tab.label === "Albums" ? collectionsBadge : 0;
         const showBadge = badgeCount > 0;
 
         return (

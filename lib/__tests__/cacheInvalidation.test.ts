@@ -48,7 +48,6 @@ const MOMENT_DRILLDOWN_KEYS = [
   "personMoments",
   "yearMoments",
   "moodMoments",
-  "taggedMoments",
   "browseSearch",
 ];
 

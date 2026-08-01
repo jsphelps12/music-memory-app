@@ -52,7 +52,7 @@ export function useDeepLinkHandler() {
   const { user, profile } = useAuth();
   // Deduplicate URL handling — getInitialURL + addEventListener both fire for same URL
   const lastHandledUrlRef = useRef<string | null>(null);
-  // Deduplicate friend-request navigations by token value — URL + AsyncStorage + clipboard can all fire the same token
+  // Deduplicate friend-accept navigations by token value — URL + AsyncStorage + clipboard can all fire the same token
   const handledFriendTokensRef = useRef(new Set<string>());
 
   const handleInviteCode = useCallback(async (inviteCode: string) => {
@@ -67,7 +67,7 @@ export function useDeepLinkHandler() {
     if (user) {
       if (handledFriendTokensRef.current.has(token)) return;
       handledFriendTokensRef.current.add(token);
-      router.push({ pathname: "/friend-request" as any, params: { token } });
+      router.push({ pathname: "/friend/[token]" as any, params: { token } });
     } else {
       await AsyncStorage.setItem(PENDING_FRIEND_TOKEN_KEY, token);
     }
@@ -179,21 +179,12 @@ export function useDeepLinkHandler() {
       .catch((err) => { if (__DEV__) console.warn("[deep-link] pending friend token read failed:", err); });
   }, [user?.id, profile?.onboardingCompleted]);
 
-  // After auth + onboarding complete, claim any pending gifted moment
+  // Clear any stale pending-gift token (pre-v2 installs may still carry one).
+  // Share links no longer create social state when claimed — the recipient-
+  // initiated "Keep this" flow arrives in Sharing v2 Phase E.
   useEffect(() => {
     if (!user || !profile?.onboardingCompleted) return;
-    AsyncStorage.getItem(PENDING_GIFT_TOKEN_KEY)
-      .then(async (shareToken) => {
-        if (!shareToken) return;
-        // removeItem sits outside the inner try/catch, so the chain needs its
-        // own catch — a failed write here would otherwise reject unhandled.
-        await AsyncStorage.removeItem(PENDING_GIFT_TOKEN_KEY);
-        try {
-          await supabase.rpc("claim_gifted_moment", { p_share_token: shareToken });
-        } catch {}
-        // No navigation needed — moment will appear in With Me on next load
-      })
-      .catch((err) => { if (__DEV__) console.warn("[deep-link] pending gift claim failed:", err); });
+    AsyncStorage.removeItem(PENDING_GIFT_TOKEN_KEY).catch(() => {});
   }, [user?.id, profile?.onboardingCompleted]);
 
   // URI scheme deep links — app already installed

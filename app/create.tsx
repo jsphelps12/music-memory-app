@@ -26,7 +26,6 @@ import { saveMoment } from "@/lib/saveMoment";
 import { maybeRequestReview } from "@/lib/reviewPrompt";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
-import { VisibilityPicker, Visibility } from "@/components/VisibilityPicker";
 import { AlbumPicker } from "@/components/AlbumPicker";
 import { CreateAlbumSheet } from "@/components/CreateAlbumSheet";
 import { SongPickerSection } from "@/components/SongPickerSection";
@@ -182,7 +181,6 @@ export default function CreateMomentScreen() {
 
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [people, setPeople] = useState<string[]>([]);
-  const [visibility, setVisibility] = useState<Visibility>('private');
   const [momentDate, setMomentDate] = useState<Date | null>(new Date());
   const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
   const [weatherResult, setWeatherResult] = useState<WeatherResult | null>(null);
@@ -197,18 +195,6 @@ export default function CreateMomentScreen() {
   const [error, setError] = useState("");
   const [focusedField, setFocusedField] = useState("");
   const [promptPickerVisible, setPromptPickerVisible] = useState(false);
-
-  // Tag Friends
-  const [taggedFriends, setTaggedFriends] = useState<Array<{ friend: import("@/types").Friendship; send: boolean }>>([]);
-  const [availableFriends, setAvailableFriends] = useState<import("@/types").Friendship[]>([]);
-
-  useEffect(() => {
-    if (showDetails && user && availableFriends.length === 0) {
-      import("@/lib/friends").then(({ fetchFriends }) => {
-        fetchFriends(user.id).then(setAvailableFriends).catch(() => {});
-      });
-    }
-  }, [showDetails, user?.id]);
 
   useEffect(() => {
     if ((showDetails || params.collectionId) && user && albums.length === 0) {
@@ -292,9 +278,7 @@ export default function CreateMomentScreen() {
         moods: selectedMoods,
         locationResult,
         momentDate,
-        visibility,
         selectedAlbum,
-        taggedFriends,
         prefetchedPreview,
         weatherResult,
       });
@@ -334,13 +318,11 @@ export default function CreateMomentScreen() {
       setMomentDate(new Date());
       setLocationResult(null);
       setSelectedAlbum(null);
-      setVisibility('private');
       setWeatherResult(null);
       setMetaSuggestion(null);
       setDismissedMetaSuggestion(false);
       setShowDetails(false);
       setError("");
-      setTaggedFriends([]);
 
       markTimelineStale(savedMoment);
       invalidateMomentCaches(queryClient, user.id);
@@ -439,16 +421,7 @@ export default function CreateMomentScreen() {
             <PeopleInput
               people={people}
               onChangePeople={setPeople}
-              taggedFriends={taggedFriends}
-              onChangeTaggedFriends={setTaggedFriends}
-              friends={availableFriends}
             />
-
-            {/* Visibility */}
-            <Text style={styles.sectionLabel}>
-              {selectedAlbum?.isPublic ? "Who else can see this" : "Who can see this"}
-            </Text>
-            <VisibilityPicker value={visibility} onChange={setVisibility} />
 
             {/* Mood selector */}
             <Text style={styles.sectionLabel}>Mood</Text>

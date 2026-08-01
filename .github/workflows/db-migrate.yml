@@ -1,0 +1,34 @@
+# Applies repo migrations to BOTH Supabase projects (staging + prod) when they
+# land on main, recording history with filename versions — the enforcement half
+# of the migration-tracking repair (2026-07-31): history cannot drift if CI is
+# the thing applying migrations. PRs touching migrations get a check-only run.
+#
+# Requires the SUPABASE_ACCESS_TOKEN repo secret (Supabase dashboard → Account
+# → Access Tokens). Destructive "caboose" migrations still land here like any
+# other file — gate them by not merging until the adoption check passes.
+name: DB Migrate
+
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/migrations/**"]
+  pull_request:
+    paths: ["supabase/migrations/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: db-migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: ${{ github.event_name == 'pull_request' && 'Drift check' || 'Apply migrations' }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/db-migrate.mjs ${{ github.event_name == 'pull_request' && '--check' || '' }}

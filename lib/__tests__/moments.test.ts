@@ -41,7 +41,6 @@ function fullRow() {
     weather_condition: "clear",
     created_at: "2019-08-15T04:02:00Z",
     updated_at: "2019-08-15T04:02:00Z",
-    visibility: "connections",
     share_token: "tok_123",
     guest_uuid: "guest-1",
   };
@@ -74,7 +73,6 @@ describe("mapRowToMoment", () => {
       weatherCondition: "clear",
       createdAt: "2019-08-15T04:02:00Z",
       updatedAt: "2019-08-15T04:02:00Z",
-      visibility: "connections",
       shareToken: "tok_123",
       guestUuid: "guest-1",
     });
@@ -119,11 +117,6 @@ describe("mapRowToMoment", () => {
     ).toEqual(["nostalgic", "joyful"]);
     // An empty moods array is a real value (moods cleared), not an absence.
     expect(mapRowToMoment({ id: "m1", mood: "nostalgic", moods: [] }).moods).toEqual([]);
-  });
-
-  it("defaults visibility to private, the safe direction", () => {
-    expect(mapRowToMoment({ id: "m1" }).visibility).toBe("private");
-    expect(mapRowToMoment({ id: "m1", visibility: "link" }).visibility).toBe("link");
   });
 
   it("preserves falsy-but-meaningful values instead of defaulting them", () => {
@@ -175,9 +168,9 @@ const CARD_BACKED_FIELDS = [
 /**
  * Moment fields that a card-column row does NOT populate — `mapRowToMoment`
  * invents them. This is the trapdoor: the return type says `Moment`, so nothing
- * stops a screen from reading `moment.userId` (undefined) or trusting
- * `moment.visibility === "private"` (a default, not the stored value) on an
- * object that came off the timeline.
+ * stops a screen from reading `moment.shareToken` (null — a default, not the
+ * stored value) on an object that came off the timeline. ShareMomentSheet
+ * re-reads the row on open for exactly this reason.
  */
 const CARD_FABRICATED_FIELDS = [
   "people",
@@ -188,7 +181,6 @@ const CARD_FABRICATED_FIELDS = [
   "weatherTempF",
   "weatherCondition",
   "updatedAt",
-  "visibility",
   "shareToken",
 ] as const;
 
@@ -267,10 +259,9 @@ describe("MOMENT_CARD_COLUMNS contract", () => {
     const moment = mapRowToMoment(cardRow);
     const complete = mapRowToMoment(full);
 
-    // Typed as a complete Moment, but: no people, and it claims to be
-    // private when the stored row says "connections".
+    // Typed as a complete Moment, but: no people, and it claims to have no
+    // share token when the stored row has a live one.
     expect(moment.people).toEqual([]);
-    expect(moment.visibility).toBe("private");
     expect(moment.shareToken).toBeNull();
     expect(moment.location).toBeUndefined();
     expect(moment.updatedAt).toBeUndefined();

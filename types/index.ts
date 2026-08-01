@@ -54,7 +54,6 @@ export interface Moment {
   weatherCondition: string | null;
   createdAt: string;
   updatedAt: string;
-  visibility: 'private' | 'connections' | 'link';
   shareToken?: string | null;
   guestUuid?: string | null;
   // Set when viewing a shared album — display name of who added this moment
@@ -137,16 +136,3 @@ export interface Friendship {
   otherUserUsername: string | null;
 }
 
-export interface TaggedMoment {
-  id: string;
-  momentId: string;
-  taggerUserId: string;
-  taggedUserId: string;
-  released: boolean;
-  status: 'pending' | 'accepted' | 'hidden';
-  tagToken: string;
-  createdAt: string;
-  taggerDisplayName: string | null;
-  taggerAvatarUrl: string | null;
-  moment?: Moment;
-}

@@ -28,7 +28,6 @@ export function mapRowToMoment(row: any): Moment {
     weatherCondition: row.weather_condition ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    visibility: row.visibility ?? 'private',
     shareToken: row.share_token ?? null,
     guestUuid: row.guest_uuid ?? null,
     // Guest contributions carry their attribution on the row itself; for

@@ -41,8 +41,6 @@ import { MomentCard } from "@/components/MomentCard";
 import { IconButton } from "@/components/IconButton";
 import { CalendarView } from "@/components/CalendarView";
 import { EmptyState } from "@/components/EmptyState";
-import { fetchTaggedMomentsSharedTab, markAllTaggedMomentsViewed } from "@/lib/friends";
-import { TAGGED_MOMENTS_STALE } from "@/lib/queryConfig";
 import { Moment } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 30_000;
@@ -68,8 +66,6 @@ export default function TimelineScreen() {
   const refreshInFlightRef = useRef(false);
   const [totalCount, setTotalCount] = useState<number | null>(null);
 
-  // Toggle between personal timeline and tagged moments
-  const [activeTab, setActiveTab] = useState<"mine" | "tagged">("mine");
 
   // Snapshot of the full timeline so calendar can derive data without another query
   const timelineSnapshotRef = useRef<{ moments: Moment[]; hasMore: boolean } | null>(null);
@@ -95,11 +91,6 @@ export default function TimelineScreen() {
   const calendarOpacity = useSharedValue(0);
   const listAnimStyle = useAnimatedStyle(() => ({ opacity: listOpacity.value }));
   const calendarAnimStyle = useAnimatedStyle(() => ({ opacity: calendarOpacity.value }));
-
-  const mineOpacity = useSharedValue(1);
-  const taggedOpacity = useSharedValue(0);
-  const mineAnimStyle = useAnimatedStyle(() => ({ opacity: mineOpacity.value }));
-  const taggedAnimStyle = useAnimatedStyle(() => ({ opacity: taggedOpacity.value }));
 
   const viewModeRef = useRef(viewMode);
   viewModeRef.current = viewMode;
@@ -136,7 +127,7 @@ export default function TimelineScreen() {
           weatherTempF: null, weatherCondition: null,
           createdAt: "", updatedAt: "", songAlbumName: "",
           songProvider: "apple_music", songAppleMusicId: null, songSpotifyId: null,
-          songPreviewUrl: null, visibility: "private",
+          songPreviewUrl: null,
         }))
       );
       calendarFetchedRef.current = true;
@@ -427,35 +418,6 @@ export default function TimelineScreen() {
     setRefreshing(false);
   }, [fetchMoments, fetchCalendarMoments]);
 
-  const queryClient = useQueryClient();
-
-  // Tagged moments query — always enabled so data is ready before the user switches
-  const { data: taggedMoments = [], isFetching: taggedFetching, isLoading: taggedLoading, refetch: refetchTagged } = useQuery({
-    queryKey: ["taggedMoments", user?.id],
-    queryFn: () => fetchTaggedMomentsSharedTab(user!.id),
-    staleTime: TAGGED_MOMENTS_STALE,
-    enabled: !!user,
-  });
-
-  // `taggedMoments.length` must be a dependency: opening the Tagged pill before
-  // the query resolves runs this against the default `[]`, and without the dep
-  // it never re-runs when the rows land — the unread badge stays lit forever.
-  // Length rather than the array itself, so a refetch returning an equal-length
-  // list doesn't re-fire the write.
-  const taggedCount = taggedMoments.length;
-  useEffect(() => {
-    if (activeTab === "tagged" && taggedCount > 0 && user) {
-      markAllTaggedMomentsViewed(user.id)
-        .then(() => {
-          queryClient.invalidateQueries({ queryKey: ["profileBadge", user.id] });
-        })
-        .catch(() => {
-          // Marking as viewed is best-effort — the badge simply stays until the
-          // next visit. Nothing to show the user here.
-        });
-    }
-  }, [activeTab, taggedCount, user?.id, queryClient]);
-
   const allMoods = useMemo(
     () => [...MOODS, ...(profile?.customMoods ?? [])],
     [profile?.customMoods]
@@ -492,7 +454,7 @@ export default function TimelineScreen() {
         {/* Title row */}
         <View style={styles.headerTop}>
           <View style={{ flex: 1, marginRight: theme.spacing.md }}>
-            {totalCount !== null && activeTab === "mine" && (
+            {totalCount !== null && (
               <Text style={styles.momentCountLabel}>
                 {totalCount} {totalCount === 1 ? "MOMENT" : "MOMENTS"}
               </Text>
@@ -504,58 +466,20 @@ export default function TimelineScreen() {
               name="search-outline"
               onPress={() => router.push("/browse" as any)}
             />
-            {activeTab === "mine" && (
-              <>
-                <IconButton
-                  name="map-outline"
-                  onPress={() => router.push("/moments-map" as any)}
-                />
-                <IconButton
-                  name={viewMode === "calendar" ? "list-outline" : "calendar-outline"}
-                  onPress={toggleView}
-                />
-              </>
-            )}
+            <IconButton
+              name="map-outline"
+              onPress={() => router.push("/moments-map" as any)}
+            />
+            <IconButton
+              name={viewMode === "calendar" ? "list-outline" : "calendar-outline"}
+              onPress={toggleView}
+            />
           </View>
         </View>
 
-        {/* My Moments / Tagged toggle */}
-        <View style={styles.toggle}>
-          <TouchableOpacity
-            style={[styles.togglePill, activeTab === "mine" && styles.togglePillActive]}
-            onPress={() => {
-              setActiveTab("mine");
-              taggedOpacity.value = withTiming(0, { duration: 180 });
-              mineOpacity.value = withTiming(1, { duration: 180 });
-            }}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.toggleText, activeTab === "mine" && styles.toggleTextActive]}>
-              My Moments
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.togglePill, activeTab === "tagged" && styles.togglePillActive]}
-            onPress={() => {
-              setActiveTab("tagged");
-              mineOpacity.value = withTiming(0, { duration: 180 });
-              taggedOpacity.value = withTiming(1, { duration: 180 });
-            }}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.toggleText, activeTab === "tagged" && styles.toggleTextActive]}>
-              Tagged
-            </Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
-      {/* My Moments + Tagged — both always mounted; opacity + pointerEvents controls visibility */}
       <View style={{ flex: 1 }}>
-        <Animated.View
-          style={[StyleSheet.absoluteFill, mineAnimStyle]}
-          pointerEvents={activeTab === "mine" ? "auto" : "none"}
-        >
           <GestureDetector gesture={pinchGesture}>
             <View style={styles.viewsContainer}>
               <Animated.View style={[StyleSheet.absoluteFill, listAnimStyle]} pointerEvents={viewMode === "list" ? "auto" : "none"}>
@@ -621,42 +545,6 @@ export default function TimelineScreen() {
               </Animated.View>
             </View>
           </GestureDetector>
-        </Animated.View>
-
-        <Animated.View
-          style={[StyleSheet.absoluteFill, taggedAnimStyle]}
-          pointerEvents={activeTab === "tagged" ? "auto" : "none"}
-        >
-          <FlatList
-            data={taggedMoments}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={[styles.listContent, !taggedLoading && taggedMoments.length === 0 && { flex: 1 }]}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={taggedFetching && !taggedLoading}
-                onRefresh={() => refetchTagged()}
-                tintColor={theme.colors.text}
-              />
-            }
-            renderItem={({ item }) =>
-              item.moment ? <MomentCard item={item.moment} allMoods={allMoods} /> : null
-            }
-            ListEmptyComponent={
-              taggedLoading ? (
-                <View style={styles.skeletonList}>
-                  {[0, 1, 2, 3].map((i) => <SkeletonTimelineCard key={i} />)}
-                </View>
-              ) : (
-                <EmptyState
-                  icon="person-add-outline"
-                  title="No tagged moments yet"
-                  subtitle="When a friend tags you in a memory, it'll appear here."
-                />
-              )
-            }
-          />
-        </Animated.View>
       </View>
     </View>
   );
