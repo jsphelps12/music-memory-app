@@ -37,6 +37,7 @@ Copy `.env.example` to `.env` and fill in:
 
 ## Key Conventions
 
+- **Every surface is either a screen or a quick pick** — screens get a full-screen route (card push or `fullScreenModal`); quick picks get a compact bottom sheet sized to content. Never use `presentation: "modal"`/pageSheet-style cards that cover most of the parent screen (owner rule; existing offenders are queued for conversion — see ROADMAP modal consolidation)
 - Path aliases use `@/` (mapped to project root in tsconfig)
 - DB rows are snake_case; map to camelCase `Moment` type in fetch logic (see timeline or moment detail for pattern)
 - Auth gate in root layout redirects unauthenticated users to `(auth)/sign-in`
@@ -57,9 +58,9 @@ Copy `.env.example` to `.env` and fill in:
 - Share extension handles Apple Music URLs directly (iTunes Lookup API) and Spotify URLs via oEmbed cross-search to Apple Music
 - Local Expo native modules live in `modules/` directory; `nativeModulesDir` is configured in package.json for autolinking; each module needs a podspec in its `ios/` folder
 - Now playing detection uses `MPMusicPlayerController.systemMusicPlayer` (not the library's `ApplicationMusicPlayer` which only sees app-initiated playback)
-- **Albums** (UI/type name) = user-defined moment groupings; DB tables use `collections` / `collection_members` / `collection_moments` / `collection_invites`; types are `Album` / `AlbumPreview` in `types/index.ts`; all DB operations in `lib/albums.ts`
-- Tab bar: Moments | Reflections | Albums | Me — the Albums tab file is `app/(tabs)/friends.tsx` (route name unchanged from when it was the Friends tab)
-- Direct invite system: `collection_invites` table; `sendAlbumInvite` / `fetchPendingAlbumInvites` / `acceptAlbumInvite` / `deleteAlbumInvite` / `searchUsersForAlbum` in `lib/albums.ts`
+- **Albums** (UI/type name) = user-defined moment groupings; DB tables use `collections` / `collection_members` / `collection_moments`; types are `Album` / `AlbumPreview` in `types/index.ts`; all DB operations in `lib/albums.ts`; joining is by invite link only
+- Tab bar: Moments | Reflections | Albums | Me — the Albums tab file is `app/(tabs)/albums.tsx` (renamed from `friends.tsx` in Sharing v2 Phase C; legacy pushes with `data.type "friends"` still route there)
+- Sharing v2 (spec `docs/SOCIAL-ARCHITECTURE.md`): friendships are mutual-by-link only (`lib/friends.ts`); direct moment shares live in `moment_shares` via `lib/momentShares.ts` (send, "Shared with me" inbox, unread badge); social pushes go through the `notify-social` edge function (`share_received`) and `accept-friend-invite` (`friend_added`)
 
 ## Data Fetching (React Query / TanStack Query)
 
@@ -115,10 +116,6 @@ type ScreenState = "loading" | "not_found" | "ready" | "error";
 const [state, setState] = useState<ScreenState>("loading");
 ```
 This avoids impossible state combinations (e.g. `loading && error` both true).
-
-## Shared/Albums Tab Data
-
-`lib/sharedScreen.ts` is the single data source for the Albums tab — fetches pending friend requests, friends list, shared album activity, and pending album invites in parallel via `Promise.all`. Has its own AsyncStorage cache (`shared_screen_{userId}`). Always fetch via `fetchSharedScreenData` to get all of this in one shot.
 
 ## Current Status
 

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   View,
@@ -9,6 +9,8 @@ import {
   ScrollView,
   RefreshControl,
   Alert,
+  Platform,
+  Share,
 } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import { useRouter } from "expo-router";
@@ -16,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { CloseButton } from "@/components/CloseButton";
+import { IconButton } from "@/components/IconButton";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { friendlyError } from "@/lib/errors";
 import { invalidateFriendCaches } from "@/lib/cacheInvalidation";
@@ -43,10 +46,18 @@ function Avatar({ avatarUrl, displayName }: { avatarUrl: string | null; displayN
 // sent requests — a friendship exists the moment someone opens your link.
 export default function FriendsListScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const theme = useTheme();
   const s = useMemo(() => createStyles(theme), [theme]);
   const queryClient = useQueryClient();
+
+  // Add-by-link is the only door (Sharing v2): opening this link makes the
+  // pair instantly mutual, so sharing it IS the whole "add a person" flow.
+  const handleShareLink = useCallback(() => {
+    if (!profile?.friendInviteToken) return;
+    const url = `https://soundtracks.app/friend/${profile.friendInviteToken}`;
+    Share.share(Platform.OS === "ios" ? { url } : { message: url });
+  }, [profile?.friendInviteToken]);
 
   const { data: friends = [], isLoading, isFetching, refetch } = useQuery({
     queryKey: ["friendsList", user?.id],
@@ -86,7 +97,10 @@ export default function FriendsListScreen() {
       {/* Header */}
       <View style={[s.header, { borderBottomColor: theme.colors.border }]}>
         <Text style={[s.headerTitle, { color: theme.colors.text }]}>Friends</Text>
-        <CloseButton onPress={() => router.back()} />
+        <View style={s.headerActions}>
+          <IconButton name="person-add-outline" onPress={handleShareLink} />
+          <CloseButton onPress={() => router.back()} />
+        </View>
       </View>
 
       {isLoading ? (
@@ -110,9 +124,21 @@ export default function FriendsListScreen() {
               My Friends ({friends.length})
             </Text>
             {friends.length === 0 ? (
-              <Text style={[s.emptyText, { color: theme.colors.textSecondary }]}>
-                Share your friend link to connect with others.
-              </Text>
+              <>
+                <Text style={[s.emptyText, { color: theme.colors.textSecondary }]}>
+                  Anyone who opens your friend link becomes a friend instantly —
+                  then you can send moments straight to them.
+                </Text>
+                <TouchableOpacity
+                  style={[s.shareLinkButton, { backgroundColor: theme.colors.buttonBg }]}
+                  onPress={handleShareLink}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.shareLinkButtonText, { color: theme.colors.buttonText }]}>
+                    Share your friend link
+                  </Text>
+                </TouchableOpacity>
+              </>
             ) : (
               friends.map((friendship) => (
                 <TouchableOpacity
@@ -210,6 +236,22 @@ function createStyles(theme: Theme) {
     emptyText: {
       fontSize: theme.fontSize.sm,
       lineHeight: 20,
+    },
+    headerActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md,
+    },
+    shareLinkButton: {
+      marginTop: 16,
+      alignSelf: "flex-start",
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      borderRadius: theme.radii.full,
+    },
+    shareLinkButtonText: {
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.bodySemibold,
     },
   });
 }

@@ -56,12 +56,19 @@ Discovery is your link — no username search, no phone contacts (v1 decision, k
 CREATE TABLE moment_shares (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   moment_id uuid NOT NULL REFERENCES moments(id) ON DELETE CASCADE,
+  sender_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   recipient_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   created_at timestamptz NOT NULL DEFAULT now(),
   viewed_at timestamptz,
   UNIQUE (moment_id, recipient_id)
 );
 ```
+
+(`sender_id` is denormalized from `moments.user_id`, added at build time in Phase C:
+the moments SELECT policy references `moment_shares`, so `moment_shares` policies must
+be self-contained — a policy on this table that looked up `moments` for ownership
+would be mutual recursion, which Postgres rejects at query time. It also gives
+"Shared with me" its sender attribution without a join through moments.)
 
 Created from the share sheet's "Send to a person" picker (recipients = your People).
 Recipient gets one push ("Josh shared September with you") and the moment appears in

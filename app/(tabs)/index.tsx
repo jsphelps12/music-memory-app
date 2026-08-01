@@ -30,6 +30,12 @@ import {
   TIMELINE_PAGE_SIZE,
 } from "@/lib/timelinePrefetch";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
+import {
+  fetchSharedWithMe,
+  fetchUnviewedSharedCount,
+  markSharesViewed,
+  SharedMoment,
+} from "@/lib/momentShares";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -44,6 +50,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { Moment } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 30_000;
+// Unread-shares badge is a count query — 60s cooldown per the badge convention.
+const SHARED_BADGE_COOLDOWN_MS = 60_000;
 
 export default function TimelineScreen() {
   const router = useRouter();
@@ -76,6 +84,21 @@ export default function TimelineScreen() {
   const calendarFetchedRef = useRef<null | boolean>(null);
   const [pendingScrollId, setPendingScrollId] = useState<string | null>(null);
 
+  // "Shared with me" (Sharing v2 Phase C) is signal-driven: the only query that
+  // runs unprompted is the unread-count badge (cheap head query, on focus with
+  // cooldown). The list itself is fetched the first time the pill is opened —
+  // never as an always-mounted list firing empty queries every app open.
+  const [pill, setPill] = useState<"mine" | "shared">("mine");
+  const [sharedItems, setSharedItems] = useState<SharedMoment[]>([]);
+  const [sharedLoading, setSharedLoading] = useState(false);
+  const [sharedRefreshing, setSharedRefreshing] = useState(false);
+  const [sharedError, setSharedError] = useState("");
+  const [unviewedCount, setUnviewedCount] = useState(0);
+  const sharedLastFetch = useRef(0);
+  const sharedBadgeLastFetch = useRef(0);
+  const pillRef = useRef(pill);
+  pillRef.current = pill;
+
   // Clear data on user change (sign out / sign in as different user)
   useEffect(() => {
     setMoments([]);
@@ -83,6 +106,10 @@ export default function TimelineScreen() {
     calendarFetchedRef.current = null;
     lastFetchTime.current = 0;
     timelineSnapshotRef.current = null;
+    setSharedItems([]);
+    setUnviewedCount(0);
+    sharedLastFetch.current = 0;
+    sharedBadgeLastFetch.current = 0;
   }, [user?.id]);
 
   const sectionListRef = useRef<SectionList>(null);
@@ -91,6 +118,18 @@ export default function TimelineScreen() {
   const calendarOpacity = useSharedValue(0);
   const listAnimStyle = useAnimatedStyle(() => ({ opacity: listOpacity.value }));
   const calendarAnimStyle = useAnimatedStyle(() => ({ opacity: calendarOpacity.value }));
+
+  const mineOpacity = useSharedValue(1);
+  const sharedOpacity = useSharedValue(0);
+  const mineAnimStyle = useAnimatedStyle(() => ({ opacity: mineOpacity.value }));
+  const sharedAnimStyle = useAnimatedStyle(() => ({ opacity: sharedOpacity.value }));
+
+  // Snap back to My Moments on user change (paired with the data reset above).
+  useEffect(() => {
+    setPill("mine");
+    mineOpacity.value = 1;
+    sharedOpacity.value = 0;
+  }, [user?.id]);
 
   const viewModeRef = useRef(viewMode);
   viewModeRef.current = viewMode;
@@ -176,8 +215,62 @@ export default function TimelineScreen() {
         listOpacity.value = withTiming(1, { duration: 200 });
         setViewMode("list");
       }
+      if (pillRef.current === "shared") {
+        sharedOpacity.value = withTiming(0, { duration: 200 });
+        mineOpacity.value = withTiming(1, { duration: 200 });
+        setPill("mine");
+      }
     });
   }, [navigation, viewMode]);
+
+  const fetchShared = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!user) return;
+      if (!opts?.silent) setSharedLoading(true);
+      setSharedError("");
+      try {
+        const items = await fetchSharedWithMe(user.id);
+        setSharedItems(items);
+        sharedLastFetch.current = Date.now();
+        // The list is on screen — everything in it counts as seen.
+        if (items.some((i) => !i.viewedAt)) {
+          void markSharesViewed(user.id).catch(() => {});
+        }
+        setUnviewedCount(0);
+      } catch (e) {
+        if (!opts?.silent) setSharedError(friendlyError(e));
+      } finally {
+        setSharedLoading(false);
+      }
+    },
+    [user]
+  );
+
+  const showMine = useCallback(() => {
+    if (pillRef.current === "mine") return;
+    sharedOpacity.value = withTiming(0, { duration: 200 });
+    mineOpacity.value = withTiming(1, { duration: 200 });
+    setPill("mine");
+  }, []);
+
+  const showShared = useCallback(() => {
+    if (pillRef.current === "shared") return;
+    mineOpacity.value = withTiming(0, { duration: 200 });
+    sharedOpacity.value = withTiming(1, { duration: 200 });
+    setPill("shared");
+    posthog?.capture("shared_with_me_opened", { unviewed_count: unviewedCount });
+    if (sharedLastFetch.current === 0) {
+      fetchShared();
+    } else if (Date.now() - sharedLastFetch.current >= REFETCH_COOLDOWN_MS) {
+      fetchShared({ silent: true });
+    }
+  }, [fetchShared, posthog, unviewedCount]);
+
+  const handleSharedRefresh = useCallback(async () => {
+    setSharedRefreshing(true);
+    await fetchShared({ silent: true });
+    setSharedRefreshing(false);
+  }, [fetchShared]);
 
   const toggleView = useCallback(() => {
     if (viewMode === "list") {
@@ -408,7 +501,25 @@ export default function TimelineScreen() {
       } else if (stale || elapsed >= REFETCH_COOLDOWN_MS) {
         fetchMoments(false);
       }
-    }, [fetchMoments, fetchCalendarMoments])
+
+      // Shared-with-me signal: refresh the unread badge (cheap count) on a
+      // cooldown, and silently refetch the list only if it's the active view.
+      if (user && Date.now() - sharedBadgeLastFetch.current >= SHARED_BADGE_COOLDOWN_MS) {
+        sharedBadgeLastFetch.current = Date.now();
+        fetchUnviewedSharedCount(user.id)
+          .then((count) => {
+            if (pillRef.current !== "shared") setUnviewedCount(count);
+          })
+          .catch(() => {});
+      }
+      if (
+        pillRef.current === "shared" &&
+        sharedLastFetch.current > 0 &&
+        Date.now() - sharedLastFetch.current >= REFETCH_COOLDOWN_MS
+      ) {
+        fetchShared({ silent: true });
+      }
+    }, [fetchMoments, fetchCalendarMoments, fetchShared, user])
   );
 
   const handleRefresh = useCallback(async () => {
@@ -435,6 +546,12 @@ export default function TimelineScreen() {
   const renderMoment = useCallback(({ item }: { item: Moment }) => (
     <MomentCard item={item} allMoods={allMoods} onDeleted={handleCardDeleted} />
   ), [allMoods, handleCardDeleted]);
+
+  // No onDeleted: these are other people's moments, so the card's long-press
+  // edit/delete stays disabled. Sender attribution rides in contributorName.
+  const renderSharedItem = useCallback(({ item }: { item: SharedMoment }) => (
+    <MomentCard item={item.moment} allMoods={allMoods} />
+  ), [allMoods]);
 
   const listHeader = (
     <>
@@ -470,16 +587,48 @@ export default function TimelineScreen() {
               name="map-outline"
               onPress={() => router.push("/moments-map" as any)}
             />
-            <IconButton
-              name={viewMode === "calendar" ? "list-outline" : "calendar-outline"}
-              onPress={toggleView}
-            />
+            {/* Calendar toggles the My Moments pair — meaningless while Shared is up */}
+            {pill === "mine" && (
+              <IconButton
+                name={viewMode === "calendar" ? "list-outline" : "calendar-outline"}
+                onPress={toggleView}
+              />
+            )}
           </View>
         </View>
 
+        <View style={styles.toggle}>
+          <TouchableOpacity
+            style={[styles.togglePill, pill === "mine" && styles.togglePillActive]}
+            onPress={showMine}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.toggleText, pill === "mine" && styles.toggleTextActive]}>
+              My Moments
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.togglePill, pill === "shared" && styles.togglePillActive]}
+            onPress={showShared}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.toggleText, pill === "shared" && styles.toggleTextActive]}>
+              Shared with me
+            </Text>
+            {unviewedCount > 0 && (
+              <View style={styles.pillBadge}>
+                <Text style={styles.pillBadgeText}>{unviewedCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={{ flex: 1 }}>
+        <Animated.View
+          style={[StyleSheet.absoluteFill, mineAnimStyle]}
+          pointerEvents={pill === "mine" ? "auto" : "none"}
+        >
           <GestureDetector gesture={pinchGesture}>
             <View style={styles.viewsContainer}>
               <Animated.View style={[StyleSheet.absoluteFill, listAnimStyle]} pointerEvents={viewMode === "list" ? "auto" : "none"}>
@@ -545,6 +694,43 @@ export default function TimelineScreen() {
               </Animated.View>
             </View>
           </GestureDetector>
+        </Animated.View>
+
+        <Animated.View
+          style={[StyleSheet.absoluteFill, sharedAnimStyle]}
+          pointerEvents={pill === "shared" ? "auto" : "none"}
+        >
+          {sharedLoading && sharedItems.length === 0 ? (
+            <View style={styles.skeletonList}>
+              {[0, 1, 2].map((i) => (
+                <SkeletonTimelineCard key={i} />
+              ))}
+            </View>
+          ) : sharedError ? (
+            <ErrorState message={sharedError} onRetry={() => fetchShared()} />
+          ) : sharedItems.length === 0 ? (
+            <EmptyState
+              icon="paper-plane-outline"
+              title="Nothing shared with you yet"
+              subtitle={"When a friend sends you a moment,\nit shows up here."}
+            />
+          ) : (
+            <FlatList
+              data={sharedItems}
+              keyExtractor={(item) => item.shareId}
+              renderItem={renderSharedItem}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={sharedRefreshing}
+                  onRefresh={handleSharedRefresh}
+                  tintColor={theme.colors.text}
+                />
+              }
+            />
+          )}
+        </Animated.View>
       </View>
     </View>
   );
@@ -593,6 +779,9 @@ function createStyles(theme: Theme) {
       paddingBottom: theme.spacing.sm,
     },
     togglePill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
       paddingHorizontal: 14,
       paddingVertical: 6,
       borderRadius: theme.radii.full,
@@ -610,6 +799,20 @@ function createStyles(theme: Theme) {
     },
     toggleTextActive: {
       color: theme.colors.buttonText,
+    },
+    pillBadge: {
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      paddingHorizontal: 5,
+      backgroundColor: theme.colors.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    pillBadgeText: {
+      fontSize: 11,
+      fontFamily: theme.fonts.bodySemibold,
+      color: "#fff",
     },
     viewsContainer: {
       flex: 1,

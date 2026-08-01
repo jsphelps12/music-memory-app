@@ -276,8 +276,15 @@ function RootLayoutNav() {
 
     function handleNotificationData(data: Record<string, any> | undefined) {
       if (!data) return;
-      if (data.type === "friends") {
-        router.push("/(tabs)/friends" as any);
+      if (data.type === "people") {
+        // friend_added (Sharing v2): someone opened your friend link
+        router.push("/friends-list" as any);
+      } else if (data.type === "shared_moment" && data.momentId) {
+        // share_received (Sharing v2): straight to the moment
+        router.push(`/moment/${data.momentId}`);
+      } else if (data.type === "friends") {
+        // Legacy pushes from pre-v2 binaries — the old Friends tab is now Albums
+        router.push("/(tabs)/albums" as any);
       } else if (data.momentId) {
         router.push(`/moment/${data.momentId}`);
       } else if (data.type === "create") {
