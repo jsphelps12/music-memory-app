@@ -54,6 +54,9 @@ loadLocalEnvFile();
 
 const PRODUCTION_REF = "izfhbtipzuvinyacttin";
 const E2E_EMAIL = "e2e@soundtracks.test";
+// Companion account for two-sided social testing (Sharing v2: sends, Shared
+// with me, friendship flows). Same password as the primary — one secret.
+const E2E2_EMAIL = "e2e2@soundtracks.test";
 const PHOTO_BUCKET = "moment-photos";
 
 const url = process.env.E2E_SUPABASE_URL;
@@ -91,14 +94,14 @@ const supabase = createClient(url, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-/** Find the E2E user, creating it on first run. */
-async function ensureUser() {
+/** Find a test user by email, creating it on first run. */
+async function ensureUser(email) {
   // listUsers is paginated; the E2E project is small enough for one page, but
   // filter explicitly rather than assuming position.
   const { data, error } = await supabase.auth.admin.listUsers({ perPage: 1000 });
   if (error) throw new Error(`listUsers failed: ${error.message}`);
 
-  const existing = data.users.find((u) => u.email === E2E_EMAIL);
+  const existing = data.users.find((u) => u.email === email);
   if (existing) {
     // Re-assert the password every run. Otherwise changing E2E_PASSWORD after
     // the account exists leaves the old one in place, and the flow fails at
@@ -111,13 +114,37 @@ async function ensureUser() {
   }
 
   const { data: created, error: createError } = await supabase.auth.admin.createUser({
-    email: E2E_EMAIL,
+    email,
     password,
     email_confirm: true,
   });
   if (createError) throw new Error(`createUser failed: ${createError.message}`);
-  console.log(`created ${E2E_EMAIL}`);
+  console.log(`created ${email}`);
   return created.user;
+}
+
+/**
+ * The two test accounts stay friends across resets — friendship is the
+ * precondition for every Sharing v2 flow (send-to-a-person picker, Shared
+ * with me), and mutual-by-link means there is no request state to model:
+ * one accepted row per pair.
+ */
+async function ensureFriendship(userIdA, userIdB) {
+  const { data, error } = await supabase
+    .from("friendships")
+    .select("id")
+    .or(
+      `and(requester_id.eq.${userIdA},addressee_id.eq.${userIdB}),and(requester_id.eq.${userIdB},addressee_id.eq.${userIdA})`
+    )
+    .maybeSingle();
+  if (error) throw new Error(`select friendship failed: ${error.message}`);
+  if (data) return;
+
+  const { error: insertError } = await supabase
+    .from("friendships")
+    .insert({ requester_id: userIdA, addressee_id: userIdB, status: "accepted" });
+  if (insertError) throw new Error(`insert friendship failed: ${insertError.message}`);
+  console.log("created friendship between test accounts");
 }
 
 /**
@@ -138,7 +165,7 @@ async function deletePhotos(moments) {
   return paths.length;
 }
 
-async function reset(userId) {
+async function reset(userId, displayName) {
   const { data: moments, error } = await supabase
     .from("moments")
     .select("id, photo_urls, photo_thumbnails")
@@ -158,7 +185,7 @@ async function reset(userId) {
   const { error: profileError } = await supabase
     .from("profiles")
     .upsert(
-      { id: userId, display_name: "E2E", onboarding_completed: true },
+      { id: userId, display_name: displayName, onboarding_completed: true },
       { onConflict: "id" }
     );
   if (profileError) throw new Error(`upsert profile failed: ${profileError.message}`);
@@ -166,9 +193,17 @@ async function reset(userId) {
   return { moments: moments?.length ?? 0, photos: photoCount };
 }
 
-const user = await ensureUser();
-const { moments, photos } = await reset(user.id);
+// Deleting a user's moments cascades their moment_shares rows in both
+// directions (FK ON DELETE CASCADE), so resetting both accounts also empties
+// the pair's share fixtures — each run starts from friends-with-nothing-sent.
+const user = await ensureUser(E2E_EMAIL);
+const user2 = await ensureUser(E2E2_EMAIL);
+const { moments, photos } = await reset(user.id, "E2E");
+const { moments: moments2, photos: photos2 } = await reset(user2.id, "E2E Two");
+await ensureFriendship(user.id, user2.id);
 
 console.log(`reset ${E2E_EMAIL} (${user.id})`);
 console.log(`  deleted ${moments} moment(s), ${photos} photo object(s)`);
-console.log("  profile row present");
+console.log(`reset ${E2E2_EMAIL} (${user2.id})`);
+console.log(`  deleted ${moments2} moment(s), ${photos2} photo object(s)`);
+console.log("  profile rows present, friendship in place");
