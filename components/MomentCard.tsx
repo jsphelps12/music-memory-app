@@ -131,9 +131,13 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
 
   const handlePress = useCallback(() => {
     setCachedMoment(item);
+    // contributorName rides as a param so attribution survives the detail
+    // screen's background refetch — mapRowToMoment only derives it for guest
+    // rows, so a Shared-with-me card relying on the cached moment alone would
+    // lose its "by X" line the instant the fresh row lands.
     const dest = collectionId
       ? { pathname: "/moment/[id]" as const, params: { id: item.id, collectionId, collectionRole, contributorName: item.contributorName ?? undefined } }
-      : { pathname: "/moment/[id]" as const, params: { id: item.id } };
+      : { pathname: "/moment/[id]" as const, params: { id: item.id, contributorName: item.contributorName ?? undefined } };
     const { width: sw, height: sh } = Dimensions.get("window");
     runOnUI(() => {
       "worklet";

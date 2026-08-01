@@ -40,9 +40,12 @@ USING (
 -- Only the moment's owner can send it, and only as themselves. The moments
 -- EXISTS is security-critical: without it, anyone could mint a grant row for
 -- an arbitrary moment_id with themselves as recipient and walk through the
--- moments SELECT policy's moment_shares branch. (Safe from recursion: this
--- consults moments' policy, which consults moment_shares' SELECT policy,
--- which is self-contained — the chain terminates.)
+-- moments SELECT policy's moment_shares branch. (NOTE: this EXISTS turned out
+-- to raise 42P17 — Postgres's policy-recursion detection is per-relation, so
+-- re-entering moment_shares via the moments policy trips it even though the
+-- chain terminates. Superseded by 20260801180000, which routes the ownership
+-- check through a SECURITY DEFINER function. Comment amended only; the SQL
+-- here is immutable history.)
 CREATE POLICY "Owners can send their moments"
 ON public.moment_shares
 FOR INSERT
