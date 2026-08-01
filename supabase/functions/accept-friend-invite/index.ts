@@ -95,14 +95,18 @@ Deno.serve(async (req) => {
 
   if (ownerWithToken?.push_token) {
     const visitorName = visitorProfile?.display_name ?? "Someone";
+    // Sharing v2 "friend_added" push: mutual-by-link means opening the link IS
+    // the whole ceremony, so the copy says added, not accepted. Routes to
+    // People (data.type "people"); old binaries only know "friends" and land
+    // on the Albums tab, which is harmless.
     await fetch("https://exp.host/--/api/v2/push/send", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
         to: ownerWithToken.push_token,
-        title: "New Friend!",
-        body: `${visitorName} accepted your invite on Soundtracks`,
-        data: { type: "friends" },
+        title: "New friend",
+        body: `${visitorName} added you on Soundtracks`,
+        data: { type: "people" },
         sound: "default",
       }),
     });

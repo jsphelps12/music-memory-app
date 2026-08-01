@@ -17,13 +17,18 @@ import ViewShot from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
+import { usePostHog } from "posthog-react-native";
 import { supabase } from "@/lib/supabase";
 import * as Crypto from "expo-crypto";
 import * as Clipboard from "expo-clipboard";
 import { AppImage } from "@/components/AppImage";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ShareCard, CARD_WIDTH, CARD_HEIGHT } from "@/components/ShareCard";
-import { Moment } from "@/types";
+import { fetchFriends } from "@/lib/friends";
+import { fetchSentRecipientIds, sendMomentShare } from "@/lib/momentShares";
+import { getPublicPhotoUrl } from "@/lib/storage";
+import { friendlyError } from "@/lib/errors";
+import { Friendship, Moment } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -41,8 +46,9 @@ interface Props {
 export function ShareMomentSheet({ visible, moment, photoUrls, onClose }: Props) {
   const theme = useTheme();
   const { user } = useAuth();
+  const posthog = usePostHog();
   const viewShotRef = useRef<ViewShot>(null);
-  const [view, setView] = useState<"options" | "card">("options");
+  const [view, setView] = useState<"options" | "card" | "person">("options");
 
   const handleClose = useCallback(() => {
     setView("options");
@@ -51,6 +57,64 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose }: Props)
 
   const goToCard = () => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setView("card"); };
   const goToOptions = () => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setView("options"); };
+
+  // "Send to a person" (Sharing v2 Phase C): recipients are your People; a tap
+  // inserts the moment_shares grant and fires the share_received push.
+  const [friends, setFriends] = useState<Friendship[]>([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [friendsError, setFriendsError] = useState("");
+  const [sentIds, setSentIds] = useState<Set<string>>(new Set());
+  const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
+  const personLoadedRef = useRef(false);
+
+  // Sent-state is per moment; a sheet reused for another moment must reload.
+  useEffect(() => {
+    personLoadedRef.current = false;
+  }, [moment.id]);
+
+  const goToPerson = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setView("person");
+    if (personLoadedRef.current || !user) return;
+    personLoadedRef.current = true;
+    setFriendsLoading(true);
+    setFriendsError("");
+    Promise.all([fetchFriends(user.id), fetchSentRecipientIds(moment.id)])
+      .then(([friendList, sent]) => {
+        setFriends(friendList);
+        setSentIds(sent);
+      })
+      .catch((e) => {
+        personLoadedRef.current = false;
+        setFriendsError(friendlyError(e));
+      })
+      .finally(() => setFriendsLoading(false));
+  };
+
+  const handleSendToFriend = async (friendship: Friendship) => {
+    if (!user) return;
+    const recipientId = friendship.otherUserId;
+    if (sentIds.has(recipientId) || sendingIds.has(recipientId)) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSendingIds((prev) => new Set(prev).add(recipientId));
+    try {
+      await sendMomentShare(moment.id, user.id, recipientId);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setSentIds((prev) => new Set(prev).add(recipientId));
+      posthog?.capture("moment_share_sent", {
+        song_title: moment.songTitle,
+        song_artist: moment.songArtist,
+      });
+    } catch (e) {
+      Alert.alert("Couldn't send", friendlyError(e));
+    } finally {
+      setSendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(recipientId);
+        return next;
+      });
+    }
+  };
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [sharing, setSharing] = useState(false);
   const [sendingLink, setSendingLink] = useState(false);
@@ -165,7 +229,10 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose }: Props)
 
   const songSubtitle = [moment.songTitle, moment.songArtist].filter(Boolean).join(" · ");
 
-  const sheetTitle = view === "options" ? "Share this moment" : "Share card";
+  const sheetTitle =
+    view === "options" ? "Share this moment" : view === "person" ? "Send to a person" : "Share card";
+
+  const isOwner = !!user && moment.userId === user.id;
 
   return (
     <BottomSheet
@@ -185,6 +252,27 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose }: Props)
 
           {/* Option rows */}
           <View style={[styles.optionCard, { backgroundColor: theme.colors.cardBg, borderColor: theme.colors.border }]}>
+            {/* Send to a person — owner only (the RLS insert policy requires
+                moment ownership, so showing it to viewers would only fail) */}
+            {isOwner && (
+              <>
+                <TouchableOpacity style={styles.optionRow} activeOpacity={0.7} onPress={goToPerson}>
+                  <View style={[styles.iconBox, { backgroundColor: theme.colors.accent + "20" }]}>
+                    <Ionicons name="person-add-outline" size={20} color={theme.colors.accent} />
+                  </View>
+                  <View style={styles.optionText}>
+                    <Text style={[styles.optionTitle, { color: theme.colors.text }]}>Send to a person</Text>
+                    <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>
+                      It lands in their Shared with me
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                </TouchableOpacity>
+
+                <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+              </>
+            )}
+
             {/* Create share card */}
             <TouchableOpacity style={styles.optionRow} activeOpacity={0.7} onPress={goToCard}>
               <View style={[styles.iconBox, { backgroundColor: theme.colors.accent + "20" }]}>
@@ -254,6 +342,76 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose }: Props)
           <TouchableOpacity style={styles.cancelButton} onPress={handleClose} activeOpacity={0.7}>
             <Text style={[styles.cancelText, { color: theme.colors.textSecondary }]}>Cancel</Text>
           </TouchableOpacity>
+        </>
+      ) : view === "person" ? (
+        <>
+          <TouchableOpacity onPress={goToOptions} hitSlop={12} activeOpacity={0.7} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
+          </TouchableOpacity>
+
+          {friendsLoading ? (
+            <View style={styles.personLoading}>
+              <ActivityIndicator color={theme.colors.textSecondary} />
+            </View>
+          ) : friendsError ? (
+            <View style={styles.personEmpty}>
+              <Text style={[styles.personEmptyText, { color: theme.colors.textSecondary }]}>{friendsError}</Text>
+            </View>
+          ) : friends.length === 0 ? (
+            <View style={styles.personEmpty}>
+              <Text style={[styles.personEmptyText, { color: theme.colors.textSecondary }]}>
+                No people yet. Share your friend link from your profile to connect — then you can send moments here.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              style={styles.personList}
+              contentContainerStyle={styles.personListContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {friends.map((friendship) => {
+                const sent = sentIds.has(friendship.otherUserId);
+                const sending = sendingIds.has(friendship.otherUserId);
+                const initials = (friendship.otherUserDisplayName ?? "?")[0]?.toUpperCase() ?? "?";
+                return (
+                  <TouchableOpacity
+                    key={friendship.id}
+                    style={styles.personRow}
+                    activeOpacity={0.7}
+                    onPress={() => handleSendToFriend(friendship)}
+                    disabled={sent || sending}
+                  >
+                    <View style={[styles.personAvatar, { backgroundColor: theme.colors.backgroundTertiary }]}>
+                      {friendship.otherUserAvatarUrl ? (
+                        <AppImage
+                          source={{ uri: getPublicPhotoUrl(friendship.otherUserAvatarUrl) }}
+                          style={StyleSheet.absoluteFill}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <Text style={[styles.personInitial, { color: theme.colors.textTertiary }]}>{initials}</Text>
+                      )}
+                    </View>
+                    <Text style={[styles.personName, { color: theme.colors.text }]} numberOfLines={1}>
+                      {friendship.otherUserDisplayName ?? "Unknown"}
+                    </Text>
+                    {sending ? (
+                      <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                    ) : sent ? (
+                      <View style={styles.sentState}>
+                        <Ionicons name="checkmark" size={16} color={theme.colors.success} />
+                        <Text style={[styles.sentText, { color: theme.colors.success }]}>Sent</Text>
+                      </View>
+                    ) : (
+                      <View style={[styles.sendButton, { backgroundColor: theme.colors.buttonBg }]}>
+                        <Text style={[styles.sendButtonText, { color: theme.colors.buttonText }]}>Send</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
         </>
       ) : (
         <>
@@ -437,5 +595,68 @@ const styles = StyleSheet.create({
   shareButtonText: {
     fontSize: 16,
     fontFamily: "DMSans_700Bold",
+  },
+  // Person picker
+  personLoading: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  personEmpty: {
+    paddingHorizontal: 20,
+    paddingVertical: 28,
+  },
+  personEmptyText: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  personList: {
+    maxHeight: 380,
+  },
+  personListContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  personRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    gap: 12,
+  },
+  personAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  personInitial: {
+    fontSize: 16,
+    fontFamily: "DMSans_600SemiBold",
+  },
+  personName: {
+    flex: 1,
+    fontSize: 16,
+    fontFamily: "DMSans_500Medium",
+  },
+  sendButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 16,
+  },
+  sendButtonText: {
+    fontSize: 13,
+    fontFamily: "DMSans_600SemiBold",
+  },
+  sentState: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+  },
+  sentText: {
+    fontSize: 13,
+    fontFamily: "DMSans_600SemiBold",
   },
 });

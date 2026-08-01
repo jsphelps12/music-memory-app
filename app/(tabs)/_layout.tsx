@@ -14,7 +14,7 @@ export default function TabLayout() {
     >
       <SwipeTabs.Screen name="index"       options={{ title: "Moments" }} />
       <SwipeTabs.Screen name="reflections"  options={{ title: "Reflections" }} />
-      <SwipeTabs.Screen name="friends"     options={{ title: "Albums" }} />
+      <SwipeTabs.Screen name="albums"      options={{ title: "Albums" }} />
       <SwipeTabs.Screen name="profile"     options={{ title: "Me" }} />
     </SwipeTabs>
   );
