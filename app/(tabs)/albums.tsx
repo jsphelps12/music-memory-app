@@ -199,7 +199,7 @@ export default function AlbumsScreen() {
     <View style={[dynamicStyles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
       <View style={[dynamicStyles.header, { borderBottomColor: theme.colors.border }]}>
-        <Text style={[dynamicStyles.headerTitle, { color: theme.colors.text }]}>Albums</Text>
+        <Text style={[dynamicStyles.headerTitle, { color: theme.colors.text }]}>albums</Text>
         <IconButton name="add-outline" onPress={() => setNewAlbumVisible(true)} />
       </View>
 

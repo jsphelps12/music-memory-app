@@ -16,6 +16,7 @@ import {
   Platform,
 } from "react-native";
 import { AppImage } from "@/components/AppImage";
+import { confirmSheet } from "@/components/ConfirmSheet";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
@@ -217,41 +218,31 @@ export default function ProfileScreen() {
     Share.share(Platform.OS === "ios" ? { url } : { message: url });
   }, [profile?.friendInviteToken]);
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      "Delete Account",
-      "This will permanently delete your account and all your moments, photos, and collections. This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            Alert.alert(
-              "Are you sure?",
-              "Your data cannot be recovered after deletion.",
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Delete My Account",
-                  style: "destructive",
-                  onPress: async () => {
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                    setDeletingAccount(true);
-                    try {
-                      await deleteAccount();
-                    } catch (e) {
-                      setDeletingAccount(false);
-                      Alert.alert("Error", friendlyError(e));
-                    }
-                  },
-                },
-              ]
-            );
-          },
-        },
-      ]
-    );
+  const handleDeleteAccount = async () => {
+    // Double-confirm on purpose: this is the app's only unrecoverable action.
+    const first = await confirmSheet({
+      title: "Delete Account",
+      message:
+        "This will permanently delete your account and all your moments, photos, and collections. This cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!first) return;
+    const second = await confirmSheet({
+      title: "Are you sure?",
+      message: "Your data cannot be recovered after deletion.",
+      confirmLabel: "Delete My Account",
+      destructive: true,
+    });
+    if (!second) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    setDeletingAccount(true);
+    try {
+      await deleteAccount();
+    } catch (e) {
+      setDeletingAccount(false);
+      Alert.alert("Error", friendlyError(e));
+    }
   };
 
   const handleNotifToggle = useCallback(async (
@@ -335,7 +326,7 @@ export default function ProfileScreen() {
     <View style={styles.outerContainer}>
       {/* Screen header */}
       <View style={styles.screenHeader}>
-        <Text style={styles.screenTitle}>Profile</Text>
+        <Text style={styles.screenTitle}>profile</Text>
         <View style={styles.headerButtons}>
           <IconButton name="help-circle-outline" onPress={() => router.push("/help")} />
           <IconButton name="person-add-outline" onPress={handleShareProfile} />

@@ -24,6 +24,7 @@ import * as Crypto from "expo-crypto";
 import * as Clipboard from "expo-clipboard";
 import { AppImage } from "@/components/AppImage";
 import { BottomSheet } from "@/components/BottomSheet";
+import { confirmSheet } from "@/components/ConfirmSheet";
 import {
   ShareCard,
   ShareCardVariant,
@@ -199,35 +200,29 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     setTimeout(() => setLinkCopied(false), 2000);
   };
 
-  const handleRevokeLink = () => {
+  const handleRevokeLink = async () => {
     if (!shareToken || revoking) return;
-    Alert.alert(
-      "Turn off link?",
-      "Anyone who has this link will no longer be able to view this moment.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Turn Off",
-          style: "destructive",
-          onPress: async () => {
-            setRevoking(true);
-            try {
-              const { error } = await supabase
-                .from("moments")
-                .update({ share_token: null })
-                .eq("id", moment.id);
-              if (error) throw error;
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              setShareToken(null);
-            } catch {
-              Alert.alert("Couldn't turn off link", "Please try again.");
-            } finally {
-              setRevoking(false);
-            }
-          },
-        },
-      ]
-    );
+    const confirmed = await confirmSheet({
+      title: "Turn off link?",
+      message: "Anyone who has this link will no longer be able to view this moment.",
+      confirmLabel: "Turn Off",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setRevoking(true);
+    try {
+      const { error } = await supabase
+        .from("moments")
+        .update({ share_token: null })
+        .eq("id", moment.id);
+      if (error) throw error;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShareToken(null);
+    } catch {
+      Alert.alert("Couldn't turn off link", "Please try again.");
+    } finally {
+      setRevoking(false);
+    }
   };
 
   // ── Person handlers ───────────────────────────────────────────────────
@@ -279,45 +274,37 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   };
 
   // ── Chip removal ──────────────────────────────────────────────────────
-  const handleRemovePersonGrant = (grant: MomentShareGrant) => {
-    Alert.alert(
-      "Unsend?",
-      `${grant.name ?? "This person"} will no longer see this moment in their Shared with me.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Unsend",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await removeMomentShare(grant.shareId);
-              setPeopleGrants((prev) => prev.filter((g) => g.shareId !== grant.shareId));
-            } catch (e) {
-              Alert.alert("Couldn't unsend", friendlyError(e));
-            }
-          },
-        },
-      ]
-    );
+  const handleRemovePersonGrant = async (grant: MomentShareGrant) => {
+    const confirmed = await confirmSheet({
+      title: "Unsend?",
+      message: `${grant.name ?? "This person"} will no longer see this moment in their Shared with me.`,
+      confirmLabel: "Unsend",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      await removeMomentShare(grant.shareId);
+      setPeopleGrants((prev) => prev.filter((g) => g.shareId !== grant.shareId));
+    } catch (e) {
+      Alert.alert("Couldn't unsend", friendlyError(e));
+    }
   };
 
-  const handleRemoveAlbumGrant = (grant: AlbumGrant) => {
-    Alert.alert("Remove from album?", `This moment will leave “${grant.name}”.`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await removeMomentFromAlbum(grant.id, moment.id);
-            setAlbumGrants((prev) => prev.filter((g) => g.id !== grant.id));
-            invalidateAlbumCaches(queryClient, user?.id, grant.id);
-          } catch (e) {
-            Alert.alert("Couldn't remove", friendlyError(e));
-          }
-        },
-      },
-    ]);
+  const handleRemoveAlbumGrant = async (grant: AlbumGrant) => {
+    const confirmed = await confirmSheet({
+      title: "Remove from album?",
+      message: `This moment will leave “${grant.name}”.`,
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      await removeMomentFromAlbum(grant.id, moment.id);
+      setAlbumGrants((prev) => prev.filter((g) => g.id !== grant.id));
+      invalidateAlbumCaches(queryClient, user?.id, grant.id);
+    } catch (e) {
+      Alert.alert("Couldn't remove", friendlyError(e));
+    }
   };
 
   // ── Card export ───────────────────────────────────────────────────────

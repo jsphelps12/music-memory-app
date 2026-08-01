@@ -449,7 +449,7 @@ export default function ReflectionsScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Reflections</Text>
+          <Text style={styles.title}>reflections</Text>
         </View>
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>Your memories resurface here.</Text>
@@ -472,7 +472,7 @@ export default function ReflectionsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Reflections</Text>
+        <Text style={styles.title}>reflections</Text>
       </View>
 
       {/* Search — the archive's front door, always visible */}
