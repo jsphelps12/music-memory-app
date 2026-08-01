@@ -53,6 +53,7 @@ const MOMENT_DRILLDOWN_KEYS: ReadonlySet<string> = new Set([
   "yearMoments",
   "moodMoments",
   "browseSearch",
+  "weeklyRewind",
 ]);
 
 /**
