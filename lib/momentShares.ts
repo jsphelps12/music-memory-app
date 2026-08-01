@@ -63,18 +63,21 @@ export async function fetchSharedWithMe(userId: string): Promise<SharedMoment[]>
 /**
  * Send a moment to a friend. Inserting the grant row is what shares the
  * moment; the push is best-effort on top (a failed push must not roll back or
- * misreport an already-created grant).
+ * misreport an already-created grant). Returns the grant row id so the share
+ * sheet can show (and unsend) the chip without a refetch.
  */
 export async function sendMomentShare(
   momentId: string,
   senderId: string,
   recipientId: string
-): Promise<"sent" | "already_sent"> {
-  const { error } = await supabase
+): Promise<{ status: "sent"; shareId: string } | { status: "already_sent" }> {
+  const { data, error } = await supabase
     .from("moment_shares")
-    .insert({ moment_id: momentId, sender_id: senderId, recipient_id: recipientId });
+    .insert({ moment_id: momentId, sender_id: senderId, recipient_id: recipientId })
+    .select("id")
+    .single();
   if (error) {
-    if (error.code === "23505") return "already_sent"; // UNIQUE (moment_id, recipient_id)
+    if (error.code === "23505") return { status: "already_sent" }; // UNIQUE (moment_id, recipient_id)
     throw error;
   }
   void supabase.functions
@@ -82,17 +85,43 @@ export async function sendMomentShare(
       body: { type: "share_received", toUserId: recipientId, momentId },
     })
     .catch(() => {});
-  return "sent";
+  return { status: "sent", shareId: data.id };
 }
 
-/** Recipient ids this moment has already been sent to (share sheet sent-state). */
-export async function fetchSentRecipientIds(momentId: string): Promise<Set<string>> {
+export interface MomentShareGrant {
+  shareId: string;
+  recipientId: string;
+  name: string | null;
+}
+
+/**
+ * Everyone this moment has been sent to, with display names — drives the
+ * share sheet's "Shared with" chips and the person picker's sent-state.
+ */
+export async function fetchMomentShareRecipients(momentId: string): Promise<MomentShareGrant[]> {
   const { data, error } = await supabase
     .from("moment_shares")
-    .select("recipient_id")
+    .select("id, recipient_id")
     .eq("moment_id", momentId);
   if (error) throw error;
-  return new Set((data ?? []).map((r: any) => r.recipient_id));
+  const rows = data ?? [];
+  if (rows.length === 0) return [];
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, display_name")
+    .in("id", [...new Set(rows.map((r: any) => r.recipient_id))]);
+  const nameById = new Map((profiles ?? []).map((p: any) => [p.id, p.display_name]));
+  return rows.map((r: any) => ({
+    shareId: r.id,
+    recipientId: r.recipient_id,
+    name: nameById.get(r.recipient_id) ?? null,
+  }));
+}
+
+/** Sender unsends (RLS also lets a recipient remove a share from their inbox). */
+export async function removeMomentShare(shareId: string): Promise<void> {
+  const { error } = await supabase.from("moment_shares").delete().eq("id", shareId);
+  if (error) throw error;
 }
 
 /** Unread badge count for the "Shared with me" pill. */

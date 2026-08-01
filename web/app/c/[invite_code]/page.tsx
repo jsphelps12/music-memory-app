@@ -191,73 +191,74 @@ export default async function AlbumPage({ params }: PageProps) {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "var(--bg)" }}>
 
-      {/* Hero header — always visible */}
-      <div
-        style={{
-          position: "relative",
-          minHeight: 280,
-          display: "flex",
-          alignItems: "flex-end",
-          overflow: "hidden",
-          backgroundColor: "var(--bg)",
-        }}
-      >
-        {/* Cover image or brand gradient */}
-        {coverImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={coverImageUrl}
-            alt=""
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "linear-gradient(135deg, rgba(232,130,92,0.3) 0%, rgba(107,95,140,0.3) 100%)",
-            }}
-          />
-        )}
+      {/* Album header — the same cream keepsake card every Soundtracks share
+          arrives as: cover printed clean, title written on the mat below it. */}
+      <div style={{ padding: "24px 16px 0", maxWidth: 600, margin: "0 auto" }}>
+        <div className="artifact-card">
+          <div style={{ aspectRatio: "16/9", width: "100%", backgroundColor: "var(--artifact-deep)" }}>
+            {coverImageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={coverImageUrl}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  background: "linear-gradient(135deg, rgba(232,130,92,0.35) 0%, rgba(107,95,140,0.35) 100%)",
+                }}
+              />
+            )}
+          </div>
 
-        {/* Gradient overlay — fades to page bg */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, var(--bg) 100%)",
-          }}
-        />
-
-        {/* Text */}
-        <div style={{ position: "relative", zIndex: 1, padding: "24px 24px 28px", width: "100%", maxWidth: 600, margin: "0 auto" }}>
-          <h1
-            style={{
-              fontFamily: "'Playfair Display', Georgia, serif",
-              fontSize: "clamp(1.75rem, 5vw, 2.5rem)",
-              fontWeight: 700,
-              color: "#fff",
-              margin: 0,
-              lineHeight: 1.15,
-            }}
-          >
-            {collection.name}
-          </h1>
-          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", margin: "6px 0 0" }}>
-            {[
-              ownerName ? `by ${ownerName}` : null,
-              `${moments.length} ${moments.length === 1 ? "moment" : "moments"}`,
-              dateRange,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
+          <div style={{ padding: "18px 22px 18px" }}>
+            <h1
+              className="artifact-serif"
+              style={{
+                fontSize: "clamp(1.6rem, 5vw, 2.1rem)",
+                color: "var(--artifact-ink)",
+                margin: 0,
+                lineHeight: 1.15,
+              }}
+            >
+              {collection.name}
+            </h1>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                borderTop: "1px solid var(--artifact-hairline)",
+                paddingTop: 12,
+                marginTop: 14,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 500,
+                  letterSpacing: "0.1em",
+                  color: "var(--artifact-ink-soft)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {[
+                  ownerName ? `BY ${ownerName.toUpperCase()}` : null,
+                  `${moments.length} ${moments.length === 1 ? "MOMENT" : "MOMENTS"}`,
+                  dateRange?.toUpperCase(),
+                ]
+                  .filter(Boolean)
+                  .join("  ·  ")}
+              </span>
+              <span className="artifact-wordmark">SOUNDTRACKS</span>
+            </div>
+          </div>
         </div>
       </div>
 

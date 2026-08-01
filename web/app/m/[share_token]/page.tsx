@@ -124,82 +124,23 @@ export default async function GiftedMomentPage({ params }: PageProps) {
           {senderName} shared a memory with you
         </p>
 
-        {/* Card */}
-        <div
-          style={{
-            borderRadius: 24,
-            overflow: "hidden",
-            boxShadow: "0 8px 40px rgba(0,0,0,0.4)",
-            backgroundColor: "var(--card-bg)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          {/* Hero — 3:2 with gradient fade */}
+        {/* The artifact — same cream keepsake the app exports: photo printed
+            clean, everything written on the mat below, never on the image. */}
+        <div className="artifact-card">
           {heroUrl && (
-            <div style={{ position: "relative", aspectRatio: "3/2", width: "100%" }}>
+            <div style={{ aspectRatio: "4/3", width: "100%", backgroundColor: "var(--artifact-deep)" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={heroUrl}
                 alt=""
                 style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
               />
-              {/* Date + location eyebrow */}
-              {(formattedDate || row.location) && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 16,
-                    left: 18,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 3,
-                  }}
-                >
-                  {formattedDate && (
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: "0.12em",
-                        color: "rgba(255,255,255,0.9)",
-                        textShadow: "0 1px 4px rgba(0,0,0,0.5)",
-                      }}
-                    >
-                      {formattedDate}
-                    </span>
-                  )}
-                  {row.location && (
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: "rgba(255,255,255,0.7)",
-                        textShadow: "0 1px 4px rgba(0,0,0,0.5)",
-                      }}
-                    >
-                      📍 {row.location}
-                    </span>
-                  )}
-                </div>
-              )}
-              {/* Gradient fade into card bg */}
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  height: "50%",
-                  background: "linear-gradient(to bottom, transparent 0%, var(--card-bg) 100%)",
-                  pointerEvents: "none",
-                }}
-              />
             </div>
           )}
 
-          {/* Content */}
-          <div style={{ padding: "14px 18px 18px" }}>
-            {/* Song row */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          {/* The mat */}
+          <div style={{ padding: "18px 22px 20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               {row.song_artwork_url && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -210,10 +151,11 @@ export default async function GiftedMomentPage({ params }: PageProps) {
               )}
               <div style={{ minWidth: 0 }}>
                 <p
+                  className="artifact-serif"
                   style={{
-                    fontWeight: 700,
-                    fontSize: 15,
-                    color: "var(--text)",
+                    fontSize: 24,
+                    lineHeight: 1.15,
+                    color: "var(--artifact-ink)",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
@@ -224,8 +166,9 @@ export default async function GiftedMomentPage({ params }: PageProps) {
                 </p>
                 <p
                   style={{
-                    fontSize: 12,
-                    color: "var(--text-secondary)",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: "var(--artifact-ink-soft)",
                     margin: "2px 0 0",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -237,63 +180,48 @@ export default async function GiftedMomentPage({ params }: PageProps) {
               </div>
             </div>
 
-            {/* Reflection — DM Serif Display italic */}
             {row.reflection_text && (
               <p
+                className="artifact-serif"
                 style={{
-                  fontFamily: "'DM Serif Display', Georgia, serif",
                   fontStyle: "italic",
-                  fontSize: 16,
-                  lineHeight: 1.6,
-                  color: "var(--text)",
-                  margin: "0 0 14px",
+                  fontSize: 17,
+                  lineHeight: 1.55,
+                  color: "var(--artifact-ink)",
+                  margin: "14px 0 0",
                 }}
               >
                 &ldquo;{row.reflection_text}&rdquo;
               </p>
             )}
 
-            {/* Footer: mood chip or date + wordmark */}
+            {/* One quiet meta line + wordmark */}
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                borderTop: "1px solid var(--border)",
+                gap: 12,
+                borderTop: "1px solid var(--artifact-hairline)",
                 paddingTop: 12,
-                marginTop: row.reflection_text ? 0 : 4,
+                marginTop: 14,
               }}
             >
-              {moodDef ? (
-                <span
-                  style={{
-                    fontSize: 11,
-                    padding: "3px 10px",
-                    borderRadius: 999,
-                    backgroundColor: "var(--chip-bg)",
-                    color: "var(--chip-text)",
-                    border: "1px solid var(--border)",
-                  }}
-                >
-                  {moodDef.emoji} {moodDef.label}
-                </span>
-              ) : formattedDate ? (
-                <span style={{ fontSize: 11, color: "var(--text-tertiary)", letterSpacing: "0.05em" }}>
-                  {formattedDate}
-                </span>
-              ) : (
-                <span />
-              )}
               <span
                 style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  letterSpacing: "0.12em",
-                  color: "#E8825C",
+                  fontSize: 10.5,
+                  fontWeight: 500,
+                  letterSpacing: "0.1em",
+                  color: "var(--artifact-ink-soft)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 }}
               >
-                SOUNDTRACKS
+                {moodDef ? `${moodDef.emoji}  ` : ""}
+                {[formattedDate, row.location].filter(Boolean).join("  ·  ")}
               </span>
+              <span className="artifact-wordmark">SOUNDTRACKS</span>
             </div>
           </div>
         </div>

@@ -1,5 +1,14 @@
-// Snapshot-friendly share card — 9:16 Story format (TikTok/Reels/Instagram).
-// Rendered inside a ViewShot ref in ShareMomentSheet's card view; keep this pure RN with no animations.
+// Snapshot-friendly share card — rendered inside a ViewShot ref in
+// ShareMomentSheet's card view; keep this pure RN with no animations.
+//
+// Design (Sharing v2 Phase D, owner-decided): the card is a kept artifact —
+// the photo prints clean and edge-to-edge with NO overlay or gradient, and
+// everything written lives below it on brand-cream chrome, like the mat of an
+// instant photo. Serif title, italic serif reflection, one quiet meta line,
+// wordmark. When the moment has no photo, the album art becomes the hero.
+//
+// Colors are deliberately fixed, not theme tokens: the export is a PNG that
+// must look identical from a dark-mode phone.
 
 import { View, Text, StyleSheet, Dimensions } from "react-native";
 import { AppImage } from "@/components/AppImage";
@@ -8,14 +17,31 @@ import { MOODS } from "@/constants/Moods";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 export const CARD_WIDTH = SCREEN_WIDTH - 48;
-export const CARD_HEIGHT = Math.round(CARD_WIDTH * (16 / 9));
+// 4:5 portrait for feeds; 9:16 for Stories/Reels — same component, two prints.
+export const CARD_HEIGHT_POST = Math.round(CARD_WIDTH * (5 / 4));
+export const CARD_HEIGHT_STORY = Math.round(CARD_WIDTH * (16 / 9));
+
+export type ShareCardVariant = "post" | "story";
 
 interface Props {
   moment: Moment;
   photoUrl: string | null;
+  variant?: ShareCardVariant;
 }
 
-export function ShareCard({ moment, photoUrl }: Props) {
+const CREAM = "#FBF6F1";
+const INK = "#2C2C3A";
+const INK_SOFT = "rgba(44,44,58,0.62)";
+const INK_FAINT = "rgba(44,44,58,0.40)";
+const HAIRLINE = "#E5E0D8";
+const ACCENT = "#E8825C";
+const CREAM_DEEP = "#F0E8DF";
+
+export function ShareCard({ moment, photoUrl, variant = "post" }: Props) {
+  const cardHeight = variant === "story" ? CARD_HEIGHT_STORY : CARD_HEIGHT_POST;
+  // Story gets a taller print; post keeps more room for the chrome.
+  const heroHeight = Math.round(cardHeight * (variant === "story" ? 0.64 : 0.56));
+
   const date = moment.momentDate
     ? new Date(moment.momentDate + "T00:00:00").toLocaleDateString("en-US", {
         month: "short",
@@ -26,54 +52,40 @@ export function ShareCard({ moment, photoUrl }: Props) {
 
   const reflection =
     moment.reflectionText
-      ? moment.reflectionText.length > 120
-        ? moment.reflectionText.slice(0, 120).trimEnd() + "…"
+      ? moment.reflectionText.length > 140
+        ? moment.reflectionText.slice(0, 140).trimEnd() + "…"
         : moment.reflectionText
       : null;
 
-  const heroHeight = Math.round(CARD_HEIGHT * 0.60);
-  const contentHeight = CARD_HEIGHT - heroHeight;
+  // Photo is the hero when the moment has one (owner rule); album art steps in
+  // otherwise — and then the thumbnail row would just repeat it, so it hides.
+  const artIsHero = !photoUrl;
   const heroSource = photoUrl ?? moment.songArtworkUrl ?? null;
-  // First mood only — the share card is a compact layout and the first mood is
-  // the primary one (selection order, mirrored in the legacy mood column).
+
+  // First mood only — compact layout, and the first mood is the primary one
+  // (selection order, mirrored in the legacy mood column).
   const moodDef = moment.moods[0] ? MOODS.find((m) => m.value === moment.moods[0]) : null;
 
+  const metaParts = [date, moment.location].filter(Boolean) as string[];
+
   return (
-    <View style={[styles.card, { width: CARD_WIDTH, height: CARD_HEIGHT }]}>
-      {/* ── Hero (top 60%) ─────────────────────────────────────────────── */}
+    <View style={[styles.card, { width: CARD_WIDTH, height: cardHeight }]}>
+      {/* ── Hero — clean print, nothing written on it ─────────────────── */}
       <View style={[styles.hero, { height: heroHeight }]}>
         {heroSource ? (
-          <AppImage
-            source={{ uri: heroSource }}
-            style={StyleSheet.absoluteFill}
-            contentFit="cover"
-          />
+          <AppImage source={{ uri: heroSource }} style={StyleSheet.absoluteFill} contentFit="cover" />
         ) : (
-          <View style={styles.heroEmpty} />
+          <View style={styles.heroEmpty}>
+            <Text style={styles.heroEmptyGlyph}>♪</Text>
+          </View>
         )}
-
-        {/* Date + location eyebrow over photo */}
-        <View style={styles.eyebrowContainer}>
-          {date ? <Text style={styles.eyebrowDate}>{date}</Text> : null}
-          {moment.location ? (
-            <Text style={styles.eyebrowLocation}>📍 {moment.location}</Text>
-          ) : null}
-        </View>
-
-        {/* Gradient fade into content panel */}
-        <View style={[styles.heroFade, { height: heroHeight * 0.5 }]} />
       </View>
 
-      {/* ── Content panel (bottom 40%) ──────────────────────────────────── */}
-      <View style={[styles.content, { height: contentHeight }]}>
-        {/* Song row */}
+      {/* ── Chrome — the cream mat ────────────────────────────────────── */}
+      <View style={styles.chrome}>
         <View style={styles.songRow}>
-          {moment.songArtworkUrl ? (
-            <AppImage
-              source={{ uri: moment.songArtworkUrl }}
-              style={styles.artwork}
-              contentFit="cover"
-            />
+          {!artIsHero && moment.songArtworkUrl ? (
+            <AppImage source={{ uri: moment.songArtworkUrl }} style={styles.artwork} contentFit="cover" />
           ) : null}
           <View style={styles.songInfo}>
             <Text style={styles.songTitle} numberOfLines={1}>
@@ -86,23 +98,18 @@ export function ShareCard({ moment, photoUrl }: Props) {
         </View>
 
         {reflection ? (
-          <Text style={styles.reflection} numberOfLines={3}>
-            {reflection}
+          <Text style={styles.reflection} numberOfLines={variant === "story" ? 3 : 2}>
+            “{reflection}”
           </Text>
-        ) : null}
+        ) : (
+          <View style={styles.reflectionSpacer} />
+        )}
 
         <View style={styles.footer}>
-          {moodDef ? (
-            <View style={styles.moodChip}>
-              <Text style={styles.moodChipText}>
-                {moodDef.emoji} {moodDef.label}
-              </Text>
-            </View>
-          ) : date ? (
-            <Text style={styles.footerDate}>{date}</Text>
-          ) : (
-            <View />
-          )}
+          <Text style={styles.meta} numberOfLines={1}>
+            {moodDef ? `${moodDef.emoji}  ` : ""}
+            {metaParts.join("  ·  ")}
+          </Text>
           <Text style={styles.wordmark}>SOUNDTRACKS</Text>
         </View>
       </View>
@@ -110,120 +117,90 @@ export function ShareCard({ moment, photoUrl }: Props) {
   );
 }
 
-const BG = "#0F0D0B";
-
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: BG,
+    backgroundColor: CREAM,
     borderRadius: 20,
     overflow: "hidden",
   },
   hero: {
     width: "100%",
-    backgroundColor: "#1A1612",
+    backgroundColor: CREAM_DEEP,
   },
   heroEmpty: {
     flex: 1,
-    backgroundColor: "#1A1612",
+    backgroundColor: CREAM_DEEP,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  eyebrowContainer: {
-    position: "absolute",
-    top: 20,
-    left: 22,
-    gap: 3,
+  heroEmptyGlyph: {
+    fontSize: 64,
+    fontFamily: "DMSerifDisplay_400Regular",
+    color: INK_FAINT,
   },
-  eyebrowDate: {
-    fontSize: 10,
-    fontFamily: "DMSans_700Bold",
-    letterSpacing: 1.8,
-    color: "rgba(255,255,255,0.85)",
-  },
-  eyebrowLocation: {
-    fontSize: 10,
-    fontFamily: "DMSans_500Medium",
-    color: "rgba(255,255,255,0.65)",
-  },
-  heroFade: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    // Linear gradient approximated with a solid-to-transparent overlay
-    backgroundColor: BG,
-    opacity: 0.7,
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 16,
+  chrome: {
+    flex: 1,
+    paddingHorizontal: 22,
+    paddingTop: 16,
+    paddingBottom: 18,
     justifyContent: "space-between",
-    backgroundColor: BG,
   },
   songRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    marginBottom: 10,
   },
   artwork: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: 8,
   },
   songInfo: {
     flex: 1,
   },
   songTitle: {
-    fontSize: 18,
-    fontFamily: "DMSans_700Bold",
-    color: "#fff",
-    lineHeight: 22,
+    fontSize: 24,
+    fontFamily: "DMSerifDisplay_400Regular",
+    color: INK,
+    lineHeight: 28,
   },
   songArtist: {
-    fontSize: 12,
-    fontFamily: "DMSans_400Regular",
-    color: "rgba(255,255,255,0.6)",
-    marginTop: 2,
+    fontSize: 13,
+    fontFamily: "DMSans_500Medium",
+    color: INK_SOFT,
+    marginTop: 1,
   },
   reflection: {
     fontFamily: "DMSerifDisplay_400Regular_Italic",
-    fontSize: 16,
-    lineHeight: 23,
-    color: "rgba(255,255,255,0.92)",
+    fontSize: 15,
+    lineHeight: 22,
+    color: INK,
+    marginTop: 10,
+  },
+  reflectionSpacer: {
     flex: 1,
   },
   footer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.08)",
-    marginTop: 14,
-    paddingTop: 10,
+    borderTopColor: HAIRLINE,
+    marginTop: 12,
+    paddingTop: 11,
   },
-  moodChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-  },
-  moodChipText: {
-    fontSize: 11,
+  meta: {
+    flex: 1,
+    fontSize: 10.5,
     fontFamily: "DMSans_500Medium",
-    color: "rgba(255,255,255,0.75)",
-  },
-  footerDate: {
-    fontSize: 11,
-    fontFamily: "DMSans_500Medium",
-    color: "rgba(255,255,255,0.4)",
-    letterSpacing: 0.8,
+    letterSpacing: 1.2,
+    color: INK_SOFT,
   },
   wordmark: {
     fontSize: 11,
     fontFamily: "DMSans_700Bold",
-    color: "#E8825C",
+    color: ACCENT,
     letterSpacing: 1.4,
   },
 });

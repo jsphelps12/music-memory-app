@@ -913,6 +913,7 @@ export default function MomentDetailScreen() {
           moment={moment}
           photoUrls={photoUrls}
           onClose={() => setShareModalVisible(false)}
+          onAddToAlbum={handleAddToCollection}
         />
       )}
 
