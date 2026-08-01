@@ -182,28 +182,37 @@ async function reset(userId, displayName) {
   // onboarding_completed must be true: authRouting sends any profile without it
   // into the onboarding flow instead of the timeline, and the smoke flow's
   // "wait for tab-create" would spin forever.
-  const { error: profileError } = await supabase
+  await ensureProfile(userId, displayName);
+
+  return { moments: moments?.length ?? 0, photos: photoCount };
+}
+
+async function ensureProfile(userId, displayName) {
+  // The profile row is created by a trigger on signup, but an account created
+  // before that trigger existed would have none — and the app assumes one.
+  // onboarding_completed must be true: authRouting sends any profile without it
+  // into the onboarding flow instead of the timeline.
+  const { error } = await supabase
     .from("profiles")
     .upsert(
       { id: userId, display_name: displayName, onboarding_completed: true },
       { onConflict: "id" }
     );
-  if (profileError) throw new Error(`upsert profile failed: ${profileError.message}`);
-
-  return { moments: moments?.length ?? 0, photos: photoCount };
+  if (error) throw new Error(`upsert profile failed: ${error.message}`);
 }
 
-// Deleting a user's moments cascades their moment_shares rows in both
-// directions (FK ON DELETE CASCADE), so resetting both accounts also empties
-// the pair's share fixtures — each run starts from friends-with-nothing-sent.
+// Only the PRIMARY account resets to empty — that's the smoke flow's
+// guarantee. E2E Two is deliberately NOT wiped: it holds manual social
+// fixtures (received shares, its own moments) that should survive the weekly
+// CI run. Shares sent FROM the primary still disappear when its moments do
+// (FK ON DELETE CASCADE), which is exactly the empty-outbox the flow expects.
 const user = await ensureUser(E2E_EMAIL);
 const user2 = await ensureUser(E2E2_EMAIL);
 const { moments, photos } = await reset(user.id, "E2E");
-const { moments: moments2, photos: photos2 } = await reset(user2.id, "E2E Two");
+await ensureProfile(user2.id, "E2E Two");
 await ensureFriendship(user.id, user2.id);
 
 console.log(`reset ${E2E_EMAIL} (${user.id})`);
 console.log(`  deleted ${moments} moment(s), ${photos} photo object(s)`);
-console.log(`reset ${E2E2_EMAIL} (${user2.id})`);
-console.log(`  deleted ${moments2} moment(s), ${photos2} photo object(s)`);
+console.log(`ensured ${E2E2_EMAIL} (${user2.id}) — moments untouched`);
 console.log("  profile rows present, friendship in place");
