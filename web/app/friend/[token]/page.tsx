@@ -36,45 +36,65 @@ export default async function FriendInvitePage({ params }: PageProps) {
 
       <div className="w-full max-w-sm px-4 pt-12 pb-40">
 
-        {/* Avatar + identity */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 24 }}>
-          <div style={{
-            width: 96,
-            height: 96,
-            borderRadius: 48,
-            backgroundColor: "var(--avatar-bg)",
-            overflow: "hidden",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: 16,
-          }}>
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            ) : (
-              <span style={{ fontSize: 36, fontWeight: "700", color: "var(--text-tertiary)" }}>
-                {displayName[0]?.toUpperCase()}
-              </span>
+        {/* The friend card — the same cream keepsake every Soundtracks share
+            arrives as; here the person is the artifact. */}
+        <div className="artifact-card" style={{ marginBottom: 28 }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "32px 24px 0" }}>
+            <div style={{
+              width: 96,
+              height: 96,
+              borderRadius: 48,
+              backgroundColor: "var(--artifact-deep)",
+              overflow: "hidden",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 16,
+            }}>
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                <span className="artifact-serif" style={{ fontSize: 40, color: "var(--artifact-ink-faint)" }}>
+                  {displayName[0]?.toUpperCase()}
+                </span>
+              )}
+            </div>
+
+            <p className="artifact-serif" style={{ color: "var(--artifact-ink)", fontSize: 28, lineHeight: 1.15, textAlign: "center", margin: 0 }}>
+              {displayName}
+            </p>
+            {profile.username && (
+              <p style={{ color: "var(--artifact-ink-soft)", fontSize: 14, fontWeight: 500, margin: "4px 0 0" }}>
+                @{profile.username}
+              </p>
             )}
           </div>
 
-          <p style={{ color: "var(--text)", fontSize: 22, fontWeight: "700", textAlign: "center" }}>
-            {displayName}
-          </p>
-          {profile.username && (
-            <p style={{ color: "var(--text-secondary)", fontSize: 15, marginTop: 4 }}>
-              @{profile.username}
-            </p>
-          )}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              borderTop: "1px solid var(--artifact-hairline)",
+              margin: "24px 22px 0",
+              padding: "12px 0 18px",
+            }}
+          >
+            <span style={{ fontSize: 10.5, fontWeight: 500, letterSpacing: "0.1em", color: "var(--artifact-ink-soft)" }}>
+              FRIEND INVITE
+            </span>
+            <span className="artifact-wordmark">SOUNDTRACKS</span>
+          </div>
         </div>
 
         {/* Headline */}
-        <p style={{ color: "var(--text)", fontSize: 20, fontWeight: "700", textAlign: "center", marginBottom: 10 }}>
-          {firstName} invited you to connect on Soundtracks
+        <p className="artifact-serif" style={{ color: "var(--text)", fontSize: 22, lineHeight: 1.3, textAlign: "center", marginBottom: 10 }}>
+          {firstName} invited you to connect
         </p>
         <p style={{ color: "var(--text-secondary)", fontSize: 15, textAlign: "center", lineHeight: "1.5", marginBottom: 36 }}>
-          Soundtracks is where you capture music-linked memories — songs tied to real moments in your life. Friends can tag each other in shared memories.
+          Soundtracks is where you capture music-linked memories — songs tied to real moments in your life. Open the invite and you&rsquo;re instantly connected: friends can send moments straight to each other.
         </p>
 
       </div>
