@@ -168,6 +168,15 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
       })
     : null;
 
+  // Bare emoji(s) beside the date — deliberately no chips, no labels (owner is
+  // wary of card clutter). Capped at 3; a two-mood moment shows both rather
+  // than misrepresenting itself as its primary mood alone.
+  const moodEmojis = item.moods
+    .slice(0, 3)
+    .map((value) => allMoods.find((m) => m.value === value)?.emoji)
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <Animated.View ref={animatedRef} style={[styles.wrapper, animatedStyle, !theme.isDark && theme.shadows.card]}>
       <TouchableOpacity
@@ -194,6 +203,9 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
                 <Text testID="moment-card-title" style={styles.songTitle} numberOfLines={1}>
                   {item.songTitle}
                 </Text>
+                {moodEmojis ? (
+                  <Text style={styles.moodEmojis}>{moodEmojis}</Text>
+                ) : null}
                 {formattedDate ? (
                   <Text style={styles.date}>{formattedDate}</Text>
                 ) : null}
@@ -332,6 +344,10 @@ function createStyles(theme: Theme) {
     date: {
       fontSize: theme.fontSize.xs,
       color: theme.colors.textTertiary,
+      flexShrink: 0,
+    },
+    moodEmojis: {
+      fontSize: theme.fontSize.xs,
       flexShrink: 0,
     },
     photoRow: {
