@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import * as Haptics from "expo-haptics";
 import { BottomSheet } from "@/components/BottomSheet";
@@ -13,8 +13,13 @@ import { Theme } from "@/constants/theme";
 //   if (await confirmSheet({ title: "Delete Moment", message: "…",
 //       confirmLabel: "Delete", destructive: true })) { …do it… }
 //
-// One ConfirmSheetHost is mounted in the root layout; it renders above
-// everything, including other open bottom sheets (RN Modals stack).
+// HOSTS ARE A STACK, not a singleton. The root layout mounts one host, but a
+// root-level Modal cannot present while another Modal (an open BottomSheet)
+// is already up — iOS fails the presentation silently, which is exactly what
+// the post-merge verification caught on the share sheet's unsend chip. So any
+// sheet whose content calls confirmSheet() mounts its OWN <ConfirmSheetHost/>
+// inside the sheet: a Modal nested in the visible Modal's hierarchy presents
+// fine, and confirmSheet() always talks to the most recently mounted host.
 // Error alerts and system-adjacent prompts (permissions) deliberately stay
 // on Alert.alert — this is for decisions, not notices.
 
@@ -28,16 +33,17 @@ export interface ConfirmOptions {
 
 type Presenter = (opts: ConfirmOptions) => Promise<boolean>;
 
-let _present: Presenter | null = null;
+const hostStack: Presenter[] = [];
 
 /**
- * Resolves true when the user confirms, false on cancel or dismiss. If the
- * host isn't mounted (never happens after root layout renders), resolves
+ * Resolves true when the user confirms, false on cancel or dismiss. If no
+ * host is mounted (never happens after root layout renders), resolves
  * false — the safe answer for a destructive question.
  */
 export function confirmSheet(opts: ConfirmOptions): Promise<boolean> {
-  if (!_present) return Promise.resolve(false);
-  return _present(opts);
+  const present = hostStack[hostStack.length - 1];
+  if (!present) return Promise.resolve(false);
+  return present(opts);
 }
 
 interface Pending {
@@ -51,15 +57,22 @@ export function ConfirmSheetHost() {
   const [pending, setPending] = useState<Pending | null>(null);
   // Keeps the sheet's content rendered during the close animation.
   const [visible, setVisible] = useState(false);
+  const pendingRef = useRef<Pending | null>(null);
+  pendingRef.current = pending;
 
   useEffect(() => {
-    _present = (opts) =>
+    const present: Presenter = (opts) =>
       new Promise<boolean>((resolve) => {
         setPending({ opts, resolve });
         setVisible(true);
       });
+    hostStack.push(present);
     return () => {
-      _present = null;
+      const idx = hostStack.indexOf(present);
+      if (idx !== -1) hostStack.splice(idx, 1);
+      // Host unmounting mid-question (its parent sheet closed) — answer the
+      // caller with the safe "no" instead of leaving the promise pending.
+      pendingRef.current?.resolve(false);
     };
   }, []);
 

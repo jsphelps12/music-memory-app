@@ -17,7 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { BottomSheet } from "@/components/BottomSheet";
-import { confirmSheet } from "@/components/ConfirmSheet";
+import { ConfirmSheetHost, confirmSheet } from "@/components/ConfirmSheet";
 import * as Haptics from "expo-haptics";
 import { Album } from "@/types";
 import {
@@ -529,6 +529,10 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
             </View>
           </View>
       )}
+      {/* Local confirm host: a root-level Modal can't present over this open
+          sheet (iOS silently drops it), so confirms asked from in here need a
+          host nested inside the sheet's own Modal hierarchy. */}
+      <ConfirmSheetHost />
     </BottomSheet>
   );
 }

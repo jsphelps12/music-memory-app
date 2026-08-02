@@ -24,7 +24,7 @@ import * as Crypto from "expo-crypto";
 import * as Clipboard from "expo-clipboard";
 import { AppImage } from "@/components/AppImage";
 import { BottomSheet } from "@/components/BottomSheet";
-import { confirmSheet } from "@/components/ConfirmSheet";
+import { ConfirmSheetHost, confirmSheet } from "@/components/ConfirmSheet";
 import {
   ShareCard,
   ShareCardVariant,
@@ -679,6 +679,10 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
           </ScrollView>
         </>
       )}
+      {/* Local confirm host: a root-level Modal can't present over this open
+          sheet (iOS silently drops it), so confirms asked from in here need a
+          host nested inside the sheet's own Modal hierarchy. */}
+      <ConfirmSheetHost />
     </BottomSheet>
   );
 }
