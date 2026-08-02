@@ -263,6 +263,59 @@ Full spec: `docs/SOCIAL-ARCHITECTURE.md` (rewritten as v2 same day; audit that m
   - ⚠️ **Trap for future teardowns: simulator artifacts ship `CFBundleVersion = 1`.** EAS applies the remote build number only to device/store builds (which is why App Store Connect sees 7, 8, …), so the sim binary reports `1` no matter what the EAS build number says (this one was "build 24"). **Never read a build number off a simulator build when choosing a floor** — the drill above deliberately used `2`, not `24`. Set real floors from the App Store Connect / EAS build number of the *device* build.
 - [ ] **Next**: `preview` (device) build → beta testers via the internal install link. `preview` is **internal distribution, NOT TestFlight** — TestFlight requires the `production` profile, which stays parked until the owner calls the beta ready.
 
+## Product ideas + feasibility findings — 2026-08-02 session
+
+Reviewed against the existing list; several ideas below already existed (noted). The
+durable value here is the **feasibility research** — build on these facts, not on the
+optimistic version.
+
+- [ ] **Library backfill ("your library, dated")** — the cold-start unlock, and a sharper
+  spec for the "seeds moments from listening history" half of #6. ⚠️ **Feasibility
+  correction: dated PLAY history is not reachable by API.** Apple Music exposes only a
+  short recently-played window; Spotify caps `recently-played` at 50 tracks; Spotify's
+  `top tracks` are aggregate with no dates. What IS reachable is **dated library-adds** —
+  Apple Music library items and Spotify `/me/tracks` both carry the date the user saved
+  the song, going back years. So the prompt is *"you added Vienna in March 2019 — what was
+  going on?"*, not *"you played it 47 times."* Full stream history exists only in the
+  user's GDPR export (manual JSON import — power-user path, not the default). Neither
+  `MusicProvider` implementation exposes library reads today: this is new provider surface
+  on both sides.
+- [ ] **Ambient repeat detection** — "you had Passionfruit on repeat today, rough one?"
+  Zero-friction candidate generation: the user *reacts* instead of *initiates*, which is
+  the actual retention problem. ⚠️ **Feasibility: sampled-at-foreground, not true
+  background.** iOS gives no continuous background playback observation, and claiming the
+  background-audio entitlement to fake it is an App Store review risk — **do not**. The
+  workable path: on app foreground, pull recently-played and diff against last-seen. Good
+  enough, because the evening app-open is the reflection moment anyway.
+- [ ] **Linked moments, graph-free variant** — the parked "Sarah also has a memory of this
+  song" needs a friend graph; **"4 other people have a memory of this song" does not.**
+  Anonymous + aggregate works from day one and still creates the serendipity. Prod data
+  says build this version: 66 users, only **9 (14%) have any friend**, 12 friendships,
+  **0 direct moment shares**, but **17 moments with live share links** — people share by
+  link, not by graph. Prefer link-shaped features over graph-shaped ones.
+- [ ] **On This Day that plays** *(refines #9 Song Anniversaries)* — notification → tap →
+  song starts → your words from three years ago. The whole product in five seconds.
+- [ ] **Narrative synthesis, folded into #8 Yearly Recap** — "your 2019 in six songs."
+  Deliberately NOT standalone: it needs archive density to say anything true, has a high
+  floor of generic output, and competes with the user's own words (the actual asset).
+  Inside Wrapped once a year the bar is delight, not accuracy — that's where it earns its
+  place.
+- [ ] **Cold-start patches for Reflections** — the resurfacing surfaces are structurally
+  empty for exactly the users who most need hooking (verified in sim: "Joyful · 1",
+  "2026 · 5"). Cheap fixes: seed with "your first moment" and "this week last month"
+  (works at 2 weeks, not 12); render strips in a teaser state instead of hiding when thin.
+- [ ] **Mood post-hoc** — mood is already optional at capture; ask for it later during
+  resurfacing *only when blank*, instead of taxing the capture moment.
+- [ ] **Streaks** — owner acknowledges low importance; kept for now. Worth revisiting: a
+  streak rewards logging *something* daily, which competes with an archive whose value is
+  that entries are worth keeping.
+
+**AI stance (decided this session):** AI may ask, organize, resurface, and narrate —
+**never author the reflection.** The user's own words are the asset. Chat-as-primary-capture
+was considered and rejected: the app's advantage is fast contextual capture (now-playing
+autofill, a few taps), and a conversation is slower than a form for structured data. Chat
+belongs in *elaboration* (interview mode on an existing moment), not entry.
+
 ## Ops hardening — queued 2026-07-31 (build all three)
 
 Follow-ups from the 2026-07-31 migration-tracking repair (prod history had MCP-stamped drifted versions; staging history was empty and its schema silently missed three changes; `submit-guest-contribution` sat fixed-in-repo but undeployed for ~10 weeks). Make drift impossible rather than documented:
