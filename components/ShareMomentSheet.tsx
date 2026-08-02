@@ -74,7 +74,7 @@ interface Props {
 // removable. The share card export lives inside the link flow.
 export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToAlbum }: Props) {
   const theme = useTheme();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const posthog = usePostHog();
   const queryClient = useQueryClient();
   const viewShotRef = useRef<ViewShot>(null);
@@ -226,6 +226,17 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   };
 
   // ── Person handlers ───────────────────────────────────────────────────
+  const handleShareFriendLink = async () => {
+    if (!profile?.friendInviteToken) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const url = `https://soundtracks.app/friend/${profile.friendInviteToken}`;
+    try {
+      await Share.share(Platform.OS === "ios" ? { url } : { message: url });
+    } catch {
+      // User dismissed the share sheet — nothing to report.
+    }
+  };
+
   const openPersonView = () => {
     goTo("person");
     if (friendsLoadedRef.current || !user) return;
@@ -472,10 +483,23 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
               <Text style={[styles.personEmptyText, { color: theme.colors.textSecondary }]}>{friendsError}</Text>
             </View>
           ) : friends.length === 0 ? (
+            // An empty picker is the moment someone actually *wants* a friend
+            // here — so offer the invite inline instead of describing an errand
+            // on another screen.
             <View style={styles.personEmpty}>
               <Text style={[styles.personEmptyText, { color: theme.colors.textSecondary }]}>
-                No people yet. Share your friend link from your profile to connect — then you can send moments here.
+                Nobody here yet. Send someone your link — once they open it you can send
+                moments straight to each other.
               </Text>
+              <TouchableOpacity
+                style={[styles.inviteButton, { backgroundColor: theme.colors.buttonBg }]}
+                onPress={handleShareFriendLink}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.inviteButtonText, { color: theme.colors.buttonText }]}>
+                  Share your friend link
+                </Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <ScrollView
@@ -788,6 +812,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     textAlign: "center",
+  },
+  inviteButton: {
+    marginTop: 18,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  inviteButtonText: {
+    fontSize: 15,
+    fontFamily: "DMSans_600SemiBold",
   },
   personList: {
     maxHeight: 380,
