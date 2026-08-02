@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useState, useRef, useEffect } from "react";
 import { AppState } from "react-native";
-import { Audio } from "expo-av";
+import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from "expo-audio";
 import { getProvider } from "@/lib/providers";
 import type { MusicProvider } from "@/lib/providers";
 import { Song } from "@/types";
@@ -30,8 +30,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [playError, setPlayError] = useState(false);
   const [isPreview, setIsPreview] = useState(false);
 
-  // expo-av Sound ref — used only for 30-sec preview fallback playback
-  const soundRef = useRef<Audio.Sound | null>(null);
+  // expo-audio player ref — used only for 30-sec preview fallback playback
+  const soundRef = useRef<AudioPlayer | null>(null);
   // Tracks which provider is currently driving full playback (null = preview or stopped)
   const activeProviderRef = useRef<MusicProvider | null>(null);
   // Unsubscribe function for the active provider's state listener
@@ -42,7 +42,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Fire-and-forget: if the audio session can't be configured, preview
     // playback still works, it just won't play through the silent switch.
-    Audio.setAudioModeAsync({ playsInSilentModeIOS: true }).catch(() => {});
+    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
     return () => {
       unloadSound();
       providerUnsubRef.current?.();
@@ -53,8 +53,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const unloadSound = useCallback(async () => {
     if (soundRef.current) {
       try {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
+        soundRef.current.pause();
+        soundRef.current.remove();
       } catch {}
       soundRef.current = null;
     }
@@ -76,19 +76,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setPlaybackTime(0);
     setPlaybackDuration(0);
     try {
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: previewUrl },
-        { shouldPlay: true }
-      );
-      soundRef.current = sound;
+      // expo-audio positions are SECONDS (expo-av's were ms) — no /1000 here.
+      const player = createAudioPlayer({ uri: previewUrl });
+      soundRef.current = player;
       setCurrentSong(song);
       setIsPlaying(true);
       setIsPreview(true);
 
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (!status.isLoaded) return;
-        if (status.positionMillis != null) setPlaybackTime(status.positionMillis / 1000);
-        if (status.durationMillis) setPlaybackDuration(status.durationMillis / 1000);
+      player.addListener("playbackStatusUpdate", (status) => {
+        if (status.currentTime != null) setPlaybackTime(status.currentTime);
+        if (status.duration) setPlaybackDuration(status.duration);
         if (status.didJustFinish) {
           setIsPlaying(false);
           setCurrentSong(null);
@@ -97,6 +94,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           unloadSound();
         }
       });
+      player.play();
     } catch {
       setIsPlaying(false);
       setCurrentSong(null);
@@ -164,15 +162,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (activeProviderRef.current) {
       activeProviderRef.current.pause();
     } else if (soundRef.current) {
-      soundRef.current.pauseAsync().catch(() => {});
+      try { soundRef.current.pause(); } catch {}
     }
     setIsPlaying(false);
   }, []);
 
   // Pause when the app leaves the foreground. This is a memories app, not a
   // music player — audio continuing after the user switches away reads as a
-  // bug (beta feedback, 2026-07). Previews already stop on suspension (expo-av
-  // has no background mode), but provider playback drives the system player,
+  // bug (beta feedback, 2026-07). Previews already stop on suspension (no
+  // background audio mode configured), but provider playback drives the system player,
   // which would otherwise keep going indefinitely. "inactive" is deliberately
   // excluded: it fires on Control Center pulls and the app switcher peek,
   // where stopping would be wrong.
@@ -187,7 +185,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (activeProviderRef.current) {
       activeProviderRef.current.resume();
     } else if (soundRef.current) {
-      soundRef.current.playAsync().catch(() => {});
+      try { soundRef.current.play(); } catch {}
     }
     setIsPlaying(true);
   }, []);
@@ -207,7 +205,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (activeProviderRef.current) {
       activeProviderRef.current.seekTo(seconds);
     } else if (soundRef.current) {
-      soundRef.current.setPositionAsync(seconds * 1000).catch(() => {});
+      // expo-audio seeks in seconds (expo-av took ms)
+      soundRef.current.seekTo(seconds).catch(() => {});
     }
     setPlaybackTime(seconds);
   }, []);

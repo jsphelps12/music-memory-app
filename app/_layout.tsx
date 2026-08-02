@@ -31,6 +31,8 @@ import { ShareIntentProvider } from "expo-share-intent";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import { ConfirmSheetHost } from "@/components/ConfirmSheet";
+import { UpdateRequiredScreen } from "@/components/UpdateRequiredScreen";
+import { checkUpdateRequired } from "@/lib/minBuildGate";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PlayerProvider } from "@/contexts/PlayerContext";
 import { useDeepLinkHandler, PENDING_INVITE_CODE_KEY } from "@/hooks/useDeepLinkHandler";
@@ -250,6 +252,13 @@ function RootLayoutNav() {
   useShareIntentHandler();
   useOtaUpdate();
 
+  // Min-build gate (build 23): one launch check; fail-open, so the app renders
+  // normally unless the server positively says this binary is below the floor.
+  const [updateRequired, setUpdateRequired] = useState(false);
+  useEffect(() => {
+    checkUpdateRequired().then(setUpdateRequired).catch(() => {});
+  }, []);
+
   const pathname = usePathname();
   const params = useGlobalSearchParams();
   const previousPathname = useRef<string | undefined>(undefined);
@@ -315,6 +324,15 @@ function RootLayoutNav() {
     });
     return () => sub.remove();
   }, [user?.id, profile?.onboardingCompleted]);
+
+  if (updateRequired) {
+    return (
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <StatusBar style="auto" />
+        <UpdateRequiredScreen />
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
