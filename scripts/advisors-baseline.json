@@ -1,0 +1,42 @@
+{
+  "_note": "Accepted security-advisor findings by cache_key (snapshot 2026-08-01). The weekly sweep fails only on findings NOT listed here — this is the accepted-risk register, same philosophy as the eslint warning baseline. The SECURITY DEFINER RPC entries are deliberate API surface (hardened 20260729180000: fixed search_path, scoped grants); check_moment_owner / claim_gifted_moment / get_tagged_moment_data drop in the build-23 caboose — remove their entries then. Remove an entry whenever its finding is actually fixed so it can never regress silently.",
+  "production": [
+    "extension_in_public_pg_trgm",
+    "auth_leaked_password_protection",
+    "anon_security_definer_function_executable_public_check_moment_owner_p_moment_id uuid",
+    "anon_security_definer_function_executable_public_claim_gifted_moment_p_share_token text",
+    "anon_security_definer_function_executable_public_evict_push_token_from_other_profiles_",
+    "anon_security_definer_function_executable_public_get_random_forgotten_moment_p_cutoff timestamp with time zone",
+    "anon_security_definer_function_executable_public_get_random_moment_",
+    "anon_security_definer_function_executable_public_get_shared_collection_moments_p_collection_id uuid",
+    "anon_security_definer_function_executable_public_get_tagged_moment_data_p_moment_ids uuid[]",
+    "authenticated_security_definer_function_executable_public_check_moment_owner_p_moment_id uuid",
+    "authenticated_security_definer_function_executable_public_claim_gifted_moment_p_share_token text",
+    "authenticated_security_definer_function_executable_public_evict_push_token_from_other_profiles_",
+    "authenticated_security_definer_function_executable_public_get_random_forgotten_moment_p_cutoff timestamp with time zone",
+    "authenticated_security_definer_function_executable_public_get_random_moment_",
+    "authenticated_security_definer_function_executable_public_get_shared_collection_moments_p_collection_id uuid",
+    "authenticated_security_definer_function_executable_public_get_tagged_moment_data_p_moment_ids uuid[]",
+    "authenticated_security_definer_function_executable_public_owns_moment_p_moment_id uuid"
+  ],
+  "staging": [
+    "extension_in_public_pg_trgm",
+    "auth_leaked_password_protection",
+    "public_bucket_allows_listing_moment-photos",
+    "anon_security_definer_function_executable_public_check_moment_owner_p_moment_id uuid",
+    "anon_security_definer_function_executable_public_claim_gifted_moment_p_share_token text",
+    "anon_security_definer_function_executable_public_evict_push_token_from_other_profiles_",
+    "anon_security_definer_function_executable_public_get_random_forgotten_moment_p_cutoff timestamp with time zone",
+    "anon_security_definer_function_executable_public_get_random_moment_",
+    "anon_security_definer_function_executable_public_get_shared_collection_moments_p_collection_id uuid",
+    "anon_security_definer_function_executable_public_get_tagged_moment_data_p_moment_ids uuid[]",
+    "authenticated_security_definer_function_executable_public_check_moment_owner_p_moment_id uuid",
+    "authenticated_security_definer_function_executable_public_claim_gifted_moment_p_share_token text",
+    "authenticated_security_definer_function_executable_public_evict_push_token_from_other_profiles_",
+    "authenticated_security_definer_function_executable_public_get_random_forgotten_moment_p_cutoff timestamp with time zone",
+    "authenticated_security_definer_function_executable_public_get_random_moment_",
+    "authenticated_security_definer_function_executable_public_get_shared_collection_moments_p_collection_id uuid",
+    "authenticated_security_definer_function_executable_public_get_tagged_moment_data_p_moment_ids uuid[]",
+    "authenticated_security_definer_function_executable_public_owns_moment_p_moment_id uuid"
+  ]
+}
