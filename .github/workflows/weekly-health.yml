@@ -1,0 +1,42 @@
+name: Weekly Health
+
+# Monday sweep next to the E2E cron (ops hardening): Supabase advisors for
+# both projects (security findings = red run) and the prod-vs-staging schema
+# shape diff (any divergence = red run). workflow_dispatch for on-demand runs.
+
+on:
+  schedule:
+    - cron: "15 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  advisors:
+    name: Supabase advisors (security gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Check advisors on both projects
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/advisors-check.mjs
+
+  schema-diff:
+    name: Prod vs staging schema shape
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Diff public schema shape
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/schema-diff.mjs

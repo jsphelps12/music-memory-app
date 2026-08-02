@@ -1,0 +1,45 @@
+name: Edge Functions
+
+# Deploys every edge function to BOTH projects when function code (or the
+# verify_jwt manifest) lands on main. Deploying all of them, not just the
+# changed ones, is deliberate: it self-heals drift, which once left
+# submit-guest-contribution fixed-in-repo but undeployed for ~10 weeks.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edge-functions
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to production + staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # verify_jwt per function comes from supabase/config.toml — the manifest
+      # is the single source of truth for both projects.
+      - name: Deploy all functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          for ref in izfhbtipzuvinyacttin bqyrpahvdukllasafdpv; do
+            echo "── deploying to $ref ──"
+            supabase functions deploy --project-ref "$ref"
+          done

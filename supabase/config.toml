@@ -1,0 +1,33 @@
+# The verify_jwt manifest (ops hardening, 2026-08). The CLI reads these on
+# `supabase functions deploy`, so what ships is always what this file says —
+# no more dashboard-seeded defaults silently blocking anonymous callers
+# (staging's verify_jwt=true on submit-guest-contribution once did exactly
+# that to guest contributions).
+#
+# false = the function authenticates in-code (invite codes, or it verifies
+# the caller's JWT itself with the service key). true = the gateway requires
+# a valid JWT before the function runs.
+
+[functions.accept-friend-invite]
+verify_jwt = false # verifies the caller's JWT in-code (writes with service role)
+
+[functions.create-guest-user]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = false # verifies the caller's JWT in-code
+
+[functions.notify-friend]
+verify_jwt = true # legacy, kept deployed for old binaries until the build-23 caboose
+
+[functions.notify-social]
+verify_jwt = true
+
+[functions.send-notifications]
+verify_jwt = false # cron-invoked with the service key, not user JWTs
+
+[functions.spotify-preview]
+verify_jwt = false # public preview lookup
+
+[functions.submit-guest-contribution]
+verify_jwt = false # guests have no JWT; authenticates via album invite code
