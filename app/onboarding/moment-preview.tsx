@@ -11,7 +11,7 @@ import {
 import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Audio } from "expo-av";
+import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from "expo-audio";
 import { supabase } from "@/lib/supabase";
 import * as Crypto from "expo-crypto";
 import { mapRowToMoment } from "@/lib/moments";
@@ -31,7 +31,7 @@ export default function OnboardingMomentPreviewScreen() {
   const [moment, setMoment] = useState<Moment | null>(null);
   const [loading, setLoading] = useState(true);
   const [volumeBannerVisible, setVolumeBannerVisible] = useState(true);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundRef = useRef<AudioPlayer | null>(null);
 
   // Redirect immediately if no moment to show
   useEffect(() => {
@@ -57,33 +57,35 @@ export default function OnboardingMomentPreviewScreen() {
       });
   }, [momentIdToShow]);
 
-  // Play preview audio
+  // Play preview audio. createAudioPlayer is synchronous (expo-av's create
+  // was a promise), so the old cancelled-flag dance is gone.
   useEffect(() => {
     if (!moment?.songPreviewUrl) return;
-    let cancelled = false;
 
-    Audio.setAudioModeAsync({ playsInSilentModeIOS: true }).catch(() => {});
+    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
 
-    Audio.Sound.createAsync(
-      { uri: moment.songPreviewUrl },
-      { shouldPlay: true, isLooping: true, volume: 1.0 }
-    ).then(({ sound }) => {
-      if (cancelled) {
-        sound.unloadAsync();
-        return;
-      }
-      soundRef.current = sound;
-    }).catch(() => {});
+    try {
+      const player = createAudioPlayer({ uri: moment.songPreviewUrl });
+      player.loop = true;
+      player.volume = 1.0;
+      player.play();
+      soundRef.current = player;
+    } catch {}
 
     return () => {
-      cancelled = true;
-      soundRef.current?.unloadAsync().catch(() => {});
+      try {
+        soundRef.current?.pause();
+        soundRef.current?.remove();
+      } catch {}
       soundRef.current = null;
     };
   }, [moment?.songPreviewUrl]);
 
   const handleContinue = async () => {
-    await soundRef.current?.unloadAsync().catch(() => {});
+    try {
+      soundRef.current?.pause();
+      soundRef.current?.remove();
+    } catch {}
     soundRef.current = null;
     router.replace({
       pathname: "/onboarding/celebration",
