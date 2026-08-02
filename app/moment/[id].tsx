@@ -48,6 +48,7 @@ import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { SkeletonMomentDetail } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { PhotoViewer } from "@/components/PhotoViewer";
+import { confirmSheet } from "@/components/ConfirmSheet";
 import { friendlyError } from "@/lib/errors";
 import { Album, Moment, MoodOption } from "@/types";
 import { markTimelineStale } from "@/lib/timelineRefresh";
@@ -400,75 +401,71 @@ export default function MomentDetailScreen() {
     setCreatingCollection(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deleting) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     setMenuOpen(false);
-    Alert.alert("Delete Moment", "Are you sure? This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          setDeleting(true);
-          const { error: deleteError } = await deleteMomentWithCleanup({
-            id,
-            photoUrls: moment?.photoUrls ?? [],
-            photoThumbnails: moment?.photoThumbnails ?? [],
-          });
+    const confirmed = await confirmSheet({
+      title: "Delete Moment",
+      message: "Are you sure? This cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setDeleting(true);
+    const { error: deleteError } = await deleteMomentWithCleanup({
+      id,
+      photoUrls: moment?.photoUrls ?? [],
+      photoThumbnails: moment?.photoThumbnails ?? [],
+    });
 
-          if (deleteError) {
-            setDeleting(false);
-            Alert.alert("Error", friendlyError(deleteError));
-            return;
-          }
+    if (deleteError) {
+      setDeleting(false);
+      Alert.alert("Error", friendlyError(deleteError));
+      return;
+    }
 
-          // The moment is gone — its song shouldn't keep playing (or linger
-          // paused in the mini player).
-          const deletedSongId = moment?.songSpotifyId ?? moment?.songAppleMusicId;
-          const playingSongId = currentSong?.spotifyId ?? currentSong?.appleMusicId;
-          if (deletedSongId && deletedSongId === playingSongId) {
-            void stop();
-          }
+    // The moment is gone — its song shouldn't keep playing (or linger
+    // paused in the mini player).
+    const deletedSongId = moment?.songSpotifyId ?? moment?.songAppleMusicId;
+    const playingSongId = currentSong?.spotifyId ?? currentSong?.appleMusicId;
+    if (deletedSongId && deletedSongId === playingSongId) {
+      void stop();
+    }
 
-          posthog.capture("moment_deleted", { song_title: moment?.songTitle ?? null, song_artist: moment?.songArtist ?? null });
-          invalidateMomentCaches(queryClient, user?.id);
-          animateOut(goBack);
-        },
-      },
-    ]);
+    posthog.capture("moment_deleted", { song_title: moment?.songTitle ?? null, song_artist: moment?.songArtist ?? null });
+    invalidateMomentCaches(queryClient, user?.id);
+    animateOut(goBack);
   };
 
-  const handleRemoveFromCollection = () => {
+  const handleRemoveFromCollection = async () => {
     if (!collectionId) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     setMenuOpen(false);
-    Alert.alert("Remove from Album", "Remove this moment from the album? The moment won't be deleted.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove",
-        style: "destructive",
-        onPress: async () => {
-          setDeleting(true);
-          const { error: removeError } = await supabase
-            .from("collection_moments")
-            .delete()
-            .eq("collection_id", collectionId)
-            .eq("moment_id", id);
+    const confirmed = await confirmSheet({
+      title: "Remove from Album",
+      message: "Remove this moment from the album? The moment won't be deleted.",
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setDeleting(true);
+    const { error: removeError } = await supabase
+      .from("collection_moments")
+      .delete()
+      .eq("collection_id", collectionId)
+      .eq("moment_id", id);
 
-          if (removeError) {
-            setDeleting(false);
-            Alert.alert("Error", friendlyError(removeError));
-            return;
-          }
+    if (removeError) {
+      setDeleting(false);
+      Alert.alert("Error", friendlyError(removeError));
+      return;
+    }
 
-          markTimelineStale();
-          invalidateMomentCaches(queryClient, user?.id);
-          invalidateAlbumCaches(queryClient, user?.id, collectionId);
-          animateOut(goBack);
-        },
-      },
-    ]);
+    markTimelineStale();
+    invalidateMomentCaches(queryClient, user?.id);
+    invalidateAlbumCaches(queryClient, user?.id, collectionId);
+    animateOut(goBack);
   };
 
   // Unknown values (a custom mood someone else defined) fall back to a raw chip

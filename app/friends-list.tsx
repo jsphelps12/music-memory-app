@@ -19,6 +19,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { CloseButton } from "@/components/CloseButton";
 import { IconButton } from "@/components/IconButton";
+import { confirmSheet } from "@/components/ConfirmSheet";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { friendlyError } from "@/lib/errors";
 import { invalidateFriendCaches } from "@/lib/cacheInvalidation";
@@ -66,30 +67,24 @@ export default function FriendsListScreen() {
     enabled: !!user,
   });
 
-  const handleRemoveFriend = (friendship: Friendship) => {
+  const handleRemoveFriend = async (friendship: Friendship) => {
     const name = friendship.otherUserDisplayName ?? "this person";
-    Alert.alert(
-      "Remove Friend",
-      `Remove ${name} from your friends?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await removeFriend(friendship.id);
-              queryClient.setQueryData(["friendsList", user?.id], (old: Friendship[] | undefined) =>
-                old ? old.filter((f) => f.id !== friendship.id) : old
-              );
-              invalidateFriendCaches(queryClient, user?.id);
-            } catch (e) {
-              Alert.alert("Error", friendlyError(e));
-            }
-          },
-        },
-      ]
-    );
+    const confirmed = await confirmSheet({
+      title: "Remove Friend",
+      message: `Remove ${name} from your friends?`,
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      await removeFriend(friendship.id);
+      queryClient.setQueryData(["friendsList", user?.id], (old: Friendship[] | undefined) =>
+        old ? old.filter((f) => f.id !== friendship.id) : old
+      );
+      invalidateFriendCaches(queryClient, user?.id);
+    } catch (e) {
+      Alert.alert("Error", friendlyError(e));
+    }
   };
 
   return (

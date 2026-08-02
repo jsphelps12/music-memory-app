@@ -27,6 +27,7 @@ import { getPublicPhotoUrl, getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { MomentActionMenu, MenuAnchor } from "@/components/MomentActionMenu";
+import { confirmSheet } from "@/components/ConfirmSheet";
 import { Moment, Song } from "@/types";
 
 interface Props {
@@ -84,30 +85,28 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
     router.push(`/moment/edit/${item.id}`);
   }, [item.id, router]);
 
-  const handleMenuDelete = useCallback(() => {
+  const handleMenuDelete = useCallback(async () => {
     setMenuAnchor(null);
-    Alert.alert("Delete Moment", "Are you sure? This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          const { error } = await deleteMomentWithCleanup(item);
-          if (error) {
-            Alert.alert("Error", friendlyError(error));
-            return;
-          }
-          // The moment is gone — its song shouldn't keep playing (or linger
-          // paused in the mini player).
-          if (momentSongId && momentSongId === playingSongId) {
-            void player.stop();
-          }
-          posthog.capture("moment_deleted", { song_title: item.songTitle, song_artist: item.songArtist });
-          invalidateMomentCaches(queryClient, user?.id);
-          onDeleted?.(item.id);
-        },
-      },
-    ]);
+    const confirmed = await confirmSheet({
+      title: "Delete Moment",
+      message: "Are you sure? This cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    const { error } = await deleteMomentWithCleanup(item);
+    if (error) {
+      Alert.alert("Error", friendlyError(error));
+      return;
+    }
+    // The moment is gone — its song shouldn't keep playing (or linger
+    // paused in the mini player).
+    if (momentSongId && momentSongId === playingSongId) {
+      void player.stop();
+    }
+    posthog.capture("moment_deleted", { song_title: item.songTitle, song_artist: item.songArtist });
+    invalidateMomentCaches(queryClient, user?.id);
+    onDeleted?.(item.id);
   }, [item, posthog, queryClient, user?.id, onDeleted, momentSongId, playingSongId, player]);
 
   const handlePlayPress = useCallback(() => {

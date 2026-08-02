@@ -17,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { BottomSheet } from "@/components/BottomSheet";
+import { confirmSheet } from "@/components/ConfirmSheet";
 import * as Haptics from "expo-haptics";
 import { Album } from "@/types";
 import {
@@ -142,33 +143,27 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
     }
   }
 
-  function handleConvert() {
-    Alert.alert(
-      "Make Shared?",
-      "Anyone with the invite link can join and add moments. This can't be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Make Shared",
-          onPress: async () => {
-            setConverting(true);
-            setError("");
-            try {
-              await convertAlbumToShared(collection.id);
-              await supabase.functions.invoke("create-guest-user", {
-                body: { collectionId: collection.id },
-              });
-              onUpdated({ ...collection, isPublic: true });
-              invalidateAlbumCaches(queryClient, user?.id, collection.id);
-            } catch (e: any) {
-              setError(friendlyError(e));
-            } finally {
-              setConverting(false);
-            }
-          },
-        },
-      ]
-    );
+  async function handleConvert() {
+    const confirmed = await confirmSheet({
+      title: "Make Shared?",
+      message: "Anyone with the invite link can join and add moments. This can't be undone.",
+      confirmLabel: "Make Shared",
+    });
+    if (!confirmed) return;
+    setConverting(true);
+    setError("");
+    try {
+      await convertAlbumToShared(collection.id);
+      await supabase.functions.invoke("create-guest-user", {
+        body: { collectionId: collection.id },
+      });
+      onUpdated({ ...collection, isPublic: true });
+      invalidateAlbumCaches(queryClient, user?.id, collection.id);
+    } catch (e: any) {
+      setError(friendlyError(e));
+    } finally {
+      setConverting(false);
+    }
   }
 
   async function handleShare() {
@@ -182,90 +177,71 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
     } catch {}
   }
 
-  function handleRemoveMember(member: AlbumMember) {
-    Alert.alert(
-      "Remove Member",
-      `Remove ${member.displayName ?? "this member"} from "${collection.name}"?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            setRemovingMemberId(member.userId);
-            setError("");
-            try {
-              await removeAlbumMember(collection.id, member.userId);
-              setMembers((prev) => prev.filter((m) => m.userId !== member.userId));
-            } catch (e: any) {
-              setError(friendlyError(e));
-            } finally {
-              setRemovingMemberId(null);
-            }
-          },
-        },
-      ]
-    );
+  async function handleRemoveMember(member: AlbumMember) {
+    const confirmed = await confirmSheet({
+      title: "Remove Member",
+      message: `Remove ${member.displayName ?? "this member"} from "${collection.name}"?`,
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setRemovingMemberId(member.userId);
+    setError("");
+    try {
+      await removeAlbumMember(collection.id, member.userId);
+      setMembers((prev) => prev.filter((m) => m.userId !== member.userId));
+    } catch (e: any) {
+      setError(friendlyError(e));
+    } finally {
+      setRemovingMemberId(null);
+    }
   }
 
-  function handleLeave() {
-    Alert.alert(
-      "Leave Album",
-      `Leave "${collection.name}"? You can rejoin later with the invite link.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Leave",
-          style: "destructive",
-          onPress: async () => {
-            if (!user) return;
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            setLeaving(true);
-            setError("");
-            try {
-              await leaveAlbum(collection.id, user.id);
-              invalidateAlbumCaches(queryClient, user.id, collection.id);
-              onClose();
-              onLeft(collection.id);
-            } catch (e: any) {
-              setError(friendlyError(e));
-              setLeaving(false);
-            }
-          },
-        },
-      ]
-    );
+  async function handleLeave() {
+    const confirmed = await confirmSheet({
+      title: "Leave Album",
+      message: `Leave "${collection.name}"? You can rejoin later with the invite link.`,
+      confirmLabel: "Leave",
+      destructive: true,
+    });
+    if (!confirmed || !user) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setLeaving(true);
+    setError("");
+    try {
+      await leaveAlbum(collection.id, user.id);
+      invalidateAlbumCaches(queryClient, user.id, collection.id);
+      onClose();
+      onLeft(collection.id);
+    } catch (e: any) {
+      setError(friendlyError(e));
+      setLeaving(false);
+    }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     const memberWarning = members.length > 0
       ? ` ${members.length} member${members.length === 1 ? "" : "s"} will be removed.`
       : "";
-    Alert.alert(
-      "Delete Album",
-      `Permanently delete "${collection.name}"?${memberWarning} Moments added by members will remain on their timelines. This can't be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            setDeleting(true);
-            setError("");
-            try {
-              await deleteAlbum(collection.id);
-              invalidateAlbumCaches(queryClient, user?.id, collection.id);
-              onClose();
-              onLeft(collection.id);
-            } catch (e: any) {
-              setError(friendlyError(e));
-              setDeleting(false);
-            }
-          },
-        },
-      ]
-    );
+    const confirmed = await confirmSheet({
+      title: "Delete Album",
+      message: `Permanently delete "${collection.name}"?${memberWarning} Moments added by members will remain on their timelines. This can't be undone.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setDeleting(true);
+    setError("");
+    try {
+      await deleteAlbum(collection.id);
+      invalidateAlbumCaches(queryClient, user?.id, collection.id);
+      onClose();
+      onLeft(collection.id);
+    } catch (e: any) {
+      setError(friendlyError(e));
+      setDeleting(false);
+    }
   }
 
   const totalMembers = members.length + 1; // +1 for owner

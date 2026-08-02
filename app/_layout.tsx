@@ -30,6 +30,7 @@ import * as Notifications from "expo-notifications";
 import { ShareIntentProvider } from "expo-share-intent";
 
 import { useColorScheme } from "@/components/useColorScheme";
+import { ConfirmSheetHost } from "@/components/ConfirmSheet";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PlayerProvider } from "@/contexts/PlayerContext";
 import { useDeepLinkHandler, PENDING_INVITE_CODE_KEY } from "@/hooks/useDeepLinkHandler";
@@ -393,6 +394,8 @@ function RootLayoutNav() {
           />
         </Stack>
       </AuthGate>
+      {/* One host for every confirmSheet() call — renders above open sheets */}
+      <ConfirmSheetHost />
     </ThemeProvider>
   );
 }

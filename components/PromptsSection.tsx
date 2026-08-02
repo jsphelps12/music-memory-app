@@ -10,6 +10,7 @@ import {
 import * as Haptics from "expo-haptics";
 import * as Crypto from "expo-crypto";
 import { useTheme } from "@/hooks/useTheme";
+import { confirmSheet } from "@/components/ConfirmSheet";
 import { Theme } from "@/constants/theme";
 import { PROMPT_CATEGORIES } from "@/constants/Prompts";
 import { CustomPromptCategory } from "@/types";
@@ -44,19 +45,14 @@ export function PromptsSection({ customCategories, onSave, onDelete }: Props) {
     setEditingCategory({ ...cat, starters: [...cat.starters] });
   };
 
-  const handleDelete = (cat: CustomPromptCategory) => {
-    Alert.alert(
-      `Delete "${cat.label}"?`,
-      "This category and all its starters will be removed.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => onDelete(cat.id),
-        },
-      ]
-    );
+  const handleDelete = async (cat: CustomPromptCategory) => {
+    const confirmed = await confirmSheet({
+      title: `Delete "${cat.label}"?`,
+      message: "This category and all its starters will be removed.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (confirmed) onDelete(cat.id);
   };
 
   const handleSaveEdit = async () => {
