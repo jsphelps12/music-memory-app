@@ -280,6 +280,15 @@ optimistic version.
   user's GDPR export (manual JSON import — power-user path, not the default). Neither
   `MusicProvider` implementation exposes library reads today: this is new provider surface
   on both sides.
+  ⭐ **Better source (owner's idea, 2026-08-02): Wrapped / Replay playlists.** Spotify saves
+  "Your Top Songs 20XX" per year and Apple Music saves "Replay YYYY" into the user's
+  library — **dated, ranked, per-year taste snapshots**, strictly better than library-add
+  dates for the prompt we actually want (*"this was your #3 song of 2019 — what was that
+  year?"*). Found by listing the user's playlists and matching year-named ones. Caveats:
+  only exist if they subscribed that year and kept/followed the playlist, names vary by
+  locale, and Spotify's are Spotify-owned (followed, not owned) so the lookup differs per
+  provider. Treat as the richest source, with library-adds and liked songs
+  (`/me/tracks.added_at`) as the always-available fallback.
 - [ ] **Ambient repeat detection** — "you had Passionfruit on repeat today, rough one?"
   Zero-friction candidate generation: the user *reacts* instead of *initiates*, which is
   the actual retention problem. ⚠️ **Feasibility: sampled-at-foreground, not true
@@ -287,12 +296,21 @@ optimistic version.
   background-audio entitlement to fake it is an App Store review risk — **do not**. The
   workable path: on app foreground, pull recently-played and diff against last-seen. Good
   enough, because the evening app-open is the reflection moment anyway.
-- [ ] **Linked moments, graph-free variant** — the parked "Sarah also has a memory of this
-  song" needs a friend graph; **"4 other people have a memory of this song" does not.**
-  Anonymous + aggregate works from day one and still creates the serendipity. Prod data
-  says build this version: 66 users, only **9 (14%) have any friend**, 12 friendships,
-  **0 direct moment shares**, but **17 moments with live share links** — people share by
-  link, not by graph. Prefer link-shaped features over graph-shaped ones.
+- [ ] **Linked moments — tiered: named where consented, anonymous otherwise.** The parked
+  "Sarah also has a memory of this song" needs a friend graph; **"4 other people have a
+  memory of this song" does not.** Build both: name a friend when there is one (warmer,
+  actionable), fall back to an anonymous count otherwise (coverage at any scale).
+  ⚠️ **Correction (2026-08-02): an earlier draft argued "people share by link, not by
+  graph" from 17 live links vs 0 direct shares. That inference was wrong** — `moment_shares`
+  shipped 2026-08-01 and was ~1 day old at measurement, while share links have existed for
+  months. Do not reuse it. The fair comparison: friendships shipped April 2026 and after
+  ~4 months only **9 of 66 users (14%) have any friend** — the graph is thin, which argues
+  for the anonymous fallback as coverage, not for abandoning the named version.
+  ⚠️ **Privacy conflict to resolve first:** this contradicts the v2 access rule ("you see a
+  moment iff a grant exists"). Revealing *"Sarah has a memory of this song"* leaks that
+  Sarah logged it, and at this user count an anonymous **"1 other person"** is close to
+  deanonymizing inside a friend group. Needs explicit opt-in ("let others discover we share
+  a song") plus a k-anonymity floor before any count is shown.
 - [ ] **On This Day that plays** *(refines #9 Song Anniversaries)* — notification → tap →
   song starts → your words from three years ago. The whole product in five seconds.
 - [ ] **Narrative synthesis, folded into #8 Yearly Recap** — "your 2019 in six songs."
