@@ -97,6 +97,18 @@ jobs:
         run: node scripts/seed-e2e.mjs
 
       - name: Install Maestro
+        env:
+          # PINNED ON PURPOSE. The installer takes the newest release when this
+          # is unset, which silently swapped 2.7.0 → 2.8.0 mid-life (2.8.0 was
+          # published 2026-07-31 12:04 UTC, six hours after the last green run)
+          # and broke every run after it: 2.8.0 starts typing before the
+          # keyboard it just raised has settled, so the FIRST inputText of a
+          # flow lands only its first character. The email field got "e", auth
+          # failed, and the flow died 20 steps later on "tab-create is visible"
+          # — a failure that reads like an app regression and isn't one.
+          # An unpinned test runner cannot tell you the app broke.
+          # Bump deliberately, and re-run this workflow when you do.
+          MAESTRO_VERSION: 2.7.0
         run: |
           curl -fsSL "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
