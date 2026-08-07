@@ -35,11 +35,18 @@ async function fetchMomentData(share_token: string) {
 
   const { data: profile } = await getSupabase()
     .from("profiles")
-    .select("display_name")
+    .select("display_name, friend_invite_token")
     .eq("id", row.user_id)
     .single();
 
-  return { row, senderName: profile?.display_name ?? "Someone" };
+  return {
+    row,
+    senderName: profile?.display_name ?? "Someone",
+    // Powers the relational CTA below. /friend/{token} already handles both
+    // cases (deep link if the app is installed, App Store if not), so the
+    // page doesn't have to guess.
+    senderFriendToken: (profile?.friend_invite_token as string | null) ?? null,
+  };
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -84,7 +91,8 @@ export default async function GiftedMomentPage({ params }: PageProps) {
   const { share_token } = await params;
   const result = await fetchMomentData(share_token);
   if (!result) notFound();
-  const { row, senderName } = result;
+  const { row, senderName, senderFriendToken } = result;
+  const senderFirstName = senderName.split(" ")[0];
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const photoUrls: string[] = (row.photo_urls ?? []).map(
@@ -109,7 +117,7 @@ export default async function GiftedMomentPage({ params }: PageProps) {
       style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", backgroundColor: "var(--bg)" }}
     >
       <GiftClipboardWriter shareToken={share_token} />
-      <div style={{ width: "100%", maxWidth: 390, padding: "40px 20px 140px" }}>
+      <div style={{ width: "100%", maxWidth: 390, padding: "40px 20px 48px" }}>
 
         {/* Sender label */}
         <p
@@ -246,46 +254,87 @@ export default async function GiftedMomentPage({ params }: PageProps) {
             ))}
           </div>
         )}
-      </div>
 
-      {/* Sticky CTA */}
-      <div
-        style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: "12px 20px 20px",
-          backgroundColor: "var(--bg)",
-          borderTop: "1px solid var(--border)",
-        }}
-      >
-        <div style={{ maxWidth: 390, margin: "0 auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-          {/* Apple App Store badge */}
-          <a href="https://apps.apple.com/us/app/soundtracks/id6759203604" style={{ display: "inline-block" }}>
+        {/* The ask — deliberately NOT sticky and below the memory.
+            Owner constraint: someone with no app and no account (a grandparent)
+            must get the whole thing — card, preview, photos — without ever
+            meeting a wall. So this sits at the end of the page, after the
+            artifact, and is skippable by simply not scrolling to it. */}
+        <div
+          style={{
+            marginTop: 36,
+            paddingTop: 24,
+            borderTop: "1px solid var(--border)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          {senderFriendToken ? (
+            <>
+              <p
+                style={{
+                  fontSize: 14,
+                  lineHeight: 1.5,
+                  textAlign: "center",
+                  color: "var(--text-secondary)",
+                  margin: 0,
+                }}
+              >
+                Add {senderFirstName} back and you&rsquo;ll see each other&rsquo;s moments
+                when a song means something.
+              </p>
+              <a
+                href={`/friend/${senderFriendToken}`}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "center",
+                  padding: "13px 20px",
+                  borderRadius: 14,
+                  backgroundColor: "#E8825C",
+                  color: "#fff",
+                  fontWeight: 600,
+                  fontSize: 15,
+                  textDecoration: "none",
+                }}
+              >
+                Add {senderFirstName} on Soundtracks
+              </a>
+            </>
+          ) : (
+            <p
+              style={{
+                fontSize: 14,
+                lineHeight: 1.5,
+                textAlign: "center",
+                color: "var(--text-secondary)",
+                margin: 0,
+              }}
+            >
+              Soundtracks is where you keep the songs tied to your own memories.
+            </p>
+          )}
+
+          {/* Apple App Store badge — the quiet second tier. The badge art is
+              white, which nearly disappears on the light theme's cream, so it
+              carries its own hairline. */}
+          <a
+            href="https://apps.apple.com/us/app/soundtracks/id6759203604"
+            style={{
+              display: "inline-block",
+              lineHeight: 0,
+              borderRadius: 8,
+              border: "1px solid var(--border)",
+            }}
+          >
             <svg height="40" viewBox="0 0 120 40" xmlns="http://www.w3.org/2000/svg" aria-label="Download on the App Store">
               <rect width="120" height="40" rx="8" fill="#fff" />
               <text x="38" y="13" fontFamily="-apple-system, Helvetica, Arial, sans-serif" fontSize="8" fill="#0F0D0B" fontWeight="400">Download on the</text>
               <text x="32" y="27" fontFamily="-apple-system, Helvetica, Arial, sans-serif" fontSize="14" fill="#0F0D0B" fontWeight="600">App Store</text>
               <path d="M16 8.8c-.5.6-1.3.9-2 .9-.1-.8.3-1.6.8-2.1.5-.6 1.4-1 2.1-1 .1.9-.2 1.7-.9 2.2zm.9 1.3c-1.1-.1-2.1.6-2.6.6-.5 0-1.3-.6-2.2-.6-1.1 0-2.2.7-2.7 1.7-1.2 2-.3 5 .8 6.6.6.8 1.2 1.7 2.1 1.7.8 0 1.1-.5 2.1-.5s1.2.5 2.1.5c.9 0 1.5-.9 2-1.7.4-.6.6-1.1.8-1.7-.8-.4-1.4-1.2-1.4-2.2 0-.9.5-1.7 1.2-2.1-.5-.7-1.3-1.3-2.2-1.3z" fill="#0F0D0B" />
             </svg>
-          </a>
-          <a
-            href="https://apps.apple.com/us/app/soundtracks/id6759203604"
-            style={{
-              display: "block",
-              width: "100%",
-              textAlign: "center",
-              padding: "13px 20px",
-              borderRadius: 14,
-              backgroundColor: "#E8825C",
-              color: "#fff",
-              fontWeight: 600,
-              fontSize: 15,
-              textDecoration: "none",
-            }}
-          >
-            Capture your own memories in Soundtracks
           </a>
         </div>
       </div>
