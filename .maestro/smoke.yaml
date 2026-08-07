@@ -53,6 +53,12 @@ env:
 # creates one per run): allow the paste, then re-enter the text that was lost.
 - tapOn:
     id: "signin-email"
+# This is the first tap of the flow, so it RAISES the keyboard rather than
+# moving between two already-raised fields. Maestro 2.8.0 begins typing before
+# that animation settles and lands only the first character (the password field,
+# typed later with the keyboard already up, was always fine). The workflow pins
+# 2.7.0, which pastes atomically; this wait is the belt to that pin's braces.
+- waitForAnimationToEnd
 - inputText: ${E2E_EMAIL}
 - runFlow:
     when:
@@ -63,6 +69,14 @@ env:
           id: "signin-email"
       - eraseText
       - inputText: ${E2E_EMAIL}
+# Assert the field round-tripped — AFTER the paste-recovery block above, which
+# legitimately leaves it empty until it re-enters the text. Without this check,
+# dropped input surfaces 20 steps later as "tab-create is visible" failing after
+# a rejected sign-in: a symptom that points at the app instead of at the typing.
+# Fail here, where the cause is.
+- assertVisible:
+    id: "signin-email"
+    text: ${E2E_EMAIL}
 - tapOn:
     id: "signin-password"
 # Passed in with `maestro test --env E2E_PASSWORD=...`; never committed.
@@ -133,7 +147,15 @@ env:
     timeout: 10000
 - tapOn:
     id: "song-search-input"
+- waitForAnimationToEnd
 - inputText: ${SONG_QUERY}
+# Distinguishes "the query never reached the app" from "the catalog returned
+# nothing" — the two look identical downstream (no result 0), but only the
+# second is a real failure. The keyboard tutorial suppressed in e2e.yml caused
+# the first and read as the second for an entire debugging pass.
+- assertVisible:
+    id: "song-search-input"
+    text: ${SONG_QUERY}
 # The search is debounced 275ms and hits the Apple Music catalog over the
 # network, so the first result needs a real timeout, not the default.
 - extendedWaitUntil:

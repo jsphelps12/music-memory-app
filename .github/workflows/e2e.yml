@@ -84,6 +84,25 @@ jobs:
           xcrun simctl bootstatus "$UDID" -b
           echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
 
+      # iOS shows a one-time "slide your finger across the letters" tutorial the
+      # first time a STANDARD keyboard appears. Sign-in doesn't trigger it (an
+      # email-address keyboard has no QuickPath), so it lands on the first plain
+      # text field the flow reaches — song search — and swallows the text: the
+      # native field shows the query while the app's onChangeText never fires,
+      # leaving the screen on its idle hint and never searching.
+      # It cannot be dismissed from the flow: it renders in the keyboard's own
+      # process, so it never appears in the app's accessibility hierarchy (the
+      # trick the flow uses for the Apple Account and Save Password alerts does
+      # not reach it) while still blanking everything behind it. CI creates a
+      # fresh simulator per run, so mark it seen before anything launches.
+      - name: Suppress the simulator keyboard tutorial
+        run: |
+          set -euo pipefail
+          for domain in com.apple.Preferences com.apple.keyboard.preferences; do
+            xcrun simctl spawn "$SIM_UDID" defaults write "$domain" \
+              DidShowContinuousPathIntroduction -bool true
+          done
+
       - name: Install app
         run: xcrun simctl install "$SIM_UDID" "$APP_PATH"
 
@@ -97,6 +116,18 @@ jobs:
         run: node scripts/seed-e2e.mjs
 
       - name: Install Maestro
+        env:
+          # PINNED ON PURPOSE. The installer takes the newest release when this
+          # is unset, which silently swapped 2.7.0 → 2.8.0 mid-life (2.8.0 was
+          # published 2026-07-31 12:04 UTC, six hours after the last green run)
+          # and broke every run after it: 2.8.0 starts typing before the
+          # keyboard it just raised has settled, so the FIRST inputText of a
+          # flow lands only its first character. The email field got "e", auth
+          # failed, and the flow died 20 steps later on "tab-create is visible"
+          # — a failure that reads like an app regression and isn't one.
+          # An unpinned test runner cannot tell you the app broke.
+          # Bump deliberately, and re-run this workflow when you do.
+          MAESTRO_VERSION: 2.7.0
         run: |
           curl -fsSL "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
