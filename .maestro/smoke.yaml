@@ -147,7 +147,15 @@ env:
     timeout: 10000
 - tapOn:
     id: "song-search-input"
+- waitForAnimationToEnd
 - inputText: ${SONG_QUERY}
+# Distinguishes "the query never reached the app" from "the catalog returned
+# nothing" — the two look identical downstream (no result 0), but only the
+# second is a real failure. The keyboard tutorial suppressed in e2e.yml caused
+# the first and read as the second for an entire debugging pass.
+- assertVisible:
+    id: "song-search-input"
+    text: ${SONG_QUERY}
 # The search is debounced 275ms and hits the Apple Music catalog over the
 # network, so the first result needs a real timeout, not the default.
 - extendedWaitUntil:
