@@ -44,14 +44,19 @@ const HAS_LAUNCHED_KEY = "has_launched";
 
 export { ErrorBoundary } from "expo-router";
 
-Sentry.init({
-  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
-  debug: false,
-  environment: process.env.EXPO_PUBLIC_APP_ENV ?? "production",
-  tracesSampleRate: 0.1,   // capture 10% of transactions for performance monitoring
-  enableAutoSessionTracking: true,
-  sessionTrackingIntervalMillis: 30_000,
-});
+// __DEV__ guard: without it, every local `expo run:ios` (including agent
+// worktree runs) reports into Sentry tagged environment "production" (the
+// APP_ENV fallback below), polluting real crash data with dev-machine noise.
+if (!__DEV__) {
+  Sentry.init({
+    dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+    debug: false,
+    environment: process.env.EXPO_PUBLIC_APP_ENV ?? "production",
+    tracesSampleRate: 0.1,   // capture 10% of transactions for performance monitoring
+    enableAutoSessionTracking: true,
+    sessionTrackingIntervalMillis: 30_000,
+  });
+}
 
 export const unstable_settings = {
   initialRouteName: "(tabs)",
