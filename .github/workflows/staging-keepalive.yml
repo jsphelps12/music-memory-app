@@ -1,0 +1,45 @@
+name: Staging Keepalive
+
+# Supabase pauses a free-tier project after about a week with no activity.
+# The weekly crons were the only thing touching staging, and they are spaced
+# exactly seven days apart, so when one of them failed before reaching the
+# database, staging paused (Aug 2026). After that every check against it failed
+# with a connection timeout for two months, which looked like breakage rather
+# than idleness.
+#
+# This reads one row through the REST API every three days. That keeps
+# staging awake, and if it does pause anyway this run goes red within days
+# instead of hiding behind the Monday crons.
+
+on:
+  schedule:
+    - cron: "0 12 */3 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Read app_config on staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # app_config is anon-readable (the min-build gate runs before sign-in),
+      # so the public anon key is enough. No service-role key needed.
+      - name: Ping staging
+        env:
+          SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL_PREVIEW }}
+          ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY_PREVIEW }}
+        run: |
+          set -uo pipefail
+          # Report the status instead of a bare curl -f, so a stale key (401)
+          # is not mistaken for a paused project (timeout, 000 or 5xx).
+          CODE=$(curl -sS --max-time 60 -o /dev/null -w '%{http_code}' \
+            -H "apikey: $ANON_KEY" -H "Authorization: Bearer $ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/app_config?select=key&limit=1")
+          case "$CODE" in
+            200) echo "Staging is awake." ;;
+            401|403) echo "::error::Staging answered $CODE: the EXPO_PUBLIC_SUPABASE_ANON_KEY_PREVIEW secret is stale. Copy the current anon key from the staging project's API settings."; exit 1 ;;
+            *) echo "::error::Staging answered '$CODE'. It is probably paused: restore it from the Supabase dashboard."; exit 1 ;;
+          esac
