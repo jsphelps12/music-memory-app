@@ -51,32 +51,39 @@ env:
 # long-lived simulator, pre-set Settings → Apps → Soundtracks β → Paste from
 # Other Apps → Allow. The conditional blocks below cover fresh simulators (CI
 # creates one per run): allow the paste, then re-enter the text that was lost.
-- tapOn:
-    id: "signin-email"
 # This is the first tap of the flow, so it RAISES the keyboard rather than
-# moving between two already-raised fields. Maestro 2.8.0 begins typing before
-# that animation settles and lands only the first character (the password field,
-# typed later with the keyboard already up, was always fine). The workflow pins
-# 2.7.0, which pastes atomically; this wait is the belt to that pin's braces.
-- waitForAnimationToEnd
-- inputText: ${E2E_EMAIL}
-- runFlow:
-    when:
-      visible: "Allow Paste"
+# moving between two already-raised fields, and typing can start before that
+# animation settles: only the first character lands ("e"). Maestro 2.8.0 did it
+# every time, so the workflow pins 2.7.0, but 2.7.0 does it too, just not every
+# time (green 2026-08-07, red 08-10 and 10-14 with the same "e", same iOS 26.5
+# runtime). Neither the pin nor waitForAnimationToEnd closes the race, so retry:
+# by the second attempt the keyboard is already up, which is the case that has
+# always typed cleanly (the password field never once dropped input).
+# eraseText first, so a retry replaces a partial "e" rather than appending.
+- retry:
+    maxRetries: 3
     commands:
-      - tapOn: "Allow Paste"
       - tapOn:
           id: "signin-email"
+      - waitForAnimationToEnd
       - eraseText
       - inputText: ${E2E_EMAIL}
-# Assert the field round-tripped — AFTER the paste-recovery block above, which
-# legitimately leaves it empty until it re-enters the text. Without this check,
-# dropped input surfaces 20 steps later as "tab-create is visible" failing after
-# a rejected sign-in: a symptom that points at the app instead of at the typing.
-# Fail here, where the cause is.
-- assertVisible:
-    id: "signin-email"
-    text: ${E2E_EMAIL}
+      - runFlow:
+          when:
+            visible: "Allow Paste"
+          commands:
+            - tapOn: "Allow Paste"
+            - tapOn:
+                id: "signin-email"
+            - eraseText
+            - inputText: ${E2E_EMAIL}
+      # Assert the field round-tripped. This is also what makes the retry fire:
+      # dropped input otherwise surfaces 20 steps later as "tab-create is
+      # visible" failing after a rejected sign-in, a symptom that points at the
+      # app instead of at the typing.
+      - assertVisible:
+          id: "signin-email"
+          text: ${E2E_EMAIL}
 - tapOn:
     id: "signin-password"
 # Passed in with `maestro test --env E2E_PASSWORD=...`; never committed.
