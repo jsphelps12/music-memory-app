@@ -66,16 +66,30 @@ export async function liveBuilds(profile, limit = 10) {
     ],
     { maxBuffer: MAX_BUFFER }
   );
-  return JSON.parse(stdout).map((build) => ({
+  const builds = JSON.parse(stdout).map((build) => ({
     buildNumber: build.appBuildVersion,
     appVersion: build.appVersion,
     // What the installed binary actually asks the update server for. Builds cut
     // under the old "appVersion" policy carry a version string like "1.1.0" and
     // can never match a fingerprint-derived update — that is the strand.
-    runtimeVersion: build.runtimeVersion,
+    //
+    // eas-cli runs unpinned via npx, and by v24 the JSON had moved this from a
+    // flat `runtimeVersion` to `runtime.version`. Reading only the old name
+    // made every build "serve undefined", so the gate reported a perfectly
+    // reachable beta as unreachable. Accept both shapes.
+    runtimeVersion: build.runtime?.version ?? build.runtimeVersion,
     completedAt: build.completedAt,
     fingerprint: build.fingerprint?.hash ?? null,
   }));
+  // If eas-cli renames the field again, say so. Without this check the gate
+  // reads "no binary would receive this update", which is a believable lie.
+  if (builds.length > 0 && builds.every((b) => b.runtimeVersion == null)) {
+    throw new Error(
+      `eas-cli build:list returned no runtime version for any "${profile}" build. ` +
+        `Its JSON shape has probably changed again: update liveBuilds() in scripts/lib/fingerprint.mjs.`
+    );
+  }
+  return builds;
 }
 
 /** Newest finished build, or null. */

@@ -29,8 +29,68 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Find a simulator build whose archive can still be downloaded, building one
+  # if there isn't. Separate from the smoke job so a long EAS queue waits on a
+  # Linux runner with a generous timeout instead of eating the smoke job's.
+  resolve-build:
+    name: Resolve simulator build
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    outputs:
+      url: ${{ steps.build.outputs.url }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Reuse the newest finished simulator build rather than building every
+      # run. An EAS build is ~15 minutes when the queue is empty and hours when
+      # it isn't; the simulator binary only needs rebuilding when the preview
+      # fingerprint moves, which is exactly what scripts/fingerprint-check.mjs
+      # reports.
+      #
+      # EAS deletes build archives after a retention window, though, and a
+      # deleted archive still shows up in build:list as "finished". The cron
+      # 404'd on one every week from Aug to Oct 2026. So check that the archive
+      # is still downloadable, and build a fresh one when it isn't. That costs
+      # one build per retention window, not one per run.
+      - name: Find or build a downloadable simulator build
+        id: build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          first_url() {
+            node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s)[0];console.log(b&&b.artifacts&&b.artifacts.buildUrl||'')})"
+          }
+          URL=$(npx eas-cli build:list --platform ios --profile preview-simulator \
+            --status finished --limit 1 --json --non-interactive | first_url)
+          # A one-byte range read, not HEAD: it follows the same redirect a
+          # real download does, and some storage backends reject HEAD.
+          if [ -n "$URL" ] && curl -fsSL --max-time 60 -r 0-0 -o /dev/null "$URL"; then
+            echo "Reusing $URL"
+          else
+            echo "::notice::No downloadable preview-simulator build (archive missing or expired). Building one."
+            URL=$(npx eas-cli build --platform ios --profile preview-simulator \
+              --wait --json --non-interactive | first_url)
+            if [ -z "$URL" ]; then
+              echo "::error::The preview-simulator build finished without an archive URL."
+              exit 1
+            fi
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
   smoke:
     name: Maestro smoke flow (iOS simulator)
+    needs: resolve-build
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
@@ -46,30 +106,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Resolve the newest finished simulator build rather than building here.
-      # An EAS build is ~15 minutes; the simulator binary only needs rebuilding
-      # when the preview fingerprint moves, which is exactly what
-      # scripts/fingerprint-check.mjs reports.
-      - name: Resolve latest simulator build
-        id: build
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: |
-          set -euo pipefail
-          URL=$(npx eas-cli build:list --platform ios --profile preview-simulator \
-            --status finished --limit 1 --json --non-interactive \
-            | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s)[0];console.log(b?b.artifacts.buildUrl:'')})")
-          if [ -z "$URL" ]; then
-            echo "::error::No finished build for the preview-simulator profile. Run the Binary Build workflow with profile=preview-simulator first."
-            exit 1
-          fi
-          echo "url=$URL" >> "$GITHUB_OUTPUT"
-
       - name: Download and unpack the app
         env:
           # Via env rather than inline ${{ }} so the value is never spliced into
           # the shell command text.
-          BUILD_URL: ${{ steps.build.outputs.url }}
+          BUILD_URL: ${{ needs.resolve-build.outputs.url }}
         run: |
           set -euo pipefail
           curl -fsSL -o build.tar.gz "$BUILD_URL"
