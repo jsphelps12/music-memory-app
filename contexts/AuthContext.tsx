@@ -6,7 +6,8 @@ import * as Sentry from "@sentry/react-native";
 import { supabase } from "@/lib/supabase";
 import { posthog } from "@/lib/posthog";
 import { CustomMoodDefinition, CustomPromptCategory, FavoriteArtist, FavoriteSong, MusicProviderType, UserProfile } from "@/types";
-import { getProvider } from "@/lib/providers";
+import { getProvider, connectSpotify, disconnectSpotify } from "@/lib/providers";
+import type { SpotifyFailure } from "@/lib/providers/spotifyErrors";
 import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
 import { resetTimelineRefresh } from "@/lib/timelineRefresh";
 import { clearLegacyAlbumCaches } from "@/lib/albums";
@@ -22,6 +23,15 @@ export interface OnboardingData {
   favoriteSongs: FavoriteSong[];
   genrePreferences: string[];
 }
+
+/**
+ * Outcome of switching music service. `premium: false` on a Spotify success
+ * means it worked but full playback won't (previews only), which the user
+ * should be told.
+ */
+export type ProviderSwitchResult =
+  | { ok: true; premium?: boolean }
+  | { ok: false; reason: SpotifyFailure | "apple_denied" | "save_failed" };
 
 interface AuthState {
   session: Session | null;
@@ -53,7 +63,7 @@ interface AuthState {
   saveCustomPromptCategory: (category: CustomPromptCategory) => Promise<void>;
   deleteCustomPromptCategory: (id: string) => Promise<void>;
   preferredProvider: MusicProviderType;
-  setPreferredProvider: (type: MusicProviderType) => Promise<boolean>;
+  setPreferredProvider: (type: MusicProviderType) => Promise<ProviderSwitchResult>;
 }
 
 // Upper bound on how long the blocking overlay waits for a profile fetch before
@@ -591,19 +601,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await fetchProfile(session.user.id);
   };
 
-  const setPreferredProvider = async (type: MusicProviderType): Promise<boolean> => {
-    if (!session?.user) return false;
-    // Authorize the provider before persisting — revert if the user cancels
-    const authorized = await getProvider(type).authorize();
-    if (!authorized) return false;
+  const setPreferredProvider = async (type: MusicProviderType): Promise<ProviderSwitchResult> => {
+    if (!session?.user) return { ok: false, reason: "save_failed" };
+    // Authorize (and for Spotify, prove the account can use the API) before
+    // persisting, so a failed or cancelled connect leaves the old provider.
+    let premium: boolean | undefined;
+    if (type === "spotify") {
+      const connected = await connectSpotify();
+      if (!connected.ok) return connected;
+      premium = connected.premium;
+    } else {
+      try {
+        const authorized = await getProvider(type).authorize();
+        if (!authorized) return { ok: false, reason: "apple_denied" };
+      } catch {
+        return { ok: false, reason: "apple_denied" };
+      }
+    }
 
     const { error } = await supabase
       .from("profiles")
       .update({ preferred_music_provider: type })
       .eq("id", session.user.id);
-    if (error) return false;
+    if (error) return { ok: false, reason: "save_failed" };
+    // Leaving Spotify: drop its session so a stale token can't linger.
+    if (type !== "spotify") await disconnectSpotify().catch(() => {});
     await fetchProfile(session.user.id);
-    return true;
+    return { ok: true, premium };
   };
 
   const contextValue = useMemo(() => ({

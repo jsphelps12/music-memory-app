@@ -34,6 +34,8 @@ import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { IconButton } from "@/components/IconButton";
 import { friendlyError } from "@/lib/errors";
+import { spotifyFailureMessage, SPOTIFY_FREE_NOTICE } from "@/lib/providers/spotifyErrors";
+import type { ProviderSwitchResult } from "@/contexts/AuthContext";
 import { topValue, pluralMoments } from "@/lib/utils";
 import { pad } from "@/lib/dateUtils";
 import { PROFILE_STATS_STALE } from "@/lib/queryConfig";
@@ -142,6 +144,46 @@ export default function ProfileScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const posthog = usePostHog();
   const [signingOut, setSigningOut] = useState(false);
+  // Connecting to Spotify is a sign-in sheet plus an account check; show it's
+  // working and ignore repeat taps until it settles.
+  const [switchingProvider, setSwitchingProvider] = useState(false);
+
+  async function switchProvider(type: 'apple_music' | 'spotify') {
+    setSwitchingProvider(true);
+    let result: ProviderSwitchResult;
+    try {
+      result = await setPreferredProvider(type);
+    } catch {
+      result = { ok: false, reason: "failed" };
+    } finally {
+      setSwitchingProvider(false);
+    }
+    posthog.capture("music_provider_switch", {
+      to: type,
+      ok: result.ok,
+      reason: result.ok ? null : result.reason,
+      premium: result.ok ? result.premium ?? null : null,
+    });
+    if (result.ok) {
+      if (type === 'spotify' && result.premium === false) {
+        Alert.alert("Spotify connected", SPOTIFY_FREE_NOTICE);
+      }
+      return;
+    }
+    if (result.reason === "apple_denied") {
+      Alert.alert("Apple Music", "Couldn't switch to Apple Music. Allow Music access for Soundtracks in Settings.", [
+        { text: "Not now", style: "cancel" },
+        { text: "Open Settings", onPress: () => Linking.openSettings() },
+      ]);
+      return;
+    }
+    if (result.reason === "save_failed") {
+      Alert.alert("Music Service", "Couldn't save your choice. Check your connection and try again.");
+      return;
+    }
+    const message = spotifyFailureMessage(result.reason);
+    if (message) Alert.alert("Spotify", message);
+  }
   const [signOutError, setSignOutError] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [showPrompts, setShowPrompts] = useState(false);
@@ -437,6 +479,7 @@ export default function ProfileScreen() {
       <TouchableOpacity
         style={[styles.promptsCard, styles.friendsRow]}
         onPress={() => {
+          if (switchingProvider) return;
           Haptics.selectionAsync();
           Alert.alert(
             "Music Service",
@@ -444,22 +487,16 @@ export default function ProfileScreen() {
             [
               {
                 text: "Apple Music",
-                onPress: async () => {
+                onPress: () => {
                   if (preferredProvider === 'apple_music') return;
-                  const ok = await setPreferredProvider('apple_music');
-                  if (!ok) Alert.alert("Error", "Couldn't switch to Apple Music. Check your Music permissions in Settings.");
+                  void switchProvider('apple_music');
                 },
               },
               {
                 text: "Spotify",
-                onPress: async () => {
+                onPress: () => {
                   if (preferredProvider === 'spotify') return;
-                  try {
-                    const ok = await setPreferredProvider('spotify');
-                    if (!ok) Alert.alert("Spotify", "Couldn't connect to Spotify. Make sure the Spotify app is installed and you have a Premium subscription.");
-                  } catch {
-                    Alert.alert("Spotify", "Couldn't connect to Spotify. Make sure the Spotify app is installed and you have a Premium subscription.");
-                  }
+                  void switchProvider('spotify');
                 },
               },
               { text: "Cancel", style: "cancel" },
@@ -474,7 +511,7 @@ export default function ProfileScreen() {
         </View>
         <View style={styles.friendsRowLeft}>
           <Text style={[styles.promptsRowLabel, { color: theme.colors.textSecondary }]}>
-            {preferredProvider === 'spotify' ? 'Spotify' : 'Apple Music'}
+            {switchingProvider ? 'Connecting…' : preferredProvider === 'spotify' ? 'Spotify' : 'Apple Music'}
           </Text>
           <Ionicons name="chevron-forward" size={18} color={theme.colors.textTertiary} />
         </View>

@@ -219,7 +219,12 @@ Albums · Me). The old Browse and Shared tabs no longer exist.
 - [ ] **ShazamKit**: identify a song playing nearby, confirm it pre-fills create
 - [ ] **Camera**: add a photo from the camera
 - [ ] **Push notifications arrive**: see Sharing below (another account sends you a moment)
-- [ ] **Spotify as music service** (Me → Music Service → Spotify): either it connects and plays, or it shows the "Couldn't connect" alert. It must never crash. This option is visible in the production app too.
+- [ ] **Spotify as music service** (Me → Music Service → Spotify). Visible in production, so every outcome must end cleanly:
+  - Cancel the Spotify sheet → no alert, still on Apple Music
+  - Account not on the Spotify dashboard allowlist → "only lets a limited set of accounts…" message, still on Apple Music
+  - Connected, no Premium → "Spotify connected" alert explaining previews
+  - While on Spotify: search works (or shows Apple Music results with a banner explaining why); playing a moment never opens a Spotify login
+  - Switch back to Apple Music works
 
 ### Auth
 - [ ] Sign in with email, sign out, sign back in

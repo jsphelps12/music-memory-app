@@ -5,6 +5,23 @@ import { rankSongResults } from "@/lib/musicSearch";
 import type { Song } from "@/types";
 import type { MusicProvider, PlaybackState } from "./MusicProvider";
 import { SpotifyRemote } from "@/modules/spotify-remote";
+import { findItunesPreview } from "@/lib/itunes";
+import {
+  SpotifyError,
+  spotifyFailureFromStatus,
+  withTimeout,
+  type SpotifyFailure,
+} from "./spotifyErrors";
+
+export type SpotifyConnectResult =
+  | { ok: true; premium: boolean }
+  | { ok: false; reason: SpotifyFailure };
+
+// The App Remote SDK can wait indefinitely (Spotify app missing, stuck
+// launching). Nothing the user tapped should spin forever.
+const CONNECT_TIMEOUT_MS = 15_000;
+const PLAY_TIMEOUT_MS = 10_000;
+const API = "https://api.spotify.com/v1";
 
 const SPOTIFY_CLIENT_ID = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID ?? "";
 // Must match the per-variant scheme in app.config.ts, and each variant's
@@ -25,6 +42,9 @@ const SCOPES = [
   "streaming",
   "user-read-playback-state",
   "user-read-currently-playing",
+  // For /me's `product` field: tells us up front whether full playback can
+  // work (Premium) or the user will get previews only.
+  "user-read-private",
 ];
 
 // ─── PKCE helpers ─────────────────────────────────────────────────────────────
@@ -63,44 +83,92 @@ export class SpotifyProvider implements MusicProvider {
   }
 
   async authorize(): Promise<boolean> {
-    // Re-use valid token if we have one
-    const existing = await this._getValidToken();
-    if (existing) return true;
+    return (await this.connect()).ok;
+  }
 
+  /**
+   * Sign in (reusing a live session if there is one) and prove the account can
+   * actually use the Web API before anyone relies on it. A dev-mode Spotify app
+   * lets ANY account finish OAuth, then 403s every API call for accounts not on
+   * its allowlist, so "signed in" alone would switch people onto a provider
+   * whose search silently returns nothing.
+   */
+  async connect(): Promise<SpotifyConnectResult> {
     try {
-      const verifier = generateCodeVerifier();
-      const challenge = await generateCodeChallenge(verifier);
-
-      const params = new URLSearchParams({
-        client_id: SPOTIFY_CLIENT_ID,
-        response_type: "code",
-        redirect_uri: REDIRECT_URL,
-        scope: SCOPES.join(" "),
-        code_challenge_method: "S256",
-        code_challenge: challenge,
-        show_dialog: "false",
-      });
-
-      const result = await WebBrowser.openAuthSessionAsync(
-        `${SPOTIFY_AUTH_URL}?${params.toString()}`,
-        REDIRECT_URL
-      );
-
-      if (result.type !== "success") return false;
-
-      const url = new URL(result.url);
-      const code = url.searchParams.get("code");
-      if (!code) return false;
-
-      return this._exchangeCode(code, verifier);
-    } catch {
-      return false;
+      let token = await this._getValidToken();
+      if (!token) {
+        const signedIn = await this._signIn();
+        if (!signedIn.ok) return signedIn;
+        token = await this._getValidToken();
+        if (!token) return { ok: false, reason: "failed" };
+      }
+      return await this._verifyAccount(token);
+    } catch (e) {
+      return { ok: false, reason: e instanceof SpotifyError ? e.reason : "failed" };
     }
   }
 
-  private async _exchangeCode(code: string, verifier: string): Promise<boolean> {
+  async clearTokens(): Promise<void> {
+    await Promise.all(
+      [STORE_ACCESS_TOKEN, STORE_REFRESH_TOKEN, STORE_EXPIRY].map((k) =>
+        SecureStore.deleteItemAsync(k).catch(() => {})
+      )
+    );
+  }
+
+  private async _signIn(): Promise<{ ok: true } | { ok: false; reason: SpotifyFailure }> {
+    const verifier = generateCodeVerifier();
+    const challenge = await generateCodeChallenge(verifier);
+
+    const params = new URLSearchParams({
+      client_id: SPOTIFY_CLIENT_ID,
+      response_type: "code",
+      redirect_uri: REDIRECT_URL,
+      scope: SCOPES.join(" "),
+      code_challenge_method: "S256",
+      code_challenge: challenge,
+      show_dialog: "false",
+    });
+
+    const result = await WebBrowser.openAuthSessionAsync(
+      `${SPOTIFY_AUTH_URL}?${params.toString()}`,
+      REDIRECT_URL
+    );
+    if (result.type === "cancel" || result.type === "dismiss") return { ok: false, reason: "cancelled" };
+    if (result.type !== "success") return { ok: false, reason: "failed" };
+
+    const url = new URL(result.url);
+    // Tapping "Cancel" on Spotify's consent page comes back as error=access_denied.
+    if (url.searchParams.get("error") === "access_denied") return { ok: false, reason: "cancelled" };
+    const code = url.searchParams.get("code");
+    if (!code) return { ok: false, reason: "failed" };
+
+    await this._exchangeCode(code, verifier);
+    return { ok: true };
+  }
+
+  private async _verifyAccount(token: string): Promise<SpotifyConnectResult> {
+    let res: Response;
     try {
-      const res = await fetch(SPOTIFY_TOKEN_URL, {
+      res = await fetch(`${API}/me`, { headers: { Authorization: `Bearer ${token}` } });
+    } catch (e) {
+      throw new SpotifyError("network", { cause: e });
+    }
+    if (!res.ok) {
+      const reason = spotifyFailureFromStatus(res.status);
+      // A token that can't call the API is worse than none: it makes
+      // isAvailable() say yes. Drop it unless the failure is transient.
+      if (reason !== "network") await this.clearTokens();
+      return { ok: false, reason };
+    }
+    const me = await res.json().catch(() => ({}));
+    return { ok: true, premium: me?.product === "premium" };
+  }
+
+  private async _exchangeCode(code: string, verifier: string): Promise<void> {
+    let res: Response;
+    try {
+      res = await fetch(SPOTIFY_TOKEN_URL, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
@@ -111,11 +179,12 @@ export class SpotifyProvider implements MusicProvider {
           code_verifier: verifier,
         }).toString(),
       });
-      if (!res.ok) return false;
-      return this._storeTokenResponse(await res.json());
-    } catch {
-      return false;
+    } catch (e) {
+      throw new SpotifyError("network", { cause: e });
     }
+    if (!res.ok) throw new SpotifyError(spotifyFailureFromStatus(res.status) === "network" ? "network" : "failed");
+    const stored = await this._storeTokenResponse(await res.json());
+    if (!stored) throw new SpotifyError("failed");
   }
 
   private async _storeTokenResponse(json: Record<string, unknown>): Promise<boolean> {
@@ -154,7 +223,13 @@ export class SpotifyProvider implements MusicProvider {
           client_id: SPOTIFY_CLIENT_ID,
         }).toString(),
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        // 400 invalid_grant = revoked or expired for good. Forget it so we stop
+        // retrying a dead token and report "signed out" from here on. Keep it
+        // on 429/5xx: those are Spotify's problem and pass.
+        if (res.status === 400 || res.status === 401) await this.clearTokens();
+        return null;
+      }
       const json = await res.json();
       const ok = await this._storeTokenResponse(json);
       return ok ? (json.access_token as string) : null;
@@ -165,24 +240,33 @@ export class SpotifyProvider implements MusicProvider {
 
   // ─── Search ──────────────────────────────────────────────────────────────────
 
+  /**
+   * Throws SpotifyError on failure: "no results" and "couldn't search" must
+   * not look the same, or a broken connection reads as an empty catalog.
+   */
   async search(query: string): Promise<Song[]> {
     if (!query.trim()) return [];
     const token = await this._getValidToken();
-    if (!token) return [];
+    if (!token) throw new SpotifyError("signed_out");
+    let res: Response;
     try {
-      const res = await fetch(
-        `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=20`,
+      res = await fetch(
+        `${API}/search?q=${encodeURIComponent(query)}&type=track&limit=20`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      if (!res.ok) return [];
-      const json = await res.json();
-      return rankSongResults(
-        query,
-        (json.tracks?.items ?? []).map((track: any) => this._trackToSong(track))
-      );
-    } catch {
-      return [];
+    } catch (e) {
+      throw new SpotifyError("network", { cause: e });
     }
+    if (!res.ok) {
+      const reason = spotifyFailureFromStatus(res.status);
+      if (reason === "signed_out" || reason === "not_registered") await this.clearTokens();
+      throw new SpotifyError(reason);
+    }
+    const json = await res.json();
+    return rankSongResults(
+      query,
+      (json.tracks?.items ?? []).map((track: any) => this._trackToSong(track))
+    );
   }
 
   async lookupById(spotifyId: string): Promise<Song | null> {
@@ -190,7 +274,7 @@ export class SpotifyProvider implements MusicProvider {
     if (!token) return null;
     try {
       const res = await fetch(
-        `https://api.spotify.com/v1/tracks/${spotifyId}`,
+        `${API}/tracks/${spotifyId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (!res.ok) return null;
@@ -219,15 +303,19 @@ export class SpotifyProvider implements MusicProvider {
   async play(song: Song): Promise<void> {
     if (!song.spotifyId) throw new Error("spotify_no_id");
 
+    if (!SpotifyRemote.isAvailable) throw new SpotifyError("unavailable");
     const token = await this._getValidToken();
-    if (!token) throw new Error("spotify_not_authorized");
+    if (!token) throw new SpotifyError("signed_out");
 
     if (!SpotifyRemote.isConnected()) {
-      const connected = await SpotifyRemote.connect(SPOTIFY_CLIENT_ID, REDIRECT_URL, token);
-      if (!connected) throw new Error("spotify_connect_failed");
+      const connected = await withTimeout(
+        SpotifyRemote.connect(SPOTIFY_CLIENT_ID, REDIRECT_URL, token),
+        CONNECT_TIMEOUT_MS
+      );
+      if (!connected) throw new SpotifyError("failed");
     }
 
-    await SpotifyRemote.playUri(`spotify:track:${song.spotifyId}`);
+    await withTimeout(SpotifyRemote.playUri(`spotify:track:${song.spotifyId}`), PLAY_TIMEOUT_MS);
   }
 
   pause(): void {
@@ -249,21 +337,30 @@ export class SpotifyProvider implements MusicProvider {
 
   // ─── Preview URL ──────────────────────────────────────────────────────────────
 
+  /**
+   * Spotify's own preview_url first; it is null for apps created after
+   * Spotify's late-2024 API change, so in practice the iTunes recording of the
+   * same song supplies it. Never throws, and needs no Spotify session, so it
+   * also works for recipients who have never connected Spotify.
+   */
   async fetchPreviewUrl(song: Song): Promise<string | null> {
-    if (!song.spotifyId) return null;
-    const token = await this._getValidToken();
-    if (!token) return null;
-    try {
-      const res = await fetch(
-        `https://api.spotify.com/v1/tracks/${song.spotifyId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (!res.ok) return null;
-      const json = await res.json();
-      return json.preview_url ?? null;
-    } catch {
-      return null;
+    if (song.spotifyId) {
+      try {
+        const token = await this._getValidToken();
+        if (token) {
+          const res = await fetch(`${API}/tracks/${song.spotifyId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const json = await res.json();
+            if (json.preview_url) return json.preview_url as string;
+          }
+        }
+      } catch {
+        // fall through to iTunes
+      }
     }
+    return findItunesPreview(song.title, song.artistName);
   }
 
   // ─── State Events ─────────────────────────────────────────────────────────────

@@ -111,13 +111,40 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setPlaybackDuration(0);
 
     const provider = getProvider(song.provider);
-    const authorized = await provider.authorize();
+    // Spotify is only ever signed into from Me → Music Service. Playback must
+    // not start an OAuth sheet: moment detail autoplays, so an Apple Music user
+    // opening a Spotify moment someone shared with them would get a Spotify
+    // login popping up unprompted. Not signed in → straight to the preview.
+    const authorized = await (song.provider === "spotify"
+      ? provider.isAvailable()
+      : provider.authorize()
+    ).catch(() => false);
 
     if (gen !== playGenRef.current) return;
 
+    // Moments saved without a preview (every Spotify moment before the iTunes
+    // fallback) get one looked up on demand rather than failing outright.
+    const fallbackToPreview = async () => {
+      let url = previewUrl;
+      if (!url) {
+        try {
+          url = (await provider.fetchPreviewUrl(song)) ?? undefined;
+        } catch {
+          url = undefined;
+        }
+      }
+      if (gen !== playGenRef.current) return;
+      if (url) {
+        await playPreview(song, url);
+      } else {
+        setCurrentSong(null);
+        setIsPlaying(false);
+        setPlayError(true);
+      }
+    };
+
     if (!authorized) {
-      if (previewUrl) await playPreview(song, previewUrl);
-      else { setCurrentSong(null); setPlayError(true); }
+      await fallbackToPreview();
       return;
     }
 
@@ -148,13 +175,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     } catch {
       if (gen !== playGenRef.current) return;
       activeProviderRef.current = null;
-      if (previewUrl) {
-        await playPreview(song, previewUrl);
-      } else {
-        setCurrentSong(null);
-        setIsPlaying(false);
-        setPlayError(true);
-      }
+      // Free Spotify account, Spotify app missing, connect timed out: all land
+      // here and degrade to the 30-second preview.
+      await fallbackToPreview();
     }
   }, [playPreview, unloadSound, stopProvider]);
 

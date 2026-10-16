@@ -263,6 +263,39 @@ Full spec: `docs/SOCIAL-ARCHITECTURE.md` (rewritten as v2 same day; audit that m
   - ⚠️ **Trap for future teardowns: simulator artifacts ship `CFBundleVersion = 1`.** EAS applies the remote build number only to device/store builds (which is why App Store Connect sees 7, 8, …), so the sim binary reports `1` no matter what the EAS build number says (this one was "build 24"). **Never read a build number off a simulator build when choosing a floor** — the drill above deliberately used `2`, not `24`. Set real floors from the App Store Connect / EAS build number of the *device* build.
 - [ ] **Next**: `preview` (device) build → beta testers via the internal install link. `preview` is **internal distribution, NOT TestFlight** — TestFlight requires the `production` profile, which stays parked until the owner calls the beta ready.
 
+## Release 1.2.0 — in progress 2026-10-16 (first App Store build since build 7)
+
+App Store users are on build 7 (v1.1.0, 2026-05-22), which predates the fingerprint switch and can never receive an OTA. Everything since May reaches them only through this binary. Backend and web are already live in prod (migrations and edge functions deploy to both projects on merge).
+
+**Native changes reaching production for the first time** (beta-tested only): iOS 26 patches (expo-web-browser, expo-apple-authentication), expo-secure-store linking fix, New Architecture disabled, SpotifyRemote module, expo-audio swap, min-build gate, per-variant share-extension app group + `soundtracks://` scheme. Hence the TestFlight pass in the checklist.
+
+- [x] **Release PR** (`release/1.2.0`, PR #29, merged 2026-10-16): `version` 1.1.0 → 1.2.0. Moves BOTH fingerprints (preview `20d72289` → `c4b85ae6`; production → `d2846b76`). Merging strands beta build 25, but the merge's OTA is green, not red: RC build 27 was cut from the branch first and already serves `c4b85ae6`.
+- [x] **Release-candidate `preview` build from the branch** (before merge) → owner installs it and runs the device checklist (`docs/DEPLOY.md`). **Build 27**; build 25's install link expired 2026-08-16, so this is also how anyone gets the beta again. Device checklist passed 2026-10-16: section 0 (device-only) and the full Sharing section (phone + simulator as `e2e2`). The Spotify live-connect check was skipped by the owner; the failure paths are unit-tested and were shipped to build 27 by a manual OTA from the branch (`dea6d4de`). Findings fixed on the branch: stale tagging copy on the friend-invite screen; launch-time push registration gated on the first-moment flag (`pushRegistrationStep`).
+- [ ] Merge → `preview-simulator` build → E2E Smoke green on the merge commit.
+- [ ] `production` build + submit → TestFlight pass (production data).
+- [ ] App Store Connect: version 1.2.0, What's New (below), demo account check, submit for review.
+- [x] **Spotify stays visible in production; every failure handled** *(owner decision 2026-10-16: "don't hide it, error handle very well")*. Audit found failures that hit people who never chose Spotify:
+  - **Playback opened Spotify OAuth for Apple Music users.** `playFull` called `authorize()` for the *song's* provider, and moment detail autoplays, so opening a Spotify moment someone shared, or one in a shared album, popped a Spotify login. Spotify playback now only checks `isAvailable()`; signing in happens only from Me → Music Service.
+  - **Spotify moments were silent for everyone but Premium users.** Spotify stopped returning `preview_url` to new apps (late 2024), so they saved no preview. `SpotifyProvider.fetchPreviewUrl` now borrows the matching iTunes recording (`lib/itunes.ts`, strict title+artist match so a cover never plays under someone's memory), and `playFull` looks one up on demand for moments saved before this.
+  - **Dev-mode allowlist made the switch "succeed" into a broken search.** Spotify lets any account finish OAuth, then 403s the Web API for accounts not on the dashboard allowlist. Connecting now verifies with `/v1/me` before persisting the choice (and reads `product` via the new `user-read-private` scope to warn non-Premium users they'll get previews).
+  - **Search failures looked like "no results"**, or, for a lapsed session, like the Apple Music permission screen. Spotify search now throws typed `SpotifyError`s; the search screen falls back to iTunes results with a banner saying why.
+  - **Crash/hang paths:** `getProvider("spotify")` threw if the native module was missing (callers include render and the save path), so it now returns a stand-in that fails gracefully; App Remote connect/play get 15s/10s timeouts; a revoked refresh token is cleared instead of retried forever; the share extension falls back to oEmbed + Apple Music when the Spotify lookup fails.
+  - Every failure has a named reason and user-facing copy (`lib/providers/spotifyErrors.ts`, unit-tested; a deliberate cancel stays silent). New events: `music_provider_switch`, `song_search_fallback`.
+- [ ] After release: watch Sentry/PostHog; caboose migration once build 7 adoption is near zero.
+
+**What's New (draft for App Store Connect):**
+
+> • Send a moment straight to a friend. It lands in their new "Shared with me" inbox.
+> • Add friends with your own personal link.
+> • A new share card, made to keep: your photo or the album art with your words underneath, in Post and Story sizes.
+> • Share links you control: see when a link is live and turn it off anytime.
+> • Reflections, reimagined: search everything you've saved, a Weekly Rewind of a past month, and Surprise Me.
+> • Pick more than one mood for a moment.
+> • Tap a song's artwork while searching to hear a preview.
+> • Music now pauses when you leave the app.
+> • A warmer look throughout, plus fixes for iOS 26.
+> • Tagging friends has been replaced by sending moments directly.
+
 ## Product ideas + feasibility findings — 2026-08-02 session
 
 Reviewed against the existing list; several ideas below already existed (noted). The

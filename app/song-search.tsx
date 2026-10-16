@@ -17,6 +17,9 @@ import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getProvider } from "@/lib/providers";
+import { searchItunes } from "@/lib/itunes";
+import { ErrorBanner } from "@/components/ErrorBanner";
+import { spotifyFailureOf, spotifySearchFallbackNotice } from "@/lib/providers/spotifyErrors";
 import { emitSongSelected } from "@/lib/songEvents";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayer } from "@/contexts/PlayerContext";
@@ -41,6 +44,8 @@ export default function SongSearchScreen() {
   const [results, setResults] = useState<Song[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Set when Spotify search failed and iTunes results are shown instead.
+  const [fallbackNotice, setFallbackNotice] = useState("");
   const [authorized, setAuthorized] = useState(true);
   const [retryKey, setRetryKey] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -73,7 +78,9 @@ export default function SongSearchScreen() {
     try {
       let url = previewUrlCache.current.get(song.id);
       if (url === undefined) {
-        url = await provider.fetchPreviewUrl(song);
+        // By the song's provider, not the user's: fallback results are
+        // Apple Music songs even for a Spotify user.
+        url = await getProvider(song.provider).fetchPreviewUrl(song);
         previewUrlCache.current.set(song.id, url);
       }
       if (!url) {
@@ -90,7 +97,15 @@ export default function SongSearchScreen() {
   }
 
   useEffect(() => {
-    provider.isAvailable().then((ok) => setAuthorized(ok));
+    // The full-screen "Music access" gate below is about Apple Music
+    // permission. Spotify has no equivalent: its failures surface per search,
+    // with fallback results, so a lapsed Spotify session never dead-ends here
+    // on a screen telling the user to fix an Apple setting.
+    if (preferredProvider === "spotify") {
+      setAuthorized(true);
+      return;
+    }
+    provider.isAvailable().then((ok) => setAuthorized(ok)).catch(() => setAuthorized(false));
   }, [preferredProvider]);
 
   useEffect(() => {
@@ -110,8 +125,23 @@ export default function SongSearchScreen() {
       try {
         const songs = await provider.search(trimmed);
         setResults(songs);
+        setFallbackNotice("");
         posthog.capture("song_searched", { query_length: trimmed.length, result_count: songs.length, provider: preferredProvider });
-      } catch {
+      } catch (e) {
+        // Spotify failing must not stop someone capturing a moment: answer
+        // from iTunes (no auth needed) and say why.
+        if (preferredProvider === "spotify") {
+          const reason = spotifyFailureOf(e);
+          try {
+            const songs = await searchItunes(trimmed);
+            setResults(songs);
+            setFallbackNotice(spotifySearchFallbackNotice(reason));
+            posthog.capture("song_search_fallback", { reason, result_count: songs.length });
+            return;
+          } catch {
+            // fall through to the error state
+          }
+        }
         setResults([]);
         setError("Something went wrong. Try again.");
       } finally {
@@ -179,6 +209,10 @@ export default function SongSearchScreen() {
         autoCapitalize="words"
         returnKeyType="search"
       />
+
+      {!!fallbackNotice && (
+        <ErrorBanner message={fallbackNotice} onDismiss={() => setFallbackNotice("")} />
+      )}
 
       {loading ? (
         <View style={styles.centered}>

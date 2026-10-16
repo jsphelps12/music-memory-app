@@ -277,13 +277,13 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (!user || !profile?.onboardingCompleted) return;
-    // Only register for push notifications if the user has already been through the
-    // celebration screen (i.e. has saved at least one moment). For brand-new users,
-    // the celebration screen owns the permission request so the iOS dialog appears
-    // in context, not immediately after onboarding.
+    // Register on every launch when permission is already granted, so a token
+    // that changed, or permission turned on later in iOS Settings, always
+    // reaches the profile. Only ASKING is gated on the first-moment flag: for
+    // brand-new users the celebration screen owns the permission request, so
+    // the iOS dialog appears in context, not immediately after onboarding.
     AsyncStorage.getItem(`first_moment_saved_${user.id}`).then((saved) => {
-      if (!saved) return;
-      registerForPushNotifications(user.id).catch((err) => {
+      registerForPushNotifications(user.id, { mayAsk: !!saved }).catch((err) => {
         Sentry.captureException(err);
         if (__DEV__) console.warn("[push-notifications] registration failed:", err);
       });
