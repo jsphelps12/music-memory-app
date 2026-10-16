@@ -44,18 +44,28 @@ jobs:
       # the eas.json profile `env` block supplies EXPO_PUBLIC_APP_ENV. Passing
       # GitHub secrets as well just created a second source of truth that could
       # disagree with the one actually used.
+      # --json puts the finished build on stdout (progress still streams to
+      # stderr), so the submit step can name the exact build it uploads.
       - name: Build
+        id: build
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: npx eas-cli build --platform ios --profile ${{ inputs.profile }} --non-interactive
+        run: |
+          set -euo pipefail
+          npx eas-cli build --platform ios --profile ${{ inputs.profile }} --non-interactive --json > build.json
+          echo "id=$(node -e "console.log(require('./build.json')[0].id)")" >> "$GITHUB_OUTPUT"
 
       # The preview profile is distribution: "internal" — it emails an install
       # link and has no App Store Connect submission path.
+      # Non-interactive submit refuses to guess which build to send ("You need
+      # to specify the archive source"), which is how the first CI submit, for
+      # 1.2.0 on 2026-10-16, failed after a good build. Pass the one just made.
       - name: Submit to App Store Connect
         if: ${{ inputs.submit && inputs.profile == 'production' }}
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: npx eas-cli submit --platform ios --profile production --non-interactive
+          BUILD_ID: ${{ steps.build.outputs.id }}
+        run: npx eas-cli submit --platform ios --profile production --id "$BUILD_ID" --non-interactive
 
       - name: Note on skipped submit
         if: ${{ inputs.submit && inputs.profile != 'production' }}
