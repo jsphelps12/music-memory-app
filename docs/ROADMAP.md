@@ -263,6 +263,33 @@ Full spec: `docs/SOCIAL-ARCHITECTURE.md` (rewritten as v2 same day; audit that m
   - ⚠️ **Trap for future teardowns: simulator artifacts ship `CFBundleVersion = 1`.** EAS applies the remote build number only to device/store builds (which is why App Store Connect sees 7, 8, …), so the sim binary reports `1` no matter what the EAS build number says (this one was "build 24"). **Never read a build number off a simulator build when choosing a floor** — the drill above deliberately used `2`, not `24`. Set real floors from the App Store Connect / EAS build number of the *device* build.
 - [ ] **Next**: `preview` (device) build → beta testers via the internal install link. `preview` is **internal distribution, NOT TestFlight** — TestFlight requires the `production` profile, which stays parked until the owner calls the beta ready.
 
+## Release 1.2.0 — in progress 2026-10-16 (first App Store build since build 7)
+
+App Store users are on build 7 (v1.1.0, 2026-05-22), which predates the fingerprint switch and can never receive an OTA. Everything since May reaches them only through this binary. Backend and web are already live in prod (migrations and edge functions deploy to both projects on merge).
+
+**Native changes reaching production for the first time** (beta-tested only): iOS 26 patches (expo-web-browser, expo-apple-authentication), expo-secure-store linking fix, New Architecture disabled, SpotifyRemote module, expo-audio swap, min-build gate, per-variant share-extension app group + `soundtracks://` scheme. Hence the TestFlight pass in the checklist.
+
+- [ ] **Release PR** (`release/1.2.0`): `version` 1.1.0 → 1.2.0. Moves BOTH fingerprints (preview `20d72289` → `c4b85ae6`; production → `d2846b76`): merging strands beta build 25 until a new `preview` build is installed, and the OTA workflow goes red on that merge by design.
+- [ ] **Release-candidate `preview` build from the branch** (before merge) → owner installs it and runs the device checklist (`docs/DEPLOY.md`). Build 25's install link expired 2026-08-16, so this build is also how anyone gets the beta again.
+- [ ] Merge → `preview-simulator` build → E2E Smoke green on the merge commit.
+- [ ] `production` build + submit → TestFlight pass (production data).
+- [ ] App Store Connect: version 1.2.0, What's New (below), demo account check, submit for review.
+- [ ] **Open decision:** the Spotify music-service option is ungated and visible in production. Ship as is (if the device check shows it connects, or fails gracefully), or hide it in production for 1.2.0.
+- [ ] After release: watch Sentry/PostHog; caboose migration once build 7 adoption is near zero.
+
+**What's New (draft for App Store Connect):**
+
+> • Send a moment straight to a friend. It lands in their new "Shared with me" inbox.
+> • Add friends with your own personal link.
+> • A new share card, made to keep: your photo or the album art with your words underneath, in Post and Story sizes.
+> • Share links you control: see when a link is live and turn it off anytime.
+> • Reflections, reimagined: search everything you've saved, a Weekly Rewind of a past month, and Surprise Me.
+> • Pick more than one mood for a moment.
+> • Tap a song's artwork while searching to hear a preview.
+> • Music now pauses when you leave the app.
+> • A warmer look throughout, plus fixes for iOS 26.
+> • Tagging friends has been replaced by sending moments directly.
+
 ## Product ideas + feasibility findings — 2026-08-02 session
 
 Reviewed against the existing list; several ideas below already existed (noted). The
