@@ -270,9 +270,13 @@ Albums · Me). The old Browse and Shared tabs no longer exist.
 - [ ] Min-build gate stays inert: the app opens normally (`app_config.min_supported_build` is still 1)
 - [ ] No new errors in Sentry for the build under test
 
-### TestFlight pass (production build, production data, about 10 minutes)
-- [ ] Sign in with your real account; timeline and photos load
-- [ ] Play a moment's song; create one moment and delete it
+### TestFlight pass (production build, production data, about 15 minutes)
+The production variant has its own bundle ID, app group, scheme and
+entitlements, so anything native that differs per variant is only proven here.
+- [ ] Sign in with your real account (and once with Apple Sign-In); timeline and photos load
+- [ ] Play a moment's song (full Apple Music playback); create one moment and delete it
+- [ ] Share extension: share a song from Apple Music to **Soundtracks** (not β)
+- [ ] A `soundtracks://` link opens the production app, e.g. an album invite or friend link
 - [ ] Open a share link on web
 - [ ] Demo account (App Store review notes) still signs in
 
