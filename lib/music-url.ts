@@ -151,7 +151,11 @@ export async function lookupSongFromUrl(
 
   // Spotify URL
   if (preferredProvider === 'spotify') {
-    return lookupSpotifyNative(parsed.id);
+    // A lapsed or unapproved Spotify session makes the native lookup come back
+    // empty; the shared song is still identifiable without Spotify auth, via
+    // oEmbed + Apple Music, the same path Apple Music users take.
+    const native = await lookupSpotifyNative(parsed.id).catch(() => ({ song: null }));
+    if (native.song) return native;
   }
   return lookupSpotifyViaAppleMusic(parsed.id);
 }

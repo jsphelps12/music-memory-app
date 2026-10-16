@@ -274,7 +274,13 @@ App Store users are on build 7 (v1.1.0, 2026-05-22), which predates the fingerpr
 - [ ] Merge → `preview-simulator` build → E2E Smoke green on the merge commit.
 - [ ] `production` build + submit → TestFlight pass (production data).
 - [ ] App Store Connect: version 1.2.0, What's New (below), demo account check, submit for review.
-- [ ] **Open decision:** the Spotify music-service option is ungated and visible in production. Ship as is (if the device check shows it connects, or fails gracefully), or hide it in production for 1.2.0.
+- [x] **Spotify stays visible in production; every failure handled** *(owner decision 2026-10-16: "don't hide it, error handle very well")*. Audit found failures that hit people who never chose Spotify:
+  - **Playback opened Spotify OAuth for Apple Music users.** `playFull` called `authorize()` for the *song's* provider, and moment detail autoplays, so opening a Spotify moment someone shared, or one in a shared album, popped a Spotify login. Spotify playback now only checks `isAvailable()`; signing in happens only from Me → Music Service.
+  - **Spotify moments were silent for everyone but Premium users.** Spotify stopped returning `preview_url` to new apps (late 2024), so they saved no preview. `SpotifyProvider.fetchPreviewUrl` now borrows the matching iTunes recording (`lib/itunes.ts`, strict title+artist match so a cover never plays under someone's memory), and `playFull` looks one up on demand for moments saved before this.
+  - **Dev-mode allowlist made the switch "succeed" into a broken search.** Spotify lets any account finish OAuth, then 403s the Web API for accounts not on the dashboard allowlist. Connecting now verifies with `/v1/me` before persisting the choice (and reads `product` via the new `user-read-private` scope to warn non-Premium users they'll get previews).
+  - **Search failures looked like "no results"**, or, for a lapsed session, like the Apple Music permission screen. Spotify search now throws typed `SpotifyError`s; the search screen falls back to iTunes results with a banner saying why.
+  - **Crash/hang paths:** `getProvider("spotify")` threw if the native module was missing (callers include render and the save path), so it now returns a stand-in that fails gracefully; App Remote connect/play get 15s/10s timeouts; a revoked refresh token is cleared instead of retried forever; the share extension falls back to oEmbed + Apple Music when the Spotify lookup fails.
+  - Every failure has a named reason and user-facing copy (`lib/providers/spotifyErrors.ts`, unit-tested; a deliberate cancel stays silent). New events: `music_provider_switch`, `song_search_fallback`.
 - [ ] After release: watch Sentry/PostHog; caboose migration once build 7 adoption is near zero.
 
 **What's New (draft for App Store Connect):**
