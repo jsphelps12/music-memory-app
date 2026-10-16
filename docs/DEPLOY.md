@@ -159,7 +159,7 @@ Use this when native code changed. Requires App Store review.
 
 ### Steps
 
-**1. Bump the version**
+**1. Bump the version** (release PR)
 
 In `app.config.ts` (there is no `app.json`):
 ```ts
@@ -168,107 +168,146 @@ version: "1.2.0",
 
 - `version`: bump patch for bug fixes, minor for new features, major for breaking changes
 - Do **not** set a build number by hand: `eas.json` uses
-  `appVersionSource: "remote"` with `autoIncrement`, so EAS assigns it. Editing
-  it locally has no effect.
+  `appVersionSource: "remote"` with `autoIncrement`, so EAS assigns it.
+- ⚠️ **The bump moves the preview fingerprint too** (measured 2026-10-14:
+  `20d72289` → `c4b85ae6`). Once it merges, the installed beta stops receiving
+  OTAs and the OTA workflow goes red until a new `preview` build exists. Cut
+  the preview builds right after merging (step 2).
 
-**2. Cut a preview build (internal distribution, not TestFlight)**
-```bash
-eas build --platform ios --profile preview
-```
-The `preview` profile is `distribution: "internal"` — EAS emails an install
-link; it does not go to TestFlight. For TestFlight use the `production`
-profile via the "Production Build" workflow. Takes 15–30 minutes.
+**2. Cut the beta builds** via the "Binary Build" workflow
+- `preview`: the device build for testers (internal install link, **not** TestFlight)
+- `preview-simulator`: what E2E Smoke installs (it would rebuild one itself, but
+  cutting it now saves the wait)
 
-**3. Test on TestFlight**
+You can dispatch these against the release branch *before* merging
+(`gh workflow run production-build.yml --ref <branch> -f profile=preview`) to
+test the exact release candidate on your phone without stranding anyone.
 
-Run through the manual regression checklist (see below) before submitting to App Store.
+**3. Test on the beta**: run the Manual Regression Checklist below on a device.
 
-**4. Cut the production build**
-```bash
-eas build --platform ios --profile production
-```
+**4. Cut and submit the production build**: "Binary Build" workflow with
+profile `production` and `submit` checked. It lands in App Store Connect and
+appears in TestFlight once processed (10–30 min).
 
-**5. Submit to App Store**
-```bash
-eas submit --platform ios --profile production
-```
-Or submit manually in App Store Connect. Attach the new build, fill in release notes,
-submit for review.
+**5. TestFlight pass**: install from TestFlight and run the short TestFlight
+section of the checklist. This is production data.
 
-**6. After approval — push a matching OTA update**
-```bash
-eas update --branch production --message "v1.2.0 release"
-```
-This ensures users who update via the App Store also get the latest JS bundle immediately,
-without waiting for the next background update check.
+**6. Submit for review** in App Store Connect: create the version, attach the
+build, paste "What's New", confirm the demo account, submit.
+
+**7. Later JS-only fixes** go out with the "Promote to Production" workflow,
+which requires a green E2E Smoke run on the exact commit.
 
 ---
 
 ## Manual Regression Checklist
 
-Run this on a physical device before every TestFlight build and before every App Store
-submission. Check each item — don't skim.
+Run this on a physical device before every App Store submission: once on the
+beta build (staging data, "Soundtracks β") and, for the short pass at the end,
+on the TestFlight build (production data). Check each item; don't skim.
+
+Rewritten 2026-10-14 for the post-Sharing-v2 app (tabs: Moments · Reflections ·
+Albums · Me). The old Browse and Shared tabs no longer exist.
+
+### 0. Device-only (the simulator cannot run these; do them first)
+- [ ] **Apple Music full playback**: open a moment and play the full song (not the 30s preview). Pause, resume, scrub.
+- [ ] **Leaving the app pauses playback**: background the app mid-song, confirm the music stops (pull-down Control Center should *not* stop it)
+- [ ] **Now Playing auto-fill**: play a song in the Music app, open create, confirm the banner offers it
+- [ ] **Share extension from Apple Music**: Share → Soundtracks β, confirm the create screen is pre-filled
+- [ ] **Share extension from Spotify**: share a Spotify track link, confirm the Apple Music match or candidate picker appears
+- [ ] **Share from Photos**: share a photo to Soundtracks β, confirm the date and location fill in from EXIF
+- [ ] **ShazamKit**: identify a song playing nearby, confirm it pre-fills create
+- [ ] **Camera**: add a photo from the camera
+- [ ] **Push notifications arrive**: see Sharing below (another account sends you a moment)
+- [ ] **Spotify as music service** (Me → Music Service → Spotify): either it connects and plays, or it shows the "Couldn't connect" alert. It must never crash. This option is visible in the production app too.
 
 ### Auth
-- [ ] Sign up with email
-- [ ] Sign in with email
+- [ ] Sign in with email, sign out, sign back in
 - [ ] Apple Sign-In
-- [ ] Sign out — confirm push token is cleared (verify in Supabase profiles table)
-- [ ] Token refresh — sign in, background the app for 1+ hour, reopen, confirm still logged in
+- [ ] Sign up with a new email: the confirmation link opens the app and lands signed in
+- [ ] Background the app for an hour or more, reopen: still signed in
 
-### Core Flow
-- [ ] Create a moment — song search, reflection, mood, people, date
-- [ ] Now Playing auto-fill — have a song playing in Apple Music, open create screen
-- [ ] Share extension — share a song from Apple Music, confirm it pre-fills create screen
-- [ ] Edit a moment
-- [ ] Delete a moment (swipe or detail screen)
-- [ ] Add a photo from camera
-- [ ] Add a photo from library
-- [ ] Photo viewer — swipe between photos, pinch-to-zoom
+### Capture
+- [ ] Create a moment: song search, reflection, two moods, a person, a date, photos
+- [ ] Song search: tap a result's artwork to hear the preview; it stops when you pick a song
+- [ ] Moment detail: the 30s preview autoplays; the progress readout shows sensible seconds (e.g. `0:05 / 0:29`) and scrubbing seeks
+- [ ] Edit a moment, then delete one (long-press card and detail screen); the styled confirm sheet appears both times
+- [ ] Photo viewer: swipe between photos, pinch to zoom
 
-### Timeline
-- [ ] Timeline loads with correct sections
-- [ ] Scroll performance — no jank
-- [ ] Month section headers correct
-- [ ] Collection chip row — tap a collection, confirm timeline filters
-- [ ] Search by song title, artist, reflection text
+### Moments tab
+- [ ] Timeline loads in month sections; scrolling is smooth
+- [ ] Cards show bare mood emoji(s) beside the date
+- [ ] Calendar and map toggles work, and switching back keeps your scroll position
+- [ ] The search icon lands on Reflections with search focused
 
-### Collections
-- [ ] Create a collection
-- [ ] Add a moment to a collection from the create screen
-- [ ] Add a moment to a collection from the moment detail screen
-- [ ] Switch collections in the timeline header
-- [ ] Toggle a collection public
-- [ ] Share the invite link via iOS share sheet
-- [ ] Open the shared link on web — confirm it renders correctly
-- [ ] Join flow — open a `soundtracks://join?inviteCode={code}` deep link, confirm join screen appears
+### Reflections tab
+- [ ] Search finds moments by title, artist and reflection text
+- [ ] On This Day (when you have one), Weekly Rewind, Moods / People / Years / Albums strips, and Surprise Me all render; empty sections stay hidden
+- [ ] Tap a mood → mood drill-down loads
 
-### Browse Tab
-- [ ] On This Day, Moods, People, Years, Calendar sections all load
-- [ ] Tap a mood → mood drill-down screen loads moments
-- [ ] Calendar highlights correct days
+### Sharing (two accounts: your phone + the simulator as `e2e2@soundtracks.test`; see "Testing Social Features" below)
+- [ ] Share sheet shows three verbs: Send to a person · Add to album · Share a link
+- [ ] **Send to a person** → the other account's "Shared with me" pill shows an unread badge → opening it clears the badge → the detail shows "by <sender>"
+- [ ] **Push arrives** on the receiving phone for that share, and tapping it opens the right place
+- [ ] **Share a link** → "Link is live" row appears → open the `/m/` link in Safari, confirm the cream card page → revoke → the link stops working
+- [ ] Share card export: Post and Story variants both render (photo hero, or album art when no photo)
+- [ ] SHARED WITH chips: unsend a share and remove an album from the sheet; the confirm sheet appears *over* the share sheet, and the tab bar still responds afterwards
+- [ ] Friends: share your friend link, open it on the other account → "X added you" push, both friends lists update
 
-### Shared Tab
-- [ ] Shared collections preview section loads
-- [ ] Tagged moments preview section loads
-- [ ] "See all →" navigates to full-list drill-down screens
-- [ ] Pending friend requests / collection invites show as banners
+### Albums tab
+- [ ] Create an album, add a moment from create and from detail
+- [ ] Share the invite link → open on web (`/c/` page renders) → join from the other account
+- [ ] QR page opens from the album share sheet
 
-### Profile
-- [ ] Avatar upload
-- [ ] Display name edit
-- [ ] Stats are correct (moment count, storage)
-- [ ] Delete Account — confirm all data removed (check Supabase dashboard)
-- [ ] Sign out
-
-### Notifications
-- [ ] Confirm push token is stored in profiles table after sign-in
-- [ ] Trigger a test notification from Supabase edge function
+### Me tab
+- [ ] Avatar upload; tap the avatar to see it full size
+- [ ] Display name edit; stats look right
+- [ ] Notification toggles save
+- [ ] Delete Account (use a throwaway account): all data gone afterwards (check Supabase)
 
 ### Misc
-- [ ] Dark mode — toggle in iOS settings, confirm app updates correctly
-- [ ] Deep link — `soundtracks://join?inviteCode={code}` from Safari opens join screen
-- [ ] No console errors or warnings that weren't there before
+- [ ] Dark mode: flip it in iOS settings, the app follows
+- [ ] Min-build gate stays inert: the app opens normally (`app_config.min_supported_build` is still 1)
+- [ ] No new errors in Sentry for the build under test
+
+### TestFlight pass (production build, production data, about 10 minutes)
+- [ ] Sign in with your real account; timeline and photos load
+- [ ] Play a moment's song; create one moment and delete it
+- [ ] Open a share link on web
+- [ ] Demo account (App Store review notes) still signs in
+
+---
+
+## Installing the Beta on a Device
+
+- The beta is a separate app, **Soundtracks β**, that sits next to the App Store
+  app. It talks to **staging**, so sign in with a staging account.
+- Builds use internal (ad hoc) distribution: open the build's install link on
+  the iPhone in Safari and tap Install. The device's UDID must already be
+  registered with EAS (`npx eas-cli device:create` for a new device, and a new
+  build afterwards, since the device list is baked into each build).
+- iOS 16+ requires **Developer Mode** for ad hoc apps (Settings → Privacy &
+  Security → Developer Mode). Without it the app refuses to open.
+- **Install links expire after 14 days.** An installed build keeps working and
+  keeps receiving OTAs; you just can't install it anew after that.
+- The app downloads OTA updates in the background and applies them on the next
+  cold start, so force-quit and reopen twice after a merge.
+
+## Testing Social Features
+
+Two staging accounts exist for this: `e2e@soundtracks.test` and
+`e2e2@soundtracks.test` ("E2E Two"), already friends with each other. The
+password is `E2E_PASSWORD` in `.maestro/.env.e2e.local`.
+`node scripts/seed-e2e.mjs` resets both to "friends, nothing shared".
+
+- **Phone + simulator (recommended)**: your phone runs the beta as one account;
+  the simulator runs the dev build (`npx expo start`, staging per `.env`) as the
+  other. Put the *receiving* account on the phone, so you see real pushes.
+- **Two simulators**: `npx expo run:ios --device "<name>"` for each; both use
+  the same Metro server.
+- Deep links in a simulator:
+  `xcrun simctl openurl booted "soundtracks-beta://friend/<token>"`.
+  Web pages (`/m/`, `/c/`, `/friend/`) open in any browser.
 
 ---
 
