@@ -227,7 +227,7 @@ export default function FriendInviteScreen() {
             {firstName} invited you to connect on Soundtracks
           </Text>
           <Text style={[styles.sub, { color: theme.colors.textSecondary }]}>
-            Share music memories with friends. When you tag them in a moment, they'll get a notification.
+            Share music memories with friends. Once you're connected, you can send moments straight to each other.
           </Text>
 
           {error ? (
