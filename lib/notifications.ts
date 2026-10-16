@@ -5,16 +5,38 @@ import { supabase } from "@/lib/supabase";
 
 const MILESTONE_COUNTS = [25, 50, 100, 250, 500, 1000];
 
-export async function registerForPushNotifications(userId: string): Promise<void> {
+export type PushRegistrationStep = "register" | "ask" | "skip";
+
+/**
+ * Pure decision, exported for tests. Asking and registering are separate
+ * questions: `mayAsk` only controls whether the iOS permission dialog may be
+ * shown right now. Once permission is granted, registering is always right,
+ * whoever granted it and however.
+ *
+ * They used to be fused, so the launch path registered only for users who
+ * were also eligible to be asked. That missed anyone who declined at the
+ * celebration screen and later turned notifications on in iOS Settings, and
+ * any device whose first-moment flag was never written (it is only set on
+ * sign-in from the auth screens). Those users never got a token at all.
+ * Found on a beta device on 2026-10-16.
+ */
+export function pushRegistrationStep(permission: string, mayAsk: boolean): PushRegistrationStep {
+  if (permission === "granted") return "register";
+  return mayAsk ? "ask" : "skip";
+}
+
+export async function registerForPushNotifications(
+  userId: string,
+  { mayAsk = true }: { mayAsk?: boolean } = {}
+): Promise<void> {
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
+  const step = pushRegistrationStep(existingStatus, mayAsk);
+  if (step === "skip") return;
 
-  if (existingStatus !== "granted") {
+  if (step === "ask") {
     const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
+    if (status !== "granted") return;
   }
-
-  if (finalStatus !== "granted") return;
 
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
