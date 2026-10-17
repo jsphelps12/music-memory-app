@@ -10,8 +10,13 @@
  *   SUPABASE_ACCESS_TOKEN=... node scripts/db-migrate.mjs          # apply
  *   SUPABASE_ACCESS_TOKEN=... node scripts/db-migrate.mjs --check  # drift check only
  *
- * --check exits 1 if either project's history diverges from the repo
- * (a remote version missing from the repo, or vice versa), applying nothing.
+ * --check (the PR run) applies nothing and fails on:
+ *   - drift: a remote version the repo doesn't have;
+ *   - a pending migration that fails a dry run on STAGING, executed inside a
+ *     transaction that is always rolled back.
+ * Pending migrations are otherwise expected on a PR (that's what the PR adds)
+ * and pass. This used to fail every migration PR for merely being pending.
+ * Production never runs PR SQL, not even rolled back.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -76,8 +81,24 @@ for (const project of PROJECTS) {
   }
 
   if (CHECK_ONLY) {
-    console.error(`✗ ${pending.length} unapplied migration(s): ${pending.map((m) => m.file).join(", ")}`);
-    failed = true;
+    console.log(`• ${pending.length} pending migration(s), applied on merge: ${pending.map((m) => m.file).join(", ")}`);
+    if (project.name !== "staging") continue;
+    for (const m of pending) {
+      const sql = readFileSync(join(migrationsDir, m.file), "utf8");
+      // Statements that can't run inside a transaction (or end it early)
+      // can't be dry-run safely; say so rather than fake a pass.
+      if (/\b(commit|concurrently|vacuum)\b/i.test(sql)) {
+        console.log(`  ⚠ ${m.file}: not transaction-safe, skipped dry run (review by hand)`);
+        continue;
+      }
+      try {
+        await runSql(project.ref, `begin;\n${sql}\n;rollback;`);
+        console.log(`  ✓ ${m.file}: dry run on staging succeeded (rolled back)`);
+      } catch (e) {
+        console.error(`  ✗ ${m.file}: dry run on staging failed: ${e.message}`);
+        failed = true;
+      }
+    }
     continue;
   }
 
