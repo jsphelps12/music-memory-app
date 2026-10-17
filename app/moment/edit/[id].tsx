@@ -23,6 +23,7 @@ import DateTimePicker, {
 import * as ImagePicker from "expo-image-picker";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { setWritingSession } from "@/lib/writingSession";
 import { supabase } from "@/lib/supabase";
 import { getProvider } from "@/lib/providers";
 import type { MusicProviderType } from "@/types";
@@ -395,7 +396,26 @@ export default function EditMomentScreen() {
         )}
 
         {/* Reflection */}
-        <Text style={styles.sectionLabel}>Reflection</Text>
+        <View style={styles.reflectionLabelRow}>
+          <Text style={[styles.sectionLabel, styles.reflectionLabel]}>Reflection</Text>
+          <TouchableOpacity
+            onPress={() => {
+              setWritingSession({
+                text: reflection,
+                songTitle: song?.title,
+                songArtist: song?.artistName,
+                songArtworkUrl: song?.artworkUrl || undefined,
+                onDone: setReflection,
+              });
+              router.push("/write");
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Write on a full page"
+          >
+            <Text style={styles.fullPageText}>Full page</Text>
+          </TouchableOpacity>
+        </View>
         <TextInput
           style={[styles.reflectionInput, focusedField === "reflection" && { borderColor: theme.colors.accent }]}
           placeholder="What does this song remind you of? (optional)"
@@ -641,6 +661,20 @@ function createStyles(theme: Theme) {
       fontFamily: "DMSans_400Regular",
       color: theme.colors.textTertiary,
       paddingVertical: 8,
+    },
+    reflectionLabelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    reflectionLabel: {
+      flex: 1,
+    },
+    fullPageText: {
+      fontSize: 13,
+      fontFamily: theme.fonts.bodyMedium,
+      color: theme.colors.textSecondary,
+      marginTop: 16,
     },
     reflectionInput: {
       height: 120,

@@ -20,3 +20,9 @@ export function topValue(items: (string | null | undefined)[]): string | null {
   }
   return best;
 }
+
+/** Words in a piece of writing, for the full-page writer's footer. */
+export function countWords(text: string): number {
+  const trimmed = text.trim();
+  return trimmed ? trimmed.split(/\s+/).length : 0;
+}
