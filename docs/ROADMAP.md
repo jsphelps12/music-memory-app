@@ -158,6 +158,11 @@ clutter, navigation.
   Center, the Lock Screen buttons and the Action button. Each deep-links to
   `/create` (`?identify=1` starts listening). Rides a binary: the preview
   build first, then the next App Store version.
+- [x] **Launch screen** (with the widget, 2026-10-17): the big logo on
+  near-white became the app's paper (dark in dark mode) with a small serif
+  wordmark, held until routing resolves and faded into the first screen, so
+  a cold launch from a widget reads as the app opening onto Capture. It
+  used to hide at font load and show a blank spinner screen in between.
 - [ ] **Log what's playing without opening the app** (App Intent that saves
   the now-playing song straight to the journal, with a "write later" nudge).
   Needs an app group + the auth token in a shared keychain; the widget above
