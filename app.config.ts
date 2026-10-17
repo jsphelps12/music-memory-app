@@ -15,11 +15,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: isPreview ? "soundtracks-beta" : "soundtracks",
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
-  splash: {
-    image: "./assets/images/app-icon.png",
-    resizeMode: "contain",
-    backgroundColor: "#FBF6F1",
-  },
   ios: {
     supportsTablet: false,
     bundleIdentifier: isPreview
@@ -105,6 +100,22 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           NSExtensionActivationSupportsWebURLWithMaxCount: 1,
           NSExtensionActivationSupportsText: true,
           NSExtensionActivationSupportsImageWithMaxCount: 5,
+        },
+      },
+    ],
+    // The launch screen looks like the app already open: its paper color and
+    // a small serif wordmark, light and dark. The app holds it until routing
+    // resolves and fades into the first screen (app/_layout.tsx).
+    [
+      "expo-splash-screen",
+      {
+        image: "./assets/images/splash-wordmark.png",
+        imageWidth: 168,
+        resizeMode: "contain",
+        backgroundColor: "#FBF7F2",
+        dark: {
+          image: "./assets/images/splash-wordmark-dark.png",
+          backgroundColor: "#0E0B0A",
         },
       },
     ],

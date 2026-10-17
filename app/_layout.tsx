@@ -64,6 +64,9 @@ export const unstable_settings = {
 };
 
 SplashScreen.preventAutoHideAsync();
+// Fade out of the launch screen instead of cutting, so a cold launch (from a
+// widget, a push, a share) eases into wherever the app lands.
+SplashScreen.setOptions({ duration: 250, fade: true });
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -177,7 +180,22 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   // any flash of the wrong screen (e.g. welcome) before routing resolves.
   const isBlocking =
     !overlayExpired && (loading || hasLaunched === null || (session && !profileReady));
-  const bg = colorScheme === "dark" ? "#000000" : "#FBF6F1";
+  const bg = colorScheme === "dark" ? "#0E0B0A" : "#FBF7F2";
+
+  // One continuous launch: the native launch screen stays up until we know
+  // where we're going (auth resolved, profile ready, route chosen), then fades
+  // straight into it. It used to hide when fonts loaded, which put a blank
+  // spinner screen between the logo and the first real screen on every cold
+  // start. The overlay below stays as the cover once the 12s escape hatch or
+  // a slow profile fetch is involved.
+  useEffect(() => {
+    if (isBlocking) return;
+    // A frame for the routed screen to paint before the launch screen lifts.
+    const id = requestAnimationFrame(() => {
+      SplashScreen.hideAsync().catch(() => {});
+    });
+    return () => cancelAnimationFrame(id);
+  }, [isBlocking]);
 
   return (
     <>
@@ -222,12 +240,6 @@ function RootLayout() {
   useEffect(() => {
     if (error) throw error;
   }, [error]);
-
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
 
   if (!loaded) return null;
 
