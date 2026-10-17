@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { topValue } from "../utils";
+import { topValue, countWords } from "../utils";
 
 describe("topValue", () => {
   it("returns null for an empty array", () => {
@@ -37,5 +37,17 @@ describe("topValue", () => {
 
   it("handles all identical values", () => {
     expect(topValue(["joy", "joy", "joy"])).toBe("joy");
+  });
+});
+
+describe("countWords", () => {
+  it("counts words across spaces and line breaks", () => {
+    expect(countWords("It takes me back to")).toBe(5);
+    expect(countWords("  one\n\ntwo   three ")).toBe(3);
+  });
+
+  it("is zero for empty or blank text", () => {
+    expect(countWords("")).toBe(0);
+    expect(countWords("   \n ")).toBe(0);
   });
 });

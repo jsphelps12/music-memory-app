@@ -49,6 +49,8 @@ import { BottomSheet } from "@/components/BottomSheet";
 import { fetchWeather, WeatherResult } from "@/lib/weather";
 import { dateToStr } from "@/lib/dateUtils";
 import { MOODS } from "@/constants/Moods";
+import { setWritingSession } from "@/lib/writingSession";
+import { loadCaptureDraft, saveCaptureDraft, clearCaptureDraft } from "@/lib/captureDraft";
 
 // Starters, not prompts: they open a sentence for the three ways people use
 // the journal (a memory, a discovery, a day) and get out of the way.
@@ -109,7 +111,19 @@ export default function CreateMomentScreen() {
     promptQuestion?: string;
     promptStarter?: string;
     collectionId?: string;
+    /** "1" from the widget's Identify tile and control: start listening. */
+    identify?: string;
+    /** Where capture was opened from ("widget"), for analytics. */
+    source?: string;
   }>();
+
+  // Opened from a widget or control: worth knowing whether capture-from-
+  // anywhere gets used at all.
+  useEffect(() => {
+    if (params.source) posthog.capture("capture_opened", { source: params.source, identify: params.identify === "1" });
+    // Once per screen open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [song, setSong] = useState<Song | null>(null);
   const previewFetchRef = useRef<Promise<{ previewUrl: string | null; albumName: string | null }> | null>(null);
@@ -218,6 +232,74 @@ export default function CreateMomentScreen() {
   useEffect(() => {
     if (params.promptStarter) replaceReflection(params.promptStarter, false);
   }, [params.promptStarter, replaceReflection]);
+
+  // Drafts: writing survives Cancel, a crash or iOS killing the app. Restore
+  // only into a blank capture (not a share, prompt or widget Identify), and
+  // don't save until the restore attempt is done, or an empty first save
+  // would wipe the draft before it's read.
+  const [restoredDraft, setRestoredDraft] = useState(false);
+  const draftReady = useRef(false);
+  const latestDraft = useRef<{ reflection: string; song: Song | null }>({ reflection: "", song: null });
+  useEffect(() => {
+    if (!user) return;
+    const prefilled =
+      !!params.songTitle || !!params.promptStarter || !!params.shareCandidates ||
+      !!params.shareFailedUrl || !!params.sharedPhotoPaths || params.identify === "1";
+    if (prefilled) {
+      draftReady.current = true;
+      return;
+    }
+    loadCaptureDraft(user.id).then((draft) => {
+      if (draft) {
+        replaceReflection(draft.reflection, false);
+        if (draft.song) handleSongChange(draft.song);
+        setRestoredDraft(true);
+      }
+      draftReady.current = true;
+    });
+    // Once per screen open, for the signed-in user.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  useEffect(() => {
+    latestDraft.current = { reflection, song };
+    if (!user || !draftReady.current) return;
+    const t = setTimeout(() => saveCaptureDraft(user.id, { reflection, song }), 600);
+    return () => clearTimeout(t);
+  }, [reflection, song, user]);
+
+  // Leaving (Cancel, swipe, save) flushes the last few keystrokes the
+  // debounce hasn't written yet. After a save the form is already blank, so
+  // this clears the draft instead.
+  useEffect(
+    () => () => {
+      if (user && draftReady.current) void saveCaptureDraft(user.id, latestDraft.current);
+    },
+    // Unmount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  const startFresh = () => {
+    Haptics.selectionAsync();
+    if (user) void clearCaptureDraft(user.id);
+    replaceReflection("", false);
+    handleSongChange(null);
+    setRestoredDraft(false);
+  };
+
+  const openFullPage = () => {
+    Keyboard.dismiss();
+    setWritingSession({
+      text: latestDraft.current.reflection,
+      songTitle: song?.title,
+      songArtist: song?.artistName,
+      songArtworkUrl: song?.artworkUrl || undefined,
+      placeholder: "What's this song doing for you?",
+      onDone: (text) => replaceReflection(text, false),
+    });
+    router.push("/write");
+  };
 
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [people, setPeople] = useState<string[]>([]);
@@ -356,7 +438,10 @@ export default function CreateMomentScreen() {
         );
       }
 
-      // Reset form
+      // Reset form (the unmount flush then clears the draft; clear now too in
+      // case the screen stays mounted)
+      if (user) void clearCaptureDraft(user.id);
+      setRestoredDraft(false);
       handleSongChange(null);
       replaceReflection("", false);
       setSelectedMoods([]);
@@ -496,10 +581,33 @@ export default function CreateMomentScreen() {
           song={song}
           onChange={handleSongChange}
           photos={photos}
-          suggestNowPlaying={!params.shareCandidates && !params.shareFailedUrl}
+          suggestNowPlaying={!params.shareCandidates && !params.shareFailedUrl && params.identify !== "1"}
+          autoIdentify={params.identify === "1"}
         />
 
-        <View style={styles.divider} />
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <TouchableOpacity
+            testID="create-full-page"
+            style={styles.fullPageButton}
+            onPress={openFullPage}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Write on a full page"
+          >
+            <Ionicons name="expand-outline" size={15} color={theme.colors.textSecondary} />
+            <Text style={styles.fullPageText}>Full page</Text>
+          </TouchableOpacity>
+        </View>
+
+        {restoredDraft ? (
+          <View style={styles.draftRow}>
+            <Text style={styles.draftText}>Picked up where you left off</Text>
+            <TouchableOpacity onPress={startFresh} hitSlop={8} accessibilityRole="button">
+              <Text style={styles.draftAction}>Start fresh</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <TextInput
           key={reflectionSeed.key}
@@ -761,11 +869,43 @@ function createStyles(theme: Theme) {
       paddingTop: 14,
       paddingBottom: theme.spacing["3xl"],
     },
-    divider: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: theme.colors.divider,
+    dividerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md,
       marginTop: 22,
       marginBottom: 18,
+    },
+    dividerLine: {
+      flex: 1,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: theme.colors.divider,
+    },
+    fullPageButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+    },
+    fullPageText: {
+      fontSize: 13,
+      fontFamily: theme.fonts.bodyMedium,
+      color: theme.colors.textSecondary,
+    },
+    draftRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: theme.spacing.md,
+    },
+    draftText: {
+      fontSize: 13,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
+    },
+    draftAction: {
+      fontSize: 13,
+      fontFamily: theme.fonts.bodySemibold,
+      color: theme.colors.text,
     },
     // Borderless, in the reading face: this is a page, not a form field.
     reflectionInput: {

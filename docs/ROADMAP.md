@@ -108,7 +108,12 @@ clutter, navigation.
   "With Sam and Priya". Photos: clean full-bleed first photo with a "1 / 3"
   count (tap opens the viewer) and a strip of the rest; the swipeable hero
   was dropped because it fights swipe-to-dismiss.
-- [ ] **A real writing view** for long entries (the journal case).
+- [x] **A real writing view** for long entries (Phase 1g): "Full page" on
+  capture and edit opens `app/write.tsx`, a full-screen page in the reading
+  face with the song up top, a word count and Done (hand-off through
+  `lib/writingSession.ts`). Capture now keeps a draft (`lib/captureDraft.ts`,
+  per user, a week): writing survives Cancel, a crash or iOS killing the app,
+  and comes back with "Picked up where you left off · Start fresh".
 - [x] **Rediscover** (Phase 1d): On this day leads with its oldest memory as
   a hero (132pt artwork, "7 years ago", Newsreader excerpt) and lists the
   rest as compact rows; Weekly Rewind reads "From September 2026"; the boxed

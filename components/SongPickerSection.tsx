@@ -31,9 +31,11 @@ interface SongPickerSectionProps {
    * candidates), so the two can't race.
    */
   suggestNowPlaying?: boolean;
+  /** Start listening on mount (the widget's Identify tile and control). */
+  autoIdentify?: boolean;
 }
 
-export function SongPickerSection({ song, onChange, photos = [], suggestNowPlaying = true }: SongPickerSectionProps) {
+export function SongPickerSection({ song, onChange, photos = [], suggestNowPlaying = true, autoIdentify = false }: SongPickerSectionProps) {
   const router = useRouter();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -141,6 +143,16 @@ export function SongPickerSection({ song, onChange, photos = [], suggestNowPlayi
       setIsShazaming(false);
     }
   };
+
+  // Once, on mount, and only into an empty picker.
+  const autoIdentifyRan = useRef(false);
+  useEffect(() => {
+    if (!autoIdentify || autoIdentifyRan.current || songRef.current) return;
+    autoIdentifyRan.current = true;
+    void handleIdentify();
+    // handleIdentify is recreated each render; this is a one-shot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoIdentify]);
 
   const goToSongSearch = () =>
     router.push({ pathname: "/song-search", params: { photos: JSON.stringify(photos) } });
