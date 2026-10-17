@@ -51,30 +51,55 @@ below should move that, or it doesn't belong on this page.
 ### Ship 1.2.0
 - [ ] App Review approval → release with Phased Release → watch Sentry and
   PostHog for a week.
-- [ ] E2E green on `main` so the promote path works for JS fixes
-  (search-input race fix + Maestro driver-death retry, branch
-  `fix/search-input-race`).
+- [x] E2E green on `main` so the promote path works for JS fixes (PR #33:
+  search-input race fix, Maestro driver-death retry, seed no longer signs out
+  testers).
 
 ### Phase 1 — Feel
 *Cleaner, more intuitive, professional-grade; capture in two taps.*
 Owner's read: "doesn't feel great" — colors, generic menu icons, borders,
 clutter, navigation.
 
-- [ ] **Design critique of every screen** against those complaints, then agree
-  a direction *before* writing code.
-- [ ] **Cut and simplify the structure.** Decide what to remove or demote
-  (candidates: map, calendar, albums tab prominence, friends surfaces, the
-  people/location fields up front).
+- [x] **Design critique of every screen** (2026-10-17, on a seeded staging
+  journal). Diagnosis: beige bordered boxes everywhere (dark mode already looks
+  better because the boxes recede), four section-header styles, a clashing
+  orange→purple gradient, emoji moods, generic icons, "Albums" meaning two
+  things, form-like capture, detail-screen contrast failing on scroll.
+- [ ] **Clickable mockups** of Journal, Capture and Detail in the new
+  direction; react before any code.
+
+**Decided 2026-10-17:**
+- **Three tabs + capture:** *Journal* (timeline; calendar and **map** stay as
+  views; search in the header; shared-with-you inline only when it exists),
+  *Rediscover* (On This Day, rewinds, later Phase 2), *You* (profile, albums,
+  friends, settings).
+- **Moods become words:** quiet text tags, no emoji.
+- **Let the artwork be the color:** borderless surfaces, one accent used
+  sparingly, no gradient, SF Symbols (`expo-symbols`) for icons, serif for
+  titles only, long writing in a readable roman, one section-header style.
+
+- [ ] **Restructure navigation** to the three tabs above.
 - [ ] **Visual system refresh:** palette, one coherent icon set, fewer borders
   and nested cards, a clear type hierarchy.
 - [ ] **Two-tap capture:** pick a song → save. Writing is optional; details
   collapsed by default.
 - [ ] **A real writing view** for long entries (the journal case).
+- [ ] **Quick fixes:** "1 moments" pluralization in Reflections strips; detail
+  screen contrast and Dynamic Island overlap on scroll; album covers as an
+  artwork mosaic instead of a gradient placeholder.
 - [ ] **New App Store assets** once the redesign lands: 6.9" screenshots
   (1320×2868) and, optionally, the iOS 27 product-page header.
 
 ## Next — Phase 2: Pull
 *The app comes to you with something worth reacting to.*
+
+- [ ] **Capture from anywhere** *(owner's favorite)*: a widget, Lock Screen
+  widget, Control Center control and Action button / Shortcut that log what's
+  playing without opening the app. Native targets, so it rides a binary.
+- [ ] **Face ID lock** (journaling-app standard; makes private writing feel
+  safe).
+- [ ] **Export** your journal (PDF / plain text): trust that the words are
+  yours.
 
 - [ ] **"Songs you used to love."** Prototype on device: Apple Music library
   play counts and last-played dates (MediaPlayer `playCount` /
@@ -132,10 +157,16 @@ weekly; charging earlier teaches nothing.
   rebuilds expired simulator archives, fingerprint scripts read eas-cli v24
   JSON.
 - [x] **Binary Build submits the build it made** (PR #30).
-- [ ] **Signed-out access to SECURITY DEFINER RPCs** — PR #31 (PUBLIC grant
-  was never revoked; dry-run verified on staging).
-- [ ] **Song-search input race + Maestro driver retry** — branch
-  `fix/search-input-race`.
+- [x] **Signed-out access to SECURITY DEFINER RPCs** closed (PR #31): the
+  PUBLIC grant was never revoked; applied to both projects, advisor findings
+  gone in production.
+- [x] **Migration PRs dry-run on staging** instead of failing for being
+  pending (PR #31): each pending migration runs inside a rolled-back
+  transaction; production never runs PR SQL.
+- [x] **Song-search input race + Maestro hardening** (PR #33).
+- [ ] **Tighten the iTunes preview matcher:** it accepted "Electric Feel
+  (Justice Remix)" for "Electric Feel". Reject remix / live / acoustic /
+  instrumental variants the source title doesn't have.
 - [ ] **Build-23 caboose:** drop `tagged_moments`, `moment_reactions`,
   `collection_invites`, `moments.visibility`, `profiles.profile_visibility`,
   three RPCs and `notify-friend` once build 7 is gone from PostHog (the
