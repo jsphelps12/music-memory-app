@@ -56,6 +56,7 @@ Copy `.env.example` to `.env` and fill in:
 - Use `ErrorState` for full-screen errors (load failures) and `ErrorBanner` for inline errors (background refresh failures that shouldn't replace existing content)
 - Timeline uses `SectionList` grouped by month ("February 2026", etc.)
 - Share extension handles Apple Music URLs directly (iTunes Lookup API) and Spotify URLs via oEmbed cross-search to Apple Music
+- Widgets and iOS 18 controls live in `targets/widget` (Swift, via `@bacons/apple-targets`); prebuild links them into Xcode. They only deep-link into the app (`/create`, `?identify=1`), with the scheme picked from the extension's bundle id. Editing them changes the fingerprint, so it needs a binary
 - Local Expo native modules live in `modules/` directory; `nativeModulesDir` is configured in package.json for autolinking; each module needs a podspec in its `ios/` folder
 - Now playing detection uses `MPMusicPlayerController.systemMusicPlayer` (not the library's `ApplicationMusicPlayer` which only sees app-initiated playback)
 - **Albums** (UI/type name) = user-defined moment groupings; DB tables use `collections` / `collection_members` / `collection_moments`; types are `Album` / `AlbumPreview` in `types/index.ts`; all DB operations in `lib/albums.ts`; joining is by invite link only
