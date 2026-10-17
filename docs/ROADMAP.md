@@ -109,9 +109,19 @@ clutter, navigation.
   count (tap opens the viewer) and a strip of the rest; the swipeable hero
   was dropped because it fights swipe-to-dismiss.
 - [ ] **A real writing view** for long entries (the journal case).
-- [ ] **Quick fixes:** "1 moments" pluralization in Reflections strips; detail
-  screen contrast and Dynamic Island overlap on scroll; album covers as an
-  artwork mosaic instead of a gradient placeholder.
+- [x] **Rediscover** (Phase 1d): On this day leads with its oldest memory as
+  a hero (132pt artwork, "7 years ago", Newsreader excerpt) and lists the
+  rest as compact rows; Weekly Rewind reads "From September 2026"; the boxed
+  mood tiles, gradient person avatars and year pills became four "Browse by"
+  rows (Mood, People, Year range, Album), each a quick-pick sheet into the
+  existing drill-downs; Surprise me keeps its shuffle. Eyebrow headers,
+  borderless search, ink empty-state button.
+- [ ] **Browse drill-downs** (`app/browse/*`) still use the old carded rows,
+  italic excerpts and the "When" bar; restyle them to Journal rows.
+- [ ] **Quick fixes:** ~~"1 moments" pluralization~~ (fixed in the browse
+  drill-downs, Phase 1d; the Rediscover strips that had it are gone); album
+  covers as an artwork mosaic instead of a gradient placeholder. (Detail
+  screen contrast and Dynamic Island overlap were fixed in Phase 1b.)
 - [ ] **New App Store assets** once the redesign lands: 6.9" screenshots
   (1320×2868) and, optionally, the iOS 27 product-page header.
 

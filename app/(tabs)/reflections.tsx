@@ -13,7 +13,6 @@ import {
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { AppImage } from "@/components/AppImage";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -26,6 +25,9 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { MomentCard } from "@/components/MomentCard";
 import { MomentSearch } from "@/components/MomentSearch";
+import { BottomSheet } from "@/components/BottomSheet";
+import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
+import { setCachedMoment } from "@/lib/momentCache";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
 import { pad } from "@/lib/dateUtils";
@@ -38,8 +40,10 @@ import {
 
 // Reflections reorg (2026-08): the archive (old Browse tab) merged INTO this
 // screen. Order is deliberate — resurfacing first, browsing second:
-// search · On This Day · Weekly Rewind · Moods · People · Years · Albums ·
-// Surprise Me. The rotating person/mood/artist spotlights are gone: the strips
+// search · On This Day · Weekly Rewind · Browse by · Surprise Me.
+// Phase 1 (2026-10): the boxed mood tiles, gradient avatars and year pills
+// became four "Browse by" rows, each opening a quick-pick sheet; On This Day
+// leads with its oldest memory as a hero. The rotating person/mood/artist spotlights are gone: the strips
 // give the same doors deterministically, and "When you felt X" is absorbed by
 // the Moods grid. Drill-down routes under app/browse/ are unchanged.
 
@@ -156,124 +160,109 @@ function deriveAlbumCounts(meta: BrowseMeta[]) {
   return Array.from(seen.values()).sort((a, b) => b.count - a.count);
 }
 
-// ── strip sub-components (moved in from the old Browse tab) ────────────
+// ── sub-components ─────────────────────────────────────────────────────
 
-function StripHeader({ label }: { label: string }) {
-  const theme = useTheme();
-  return (
-    <Text
-      style={{
-        fontSize: 10,
-        fontFamily: "DMSans_700Bold",
-        letterSpacing: 1.2,
-        color: theme.colors.textTertiary,
-        marginBottom: 10,
-      }}
-    >
-      {label}
-    </Text>
-  );
+type BrowseKind = "mood" | "people" | "year" | "album";
+
+function yearsAgoLabel(n: number) {
+  return n === 1 ? "1 year ago" : `${n} years ago`;
 }
 
-function MoodCard({ emoji, label, count, onPress }: {
-  emoji: string; label: string; count: number; onPress: () => void;
-}) {
-  const theme = useTheme();
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.8}
-      style={{
-        marginRight: 10,
-        paddingHorizontal: 14,
-        paddingVertical: 14,
-        borderRadius: theme.radii.md,
-        backgroundColor: theme.colors.cardBg,
-        alignItems: "center",
-        minWidth: 90,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-      }}
-    >
-      <Text style={{ fontSize: 22 }}>{emoji}</Text>
-      <Text style={{ fontSize: 12, fontFamily: "DMSans_600SemiBold", color: theme.colors.text, marginTop: 6 }}>{label}</Text>
-      <Text style={{ fontSize: 11, color: theme.colors.textSecondary, fontFamily: "DMSans_500Medium", marginTop: 2 }}>{count}</Text>
-    </TouchableOpacity>
-  );
+function excerpt(text: string) {
+  return text.replace(/\s+/g, " ").trim();
 }
 
-function PersonCircle({ name, count, onPress }: { name: string; count: number; onPress: () => void }) {
-  const theme = useTheme();
-  return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ marginRight: 12, alignItems: "center" }}>
-      <LinearGradient
-        colors={["#E8825C", "#6B5F8C"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{
-          width: 54, height: 54, borderRadius: 27,
-          alignItems: "center", justifyContent: "center",
-          borderWidth: 2, borderColor: theme.colors.background,
-        }}
-      >
-        <Text style={{ fontSize: 22, fontFamily: "DMSerifDisplay_400Regular", color: theme.colors.buttonText }}>
-          {name.charAt(0).toUpperCase()}
-        </Text>
-      </LinearGradient>
-      <Text style={{ fontSize: 11, fontFamily: "DMSans_500Medium", color: theme.colors.text, marginTop: 5 }} numberOfLines={1}>
-        {name}
-      </Text>
-      <Text style={{ fontSize: 10, color: theme.colors.textTertiary }}>{count}</Text>
-    </TouchableOpacity>
-  );
+function openMoment(router: ReturnType<typeof useRouter>, moment: Moment) {
+  setCachedMoment(moment);
+  router.push({ pathname: "/moment/[id]", params: { id: moment.id } });
 }
 
-function YearChip({ year, count, onPress }: { year: number; count: number; onPress: () => void }) {
+function OnThisDayHero({ moment, yearsAgo, onPress }: { moment: Moment; yearsAgo: number; onPress: () => void }) {
   const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.8}
-      style={{
-        marginRight: 8,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: theme.radii.full,
-        backgroundColor: "transparent",
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        alignItems: "center",
-      }}
-    >
-      <Text style={{ fontSize: 16, fontFamily: "DMSerifDisplay_400Regular", color: theme.colors.text }}>{year}</Text>
-      <Text style={{ fontSize: 9, color: theme.colors.textTertiary, marginTop: 1 }}>{count} moments</Text>
-    </TouchableOpacity>
-  );
-}
-
-function AlbumCard({ albumName, count, artworkUrl, onPress }: {
-  albumName: string; artist: string; artworkUrl: string; count: number; onPress: () => void;
-}) {
-  const theme = useTheme();
-  return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ marginRight: 10, width: 100 }}>
-      {artworkUrl ? (
-        <AppImage source={{ uri: artworkUrl }} style={{ width: 100, height: 100, borderRadius: theme.radii.md }} contentFit="cover" />
+    <TouchableOpacity style={styles.heroRow} activeOpacity={0.8} onPress={onPress} accessibilityRole="button">
+      {moment.songArtworkUrl ? (
+        <AppImage source={{ uri: moment.songArtworkUrl }} style={styles.heroArtwork} />
       ) : (
-        <LinearGradient
-          colors={["#E8825C", "#6B5F8C"]}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={{ width: 100, height: 100, borderRadius: theme.radii.md, alignItems: "center", justifyContent: "center" }}
-        >
-          <Ionicons name="musical-notes" size={28} color="rgba(255,255,255,0.8)" />
-        </LinearGradient>
+        <ArtworkPlaceholder style={styles.heroArtwork} />
       )}
-      <Text style={{ fontSize: 12, fontFamily: "DMSans_600SemiBold", color: theme.colors.text, marginTop: 6 }} numberOfLines={1}>
-        {albumName}
-      </Text>
-      <Text style={{ fontSize: 10, color: theme.colors.textTertiary, marginTop: 1 }} numberOfLines={1}>
-        {count} moments
-      </Text>
+      <View style={styles.heroText}>
+        <Text style={styles.heroAgo}>{yearsAgoLabel(yearsAgo)}</Text>
+        <Text style={styles.heroSong} numberOfLines={1}>
+          {moment.songTitle} · {moment.songArtist}
+        </Text>
+        {moment.reflectionText ? (
+          <Text style={styles.heroExcerpt} numberOfLines={4}>{excerpt(moment.reflectionText)}</Text>
+        ) : null}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function OnThisDayRow({ moment, yearsAgo, onPress }: { moment: Moment; yearsAgo: number; onPress: () => void }) {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  return (
+    <TouchableOpacity style={styles.otdRow} activeOpacity={0.7} onPress={onPress} accessibilityRole="button">
+      {moment.songArtworkUrl ? (
+        <AppImage source={{ uri: moment.songArtworkUrl }} style={styles.otdArtwork} />
+      ) : (
+        <ArtworkPlaceholder style={styles.otdArtwork} />
+      )}
+      <View style={styles.otdText}>
+        <Text style={styles.otdTitle} numberOfLines={1}>
+          {yearsAgoLabel(yearsAgo)} · {moment.songTitle}
+        </Text>
+        {moment.reflectionText ? (
+          <Text style={styles.otdExcerpt} numberOfLines={1}>{excerpt(moment.reflectionText)}</Text>
+        ) : (
+          <Text style={styles.otdExcerpt} numberOfLines={1}>{moment.songArtist}</Text>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function BrowseRow({ label, detail, onPress, last }: { label: string; detail: string; onPress: () => void; last?: boolean }) {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  return (
+    <TouchableOpacity
+      style={[styles.browseRow, !last && styles.browseRowDivider]}
+      activeOpacity={0.7}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Browse by ${label.toLowerCase()}, ${detail}`}
+    >
+      <Text style={styles.browseLabel}>{label}</Text>
+      <View style={styles.browseRight}>
+        <Text style={styles.browseDetail}>{detail}</Text>
+        <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function SheetRow({ label, sublabel, count, artworkUrl, onPress }: {
+  label: string; sublabel?: string; count: number; artworkUrl?: string; onPress: () => void;
+}) {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  return (
+    <TouchableOpacity style={styles.sheetRow} activeOpacity={0.7} onPress={onPress} accessibilityRole="button">
+      {artworkUrl !== undefined ? (
+        artworkUrl ? (
+          <AppImage source={{ uri: artworkUrl }} style={styles.sheetArtwork} />
+        ) : (
+          <ArtworkPlaceholder style={styles.sheetArtwork} />
+        )
+      ) : null}
+      <View style={styles.sheetRowText}>
+        <Text style={styles.sheetRowLabel} numberOfLines={1}>{label}</Text>
+        {sublabel ? <Text style={styles.sheetRowSublabel} numberOfLines={1}>{sublabel}</Text> : null}
+      </View>
+      <Text style={styles.sheetRowCount}>{count}</Text>
     </TouchableOpacity>
   );
 }
@@ -288,6 +277,7 @@ export default function ReflectionsScreen() {
 
   const [searchActive, setSearchActive] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [browseSheet, setBrowseSheet] = useState<BrowseKind | null>(null);
   const searchInputRef = useRef<TextInput>(null);
 
   const allMoods = useMemo(
@@ -411,19 +401,35 @@ export default function ReflectionsScreen() {
     searchInputRef.current?.blur();
   }, []);
 
-  // Group On This Day moments by year, newest first
-  const byYear = useMemo(() => {
-    const map = new Map<number, Moment[]>();
-    for (const m of onThisDay) {
-      const y = new Date(m.momentDate! + "T00:00:00").getFullYear();
-      const arr = map.get(y) ?? [];
-      arr.push(m);
-      map.set(y, arr);
+  // On This Day, oldest first: the furthest-back memory is the hero.
+  const onThisDaySorted = useMemo(
+    () =>
+      onThisDay
+        .map((moment) => ({
+          moment,
+          yearsAgo: thisYear - new Date(moment.momentDate! + "T00:00:00").getFullYear(),
+        }))
+        .sort((a, b) => b.yearsAgo - a.yearsAgo),
+    [onThisDay, thisYear]
+  );
+
+  const browseRows = useMemo(() => {
+    const rows: { kind: BrowseKind; label: string; detail: string }[] = [];
+    if (moodCounts.length) rows.push({ kind: "mood", label: "Mood", detail: String(moodCounts.length) });
+    if (peopleCounts.length) rows.push({ kind: "people", label: "People", detail: String(peopleCounts.length) });
+    if (yearCounts.length) {
+      const newest = yearCounts[0].year;
+      const oldest = yearCounts[yearCounts.length - 1].year;
+      rows.push({ kind: "year", label: "Year", detail: newest === oldest ? String(newest) : `${oldest}–${newest}` });
     }
-    return Array.from(map.keys())
-      .sort((a, b) => b - a)
-      .map((year) => ({ year, moments: map.get(year)! }));
-  }, [onThisDay]);
+    if (albumCounts.length) rows.push({ kind: "album", label: "Album", detail: String(albumCounts.length) });
+    return rows;
+  }, [moodCounts, peopleCounts, yearCounts, albumCounts]);
+
+  const browseTo = (href: Parameters<typeof router.push>[0]) => {
+    setBrowseSheet(null);
+    router.push(href);
+  };
 
   if (isLoading) {
     return (
@@ -452,9 +458,9 @@ export default function ReflectionsScreen() {
           <Text style={styles.title}>Rediscover</Text>
         </View>
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>Your memories resurface here.</Text>
+          <Text style={styles.emptyTitle}>Your memories resurface here</Text>
           <Text style={styles.emptyBody}>
-            On This Day, a weekly rewind, your moods and years — the songs that
+            On this day, a weekly rewind, your moods and years: the songs that
             marked your life, brought back to you.
           </Text>
           <TouchableOpacity
@@ -462,7 +468,7 @@ export default function ReflectionsScreen() {
             onPress={() => router.push("/create")}
             activeOpacity={0.7}
           >
-            <Text style={styles.emptyButtonText}>Capture your first memory</Text>
+            <Text style={styles.emptyButtonText}>Capture a song</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -522,128 +528,136 @@ export default function ReflectionsScreen() {
           ) : null}
 
           {/* ── On This Day ── */}
-          {byYear.length > 0 && (
-            <>
-              <View style={styles.sectionRow}>
-                <Text style={styles.heroTitle}>On This Day</Text>
-                <Text style={styles.sectionSubtitle}>{todayLabel}</Text>
+          {onThisDaySorted.length > 0 && (
+            <View>
+              <View style={styles.eyebrowRow}>
+                <Text style={styles.eyebrow}>On this day</Text>
+                <Text style={styles.eyebrowDetail}>{todayLabel}</Text>
               </View>
-              {byYear.map(({ year, moments }) => {
-                const yearsAgo = thisYear - year;
-                const label = yearsAgo === 1 ? "1 year ago" : `${yearsAgo} years ago`;
-                return (
-                  <View key={year} style={styles.yearGroup}>
-                    <Text style={styles.yearLabel}>
-                      {label} · {year}
-                    </Text>
-                    {moments.map((m) => (
-                      <MomentCard key={m.id} item={m} allMoods={allMoods} />
-                    ))}
-                  </View>
-                );
-              })}
-            </>
+              <OnThisDayHero
+                moment={onThisDaySorted[0].moment}
+                yearsAgo={onThisDaySorted[0].yearsAgo}
+                onPress={() => openMoment(router, onThisDaySorted[0].moment)}
+              />
+              {onThisDaySorted.slice(1).map(({ moment, yearsAgo }) => (
+                <OnThisDayRow
+                  key={moment.id}
+                  moment={moment}
+                  yearsAgo={yearsAgo}
+                  onPress={() => openMoment(router, moment)}
+                />
+              ))}
+            </View>
           )}
 
           {/* ── Weekly Rewind ── */}
           {rewindLabel && rewindMoments.length > 0 && (
-            <>
-              <View style={[styles.sectionRow, byYear.length > 0 && styles.sectionRowSpaced]}>
-                <Text style={styles.heroTitle}>Weekly Rewind</Text>
-                <Text style={styles.sectionSubtitle}>{rewindLabel}</Text>
+            <View style={onThisDaySorted.length > 0 && styles.sectionSpaced}>
+              <View style={styles.eyebrowRow}>
+                <Text style={styles.eyebrow}>From {rewindLabel}</Text>
               </View>
               {rewindMoments.map((m) => (
                 <MomentCard key={m.id} item={m} allMoods={allMoods} />
               ))}
-            </>
-          )}
-
-          {/* ── The archive strips ── */}
-          {moodCounts.length > 0 && (
-            <View style={styles.stripSection}>
-              <StripHeader label="MOODS" />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stripContent}>
-                {moodCounts.map(({ mood, emoji, label, count }) => (
-                  <MoodCard
-                    key={mood}
-                    emoji={emoji}
-                    label={label}
-                    count={count}
-                    onPress={() => router.push({ pathname: "/browse/mood", params: { value: mood } })}
-                  />
-                ))}
-              </ScrollView>
             </View>
           )}
 
-          {peopleCounts.length > 0 && (
-            <View style={styles.stripSection}>
-              <StripHeader label="PEOPLE" />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stripContent}>
-                {peopleCounts.map(({ name, count }) => (
-                  <PersonCircle
-                    key={name}
-                    name={name}
-                    count={count}
-                    onPress={() => router.push({ pathname: "/browse/person", params: { name } })}
+          {/* ── Browse by ── */}
+          {browseRows.length > 0 && (
+            <View style={styles.sectionSpaced}>
+              <Text style={styles.eyebrow}>Browse by</Text>
+              <View style={styles.browseList}>
+                {browseRows.map((row, i) => (
+                  <BrowseRow
+                    key={row.kind}
+                    label={row.label}
+                    detail={row.detail}
+                    last={i === browseRows.length - 1}
+                    onPress={() => setBrowseSheet(row.kind)}
                   />
                 ))}
-              </ScrollView>
-            </View>
-          )}
-
-          {yearCounts.length > 0 && (
-            <View style={styles.stripSection}>
-              <StripHeader label="YEARS" />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stripContent}>
-                {yearCounts.map(({ year, count }) => (
-                  <YearChip
-                    key={year}
-                    year={year}
-                    count={count}
-                    onPress={() => router.push({ pathname: "/browse/year", params: { year: String(year) } })}
-                  />
-                ))}
-              </ScrollView>
-            </View>
-          )}
-
-          {albumCounts.length > 0 && (
-            <View style={styles.stripSection}>
-              <StripHeader label="ALBUMS" />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stripContent}>
-                {albumCounts.map(({ albumName, artist, artworkUrl, count }) => (
-                  <AlbumCard
-                    key={`${albumName}|||${artist}`}
-                    albumName={albumName}
-                    artist={artist}
-                    artworkUrl={artworkUrl}
-                    count={count}
-                    onPress={() => router.push({ pathname: "/browse/album", params: { album: albumName, artist } })}
-                  />
-                ))}
-              </ScrollView>
+              </View>
             </View>
           )}
 
           {/* ── Surprise Me ── */}
           {randomMoment && (
-            <>
-              <View style={[styles.sectionRow, styles.sectionRowSpaced]}>
-                <Text style={styles.sectionTitle}>Surprise Me</Text>
-                <TouchableOpacity onPress={handleShuffle} disabled={shuffling} hitSlop={8}>
+            <View style={styles.sectionSpaced}>
+              <View style={styles.eyebrowRow}>
+                <Text style={styles.eyebrow}>Surprise me</Text>
+                <TouchableOpacity
+                  onPress={handleShuffle}
+                  disabled={shuffling}
+                  hitSlop={12}
+                  accessibilityRole="button"
+                  accessibilityLabel="Shuffle"
+                >
                   {shuffling ? (
                     <ActivityIndicator size="small" color={theme.colors.textSecondary} />
                   ) : (
-                    <Ionicons name="shuffle" size={20} color={theme.colors.textSecondary} />
+                    <Ionicons name="shuffle" size={20} color={theme.colors.text} />
                   )}
                 </TouchableOpacity>
               </View>
               <MomentCard item={randomMoment} allMoods={allMoods} />
-            </>
+            </View>
           )}
         </ScrollView>
       )}
+
+      <BottomSheet visible={browseSheet === "mood"} onClose={() => setBrowseSheet(null)} title="Mood">
+        <ScrollView contentContainerStyle={styles.sheetList}>
+          {moodCounts.map(({ mood, label, count }) => (
+            <SheetRow
+              key={mood}
+              label={label}
+              count={count}
+              onPress={() => browseTo({ pathname: "/browse/mood", params: { value: mood } })}
+            />
+          ))}
+        </ScrollView>
+      </BottomSheet>
+
+      <BottomSheet visible={browseSheet === "people"} onClose={() => setBrowseSheet(null)} title="People">
+        <ScrollView contentContainerStyle={styles.sheetList}>
+          {peopleCounts.map(({ name, count }) => (
+            <SheetRow
+              key={name}
+              label={name}
+              count={count}
+              onPress={() => browseTo({ pathname: "/browse/person", params: { name } })}
+            />
+          ))}
+        </ScrollView>
+      </BottomSheet>
+
+      <BottomSheet visible={browseSheet === "year"} onClose={() => setBrowseSheet(null)} title="Year">
+        <ScrollView contentContainerStyle={styles.sheetList}>
+          {yearCounts.map(({ year, count }) => (
+            <SheetRow
+              key={year}
+              label={String(year)}
+              count={count}
+              onPress={() => browseTo({ pathname: "/browse/year", params: { year: String(year) } })}
+            />
+          ))}
+        </ScrollView>
+      </BottomSheet>
+
+      <BottomSheet visible={browseSheet === "album"} onClose={() => setBrowseSheet(null)} title="Album">
+        <ScrollView contentContainerStyle={styles.sheetList}>
+          {albumCounts.map(({ albumName, artist, artworkUrl, count }) => (
+            <SheetRow
+              key={`${albumName}|||${artist}`}
+              label={albumName}
+              sublabel={artist}
+              artworkUrl={artworkUrl}
+              count={count}
+              onPress={() => browseTo({ pathname: "/browse/album", params: { album: albumName, artist } })}
+            />
+          ))}
+        </ScrollView>
+      </BottomSheet>
     </View>
   );
 }
@@ -673,10 +687,8 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       marginHorizontal: theme.spacing.xl,
       marginBottom: theme.spacing.sm,
-      backgroundColor: theme.colors.cardBg,
+      backgroundColor: theme.colors.chipBg,
       borderRadius: theme.radii.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
       gap: 8,
     },
     searchBarInput: {
@@ -692,43 +704,150 @@ function createStyles(theme: Theme) {
       paddingTop: theme.spacing.lg,
       paddingBottom: theme.spacing["4xl"],
     },
-    sectionRow: {
+    sectionSpaced: {
+      marginTop: 30,
+    },
+    eyebrowRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       marginBottom: theme.spacing.md,
     },
-    sectionRowSpaced: {
-      marginTop: theme.spacing["3xl"],
+    eyebrow: {
+      fontSize: 13,
+      fontFamily: theme.fonts.bodySemibold,
+      color: theme.colors.text,
+      textTransform: "uppercase",
+      letterSpacing: 1,
     },
-    heroTitle: {
+    eyebrowDetail: {
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
+    },
+    heroRow: {
+      flexDirection: "row",
+      gap: theme.spacing.lg,
+    },
+    heroArtwork: {
+      width: 132,
+      height: 132,
+      borderRadius: theme.radii.md,
+    },
+    heroText: {
+      flex: 1,
+    },
+    heroAgo: {
       fontSize: theme.fontSize.xl,
+      lineHeight: 26,
       fontFamily: theme.fonts.display,
       color: theme.colors.text,
     },
-    sectionTitle: {
-      fontSize: theme.fontSize.lg,
+    heroSong: {
+      marginTop: theme.spacing.xs,
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
+    },
+    heroExcerpt: {
+      marginTop: theme.spacing.sm,
+      fontSize: theme.fontSize.base,
+      lineHeight: 23,
+      fontFamily: theme.fonts.reading,
+      color: theme.colors.text,
+    },
+    otdRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 14,
+      marginTop: 14,
+      paddingTop: 14,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
+    },
+    otdArtwork: {
+      width: 48,
+      height: 48,
+      borderRadius: theme.radii.sm,
+    },
+    otdText: {
+      flex: 1,
+    },
+    otdTitle: {
+      fontSize: 15,
       fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
-    sectionSubtitle: {
+    otdExcerpt: {
+      marginTop: 2,
       fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
     },
-    yearGroup: {
-      marginBottom: theme.spacing.xl,
+    browseList: {
+      marginTop: theme.spacing.xs,
     },
-    yearLabel: {
+    browseRow: {
+      height: 48,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    browseRowDivider: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
+    },
+    browseLabel: {
+      fontSize: theme.fontSize.base,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.text,
+    },
+    browseRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
+    browseDetail: {
       fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodySemibold,
+      fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
-      marginBottom: theme.spacing.sm,
     },
-    stripSection: {
-      marginTop: theme.spacing["3xl"],
+    sheetList: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingBottom: theme.spacing.md,
     },
-    stripContent: {
-      paddingRight: theme.spacing.xl,
+    sheetRow: {
+      minHeight: 48,
+      paddingVertical: theme.spacing.sm,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
+    },
+    sheetArtwork: {
+      width: 40,
+      height: 40,
+      borderRadius: 6,
+    },
+    sheetRowText: {
+      flex: 1,
+    },
+    sheetRowLabel: {
+      fontSize: theme.fontSize.base,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.text,
+    },
+    sheetRowSublabel: {
+      marginTop: 1,
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
+    },
+    sheetRowCount: {
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
     },
     emptyState: {
       flex: 1,
@@ -737,8 +856,8 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing["2xl"],
     },
     emptyTitle: {
-      fontSize: theme.fontSize.lg,
-      fontFamily: theme.fonts.bodySemibold,
+      fontSize: theme.fontSize.xl,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
       textAlign: "center",
       marginBottom: theme.spacing.md,
@@ -751,15 +870,16 @@ function createStyles(theme: Theme) {
       marginBottom: theme.spacing["2xl"],
     },
     emptyButton: {
-      paddingVertical: 12,
+      height: 44,
       paddingHorizontal: theme.spacing.xl,
-      borderRadius: theme.radii.button,
-      backgroundColor: theme.colors.accent,
+      borderRadius: theme.radii.full,
+      backgroundColor: theme.colors.buttonBg,
+      justifyContent: "center",
     },
     emptyButtonText: {
       fontSize: theme.fontSize.base,
       fontFamily: theme.fonts.bodySemibold,
-      color: "#fff",
+      color: theme.colors.buttonText,
     },
     errorText: {
       fontSize: theme.fontSize.base,

@@ -5,6 +5,7 @@ import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
+import { pluralMoments } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -55,7 +56,7 @@ export default function MoodScreen() {
           <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>{moments.length} moments</Text>
+          <Text style={styles.eyebrow}>{pluralMoments(moments.length)}</Text>
           <Text style={styles.title}>
             {currentMood ? `${currentMood.emoji}  ${currentMood.label.toLowerCase()}` : activeMood}
           </Text>
