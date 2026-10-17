@@ -138,7 +138,7 @@ env:
 # always present at this point.
 - tapOn: "Create Your First Moment"
 
-# The create screen doesn't open song search itself — its "Select Song" button
+# The create screen doesn't open song search itself — its "Search" pill
 # (components/SongPickerSection.tsx) pushes /song-search. Waiting for it also
 # confirms the create screen actually opened.
 - extendedWaitUntil:
@@ -180,10 +180,8 @@ env:
 - tapOn:
     id: "create-reflection"
 - inputText: ${REFLECTION}
-# hideKeyboard is unreliable on iOS; the screen's ScrollView uses
-# keyboardShouldPersistTaps="handled", so tapping the non-interactive section
-# label dismisses the keyboard and uncovers the save button.
-- tapOn: "Reflection"
+# Save lives in the top bar (Phase 1 capture redesign), above the keyboard,
+# so there's no keyboard to dismiss first.
 - tapOn:
     id: "create-save"
 

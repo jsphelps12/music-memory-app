@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import {
   View,
   Text,
-  ScrollView,
   TextInput,
   TouchableOpacity,
   Alert,
@@ -71,12 +70,10 @@ export function MoodSelector({
 
   return (
     <View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-      >
+      {/* Words, wrapped (Phase 1, 2026-10): moods read as words everywhere,
+          and wrapping shows every option at once instead of hiding half of
+          them off the edge of a scroller. */}
+      <View style={styles.wrap}>
         {[...MOODS, ...customMoods].map((mood) => {
           const isSelected = selectedMoods.includes(mood.value);
           const isCustom = mood.value.startsWith("custom_");
@@ -100,7 +97,7 @@ export function MoodSelector({
               }
             >
               <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                {mood.emoji} {mood.label}
+                {mood.label}
               </Text>
             </TouchableOpacity>
           );
@@ -115,7 +112,7 @@ export function MoodSelector({
         >
           <Text style={styles.chipAddText}>+ Add</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
 
       {showAddForm && (
         <View style={styles.addForm}>
@@ -170,11 +167,9 @@ export function MoodSelector({
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    scroll: {
-      marginHorizontal: -theme.spacing.xl,
-    },
-    scrollContent: {
-      paddingHorizontal: theme.spacing.xl,
+    wrap: {
+      flexDirection: "row",
+      flexWrap: "wrap",
       gap: theme.spacing.sm,
     },
     chip: {
