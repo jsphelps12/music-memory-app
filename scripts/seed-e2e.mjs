@@ -94,6 +94,18 @@ const supabase = createClient(url, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
+/**
+ * Does E2E_PASSWORD sign this account in? Uses a throwaway client so the
+ * service-role client above never carries a user session.
+ */
+async function passwordWorks(email) {
+  const probe = createClient(url, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { error } = await probe.auth.signInWithPassword({ email, password });
+  return !error;
+}
+
 /** Find a test user by email, creating it on first run. */
 async function ensureUser(email) {
   // listUsers is paginated; the E2E project is small enough for one page, but
@@ -103,13 +115,18 @@ async function ensureUser(email) {
 
   const existing = data.users.find((u) => u.email === email);
   if (existing) {
-    // Re-assert the password every run. Otherwise changing E2E_PASSWORD after
-    // the account exists leaves the old one in place, and the flow fails at
-    // sign-in with no hint that the config and the account have diverged.
+    // Make sure the configured password works, or changing E2E_PASSWORD after
+    // the account exists would leave the old one in place and the flow would
+    // fail at sign-in with no hint why. But only reset it when it actually
+    // doesn't work: resetting on every run ended every other session on these
+    // accounts, so each CI run signed out the simulator someone was testing on
+    // by hand (2026-10-16).
+    if (await passwordWorks(email)) return existing;
     const { error: updateError } = await supabase.auth.admin.updateUserById(existing.id, {
       password,
     });
     if (updateError) throw new Error(`updateUser failed: ${updateError.message}`);
+    console.log(`reset password for ${email} (it no longer matched E2E_PASSWORD)`);
     return existing;
   }
 
