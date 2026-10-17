@@ -78,7 +78,15 @@ clutter, navigation.
   sparingly, no gradient, SF Symbols (`expo-symbols`) for icons, serif for
   titles only, long writing in a readable roman, one section-header style.
 
-- [ ] **Restructure navigation** to the three tabs above.
+- [x] **Restructure navigation** to the three tabs above (PR: Phase 1a). Albums
+  moved to a pushed `/albums` screen reached from You; the capture button
+  floats; shared-album activity badges You as a dot.
+- [x] **Tokens and type** (Phase 1a): Newsreader for journal text, AA-passing
+  secondary/tertiary text, `divider` and `elevated` tokens, ink active tab.
+- [x] **Journal rows** (Phase 1a): every moment list loses the card box;
+  tap the artwork to play (equalizer while playing), moods as words,
+  floating mini player, list/calendar/map segmented control. The "Shared
+  with me" pills stay until You gets its Shared with you section.
 - [ ] **Visual system refresh:** palette, one coherent icon set, fewer borders
   and nested cards, a clear type hierarchy.
 - [ ] **Two-tap capture:** pick a song → save. Writing is optional; details

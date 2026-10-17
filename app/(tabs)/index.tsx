@@ -74,7 +74,6 @@ export default function TimelineScreen() {
   // Blocks load-more while a refresh is resetting pageRef, so the two can't
   // interleave and leave pageRef describing something other than what's rendered.
   const refreshInFlightRef = useRef(false);
-  const [totalCount, setTotalCount] = useState<number | null>(null);
 
 
   // Snapshot of the full timeline so calendar can derive data without another query
@@ -346,13 +345,6 @@ export default function TimelineScreen() {
             setMoments(prefetched);
             setHasMore(nextHasMore);
             timelineSnapshotRef.current = { moments: prefetched, hasMore: nextHasMore };
-            if (!nextHasMore) {
-              setTotalCount(prefetched.length);
-            } else {
-              Promise.resolve(
-                supabase.from("moments").select("id", { count: "exact", head: true }).eq("user_id", user.id)
-              ).then(({ count }) => { if (count !== null) setTotalCount(count); }).catch(() => {});
-            }
             setLoading(false);
             lastFetchTime.current = Date.now();
             posthog?.capture("timeline_load", {
@@ -374,7 +366,6 @@ export default function TimelineScreen() {
                   setMoments(fresh);
                   setHasMore(freshHasMore);
                   timelineSnapshotRef.current = { moments: fresh, hasMore: freshHasMore };
-                  if (!freshHasMore) setTotalCount(fresh.length);
                 })
                 .catch(() => {});
             }
@@ -438,16 +429,6 @@ export default function TimelineScreen() {
 
       if (!append) {
         timelineSnapshotRef.current = { moments: mapped, hasMore: nextHasMore };
-        if (!nextHasMore) {
-          setTotalCount(mapped.length);
-        } else {
-          Promise.resolve(
-            supabase
-              .from("moments")
-              .select("id", { count: "exact", head: true })
-              .eq("user_id", user!.id)
-          ).then(({ count }) => { if (count !== null) setTotalCount(count); }).catch(() => {});
-        }
       }
     },
     [user, posthog]
@@ -483,7 +464,6 @@ export default function TimelineScreen() {
         const updated = [pendingMoment, ...timelineSnapshotRef.current.moments];
         timelineSnapshotRef.current = { ...timelineSnapshotRef.current, moments: updated };
         setMoments(updated);
-        setTotalCount((prev) => (prev !== null ? prev + 1 : null));
       }
 
       if (deletedMomentId) {
@@ -493,7 +473,6 @@ export default function TimelineScreen() {
           timelineSnapshotRef.current = { ...timelineSnapshotRef.current, moments: updated };
         }
         setMoments((prev) => prev.filter((m) => m.id !== deletedMomentId));
-        setTotalCount((prev) => (prev !== null ? Math.max(0, prev - 1) : null));
       }
 
       if (stale) calendarFetchedRef.current = null;
@@ -542,7 +521,6 @@ export default function TimelineScreen() {
   const handleCardDeleted = useCallback((deletedId: string) => {
     setMoments((prev) => prev.filter((m) => m.id !== deletedId));
     setCalendarMoments((prev) => prev.filter((m) => m.id !== deletedId));
-    setTotalCount((prev) => (prev !== null && prev > 0 ? prev - 1 : prev));
   }, []);
 
   const renderMoment = useCallback(({ item }: { item: Moment }) => (
