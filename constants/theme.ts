@@ -87,6 +87,8 @@ export interface ThemeColors {
   border: string;
   /** Hairline between list rows: the Phase 1 replacement for card boxes. */
   divider: string;
+  /** Raised surfaces that float over content (mini player, sheets). */
+  elevated: string;
   placeholder: string;
   destructive: string;
   success: string;
@@ -128,6 +130,7 @@ const lightColors: ThemeColors = {
   buttonText: "#fff",
   border: "#E0D8CF",
   divider: "#E9E2D9",
+  elevated: "#FFFFFF",
   placeholder: "#7A716A",
   destructive: "#d32f2f",
   success: "#2e7d32",
@@ -164,6 +167,7 @@ const darkColors: ThemeColors = {
   buttonText: "#1A0F0A",
   border: "#362F2C",
   divider: "#2A2422",
+  elevated: "#1C1716",
   placeholder: "#857B75",
   destructive: "#ff453a",
   success: "#30d158",

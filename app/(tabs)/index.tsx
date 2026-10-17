@@ -46,6 +46,7 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
 import { MomentCard } from "@/components/MomentCard";
 import { IconButton } from "@/components/IconButton";
+import { Ionicons } from "@expo/vector-icons";
 import { CalendarView } from "@/components/CalendarView";
 import { EmptyState } from "@/components/EmptyState";
 import { Moment } from "@/types";
@@ -571,33 +572,51 @@ export default function TimelineScreen() {
       <View style={styles.header}>
         {/* Title row */}
         <View style={styles.headerTop}>
-          <View style={{ flex: 1, marginRight: theme.spacing.md }}>
-            {totalCount !== null && (
-              <Text style={styles.momentCountLabel}>
-                {totalCount} {totalCount === 1 ? "MOMENT" : "MOMENTS"}
-              </Text>
-            )}
-            <Text style={styles.title}>Journal</Text>
-          </View>
+          <Text style={styles.title}>Journal</Text>
           <View style={styles.headerRight}>
-            {/* The archive lives in Reflections now — land there with search up */}
+            {/* The archive lives in Rediscover — land there with search up */}
             <IconButton
               name="search-outline"
+              accessibilityLabel="Search"
               onPress={() => {
                 requestReflectionsSearch();
                 router.push("/(tabs)/reflections" as any);
               }}
             />
-            <IconButton
-              name="map-outline"
-              onPress={() => router.push("/moments-map" as any)}
-            />
-            {/* Calendar toggles the My Moments pair — meaningless while Shared is up */}
+            {/* One control for the three ways to see the journal. List and
+                calendar are in-place views of My Moments (both stay mounted);
+                map is its own screen. Hidden while Shared is up, where only
+                the list makes sense. */}
             {pill === "mine" && (
-              <IconButton
-                name={viewMode === "calendar" ? "list-outline" : "calendar-outline"}
-                onPress={toggleView}
-              />
+              <View style={styles.segmented} accessibilityRole="tablist">
+                {([
+                  { key: "list", icon: "list-outline", label: "List" },
+                  { key: "calendar", icon: "calendar-outline", label: "Calendar" },
+                  { key: "map", icon: "map-outline", label: "Map" },
+                ] as const).map((seg) => {
+                  const active = seg.key !== "map" && viewMode === seg.key;
+                  return (
+                    <TouchableOpacity
+                      key={seg.key}
+                      style={[styles.segment, active && styles.segmentActive]}
+                      accessibilityRole="tab"
+                      accessibilityLabel={seg.label}
+                      accessibilityState={{ selected: active }}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        if (seg.key === "map") router.push("/moments-map" as any);
+                        else if (viewMode !== seg.key) toggleView();
+                      }}
+                    >
+                      <Ionicons
+                        name={seg.icon}
+                        size={17}
+                        color={active ? theme.colors.text : theme.colors.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             )}
           </View>
         </View>
@@ -661,9 +680,18 @@ export default function TimelineScreen() {
                     sections={sections}
                     keyExtractor={(item) => item.id}
                     renderItem={renderMoment}
-                    renderSectionHeader={({ section: { title } }) => (
-                      <Text style={styles.sectionHeader}>{title}</Text>
-                    )}
+                    renderSectionHeader={({ section: { title } }) => {
+                      // "October 2026" -> small caps month, muted year.
+                      const split = title.lastIndexOf(" ");
+                      const month = split > 0 ? title.slice(0, split) : title;
+                      const year = split > 0 ? title.slice(split + 1) : "";
+                      return (
+                        <View style={styles.sectionHeader} accessibilityRole="header">
+                          <Text style={styles.sectionMonth}>{month.toUpperCase()}</Text>
+                          {year ? <Text style={styles.sectionYear}>{year}</Text> : null}
+                        </View>
+                      );
+                    }}
                     ListHeaderComponent={listHeader}
                     onEndReached={handleLoadMore}
                     removeClippedSubviews
@@ -749,34 +777,48 @@ function createStyles(theme: Theme) {
     },
     header: {
       paddingHorizontal: theme.spacing.xl,
-      paddingTop: 60,
-      paddingBottom: theme.spacing.sm,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.border,
+      paddingTop: 58,
+      paddingBottom: theme.spacing.xs,
     },
     headerTop: {
       flexDirection: "row",
-      alignItems: "flex-start",
+      alignItems: "center",
       justifyContent: "space-between",
-      marginBottom: theme.spacing.md,
-    },
-    momentCountLabel: {
-      fontSize: 11,
-      fontFamily: theme.fonts.bodySemibold,
-      letterSpacing: 0.8,
-      color: theme.colors.textTertiary,
-      marginBottom: 2,
+      marginBottom: theme.spacing.sm,
     },
     title: {
-      fontSize: 30,
+      fontSize: 34,
       fontFamily: theme.fonts.display,
       color: theme.colors.text,
-      lineHeight: 34,
+      lineHeight: 40,
+      letterSpacing: -0.3,
     },
     headerRight: {
       flexDirection: "row",
       alignItems: "center",
-      gap: theme.spacing.md,
+      gap: theme.spacing.xs,
+    },
+    segmented: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 3,
+      gap: 2,
+      borderRadius: theme.radii.full,
+      backgroundColor: theme.colors.chipBg,
+    },
+    segment: {
+      width: 36,
+      height: 32,
+      borderRadius: theme.radii.full,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    segmentActive: {
+      backgroundColor: theme.colors.background,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: theme.isDark ? 0 : 0.08,
+      shadowRadius: 2,
     },
     toggle: {
       flexDirection: "row",
@@ -826,15 +868,28 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.xl,
     },
     sectionHeader: {
-      fontSize: theme.fontSize.lg,
-      fontWeight: theme.fontWeight.semibold,
+      flexDirection: "row",
+      alignItems: "baseline",
+      gap: theme.spacing.sm,
+      paddingTop: theme.spacing["2xl"],
+      paddingBottom: theme.spacing.xs,
+      backgroundColor: theme.colors.background,
+    },
+    sectionMonth: {
+      fontSize: 13,
+      fontFamily: theme.fonts.bodySemibold,
+      letterSpacing: 1,
+      color: theme.colors.text,
+    },
+    sectionYear: {
+      fontSize: 13,
+      fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
-      marginTop: theme.spacing.xl,
-      marginBottom: theme.spacing.md,
     },
     listContent: {
       paddingHorizontal: theme.spacing.xl,
-      paddingBottom: theme.spacing["4xl"],
+      // Clears the floating capture button so the last entry is never under it.
+      paddingBottom: 110,
     },
     separator: {
       height: StyleSheet.hairlineWidth,
