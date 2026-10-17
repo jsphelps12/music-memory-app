@@ -17,10 +17,14 @@ import {
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  useAnimatedScrollHandler,
+  interpolate,
+  Extrapolation,
   withTiming,
   Easing,
   runOnJS,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { consumeCardOrigin } from "@/lib/cardTransition";
 import { consumeCachedMoment } from "@/lib/momentCache";
@@ -55,7 +59,6 @@ import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches, invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { ShareMomentSheet } from "@/components/ShareMomentSheet";
 import { BottomSheet } from "@/components/BottomSheet";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { formatTime } from "@/lib/formatTime";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
@@ -81,6 +84,20 @@ export default function MomentDetailScreen() {
   const posthog = usePostHog();
   const queryClient = useQueryClient();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
+
+  // The paper bar behind the status bar and buttons fades in as the hero
+  // band scrolls off, so text never slides under the Dynamic Island and the
+  // buttons never float over writing.
+  const scrollY = useSharedValue(0);
+  const scrollHandler = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
+  // The artwork's top edge reaches the bar after ~36pt of scroll, so the bar
+  // is fully in by then.
+  const topBarStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollY.value, [12, 48], [0, 1], Extrapolation.CLAMP),
+  }));
   // Only accept the cached moment if it's actually the one being opened. A
   // swallowed navigation leaves a stale value in the module-level slot, and
   // entries that don't populate it (push-notification taps) would otherwise
@@ -476,15 +493,31 @@ export default function MomentDetailScreen() {
 
   const hasPhotos = photoUrls.length > 0;
 
-  const formatEyebrow = (dateStr: string | null, location: string | null) => {
+  // "Tuesday, Oct 14 · Morning · Lake Dillon". The year appears only when it
+  // isn't this year: old memories need it, today's entries don't.
+  const formatEyebrow = (dateStr: string | null, timeOfDay: string | null, location: string | null) => {
     const parts: string[] = [];
     if (dateStr) {
       const d = new Date(dateStr + "T00:00:00");
-      parts.push(d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase());
+      const sameYear = d.getFullYear() === new Date().getFullYear();
+      parts.push(
+        d.toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "short",
+          day: "numeric",
+          ...(sameYear ? {} : { year: "numeric" }),
+        })
+      );
     }
-    if (location) parts.push(location.toUpperCase());
+    if (timeOfDay) parts.push(timeOfDay.charAt(0).toUpperCase() + timeOfDay.slice(1));
+    if (location) parts.push(location);
     return parts.join(" · ");
   };
+
+  const withPeople = (people: string[]) =>
+    people.length <= 1
+      ? `With ${people[0]}`
+      : `With ${people.slice(0, -1).join(", ")} and ${people[people.length - 1]}`;
 
   const momentSongId = moment?.songSpotifyId ?? moment?.songAppleMusicId;
   const playingSongId = currentSong?.spotifyId ?? currentSong?.appleMusicId;
@@ -494,28 +527,20 @@ export default function MomentDetailScreen() {
   return (
     <GestureDetector gesture={swipeGesture}>
     <Animated.View style={[styles.container, animStyle]}>
-      {/* Ambient blurred artwork backdrop */}
-      {moment?.songArtworkUrl ? (
-        <AppImage
-          source={{ uri: moment.songArtworkUrl }}
-          style={StyleSheet.absoluteFill}
-          blurRadius={50}
-          contentFit="cover"
-        />
-      ) : null}
-      <LinearGradient
-        colors={["transparent", theme.isDark ? "rgba(13,10,8,0.55)" : "rgba(251,246,241,0.55)", theme.colors.background]}
-        locations={[0, 0.4, 0.75]}
-        style={StyleSheet.absoluteFill}
+      {/* Phase 1: the blurred artwork lives in the hero band and scrolls away
+          with it, so the writing always sits on solid paper. As the band
+          leaves, a paper bar fades in behind the status bar and buttons. */}
+      <Animated.View
+        style={[styles.topBar, { height: insets.top + 56 }, topBarStyle]}
         pointerEvents="none"
       />
 
       {/* Glass nav — pinned above the scroll. box-none so the full-width strip
           itself is transparent to touches and only the two buttons capture
           them; as a plain View it was eating drags across the top of the page. */}
-      <View style={styles.glassNav} pointerEvents="box-none">
+      <View style={[styles.glassNav, { top: insets.top + 6 }]} pointerEvents="box-none">
         <TouchableOpacity style={styles.glassBtn} onPress={() => animateOut(goBack)} activeOpacity={0.8} hitSlop={8}>
-          <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
+          <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
         </TouchableOpacity>
         {!loading && moment && (
           <View style={styles.glassBtnRow}>
@@ -637,191 +662,223 @@ export default function MomentDetailScreen() {
         // ~280pt of the screen — photo, artwork, photo-count pill — was inert to
         // vertical drags, which is most of what "scrolling is hard" meant.
         <GestureDetector gesture={scrollNativeGesture}>
-        <ScrollView
+        <Animated.ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          onScroll={scrollHandler}
+          scrollEventThrottle={16}
         >
           {/* Hero section */}
           {hasPhotos ? (
-            <View style={styles.photoHero}>
+            <View style={[styles.photoHero, { height: insets.top + 380 }]}>
+              {/* The photo prints clean: no gradient or caption over it. */}
               <TouchableOpacity
                 activeOpacity={0.95}
                 onPress={() => { setViewerIndex(0); setViewerVisible(true); }}
                 style={StyleSheet.absoluteFill}
+                accessibilityRole="imagebutton"
+                accessibilityLabel={`Photo 1 of ${photoUrls.length}. Open photos`}
               >
                 <AppImage source={{ uri: photoUrls[0] }} style={StyleSheet.absoluteFill} contentFit="cover" />
               </TouchableOpacity>
-              <LinearGradient
-                colors={["transparent", "rgba(15,13,11,0.88)"]}
-                locations={[0.45, 1]}
-                style={StyleSheet.absoluteFill}
-                pointerEvents="none"
-              />
               {photoUrls.length > 1 && (
-                <View style={styles.photoCounterPill}>
-                  <Text style={styles.photoCounterText}>{photoUrls.length} PHOTOS</Text>
+                <View style={styles.photoCounterPill} pointerEvents="none">
+                  <Text style={styles.photoCounterText}>1 / {photoUrls.length}</Text>
                 </View>
               )}
             </View>
           ) : (
-            <View style={styles.ambientHero}>
+            <View style={[styles.ambientHero, { paddingTop: insets.top + 56, height: insets.top + 360 }]}>
               {moment.songArtworkUrl ? (
-                <AppImage source={{ uri: moment.songArtworkUrl }} style={styles.artworkHero} contentFit="cover" />
+                <>
+                  <AppImage
+                    source={{ uri: moment.songArtworkUrl }}
+                    style={StyleSheet.absoluteFill}
+                    blurRadius={50}
+                    contentFit="cover"
+                  />
+                  <View style={[StyleSheet.absoluteFill, styles.heroVeil]} />
+                  <AppImage source={{ uri: moment.songArtworkUrl }} style={styles.artworkHero} contentFit="cover" />
+                </>
               ) : (
                 <ArtworkPlaceholder style={styles.artworkHero} />
               )}
             </View>
           )}
 
-          {/* Body. The -40 top margin reproduces the overlap the old
-              `scrollView: { marginTop: -40 }` created between the photo hero
-              and the first line of content; the ambient (artwork) hero never
-              had it. */}
-          <View style={[styles.scrollBody, !hasPhotos && styles.scrollBodyFlush]}>
-            {/* Small artwork thumbnail — only shown in photo-first layout */}
-            {hasPhotos && moment.songArtworkUrl ? (
-              <AppImage source={{ uri: moment.songArtworkUrl }} style={styles.artworkThumb} contentFit="cover" />
-            ) : null}
-
-            {/* Date + location eyebrow */}
-            {(moment.momentDate || moment.location) ? (
+          <View style={styles.scrollBody}>
+            {(moment.momentDate || moment.timeOfDay || moment.location) ? (
               <Text style={styles.eyebrow}>
-                {formatEyebrow(moment.momentDate, moment.location)}
+                {formatEyebrow(moment.momentDate, moment.timeOfDay, moment.location)}
               </Text>
             ) : null}
 
-            {/* Song title (serif) */}
-            <TouchableOpacity
-              activeOpacity={0.6}
-              onPress={() => router.push({ pathname: "/song", params: { title: moment.songTitle, artist: moment.songArtist } })}
-            >
-              <Text style={styles.songTitleHero} numberOfLines={2}>{moment.songTitle}</Text>
-            </TouchableOpacity>
-
-            {/* Artist */}
-            <TouchableOpacity
-              activeOpacity={0.6}
-              onPress={() => router.push({ pathname: "/artist", params: { name: moment.songArtist } })}
-            >
-              <Text style={styles.artistHero}>{moment.songArtist}</Text>
-            </TouchableOpacity>
-
-            {/* Album */}
-            {moment.songAlbumName ? (
-              <TouchableOpacity
-                activeOpacity={0.6}
-                onPress={() => router.push({ pathname: "/album", params: { album: moment.songAlbumName, artist: moment.songArtist } })}
-              >
-                <Text style={styles.albumHero}>{moment.songAlbumName}</Text>
-              </TouchableOpacity>
-            ) : null}
-
-            {/* Play pill */}
-            {(moment.songAppleMusicId || moment.songSpotifyId) ? (
-              <TouchableOpacity
-                style={[styles.playPill, playError && styles.playPillError]}
-                activeOpacity={0.7}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  if (isCurrentSong) {
-                    pause();
-                  } else {
-                    playFull(
-                      {
-                        id: moment.songSpotifyId ?? moment.songAppleMusicId ?? "",
-                        title: moment.songTitle,
-                        artistName: moment.songArtist,
-                        albumName: moment.songAlbumName,
-                        artworkUrl: moment.songArtworkUrl,
-                        provider: moment.songProvider ?? 'apple_music',
-                        appleMusicId: moment.songAppleMusicId ?? null,
-                        spotifyId: moment.songSpotifyId ?? null,
-                        durationMs: 0,
-                      },
-                      moment.songPreviewUrl || undefined
-                    );
-                  }
-                }}
-              >
-                <Ionicons
-                  name={isCurrentSong ? "pause" : "play"}
-                  size={13}
-                  color={playError ? theme.colors.textTertiary : theme.colors.buttonText}
-                />
-                <Text style={[styles.playPillText, playError && styles.playPillTextError]}>
-                  {playLabel}
+            {/* With photos the song steps back to a compact row; without, the
+                title leads. Title, artist and album each open their pages. */}
+            <View style={hasPhotos ? styles.songRow : undefined}>
+              {hasPhotos ? (
+                moment.songArtworkUrl ? (
+                  <AppImage source={{ uri: moment.songArtworkUrl }} style={styles.artworkThumb} contentFit="cover" />
+                ) : (
+                  <ArtworkPlaceholder style={styles.artworkThumb} />
+                )
+              ) : null}
+              <View style={hasPhotos ? styles.songRowText : undefined}>
+                <Text
+                  style={[styles.songTitleHero, hasPhotos && styles.songTitleCompact]}
+                  numberOfLines={2}
+                  onPress={() => router.push({ pathname: "/song", params: { title: moment.songTitle, artist: moment.songArtist } })}
+                  accessibilityRole="link"
+                >
+                  {moment.songTitle}
                 </Text>
-              </TouchableOpacity>
-            ) : null}
-
-            {/* Progress bar */}
-            {isCurrentSong && playbackDuration > 0 && (
-              <View style={styles.progressContainer}>
-                <GestureDetector gesture={seekGesture}>
-                  <View
-                    style={styles.progressTrackWrapper}
-                    onLayout={(e) => { progressBarWidthRef.current = e.nativeEvent.layout.width; }}
+                <Text style={styles.artistLine} numberOfLines={2}>
+                  <Text
+                    onPress={() => router.push({ pathname: "/artist", params: { name: moment.songArtist } })}
+                    accessibilityRole="link"
                   >
-                    <View style={styles.progressTrack}>
-                      <View style={[styles.progressFill, { width: `${Math.min(100, (playbackTime / playbackDuration) * 100)}%` }]} />
-                    </View>
-                  </View>
-                </GestureDetector>
-                <Text style={styles.progressTime}>
-                  {formatTime(playbackTime)} / {formatTime(playbackDuration)}
+                    {moment.songArtist}
+                  </Text>
+                  {moment.songAlbumName ? (
+                    <>
+                      {" · "}
+                      <Text
+                        onPress={() => router.push({ pathname: "/album", params: { album: moment.songAlbumName, artist: moment.songArtist } })}
+                        accessibilityRole="link"
+                      >
+                        {moment.songAlbumName}
+                      </Text>
+                    </>
+                  ) : null}
                 </Text>
               </View>
-            )}
+            </View>
 
-            {/* Contributor */}
+            {/* Player: one compact row. Seeking only while this song plays. */}
+            {(moment.songAppleMusicId || moment.songSpotifyId) ? (
+              <View style={styles.playerRow}>
+                <TouchableOpacity
+                  style={[styles.playButton, playError && styles.playButtonError]}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={playLabel}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    if (isCurrentSong) {
+                      pause();
+                    } else {
+                      playFull(
+                        {
+                          id: moment.songSpotifyId ?? moment.songAppleMusicId ?? "",
+                          title: moment.songTitle,
+                          artistName: moment.songArtist,
+                          albumName: moment.songAlbumName,
+                          artworkUrl: moment.songArtworkUrl,
+                          provider: moment.songProvider ?? 'apple_music',
+                          appleMusicId: moment.songAppleMusicId ?? null,
+                          spotifyId: moment.songSpotifyId ?? null,
+                          durationMs: 0,
+                        },
+                        moment.songPreviewUrl || undefined
+                      );
+                    }
+                  }}
+                >
+                  <Ionicons
+                    name={isCurrentSong ? "pause" : "play"}
+                    size={18}
+                    color={playError ? theme.colors.textTertiary : theme.colors.buttonText}
+                  />
+                </TouchableOpacity>
+                {isCurrentSong && playbackDuration > 0 ? (
+                  <>
+                    <GestureDetector gesture={seekGesture}>
+                      <View
+                        style={styles.progressTrackWrapper}
+                        onLayout={(e) => { progressBarWidthRef.current = e.nativeEvent.layout.width; }}
+                      >
+                        <View style={styles.progressTrack}>
+                          <View style={[styles.progressFill, { width: `${Math.min(100, (playbackTime / playbackDuration) * 100)}%` }]} />
+                        </View>
+                      </View>
+                    </GestureDetector>
+                    <Text style={styles.progressTime}>
+                      {formatTime(playbackTime)} / {formatTime(playbackDuration)}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.playHint}>{playError ? "Unavailable" : "Play"}</Text>
+                )}
+              </View>
+            ) : null}
+
             {(contributorName || moment.contributorName) ? (
               <Text style={styles.contributor} numberOfLines={1}>
-                by {contributorName || moment.contributorName}
+                From {contributorName || moment.contributorName}
               </Text>
             ) : null}
 
-            {/* Reflection — pull-quote treatment */}
+            {/* Blank lines become paragraph spacing, not empty 30pt lines. */}
             {moment.reflectionText ? (
-              <View style={styles.reflectionContainer}>
-                <Text style={styles.quoteGlyph}>"</Text>
-                <Text style={styles.reflection}>{moment.reflectionText}</Text>
+              <View style={styles.reflectionBlock}>
+                {moment.reflectionText
+                  .split(/\n\s*\n/)
+                  .map((para) => para.trim())
+                  .filter(Boolean)
+                  .map((para, i) => (
+                    <Text key={i} style={styles.reflection} selectable>{para}</Text>
+                  ))}
               </View>
             ) : null}
 
-            {/* Chips (dark pill style) */}
-            {(moodDefs.length > 0 || moment.people.length > 0 || moment.weatherCondition) ? (
-              <View style={styles.chipsRow}>
-                {moodDefs.map((m) => (
-                  <View key={m.value} style={styles.darkChip}>
-                    <Text style={styles.darkChipText}>{m.emoji} {m.label}</Text>
-                  </View>
-                ))}
-                {moment.people.map((person) => (
-                  <View key={person} style={styles.darkChip}>
-                    <Text style={styles.darkChipText}>👥 {person}</Text>
-                  </View>
-                ))}
+            {/* Quiet metadata: people, moods as words, weather. */}
+            {(moment.people.length > 0 || moodDefs.length > 0 || moment.weatherCondition) ? (
+              <View style={styles.metaBlock}>
+                {moment.people.length > 0 ? (
+                  <Text style={styles.metaLine}>{withPeople(moment.people)}</Text>
+                ) : null}
                 {moment.weatherCondition ? (
-                  <View style={styles.darkChip}>
-                    <Text style={styles.darkChipText}>
-                      {moment.weatherCondition}{moment.weatherTempF != null ? ` · ${moment.weatherTempF}°F` : ""}
-                    </Text>
-                  </View>
+                  <Text style={styles.metaLine}>
+                    {moment.weatherCondition}{moment.weatherTempF != null ? ` · ${moment.weatherTempF}°F` : ""}
+                  </Text>
+                ) : null}
+                {moodDefs.length > 0 ? (
+                  <Text style={styles.moodWords}>
+                    {moodDefs.map((m) => m.label).join(" · ").toUpperCase()}
+                  </Text>
                 ) : null}
               </View>
             ) : null}
 
-            {/* Time of day */}
-            {moment.timeOfDay ? (
-              <Text style={styles.timeOfDay}>{moment.timeOfDay}</Text>
+            {/* More photos: the hero shows the first; the rest live here. */}
+            {hasPhotos && photoUrls.length > 1 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.photoStrip}
+                contentContainerStyle={styles.photoStripContent}
+              >
+                {photoUrls.map((url, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    activeOpacity={0.85}
+                    onPress={() => { setViewerIndex(idx); setViewerVisible(true); }}
+                    accessibilityRole="imagebutton"
+                    accessibilityLabel={`Photo ${idx + 1} of ${photoUrls.length}`}
+                  >
+                    <AppImage source={{ uri: url }} style={styles.photoStripThumb} contentFit="cover" transition={200} />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             ) : null}
 
-            {/* Mini map */}
             {moment.locationLat != null && moment.locationLng != null ? (
               <TouchableOpacity
                 style={styles.miniMapContainer}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${moment.location ?? "this place"} in Maps`}
                 onPress={() => {
                   const label = encodeURIComponent(moment.location ?? "");
                   Linking.openURL(`maps://?q=${label}&ll=${moment.locationLat},${moment.locationLng}`);
@@ -853,47 +910,8 @@ export default function MomentDetailScreen() {
                 </View>
               </TouchableOpacity>
             ) : null}
-
-            {/* Additional photos (when >1 photo, shown below reflection as cinematic grid) */}
-            {hasPhotos && photoUrls.length > 1 && (
-              <View style={styles.photoGrid}>
-                <Text style={styles.photoGridLabel}>{photoUrls.length} PHOTOS · TAP TO VIEW</Text>
-                <View style={styles.photoGridRow}>
-                  <TouchableOpacity
-                    style={[styles.photoGridMain, { marginRight: 6 }]}
-                    activeOpacity={0.85}
-                    onPress={() => { setViewerIndex(0); setViewerVisible(true); }}
-                  >
-                    <AppImage source={{ uri: photoUrls[0] }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
-                  </TouchableOpacity>
-                  <View style={styles.photoGridStack}>
-                    {photoUrls.slice(1, 3).map((url, idx) => (
-                      <TouchableOpacity
-                        key={idx}
-                        style={[styles.photoGridSmall, idx === 0 && { marginBottom: 6 }]}
-                        activeOpacity={0.85}
-                        onPress={() => { setViewerIndex(idx + 1); setViewerVisible(true); }}
-                      >
-                        <AppImage source={{ uri: url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              </View>
-            )}
-            {/* Single photo shown below reflection */}
-            {hasPhotos && photoUrls.length === 1 && (
-              <TouchableOpacity
-                style={styles.singlePhoto}
-                activeOpacity={0.85}
-                onPress={() => { setViewerIndex(0); setViewerVisible(true); }}
-              >
-                <AppImage source={{ uri: photoUrls[0] }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
-              </TouchableOpacity>
-            )}
-
           </View>
-        </ScrollView>
+        </Animated.ScrollView>
         </GestureDetector>
       )}
 
@@ -1150,24 +1168,33 @@ function createStyles(theme: Theme) {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
-    // ── Glass nav ────────────────────────────────────────────────────────────
+    // ── Top bar + buttons ────────────────────────────────────────────────────
+    topBar: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 9,
+      backgroundColor: theme.colors.background,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
+    },
     glassNav: {
       position: "absolute",
-      top: 56,
-      left: 16,
-      right: 16,
+      left: 12,
+      right: 12,
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
       zIndex: 10,
     },
+    // These float over artwork and photos, so they keep a soft disc for
+    // contrast (the "filled" case in the Phase 1 icon rules).
     glassBtn: {
-      width: 36,
-      height: 36,
+      width: 40,
+      height: 40,
       borderRadius: 999,
-      backgroundColor: theme.isDark ? "rgba(20,15,12,0.45)" : "rgba(255,255,255,0.45)",
-      borderWidth: 1,
-      borderColor: theme.colors.border,
+      backgroundColor: theme.isDark ? "rgba(28,23,22,0.8)" : "rgba(255,255,255,0.82)",
       alignItems: "center",
       justifyContent: "center",
     },
@@ -1177,39 +1204,40 @@ function createStyles(theme: Theme) {
     },
     // ── Hero ─────────────────────────────────────────────────────────────────
     photoHero: {
-      height: 320,
       flexShrink: 0,
     },
     photoCounterPill: {
       position: "absolute",
-      top: 110,
-      right: 16,
-      backgroundColor: theme.isDark ? "rgba(20,15,12,0.5)" : "rgba(255,255,255,0.5)",
+      bottom: 14,
+      right: 14,
+      backgroundColor: "rgba(20,18,24,0.55)",
       borderRadius: 999,
       paddingHorizontal: 10,
-      paddingVertical: 5,
+      paddingVertical: 4,
     },
     photoCounterText: {
-      fontSize: 11,
-      fontFamily: "DMSans_600SemiBold",
-      letterSpacing: 0.8,
-      color: theme.colors.text,
+      fontSize: 12,
+      fontFamily: theme.fonts.bodySemibold,
+      fontVariant: ["tabular-nums"],
+      color: "#FBF7F2",
     },
     ambientHero: {
-      height: 310,
       flexShrink: 0,
       alignItems: "center",
       justifyContent: "center",
-      paddingTop: 30,
+      overflow: "hidden",
+    },
+    heroVeil: {
+      backgroundColor: theme.isDark ? "rgba(14,11,10,0.35)" : "rgba(251,247,242,0.3)",
     },
     artworkHero: {
-      width: 200,
-      height: 200,
-      borderRadius: 16,
+      width: 232,
+      height: 232,
+      borderRadius: 12,
       shadowColor: "#000",
-      shadowOffset: { width: 0, height: 20 },
-      shadowOpacity: 0.5,
-      shadowRadius: 30,
+      shadowOffset: { width: 0, height: 18 },
+      shadowOpacity: 0.25,
+      shadowRadius: 24,
     },
     // ── Scroll body ──────────────────────────────────────────────────────────
     scrollView: {
@@ -1218,159 +1246,147 @@ function createStyles(theme: Theme) {
     scrollContent: {
       paddingBottom: 80,
     },
-    // The hero is full-bleed, so the horizontal inset moved off the content
-    // container and onto the body wrapper that follows it.
     scrollBody: {
       paddingHorizontal: 24,
-      paddingTop: 8,
-      marginTop: -40,
-    },
-    scrollBodyFlush: {
-      marginTop: 0,
-    },
-    artworkThumb: {
-      width: 52,
-      height: 52,
-      borderRadius: 8,
-      marginBottom: 14,
+      paddingTop: 24,
+      backgroundColor: theme.colors.background,
     },
     eyebrow: {
-      fontSize: 11,
-      fontFamily: "DMSans_600SemiBold",
-      letterSpacing: 1.2,
-      color: theme.colors.accent,
-      marginBottom: 4,
-      textTransform: "uppercase",
-    },
-    songTitleHero: {
-      fontFamily: "DMSerifDisplay_400Regular",
-      fontSize: 34,
-      lineHeight: 36,
-      color: theme.colors.text,
-      marginTop: 4,
-    },
-    artistHero: {
-      fontSize: 15,
-      fontFamily: "DMSans_400Regular",
-      color: theme.colors.textSecondary,
-      marginTop: 4,
-      marginBottom: 2,
-    },
-    albumHero: {
       fontSize: 12,
-      fontFamily: "DMSans_400Regular",
-      color: theme.colors.textTertiary,
-      marginBottom: 12,
+      fontFamily: theme.fonts.bodySemibold,
+      letterSpacing: 1,
+      textTransform: "uppercase",
+      color: theme.colors.textSecondary,
+      marginBottom: 8,
     },
-    playPill: {
+    songRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 6,
-      backgroundColor: theme.colors.buttonBg,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
+      gap: 14,
+      marginTop: 4,
+    },
+    songRowText: {
+      flex: 1,
+      minWidth: 0,
+    },
+    artworkThumb: {
+      width: 64,
+      height: 64,
+      borderRadius: 10,
+    },
+    songTitleHero: {
+      fontFamily: theme.fonts.display,
+      fontSize: 34,
+      lineHeight: 38,
+      letterSpacing: -0.3,
+      color: theme.colors.text,
+    },
+    songTitleCompact: {
+      fontSize: 26,
+      lineHeight: 30,
+    },
+    artistLine: {
+      fontSize: 15,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
+      marginTop: 6,
+    },
+    playerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 14,
+      marginTop: 18,
+    },
+    playButton: {
+      width: 44,
+      height: 44,
       borderRadius: 999,
-      alignSelf: "flex-start",
-      marginTop: 12,
+      backgroundColor: theme.colors.buttonBg,
+      alignItems: "center",
+      justifyContent: "center",
     },
-    playPillError: {
-      backgroundColor: theme.colors.border,
+    playButtonError: {
+      backgroundColor: theme.colors.chipBg,
     },
-    playPillText: {
+    playHint: {
       fontSize: 14,
-      fontFamily: "DMSans_600SemiBold",
-      color: theme.colors.buttonText,
-    },
-    playPillTextError: {
-      color: theme.colors.textTertiary,
-    },
-    progressContainer: {
-      marginTop: 14,
-      gap: 4,
+      fontFamily: theme.fonts.bodyMedium,
+      color: theme.colors.textSecondary,
     },
     progressTrackWrapper: {
+      flex: 1,
       height: 28,
       justifyContent: "center",
     },
     progressTrack: {
-      height: 2,
-      backgroundColor: theme.colors.border,
-      borderRadius: 1,
+      height: 3,
+      backgroundColor: theme.colors.divider,
+      borderRadius: 2,
       overflow: "hidden",
     },
     progressFill: {
-      height: 2,
-      backgroundColor: theme.colors.accent,
-      borderRadius: 1,
+      height: 3,
+      backgroundColor: theme.colors.text,
+      borderRadius: 2,
     },
     progressTime: {
-      fontSize: 10,
-      fontFamily: "DMSans_400Regular",
-      color: theme.colors.textTertiary,
+      fontSize: 13,
+      fontFamily: theme.fonts.body,
+      fontVariant: ["tabular-nums"],
+      color: theme.colors.textSecondary,
     },
     contributor: {
-      fontSize: 12,
-      color: theme.colors.accent,
-      marginTop: 12,
-      fontFamily: "DMSans_500Medium",
+      fontSize: 14,
+      fontFamily: theme.fonts.bodyMedium,
+      color: theme.colors.textSecondary,
+      marginTop: 16,
     },
-    // ── Reflection ───────────────────────────────────────────────────────────
-    reflectionContainer: {
-      position: "relative",
-      paddingTop: 34,
-      paddingLeft: 8,
-      marginTop: 20,
-    },
-    quoteGlyph: {
-      position: "absolute",
-      top: 10,
-      left: -4,
-      fontFamily: "DMSerifDisplay_400Regular",
-      fontSize: 72,
-      lineHeight: 72,
-      color: theme.colors.accent,
-      opacity: 0.5,
-      zIndex: 0,
+    // ── Reflection: the user's words, set to be read ─────────────────────────
+    reflectionBlock: {
+      marginTop: 26,
+      gap: 16,
     },
     reflection: {
-      fontFamily: "DMSerifDisplay_400Regular_Italic",
-      fontSize: 20,
+      fontFamily: theme.fonts.reading,
+      fontSize: 19,
       lineHeight: 30,
       color: theme.colors.text,
-      zIndex: 1,
     },
-    // ── Chips ─────────────────────────────────────────────────────────────────
-    chipsRow: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 8,
-      marginTop: 20,
+    metaBlock: {
+      marginTop: 22,
+      gap: 6,
     },
-    darkChip: {
-      paddingHorizontal: 12,
-      paddingVertical: 7,
-      borderRadius: 999,
-      backgroundColor: theme.colors.backgroundTertiary,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
-    darkChipText: {
-      fontSize: 12,
-      fontFamily: "DMSans_500Medium",
-      color: theme.colors.text,
-    },
-    timeOfDay: {
-      fontSize: 12,
-      fontFamily: "DMSans_400Regular",
+    metaLine: {
+      fontSize: 14,
+      fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
-      marginTop: 12,
+    },
+    moodWords: {
+      fontSize: 11,
+      fontFamily: theme.fonts.bodySemibold,
+      letterSpacing: 1,
+      color: theme.colors.textTertiary,
+      marginTop: 2,
+    },
+    photoStrip: {
+      marginTop: 22,
+      marginHorizontal: -24,
+    },
+    photoStripContent: {
+      paddingHorizontal: 24,
+      gap: 8,
+    },
+    photoStripThumb: {
+      width: 96,
+      height: 96,
+      borderRadius: 10,
     },
     // ── Mini map ─────────────────────────────────────────────────────────────
     miniMapContainer: {
       height: 140,
-      borderRadius: 14,
+      borderRadius: 12,
       overflow: "hidden",
-      marginTop: 16,
+      marginTop: 22,
     },
     miniMapHint: {
       position: "absolute",
@@ -1379,53 +1395,15 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       gap: 4,
-      backgroundColor: "rgba(0,0,0,0.45)",
-      paddingHorizontal: 8,
-      paddingVertical: 4,
+      backgroundColor: theme.colors.elevated,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
       borderRadius: 999,
     },
     miniMapHintText: {
-      fontSize: 11,
-      fontFamily: "DMSans_500Medium",
-      color: "#fff",
-    },
-    // ── Photo grid ───────────────────────────────────────────────────────────
-    photoGrid: {
-      marginTop: 24,
-    },
-    photoGridLabel: {
-      fontSize: 10,
-      fontFamily: "DMSans_600SemiBold",
-      letterSpacing: 1.4,
-      color: theme.colors.textTertiary,
-      marginBottom: 10,
-      textTransform: "uppercase",
-    },
-    photoGridRow: {
-      flexDirection: "row",
-      gap: 6,
-      height: 120,
-    },
-    photoGridMain: {
-      flex: 2,
-      borderRadius: 10,
-      overflow: "hidden",
-    },
-    photoGridStack: {
-      flex: 1,
-      flexDirection: "column",
-      gap: 6,
-    },
-    photoGridSmall: {
-      flex: 1,
-      borderRadius: 10,
-      overflow: "hidden",
-    },
-    singlePhoto: {
-      marginTop: 20,
-      height: 200,
-      borderRadius: 14,
-      overflow: "hidden",
+      fontSize: 12,
+      fontFamily: theme.fonts.bodyMedium,
+      color: theme.colors.text,
     },
     shareMomentBtn: {
       flex: 1,

@@ -91,6 +91,14 @@ clutter, navigation.
   and nested cards, a clear type hierarchy.
 - [ ] **Two-tap capture:** pick a song → save. Writing is optional; details
   collapsed by default.
+- [x] **Entry screen** (Phase 1b): the blurred artwork lives in a hero band
+  that scrolls away, so writing always sits on paper; a paper bar fades in
+  under the Dynamic Island; ink date eyebrow with weekday, time of day and
+  place; serif title over "Artist · Album"; compact play row with inline
+  scrubber; Newsreader roman with real paragraph spacing; moods as words,
+  "With Sam and Priya". Photos: clean full-bleed first photo with a "1 / 3"
+  count (tap opens the viewer) and a strip of the rest; the swipeable hero
+  was dropped because it fights swipe-to-dismiss.
 - [ ] **A real writing view** for long entries (the journal case).
 - [ ] **Quick fixes:** "1 moments" pluralization in Reflections strips; detail
   screen contrast and Dynamic Island overlap on scroll; album covers as an
