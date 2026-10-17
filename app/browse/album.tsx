@@ -5,6 +5,7 @@ import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
+import { pluralMoments } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -56,7 +57,7 @@ export default function AlbumScreen() {
           <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>{moments.length} moments</Text>
+          <Text style={styles.eyebrow}>{pluralMoments(moments.length)}</Text>
           <Text style={styles.title} numberOfLines={1}>{activeAlbum?.albumName ?? ""}</Text>
           {activeAlbum?.artist ? (
             <Text style={styles.subtitle} numberOfLines={1}>{activeAlbum.artist}</Text>
