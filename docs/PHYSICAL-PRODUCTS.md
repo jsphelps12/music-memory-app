@@ -29,7 +29,7 @@ A memory book generated from any collection — personal or shared/event. Works 
 - Monthly plan subscribers: 20% off
 - Print partners: Blurb (API), Prodigi (global fulfillment), Chatbooks (partnership programs)
 - **The book is alive** — it plays music when you point your phone at any QR code. No photo book company can replicate this.
-- See ROADMAP.md → Physical Book section for full spec
+- See archive/ROADMAP-2026-10.md → Physical Book section for full spec (parked: "Not now" in the current roadmap)
 
 ---
 

@@ -37,7 +37,7 @@ Copy `.env.example` to `.env` and fill in:
 
 ## Key Conventions
 
-- **Every surface is either a screen or a quick pick** — screens get a full-screen route (card push or `fullScreenModal`); quick picks get a compact bottom sheet sized to content. Never use `presentation: "modal"`/pageSheet-style cards that cover most of the parent screen (owner rule; existing offenders are queued for conversion — see ROADMAP modal consolidation)
+- **Every surface is either a screen or a quick pick** — screens get a full-screen route (card push or `fullScreenModal`); quick picks get a compact bottom sheet sized to content. Never use `presentation: "modal"`/pageSheet-style cards that cover most of the parent screen (owner rule; all former offenders were converted in Wave 2, 2026-07)
 - Path aliases use `@/` (mapped to project root in tsconfig)
 - DB rows are snake_case; map to camelCase `Moment` type in fetch logic (see timeline or moment detail for pattern)
 - Auth gate in root layout redirects unauthenticated users to `(auth)/sign-in`
@@ -119,4 +119,4 @@ This avoids impossible state combinations (e.g. `loading && error` both true).
 
 ## Current Status
 
-MVP complete. App runs on iPhone 17 Pro (iOS 26), Supabase live, first TestFlight build submitted. All auth, timeline, moment create/edit/delete, photo support, search/filtering, share extension, and now-playing auto-fill features are implemented. See `docs/ROADMAP.md` for roadmap.
+Soundtracks is a personal music journal built for the owner first ("for fun, super slick"). v1.2.0 submitted to App Review 2026-10-16. `docs/ROADMAP.md` (rewritten 2026-10-17) is the plan: north star, principles, phases. The old roadmap, with shipped history and feasibility research, is at `docs/archive/ROADMAP-2026-10.md`. Update the roadmap in the same change as the work.

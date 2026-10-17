@@ -2,7 +2,7 @@
  * Chainable stub for the `@/lib/supabase` client.
  *
  * The mocking boundary for this codebase is the supabase client, not the
- * functions that call it (docs/ROADMAP.md §5: "mock at the `supabase` client
+ * functions that call it (docs/archive/ROADMAP-2026-10.md §5: "mock at the `supabase` client
  * boundary, not per-function"). Two reasons it has to live here rather than in
  * each test:
  *
