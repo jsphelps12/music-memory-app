@@ -12,10 +12,11 @@ export default function TabLayout() {
       tabBar={(props) => <TabBar {...props} />}
       screenOptions={{ swipeEnabled: true }}
     >
-      <SwipeTabs.Screen name="index"       options={{ title: "Moments" }} />
-      <SwipeTabs.Screen name="reflections"  options={{ title: "Reflections" }} />
-      <SwipeTabs.Screen name="albums"      options={{ title: "Albums" }} />
-      <SwipeTabs.Screen name="profile"     options={{ title: "Me" }} />
+      {/* Phase 1 (2026-10): three tabs. Route names stay as they were so
+          deep links and pushes keep working; albums moved to /albums. */}
+      <SwipeTabs.Screen name="index"       options={{ title: "Journal" }} />
+      <SwipeTabs.Screen name="reflections" options={{ title: "Rediscover" }} />
+      <SwipeTabs.Screen name="profile"     options={{ title: "You" }} />
     </SwipeTabs>
   );
 }

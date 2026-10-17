@@ -368,7 +368,7 @@ export default function ProfileScreen() {
     <View style={styles.outerContainer}>
       {/* Screen header */}
       <View style={styles.screenHeader}>
-        <Text style={styles.screenTitle}>profile</Text>
+        <Text style={styles.screenTitle}>You</Text>
         <View style={styles.headerButtons}>
           <IconButton name="help-circle-outline" onPress={() => router.push("/help")} />
           <IconButton name="person-add-outline" onPress={handleShareProfile} />
@@ -461,6 +461,20 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Albums: no longer a tab (Phase 1). Interim row until the You
+          screen's albums section lands. */}
+      <TouchableOpacity
+        style={[styles.promptsCard, styles.friendsRow]}
+        onPress={() => router.push("/albums" as any)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.friendsRowLeft}>
+          <Ionicons name="albums-outline" size={20} color={theme.colors.text} />
+          <Text style={styles.promptsRowLabel}>Albums</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={theme.colors.textTertiary} />
+      </TouchableOpacity>
 
       {/* Friends */}
       <TouchableOpacity

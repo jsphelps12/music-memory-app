@@ -577,7 +577,7 @@ export default function TimelineScreen() {
                 {totalCount} {totalCount === 1 ? "MOMENT" : "MOMENTS"}
               </Text>
             )}
-            <Text style={styles.title}>your soundtrack</Text>
+            <Text style={styles.title}>Journal</Text>
           </View>
           <View style={styles.headerRight}>
             {/* The archive lives in Reflections now — land there with search up */}
