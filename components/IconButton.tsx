@@ -9,24 +9,57 @@ interface Props {
   color?: string;
   activeOpacity?: number;
   style?: ViewStyle;
+  /**
+   * "plain" (default, Phase 1): a bare ink icon in a 44pt target, which is
+   * the header style. "filled": a small disc behind the icon, only for
+   * buttons that float over imagery (album covers) and need it for contrast.
+   */
+  variant?: "plain" | "filled";
+  accessibilityLabel?: string;
 }
 
-export function IconButton({ name, onPress, size = 20, color, activeOpacity = 0.7, style }: Props) {
+export function IconButton({
+  name,
+  onPress,
+  size,
+  color,
+  activeOpacity = 0.7,
+  style,
+  variant = "plain",
+  accessibilityLabel,
+}: Props) {
   const theme = useTheme();
+  const filled = variant === "filled";
   return (
     <TouchableOpacity
-      style={[styles.button, { backgroundColor: theme.colors.closeButtonBg }, style]}
+      style={[
+        filled ? styles.filled : styles.plain,
+        filled && { backgroundColor: theme.colors.closeButtonBg },
+        style,
+      ]}
       onPress={onPress}
       activeOpacity={activeOpacity}
-      hitSlop={8}
+      hitSlop={filled ? 8 : 0}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
     >
-      <Ionicons name={name} size={size} color={color ?? theme.colors.textSecondary} />
+      <Ionicons
+        name={name}
+        size={size ?? (filled ? 20 : 22)}
+        color={color ?? (filled ? theme.colors.textSecondary : theme.colors.text)}
+      />
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  button: {
+  plain: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filled: {
     width: 32,
     height: 32,
     borderRadius: 16,

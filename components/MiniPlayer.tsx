@@ -1,13 +1,15 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, PanResponder } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { formatTime } from "@/lib/formatTime";
+import { Theme } from "@/constants/theme";
 
 export function MiniPlayer() {
   const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const { currentSong, isPlaying, isPreview, playbackTime, playbackDuration, pause, resume, stop, seekTo } = usePlayer();
   const barWidthRef = useRef(1);
   const playbackDurationRef = useRef(playbackDuration);
@@ -56,128 +58,154 @@ export function MiniPlayer() {
   const fillPct = playbackDuration > 0 ? Math.min(100, (playbackTime / playbackDuration) * 100) : 0;
 
   return (
-    <View style={[
-      styles.container,
-      {
-        backgroundColor: theme.colors.cardBg,
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: theme.colors.border,
-      },
-    ]}>
+    // Phase 1: a floating card above the tab bar, not a full-width band.
+    <View style={styles.card}>
       <View style={styles.mainRow}>
         {currentSong.artworkUrl ? (
           <AppImage source={{ uri: currentSong.artworkUrl }} style={styles.artwork} contentFit="cover" />
         ) : (
-          <View style={[styles.artwork, { backgroundColor: theme.colors.backgroundSecondary }]} />
+          <View style={[styles.artwork, styles.artworkEmpty]} />
         )}
         <View style={styles.info}>
-          <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
+          <Text style={styles.title} numberOfLines={1}>
             {currentSong.title}
           </Text>
           <View style={styles.artistRow}>
-            <Text style={[styles.artist, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+            <Text style={styles.artist} numberOfLines={1}>
               {currentSong.artistName}
             </Text>
-            {isPreview && (
-              <Text style={[styles.previewBadge, { color: theme.colors.textTertiary }]}>PREVIEW</Text>
-            )}
+            {isPreview && <Text style={styles.previewBadge}>PREVIEW</Text>}
           </View>
         </View>
-        <TouchableOpacity onPress={isPlaying ? pause : resume} hitSlop={8} style={styles.btn}>
-          <Ionicons name={isPlaying ? "pause" : "play"} size={22} color={theme.colors.accent} />
+        <TouchableOpacity
+          onPress={isPlaying ? pause : resume}
+          style={styles.btn}
+          accessibilityRole="button"
+          accessibilityLabel={isPlaying ? "Pause" : "Play"}
+        >
+          <Ionicons name={isPlaying ? "pause" : "play"} size={22} color={theme.colors.text} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={stop} hitSlop={8} style={styles.btn}>
-          <Ionicons name="close" size={20} color={theme.colors.textTertiary} />
+        <TouchableOpacity
+          onPress={stop}
+          style={styles.btn}
+          accessibilityRole="button"
+          accessibilityLabel="Stop"
+        >
+          <Ionicons name="close" size={20} color={theme.colors.textSecondary} />
         </TouchableOpacity>
       </View>
       {playbackDuration > 0 && (
         <View style={styles.scrubRow}>
-          <Text style={[styles.time, { color: theme.colors.textTertiary }]}>{formatTime(playbackTime)}</Text>
+          <Text style={styles.time}>{formatTime(playbackTime)}</Text>
           <View
             style={styles.trackWrapper}
             onLayout={(e) => { barWidthRef.current = e.nativeEvent.layout.width; }}
             {...panResponder.panHandlers}
           >
-            <View style={[styles.track, { backgroundColor: theme.colors.backgroundSecondary }]}>
-              <View style={[styles.fill, { width: `${fillPct}%`, backgroundColor: theme.colors.accent }]} />
+            <View style={styles.track}>
+              <View style={[styles.fill, { width: `${fillPct}%` }]} />
             </View>
           </View>
-          <Text style={[styles.time, { color: theme.colors.textTertiary }]}>{formatTime(playbackDuration)}</Text>
+          <Text style={styles.time}>{formatTime(playbackDuration)}</Text>
         </View>
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: "column",
-  },
-  mainRow: {
-    height: 56,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    gap: 10,
-  },
-  artwork: {
-    width: 36,
-    height: 36,
-    borderRadius: 6,
-  },
-  info: {
-    flex: 1,
-    minWidth: 0,
-  },
-  title: {
-    fontSize: 13,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  artistRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  artist: {
-    fontSize: 11,
-    marginTop: 1,
-  },
-  previewBadge: {
-    fontSize: 9,
-    fontFamily: "DMSans_600SemiBold",
-    letterSpacing: 0.5,
-    marginTop: 1,
-  },
-  btn: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  scrubRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingBottom: 8,
-    gap: 8,
-  },
-  trackWrapper: {
-    flex: 1,
-    height: 28,
-    justifyContent: "center",
-  },
-  track: {
-    height: 3,
-    borderRadius: 2,
-    overflow: "hidden",
-  },
-  fill: {
-    height: 3,
-    borderRadius: 2,
-  },
-  time: {
-    fontSize: 10,
-    fontFamily: "DMSans_400Regular",
-    minWidth: 28,
-  },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    card: {
+      marginHorizontal: 10,
+      marginBottom: 8,
+      borderRadius: 14,
+      backgroundColor: theme.colors.elevated,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: theme.isDark ? 0.45 : 0.12,
+      shadowRadius: 14,
+      elevation: 6,
+    },
+    mainRow: {
+      height: 60,
+      flexDirection: "row",
+      alignItems: "center",
+      paddingLeft: 10,
+      paddingRight: 4,
+      gap: 12,
+    },
+    artwork: {
+      width: 40,
+      height: 40,
+      borderRadius: 6,
+    },
+    artworkEmpty: {
+      backgroundColor: theme.colors.artworkPlaceholder,
+    },
+    info: {
+      flex: 1,
+      minWidth: 0,
+    },
+    title: {
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.bodySemibold,
+      color: theme.colors.text,
+    },
+    artistRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
+    artist: {
+      flexShrink: 1,
+      fontSize: 13,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
+      marginTop: 1,
+    },
+    previewBadge: {
+      fontSize: 10,
+      fontFamily: theme.fonts.bodySemibold,
+      letterSpacing: 0.8,
+      color: theme.colors.textTertiary,
+      marginTop: 1,
+    },
+    btn: {
+      width: 44,
+      height: 44,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    scrubRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 12,
+      paddingBottom: 6,
+      marginTop: -6,
+      gap: 8,
+    },
+    trackWrapper: {
+      flex: 1,
+      height: 24,
+      justifyContent: "center",
+    },
+    track: {
+      height: 3,
+      borderRadius: 2,
+      overflow: "hidden",
+      backgroundColor: theme.colors.divider,
+    },
+    fill: {
+      height: 3,
+      borderRadius: 2,
+      backgroundColor: theme.colors.text,
+    },
+    time: {
+      fontSize: 11,
+      fontFamily: theme.fonts.body,
+      fontVariant: ["tabular-nums"],
+      color: theme.colors.textSecondary,
+      minWidth: 30,
+    },
+  });
+}

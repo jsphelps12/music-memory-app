@@ -1,44 +1,38 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { useMemo } from "react";
 import { useRouter } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import type { MaterialTopTabBarProps } from "@react-navigation/material-top-tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
+import { Theme } from "@/constants/theme";
 import { fetchSharedAlbumActivity } from "@/lib/albums";
+import { MiniPlayer } from "@/components/MiniPlayer";
 
 async function fetchAlbumsBadgeCount(userId: string): Promise<number> {
   const albums = await fetchSharedAlbumActivity(userId);
   return albums.reduce((sum, c) => sum + c.newMomentCount, 0);
 }
-import type { MaterialTopTabBarProps } from "@react-navigation/material-top-tabs";
-import { MiniPlayer } from "@/components/MiniPlayer";
 
-
-// Visual tab order: Timeline(0), Reflections(1), [Capture], Albums(2), Me(3)
-const TAB_DEFS = [
-  { label: "Moments",     realIndex: 0 },
-  { label: "Reflections", realIndex: 1 },
-  { label: "CAPTURE",     realIndex: -1 },
-  { label: "Albums",      realIndex: 2 },
-  { label: "Me",          realIndex: 3 },
-];
-
-const ICONS: Record<number, { active: string; inactive: string }> = {
-  0: { active: "musical-notes", inactive: "musical-notes-outline" },
-  1: { active: "sparkles",      inactive: "sparkles-outline" },
-  3: { active: "albums",        inactive: "albums-outline" },
-  4: { active: "person",        inactive: "person-outline" },
-};
+// Phase 1 (2026-10): three tabs plus a floating capture button. Albums,
+// shared-with-you and friends live under You, so the shared-album activity
+// badge moved there with them.
+const TABS = [
+  { label: "Journal",    icon: "book" },
+  { label: "Rediscover", icon: "time" },
+  { label: "You",        icon: "person" },
+] as const;
 
 export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
   const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
 
-  const { data: collectionsBadge = 0 } = useQuery({
+  const { data: albumsBadge = 0 } = useQuery({
     queryKey: ["collectionsBadge", user?.id],
     queryFn: () => fetchAlbumsBadgeCount(user!.id),
     enabled: !!user,
@@ -47,139 +41,122 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
     refetchIntervalInBackground: false,
   });
 
-  const barHeight = 49 + insets.bottom;
-  const activeColor = theme.colors.tabBarActive;
-  const inactiveColor = theme.colors.tabBarInactive;
-
   return (
-    <View style={{ backgroundColor: theme.colors.tabBar }}>
+    <View style={styles.container}>
+      {/* Above the bar and the mini player: it sits at the top of this
+          container, so it rises when the mini player appears. */}
+      <TouchableOpacity
+        testID="tab-create"
+        accessibilityRole="button"
+        accessibilityLabel="Capture a song"
+        onPress={() => router.push("/create")}
+        activeOpacity={0.85}
+        style={styles.capture}
+      >
+        <Ionicons name="add" size={28} color={theme.colors.buttonText} />
+      </TouchableOpacity>
+
       <MiniPlayer />
-      <View style={[
-        styles.bar,
-        {
-          height: barHeight,
-          paddingBottom: insets.bottom,
-          borderTopColor: theme.colors.tabBarBorder,
-        },
-      ]}>
-      {TAB_DEFS.map((tab, visualIndex) => {
-        if (tab.realIndex === -1) {
-          // Center capture button
+      <View style={[styles.bar, { height: 49 + insets.bottom, paddingBottom: insets.bottom }]}>
+        {TABS.map((tab, index) => {
+          const route = state.routes[index];
+          if (!route) return null;
+          const isActive = state.index === index;
+          const color = isActive ? theme.colors.tabBarActive : theme.colors.tabBarInactive;
+          const badgeCount = tab.label === "You" ? albumsBadge : 0;
+
           return (
-            <View key="capture" style={styles.slot}>
-              <TouchableOpacity
-                testID="tab-create"
-                onPress={() => router.push("/create")}
-                activeOpacity={0.85}
-                style={[styles.captureWrapper, { borderColor: theme.colors.tabBar }]}
-              >
-                <LinearGradient
-                  colors={["#E8825C", "#6B5F8C"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.captureButton}
-                >
-                  <Ionicons name="add" size={28} color="#fff" strokeWidth={2.2} />
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              key={tab.label}
+              style={styles.slot}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
+              accessibilityLabel={badgeCount > 0 ? `${tab.label}, ${badgeCount} new` : tab.label}
+              onPress={() => {
+                const event = navigation.emit({
+                  type: "tabPress",
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+                if (!isActive && !event.defaultPrevented) {
+                  navigation.navigate(route.name);
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={styles.iconWrapper}>
+                <Ionicons
+                  name={(isActive ? tab.icon : `${tab.icon}-outline`) as keyof typeof Ionicons.glyphMap}
+                  size={23}
+                  color={color}
+                />
+                {badgeCount > 0 && <View style={styles.badge} />}
+              </View>
+              <Text style={[styles.label, { color }, isActive && styles.labelActive]}>{tab.label}</Text>
+            </TouchableOpacity>
           );
-        }
-
-        const isActive = state.index === tab.realIndex;
-        const color = isActive ? activeColor : inactiveColor;
-        const iconDef = ICONS[visualIndex];
-        const iconName = isActive ? iconDef.active : iconDef.inactive;
-        const badgeCount = tab.label === "Albums" ? collectionsBadge : 0;
-        const showBadge = badgeCount > 0;
-
-        return (
-          <TouchableOpacity
-            key={tab.label}
-            style={styles.slot}
-            onPress={() => {
-              const event = navigation.emit({
-                type: "tabPress",
-                target: state.routes[tab.realIndex].key,
-                canPreventDefault: true,
-              });
-              if (!isActive && !event.defaultPrevented) {
-                navigation.navigate(state.routes[tab.realIndex].name);
-              }
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={styles.iconWrapper}>
-              <Ionicons name={iconName as any} size={22} color={color} />
-              {showBadge && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{badgeCount > 9 ? "9+" : badgeCount}</Text>
-                </View>
-              )}
-            </View>
-            <Text style={[styles.label, { color }]}>{tab.label}</Text>
-          </TouchableOpacity>
-        );
-      })}
+        })}
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  bar: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  slot: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "flex-end",
-    paddingBottom: 6,
-  },
-  captureWrapper: {
-    marginTop: -22,
-    borderWidth: 3,
-    borderRadius: 999,
-    shadowColor: "#E8825C",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  captureButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconWrapper: {
-    position: "relative",
-    marginBottom: 3,
-  },
-  badge: {
-    position: "absolute",
-    top: -4,
-    right: -8,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: "#E8825C",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 3,
-  },
-  badgeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontFamily: "DMSans_700Bold",
-    lineHeight: 12,
-  },
-  label: {
-    fontSize: 10,
-    fontFamily: "DMSans_600SemiBold",
-    letterSpacing: 0.2,
-  },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: {
+      backgroundColor: theme.colors.tabBar,
+    },
+    capture: {
+      position: "absolute",
+      right: theme.spacing.xl,
+      top: -76,
+      width: 60,
+      height: 60,
+      borderRadius: theme.radii.full,
+      backgroundColor: theme.colors.buttonBg,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: theme.isDark ? 0.5 : 0.2,
+      shadowRadius: 12,
+      elevation: 8,
+      zIndex: 10,
+    },
+    bar: {
+      flexDirection: "row",
+      alignItems: "stretch",
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.tabBarBorder,
+    },
+    slot: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "flex-end",
+      paddingBottom: 6,
+    },
+    iconWrapper: {
+      position: "relative",
+      marginBottom: 3,
+    },
+    // A dot, not a count: "something new" is the signal; the number lives on
+    // the screen it belongs to.
+    badge: {
+      position: "absolute",
+      top: -1,
+      right: -5,
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: theme.colors.accent,
+    },
+    label: {
+      fontSize: 11,
+      fontFamily: theme.fonts.bodyMedium,
+      letterSpacing: 0.1,
+    },
+    labelActive: {
+      fontFamily: theme.fonts.bodySemibold,
+    },
+  });
+}

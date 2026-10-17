@@ -304,11 +304,15 @@ export default function AlbumDetailScreen() {
           {/* Everyone who can open this screen is the owner or a member, and
               members can already contribute to shared albums — so no role gate. */}
           <IconButton
+            variant="filled"
             name="add"
+            accessibilityLabel="Add a moment to this album"
             onPress={() => router.push({ pathname: "/create", params: { collectionId: id! } })}
           />
           <IconButton
+            variant="filled"
             name={isOwner ? "settings-outline" : "ellipsis-horizontal"}
+            accessibilityLabel={isOwner ? "Album settings" : "Album options"}
             onPress={() => setShareSheetVisible(true)}
           />
         </View>

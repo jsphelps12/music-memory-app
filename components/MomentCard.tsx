@@ -5,7 +5,6 @@ import { usePostHog } from "posthog-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { AppImage } from "@/components/AppImage";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -26,6 +25,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { getPublicPhotoUrl, getPublicPhotoThumbnailUrl } from "@/lib/storage";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
+import { PlayingIndicator } from "@/components/PlayingIndicator";
 import { MomentActionMenu, MenuAnchor } from "@/components/MomentActionMenu";
 import { confirmSheet } from "@/components/ConfirmSheet";
 import { Moment, Song } from "@/types";
@@ -168,104 +168,100 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
       })
     : null;
 
-  // Bare emoji(s) beside the date — deliberately no chips, no labels (owner is
-  // wary of card clutter). Capped at 3; a two-mood moment shows both rather
-  // than misrepresenting itself as its primary mood alone.
-  const moodEmojis = item.moods
+  // Phase 1: moods as quiet words, not emoji. Capped at 3, in stored order.
+  const moodWords = item.moods
     .slice(0, 3)
-    .map((value) => allMoods.find((m) => m.value === value)?.emoji)
+    .map((value) => allMoods.find((m) => m.value === value)?.label ?? value)
     .filter(Boolean)
-    .join(" ");
+    .join(" · ")
+    .toUpperCase();
+
+  const canPlay = !!(item.songAppleMusicId || item.songSpotifyId || item.songPreviewUrl);
 
   return (
-    <Animated.View ref={animatedRef} style={[styles.wrapper, animatedStyle, !theme.isDark && theme.shadows.card]}>
+    <Animated.View ref={animatedRef} style={[styles.row, animatedStyle]}>
       <TouchableOpacity
-        style={styles.card}
         activeOpacity={1}
         onPressIn={() => {
-          scale.value = withSpring(0.97, { damping: 15, stiffness: 300 });
+          scale.value = withSpring(0.98, { damping: 15, stiffness: 300 });
         }}
         onPressOut={() => {
           scale.value = withSpring(1, { damping: 15, stiffness: 300 });
         }}
         onPress={handlePress}
         onLongPress={canModify ? handleLongPress : undefined}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.songTitle} by ${item.songArtist}${formattedDate ? `, ${formattedDate}` : ""}`}
       >
-        <View style={styles.cardBody}>
-          <View style={styles.cardRow}>
+        <View style={styles.header}>
+          {/* Tapping the artwork plays; tapping anywhere else opens the entry. */}
+          <TouchableOpacity
+            onPress={canPlay ? handlePlayPress : handlePress}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={canPlay ? `${isThisPlaying ? "Pause" : "Play"} ${item.songTitle}` : undefined}
+            style={styles.artworkButton}
+          >
             {item.songArtworkUrl ? (
               <AppImage source={{ uri: item.songArtworkUrl }} style={styles.artwork} transition={200} />
             ) : (
               <ArtworkPlaceholder style={styles.artwork} />
             )}
-            <View style={styles.cardContent}>
-              <View style={styles.titleRow}>
-                <Text testID="moment-card-title" style={styles.songTitle} numberOfLines={1}>
-                  {item.songTitle}
-                </Text>
-                {moodEmojis ? (
-                  <Text style={styles.moodEmojis}>{moodEmojis}</Text>
-                ) : null}
-                {formattedDate ? (
-                  <Text style={styles.date}>{formattedDate}</Text>
-                ) : null}
+            {isThisPlaying && (
+              <View style={styles.playingScrim}>
+                <PlayingIndicator />
               </View>
-              {showArtist && (
-                <Text style={styles.songArtist} numberOfLines={1}>
-                  {item.songArtist}
-                </Text>
-              )}
-            </View>
-          </View>
-          {item.reflectionText ? (
-            <Text style={styles.reflection} numberOfLines={2}>
-              {item.reflectionText}
+            )}
+          </TouchableOpacity>
+          <View style={styles.titles}>
+            <Text testID="moment-card-title" style={styles.songTitle} numberOfLines={1}>
+              {item.songTitle}
             </Text>
-          ) : null}
-          {(thumbUrls.length > 0 || !!item.contributorName) && (
-            <View style={styles.photoRow}>
-              {thumbUrls.length > 0 && (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.photoStrip}
-                  contentContainerStyle={styles.photoStripContent}
-                >
-                  {thumbUrls.map((url, i) => (
-                    <AppImage
-                      key={i}
-                      source={{ uri: url }}
-                      style={styles.photoStripThumb}
-                      contentFit="cover"
-                      transition={200}
-                    />
-                  ))}
-                </ScrollView>
-              )}
-              {item.contributorName ? (
-                <View style={styles.authorBadge}>
-                  <Text style={styles.authorBadgeText} numberOfLines={1}>
-                    {item.contributorName}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          )}
+            {showArtist && (
+              <Text style={styles.songArtist} numberOfLines={1}>
+                {item.songArtist}
+              </Text>
+            )}
+          </View>
+          {formattedDate ? <Text style={styles.date}>{formattedDate}</Text> : null}
         </View>
+
+        {item.reflectionText ? (
+          <Text style={styles.reflection} numberOfLines={3}>
+            {/* An excerpt reads as one flowing paragraph; the entry screen
+                keeps the line breaks. */}
+            {item.reflectionText.replace(/\s+/g, " ").trim()}
+          </Text>
+        ) : null}
+
+        {thumbUrls.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.photoStrip}
+            contentContainerStyle={styles.photoStripContent}
+          >
+            {thumbUrls.map((url, i) => (
+              <AppImage
+                key={i}
+                source={{ uri: url }}
+                style={styles.photoStripThumb}
+                contentFit="cover"
+                transition={200}
+              />
+            ))}
+          </ScrollView>
+        )}
+
+        {(moodWords || item.contributorName) ? (
+          <View style={styles.metaRow}>
+            {item.contributorName ? (
+              <Text style={styles.contributor} numberOfLines={1}>From {item.contributorName}</Text>
+            ) : null}
+            {moodWords ? <Text style={styles.moods} numberOfLines={1}>{moodWords}</Text> : null}
+          </View>
+        ) : null}
       </TouchableOpacity>
-      {item.songAppleMusicId ? (
-        <TouchableOpacity
-          style={styles.playButton}
-          onPress={handlePlayPress}
-          hitSlop={8}
-        >
-          <Ionicons
-            name={isThisPlaying ? "pause" : "play"}
-            size={13}
-            color="#fff"
-          />
-        </TouchableOpacity>
-      ) : null}
       <MomentActionMenu
         anchor={menuAnchor}
         onEdit={handleMenuEdit}
@@ -276,53 +272,43 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
   );
 }
 
+// Phase 1 (2026-10, "let the artwork be the color"): no card box, fill,
+// border or shadow. Rows are separated by a hairline and the artwork carries
+// the color.
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    wrapper: {
-      borderRadius: theme.radii.md,
-      marginBottom: theme.spacing.md,
+    row: {
+      paddingVertical: theme.spacing.lg,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
     },
-    card: {
-      backgroundColor: theme.colors.cardBg,
-      borderRadius: theme.radii.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      overflow: "hidden",
-    },
-    cardBody: {
-      padding: 10,
-    },
-    cardRow: {
+    header: {
       flexDirection: "row",
       alignItems: "center",
+    },
+    artworkButton: {
+      width: 56,
+      height: 56,
+      borderRadius: theme.radii.sm,
+      overflow: "hidden",
     },
     artwork: {
       width: 56,
       height: 56,
       borderRadius: theme.radii.sm,
     },
-    playButton: {
-      position: "absolute",
-      top: 10 + 56 - 22 - 3,
-      left: 10 + 56 - 22 - 3,
-      width: 22,
-      height: 22,
-      borderRadius: 11,
-      backgroundColor: "rgba(0,0,0,0.6)",
+    playingScrim: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(20,18,24,0.45)",
       alignItems: "center",
       justifyContent: "center",
     },
-    cardContent: {
+    titles: {
       flex: 1,
-      marginLeft: theme.spacing.md,
-    },
-    titleRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
+      marginLeft: theme.spacing.md + 2,
+      marginRight: theme.spacing.sm,
     },
     songTitle: {
-      flex: 1,
       fontSize: theme.fontSize.base,
       fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
@@ -333,52 +319,50 @@ function createStyles(theme: Theme) {
       color: theme.colors.textSecondary,
       marginTop: 1,
     },
-    reflection: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
-      fontStyle: "italic",
-      color: theme.colors.textSecondary,
-      marginTop: theme.spacing.sm,
-      lineHeight: 20,
-    },
     date: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textTertiary,
-      flexShrink: 0,
+      alignSelf: "flex-start",
+      paddingTop: 2,
+      fontSize: 13,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
     },
-    moodEmojis: {
-      fontSize: theme.fontSize.xs,
-      flexShrink: 0,
-    },
-    photoRow: {
-      flexDirection: "row",
-      alignItems: "flex-end",
-      marginTop: theme.spacing.sm,
+    reflection: {
+      marginTop: theme.spacing.md - 2,
+      fontSize: 17,
+      lineHeight: 25,
+      fontFamily: theme.fonts.reading,
+      color: theme.colors.text,
     },
     photoStrip: {
-      flex: 1,
-      height: 80,
+      marginTop: theme.spacing.md,
+      height: 72,
     },
     photoStripContent: {
-      gap: 2,
+      gap: 4,
     },
     photoStripThumb: {
-      width: 80,
-      height: 80,
+      width: 72,
+      height: 72,
+      borderRadius: 6,
     },
-    authorBadge: {
-      paddingHorizontal: theme.spacing.sm,
-      paddingVertical: theme.spacing.xs,
-      borderRadius: theme.radii.full,
-      backgroundColor: theme.colors.chipBg,
-      marginLeft: theme.spacing.sm,
-      marginBottom: theme.spacing.xs,
-      maxWidth: 100,
+    metaRow: {
+      marginTop: theme.spacing.sm,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md,
     },
-    authorBadgeText: {
-      fontSize: theme.fontSize.xs,
+    contributor: {
+      fontSize: 13,
       fontFamily: theme.fonts.bodyMedium,
       color: theme.colors.textSecondary,
+      flexShrink: 1,
+    },
+    moods: {
+      fontSize: 11,
+      fontFamily: theme.fonts.bodySemibold,
+      letterSpacing: 1,
+      color: theme.colors.textTertiary,
+      flexShrink: 1,
     },
   });
 }
