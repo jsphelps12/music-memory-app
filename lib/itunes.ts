@@ -39,10 +39,34 @@ export function normalizeTitle(s: string): string {
     .trim();
 }
 
+// Words that make a title a different recording: "(Justice Remix)", "- Live",
+// "[Acoustic]", "Radio Edit", "Taylor's Version". "Remastered" and "feat." are
+// absent on purpose: those are the same recording.
+const VERSION_WORDS =
+  /\b(remix|mix|live|acoustic|demo|instrumental|edit|version|sped up|slowed|reverb|unplugged|rework|bootleg|dub|karaoke)\b/;
+
+/**
+ * The version descriptors in a title, normalized and sorted: "" for the
+ * original recording, "justice remix" for "Electric Feel (Justice Remix)" or
+ * "Electric Feel - Justice Remix". Pure, exported for tests.
+ */
+export function versionKey(s: string): string {
+  const segments = [
+    ...[...s.matchAll(/[([]([^)\]]*)[)\]]/g)].map((m) => m[1]),
+    ...(s.match(/\s+-\s+(.*)$/)?.[1].split(/\s+-\s+/) ?? []),
+  ];
+  return segments
+    .map((seg) => seg.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim())
+    .filter((seg) => VERSION_WORDS.test(seg))
+    .sort()
+    .join(" | ");
+}
+
 /**
  * Pick the iTunes track that is the same recording as `title` by `artist`, or
  * null. Pure, exported for tests. Deliberately strict: a wrong preview (a
- * cover, a different song with the same name) is worse than no preview.
+ * cover, a different song with the same name, the remix when you picked the
+ * original or the other way round) is worse than no preview.
  */
 export function pickItunesMatch(
   tracks: ItunesTrack[],
@@ -56,6 +80,7 @@ export function pickItunesMatch(
     .map((a) => a.trim().toLowerCase())
     .filter(Boolean);
   if (!wantTitle) return null;
+  const wantVersion = versionKey(title);
 
   const candidates = tracks.filter((t) => t.trackId && t.trackName);
   const artistMatches = (t: ItunesTrack) => {
@@ -64,7 +89,12 @@ export function pickItunesMatch(
   };
 
   return (
-    candidates.find((t) => normalizeTitle(t.trackName!) === wantTitle && artistMatches(t)) ?? null
+    candidates.find(
+      (t) =>
+        normalizeTitle(t.trackName!) === wantTitle &&
+        versionKey(t.trackName!) === wantVersion &&
+        artistMatches(t)
+    ) ?? null
   );
 }
 

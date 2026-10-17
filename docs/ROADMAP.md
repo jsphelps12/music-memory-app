@@ -208,9 +208,15 @@ weekly; charging earlier teaches nothing.
   pending (PR #31): each pending migration runs inside a rolled-back
   transaction; production never runs PR SQL.
 - [x] **Song-search input race + Maestro hardening** (PR #33).
-- [ ] **Tighten the iTunes preview matcher:** it accepted "Electric Feel
-  (Justice Remix)" for "Electric Feel". Reject remix / live / acoustic /
-  instrumental variants the source title doesn't have.
+- [x] **Tighten the iTunes preview matcher:** it accepted "Electric Feel
+  (Justice Remix)" for "Electric Feel". The version descriptor (remix, live,
+  acoustic, edit, "Taylor's Version"…) is now part of the match, both ways: the
+  original never gets a remix's preview, and a remix you picked gets its own,
+  not the original's. Picking remixes is unaffected; this is only the preview
+  clip for Spotify songs.
+- [x] **Version line in Settings:** binary version/build plus which OTA bundle
+  is running ("built-in bundle" if none), so a phone that isn't picking up beta
+  updates is visible from the phone.
 - [ ] **Build-23 caboose:** drop `tagged_moments`, `moment_reactions`,
   `collection_invites`, `moments.visibility`, `profiles.profile_visibility`,
   three RPCs and `notify-friend` once build 7 is gone from PostHog (the

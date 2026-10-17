@@ -15,6 +15,8 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
+import * as Application from "expo-application";
+import * as Updates from "expo-updates";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -27,6 +29,24 @@ import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
+
+/**
+ * "1.2.0 (27) · update Oct 17, 3:40 PM": which binary and which OTA bundle
+ * this is, so "I can't see the changes" can be answered from the phone.
+ * The embedded bundle (no OTA applied yet) says so.
+ */
+function versionLine(): string {
+  const binary = `${Application.nativeApplicationVersion ?? "?"} (${Application.nativeBuildVersion ?? "?"})`;
+  if (__DEV__) return `${binary} · development`;
+  if (Updates.isEmbeddedLaunch || !Updates.createdAt) return `${binary} · built-in bundle`;
+  const when = Updates.createdAt.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${binary} · update ${when}`;
+}
 
 type NotifField =
   | "notif_on_this_day"
@@ -275,6 +295,7 @@ export default function SettingsScreen() {
           )}
         </TouchableOpacity>
         {user?.email ? <Text style={styles.signedInAs}>Signed in as {user.email}</Text> : null}
+        <Text style={styles.signedInAs}>{versionLine()}</Text>
       </ScrollView>
     </View>
   );
