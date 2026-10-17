@@ -198,8 +198,13 @@ export default function AlbumsScreen() {
   return (
     <View style={[dynamicStyles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
-      <View style={[dynamicStyles.header, { borderBottomColor: theme.colors.border }]}>
-        <Text style={[dynamicStyles.headerTitle, { color: theme.colors.text }]}>albums</Text>
+      {/* A pushed screen since Phase 1 moved albums out of the tab bar and
+          into You, so it gets a back button. */}
+      <View style={[dynamicStyles.header, { borderBottomColor: theme.colors.divider }]}>
+        <View style={dynamicStyles.headerLeft}>
+          <IconButton name="chevron-back" onPress={() => router.back()} />
+          <Text style={[dynamicStyles.headerTitle, { color: theme.colors.text }]}>Albums</Text>
+        </View>
         <IconButton name="add-outline" onPress={() => setNewAlbumVisible(true)} />
       </View>
 
@@ -244,6 +249,11 @@ function createStyles(theme: Theme) {
       paddingBottom: 12,
       paddingHorizontal: SCREEN_PAD,
       borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    headerLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
     },
     headerTitle: {
       fontSize: 30,

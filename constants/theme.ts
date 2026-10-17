@@ -7,6 +7,10 @@ export const fonts = {
   bodyMedium: "DMSans_500Medium",
   bodySemibold: "DMSans_600SemiBold",
   bodyBold: "DMSans_700Bold",
+  // Reading face for what the user wrote (Phase 1, 2026-10): long journal
+  // text in a roman serif, not the display face and not italic.
+  reading: "Newsreader_400Regular",
+  readingMedium: "Newsreader_500Medium",
   mono: "SpaceMono",
 } as const;
 
@@ -81,6 +85,10 @@ export interface ThemeColors {
   buttonBg: string;
   buttonText: string;
   border: string;
+  /** Hairline between list rows: the Phase 1 replacement for card boxes. */
+  divider: string;
+  /** Raised surfaces that float over content (mini player, sheets). */
+  elevated: string;
   placeholder: string;
   destructive: string;
   success: string;
@@ -99,39 +107,42 @@ export interface ThemeColors {
   artworkPlaceholder: string;
 }
 
-// Warm-tint neutrals (design polish, 2026-08): no pure grays. Light text is
-// the brand ink #2C2C3A (same as buttonBg, the web light theme, and the share
-// card's artifact ink) with secondary/tertiary mixed from ink-over-cream;
-// borders/chips/skeletons take the cream cast instead of #ddd-family gray.
+// Warm-tint neutrals (design polish, 2026-08): no pure grays.
+// Phase 1 (2026-10, "let the artwork be the color"): deeper ink, a slightly
+// lighter paper, and secondary/tertiary text that pass WCAG AA on it (the old
+// tertiary #9C9AA1 was ~2.6:1). The accent is darker so it holds 3:1 as an
+// icon/indicator color; it is a signal, not a text color.
 const lightColors: ThemeColors = {
-  background: "#FBF6F1",
+  background: "#FBF7F2",
   backgroundSecondary: "#F3EDE6",
   backgroundTertiary: "#EBE4DC",
   backgroundInput: "#F8F3EE",
-  text: "#2C2C3A",
-  textSecondary: "#66656D",
-  textTertiary: "#9C9AA1",
-  accent: "#E8825C",
+  text: "#23222B",
+  textSecondary: "#5E5C66",
+  textTertiary: "#736A63",
+  accent: "#D9693F",
   accentBg: "#fdf0eb",
   accentText: "#c96840",
   accentSecondary: "#6B5F8C",
   accentSecondaryBg: "#F0EDF7",
   accentSecondaryText: "#4A3E6A",
-  buttonBg: "#2C2C3A",
+  buttonBg: "#23222B",
   buttonText: "#fff",
   border: "#E0D8CF",
-  placeholder: "#9C9AA1",
+  divider: "#E9E2D9",
+  elevated: "#FFFFFF",
+  placeholder: "#7A716A",
   destructive: "#d32f2f",
   success: "#2e7d32",
-  chipBg: "#F0E9E2",
+  chipBg: "#F0EAE3",
   chipText: "#3D3C48",
-  chipSelectedBg: "#2C2C3A",
+  chipSelectedBg: "#23222B",
   chipSelectedText: "#fff",
   cardBg: "#F3EDE6",
-  tabBar: "#FBF6F1",
-  tabBarBorder: "#E0D6CC",
-  tabBarActive: "#E8825C",
-  tabBarInactive: "#9C9AA1",
+  tabBar: "#FBF7F2",
+  tabBarBorder: "#E9E2D9",
+  tabBarActive: "#23222B",
+  tabBarInactive: "#6E655E",
   closeButtonBg: "rgba(44,44,58,0.06)",
   skeletonBase: "#EAE3DB",
   skeletonHighlight: "#F5EFE9",
@@ -139,14 +150,14 @@ const lightColors: ThemeColors = {
 };
 
 const darkColors: ThemeColors = {
-  background: "#0D0908",
+  background: "#0E0B0A",
   backgroundSecondary: "#1E1A18",
   backgroundTertiary: "#2A2422",
   backgroundInput: "#1E1A18",
-  text: "#FAF6F2",
-  textSecondary: "#B3ACA8",
-  textTertiary: "#7E7672",
-  accent: "#E8825C",
+  text: "#F5F0EB",
+  textSecondary: "#ABA39E",
+  textTertiary: "#8E847E",
+  accent: "#EE8B62",
   accentBg: "#3a2820",
   accentText: "#F0A080",
   accentSecondary: "#9888C8",
@@ -155,7 +166,9 @@ const darkColors: ThemeColors = {
   buttonBg: "#F5EEE8",
   buttonText: "#1A0F0A",
   border: "#362F2C",
-  placeholder: "#6C6460",
+  divider: "#2A2422",
+  elevated: "#1C1716",
+  placeholder: "#857B75",
   destructive: "#ff453a",
   success: "#30d158",
   chipBg: "#2A2422",
@@ -163,10 +176,10 @@ const darkColors: ThemeColors = {
   chipSelectedBg: "#F5EEE8",
   chipSelectedText: "#1A0F0A",
   cardBg: "#1E1A1A",
-  tabBar: "#0D0908",
+  tabBar: "#0E0B0A",
   tabBarBorder: "#2A2422",
-  tabBarActive: "#E8825C",
-  tabBarInactive: "#6C6460",
+  tabBarActive: "#F5F0EB",
+  tabBarInactive: "#A99E95",
   closeButtonBg: "rgba(255,255,255,0.1)",
   skeletonBase: "#2A2422",
   skeletonHighlight: "#38302E",

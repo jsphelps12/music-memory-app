@@ -15,6 +15,7 @@ import {
   DMSans_600SemiBold,
   DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
+import { Newsreader_400Regular, Newsreader_500Medium } from "@expo-google-fonts/newsreader";
 import { Stack, useRouter, useSegments, usePathname, useGlobalSearchParams } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
@@ -213,6 +214,8 @@ function RootLayout() {
     DMSans_500Medium,
     DMSans_600SemiBold,
     DMSans_700Bold,
+    Newsreader_400Regular,
+    Newsreader_500Medium,
     ...FontAwesome.font,
   });
 
@@ -299,7 +302,7 @@ function RootLayoutNav() {
         router.push(`/moment/${data.momentId}`);
       } else if (data.type === "friends") {
         // Legacy pushes from pre-v2 binaries — the old Friends tab is now Albums
-        router.push("/(tabs)/albums" as any);
+        router.push("/albums" as any);
       } else if (data.momentId) {
         router.push(`/moment/${data.momentId}`);
       } else if (data.type === "create") {
@@ -343,7 +346,7 @@ function RootLayoutNav() {
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <StatusBar style="auto" />
       <AuthGate>
-        <Stack screenOptions={{ contentStyle: { backgroundColor: colorScheme === "dark" ? "#000" : "#FBF6F1" } }}>
+        <Stack screenOptions={{ contentStyle: { backgroundColor: colorScheme === "dark" ? "#0E0B0A" : "#FBF7F2" } }}>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
           <Stack.Screen name="celebration" options={{ headerShown: false, gestureEnabled: false }} />
@@ -405,6 +408,10 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="album/[id]"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="albums"
             options={{ headerShown: false }}
           />
           <Stack.Screen
