@@ -52,6 +52,11 @@ export function SongPickerSection({ song, onChange, photos = [], suggestNowPlayi
 
   useEffect(() => onSongSelected((s) => onChange(s)), [onChange]);
 
+  // A song chosen any other way makes an earlier Identify failure moot.
+  useEffect(() => {
+    if (song) setShazamError("");
+  }, [song]);
+
   // Phase 1 (2026-10): the playing song is the default, not a banner to
   // accept. It only fills an empty picker and stops listening once a song is
   // set, so the track changing mid-entry never swaps the song under the user.

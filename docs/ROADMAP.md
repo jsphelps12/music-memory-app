@@ -141,15 +141,27 @@ clutter, navigation.
   1d); album covers as an artwork mosaic instead of a gradient placeholder
   (`components/AlbumMosaic.tsx`, on You and the Albums screen, Phase 1e);
   detail screen contrast and Dynamic Island overlap (Phase 1b).
-- [ ] **New App Store assets** once the redesign lands: 6.9" screenshots
-  (1320×2868) and, optionally, the iOS 27 product-page header.
+- [x] **New App Store assets:** six 6.9" screenshots (1320×2868) in
+  `docs/app-store/screenshots/` (Journal, entry, capture, widget, On this
+  day, dark entry), framed by `scripts/frame-screenshots.py` from simulator
+  captures of staging E2E Two. Upload with the next version (screenshots are
+  locked while a version is in review). The iOS 27 product-page header is
+  still optional and not made.
 
 ## Next — Phase 2: Pull
 *The app comes to you with something worth reacting to.*
 
-- [ ] **Capture from anywhere** *(owner's favorite)*: a widget, Lock Screen
-  widget, Control Center control and Action button / Shortcut that log what's
-  playing without opening the app. Native targets, so it rides a binary.
+- [x] **Capture from anywhere** *(owner's favorite)*: `targets/widget`
+  (via `@bacons/apple-targets`, iOS 17+): Home Screen small (capture) and
+  medium (capture + Identify), Lock Screen circular / rectangular / inline,
+  and iOS 18 controls "Capture a song" and "Identify a song" for Control
+  Center, the Lock Screen buttons and the Action button. Each deep-links to
+  `/create` (`?identify=1` starts listening). Rides a binary: the preview
+  build first, then the next App Store version.
+- [ ] **Log what's playing without opening the app** (App Intent that saves
+  the now-playing song straight to the journal, with a "write later" nudge).
+  Needs an app group + the auth token in a shared keychain; the widget above
+  opens the app instead.
 - [ ] **Face ID lock** (journaling-app standard; makes private writing feel
   safe).
 - [ ] **Export** your journal (PDF / plain text): trust that the words are

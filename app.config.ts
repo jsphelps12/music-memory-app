@@ -26,6 +26,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       ? "com.joshuaphelps.musicmemory.preview"
       : "com.joshuaphelps.musicmemory",
     usesAppleSignIn: true,
+    // The widget extension (targets/widget, via @bacons/apple-targets) signs
+    // with the same team.
+    appleTeamId: "J9X5GR82CZ",
     infoPlist: {
       NSAppleMusicUsageDescription:
         "Soundtracks uses Apple Music to search and play songs linked to your moments.",
@@ -105,6 +108,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         },
       },
     ],
+    // Capture-from-anywhere widgets and controls (targets/widget).
+    "@bacons/apple-targets",
     [
       "expo-notifications",
       {
