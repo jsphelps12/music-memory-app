@@ -173,13 +173,39 @@ jobs:
           curl -fsSL "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
 
+      # One retry, ONLY when Maestro's XCTest driver itself died. On 2026-10-17
+      # a run lost the driver mid-sign-in ("Transport unreachable while
+      # processing eraseText"): the flow
+      # never reached the app's code, and the same steps pass on other runs.
+      # An assertion failure is the app's problem and still fails on the first
+      # try; only the driver-death signature earns a second attempt, after
+      # resetting the staging account the first attempt may have written to.
       - name: Run smoke flow
         env:
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          E2E_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          maestro test .maestro/smoke.yaml \
-            --env E2E_PASSWORD="$E2E_PASSWORD" \
-            --format junit --output maestro-report.xml
+          set -uo pipefail
+          run_flow() {
+            maestro test .maestro/smoke.yaml \
+              --env E2E_PASSWORD="$E2E_PASSWORD" \
+              --format junit --output maestro-report.xml 2>&1 | tee maestro-run.log
+          }
+          run_flow
+          code=$?
+          # The driver error only reaches Maestro's debug log, not stdout
+          # (stdout said just "[Failed] smoke (3m 28s)"), so search both. Match
+          # "Transport unreachable" ONLY: "Failed to connect to /127.0.0.1"
+          # also appears in every genuine assertion failure's log (driver
+          # startup/teardown), and retrying those would hide real regressions.
+          if [ "$code" -ne 0 ] && grep -rq "Transport unreachable" maestro-run.log "$HOME/.maestro/tests" 2>/dev/null; then
+            echo "::warning::Maestro's XCTest driver died mid-flow (test infrastructure, not the app). Resetting the account and retrying once."
+            node scripts/seed-e2e.mjs
+            run_flow
+            code=$?
+          fi
+          exit "$code"
 
       - name: Upload Maestro artifacts
         if: failure()

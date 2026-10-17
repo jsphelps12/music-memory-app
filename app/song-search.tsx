@@ -202,7 +202,11 @@ export default function SongSearchScreen() {
         placeholder="Search for a song..."
         placeholderTextColor={theme.colors.placeholder}
         cursorColor={theme.colors.accent}
-        value={query}
+        // Uncontrolled on purpose: no `value` prop. Nothing ever sets this
+        // text except typing, and a controlled input lets a stale value from a
+        // busy JS thread (re-rendering results mid-word) overwrite keystrokes
+        // native already accepted. E2E typed "Bohemian Rhapsody" and got
+        // "Bdy" and "Bohemian Rhapysod". Native owns the text; we only listen.
         onChangeText={setQuery}
         autoFocus
         autoCorrect={false}
