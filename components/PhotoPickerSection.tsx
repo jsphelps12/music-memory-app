@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Ref, useEffect, useImperativeHandle, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
+import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { extractPhotoMetadata } from "@/lib/photoMetadata";
 import { useTheme } from "@/hooks/useTheme";
@@ -28,6 +29,19 @@ interface PhotoPickerSectionProps {
   onApplyMeta?: (date: Date | undefined, location: { name: string; lat: number | null; lng: number | null } | undefined) => void;
   /** Horizontal padding of the parent scroll view, used to extend the photo strip edge-to-edge */
   horizontalPadding?: number;
+  /**
+   * Capture screen (Phase 1): no big "Add Photos" button. The screen's Photo
+   * chip opens the picker through `ref`, and once there are photos the strip
+   * ends in a small add tile.
+   */
+  compact?: boolean;
+  /** A date/place found elsewhere (photos shared in from another app). */
+  suggestion?: PhotoMetaSuggestion | null;
+  ref?: Ref<PhotoPickerHandle>;
+}
+
+export interface PhotoPickerHandle {
+  openPicker: () => void;
 }
 
 export function PhotoPickerSection({
@@ -35,12 +49,22 @@ export function PhotoPickerSection({
   onChange,
   onApplyMeta,
   horizontalPadding = 20,
+  compact = false,
+  suggestion,
+  ref,
 }: PhotoPickerSectionProps) {
   const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme, horizontalPadding), [theme, horizontalPadding]);
+  const styles = useMemo(() => createStyles(theme, horizontalPadding, compact), [theme, horizontalPadding, compact]);
 
   const [metaSuggestion, setMetaSuggestion] = useState<PhotoMetaSuggestion | null>(null);
   const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    if (suggestion) {
+      setMetaSuggestion(suggestion);
+      setDismissed(false);
+    }
+  }, [suggestion]);
 
   const handleAddPhotos = () => {
     ActionSheetIOS.showActionSheetWithOptions(
@@ -81,6 +105,8 @@ export function PhotoPickerSection({
     );
   };
 
+  useImperativeHandle(ref, () => ({ openPicker: handleAddPhotos }));
+
   const handleRemovePhoto = (uri: string) => {
     onChange(photos.filter((p) => p !== uri));
   };
@@ -97,9 +123,11 @@ export function PhotoPickerSection({
 
   return (
     <>
-      <TouchableOpacity style={styles.addButton} activeOpacity={0.7} onPress={handleAddPhotos}>
-        <Text style={styles.addButtonText}>Add Photos</Text>
-      </TouchableOpacity>
+      {!compact && (
+        <TouchableOpacity style={styles.addButton} activeOpacity={0.7} onPress={handleAddPhotos}>
+          <Text style={styles.addButtonText}>Add Photos</Text>
+        </TouchableOpacity>
+      )}
 
       {photos.length > 0 && (
         <ScrollView
@@ -116,6 +144,16 @@ export function PhotoPickerSection({
               </TouchableOpacity>
             </View>
           ))}
+          {compact && (
+            <TouchableOpacity
+              style={[styles.thumb, styles.addTile]}
+              activeOpacity={0.7}
+              onPress={handleAddPhotos}
+              accessibilityLabel="Add more photos"
+            >
+              <Ionicons name="add" size={24} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+          )}
         </ScrollView>
       )}
 
@@ -152,7 +190,7 @@ export function PhotoPickerSection({
   );
 }
 
-function createStyles(theme: Theme, horizontalPadding: number) {
+function createStyles(theme: Theme, horizontalPadding: number, compact: boolean) {
   return StyleSheet.create({
     addButton: {
       borderWidth: 1,
@@ -169,12 +207,17 @@ function createStyles(theme: Theme, horizontalPadding: number) {
       color: theme.colors.textSecondary,
     },
     photoScroll: {
-      marginTop: 10,
+      marginTop: compact ? 0 : 10,
       marginHorizontal: -horizontalPadding,
     },
     photoScrollContent: {
       paddingHorizontal: horizontalPadding,
       gap: 10,
+    },
+    addTile: {
+      backgroundColor: theme.colors.chipBg,
+      alignItems: "center",
+      justifyContent: "center",
     },
     thumbContainer: {
       position: "relative",

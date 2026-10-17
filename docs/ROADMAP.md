@@ -89,8 +89,17 @@ clutter, navigation.
   with me" pills stay until You gets its Shared with you section.
 - [ ] **Visual system refresh:** palette, one coherent icon set, fewer borders
   and nested cards, a clear type hierarchy.
-- [ ] **Two-tap capture:** pick a song → save. Writing is optional; details
-  collapsed by default.
+- [x] **Two-tap capture** (Phase 1c): song first, and the Apple Music track
+  playing now fills it in by default (a "Playing now" eyebrow says so;
+  "Different song" / "Identify" sit under it, and Identify drops its match
+  straight in). Then a borderless Newsreader page with "What's this song
+  doing for you?", starter chips ("It takes me back to…", "Just found
+  this…", "Today I…", "More prompts") while it's empty, and Save in the top
+  bar. Details are a chip bar riding the keyboard (Photo, Mood, People,
+  Place, date, Album); each opens a quick-pick sheet and then names its
+  value. Moods are words in a wrapped picker everywhere. The writing area is
+  uncontrolled: a controlled value plus `focus()` in one tick crashed RN
+  0.81 natively.
 - [x] **Entry screen** (Phase 1b): the blurred artwork lives in a hero band
   that scrolls away, so writing always sits on paper; a paper bar fades in
   under the Dynamic Island; ink date eyebrow with weekday, time of day and

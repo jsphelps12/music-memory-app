@@ -9,8 +9,8 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  ActionSheetIOS,
   FlatList,
+  Keyboard,
   StyleSheet,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
@@ -18,6 +18,7 @@ import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,7 +30,7 @@ import { PeopleInput } from "@/components/PeopleInput";
 import { AlbumPicker } from "@/components/AlbumPicker";
 import { CreateAlbumSheet } from "@/components/CreateAlbumSheet";
 import { SongPickerSection } from "@/components/SongPickerSection";
-import { PhotoPickerSection } from "@/components/PhotoPickerSection";
+import { PhotoPickerSection, type PhotoPickerHandle } from "@/components/PhotoPickerSection";
 import { LocationField } from "@/components/LocationField";
 import { fetchAlbums } from "@/lib/albums";
 import { useTheme } from "@/hooks/useTheme";
@@ -47,15 +48,50 @@ import { PromptPickerModal } from "@/components/PromptPickerModal";
 import { BottomSheet } from "@/components/BottomSheet";
 import { fetchWeather, WeatherResult } from "@/lib/weather";
 import { dateToStr } from "@/lib/dateUtils";
+import { MOODS } from "@/constants/Moods";
+
+// Starters, not prompts: they open a sentence for the three ways people use
+// the journal (a memory, a discovery, a day) and get out of the way.
+const STARTERS = [
+  { label: "It takes me back to…", text: "It takes me back to " },
+  { label: "Just found this…", text: "Just found this " },
+  { label: "Today I…", text: "Today I " },
+] as const;
+
+type DetailSheet = "mood" | "people" | "place" | "date" | null;
+
+function isSameDay(a: Date, b: Date) {
+  return a.toDateString() === b.toDateString();
+}
+
+function formatDateChip(date: Date | null) {
+  if (!date) return "No date";
+  const now = new Date();
+  if (isSameDay(date, now)) return "Today";
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (isSameDay(date, yesterday)) return "Yesterday";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(date.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}),
+  });
+}
+
+function withMore(first: string, count: number) {
+  return count > 1 ? `${first} +${count - 1}` : first;
+}
 
 export default function CreateMomentScreen() {
   const router = useRouter();
   const { user, profile, saveCustomMood, deleteCustomMood } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
   const posthog = usePostHog();
   const queryClient = useQueryClient();
   const scrollViewRef = useRef<ScrollView>(null);
+  const photoPickerRef = useRef<PhotoPickerHandle>(null);
   const params = useLocalSearchParams<{
     songId?: string;
     songTitle?: string;
@@ -158,26 +194,30 @@ export default function CreateMomentScreen() {
       const paths = JSON.parse(params.sharedPhotoPaths) as string[];
       if (paths.length === 0) return;
       setPhotos(paths);
-      setShowDetails(true);
       extractExifFromPath(paths[0]).then((meta) => {
-        if (meta.date || meta.location) {
-          setMetaSuggestion(meta);
-          setDismissedMetaSuggestion(false);
-        }
+        if (meta.date || meta.location) setMetaSuggestion(meta);
       });
     } catch {}
   }, [params.sharedPhotoPaths]);
 
   const hasSong = !!song;
 
+  // The writing area is uncontrolled. `reflection` mirrors what's typed; text
+  // set from code (starters, prompts) remounts the input with it as the
+  // default instead of pushing it through `value`. A controlled value plus
+  // focus() in one tick dispatches two native commands, and RN 0.81 crashed
+  // (SIGSEGV in Scheduler::uiManagerDidDispatchCommand) on exactly that.
   const [reflection, setReflection] = useState("");
+  const [reflectionSeed, setReflectionSeed] = useState({ key: 0, text: "", focus: false });
+  const replaceReflection = useCallback((text: string, focus: boolean) => {
+    setReflection(text);
+    setReflectionSeed((seed) => ({ key: seed.key + 1, text, focus }));
+  }, []);
 
   // Pre-fill reflection from a journal prompt
   useEffect(() => {
-    if (params.promptStarter) {
-      setReflection(params.promptStarter);
-    }
-  }, [params.promptStarter]);
+    if (params.promptStarter) replaceReflection(params.promptStarter, false);
+  }, [params.promptStarter, replaceReflection]);
 
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [people, setPeople] = useState<string[]>([]);
@@ -185,27 +225,35 @@ export default function CreateMomentScreen() {
   const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
   const [weatherResult, setWeatherResult] = useState<WeatherResult | null>(null);
   const [metaSuggestion, setMetaSuggestion] = useState<{ date?: Date; location?: string; lat?: number; lng?: number } | null>(null);
-  const [dismissedMetaSuggestion, setDismissedMetaSuggestion] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
+  const [detailSheet, setDetailSheet] = useState<DetailSheet>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [albumPickerVisible, setAlbumPickerVisible] = useState(false);
   const [createAlbumVisible, setCreateAlbumVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [focusedField, setFocusedField] = useState("");
   const [promptPickerVisible, setPromptPickerVisible] = useState(false);
 
-  useEffect(() => {
-    if ((showDetails || params.collectionId) && user && albums.length === 0) {
-      fetchAlbums(user.id).then(setAlbums).catch(() => {});
-    }
-  }, [showDetails, params.collectionId, user]);
+  const loadAlbums = useCallback(() => {
+    if (user && albums.length === 0) fetchAlbums(user.id).then(setAlbums).catch(() => {});
+  }, [user, albums.length]);
 
-  // Auto-expand details and pre-select album when opened from an album view
+  // Opened from an album view: pre-select that album.
   useEffect(() => {
-    if (params.collectionId) setShowDetails(true);
-  }, [params.collectionId]);
+    if (params.collectionId) loadAlbums();
+  }, [params.collectionId, loadAlbums]);
+
+  // The detail bar rides the keyboard; it only needs the home-indicator
+  // inset when the keyboard is down.
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardWillShow", () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener("keyboardWillHide", () => setKeyboardVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (!params.collectionId || albums.length === 0) return;
@@ -239,7 +287,6 @@ export default function CreateMomentScreen() {
   ) => {
     if (date) setMomentDate(date);
     if (location) setLocationResult(location);
-    setDismissedMetaSuggestion(true);
     Haptics.selectionAsync();
   };
 
@@ -311,7 +358,7 @@ export default function CreateMomentScreen() {
 
       // Reset form
       handleSongChange(null);
-      setReflection("");
+      replaceReflection("", false);
       setSelectedMoods([]);
       setPeople([]);
       setPhotos([]);
@@ -320,8 +367,6 @@ export default function CreateMomentScreen() {
       setSelectedAlbum(null);
       setWeatherResult(null);
       setMetaSuggestion(null);
-      setDismissedMetaSuggestion(false);
-      setShowDetails(false);
       setError("");
 
       markTimelineStale(savedMoment);
@@ -345,203 +390,257 @@ export default function CreateMomentScreen() {
     }
   };
 
+  const close = () => (router.canGoBack() ? router.back() : router.replace("/(tabs)"));
+
+  const openSheet = (sheet: Exclude<DetailSheet, null>) => {
+    Keyboard.dismiss();
+    Haptics.selectionAsync();
+    setDetailSheet(sheet);
+  };
+
+  const applyStarter = (text: string) => {
+    Haptics.selectionAsync();
+    replaceReflection(text, true);
+  };
+
+  const moodLabel = (value: string) =>
+    [...MOODS, ...(profile?.customMoods ?? [])].find((m) => m.value === value)?.label ?? value;
+
+  // Each chip names its value once set, so the bar doubles as a summary of
+  // what's attached. A default date of today isn't a choice, so it stays plain.
+  const chips: { key: string; icon: keyof typeof Ionicons.glyphMap; label: string; set: boolean; onPress: () => void }[] = [
+    {
+      key: "photo",
+      icon: "image-outline",
+      label: photos.length ? `${photos.length} ${photos.length === 1 ? "photo" : "photos"}` : "Photo",
+      set: photos.length > 0,
+      onPress: () => {
+        Keyboard.dismiss();
+        photoPickerRef.current?.openPicker();
+      },
+    },
+    {
+      key: "mood",
+      icon: "happy-outline",
+      label: selectedMoods.length ? withMore(moodLabel(selectedMoods[0]), selectedMoods.length) : "Mood",
+      set: selectedMoods.length > 0,
+      onPress: () => openSheet("mood"),
+    },
+    {
+      key: "people",
+      icon: "people-outline",
+      label: people.length ? withMore(`With ${people[0]}`, people.length) : "People",
+      set: people.length > 0,
+      onPress: () => openSheet("people"),
+    },
+    {
+      key: "place",
+      icon: "location-outline",
+      label: locationResult?.name ?? "Place",
+      set: !!locationResult,
+      onPress: () => openSheet("place"),
+    },
+    {
+      key: "date",
+      icon: "calendar-outline",
+      label: formatDateChip(momentDate),
+      set: !!momentDate && !isSameDay(momentDate, new Date()),
+      onPress: () => openSheet("date"),
+    },
+    {
+      key: "album",
+      icon: "albums-outline",
+      label: selectedAlbum?.name ?? "Album",
+      set: !!selectedAlbum,
+      onPress: () => {
+        Keyboard.dismiss();
+        loadAlbums();
+        setAlbumPickerVisible(true);
+      },
+    },
+  ];
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior="padding"
     >
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.titleRow}>
-          <Text style={styles.title}>Capture a Moment</Text>
-          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)")} hitSlop={8}>
-            <Ionicons name="close" size={26} color={theme.colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-
-        <SongPickerSection song={song} onChange={handleSongChange} photos={photos} />
-
-        {/* Reflection */}
-        <Text style={styles.sectionLabel}>Reflection</Text>
-        <TextInput
-          testID="create-reflection"
-          style={[styles.reflectionInput, focusedField === "reflection" && { borderColor: theme.colors.accent }]}
-          placeholder="What does this song remind you of? (optional)"
-          placeholderTextColor={theme.colors.placeholder}
-          cursorColor={theme.colors.accent}
-          multiline
-          textAlignVertical="top"
-          autoCapitalize="sentences"
-          autoCorrect
-          value={reflection}
-          onChangeText={setReflection}
-          onFocus={() => setFocusedField("reflection")}
-          onBlur={() => setFocusedField("")}
-        />
-
-        {/* Prompt picker */}
-        <TouchableOpacity
-          style={styles.promptButton}
-          activeOpacity={0.7}
-          onPress={() => setPromptPickerVisible(true)}
-        >
-          <Text style={styles.promptButtonText}>Need a nudge? ✦</Text>
+      <View style={[styles.topBar, { paddingTop: insets.top }]}>
+        <TouchableOpacity onPress={close} hitSlop={8} style={styles.cancelButton} accessibilityRole="button">
+          <Text style={styles.cancelText}>Cancel</Text>
         </TouchableOpacity>
-
-        {/* Details toggle */}
-        <TouchableOpacity
-          style={styles.detailsToggle}
-          activeOpacity={0.7}
-          onPress={() => {
-            setShowDetails((v) => !v);
-            Haptics.selectionAsync();
-          }}
-        >
-          <Text style={styles.detailsToggleText}>
-            {showDetails ? "Hide details ▲" : "Add details ▼"}
-          </Text>
-        </TouchableOpacity>
-
-        {showDetails && (
-          <>
-            {/* Photos */}
-            <Text style={styles.sectionLabel}>Photos</Text>
-            <PhotoPickerSection
-              photos={photos}
-              onChange={setPhotos}
-              onApplyMeta={handleApplyMeta}
-            />
-
-            {/* People */}
-            <Text style={styles.sectionLabel}>People</Text>
-            <PeopleInput
-              people={people}
-              onChangePeople={setPeople}
-            />
-
-            {/* Mood selector */}
-            <Text style={styles.sectionLabel}>Mood</Text>
-            <MoodSelector
-              selectedMoods={selectedMoods}
-              onChangeMoods={setSelectedMoods}
-              customMoods={profile?.customMoods ?? []}
-              saveCustomMood={saveCustomMood}
-              deleteCustomMood={deleteCustomMood}
-            />
-
-            {/* Album */}
-            <Text style={styles.sectionLabel}>Album</Text>
-            {selectedAlbum ? (
-              <>
-                <View style={styles.collectionChipRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.collectionChip,
-                      selectedAlbum.isPublic && styles.collectionChipPublic,
-                    ]}
-                    onPress={() => setAlbumPickerVisible(true)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons
-                      name={selectedAlbum.isPublic ? "people-outline" : "folder-outline"}
-                      size={14}
-                      color={selectedAlbum.isPublic ? theme.colors.accentSecondary : theme.colors.textSecondary}
-                    />
-                    <Text style={[
-                      styles.collectionChipText,
-                      selectedAlbum.isPublic && styles.collectionChipTextPublic,
-                    ]}>
-                      {selectedAlbum.name}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setSelectedAlbum(null)} hitSlop={8}>
-                    <Ionicons name="close-circle" size={18} color={theme.colors.textTertiary} />
-                  </TouchableOpacity>
-                </View>
-                {selectedAlbum.isPublic && (
-                  <Text style={styles.collectionHint}>
-                    All album members can see this. "Who else can see this" controls access outside the album.
-                  </Text>
-                )}
-              </>
-            ) : (
-              <TouchableOpacity
-                style={styles.collectionEmpty}
-                onPress={() => setAlbumPickerVisible(true)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="folder-outline" size={16} color={theme.colors.textTertiary} />
-                <Text style={styles.collectionEmptyText}>Add to album</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Date picker */}
-            <View style={styles.sectionLabelRow}>
-              <Text style={styles.sectionLabel}>Date</Text>
-              {momentDate ? (
-                <TouchableOpacity onPress={() => setMomentDate(null)} hitSlop={8}>
-                  <Text style={styles.dateClearText}>Clear</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity onPress={() => setMomentDate(new Date())} hitSlop={8}>
-                  <Text style={styles.dateSetText}>Set date</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            {momentDate ? (
-              <DateTimePicker
-                value={momentDate}
-                mode="date"
-                display="compact"
-                maximumDate={new Date()}
-                onChange={(_event: DateTimePickerEvent, date?: Date) => { if (date) setMomentDate(date); }}
-                themeVariant={theme.isDark ? "dark" : "light"}
-                accentColor={theme.colors.accent}
-                style={styles.datePicker}
-              />
-            ) : (
-              <Text style={styles.noDateText}>No specific date</Text>
-            )}
-
-            {/* Location */}
-            <Text style={styles.sectionLabel}>Location</Text>
-            <LocationField value={locationResult} onChange={setLocationResult} detectCurrentLocation />
-
-            {/* Weather chip — silently appears once auto-fetched */}
-            {weatherResult ? (
-              <View style={styles.collectionChipRow}>
-                <View style={styles.collectionChip}>
-                  <Text style={styles.collectionChipText}>
-                    {weatherResult.condition} · {weatherResult.tempF}°F
-                  </Text>
-                </View>
-              </View>
-            ) : null}
-          </>
-        )}
-
-        {/* Error */}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        {/* Save button */}
         <TouchableOpacity
           testID="create-save"
           style={[styles.saveButton, loading && styles.saveButtonDisabled]}
           onPress={handleSave}
           disabled={loading}
           activeOpacity={0.7}
+          accessibilityRole="button"
         >
           {loading ? (
-            <ActivityIndicator color={theme.colors.buttonText} />
+            <ActivityIndicator size="small" color={theme.colors.buttonText} />
           ) : (
-            <Text style={styles.saveButtonText}>Save Moment</Text>
+            <Text style={styles.saveButtonText}>Save</Text>
           )}
         </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
+        <SongPickerSection
+          song={song}
+          onChange={handleSongChange}
+          photos={photos}
+          suggestNowPlaying={!params.shareCandidates && !params.shareFailedUrl}
+        />
+
+        <View style={styles.divider} />
+
+        <TextInput
+          key={reflectionSeed.key}
+          testID="create-reflection"
+          style={styles.reflectionInput}
+          placeholder="What's this song doing for you?"
+          placeholderTextColor={theme.colors.placeholder}
+          cursorColor={theme.colors.accent}
+          selectionColor={theme.colors.accent}
+          accessibilityLabel="Write about this song"
+          multiline
+          scrollEnabled={false}
+          textAlignVertical="top"
+          autoCapitalize="sentences"
+          autoCorrect
+          defaultValue={reflectionSeed.text}
+          autoFocus={reflectionSeed.focus}
+          onChangeText={setReflection}
+        />
+
+        {reflection.trim().length === 0 && (
+          <View style={styles.starters}>
+            {STARTERS.map((starter) => (
+              <TouchableOpacity
+                key={starter.label}
+                style={styles.starterChip}
+                activeOpacity={0.7}
+                onPress={() => applyStarter(starter.text)}
+              >
+                <Text style={styles.starterText}>{starter.label}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={styles.starterChip}
+              activeOpacity={0.7}
+              onPress={() => {
+                Keyboard.dismiss();
+                setPromptPickerVisible(true);
+              }}
+            >
+              <Text style={styles.starterText}>More prompts</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={styles.photos}>
+          <PhotoPickerSection
+            ref={photoPickerRef}
+            compact
+            photos={photos}
+            onChange={setPhotos}
+            onApplyMeta={handleApplyMeta}
+            suggestion={metaSuggestion}
+          />
+        </View>
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
+
+      <View style={[styles.detailBar, { paddingBottom: keyboardVisible ? theme.spacing.md : Math.max(insets.bottom, theme.spacing.md) }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="always"
+          contentContainerStyle={styles.detailBarContent}
+        >
+          {chips.map((chip) => (
+            <TouchableOpacity
+              key={chip.key}
+              testID={`create-detail-${chip.key}`}
+              style={styles.detailChip}
+              activeOpacity={0.7}
+              onPress={chip.onPress}
+              accessibilityRole="button"
+            >
+              <Ionicons
+                name={chip.icon}
+                size={17}
+                color={chip.set ? theme.colors.accent : theme.colors.text}
+              />
+              <Text style={[styles.detailChipText, chip.set && styles.detailChipTextSet]} numberOfLines={1}>
+                {chip.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      <BottomSheet visible={detailSheet === "mood"} onClose={() => setDetailSheet(null)} title="Mood" keyboardAvoiding>
+        <View style={styles.sheetBody}>
+          <MoodSelector
+            selectedMoods={selectedMoods}
+            onChangeMoods={setSelectedMoods}
+            customMoods={profile?.customMoods ?? []}
+            saveCustomMood={saveCustomMood}
+            deleteCustomMood={deleteCustomMood}
+          />
+        </View>
+      </BottomSheet>
+
+      <BottomSheet visible={detailSheet === "people"} onClose={() => setDetailSheet(null)} title="Who was there" keyboardAvoiding>
+        <View style={styles.sheetBody}>
+          <PeopleInput people={people} onChangePeople={setPeople} />
+        </View>
+      </BottomSheet>
+
+      <BottomSheet visible={detailSheet === "place"} onClose={() => setDetailSheet(null)} title="Place" keyboardAvoiding>
+        <View style={styles.sheetBody}>
+          <LocationField value={locationResult} onChange={setLocationResult} detectCurrentLocation={!locationResult} />
+          {weatherResult ? (
+            <Text style={styles.weatherText}>
+              {weatherResult.condition} · {weatherResult.tempF}°F
+            </Text>
+          ) : null}
+        </View>
+      </BottomSheet>
+
+      <BottomSheet visible={detailSheet === "date"} onClose={() => setDetailSheet(null)} title="Date">
+        <View style={styles.sheetBody}>
+          {momentDate ? (
+            <DateTimePicker
+              value={momentDate}
+              mode="date"
+              display="inline"
+              maximumDate={new Date()}
+              onChange={(_event: DateTimePickerEvent, date?: Date) => { if (date) setMomentDate(date); }}
+              themeVariant={theme.isDark ? "dark" : "light"}
+              accentColor={theme.colors.accent}
+            />
+          ) : (
+            <Text style={styles.noDateText}>This entry has no specific date.</Text>
+          )}
+          <TouchableOpacity
+            style={styles.dateToggle}
+            onPress={() => setMomentDate(momentDate ? null : new Date())}
+            hitSlop={8}
+          >
+            <Text style={styles.dateToggleText}>{momentDate ? "No specific date" : "Set a date"}</Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheet>
 
       <AlbumPicker
         visible={albumPickerVisible}
@@ -571,7 +670,7 @@ export default function CreateMomentScreen() {
 
       <PromptPickerModal
         visible={promptPickerVisible}
-        onSelect={(prompt) => setReflection(prompt)}
+        onSelect={(prompt) => replaceReflection(prompt, true)}
         onClose={() => setPromptPickerVisible(false)}
         customCategories={profile?.customPromptCategories ?? []}
       />
@@ -619,159 +718,146 @@ function createStyles(theme: Theme) {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
-    scrollView: {
-      flex: 1,
-    },
-    scrollContent: {
-      padding: 20,
-      paddingTop: 60,
-      paddingBottom: 40,
-    },
-    titleRow: {
+    topBar: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      marginBottom: 24,
+      paddingLeft: theme.spacing.sm,
+      paddingRight: theme.spacing.xl,
+      paddingBottom: theme.spacing.xs,
     },
-    title: {
-      fontSize: 28,
-      fontFamily: "DMSerifDisplay_400Regular",
-      color: theme.colors.text,
+    cancelButton: {
+      height: 44,
+      paddingHorizontal: theme.spacing.md,
+      justifyContent: "center",
     },
-    sectionLabel: {
-      fontSize: 11,
-      fontFamily: "DMSans_600SemiBold",
-      color: theme.colors.textTertiary,
-      textTransform: "uppercase",
-      letterSpacing: 1.2,
-      marginTop: 24,
-      marginBottom: 8,
-    },
-    sectionLabelRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginTop: 24,
-      marginBottom: 8,
-    },
-    reflectionInput: {
-      height: 120,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingTop: 12,
-      paddingBottom: 12,
-      fontSize: 16,
-      color: theme.colors.text,
-      backgroundColor: theme.colors.backgroundInput,
-    },
-    promptButton: {
-      marginTop: 8,
-      alignSelf: "flex-start",
-      paddingVertical: 4,
-    },
-    promptButtonText: {
-      fontSize: 14,
-      fontFamily: "DMSans_400Regular",
-      color: theme.colors.textTertiary,
-    },
-    detailsToggle: {
-      marginTop: 12,
-      alignSelf: "center",
-      paddingVertical: 8,
-      paddingHorizontal: 16,
-    },
-    detailsToggleText: {
-      fontSize: 14,
-      fontFamily: "DMSans_500Medium",
-      color: theme.colors.accent,
-    },
-    dateClearText: {
-      fontSize: 14,
-      color: theme.colors.destructive,
-    },
-    dateSetText: {
-      fontSize: 14,
-      color: theme.colors.accent,
-    },
-    noDateText: {
-      fontSize: 16,
-      fontFamily: "DMSans_400Regular",
-      color: theme.colors.textTertiary,
-      paddingVertical: 8,
-    },
-    datePicker: {
-      alignSelf: "center",
-    },
-    error: {
-      color: theme.colors.destructive,
-      fontSize: 14,
-      marginTop: 16,
+    cancelText: {
+      fontSize: theme.fontSize.base,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
     },
     saveButton: {
-      height: 52,
+      height: 36,
+      minWidth: 72,
+      paddingHorizontal: 18,
+      borderRadius: theme.radii.full,
       backgroundColor: theme.colors.buttonBg,
-      borderRadius: 14,
       alignItems: "center",
       justifyContent: "center",
-      marginTop: 24,
     },
     saveButtonDisabled: {
       opacity: 0.6,
     },
     saveButtonText: {
       color: theme.colors.buttonText,
-      fontSize: 16,
-      fontFamily: "DMSans_600SemiBold",
+      fontSize: 15,
+      fontFamily: theme.fonts.bodySemibold,
     },
-    // Collection picker UI
-    collectionChipRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      marginBottom: 12,
+    scrollView: {
+      flex: 1,
     },
-    collectionChip: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 12,
-      backgroundColor: theme.colors.backgroundTertiary,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
+    scrollContent: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingTop: 14,
+      paddingBottom: theme.spacing["3xl"],
     },
-    collectionChipPublic: {
-      backgroundColor: theme.colors.accentSecondaryBg,
-      borderColor: theme.colors.accentSecondary,
+    divider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: theme.colors.divider,
+      marginTop: 22,
+      marginBottom: 18,
     },
-    collectionChipText: {
-      fontSize: 14,
-      fontFamily: "DMSans_500Medium",
+    // Borderless, in the reading face: this is a page, not a form field.
+    reflectionInput: {
+      minHeight: 200,
+      padding: 0,
+      fontSize: theme.fontSize.xl,
+      lineHeight: 33,
+      fontFamily: theme.fonts.reading,
       color: theme.colors.text,
     },
-    collectionChipTextPublic: {
-      color: theme.colors.accentSecondary,
+    starters: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.xs,
     },
-    collectionHint: {
-      fontSize: 12,
-      color: theme.colors.textTertiary,
-      marginTop: 4,
-      marginBottom: 8,
+    starterChip: {
+      height: 32,
+      paddingHorizontal: theme.spacing.md,
+      borderRadius: theme.radii.full,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      justifyContent: "center",
     },
-    collectionEmpty: {
+    starterText: {
+      fontSize: 13,
+      fontFamily: theme.fonts.bodyMedium,
+      color: theme.colors.textSecondary,
+    },
+    photos: {
+      marginTop: theme.spacing.xl,
+    },
+    error: {
+      color: theme.colors.destructive,
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
+      marginTop: theme.spacing.lg,
+    },
+    detailBar: {
+      paddingTop: theme.spacing.md,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
+      backgroundColor: theme.colors.background,
+    },
+    detailBarContent: {
+      paddingHorizontal: theme.spacing.xl,
+      gap: theme.spacing.sm,
+    },
+    detailChip: {
+      height: 40,
+      maxWidth: 200,
+      paddingHorizontal: 13,
+      borderRadius: theme.radii.full,
+      backgroundColor: theme.colors.chipBg,
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
-      paddingVertical: 8,
-      marginBottom: 12,
+      gap: 7,
     },
-    collectionEmptyText: {
-      fontSize: 14,
-      fontFamily: "DMSans_400Regular",
-      color: theme.colors.textTertiary,
+    detailChipText: {
+      flexShrink: 1,
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.bodyMedium,
+      color: theme.colors.text,
+    },
+    detailChipTextSet: {
+      fontFamily: theme.fonts.bodySemibold,
+    },
+    sheetBody: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingTop: theme.spacing.sm,
+    },
+    weatherText: {
+      marginTop: theme.spacing.md,
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
+    },
+    noDateText: {
+      fontSize: theme.fontSize.base,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
+      paddingVertical: theme.spacing.lg,
+    },
+    dateToggle: {
+      alignSelf: "flex-start",
+      paddingVertical: theme.spacing.sm,
+      marginTop: theme.spacing.sm,
+    },
+    dateToggleText: {
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.bodyMedium,
+      color: theme.colors.accent,
     },
     // Candidate selection sheet
     candidateSubtitle: {
@@ -811,6 +897,5 @@ function createStyles(theme: Theme) {
       color: theme.colors.textSecondary,
       marginTop: 2,
     },
-    // Tag Friends
   });
 }
