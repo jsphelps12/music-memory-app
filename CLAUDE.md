@@ -59,8 +59,8 @@ Copy `.env.example` to `.env` and fill in:
 - Local Expo native modules live in `modules/` directory; `nativeModulesDir` is configured in package.json for autolinking; each module needs a podspec in its `ios/` folder
 - Now playing detection uses `MPMusicPlayerController.systemMusicPlayer` (not the library's `ApplicationMusicPlayer` which only sees app-initiated playback)
 - **Albums** (UI/type name) = user-defined moment groupings; DB tables use `collections` / `collection_members` / `collection_moments`; types are `Album` / `AlbumPreview` in `types/index.ts`; all DB operations in `lib/albums.ts`; joining is by invite link only
-- Tab bar: Moments | Reflections | Albums | Me — the Albums tab file is `app/(tabs)/albums.tsx` (renamed from `friends.tsx` in Sharing v2 Phase C; legacy pushes with `data.type "friends"` still route there)
-- Sharing v2 (spec `docs/SOCIAL-ARCHITECTURE.md`): friendships are mutual-by-link only (`lib/friends.ts`); direct moment shares live in `moment_shares` via `lib/momentShares.ts` (send, "Shared with me" inbox, unread badge); social pushes go through the `notify-social` edge function (`share_received`) and `accept-friend-invite` (`friend_added`)
+- Tab bar (Phase 1, 2026-10): Journal | Rediscover | You plus a floating capture button (`components/TabBar.tsx`). Files: `app/(tabs)/index.tsx`, `reflections.tsx`, `profile.tsx`. Albums is a pushed screen (`app/albums.tsx`) reached from You (legacy pushes with `data.type "friends"` route there); settings live in `app/settings.tsx` behind You's gear
+- Sharing v2 (spec `docs/SOCIAL-ARCHITECTURE.md`): friendships are mutual-by-link only (`lib/friends.ts`); direct moment shares live in `moment_shares` via `lib/momentShares.ts` (send, the "Shared with you" inbox at `app/shared.tsx`, the unread count behind the Journal's "new from friends" row); social pushes go through the `notify-social` edge function (`share_received`) and `accept-friend-invite` (`friend_added`)
 
 ## Data Fetching (React Query / TanStack Query)
 

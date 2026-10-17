@@ -416,3 +416,26 @@ export async function renameAlbum(collectionId: string, name: string): Promise<v
   if (error) throw error;
 }
 
+
+/**
+ * Up to four distinct song artworks per album, most recently added first: the
+ * album's face when it has no cover photo (Phase 1, replacing the gradient
+ * placeholder). Members can read these rows through the collection RLS.
+ */
+export async function fetchAlbumArtworks(albumIds: string[]): Promise<Record<string, string[]>> {
+  if (albumIds.length === 0) return {};
+  const { data, error } = await supabase
+    .from("collection_moments")
+    .select("collection_id, added_at, moments(song_artwork_url)")
+    .in("collection_id", albumIds)
+    .order("added_at", { ascending: false });
+  if (error) throw error;
+  const byAlbum: Record<string, string[]> = {};
+  for (const row of (data ?? []) as any[]) {
+    const url: string | undefined = row.moments?.song_artwork_url;
+    if (!url) continue;
+    const list = (byAlbum[row.collection_id] ??= []);
+    if (list.length < 4 && !list.includes(url)) list.push(url);
+  }
+  return byAlbum;
+}

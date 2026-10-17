@@ -35,7 +35,7 @@ const MOMENT_SCREEN_KEYS = [
   "browseMeta",
   "reflections",
   "reflections-random",
-  "profileStats",
+  "youSummary",
   "momentsMap",
 ];
 
@@ -129,11 +129,13 @@ describe("invalidateAlbumCaches", () => {
   it("invalidates the albums tab and its badge", () => {
     seed(["collectionsScreen", USER]);
     seed(["collectionsBadge", USER]);
+    seed(["youAlbums", USER]);
 
     invalidateAlbumCaches(qc, USER);
 
     expect(isInvalidated(["collectionsScreen", USER])).toBe(true);
     expect(isInvalidated(["collectionsBadge", USER])).toBe(true);
+    expect(isInvalidated(["youAlbums", USER])).toBe(true);
   });
 
   it("invalidates the album detail key only when an albumId is supplied", () => {

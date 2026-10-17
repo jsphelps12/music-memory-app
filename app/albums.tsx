@@ -12,9 +12,6 @@ import {
   Dimensions,
   RefreshControl,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { AppImage } from "@/components/AppImage";
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,9 +19,10 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { EmptyState } from "@/components/EmptyState";
 import { IconButton } from "@/components/IconButton";
-import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
+import { AlbumMosaic } from "@/components/AlbumMosaic";
 import {
   fetchAlbums,
+  fetchAlbumArtworks,
   fetchSharedAlbumActivity,
 } from "@/lib/albums";
 import { Album } from "@/types";
@@ -43,7 +41,8 @@ async function fetchAlbumsScreen(userId: string) {
     fetchSharedAlbumActivity(userId),
   ]);
   const activityMap = new Map(sharedActivity.map((a) => [a.collectionId, a.newMomentCount]));
-  return { albums, activityMap };
+  const artworks = await fetchAlbumArtworks(albums.filter((a) => !a.coverPhotoUrl).map((a) => a.id));
+  return { albums, activityMap, artworks };
 }
 
 // ── Album cell ────────────────────────────────────────────────────────────────
@@ -51,30 +50,20 @@ async function fetchAlbumsScreen(userId: string) {
 function AlbumCell({
   collection,
   newCount,
+  artworks,
   onPress,
   theme,
 }: {
   collection: Album;
   newCount: number;
+  artworks: string[];
   onPress: () => void;
   theme: any;
 }) {
-  const thumbUrl = collection.coverPhotoUrl
-    ? getPublicPhotoThumbnailUrl(collection.coverPhotoUrl)
-    : null;
-
   return (
     <TouchableOpacity style={styles.cell} onPress={onPress} activeOpacity={0.85}>
       <View style={styles.cellArt}>
-        {thumbUrl ? (
-          <AppImage source={{ uri: thumbUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
-        ) : (
-          <LinearGradient colors={["#E8825C", "#6B5F8C"]} style={StyleSheet.absoluteFill}>
-            <View style={styles.cellPlaceholderInner}>
-              <Ionicons name="albums-outline" size={32} color="rgba(255,255,255,0.8)" />
-            </View>
-          </LinearGradient>
-        )}
+        <AlbumMosaic coverPhotoPath={collection.coverPhotoUrl} artworks={artworks} style={StyleSheet.absoluteFill} />
         {newCount > 0 && (
           <View style={[styles.newBadge, { backgroundColor: theme.colors.accent }]}>
             <Text style={[styles.newBadgeText, { fontFamily: theme.fonts.bodyBold }]}>{newCount} new</Text>
@@ -124,6 +113,7 @@ export default function AlbumsScreen() {
 
   const albums = data?.albums ?? [];
   const activityMap = data?.activityMap ?? new Map();
+  const artworkMap = useMemo(() => data?.artworks ?? {}, [data?.artworks]);
 
   const personalAlbums = useMemo(
     () => albums.filter((c) => c.role === "owner" && !c.isPublic),
@@ -178,6 +168,7 @@ export default function AlbumsScreen() {
             key={col.id}
             collection={col}
             newCount={activityMap.get(col.id) ?? 0}
+            artworks={artworkMap[col.id] ?? []}
             onPress={() => handleTapAlbum(col)}
             theme={theme}
           />
@@ -185,7 +176,7 @@ export default function AlbumsScreen() {
         {item.items.length === 1 && <View style={styles.cell} />}
       </View>
     );
-  }, [activityMap, dynamicStyles, theme, handleTapAlbum]);
+  }, [activityMap, artworkMap, dynamicStyles, theme, handleTapAlbum]);
 
   if (isLoading) {
     return (
@@ -222,7 +213,7 @@ export default function AlbumsScreen() {
           contentContainerStyle={dynamicStyles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} tintColor={theme.colors.accent} />
+            <RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} tintColor={theme.colors.textSecondary} />
           }
           renderItem={renderItem}
         />

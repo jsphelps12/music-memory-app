@@ -415,6 +415,14 @@ function RootLayoutNav() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
+            name="shared"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="settings"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
             name="browse"
             options={{ headerShown: false }}
           />
