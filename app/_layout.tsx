@@ -15,6 +15,7 @@ import {
   DMSans_600SemiBold,
   DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
+import { Newsreader_400Regular, Newsreader_500Medium } from "@expo-google-fonts/newsreader";
 import { Stack, useRouter, useSegments, usePathname, useGlobalSearchParams } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
@@ -213,6 +214,8 @@ function RootLayout() {
     DMSans_500Medium,
     DMSans_600SemiBold,
     DMSans_700Bold,
+    Newsreader_400Regular,
+    Newsreader_500Medium,
     ...FontAwesome.font,
   });
 
