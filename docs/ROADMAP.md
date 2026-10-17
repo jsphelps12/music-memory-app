@@ -125,8 +125,13 @@ clutter, navigation.
   and delete account moved to `app/settings.tsx`. The Journal's My Moments /
   Shared with me pills are replaced by a "1 new from friends" row that only
   shows when something's unread.
-- [ ] **Browse drill-downs** (`app/browse/*`) still use the old carded rows,
-  italic excerpts and the "When" bar; restyle them to Journal rows.
+- [x] **Browse drill-downs** (Phase 1f): mood, person, year and album share
+  `components/BrowseScreen.tsx`: back, a count eyebrow, a display title
+  ("Nostalgic", "With Sam", "2019", the album over its artist), one pill
+  switcher that leads with where you came in, and Journal rows. The "When"
+  bar (`DistributionBar`) is gone; custom moods now appear in the mood
+  switcher. Entry dates outside the current year now carry the year
+  everywhere ("Oct 17, 2019"), since these lists have no month headers.
 - [x] **Quick fixes:** "1 moments" pluralization (browse drill-downs, Phase
   1d); album covers as an artwork mosaic instead of a gradient placeholder
   (`components/AlbumMosaic.tsx`, on You and the Albums screen, Phase 1e);

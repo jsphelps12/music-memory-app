@@ -161,10 +161,14 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
       ? item.photoThumbnails.map((p) => getPublicPhotoThumbnailUrl(p))
       : item.photoUrls.map((p) => getPublicPhotoUrl(p));
 
-  const formattedDate = item.momentDate
-    ? new Date(item.momentDate + "T00:00:00").toLocaleDateString("en-US", {
+  // The year only when it isn't this one: lists without month headers
+  // (browse, Surprise me, Shared) would otherwise make 2019 read as this fall.
+  const momentDay = item.momentDate ? new Date(item.momentDate + "T00:00:00") : null;
+  const formattedDate = momentDay
+    ? momentDay.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
+        ...(momentDay.getFullYear() !== new Date().getFullYear() ? { year: "numeric" } : {}),
       })
     : null;
 
