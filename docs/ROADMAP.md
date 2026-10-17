@@ -85,8 +85,8 @@ clutter, navigation.
   secondary/tertiary text, `divider` and `elevated` tokens, ink active tab.
 - [x] **Journal rows** (Phase 1a): every moment list loses the card box;
   tap the artwork to play (equalizer while playing), moods as words,
-  floating mini player, list/calendar/map segmented control. The "Shared
-  with me" pills stay until You gets its Shared with you section.
+  floating mini player, list/calendar/map segmented control. (The "Shared
+  with me" pills went in Phase 1e; see You.)
 - [ ] **Visual system refresh:** palette, one coherent icon set, fewer borders
   and nested cards, a clear type hierarchy.
 - [x] **Two-tap capture** (Phase 1c): song first, and the Apple Music track
@@ -116,12 +116,21 @@ clutter, navigation.
   rows (Mood, People, Year range, Album), each a quick-pick sheet into the
   existing drill-downs; Surprise me keeps its shuffle. Eyebrow headers,
   borderless search, ink empty-state button.
+- [x] **You + Settings** (Phase 1e): You is a quiet header (avatar, name,
+  "11 entries since August", gear), **Shared with you** (latest three with
+  unread dots, "See all" → `app/shared.tsx`), **Albums** as a two-column
+  grid of artwork mosaics with "New album", then Friends and Music service
+  rows. The stats dashboard, all-time favorites, this-month and milestone
+  badges are gone. Notifications, prompts, invite, help, feedback, sign out
+  and delete account moved to `app/settings.tsx`. The Journal's My Moments /
+  Shared with me pills are replaced by a "1 new from friends" row that only
+  shows when something's unread.
 - [ ] **Browse drill-downs** (`app/browse/*`) still use the old carded rows,
   italic excerpts and the "When" bar; restyle them to Journal rows.
-- [ ] **Quick fixes:** ~~"1 moments" pluralization~~ (fixed in the browse
-  drill-downs, Phase 1d; the Rediscover strips that had it are gone); album
-  covers as an artwork mosaic instead of a gradient placeholder. (Detail
-  screen contrast and Dynamic Island overlap were fixed in Phase 1b.)
+- [x] **Quick fixes:** "1 moments" pluralization (browse drill-downs, Phase
+  1d); album covers as an artwork mosaic instead of a gradient placeholder
+  (`components/AlbumMosaic.tsx`, on You and the Albums screen, Phase 1e);
+  detail screen contrast and Dynamic Island overlap (Phase 1b).
 - [ ] **New App Store assets** once the redesign lands: 6.9" screenshots
   (1320×2868) and, optionally, the iOS 27 product-page header.
 

@@ -1,154 +1,176 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePostHog } from "posthog-react-native";
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   Alert,
   ScrollView,
   RefreshControl,
-  Share,
-  Switch,
   Linking,
-  Platform,
+  Dimensions,
 } from "react-native";
-import { AppImage } from "@/components/AppImage";
-import { confirmSheet } from "@/components/ConfirmSheet";
 import * as Haptics from "expo-haptics";
-import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { AppImage } from "@/components/AppImage";
+import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
+import { AlbumMosaic } from "@/components/AlbumMosaic";
+import { CreateAlbumSheet } from "@/components/CreateAlbumSheet";
+import { IconButton } from "@/components/IconButton";
+import { PhotoViewer } from "@/components/PhotoViewer";
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { useAuth } from "@/contexts/AuthContext";
-import { PromptsSection } from "@/components/PromptsSection";
+import type { ProviderSwitchResult } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { getPublicPhotoUrl, avatarFullPath } from "@/lib/storage";
-import { PhotoViewer } from "@/components/PhotoViewer";
+import { fetchAlbums, fetchAlbumArtworks, fetchSharedAlbumActivity } from "@/lib/albums";
+import { fetchSharedWithMe } from "@/lib/momentShares";
+import { setCachedMoment } from "@/lib/momentCache";
+import { spotifyFailureMessage, SPOTIFY_FREE_NOTICE } from "@/lib/providers/spotifyErrors";
+import { friendlyError } from "@/lib/errors";
+import { pluralMoments } from "@/lib/utils";
+import { PROFILE_STATS_STALE } from "@/lib/queryConfig";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
-import { SkeletonProfile } from "@/components/Skeleton";
-import { ErrorState } from "@/components/ErrorState";
-import { ErrorBanner } from "@/components/ErrorBanner";
-import { IconButton } from "@/components/IconButton";
-import { friendlyError } from "@/lib/errors";
-import { spotifyFailureMessage, SPOTIFY_FREE_NOTICE } from "@/lib/providers/spotifyErrors";
-import type { ProviderSwitchResult } from "@/contexts/AuthContext";
-import { topValue, pluralMoments } from "@/lib/utils";
-import { pad } from "@/lib/dateUtils";
-import { PROFILE_STATS_STALE } from "@/lib/queryConfig";
+import { Album, Moment } from "@/types";
+
+// Phase 1 (2026-10): You is about your stuff, not a stats dashboard. A quiet
+// header, what friends sent you, your albums as artwork, then friends and
+// the music service. Every setting moved behind the gear (app/settings.tsx).
 
 const STALE_TIME = PROFILE_STATS_STALE;
-const AVATAR_SIZE = 80;
+const SHARED_PREVIEW = 3;
+const ALBUM_PREVIEW = 4;
+const ALBUM_GAP = 14;
+// Two columns inside the 20pt gutters.
+const ALBUM_CELL = (Dimensions.get("window").width - 40 - ALBUM_GAP) / 2;
 
-
-function subtractDay(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
-}
-
-function computeStreaks(dates: string[]): { current: number; longest: number; daysLogged: number } {
-  const uniqueDates = [...new Set(dates)];
-  const daysLogged = uniqueDates.length;
-  if (daysLogged === 0) return { current: 0, longest: 0, daysLogged: 0 };
-
-  const dateSet = new Set(uniqueDates);
-
-  // Current streak from today
-  const today = new Date().toISOString().slice(0, 10);
-  let current = 0;
-  let checkDate = today;
-  while (dateSet.has(checkDate)) {
-    current++;
-    checkDate = subtractDay(checkDate);
-  }
-
-  // Longest streak
-  const sortedAsc = uniqueDates.slice().sort();
-  let longest = 0;
-  let run = 0;
-  for (let i = 0; i < sortedAsc.length; i++) {
-    if (i === 0) {
-      run = 1;
-    } else {
-      const prev = new Date(sortedAsc[i - 1] + "T00:00:00");
-      const curr = new Date(sortedAsc[i] + "T00:00:00");
-      const diffDays = Math.round((curr.getTime() - prev.getTime()) / 86400000);
-      run = diffDays === 1 ? run + 1 : 1;
-    }
-    if (run > longest) longest = run;
-  }
-
-  return { current, longest, daysLogged };
-}
-
-
-async function fetchProfileStats(userId: string) {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = pad(now.getMonth() + 1);
-  const firstOfMonth = `${y}-${m}-01`;
-  const lastOfMonth = new Date(y, now.getMonth() + 1, 0).toISOString().slice(0, 10);
-  const firstOfLastMonth = new Date(y, now.getMonth() - 1, 1).toISOString().slice(0, 10);
-
-  const [
-    { data: allRows, error: allError },
-    { data: twoMonthRows, error: twoMonthError },
-    { count: friendCount },
-    { status: notifStatus },
-  ] = await Promise.all([
-    supabase.from("moments").select("created_at, song_artist, song_title, mood, moods").eq("user_id", userId),
-    supabase.from("moments").select("moment_date, song_artist, mood, moods").eq("user_id", userId)
-      .gte("moment_date", firstOfLastMonth).lte("moment_date", lastOfMonth),
-    supabase.from("friendships").select("id", { count: "exact", head: true })
+async function fetchYouSummary(userId: string) {
+  const [{ count: entryCount, error }, { count: friendCount }] = await Promise.all([
+    supabase.from("moments").select("id", { count: "exact", head: true }).eq("user_id", userId),
+    supabase
+      .from("friendships")
+      .select("id", { count: "exact", head: true })
       .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
       .eq("status", "accepted"),
-    Notifications.getPermissionsAsync(),
   ]);
-
-  if (allError) throw allError;
-  if (twoMonthError) throw twoMonthError;
-
-  const rows = allRows ?? [];
-  const dates = rows.map((r: any) => (r.created_at as string).slice(0, 10));
-  const streaks = computeStreaks(dates);
-  const uniqueArtistCount = new Set(rows.map((r: any) => r.song_artist).filter(Boolean)).size;
-  const allTwoMonth = twoMonthRows ?? [];
-  const tmRows = allTwoMonth.filter((r: any) => r.moment_date >= firstOfMonth);
-  const lmRows = allTwoMonth.filter((r: any) => r.moment_date < firstOfMonth);
-
-  return {
-    momentCount: rows.length,
-    ...streaks,
-    topArtist: topValue(rows.map((r: any) => r.song_artist)),
-    topSong: topValue(rows.map((r: any) => r.song_title)),
-    // Every selected mood counts toward Top Mood, not just the legacy first one.
-    topMood: topValue(rows.flatMap((r: any) => r.moods ?? (r.mood ? [r.mood] : []))),
-    thisMonthCount: tmRows.length,
-    lastMonthCount: lmRows.length,
-    thisMonthTopArtist: topValue(tmRows.map((r: any) => r.song_artist)),
-    thisMonthTopMood: topValue(tmRows.flatMap((r: any) => r.moods ?? (r.mood ? [r.mood] : []))),
-    friendCount: friendCount ?? 0,
-    uniqueArtistCount,
-    notifPermission: (notifStatus === "granted" ? "granted" : notifStatus === "denied" ? "denied" : "undetermined") as "granted" | "denied" | "undetermined",
-  };
+  if (error) throw error;
+  return { entryCount: entryCount ?? 0, friendCount: friendCount ?? 0 };
 }
 
-export default function ProfileScreen() {
+async function fetchYouAlbums(userId: string) {
+  const [albums, activity] = await Promise.all([fetchAlbums(userId), fetchSharedAlbumActivity(userId)]);
+  // Newest activity first isn't tracked per album, so lead with ones that
+  // have something new, then the most recently made.
+  const newCounts = Object.fromEntries(activity.map((a) => [a.collectionId, a.newMomentCount]));
+  const sorted = [...albums].sort(
+    (a, b) =>
+      (newCounts[b.id] ?? 0) - (newCounts[a.id] ?? 0) ||
+      b.createdAt.localeCompare(a.createdAt)
+  );
+  const preview = sorted.slice(0, ALBUM_PREVIEW);
+  const artworks = await fetchAlbumArtworks(preview.filter((a) => !a.coverPhotoUrl).map((a) => a.id));
+  return { total: albums.length, preview, artworks, newCounts };
+}
+
+function formatShortDate(iso: string) {
+  const d = new Date(iso);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) });
+}
+
+export default function YouScreen() {
   const router = useRouter();
-  const { user, profile, signOut, deleteAccount, refreshProfile, saveCustomPromptCategory, deleteCustomPromptCategory, preferredProvider, setPreferredProvider } = useAuth();
+  const { user, profile, refreshProfile, preferredProvider, setPreferredProvider } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
   const posthog = usePostHog();
-  const [signingOut, setSigningOut] = useState(false);
+  const queryClient = useQueryClient();
+
+  const [newAlbumVisible, setNewAlbumVisible] = useState(false);
   // Connecting to Spotify is a sign-in sheet plus an account check; show it's
   // working and ignore repeat taps until it settles.
   const [switchingProvider, setSwitchingProvider] = useState(false);
 
-  async function switchProvider(type: 'apple_music' | 'spotify') {
+  const summary = useQuery({
+    queryKey: ["youSummary", user?.id],
+    queryFn: () => fetchYouSummary(user!.id),
+    staleTime: STALE_TIME,
+    enabled: !!user,
+  });
+  const shared = useQuery({
+    queryKey: ["sharedWithMe", user?.id],
+    queryFn: () => fetchSharedWithMe(user!.id),
+    staleTime: STALE_TIME,
+    enabled: !!user,
+  });
+  const albums = useQuery({
+    queryKey: ["youAlbums", user?.id],
+    queryFn: () => fetchYouAlbums(user!.id),
+    staleTime: STALE_TIME,
+    enabled: !!user,
+  });
+
+  // `refreshProfile` is not a React Query observer, so it has no staleTime of
+  // its own — left ungated it ran a full `profiles` select, an AsyncStorage
+  // write and the Sentry/PostHog identify calls on every single tap of the
+  // tab. Same cooldown the queries use.
+  const lastProfileRefresh = useRef(0);
+  useFocusEffect(
+    useCallback(() => {
+      const now = Date.now();
+      if (now - lastProfileRefresh.current > STALE_TIME) {
+        lastProfileRefresh.current = now;
+        refreshProfile();
+      }
+      for (const q of [summary, shared, albums]) {
+        if (now - q.dataUpdatedAt > STALE_TIME) q.refetch();
+      }
+      // The query objects change identity every render; their timestamps are
+      // what matter here.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [refreshProfile, summary.dataUpdatedAt, shared.dataUpdatedAt, albums.dataUpdatedAt])
+  );
+
+  // Pull-to-refresh is an explicit ask, so it bypasses the cooldown — but it
+  // still stamps it, so the focus effect doesn't repeat the work moments later.
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    lastProfileRefresh.current = Date.now();
+    refreshProfile();
+    await Promise.all([summary.refetch(), shared.refetch(), albums.refetch()]);
+    setRefreshing(false);
+  }, [refreshProfile, summary, shared, albums]);
+
+  const avatarUri = profile?.avatarUrl ? getPublicPhotoUrl(profile.avatarUrl) : null;
+  // URL currently shown in the full-screen viewer; null = closed.
+  const [avatarViewerUrl, setAvatarViewerUrl] = useState<string | null>(null);
+
+  // Avatars uploaded before the dual-size change have no avatar_full.jpg, so
+  // probe for it (public bucket, one HEAD per tap) and fall back to the 400px
+  // file rather than opening a blank viewer.
+  const handleAvatarPress = useCallback(async () => {
+    if (!user || !avatarUri) {
+      router.push("/profile-edit");
+      return;
+    }
+    const fullUrl = getPublicPhotoUrl(avatarFullPath(user.id));
+    try {
+      const res = await fetch(fullUrl, { method: "HEAD" });
+      setAvatarViewerUrl(res.ok ? fullUrl : avatarUri);
+    } catch {
+      setAvatarViewerUrl(avatarUri);
+    }
+  }, [user, avatarUri, router]);
+
+  async function switchProvider(type: "apple_music" | "spotify") {
     setSwitchingProvider(true);
     let result: ProviderSwitchResult;
     try {
@@ -165,7 +187,7 @@ export default function ProfileScreen() {
       premium: result.ok ? result.premium ?? null : null,
     });
     if (result.ok) {
-      if (type === 'spotify' && result.premium === false) {
+      if (type === "spotify" && result.premium === false) {
         Alert.alert("Spotify connected", SPOTIFY_FREE_NOTICE);
       }
       return;
@@ -184,625 +206,231 @@ export default function ProfileScreen() {
     const message = spotifyFailureMessage(result.reason);
     if (message) Alert.alert("Spotify", message);
   }
-  const [signOutError, setSignOutError] = useState("");
-  const [deletingAccount, setDeletingAccount] = useState(false);
-  const [showPrompts, setShowPrompts] = useState(false);
-  const [showMilestones, setShowMilestones] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notifOnThisDay, setNotifOnThisDay] = useState(true);
-  const [notifStreak, setNotifStreak] = useState(true);
-  const [notifPrompts, setNotifPrompts] = useState(true);
-  const [notifResurfacing, setNotifResurfacing] = useState(true);
-  const [notifMilestones, setNotifMilestones] = useState(true);
-  const [savingNotifField, setSavingNotifField] = useState<string | null>(null);
 
-  const { data, isLoading, isError, error, refetch, isFetching, dataUpdatedAt } = useQuery({
-    queryKey: ["profileStats", user?.id],
-    queryFn: () => fetchProfileStats(user!.id),
-    staleTime: STALE_TIME,
-    enabled: !!user,
-  });
-
-  // `refreshProfile` is not a React Query observer, so it has no staleTime of
-  // its own — left ungated it ran a full `profiles` select, an AsyncStorage
-  // write and the Sentry/PostHog identify calls on every single tap of the Me
-  // tab. Same cooldown the stats query uses.
-  const lastProfileRefresh = useRef(0);
-  useFocusEffect(useCallback(() => {
-    const now = Date.now();
-    if (now - lastProfileRefresh.current > STALE_TIME) {
-      lastProfileRefresh.current = now;
-      refreshProfile();
-    }
-    if (now - dataUpdatedAt > STALE_TIME) refetch();
-  }, [refetch, dataUpdatedAt, refreshProfile]));
-
-  // Sync notif prefs from profile into local toggle state
-  useFocusEffect(useCallback(() => {
-    if (!profile) return;
-    setNotifOnThisDay(profile.notifOnThisDay);
-    setNotifStreak(profile.notifStreak);
-    setNotifPrompts(profile.notifPrompts);
-    setNotifResurfacing(profile.notifResurfacing);
-    setNotifMilestones(profile.notifMilestones);
-  }, [profile]));
-
-  const avatarUri = profile?.avatarUrl ? getPublicPhotoUrl(profile.avatarUrl) : null;
-
-  // URL currently shown in the full-screen viewer; null = closed.
-  const [avatarViewerUrl, setAvatarViewerUrl] = useState<string | null>(null);
-
-  // Avatars uploaded before the dual-size change have no avatar_full.jpg, so
-  // probe for it (public bucket, one HEAD per tap) and fall back to the 400px
-  // file rather than opening a blank viewer.
-  const handleAvatarPress = useCallback(async () => {
-    if (!user || !avatarUri) return;
-    const fullUrl = getPublicPhotoUrl(avatarFullPath(user.id));
-    try {
-      const res = await fetch(fullUrl, { method: "HEAD" });
-      setAvatarViewerUrl(res.ok ? fullUrl : avatarUri);
-    } catch {
-      setAvatarViewerUrl(avatarUri);
-    }
-  }, [user, avatarUri]);
-
-  // Pull-to-refresh is an explicit ask, so it bypasses the cooldown — but it
-  // still stamps it, so the focus effect doesn't repeat the work moments later.
-  const handleRefresh = useCallback(async () => {
-    lastProfileRefresh.current = Date.now();
-    refreshProfile();
-    await refetch();
-  }, [refetch, refreshProfile]);
-
-  const handleShareProfile = useCallback(() => {
-    if (!profile?.friendInviteToken) return;
-    const url = `https://soundtracks.app/friend/${profile.friendInviteToken}`;
-    Share.share(Platform.OS === "ios" ? { url } : { message: url });
-  }, [profile?.friendInviteToken]);
-
-  const handleDeleteAccount = async () => {
-    // Double-confirm on purpose: this is the app's only unrecoverable action.
-    const first = await confirmSheet({
-      title: "Delete Account",
-      message:
-        "This will permanently delete your account and all your moments, photos, and collections. This cannot be undone.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
-    if (!first) return;
-    const second = await confirmSheet({
-      title: "Are you sure?",
-      message: "Your data cannot be recovered after deletion.",
-      confirmLabel: "Delete My Account",
-      destructive: true,
-    });
-    if (!second) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    setDeletingAccount(true);
-    try {
-      await deleteAccount();
-    } catch (e) {
-      setDeletingAccount(false);
-      Alert.alert("Error", friendlyError(e));
-    }
+  const handleMusicService = () => {
+    if (switchingProvider) return;
+    Haptics.selectionAsync();
+    Alert.alert(
+      "Music Service",
+      `Currently using ${preferredProvider === "spotify" ? "Spotify" : "Apple Music"}.`,
+      [
+        {
+          text: "Apple Music",
+          onPress: () => {
+            if (preferredProvider !== "apple_music") void switchProvider("apple_music");
+          },
+        },
+        {
+          text: "Spotify",
+          onPress: () => {
+            if (preferredProvider !== "spotify") void switchProvider("spotify");
+          },
+        },
+        { text: "Cancel", style: "cancel" },
+      ]
+    );
   };
 
-  const handleNotifToggle = useCallback(async (
-    field: "notif_on_this_day" | "notif_streak" | "notif_prompts" | "notif_resurfacing" | "notif_milestones",
-    value: boolean
-  ) => {
-    if (!user || savingNotifField !== null) return;
-    if (field === "notif_on_this_day") setNotifOnThisDay(value);
-    if (field === "notif_streak") setNotifStreak(value);
-    if (field === "notif_prompts") setNotifPrompts(value);
-    if (field === "notif_resurfacing") setNotifResurfacing(value);
-    if (field === "notif_milestones") setNotifMilestones(value);
-    posthog.capture("notification_preferences_changed", { notification_type: field, enabled: value });
-    setSavingNotifField(field);
-    const { error } = await supabase.from("profiles").update({ [field]: value }).eq("id", user.id);
-    setSavingNotifField(null);
-    if (error) {
-      // Roll back optimistic update
-      if (field === "notif_on_this_day") setNotifOnThisDay(!value);
-      if (field === "notif_streak") setNotifStreak(!value);
-      if (field === "notif_prompts") setNotifPrompts(!value);
-      if (field === "notif_resurfacing") setNotifResurfacing(!value);
-      if (field === "notif_milestones") setNotifMilestones(!value);
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-  }, [user, posthog, savingNotifField]);
-
-  const handleSignOut = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSigningOut(true);
-    setSignOutError("");
-    try {
-      posthog.capture("signed_out");
-      await signOut();
-    } catch (e) {
-      setSignOutError(friendlyError(e));
-    } finally {
-      setSigningOut(false);
-    }
+  const openSharedMoment = (moment: Moment) => {
+    setCachedMoment(moment);
+    router.push({
+      pathname: "/moment/[id]",
+      params: { id: moment.id, contributorName: moment.contributorName ?? undefined },
+    });
   };
 
-  if (isLoading) {
-    return (
-      <ScrollView
-        style={[styles.scroll, { backgroundColor: theme.colors.background }]}
-        contentContainerStyle={styles.container}
-      >
-        <SkeletonProfile />
-      </ScrollView>
-    );
-  }
-
-  if (isError && !data) {
-    return (
-      <ErrorState
-        message={friendlyError(error)}
-        onRetry={() => refetch()}
-      />
-    );
-  }
+  const openAlbum = (album: Album) => router.push({ pathname: "/album/[id]", params: { id: album.id } });
 
   const displayName = profile?.displayName || null;
-  const initials = displayName
-    ? displayName
-        .split(" ")
-        .map((w) => w[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : user?.email?.[0]?.toUpperCase() ?? "?";
-
-  const memberSince = user?.created_at
+  const initial = (displayName ?? user?.email ?? "?").charAt(0).toUpperCase();
+  const since = user?.created_at
     ? new Date(user.created_at).toLocaleDateString("en-US", {
-        month: "short",
-        year: "numeric",
+        month: "long",
+        ...(new Date(user.created_at).getFullYear() !== new Date().getFullYear() ? { year: "numeric" } : {}),
       })
     : null;
+  const entryCount = summary.data?.entryCount;
+  const subtitle =
+    entryCount === undefined
+      ? " "
+      : `${entryCount} ${entryCount === 1 ? "entry" : "entries"}${since ? ` since ${since}` : ""}`;
+
+  const sharedItems = shared.data ?? [];
+  const albumData = albums.data;
+  const anyError = summary.isError || shared.isError || albums.isError;
+  const firstError = summary.error ?? shared.error ?? albums.error;
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   return (
-    <View style={styles.outerContainer}>
-      {/* Screen header */}
-      <View style={styles.screenHeader}>
-        <Text style={styles.screenTitle}>You</Text>
-        <View style={styles.headerButtons}>
-          <IconButton name="help-circle-outline" onPress={() => router.push("/help")} />
-          <IconButton name="person-add-outline" onPress={handleShareProfile} />
-          <IconButton name="settings-outline" onPress={() => router.push("/profile-edit")} />
-        </View>
-      </View>
-
+    <View style={[styles.outer, { paddingTop: insets.top }]}>
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.container}
+        contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl
-            refreshing={isFetching && !isLoading}
-            onRefresh={handleRefresh}
-            tintColor={theme.colors.text}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.textSecondary} />
         }
       >
-        {isError && !!data ? (
-          <ErrorBanner
-            message={friendlyError(error)}
-            onRetry={() => refetch()}
-            onDismiss={() => {}}
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={handleAvatarPress}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={avatarUri ? "View photo" : "Edit profile"}
+          >
+            {avatarUri ? (
+              <AppImage source={{ uri: avatarUri }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.avatarEmpty]}>
+                <Text style={styles.avatarInitial}>{initial}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerText}
+            onPress={() => router.push("/profile-edit")}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityHint="Edit profile"
+          >
+            <Text style={styles.name} numberOfLines={1}>{displayName ?? "Add your name"}</Text>
+            <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>
+          </TouchableOpacity>
+          <IconButton
+            name="settings-outline"
+            onPress={() => router.push("/settings")}
+            accessibilityLabel="Settings"
           />
+        </View>
+
+        {anyError && !bannerDismissed ? (
+          <View style={styles.banner}>
+            <ErrorBanner
+              message={friendlyError(firstError)}
+              onRetry={handleRefresh}
+              onDismiss={() => setBannerDismissed(true)}
+            />
+          </View>
         ) : null}
 
-        {/* User card */}
-      <TouchableOpacity
-        style={styles.userCard}
-        onPress={() => router.push("/profile-edit")}
-        activeOpacity={0.7}
-      >
-        {avatarUri ? (
-          <TouchableOpacity onPress={handleAvatarPress} activeOpacity={0.7}>
-            <View style={styles.avatarContainer}>
-              <AppImage source={{ uri: avatarUri }} style={styles.avatar} />
-            </View>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.avatarContainer}>
-            <Text style={styles.initials}>{initials}</Text>
-          </View>
-        )}
-        <View style={styles.userCardText}>
-          <Text style={styles.displayName} numberOfLines={1}>
-            {displayName ?? "Add your name"}
-          </Text>
-          <Text style={styles.email} numberOfLines={1}>{user?.email}</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={theme.colors.textTertiary} />
-      </TouchableOpacity>
-
-
-      {/* Stats — row 1 */}
-      <View style={styles.statsGrid}>
-        <View style={styles.statsRow}>
-          <TouchableOpacity style={styles.statItem} onPress={() => router.push("/(tabs)" as any)} activeOpacity={0.7}>
-            <Text style={styles.statValue}>{data?.momentCount ?? "—"}</Text>
-            <Text style={styles.statLabel}>Moments</Text>
-          </TouchableOpacity>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{data?.daysLogged ?? "—"}</Text>
-            <Text style={styles.statLabel}>Days Logged</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue} numberOfLines={1}>{memberSince ?? "—"}</Text>
-            <Text style={styles.statLabel}>Member Since</Text>
-          </View>
-        </View>
-
-        {/* Stats — row 2 */}
-        <View style={[styles.statsRow, styles.statsRowBorder]}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>
-              {data != null ? `${data.current} 🔥` : "—"}
-            </Text>
-            <Text style={styles.statLabel}>Streak</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{data?.longest ?? "—"}</Text>
-            <Text style={styles.statLabel}>Best Streak</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <TouchableOpacity style={styles.statItem} onPress={() => router.push("/friends-list" as any)} activeOpacity={0.7}>
-            <Text style={styles.statValue}>{data?.friendCount ?? "—"}</Text>
-            <Text style={styles.statLabel}>Friends</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Albums: no longer a tab (Phase 1). Interim row until the You
-          screen's albums section lands. */}
-      <TouchableOpacity
-        style={[styles.promptsCard, styles.friendsRow]}
-        onPress={() => router.push("/albums" as any)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.friendsRowLeft}>
-          <Ionicons name="albums-outline" size={20} color={theme.colors.text} />
-          <Text style={styles.promptsRowLabel}>Albums</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={theme.colors.textTertiary} />
-      </TouchableOpacity>
-
-      {/* Friends */}
-      <TouchableOpacity
-        style={[styles.promptsCard, styles.friendsRow]}
-        onPress={() => router.push("/friends-list" as any)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.friendsRowLeft}>
-          <Ionicons name="people-outline" size={20} color={theme.colors.text} />
-          <Text style={styles.promptsRowLabel}>Friends</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={theme.colors.textTertiary} />
-      </TouchableOpacity>
-
-      {/* Music Service */}
-      <TouchableOpacity
-        style={[styles.promptsCard, styles.friendsRow]}
-        onPress={() => {
-          if (switchingProvider) return;
-          Haptics.selectionAsync();
-          Alert.alert(
-            "Music Service",
-            `Currently using ${preferredProvider === 'spotify' ? 'Spotify' : 'Apple Music'}.`,
-            [
-              {
-                text: "Apple Music",
-                onPress: () => {
-                  if (preferredProvider === 'apple_music') return;
-                  void switchProvider('apple_music');
-                },
-              },
-              {
-                text: "Spotify",
-                onPress: () => {
-                  if (preferredProvider === 'spotify') return;
-                  void switchProvider('spotify');
-                },
-              },
-              { text: "Cancel", style: "cancel" },
-            ]
-          );
-        }}
-        activeOpacity={0.7}
-      >
-        <View style={styles.friendsRowLeft}>
-          <Ionicons name="musical-notes-outline" size={20} color={theme.colors.text} />
-          <Text style={styles.promptsRowLabel}>Music Service</Text>
-        </View>
-        <View style={styles.friendsRowLeft}>
-          <Text style={[styles.promptsRowLabel, { color: theme.colors.textSecondary }]}>
-            {switchingProvider ? 'Connecting…' : preferredProvider === 'spotify' ? 'Spotify' : 'Apple Music'}
-          </Text>
-          <Ionicons name="chevron-forward" size={18} color={theme.colors.textTertiary} />
-        </View>
-      </TouchableOpacity>
-
-      {/* Top Stats */}
-      <View style={styles.topStatsSection}>
-        <Text style={styles.sectionTitle}>All-Time Favorites</Text>
-        <View style={styles.topStatRow}>
-          <View style={styles.topStatIconWrap}>
-            <Ionicons name="mic-outline" size={18} color={theme.colors.accent} />
-          </View>
-          <View style={styles.topStatText}>
-            <Text style={styles.topStatLabel}>Top Artist</Text>
-            <Text style={styles.topStatValue} numberOfLines={1}>
-              {data == null ? "—" : data.topArtist ?? "None yet"}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.topStatRow}>
-          <View style={styles.topStatIconWrap}>
-            <Ionicons name="musical-note" size={18} color={theme.colors.accent} />
-          </View>
-          <View style={styles.topStatText}>
-            <Text style={styles.topStatLabel}>Top Song</Text>
-            <Text style={styles.topStatValue} numberOfLines={1}>
-              {data == null ? "—" : data.topSong ?? "None yet"}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.topStatRow}>
-          <View style={styles.topStatIconWrap}>
-            <Ionicons name="happy-outline" size={18} color={theme.colors.accent} />
-          </View>
-          <View style={styles.topStatText}>
-            <Text style={styles.topStatLabel}>Top Mood</Text>
-            <Text style={styles.topStatValue} numberOfLines={1}>
-              {data == null ? "—" : data.topMood ?? "None yet"}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* This Month */}
-      {data != null && data.thisMonthCount > 0 && (() => {
-        const { thisMonthCount, lastMonthCount, thisMonthTopArtist, thisMonthTopMood } = data;
-        const diff = thisMonthCount - lastMonthCount;
-        const compLabel = diff === 0
-          ? "same as last month"
-          : `${diff > 0 ? "↑" : "↓"}${Math.abs(diff)} vs last month`;
-        return (
-          <View style={styles.topStatsSection}>
-            <Text style={styles.sectionTitle}>This Month</Text>
-            <View style={styles.topStatRow}>
-              <View style={styles.topStatIconWrap}>
-                <Ionicons name="calendar-outline" size={18} color={theme.colors.accent} />
-              </View>
-              <View style={styles.topStatText}>
-                <Text style={styles.topStatLabel}>Moments logged</Text>
-                <Text style={styles.topStatValue}>
-                  {pluralMoments(thisMonthCount)}
-                  {compLabel ? `  ·  ${compLabel}` : ""}
-                </Text>
-              </View>
-            </View>
-            {thisMonthTopArtist ? (
-              <View style={styles.topStatRow}>
-                <View style={styles.topStatIconWrap}>
-                  <Ionicons name="mic-outline" size={18} color={theme.colors.accent} />
-                </View>
-                <View style={styles.topStatText}>
-                  <Text style={styles.topStatLabel}>Top Artist</Text>
-                  <Text style={styles.topStatValue} numberOfLines={1}>{thisMonthTopArtist}</Text>
-                </View>
-              </View>
-            ) : null}
-            {thisMonthTopMood ? (
-              <View style={styles.topStatRow}>
-                <View style={styles.topStatIconWrap}>
-                  <Ionicons name="happy-outline" size={18} color={theme.colors.accent} />
-                </View>
-                <View style={styles.topStatText}>
-                  <Text style={styles.topStatLabel}>Top Mood</Text>
-                  <Text style={styles.topStatValue} numberOfLines={1}>{thisMonthTopMood}</Text>
-                </View>
-              </View>
-            ) : null}
-          </View>
-        );
-      })()}
-
-      {/* Milestones */}
-      {data != null && (() => {
-        const BADGES = [
-          { id: "first_note", label: "First Note", icon: "musical-note", condition: data.momentCount >= 1 },
-          { id: "memory_maker", label: "10 Moments", icon: "albums", condition: data.momentCount >= 10 },
-          { id: "archivist", label: "50 Moments", icon: "archive", condition: data.momentCount >= 50 },
-          { id: "century", label: "100 Moments", icon: "trophy", condition: data.momentCount >= 100 },
-          { id: "on_a_roll", label: "7-Day Streak", icon: "flame", condition: data.longest >= 7 },
-          { id: "dedicated", label: "30-Day Streak", icon: "medal", condition: data.longest >= 30 },
-          { id: "habit", label: "2 Wks Logged", icon: "calendar", condition: data.daysLogged >= 14 },
-          { id: "historian", label: "60 Days Logged", icon: "book", condition: data.daysLogged >= 60 },
-          { id: "eclectic", label: "5 Artists", icon: "headset", condition: data.uniqueArtistCount >= 5 },
-          { id: "explorer", label: "20 Artists", icon: "radio", condition: data.uniqueArtistCount >= 20 },
-          { id: "connected", label: "Connected", icon: "person-add", condition: data.friendCount >= 1 },
-          { id: "social", label: "Social", icon: "people", condition: data.friendCount >= 5 },
-        ] as const;
-        const unlockedCount = BADGES.filter((b) => b.condition).length;
-        return (
-          <View style={styles.promptsCard}>
-            <TouchableOpacity
-              style={styles.promptsRow}
-              onPress={() => setShowMilestones((v) => !v)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.promptsRowLabel}>Milestones</Text>
-              <View style={styles.collapsibleRight}>
-                <Text style={styles.milestonesCount}>{unlockedCount} / {BADGES.length}</Text>
-                <Ionicons
-                  name={showMilestones ? "chevron-up" : "chevron-down"}
-                  size={16}
-                  color={theme.colors.textTertiary}
-                />
-              </View>
-            </TouchableOpacity>
-            {showMilestones && (
-              <View style={styles.promptsBody}>
-                <View style={styles.badgeGrid}>
-                  {BADGES.map((badge) => (
-                    <View key={badge.id} style={styles.badgeItem}>
-                      <View style={[styles.badgeCircle, badge.condition ? styles.badgeUnlocked : styles.badgeLocked]}>
-                        <Ionicons
-                          name={badge.icon as any}
-                          size={22}
-                          color={badge.condition ? "#fff" : theme.colors.textTertiary}
-                        />
-                      </View>
-                      <Text style={[styles.badgeLabel, !badge.condition && styles.badgeLabelLocked]} numberOfLines={2}>
-                        {badge.label}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-          </View>
-        );
-      })()}
-
-      {/* Prompts */}
-      <View style={[styles.promptsCard, showPrompts && styles.promptsCardOpen]}>
-        <TouchableOpacity
-          style={styles.promptsRow}
-          onPress={() => setShowPrompts((v) => !v)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.promptsRowLabel}>Prompts</Text>
-          <Ionicons
-            name={showPrompts ? "chevron-up" : "chevron-down"}
-            size={16}
-            color={theme.colors.textTertiary}
-          />
-        </TouchableOpacity>
-        {showPrompts && (
-          <View style={styles.promptsBody}>
-            <PromptsSection
-              customCategories={profile?.customPromptCategories ?? []}
-              onSave={saveCustomPromptCategory}
-              onDelete={deleteCustomPromptCategory}
-            />
-          </View>
-        )}
-      </View>
-
-      {/* Notifications */}
-      <View style={styles.promptsCard}>
-        <TouchableOpacity
-          style={styles.promptsRow}
-          onPress={() => setShowNotifications((v) => !v)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.promptsRowLabel}>Notifications</Text>
-          <View style={styles.collapsibleRight}>
-            {data?.notifPermission !== "granted" ? (
-              <Text style={styles.notifStatusText}>Off</Text>
-            ) : null}
-            <Ionicons
-              name={showNotifications ? "chevron-up" : "chevron-down"}
-              size={16}
-              color={theme.colors.textTertiary}
-            />
-          </View>
-        </TouchableOpacity>
-        {showNotifications && (
-          <View style={[styles.promptsBody, { paddingTop: theme.spacing.sm }]}>
-            {data?.notifPermission !== "granted" ? (
-              <TouchableOpacity
-                style={styles.notifSettingsRow}
-                onPress={() => Linking.openSettings()}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="notifications-off-outline" size={18} color={theme.colors.textSecondary} />
-                <Text style={styles.notifSettingsText}>Notifications are disabled</Text>
-                <Text style={styles.notifSettingsLink}>Open Settings →</Text>
+        {/* Shared with you */}
+        {sharedItems.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.eyebrow}>Shared with you</Text>
+              <TouchableOpacity onPress={() => router.push("/shared")} hitSlop={10} accessibilityRole="button">
+                <Text style={styles.sectionAction}>See all</Text>
               </TouchableOpacity>
-            ) : (
-              <>
-                {([
-                  { field: "notif_on_this_day", label: "On This Day", sub: "When a song anniversary comes up", value: notifOnThisDay },
-                  { field: "notif_resurfacing", label: "Random memories", sub: "A random moment from your past", value: notifResurfacing },
-                  { field: "notif_milestones", label: "Streak milestones", sub: "Celebrate hitting a new streak", value: notifMilestones },
-                  { field: "notif_streak", label: "Streak reminders", sub: "Keep your logging streak going", value: notifStreak },
-                  { field: "notif_prompts", label: "Journal prompts", sub: "Occasional nudges to capture a moment", value: notifPrompts },
-                ] as const).map(({ field, label, sub, value }, idx) => (
-                  <View key={field} style={[styles.notifRow, idx > 0 && styles.notifRowBorder]}>
-                    <View style={styles.notifRowText}>
-                      <Text style={styles.notifRowLabel}>{label}</Text>
-                      <Text style={styles.notifRowSub}>{sub}</Text>
-                    </View>
-                    <Switch
-                      value={value}
-                      onValueChange={(v) => handleNotifToggle(field, v)}
-                      disabled={savingNotifField !== null}
-                      trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
-                      thumbColor="#fff"
-                    />
-                  </View>
-                ))}
-              </>
-            )}
+            </View>
+            {sharedItems.slice(0, SHARED_PREVIEW).map((item, i, arr) => (
+              <TouchableOpacity
+                key={item.shareId}
+                style={[styles.sharedRow, i < arr.length - 1 && styles.rowDivider]}
+                onPress={() => openSharedMoment(item.moment)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+              >
+                {item.moment.songArtworkUrl ? (
+                  <AppImage source={{ uri: item.moment.songArtworkUrl }} style={styles.sharedArtwork} />
+                ) : (
+                  <ArtworkPlaceholder style={styles.sharedArtwork} />
+                )}
+                <View style={styles.sharedText}>
+                  <Text style={styles.sharedTitle} numberOfLines={1}>{item.moment.songTitle}</Text>
+                  <Text style={styles.sharedSub} numberOfLines={1}>
+                    {item.moment.contributorName ? `From ${item.moment.contributorName} · ` : ""}
+                    {formatShortDate(item.sharedAt)}
+                  </Text>
+                </View>
+                {!item.viewedAt ? <View style={styles.unreadDot} accessibilityLabel="Unread" /> : null}
+              </TouchableOpacity>
+            ))}
           </View>
         )}
-      </View>
 
-      {/* Feedback */}
-      <TouchableOpacity
-        style={styles.feedbackButton}
-        onPress={() => {
-          Haptics.selectionAsync();
-          Linking.openURL("mailto:founder@soundtracks.app?subject=Soundtracks%20Feedback");
-        }}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.feedbackText}>Share Feedback</Text>
-      </TouchableOpacity>
+        {/* Albums */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.eyebrow}>Albums</Text>
+            <TouchableOpacity onPress={() => setNewAlbumVisible(true)} hitSlop={10} accessibilityRole="button">
+              <Text style={styles.sectionAction}>New album</Text>
+            </TouchableOpacity>
+          </View>
+          {albumData && albumData.preview.length > 0 ? (
+            <>
+              <View style={styles.albumGrid}>
+                {albumData.preview.map((album) => {
+                  const fresh = albumData.newCounts[album.id] ?? 0;
+                  const sub =
+                    album.role === "member" && album.ownerName
+                      ? `By ${album.ownerName}`
+                      : album.isPublic
+                      ? `Shared · ${pluralMoments(album.momentCount)}`
+                      : pluralMoments(album.momentCount);
+                  return (
+                    <TouchableOpacity
+                      key={album.id}
+                      style={styles.albumCell}
+                      onPress={() => openAlbum(album)}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                    >
+                      <AlbumMosaic coverPhotoPath={album.coverPhotoUrl} artworks={albumData.artworks[album.id]} />
+                      <View style={styles.albumNameRow}>
+                        <Text style={styles.albumName} numberOfLines={1}>{album.name}</Text>
+                        {fresh > 0 ? <View style={styles.unreadDot} accessibilityLabel={`${fresh} new`} /> : null}
+                      </View>
+                      <Text style={styles.albumSub} numberOfLines={1}>{sub}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {albumData.total > ALBUM_PREVIEW && (
+                <TouchableOpacity style={styles.seeAllAlbums} onPress={() => router.push("/albums")} activeOpacity={0.7}>
+                  <Text style={styles.sectionAction}>See all {albumData.total} albums</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          ) : albumData ? (
+            <Text style={styles.emptyNote}>Group entries into albums: a trip, a person, a year.</Text>
+          ) : null}
+        </View>
 
-      {/* Sign Out */}
-      {signOutError ? (
-        <Text style={styles.signOutErrorText}>{signOutError}</Text>
-      ) : null}
-      <TouchableOpacity
-        style={[styles.signOutButton, signingOut && styles.buttonDisabled]}
-        onPress={handleSignOut}
-        disabled={signingOut || deletingAccount}
-        activeOpacity={0.7}
-      >
-        {signingOut ? (
-          <ActivityIndicator color={theme.colors.destructive} />
-        ) : (
-          <Text style={styles.signOutText}>Sign Out</Text>
-        )}
-      </TouchableOpacity>
-
-      {/* Delete Account */}
-      <TouchableOpacity
-        style={[styles.deleteAccountButton, deletingAccount && styles.buttonDisabled]}
-        onPress={handleDeleteAccount}
-        disabled={signingOut || deletingAccount}
-        activeOpacity={0.7}
-      >
-        {deletingAccount ? (
-          <ActivityIndicator color={theme.colors.textTertiary} />
-        ) : (
-          <Text style={styles.deleteAccountText}>Delete Account</Text>
-        )}
-      </TouchableOpacity>
+        {/* Friends · Music service */}
+        <View style={styles.rows}>
+          <TouchableOpacity
+            style={[styles.row, styles.rowDivider]}
+            onPress={() => router.push("/friends-list")}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+          >
+            <Text style={styles.rowLabel}>Friends</Text>
+            <View style={styles.rowRight}>
+              {summary.data ? <Text style={styles.rowDetail}>{summary.data.friendCount}</Text> : null}
+              <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.row} onPress={handleMusicService} activeOpacity={0.7} accessibilityRole="button">
+            <Text style={styles.rowLabel}>Music service</Text>
+            <View style={styles.rowRight}>
+              <Text style={styles.rowDetail}>
+                {switchingProvider ? "Connecting…" : preferredProvider === "spotify" ? "Spotify" : "Apple Music"}
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+            </View>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
+
+      {user ? (
+        <CreateAlbumSheet
+          visible={newAlbumVisible}
+          userId={user.id}
+          onClose={() => {
+            setNewAlbumVisible(false);
+            queryClient.invalidateQueries({ queryKey: ["youAlbums", user.id] });
+          }}
+        />
+      ) : null}
 
       <PhotoViewer
         photos={avatarViewerUrl ? [avatarViewerUrl] : []}
@@ -816,348 +444,171 @@ export default function ProfileScreen() {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    outerContainer: {
+    outer: {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
-    scroll: {
-      flex: 1,
+    content: {
+      paddingBottom: 120,
     },
-    container: {
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 14,
       paddingTop: theme.spacing.lg,
-      paddingBottom: 48,
-      paddingHorizontal: theme.spacing.xl,
+      paddingLeft: theme.spacing.xl,
+      paddingRight: theme.spacing.md,
     },
-    screenHeader: {
-      flexDirection: "row",
+    avatar: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+    },
+    avatarEmpty: {
+      backgroundColor: theme.colors.chipBg,
       alignItems: "center",
-      justifyContent: "space-between",
-      paddingTop: 60,
-      paddingBottom: theme.spacing.lg,
-      paddingHorizontal: theme.spacing.xl,
-      backgroundColor: theme.colors.background,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.border,
+      justifyContent: "center",
     },
-    headerButtons: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-    },
-    screenTitle: {
-      fontSize: 30,
+    avatarInitial: {
+      fontSize: 24,
       fontFamily: theme.fonts.display,
       color: theme.colors.text,
     },
-    userCard: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: theme.colors.cardBg,
-      borderRadius: theme.radii.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      padding: theme.spacing.lg,
-      gap: theme.spacing.md,
-      marginBottom: theme.spacing["2xl"],
-    },
-    avatarContainer: {
-      width: AVATAR_SIZE,
-      height: AVATAR_SIZE,
-      borderRadius: AVATAR_SIZE / 2,
-      backgroundColor: theme.colors.backgroundTertiary,
-      alignItems: "center",
-      justifyContent: "center",
-      overflow: "hidden",
-      flexShrink: 0,
-    },
-    avatar: {
-      width: AVATAR_SIZE,
-      height: AVATAR_SIZE,
-    },
-    initials: {
-      fontSize: 28,
-      fontFamily: theme.fonts.bodyBold,
-      color: theme.colors.textTertiary,
-    },
-    userCardText: {
+    headerText: {
       flex: 1,
     },
-    displayName: {
-      fontSize: theme.fontSize.lg,
-      fontFamily: theme.fonts.bodyBold,
+    name: {
+      fontSize: theme.fontSize["2xl"],
+      lineHeight: 32,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
     },
-    email: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textTertiary,
+    subtitle: {
       marginTop: 2,
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
     },
-    statsGrid: {
-      backgroundColor: theme.colors.cardBg,
-      borderRadius: theme.radii.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      overflow: "hidden",
-      marginBottom: theme.spacing["2xl"],
+    banner: {
+      paddingHorizontal: theme.spacing.xl,
+      marginTop: theme.spacing.lg,
     },
-    statsRow: {
+    section: {
+      paddingHorizontal: theme.spacing.xl,
+      marginTop: 26,
+    },
+    sectionHeader: {
       flexDirection: "row",
-      paddingVertical: theme.spacing.lg,
-      paddingHorizontal: theme.spacing.md,
-    },
-    statsRowBorder: {
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: theme.colors.border,
-    },
-    statItem: {
-      flex: 1,
-      alignItems: "center",
-    },
-    statDivider: {
-      width: StyleSheet.hairlineWidth,
-      backgroundColor: theme.colors.border,
-    },
-    statValue: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodyBold,
-      color: theme.colors.text,
-    },
-    statLabel: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textTertiary,
-      marginTop: 2,
-    },
-    topStatsSection: {
-      backgroundColor: theme.colors.cardBg,
-      borderRadius: theme.radii.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      paddingVertical: theme.spacing.md,
-      paddingHorizontal: theme.spacing.lg,
-      marginBottom: theme.spacing["2xl"],
-      gap: 0,
-    },
-    sectionTitle: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.textTertiary,
-      textTransform: "uppercase",
-      letterSpacing: 0.5,
+      alignItems: "baseline",
+      justifyContent: "space-between",
       marginBottom: theme.spacing.sm,
     },
-    topStatRow: {
+    eyebrow: {
+      fontSize: 13,
+      fontFamily: theme.fonts.bodySemibold,
+      color: theme.colors.text,
+      textTransform: "uppercase",
+      letterSpacing: 1,
+    },
+    sectionAction: {
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.bodyMedium,
+      color: theme.colors.textSecondary,
+    },
+    sharedRow: {
       flexDirection: "row",
       alignItems: "center",
-      paddingVertical: 10,
       gap: theme.spacing.md,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: theme.colors.border,
-    },
-    topStatIconWrap: {
-      width: 28,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    topStatText: {
-      flex: 1,
-    },
-    topStatLabel: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textTertiary,
-    },
-    topStatValue: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.text,
-      marginTop: 1,
-    },
-    promptsCard: {
-      backgroundColor: theme.colors.cardBg,
-      borderRadius: theme.radii.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      overflow: "hidden",
-      marginBottom: theme.spacing["2xl"],
-    },
-    promptsCardOpen: {
-      // no extra style needed — overflow hidden keeps it clean
-    },
-    collapsibleRight: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs,
-    },
-    milestonesCount: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textTertiary,
-    },
-    notifStatusText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textTertiary,
-    },
-    badgeGrid: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      flexWrap: "wrap",
-      rowGap: theme.spacing.lg,
-    },
-    badgeItem: {
-      width: "23%",
-      alignItems: "center",
-      gap: theme.spacing.xs,
-    },
-    badgeCircle: {
-      width: 52,
-      height: 52,
-      borderRadius: 26,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    badgeUnlocked: {
-      backgroundColor: theme.colors.accent,
-    },
-    badgeLocked: {
-      backgroundColor: theme.colors.backgroundTertiary,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-    },
-    badgeLabel: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.text,
-      textAlign: "center",
-      lineHeight: 14,
-    },
-    badgeLabelLocked: {
-      color: theme.colors.textTertiary,
-    },
-    friendsRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingVertical: 14,
-      paddingHorizontal: theme.spacing.lg,
-    },
-    friendsRowLeft: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-    },
-    friendsBadge: {
-      minWidth: 18,
-      height: 18,
-      borderRadius: 9,
-      backgroundColor: theme.colors.accent,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 4,
-    },
-    friendsBadgeText: {
-      color: "#fff",
-      fontSize: 11,
-      fontFamily: theme.fonts.bodyBold,
-      lineHeight: 13,
-    },
-    promptsRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingVertical: 14,
-      paddingHorizontal: theme.spacing.lg,
-    },
-    promptsRowLabel: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.text,
-    },
-    promptsBody: {
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: theme.colors.border,
-      paddingHorizontal: theme.spacing.lg,
-      paddingBottom: theme.spacing.lg,
-    },
-    notifSettingsRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
       paddingVertical: theme.spacing.sm,
     },
-    notifSettingsText: {
-      flex: 1,
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
+    rowDivider: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
     },
-    notifSettingsLink: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.accent,
+    sharedArtwork: {
+      width: 44,
+      height: 44,
+      borderRadius: 7,
     },
-    notifRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: 10,
-      gap: theme.spacing.md,
-    },
-    notifRowBorder: {
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: theme.colors.border,
-    },
-    notifRowText: {
+    sharedText: {
       flex: 1,
     },
-    notifRowLabel: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodyMedium,
+    sharedTitle: {
+      fontSize: 15,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
-    notifRowSub: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textTertiary,
-      marginTop: 2,
-    },
-    signOutErrorText: {
-      color: theme.colors.destructive,
-      fontSize: theme.fontSize.sm,
-      marginBottom: theme.spacing.sm,
-      textAlign: "center",
-    },
-    feedbackButton: {
-      marginTop: theme.spacing["2xl"],
-      paddingVertical: 14,
-      paddingHorizontal: theme.spacing["3xl"],
-      borderRadius: theme.radii.sm,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      alignItems: "center",
-    },
-    feedbackText: {
+    sharedSub: {
+      marginTop: 1,
+      fontSize: 13,
+      fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
     },
-    signOutButton: {
-      marginTop: theme.spacing.md,
-      paddingVertical: 14,
-      paddingHorizontal: theme.spacing["3xl"],
-      borderRadius: theme.radii.sm,
-      borderWidth: 1,
-      borderColor: theme.colors.destructive,
+    unreadDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: theme.colors.accent,
+    },
+    albumGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: ALBUM_GAP,
+      marginTop: theme.spacing.xs,
+    },
+    albumCell: {
+      width: ALBUM_CELL,
+    },
+    albumNameRow: {
+      flexDirection: "row",
       alignItems: "center",
-    },
-    buttonDisabled: {
-      opacity: 0.6,
-    },
-    signOutText: {
-      color: theme.colors.destructive,
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-    },
-    deleteAccountButton: {
-      paddingVertical: 14,
-      alignItems: "center",
+      gap: 6,
       marginTop: theme.spacing.sm,
     },
-    deleteAccountText: {
-      color: theme.colors.textTertiary,
+    albumName: {
+      flexShrink: 1,
+      fontSize: 15,
+      fontFamily: theme.fonts.bodySemibold,
+      color: theme.colors.text,
+    },
+    albumSub: {
+      fontSize: 13,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
+    },
+    seeAllAlbums: {
+      marginTop: theme.spacing.md,
+      paddingVertical: theme.spacing.xs,
+    },
+    emptyNote: {
       fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
+    },
+    rows: {
+      paddingHorizontal: theme.spacing.xl,
+      marginTop: 18,
+    },
+    row: {
+      height: 50,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    rowLabel: {
+      fontSize: theme.fontSize.base,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.text,
+    },
+    rowRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
+    rowDetail: {
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
     },
   });
 }

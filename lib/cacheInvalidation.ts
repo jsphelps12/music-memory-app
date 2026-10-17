@@ -34,7 +34,7 @@ const MOMENT_SCREEN_KEYS = [
   "browseMeta",
   "reflections",
   "reflections-random",
-  "profileStats",
+  "youSummary",
   "momentsMap",
 ] as const;
 
@@ -89,6 +89,7 @@ export function invalidateAlbumCaches(
 
   void queryClient.invalidateQueries({ queryKey: ["collectionsScreen", userId] });
   void queryClient.invalidateQueries({ queryKey: ["collectionsBadge", userId] });
+  void queryClient.invalidateQueries({ queryKey: ["youAlbums", userId] });
 
   if (albumId) {
     void queryClient.invalidateQueries({ queryKey: ["album", albumId, userId] });

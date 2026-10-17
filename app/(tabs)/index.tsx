@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   StyleSheet,
-  FlatList,
   ActivityIndicator,
 } from "react-native";
 import Animated, {
@@ -31,12 +30,7 @@ import {
 } from "@/lib/timelinePrefetch";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { requestReflectionsSearch } from "@/lib/reflectionsSearch";
-import {
-  fetchSharedWithMe,
-  fetchUnviewedSharedCount,
-  markSharesViewed,
-  SharedMoment,
-} from "@/lib/momentShares";
+import { fetchUnviewedSharedCount } from "@/lib/momentShares";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -52,8 +46,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { Moment } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 30_000;
-// Unread-shares badge is a count query — 60s cooldown per the badge convention.
-const SHARED_BADGE_COOLDOWN_MS = 60_000;
+// Unread-shares count is a badge-style query — 60s staleTime per the convention.
+const SHARED_BADGE_STALE_MS = 60_000;
 
 export default function TimelineScreen() {
   const router = useRouter();
@@ -85,20 +79,15 @@ export default function TimelineScreen() {
   const calendarFetchedRef = useRef<null | boolean>(null);
   const [pendingScrollId, setPendingScrollId] = useState<string | null>(null);
 
-  // "Shared with me" (Sharing v2 Phase C) is signal-driven: the only query that
-  // runs unprompted is the unread-count badge (cheap head query, on focus with
-  // cooldown). The list itself is fetched the first time the pill is opened —
-  // never as an always-mounted list firing empty queries every app open.
-  const [pill, setPill] = useState<"mine" | "shared">("mine");
-  const [sharedItems, setSharedItems] = useState<SharedMoment[]>([]);
-  const [sharedLoading, setSharedLoading] = useState(false);
-  const [sharedRefreshing, setSharedRefreshing] = useState(false);
-  const [sharedError, setSharedError] = useState("");
-  const [unviewedCount, setUnviewedCount] = useState(0);
-  const sharedLastFetch = useRef(0);
-  const sharedBadgeLastFetch = useRef(0);
-  const pillRef = useRef(pill);
-  pillRef.current = pill;
+  // Shared with you (Sharing v2) lives under You since Phase 1. The Journal
+  // only carries a quiet "new from friends" row, driven by the cheap unread
+  // count; /shared invalidates it once things are seen.
+  const { data: unviewedCount = 0, refetch: refetchUnviewed, dataUpdatedAt: unviewedUpdatedAt } = useQuery({
+    queryKey: ["sharedUnviewed", user?.id],
+    queryFn: () => fetchUnviewedSharedCount(user!.id),
+    staleTime: SHARED_BADGE_STALE_MS,
+    enabled: !!user,
+  });
 
   // Clear data on user change (sign out / sign in as different user)
   useEffect(() => {
@@ -107,10 +96,6 @@ export default function TimelineScreen() {
     calendarFetchedRef.current = null;
     lastFetchTime.current = 0;
     timelineSnapshotRef.current = null;
-    setSharedItems([]);
-    setUnviewedCount(0);
-    sharedLastFetch.current = 0;
-    sharedBadgeLastFetch.current = 0;
   }, [user?.id]);
 
   const sectionListRef = useRef<SectionList>(null);
@@ -119,18 +104,6 @@ export default function TimelineScreen() {
   const calendarOpacity = useSharedValue(0);
   const listAnimStyle = useAnimatedStyle(() => ({ opacity: listOpacity.value }));
   const calendarAnimStyle = useAnimatedStyle(() => ({ opacity: calendarOpacity.value }));
-
-  const mineOpacity = useSharedValue(1);
-  const sharedOpacity = useSharedValue(0);
-  const mineAnimStyle = useAnimatedStyle(() => ({ opacity: mineOpacity.value }));
-  const sharedAnimStyle = useAnimatedStyle(() => ({ opacity: sharedOpacity.value }));
-
-  // Snap back to My Moments on user change (paired with the data reset above).
-  useEffect(() => {
-    setPill("mine");
-    mineOpacity.value = 1;
-    sharedOpacity.value = 0;
-  }, [user?.id]);
 
   const viewModeRef = useRef(viewMode);
   viewModeRef.current = viewMode;
@@ -216,62 +189,8 @@ export default function TimelineScreen() {
         listOpacity.value = withTiming(1, { duration: 200 });
         setViewMode("list");
       }
-      if (pillRef.current === "shared") {
-        sharedOpacity.value = withTiming(0, { duration: 200 });
-        mineOpacity.value = withTiming(1, { duration: 200 });
-        setPill("mine");
-      }
     });
   }, [navigation, viewMode]);
-
-  const fetchShared = useCallback(
-    async (opts?: { silent?: boolean }) => {
-      if (!user) return;
-      if (!opts?.silent) setSharedLoading(true);
-      setSharedError("");
-      try {
-        const items = await fetchSharedWithMe(user.id);
-        setSharedItems(items);
-        sharedLastFetch.current = Date.now();
-        // The list is on screen — everything in it counts as seen.
-        if (items.some((i) => !i.viewedAt)) {
-          void markSharesViewed(user.id).catch(() => {});
-        }
-        setUnviewedCount(0);
-      } catch (e) {
-        if (!opts?.silent) setSharedError(friendlyError(e));
-      } finally {
-        setSharedLoading(false);
-      }
-    },
-    [user]
-  );
-
-  const showMine = useCallback(() => {
-    if (pillRef.current === "mine") return;
-    sharedOpacity.value = withTiming(0, { duration: 200 });
-    mineOpacity.value = withTiming(1, { duration: 200 });
-    setPill("mine");
-  }, []);
-
-  const showShared = useCallback(() => {
-    if (pillRef.current === "shared") return;
-    mineOpacity.value = withTiming(0, { duration: 200 });
-    sharedOpacity.value = withTiming(1, { duration: 200 });
-    setPill("shared");
-    posthog?.capture("shared_with_me_opened", { unviewed_count: unviewedCount });
-    if (sharedLastFetch.current === 0) {
-      fetchShared();
-    } else if (Date.now() - sharedLastFetch.current >= REFETCH_COOLDOWN_MS) {
-      fetchShared({ silent: true });
-    }
-  }, [fetchShared, posthog, unviewedCount]);
-
-  const handleSharedRefresh = useCallback(async () => {
-    setSharedRefreshing(true);
-    await fetchShared({ silent: true });
-    setSharedRefreshing(false);
-  }, [fetchShared]);
 
   const toggleView = useCallback(() => {
     if (viewMode === "list") {
@@ -483,32 +402,17 @@ export default function TimelineScreen() {
         fetchMoments(false);
       }
 
-      // Shared-with-me signal: refresh the unread badge (cheap count) on a
-      // cooldown, and silently refetch the list only if it's the active view.
-      if (user && Date.now() - sharedBadgeLastFetch.current >= SHARED_BADGE_COOLDOWN_MS) {
-        sharedBadgeLastFetch.current = Date.now();
-        fetchUnviewedSharedCount(user.id)
-          .then((count) => {
-            if (pillRef.current !== "shared") setUnviewedCount(count);
-          })
-          .catch(() => {});
-      }
-      if (
-        pillRef.current === "shared" &&
-        sharedLastFetch.current > 0 &&
-        Date.now() - sharedLastFetch.current >= REFETCH_COOLDOWN_MS
-      ) {
-        fetchShared({ silent: true });
-      }
-    }, [fetchMoments, fetchCalendarMoments, fetchShared, user])
+      // The "new from friends" row's count, on the badge cooldown.
+      if (user && Date.now() - unviewedUpdatedAt >= SHARED_BADGE_STALE_MS) refetchUnviewed();
+    }, [fetchMoments, fetchCalendarMoments, user, unviewedUpdatedAt, refetchUnviewed])
   );
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     calendarFetchedRef.current = null;
-    await Promise.all([fetchMoments(false), fetchCalendarMoments()]);
+    await Promise.all([fetchMoments(false), fetchCalendarMoments(), refetchUnviewed()]);
     setRefreshing(false);
-  }, [fetchMoments, fetchCalendarMoments]);
+  }, [fetchMoments, fetchCalendarMoments, refetchUnviewed]);
 
   const allMoods = useMemo(
     () => [...MOODS, ...(profile?.customMoods ?? [])],
@@ -527,14 +431,25 @@ export default function TimelineScreen() {
     <MomentCard item={item} allMoods={allMoods} onDeleted={handleCardDeleted} />
   ), [allMoods, handleCardDeleted]);
 
-  // No onDeleted: these are other people's moments, so the card's long-press
-  // edit/delete stays disabled. Sender attribution rides in contributorName.
-  const renderSharedItem = useCallback(({ item }: { item: SharedMoment }) => (
-    <MomentCard item={item.moment} allMoods={allMoods} />
-  ), [allMoods]);
-
   const listHeader = (
     <>
+      {unviewedCount > 0 ? (
+        <TouchableOpacity
+          style={styles.sharedRow}
+          onPress={() => {
+            posthog?.capture("shared_with_me_opened", { unviewed_count: unviewedCount, from: "journal_row" });
+            router.push("/shared");
+          }}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+        >
+          <View style={styles.sharedDot} />
+          <Text style={styles.sharedRowText}>
+            {unviewedCount === 1 ? "1 new from friends" : `${unviewedCount} new from friends`}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+        </TouchableOpacity>
+      ) : null}
       {bannerError ? (
         <ErrorBanner
           message={bannerError}
@@ -563,185 +478,115 @@ export default function TimelineScreen() {
             />
             {/* One control for the three ways to see the journal. List and
                 calendar are in-place views of My Moments (both stay mounted);
-                map is its own screen. Hidden while Shared is up, where only
-                the list makes sense. */}
-            {pill === "mine" && (
-              <View style={styles.segmented} accessibilityRole="tablist">
-                {([
-                  { key: "list", icon: "list-outline", label: "List" },
-                  { key: "calendar", icon: "calendar-outline", label: "Calendar" },
-                  { key: "map", icon: "map-outline", label: "Map" },
-                ] as const).map((seg) => {
-                  const active = seg.key !== "map" && viewMode === seg.key;
-                  return (
-                    <TouchableOpacity
-                      key={seg.key}
-                      style={[styles.segment, active && styles.segmentActive]}
-                      accessibilityRole="tab"
-                      accessibilityLabel={seg.label}
-                      accessibilityState={{ selected: active }}
-                      activeOpacity={0.7}
-                      onPress={() => {
-                        if (seg.key === "map") router.push("/moments-map" as any);
-                        else if (viewMode !== seg.key) toggleView();
-                      }}
-                    >
-                      <Ionicons
-                        name={seg.icon}
-                        size={17}
-                        color={active ? theme.colors.text : theme.colors.textSecondary}
-                      />
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
+                map is its own screen. */}
+            <View style={styles.segmented} accessibilityRole="tablist">
+              {([
+                { key: "list", icon: "list-outline", label: "List" },
+                { key: "calendar", icon: "calendar-outline", label: "Calendar" },
+                { key: "map", icon: "map-outline", label: "Map" },
+              ] as const).map((seg) => {
+                const active = seg.key !== "map" && viewMode === seg.key;
+                return (
+                  <TouchableOpacity
+                    key={seg.key}
+                    style={[styles.segment, active && styles.segmentActive]}
+                    accessibilityRole="tab"
+                    accessibilityLabel={seg.label}
+                    accessibilityState={{ selected: active }}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      if (seg.key === "map") router.push("/moments-map" as any);
+                      else if (viewMode !== seg.key) toggleView();
+                    }}
+                  >
+                    <Ionicons
+                      name={seg.icon}
+                      size={17}
+                      color={active ? theme.colors.text : theme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
-        </View>
-
-        <View style={styles.toggle}>
-          <TouchableOpacity
-            style={[styles.togglePill, pill === "mine" && styles.togglePillActive]}
-            onPress={showMine}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.toggleText, pill === "mine" && styles.toggleTextActive]}>
-              My Moments
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.togglePill, pill === "shared" && styles.togglePillActive]}
-            onPress={showShared}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.toggleText, pill === "shared" && styles.toggleTextActive]}>
-              Shared with me
-            </Text>
-            {unviewedCount > 0 && (
-              <View style={styles.pillBadge}>
-                <Text style={styles.pillBadgeText}>{unviewedCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
         </View>
       </View>
 
       <View style={{ flex: 1 }}>
-        <Animated.View
-          style={[StyleSheet.absoluteFill, mineAnimStyle]}
-          pointerEvents={pill === "mine" ? "auto" : "none"}
-        >
-          <GestureDetector gesture={pinchGesture}>
-            <View style={styles.viewsContainer}>
-              <Animated.View style={[StyleSheet.absoluteFill, listAnimStyle]} pointerEvents={viewMode === "list" ? "auto" : "none"}>
-                {loading && moments.length === 0 ? (
-                  <View style={styles.skeletonList}>
-                    {[0, 1, 2, 3].map((i) => (
-                      <SkeletonTimelineCard key={i} />
-                    ))}
-                  </View>
-                ) : error ? (
-                  <ErrorState
-                    message={error}
-                    onRetry={() => fetchMoments(true)}
-                  />
-                ) : moments.length === 0 && !loading ? (
-                  <EmptyState
-                    icon="musical-notes-outline"
-                    title="No moments yet"
-                    subtitle={"A moment is a song paired with a memory —\nwhat you felt, who you were with, and why it mattered."}
-                    action={{ label: "Create Your First Moment", onPress: () => router.push("/create") }}
-                  />
-                ) : (
-                  <SectionList
-                    ref={sectionListRef}
-                    sections={sections}
-                    keyExtractor={(item) => item.id}
-                    renderItem={renderMoment}
-                    renderSectionHeader={({ section: { title } }) => {
-                      // "October 2026" -> small caps month, muted year.
-                      const split = title.lastIndexOf(" ");
-                      const month = split > 0 ? title.slice(0, split) : title;
-                      const year = split > 0 ? title.slice(split + 1) : "";
-                      return (
-                        <View style={styles.sectionHeader} accessibilityRole="header">
-                          <Text style={styles.sectionMonth}>{month.toUpperCase()}</Text>
-                          {year ? <Text style={styles.sectionYear}>{year}</Text> : null}
-                        </View>
-                      );
-                    }}
-                    ListHeaderComponent={listHeader}
-                    onEndReached={handleLoadMore}
-                    removeClippedSubviews
-                    windowSize={10}
-                    maxToRenderPerBatch={5}
-                    initialNumToRender={10}
-                    onEndReachedThreshold={0.3}
-                    ListFooterComponent={
-                      loadingMore ? (
-                        <ActivityIndicator
-                          style={{ paddingVertical: 20 }}
-                          color={theme.colors.accent}
-                        />
-                      ) : null
-                    }
-                    contentContainerStyle={styles.listContent}
-                    showsVerticalScrollIndicator={false}
-                    stickySectionHeadersEnabled={false}
-                    keyboardDismissMode="on-drag"
-                    refreshControl={
-                      <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={handleRefresh}
-                        tintColor={theme.colors.text}
-                      />
-                    }
-                  />
-                )}
-              </Animated.View>
-
-              <Animated.View style={[StyleSheet.absoluteFill, calendarAnimStyle]} pointerEvents={viewMode === "calendar" ? "auto" : "none"}>
-                <CalendarView moments={calendarMoments} onDayPress={handleDayPress} theme={theme} loading={calendarLoading} />
-              </Animated.View>
-            </View>
-          </GestureDetector>
-        </Animated.View>
-
-        <Animated.View
-          style={[StyleSheet.absoluteFill, sharedAnimStyle]}
-          pointerEvents={pill === "shared" ? "auto" : "none"}
-        >
-          {sharedLoading && sharedItems.length === 0 ? (
-            <View style={styles.skeletonList}>
-              {[0, 1, 2].map((i) => (
-                <SkeletonTimelineCard key={i} />
-              ))}
-            </View>
-          ) : sharedError ? (
-            <ErrorState message={sharedError} onRetry={() => fetchShared()} />
-          ) : sharedItems.length === 0 ? (
-            <EmptyState
-              icon="paper-plane-outline"
-              title="Nothing shared with you yet"
-              subtitle={"When a friend sends you a moment,\nit shows up here."}
-            />
-          ) : (
-            <FlatList
-              data={sharedItems}
-              keyExtractor={(item) => item.shareId}
-              renderItem={renderSharedItem}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
-              refreshControl={
-                <RefreshControl
-                  refreshing={sharedRefreshing}
-                  onRefresh={handleSharedRefresh}
-                  tintColor={theme.colors.text}
+        <GestureDetector gesture={pinchGesture}>
+          <View style={styles.viewsContainer}>
+            <Animated.View style={[StyleSheet.absoluteFill, listAnimStyle]} pointerEvents={viewMode === "list" ? "auto" : "none"}>
+              {loading && moments.length === 0 ? (
+                <View style={styles.skeletonList}>
+                  {[0, 1, 2, 3].map((i) => (
+                    <SkeletonTimelineCard key={i} />
+                  ))}
+                </View>
+              ) : error ? (
+                <ErrorState
+                  message={error}
+                  onRetry={() => fetchMoments(true)}
                 />
-              }
-            />
-          )}
-        </Animated.View>
+              ) : moments.length === 0 && !loading ? (
+                <EmptyState
+                  icon="musical-notes-outline"
+                  title="No moments yet"
+                  subtitle={"A moment is a song paired with a memory —\nwhat you felt, who you were with, and why it mattered."}
+                  action={{ label: "Create Your First Moment", onPress: () => router.push("/create") }}
+                />
+              ) : (
+                <SectionList
+                  ref={sectionListRef}
+                  sections={sections}
+                  keyExtractor={(item) => item.id}
+                  renderItem={renderMoment}
+                  renderSectionHeader={({ section: { title } }) => {
+                    // "October 2026" -> small caps month, muted year.
+                    const split = title.lastIndexOf(" ");
+                    const month = split > 0 ? title.slice(0, split) : title;
+                    const year = split > 0 ? title.slice(split + 1) : "";
+                    return (
+                      <View style={styles.sectionHeader} accessibilityRole="header">
+                        <Text style={styles.sectionMonth}>{month.toUpperCase()}</Text>
+                        {year ? <Text style={styles.sectionYear}>{year}</Text> : null}
+                      </View>
+                    );
+                  }}
+                  ListHeaderComponent={listHeader}
+                  onEndReached={handleLoadMore}
+                  removeClippedSubviews
+                  windowSize={10}
+                  maxToRenderPerBatch={5}
+                  initialNumToRender={10}
+                  onEndReachedThreshold={0.3}
+                  ListFooterComponent={
+                    loadingMore ? (
+                      <ActivityIndicator
+                        style={{ paddingVertical: 20 }}
+                        color={theme.colors.accent}
+                      />
+                    ) : null
+                  }
+                  contentContainerStyle={styles.listContent}
+                  showsVerticalScrollIndicator={false}
+                  stickySectionHeadersEnabled={false}
+                  keyboardDismissMode="on-drag"
+                  refreshControl={
+                    <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={handleRefresh}
+                      tintColor={theme.colors.text}
+                    />
+                  }
+                />
+              )}
+            </Animated.View>
+
+            <Animated.View style={[StyleSheet.absoluteFill, calendarAnimStyle]} pointerEvents={viewMode === "calendar" ? "auto" : "none"}>
+              <CalendarView moments={calendarMoments} onDayPress={handleDayPress} theme={theme} loading={calendarLoading} />
+            </Animated.View>
+          </View>
+        </GestureDetector>
       </View>
     </View>
   );
@@ -798,46 +643,26 @@ function createStyles(theme: Theme) {
       shadowOpacity: theme.isDark ? 0 : 0.08,
       shadowRadius: 2,
     },
-    toggle: {
-      flexDirection: "row",
-      gap: 6,
-      paddingBottom: theme.spacing.sm,
-    },
-    togglePill: {
+    sharedRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 6,
-      paddingHorizontal: 14,
-      paddingVertical: 6,
-      borderRadius: theme.radii.full,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
+      gap: theme.spacing.sm,
+      paddingVertical: theme.spacing.md,
+      marginBottom: theme.spacing.xs,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
     },
-    togglePillActive: {
-      backgroundColor: theme.colors.buttonBg,
-      borderColor: theme.colors.buttonBg,
-    },
-    toggleText: {
-      fontSize: 13,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.textSecondary,
-    },
-    toggleTextActive: {
-      color: theme.colors.buttonText,
-    },
-    pillBadge: {
-      minWidth: 18,
-      height: 18,
-      borderRadius: 9,
-      paddingHorizontal: 5,
+    sharedDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
       backgroundColor: theme.colors.accent,
-      alignItems: "center",
-      justifyContent: "center",
     },
-    pillBadgeText: {
-      fontSize: 11,
-      fontFamily: theme.fonts.bodySemibold,
-      color: "#fff",
+    sharedRowText: {
+      flex: 1,
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.bodyMedium,
+      color: theme.colors.text,
     },
     viewsContainer: {
       flex: 1,

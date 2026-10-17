@@ -71,8 +71,8 @@ export const REFLECTIONS_STALE = DEFAULT_SCREEN_STALE;
 export const REFLECTIONS_RANDOM_STALE = Infinity;
 
 /**
- * `["profileStats", userId]` — the Me tab's counters, streaks and badges.
- * Also the cooldown for the profile row refresh on that tab's focus effect.
+ * The You tab's queries (`youSummary`, `youAlbums`, `sharedWithMe`). Also the
+ * cooldown for the profile row refresh on that tab's focus effect.
  */
 export const PROFILE_STATS_STALE = DEFAULT_SCREEN_STALE;
 
