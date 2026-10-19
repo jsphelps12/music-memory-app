@@ -52,7 +52,7 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -euo pipefail
-          npx eas-cli build --platform ios --profile ${{ inputs.profile }} --non-interactive --json > build.json
+          npx eas-cli@25.2.0 build --platform ios --profile ${{ inputs.profile }} --non-interactive --json > build.json
           echo "id=$(node -e "console.log(require('./build.json')[0].id)")" >> "$GITHUB_OUTPUT"
 
       # The preview profile is distribution: "internal" — it emails an install
@@ -65,7 +65,7 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           BUILD_ID: ${{ steps.build.outputs.id }}
-        run: npx eas-cli submit --platform ios --profile production --id "$BUILD_ID" --non-interactive
+        run: npx eas-cli@25.2.0 submit --platform ios --profile production --id "$BUILD_ID" --non-interactive
 
       - name: Note on skipped submit
         if: ${{ inputs.submit && inputs.profile != 'production' }}

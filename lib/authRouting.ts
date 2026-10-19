@@ -21,7 +21,7 @@
  *   - the 12-second overlay escape hatch (a timer, not a routing input) that
  *     ANDs with `showOverlay`.
  *
- * app/_layout.tsx is not yet wired to call this — that swap is a follow-up.
+ * app/_layout.tsx (AuthGate) calls this and carries out the side effects.
  *
  * The one rule this file exists to enforce: **profileError never routes to
  * onboarding.** A failed fetch means "we don't know whether onboarding is

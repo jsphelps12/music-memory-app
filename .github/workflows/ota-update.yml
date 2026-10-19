@@ -56,7 +56,7 @@ jobs:
           EXPO_PUBLIC_APP_ENV: preview
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          npx eas-cli update --branch preview --environment preview \
+          npx eas-cli@25.2.0 update --branch preview --environment preview \
             --message "$COMMIT_MESSAGE" --non-interactive
 
       # Without this, every JS error from a beta OTA bundle lands in Sentry
@@ -71,6 +71,6 @@ jobs:
           SENTRY_ORG: soundtracks
           SENTRY_PROJECT: react-native
         run: |
-          npx eas-cli env:exec preview \
+          npx eas-cli@25.2.0 env:exec preview \
             "npx expo export --platform ios --output-dir dist && npx sentry-expo-upload-sourcemaps dist" \
             --non-interactive

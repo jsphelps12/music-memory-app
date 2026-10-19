@@ -57,7 +57,7 @@ export async function liveBuilds(profile, limit = 10) {
   const { stdout } = await run(
     "npx",
     [
-      "eas-cli", "build:list",
+      "eas-cli@25.2.0", "build:list",
       "--platform", "ios",
       "--profile", profile,
       "--status", "finished",
@@ -73,7 +73,8 @@ export async function liveBuilds(profile, limit = 10) {
     // under the old "appVersion" policy carry a version string like "1.1.0" and
     // can never match a fingerprint-derived update — that is the strand.
     //
-    // eas-cli runs unpinned via npx, and by v24 the JSON had moved this from a
+    // eas-cli used to run unpinned via npx (now pinned to 25.2.0 here and in
+    // the workflows), and by v24 the JSON had moved this from a
     // flat `runtimeVersion` to `runtime.version`. Reading only the old name
     // made every build "serve undefined", so the gate reported a perfectly
     // reachable beta as unreachable. Accept both shapes.
