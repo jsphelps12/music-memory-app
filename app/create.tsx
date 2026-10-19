@@ -49,6 +49,7 @@ import { BottomSheet } from "@/components/BottomSheet";
 import { fetchWeather, WeatherResult } from "@/lib/weather";
 import { dateToStr } from "@/lib/dateUtils";
 import { MOODS } from "@/constants/Moods";
+import { startTimer } from "@/lib/perf";
 import { setWritingSession } from "@/lib/writingSession";
 import { loadCaptureDraft, saveCaptureDraft, clearCaptureDraft } from "@/lib/captureDraft";
 
@@ -91,6 +92,8 @@ export default function CreateMomentScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const posthog = usePostHog();
+  // Open → saved, the number that says whether capture is quick.
+  const [sinceOpen] = useState(() => startTimer());
   const queryClient = useQueryClient();
   const scrollViewRef = useRef<ScrollView>(null);
   const photoPickerRef = useRef<PhotoPickerHandle>(null);
@@ -395,6 +398,7 @@ export default function CreateMomentScreen() {
       return;
     }
     try {
+      const sinceSave = startTimer();
       const prefetchedPreview = previewFetchRef.current
         ? await previewFetchRef.current.catch(() => null)
         : undefined;
@@ -425,6 +429,9 @@ export default function CreateMomentScreen() {
         has_location: Boolean(locationResult),
         has_people: people.length > 0,
         has_collection: Boolean(selectedAlbum),
+        capture_ms: sinceOpen(),
+        save_ms: sinceSave(),
+        source: params.source ?? null,
       });
 
       checkAndNotifyMilestone(user.id).catch(() => {});

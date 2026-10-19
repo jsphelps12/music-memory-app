@@ -265,10 +265,16 @@ weekly; charging earlier teaches nothing.
   min-build gate can force it).
 - [ ] **Leaked-password protection** (Supabase Auth dashboard toggle; check
   plan support).
-- [ ] **Pin `eas-cli`.** It runs unpinned via `npx`; v24's JSON rename broke
-  the fingerprint gate silently.
-- [ ] **Wire `lib/authRouting.ts` into `_layout.tsx`** (extracted and tested,
-  never wired).
+- [x] **Pin `eas-cli`** to 25.2.0 in every workflow and the fingerprint
+  scripts (v24's JSON rename had broken the gate silently).
+- [x] **Wire `lib/authRouting.ts` into `_layout.tsx`:** AuthGate now runs
+  the tested `resolveAuthRoute` and only carries out its side effects.
+- [x] **Measure before tuning:** `lib/perf.ts` sends `app_startup` (fonts,
+  session, cached/fresh profile, gate, first screen, in ms) and
+  `moment_created` carries `capture_ms` / `save_ms` / `source`. Tune from
+  these numbers, not guesses.
+- [ ] **React Compiler** (`experiments.reactCompiler` + the babel plugin):
+  moves the native fingerprint, so it rides the next binary with SF Symbols.
 - [ ] **Authorize the Sentry MCP** so crash data is readable during the
   1.2.0 / 1.3.0 rollout.
 - Known limit: after 60 days without a commit GitHub disables the scheduled

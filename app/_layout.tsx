@@ -18,6 +18,8 @@ import {
 import { Newsreader_400Regular, Newsreader_500Medium } from "@expo-google-fonts/newsreader";
 import { Stack, useRouter, useSegments, usePathname, useGlobalSearchParams } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { resolveAuthRoute, ROUTE_TABS } from "@/lib/authRouting";
+import { markStartup, reportStartup } from "@/lib/perf";
 import { useEffect, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PostHogProvider } from "posthog-react-native";
@@ -113,73 +115,59 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       .catch(() => setHasLaunched(false));
   }, []);
 
+  // The routing decision itself is the pure, tested resolveAuthRoute
+  // (lib/authRouting.ts). This effect only carries out its side effects.
+  const route = resolveAuthRoute({
+    session,
+    loading,
+    profileReady,
+    profileError,
+    onboardingCompleted: profile?.onboardingCompleted,
+    hasLaunched,
+    segments,
+  });
+
   useEffect(() => {
-    // Wait until auth load is done and (if logged in) profile has been fetched
-    if (loading || hasLaunched === null) return;
-    if (session && !profileReady) return;
+    if (route.showOverlay) return;
 
-    const inAuthGroup = segments[0] === "(auth)";
-    const inOnboarding = segments[0] === "onboarding";
-    // Allow create/song-search/celebration to be open during onboarding flow
-    const inOnboardingCreate = inOnboarding || segments[0] === "create" || segments[0] === "song-search" || segments[0] === "celebration";
-
-    if (!session && !inAuthGroup) {
-      if (!hasLaunched) {
-        AsyncStorage.setItem(HAS_LAUNCHED_KEY, "true");
-        setHasLaunched(true);
-        router.replace("/(auth)/welcome");
-      } else {
-        router.replace("/(auth)/sign-in");
-      }
-    } else if (session && (inAuthGroup || inOnboarding)) {
-      // profileError means the fetch failed, not that onboarding is incomplete —
-      // routing an existing user into onboarding lets it overwrite their profile.
-      if (!profile?.onboardingCompleted && !profileError) {
-        // Only redirect to onboarding from the auth group — if already on onboarding,
-        // do nothing. Calling replace("/onboarding") while already there remounts the
-        // component and wipes all phase/step state mid-flow.
-        if (!inOnboarding) {
-          router.replace("/onboarding" as any);
-        }
-      } else {
-        // Only pre-set first-moment flag for existing users signing in from the auth group.
-        // Do NOT pre-set when coming from inOnboarding — that means a new user just finished
-        // onboarding and should see the celebration after their first moment.
-        if (inAuthGroup) {
-          AsyncStorage.getItem(`first_moment_saved_${session.user.id}`).then((v) => {
-            if (!v) AsyncStorage.setItem(`first_moment_saved_${session.user.id}`, "true");
-          });
-        }
-        // The .catch matters: this read gates the navigation below, so a
-        // rejected read used to leave a signed-in user stuck on the auth screen
-        // with no retry.
-        AsyncStorage.getItem(PENDING_INVITE_CODE_KEY)
-          .then((code) => {
-            AsyncStorage.removeItem(PENDING_INVITE_CODE_KEY).catch(() => {});
-            router.replace("/(tabs)");
-            if (code) {
-              setTimeout(() => router.push({ pathname: "/join" as any, params: { inviteCode: code } }), 300);
-            }
-          })
-          .catch(() => router.replace("/(tabs)"));
-      }
-    } else if (session && !inAuthGroup && !inOnboardingCreate) {
-      if (!profile?.onboardingCompleted && !profileError) {
-        router.replace("/onboarding" as any);
-      } else if (!hasLaunched) {
-        // Backfill the key for users who were already signed in on first open
-        // and never hit the !session path that normally writes it.
-        AsyncStorage.setItem(HAS_LAUNCHED_KEY, "true");
-        setHasLaunched(true);
-      }
+    if (route.writeHasLaunched) {
+      AsyncStorage.setItem(HAS_LAUNCHED_KEY, "true");
+      setHasLaunched(true);
     }
-  }, [session, loading, profileReady, profileError, hasLaunched, segments, router, profile?.onboardingCompleted]);
+    if (!route.redirect) return;
+
+    if (route.redirect === ROUTE_TABS && session && segments[0] === "(auth)") {
+      // An existing user signing in from the auth group already has moments:
+      // don't show them the first-moment celebration. (Not when arriving from
+      // onboarding: a new user should see it after their first moment.)
+      AsyncStorage.getItem(`first_moment_saved_${session.user.id}`).then((v) => {
+        if (!v) AsyncStorage.setItem(`first_moment_saved_${session.user.id}`, "true");
+      });
+    }
+
+    if (route.redirect === ROUTE_TABS) {
+      // The .catch matters: this read gates the navigation below, so a
+      // rejected read used to leave a signed-in user stuck on the auth screen
+      // with no retry.
+      AsyncStorage.getItem(PENDING_INVITE_CODE_KEY)
+        .then((code) => {
+          AsyncStorage.removeItem(PENDING_INVITE_CODE_KEY).catch(() => {});
+          router.replace("/(tabs)");
+          if (code) {
+            setTimeout(() => router.push({ pathname: "/join" as any, params: { inviteCode: code } }), 300);
+          }
+        })
+        .catch(() => router.replace("/(tabs)"));
+      return;
+    }
+
+    router.replace(route.redirect as any);
+  }, [route.redirect, route.showOverlay, route.writeHasLaunched, session, segments, router]);
 
   // Keep children always mounted so the navigation Stack is never torn down.
   // An opaque overlay covers everything during the loading window, preventing
   // any flash of the wrong screen (e.g. welcome) before routing resolves.
-  const isBlocking =
-    !overlayExpired && (loading || hasLaunched === null || (session && !profileReady));
+  const isBlocking = !overlayExpired && route.showOverlay;
   const bg = colorScheme === "dark" ? "#0E0B0A" : "#FBF7F2";
 
   // One continuous launch: the native launch screen stays up until we know
@@ -190,11 +178,19 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   // a slow profile fetch is involved.
   useEffect(() => {
     if (isBlocking) return;
+    markStartup("gate_resolved");
     // A frame for the routed screen to paint before the launch screen lifts.
     const id = requestAnimationFrame(() => {
       SplashScreen.hideAsync().catch(() => {});
+      reportStartup((event, props) => posthog.capture(event, props), {
+        signed_in: !!session,
+        entry: segments[0] ?? null,
+        overlay_expired: overlayExpired,
+      });
     });
     return () => cancelAnimationFrame(id);
+    // Startup reports once; the latest session/segments at that moment are what we want.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isBlocking]);
 
   return (
@@ -240,6 +236,10 @@ function RootLayout() {
   useEffect(() => {
     if (error) throw error;
   }, [error]);
+
+  useEffect(() => {
+    if (loaded) markStartup("fonts_loaded");
+  }, [loaded]);
 
   if (!loaded) return null;
 

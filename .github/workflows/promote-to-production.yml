@@ -94,7 +94,7 @@ jobs:
           EXPO_PUBLIC_APP_ENV: production
           RELEASE_MESSAGE: ${{ inputs.message }}
         run: |
-          npx eas-cli update --branch production --environment production \
+          npx eas-cli@25.2.0 update --branch production --environment production \
             --message "$RELEASE_MESSAGE" --non-interactive
 
       # Without this, every JS error from an OTA bundle lands in Sentry
@@ -109,6 +109,6 @@ jobs:
           SENTRY_ORG: soundtracks
           SENTRY_PROJECT: react-native
         run: |
-          npx eas-cli env:exec production \
+          npx eas-cli@25.2.0 env:exec production \
             "npx expo export --platform ios --output-dir dist && npx sentry-expo-upload-sourcemaps dist" \
             --non-interactive

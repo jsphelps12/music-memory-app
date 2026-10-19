@@ -71,7 +71,7 @@ jobs:
           first_url() {
             node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s)[0];console.log(b&&b.artifacts&&b.artifacts.buildUrl||'')})"
           }
-          URL=$(npx eas-cli build:list --platform ios --profile preview-simulator \
+          URL=$(npx eas-cli@25.2.0 build:list --platform ios --profile preview-simulator \
             --status finished --limit 1 --json --non-interactive | first_url)
           # A one-byte range read, not HEAD: it follows the same redirect a
           # real download does, and some storage backends reject HEAD.
@@ -79,7 +79,7 @@ jobs:
             echo "Reusing $URL"
           else
             echo "::notice::No downloadable preview-simulator build (archive missing or expired). Building one."
-            URL=$(npx eas-cli build --platform ios --profile preview-simulator \
+            URL=$(npx eas-cli@25.2.0 build --platform ios --profile preview-simulator \
               --wait --json --non-interactive | first_url)
             if [ -z "$URL" ]; then
               echo "::error::The preview-simulator build finished without an archive URL."

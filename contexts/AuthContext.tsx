@@ -5,6 +5,7 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import * as Sentry from "@sentry/react-native";
 import { supabase } from "@/lib/supabase";
 import { posthog } from "@/lib/posthog";
+import { markStartup } from "@/lib/perf";
 import { CustomMoodDefinition, CustomPromptCategory, FavoriteArtist, FavoriteSong, MusicProviderType, UserProfile } from "@/types";
 import { getProvider, connectSpotify, disconnectSpotify } from "@/lib/providers";
 import type { SpotifyFailure } from "@/lib/providers/spotifyErrors";
@@ -248,6 +249,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const cached = await readProfileCache(userId);
+        markStartup(cached ? "profile_cached" : "profile_cache_miss");
         if (isMountedRef.current && cached) {
           setProfile(cached);
           setProfileReady(true);
@@ -264,6 +266,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }, PROFILE_TIMEOUT_MS)
           ),
         ]);
+        markStartup(timedOut ? "profile_timeout" : "profile_fresh");
         if (timedOut && isMountedRef.current) setProfileError(true);
       } finally {
         // Only settle if we're still the current hydration: a slower run for a
@@ -293,7 +296,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // already set and bounce the user to the sign-in screen until the token
         // refresh finally landed. On timeout we do nothing and let the listener
         // deliver the session; the overlay's own escape hatch covers the rest.
-        if (result === TIMED_OUT) return;
+        if (result === TIMED_OUT) {
+          markStartup("session_timeout");
+          return;
+        }
+        markStartup("session");
         const session = result.data.session;
         setSession(session);
         if (session?.user) {
