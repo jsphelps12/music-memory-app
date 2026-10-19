@@ -57,9 +57,9 @@ below should move that, or it doesn't belong on this page.
 - [ ] Watch Sentry and PostHog for a week.
 
 ### Ship 1.3.0
-- [ ] Version bump + beta build 33.
-- [ ] Production build (owner runs it once interactively: the App Store copy
-  of the widget needs its provisioning profile) → submit.
+- [x] Version bump + beta build 33 (PR #45).
+- [x] Production build 9 (owner ran it interactively to create the App Store
+  widget profile) → submitted to App Store Connect 2026-10-19.
 - [ ] App Store Connect: new 1.3.0 version, attach build, six 6.9"
   screenshots from `docs/app-store/screenshots/`, What's New, **manual
   release**, submit.
