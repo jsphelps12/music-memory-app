@@ -60,9 +60,10 @@ below should move that, or it doesn't belong on this page.
 - [x] Version bump + beta build 33 (PR #45).
 - [x] Production build 9 (owner ran it interactively to create the App Store
   widget profile) → submitted to App Store Connect 2026-10-19.
-- [ ] App Store Connect: new 1.3.0 version, attach build, six 6.9"
-  screenshots from `docs/app-store/screenshots/`, What's New, **manual
-  release**, submit.
+- [x] App Store Connect: 1.3.0 version, build 9, six 6.9" screenshots,
+  What's New, new subtitle/keywords/description, **manual release**;
+  submitted for review 2026-10-19.
+- [ ] On approval: check build 9 on TestFlight, then release manually.
 - [x] E2E green on `main` so the promote path works for JS fixes (PR #33:
   search-input race fix, Maestro driver-death retry, seed no longer signs out
   testers).
