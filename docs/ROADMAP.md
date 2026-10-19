@@ -78,8 +78,8 @@ clutter, navigation.
   better because the boxes recede), four section-header styles, a clashing
   orange→purple gradient, emoji moods, generic icons, "Albums" meaning two
   things, form-like capture, detail-screen contrast failing on scroll.
-- [ ] **Clickable mockups** of Journal, Capture and Detail in the new
-  direction; react before any code.
+- [x] **Clickable mockups** of Journal, Capture, Entry, Rediscover, You and
+  dark mode (design canvas, 2026-10-17); reacted to before any code.
 
 **Decided 2026-10-17:**
 - **Three tabs + capture:** *Journal* (timeline; calendar and **map** stay as
@@ -100,8 +100,10 @@ clutter, navigation.
   tap the artwork to play (equalizer while playing), moods as words,
   floating mini player, list/calendar/map segmented control. (The "Shared
   with me" pills went in Phase 1e; see You.)
-- [ ] **Visual system refresh:** palette, one coherent icon set, fewer borders
-  and nested cards, a clear type hierarchy.
+- [x] **Visual system refresh:** palette, fewer borders and nested cards, one
+  section-header style, serif titles and a reading face (Phases 1a–1f).
+- [ ] **One coherent icon set:** SF Symbols (`expo-symbols`) instead of
+  Ionicons. Native, so it rides the next binary.
 - [x] **Two-tap capture** (Phase 1c): song first, and the Apple Music track
   playing now fills it in by default (a "Playing now" eyebrow says so;
   "Different song" / "Identify" sit under it, and Identify drops its match
@@ -267,14 +269,15 @@ weekly; charging earlier teaches nothing.
   the fingerprint gate silently.
 - [ ] **Wire `lib/authRouting.ts` into `_layout.tsx`** (extracted and tested,
   never wired).
-- [ ] **Authorize the Sentry MCP** so crash data is readable during the 1.2.0
-  rollout.
+- [ ] **Authorize the Sentry MCP** so crash data is readable during the
+  1.2.0 / 1.3.0 rollout.
 - Known limit: after 60 days without a commit GitHub disables the scheduled
   workflows (including the staging keepalive), and staging pauses. On
   return: re-enable in the Actions tab and restore staging.
 
 ## Open questions
 
-- What gets cut? (Decided in the Phase 1 critique.)
-- Is the journal case different enough to deserve its own entry type, or is
-  it just a moment with a long reflection?
+- ~~What gets cut?~~ Decided in the Phase 1 critique (stats dashboard,
+  milestone badges, emoji moods, the Shared pills).
+- ~~Is the journal case its own entry type?~~ No: a moment with a long
+  reflection, served by the full-page writer and drafts.
