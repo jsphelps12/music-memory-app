@@ -36,21 +36,33 @@ below should move that, or it doesn't belong on this page.
 - **Never paywall capture or your own history.**
 - **Every surface is a screen or a quick pick** (no pageSheet cards).
 
-## Where things stand (2026-10-17)
+## Where things stand (2026-10-19)
 
-- **1.2.0 (build 8) is in App Review** — first App Store build since build 7
-  (May). Brings Sharing v2, the Reflections reorg, design polish, expo-audio,
-  the min-build gate, the push-registration fix and Spotify hardening.
+- **1.2.0 (build 8) is live** on the App Store (auto-released after review):
+  Sharing v2, the Reflections reorg, expo-audio, the min-build gate, the
+  push-registration fix and Spotify hardening.
+- **1.3.0 is being cut:** the Phase 1 redesign, the full-page writer and
+  drafts, the capture widget and controls, the new launch screen. Release
+  manually after approval; later JS polish goes out via Promote to
+  Production.
 - **Usage:** 77 users; 10 created a moment in the last 90 days. Josh's own
   last moment: 2026-08-05. Friends tried it and drifted.
-- **Beta:** Soundtracks β build 27 (staging) gets every merge to `main` OTA.
+- **Beta:** Soundtracks β build 33 (staging) gets every merge to `main` OTA.
   Weekly Health and E2E crons run Mondays; see `DEPLOY.md`.
 
 ## Now
 
 ### Ship 1.2.0
-- [ ] App Review approval → release with Phased Release → watch Sentry and
-  PostHog for a week.
+- [x] App Review approval → released (automatic release, 2026-10).
+- [ ] Watch Sentry and PostHog for a week.
+
+### Ship 1.3.0
+- [ ] Version bump + beta build 33.
+- [ ] Production build (owner runs it once interactively: the App Store copy
+  of the widget needs its provisioning profile) → submit.
+- [ ] App Store Connect: new 1.3.0 version, attach build, six 6.9"
+  screenshots from `docs/app-store/screenshots/`, What's New, **manual
+  release**, submit.
 - [x] E2E green on `main` so the promote path works for JS fixes (PR #33:
   search-input race fix, Maestro driver-death retry, seed no longer signs out
   testers).
