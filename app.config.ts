@@ -8,7 +8,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   slug: "music-memory",
   version: "1.3.0",
   orientation: "portrait",
-  icon: isPreview ? "./assets/images/app-icon-beta-forest-1024.png" : "./assets/images/app-icon.png",
+  icon: isPreview ? "./assets/images/app-icon-beta.png" : "./assets/images/app-icon.png",
   // Per-variant scheme: with both apps installed, iOS routes a shared custom
   // scheme to an arbitrary one — share-extension handoffs and OAuth callbacks
   // would land in the wrong app. Public soundtracks:// links stay prod-only.
@@ -16,6 +16,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
   ios: {
+    // "Pressed S" (2026-10): light, dark and tinted home-screen variants,
+    // drawn by scripts/make-app-icon.py. The beta keeps one icon (green
+    // label) so it never looks like the App Store app.
+    icon: isPreview
+      ? "./assets/images/app-icon-beta.png"
+      : {
+          light: "./assets/images/app-icon.png",
+          dark: "./assets/images/app-icon-dark.png",
+          tinted: "./assets/images/app-icon-tinted.png",
+        },
     supportsTablet: false,
     bundleIdentifier: isPreview
       ? "com.joshuaphelps.musicmemory.preview"
@@ -53,7 +63,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     adaptiveIcon: {
       foregroundImage: "./assets/images/adaptive-icon.png",
-      backgroundColor: "#ffffff",
+      backgroundColor: "#FBF7F2",
     },
     edgeToEdgeEnabled: true,
     package: "com.joshuaphelps.musicmemory",

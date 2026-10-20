@@ -162,7 +162,10 @@ Warm paper and blue-black ink, with a single terracotta signal and a muted slate
 - **Terracotta Wash** (`terracotta-wash`): the faint ground behind an accent-tinted element when a signal needs a surface.
 
 ### Secondary
-- **Slate Violet** (`slate-violet`): the cool end of the app-icon gradient. Reserved for brand moments; used sparingly and never alongside terracotta as a second accent on ordinary screens.
+- **Slate Violet** (`slate-violet`): the cool end of the old app-icon gradient (retired 2026-10). Reserved for brand moments; used sparingly and never alongside terracotta as a second accent on ordinary screens.
+
+### App icon
+"Pressed S" (2026-10): an ink record on paper, terracotta label, the wordmark's DM Serif Display S in paper. No gradient: it follows the same paper, ink and one-accent rules as the screens. Dark: ink tile, ember label. Tinted: grayscale for iOS to tint. Beta: same mark with a green label. Masters in `assets/images/app-icon.svg` (and `app-icon-mono.svg` for one-color print); every PNG is drawn by `scripts/make-app-icon.py`.
 
 ### Neutral
 - **Paper** (`paper`): the page. App background, tab bar, the web landing's base.
@@ -266,7 +269,8 @@ A shared album shown as a record's tracklist: 2px ink top rule, serif title with
 
 ### Navigation
 - **Tab bar:** paper ground, hairline top border, four slots with 11px DM Sans labels (500, 600 when active); active in ink, inactive in warm gray. New activity is an 8px terracotta dot on the icon, never a count.
-- **Web nav:** serif wordmark (24px DM Serif Display) left, a single underlined text link right, on the night hero.
+- **Web nav:** the app icon tile (30px, 22.5% corners) beside the serif wordmark (24px DM Serif Display), on the night hero. Once the hero scrolls away, a frosted paper bar slides in with the same lockup and the App Store badge.
+- **Record mark (web):** the icon's record (ink disc, terracotta label, serif S) drawn without its tile. The hero shows it sliding out of a song's sleeve; keep the S label visible whenever it appears.
 - **Surfaces:** every surface is a full screen or a compact bottom sheet sized to content (Deep Paper, 20px top radius, grabber in Edge). No page-sheet cards that cover most of a screen.
 
 ### Device (web)
