@@ -1,0 +1,798 @@
+/* Soundtracks landing: the app's world (paper, ink, one terracotta accent,
+   artwork as the only saturated color) carried onto the web. */
+
+.page {
+  --paper: #fbf7f2;
+  --paper-deep: #f3ede5;
+  --ink: #23222b;
+  --ink-2: #3a3943;
+  --ink-soft: #5e5c66;
+  --divider: #e9e2d9;
+  --accent: #d9693f;
+  /* Terracotta darkened for small text on paper (4.9:1; #d9693f is 3.3:1). */
+  --accent-text: #b04f2a;
+  --night: #0e0b0a;
+  --night-text: #f5f0eb;
+  --night-soft: #c9c0b9;
+  --gutter: clamp(20px, 5vw, 72px);
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans), -apple-system, system-ui, sans-serif;
+  font-size: 17px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+.page ::selection {
+  background: rgba(217, 105, 63, 0.24);
+  color: inherit;
+}
+
+.page a {
+  color: inherit;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+.page a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ─── Hero: the drive home ─────────────────────────────────────────── */
+
+.hero {
+  position: relative;
+  min-height: max(720px, min(100svh, 1000px));
+  background: var(--night);
+  color: var(--night-text);
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+  overflow: clip;
+}
+
+.heroPhoto {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+.heroPhoto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 55%;
+}
+
+.heroPhoto::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(14, 11, 10, 0.86) 0%, rgba(14, 11, 10, 0.5) 42%, rgba(14, 11, 10, 0.08) 100%),
+    linear-gradient(0deg, rgba(14, 11, 10, 0.7) 0%, rgba(14, 11, 10, 0) 26%);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28px var(--gutter);
+}
+
+.wordmark {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 24px;
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+
+.heroInner {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  align-items: center;
+  gap: clamp(32px, 6vw, 96px);
+  padding: 24px var(--gutter) 72px;
+  max-width: 1360px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.heroCopy {
+  max-width: 600px;
+}
+
+.heroTitle {
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(52px, 7.2vw, 96px);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  margin: 0 0 28px;
+  text-wrap: balance;
+}
+
+.heroLede {
+  font-size: clamp(18px, 1.6vw, 21px);
+  line-height: 1.55;
+  color: var(--night-soft);
+  max-width: 34ch;
+  margin: 0 0 36px;
+}
+
+.heroFine {
+  margin: 14px 0 0;
+  font-size: 14px;
+  color: var(--night-soft);
+}
+
+.heroPhone {
+  display: flex;
+  justify-content: center;
+}
+
+.badge {
+  display: inline-block;
+  line-height: 0;
+  transition: opacity 0.2s ease;
+}
+
+.badge img {
+  height: 50px;
+  width: auto;
+}
+
+.badge:hover {
+  opacity: 0.85;
+}
+
+/* ─── The phone ────────────────────────────────────────────────────── */
+
+.phone {
+  --phone-w: clamp(250px, 26vw, 340px);
+  width: var(--phone-w);
+  aspect-ratio: 393 / 852;
+  padding: calc(var(--phone-w) * 0.03);
+  border-radius: calc(var(--phone-w) * 0.165);
+  background: #1b1a1e;
+  box-shadow:
+    inset 0 0 0 1.5px #3b3a40,
+    0 2px 4px rgba(0, 0, 0, 0.18),
+    0 34px 70px -18px rgba(0, 0, 0, 0.55);
+  flex: none;
+}
+
+.phoneHero,
+.storyStage .phone {
+  /* Same size in the hero and the story, so it reads as one phone. */
+  --phone-w: min(330px, 25vw, calc((100svh - 170px) * 0.46));
+}
+
+.phoneScreen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: calc(var(--phone-w) * 0.137);
+  background: var(--paper);
+  container-type: inline-size;
+}
+
+.island {
+  position: absolute;
+  top: 2.6%;
+  left: 50%;
+  width: 31%;
+  height: 4.3%;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: #000;
+  z-index: 3;
+}
+
+.screenImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+
+/* ─── Lock Screen ──────────────────────────────────────────────────── */
+
+.lock {
+  position: absolute;
+  inset: 0;
+  color: #fff;
+  text-align: center;
+  font-family: -apple-system, "SF Pro Display", system-ui, sans-serif;
+  background:
+    linear-gradient(180deg, rgba(10, 14, 22, 0.35) 0%, rgba(10, 14, 22, 0.1) 40%, rgba(10, 14, 22, 0.55) 100%),
+    url("/photos/driver-1200.webp") 62% 50% / cover;
+}
+
+.lockDate {
+  margin: 0;
+  padding-top: 17cqw;
+  font-size: 5cqw;
+  font-weight: 600;
+  opacity: 0.88;
+}
+
+.lockTime {
+  margin: -1cqw 0 0;
+  font-size: 25cqw;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  opacity: 0.94;
+}
+
+.lockWidget {
+  margin: 4cqw auto 0;
+  width: 66%;
+  padding: 3cqw 4cqw;
+  border-radius: 5cqw;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+
+.lockWidgetApp {
+  display: flex;
+  align-items: center;
+  gap: 1.4cqw;
+  margin: 0;
+  font-size: 3.3cqw;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.lockWidgetApp svg {
+  width: 3.4cqw;
+  height: 3.4cqw;
+}
+
+.lockWidgetTitle {
+  margin: 0.6cqw 0 0;
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 5.4cqw;
+  line-height: 1.15;
+}
+
+.lockWidgetSub {
+  margin: 0.4cqw 0 0;
+  font-size: 3cqw;
+  opacity: 0.75;
+}
+
+.lockControls {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: 9%;
+  display: flex;
+  justify-content: space-between;
+}
+
+.lockButton {
+  display: grid;
+  place-items: center;
+  width: 12.5cqw;
+  height: 12.5cqw;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.lockButton svg {
+  width: 5cqw;
+  height: 5cqw;
+}
+
+.lockButtonOurs {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+}
+
+.lockHome {
+  position: absolute;
+  left: 50%;
+  bottom: 2.2%;
+  width: 34%;
+  height: 1.2cqw;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* ─── Story: one song, seven years ─────────────────────────────────── */
+
+.story {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: clamp(32px, 6vw, 96px);
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.storyStage {
+  position: relative;
+}
+
+.storyStageInner {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+}
+
+.stageScreen {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  filter: blur(8px);
+  transform: scale(1.02);
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.stageScreen[data-active="true"] {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+
+.stageWhen {
+  margin: 0;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-text);
+  text-align: center;
+}
+
+.stageYear {
+  font-weight: 600;
+}
+
+.chapters {
+  padding: 8vh 0;
+}
+
+.chapter {
+  min-height: 92svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 560px;
+}
+
+.chapterTitle {
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(36px, 4.2vw, 56px);
+  line-height: 1.04;
+  letter-spacing: -0.015em;
+  margin: 0 0 26px;
+  text-wrap: balance;
+}
+
+.chapterWhen {
+  display: none;
+  margin: 14px 0 26px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-text);
+}
+
+.chapterBody {
+  margin: 0 0 14px;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  max-width: 44ch;
+}
+
+.excerpt {
+  margin: 28px 0 0;
+  padding: 0;
+  font-family: var(--font-reading), Georgia, serif;
+  font-size: clamp(21px, 1.9vw, 25px);
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.excerpt p {
+  margin: 0 0 14px;
+}
+
+.excerpt footer {
+  margin-top: 6px;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.chapterPhone {
+  display: none;
+}
+
+/* ─── Three kinds of entries ───────────────────────────────────────── */
+
+.kinds,
+.album,
+.close {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: clamp(96px, 12vw, 160px) var(--gutter) 0;
+}
+
+.sectionTitle {
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(34px, 4vw, 52px);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  margin: 0 0 48px;
+  max-width: 18ch;
+  text-wrap: balance;
+}
+
+.entryList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--divider);
+}
+
+.entryRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(0, 2.4fr);
+  gap: 32px;
+  padding: 36px 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.entryKind {
+  margin: 4px 0 0;
+  font-size: 15px;
+  color: var(--ink-soft);
+  max-width: 22ch;
+}
+
+.entrySong {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.entrySong span {
+  font-weight: 400;
+  color: var(--ink-soft);
+  margin-left: 6px;
+}
+
+.entryText {
+  margin: 10px 0 0;
+  font-family: var(--font-reading), Georgia, serif;
+  font-size: clamp(21px, 2vw, 26px);
+  line-height: 1.45;
+  max-width: 36em;
+  text-wrap: pretty;
+}
+
+.entryDate {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* ─── Albums together ──────────────────────────────────────────────── */
+
+.album {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: clamp(32px, 6vw, 96px);
+  align-items: start;
+}
+
+.albumCopy .sectionTitle {
+  margin-bottom: 24px;
+}
+
+.bodyText {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  max-width: 40ch;
+}
+
+.tracklist {
+  margin: 0;
+  padding: 32px 0 0;
+  border-top: 2px solid var(--ink);
+}
+
+.tracklist figcaption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.tracklistTitle {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.tracklistMeta {
+  font-size: 14px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.tracklist ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tracklist li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  column-gap: 12px;
+  padding: 18px 0;
+  border-top: 1px solid var(--divider);
+}
+
+.trackNo {
+  grid-row: span 2;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+  font-size: 15px;
+  padding-top: 2px;
+}
+
+.trackSong {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.trackSong em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--ink-soft);
+  margin-left: 6px;
+}
+
+.trackBy {
+  margin-top: 4px;
+  font-family: var(--font-reading), Georgia, serif;
+  font-size: 18px;
+  color: var(--ink-2);
+}
+
+/* ─── Founder note ─────────────────────────────────────────────────── */
+
+.note {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  margin-top: clamp(112px, 14vw, 180px);
+  background: var(--night);
+  color: var(--night-text);
+  padding: clamp(96px, 13vw, 180px) var(--gutter);
+}
+
+.notePhoto {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+.notePhoto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 20% 50%;
+}
+
+.notePhoto::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(14, 11, 10, 0.55) 0%, rgba(14, 11, 10, 0.86) 45%, rgba(14, 11, 10, 0.92) 100%);
+}
+
+.noteBody {
+  max-width: 600px;
+  margin: 0 0 0 auto;
+  font-family: var(--font-reading), Georgia, serif;
+  font-size: clamp(21px, 2vw, 26px);
+  line-height: 1.55;
+}
+
+.noteBody p {
+  margin: 0 0 22px;
+}
+
+.signature {
+  margin-top: 34px !important;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 15px;
+  color: var(--night-soft);
+}
+
+/* ─── Close ────────────────────────────────────────────────────────── */
+
+.close {
+  text-align: center;
+  padding-bottom: clamp(96px, 12vw, 150px);
+}
+
+.closeTitle {
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(40px, 5.6vw, 76px);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  margin: 0 auto 40px;
+  max-width: 16ch;
+  text-wrap: balance;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 28px var(--gutter) 40px;
+  border-top: 1px solid var(--divider);
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.footer nav {
+  display: flex;
+  gap: 22px;
+}
+
+/* ─── Small screens ────────────────────────────────────────────────── */
+
+@media (max-width: 899px) {
+  .page {
+    font-size: 16px;
+  }
+
+  .hero {
+    min-height: auto;
+  }
+
+  .heroPhoto::after {
+    background:
+      linear-gradient(180deg, rgba(14, 11, 10, 0.78) 0%, rgba(14, 11, 10, 0.8) 60%, rgba(14, 11, 10, 0.94) 100%);
+  }
+
+  .nav {
+    padding-top: 20px;
+    padding-bottom: 20px;
+  }
+
+  .heroInner {
+    grid-template-columns: 1fr;
+    gap: 48px;
+    padding-top: 28px;
+    padding-bottom: 56px;
+  }
+
+  .phoneHero {
+    --phone-w: min(270px, 70vw);
+  }
+
+  .story {
+    grid-template-columns: 1fr;
+  }
+
+  .storyStage,
+  .chapterTitle {
+    margin-bottom: 0;
+  }
+
+  .chapterWhen {
+    display: block;
+  }
+
+  .entryKind {
+    order: 2;
+    margin: 0;
+    font-size: 13px;
+  }
+
+  .noteBody {
+    margin: 0 auto;
+  }
+
+  .notePhoto::after {
+    background: rgba(14, 11, 10, 0.86);
+  }
+
+  .chapters {
+    padding: 24px 0 0;
+  }
+
+  .chapter {
+    min-height: 0;
+    padding: 56px 0;
+    border-bottom: 1px solid var(--divider);
+  }
+
+  .chapterPhone {
+    display: flex;
+    justify-content: center;
+    margin-top: 36px;
+  }
+
+  .chapterPhone .phone {
+    --phone-w: min(260px, 68vw);
+  }
+
+  .entryRow {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 28px 0;
+  }
+
+  .album {
+    grid-template-columns: 1fr;
+  }
+
+  .tracklist {
+    margin-top: 16px;
+  }
+
+  .tracklist figcaption {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tracklistTitle {
+    font-size: 30px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stageScreen,
+  .badge {
+    transition: none;
+    filter: none;
+    transform: none;
+  }
+}
