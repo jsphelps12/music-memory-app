@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { DM_Serif_Display, DM_Sans, Newsreader } from "next/font/google";
-import { Phone, LockScreen } from "./_landing/Phone";
 import { Story } from "./_landing/Story";
+import { StickyBar } from "./_landing/StickyBar";
+import { Hero } from "./_landing/Hero";
 import styles from "./_landing/landing.module.css";
 
 const serif = DM_Serif_Display({ weight: "400", subsets: ["latin"], variable: "--font-serif", display: "swap" });
@@ -68,36 +69,11 @@ const ALBUM = [
 export default function Home() {
   return (
     <main className={`${styles.page} ${serif.variable} ${sans.variable} ${reading.variable}`}>
-      <section className={styles.hero}>
-        {/* Unsplash photographs (Unsplash License); see public/photos/SOURCES.md. */}
-        <picture className={styles.heroPhoto}>
-          <source media="(min-width: 900px)" srcSet="/photos/drive-2400.webp" />
-          <img src="/photos/drive-1200.webp" alt="" fetchPriority="high" />
-        </picture>
+      <StickyBar>
+        <AppStoreBadge />
+      </StickyBar>
 
-        <header className={styles.nav}>
-          <Link href="/" className={styles.wordmark}>
-            Soundtracks
-          </Link>
-        </header>
-
-        <div className={styles.heroInner}>
-          <div className={styles.heroCopy}>
-            <h1 className={styles.heroTitle}>Some songs hold a whole summer.</h1>
-            <p className={styles.heroLede}>
-              Soundtracks is a journal for them. Catch the song while it&rsquo;s playing, write a line or pages, and let
-              it bring the moment back years from now.
-            </p>
-            <AppStoreBadge />
-            <p className={styles.heroFine}>Free for iPhone. Works with Apple Music.</p>
-          </div>
-          <div className={styles.heroPhone}>
-            <Phone className={styles.phoneHero}>
-              <LockScreen />
-            </Phone>
-          </div>
-        </div>
-      </section>
+      <Hero badge={<AppStoreBadge />} />
 
       <Story />
 
