@@ -17,7 +17,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { BottomSheet } from "@/components/BottomSheet";
 import { friendlyError } from "@/lib/errors";
-import { createAlbum, updateAlbumCover } from "@/lib/albums";
+import { albumCoverKey, createAlbum, ensureAlbumGuestUser, updateAlbumCover } from "@/lib/albums";
+import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { uploadAlbumCover } from "@/lib/storage";
 import type { Album } from "@/types";
 
@@ -76,23 +77,50 @@ export function CreateAlbumSheet({ visible, onClose, userId, onCreated, defaultS
     const trimmed = name.trim();
     if (!trimmed || loading) return;
     setLoading(true);
+    let album: Album;
     try {
-      const album = await createAlbum(userId, trimmed, isShared);
-      if (coverUri) {
-        const path = await uploadAlbumCover(userId, album.id, coverUri);
-        await updateAlbumCover(album.id, path);
-      }
-      await queryClient.invalidateQueries({ queryKey: ["collectionsScreen", userId] });
-      handleClose();
-      if (onCreated) {
-        onCreated(album);
-      } else {
-        router.push({ pathname: "/album/[id]" as any, params: { id: album.id } });
-      }
+      album = await createAlbum(userId, trimmed, isShared);
     } catch (e: any) {
       Alert.alert("Error", friendlyError(e));
-    } finally {
       setLoading(false);
+      return;
+    }
+
+    // The album exists from here on. Everything after is best-effort: failing
+    // it must not leave the sheet open, or tapping Create again makes a
+    // second album with the same name.
+    const [guestResult, coverResult] = await Promise.allSettled([
+      // Shared albums need a guest user for guest contributions. If this
+      // fails, AlbumShareSheet sets it up the next time the owner opens it.
+      isShared ? ensureAlbumGuestUser(album.id) : Promise.resolve(),
+      coverUri
+        ? (async () => {
+            const path = await uploadAlbumCover(userId, albumCoverKey(album.id), coverUri);
+            await updateAlbumCover(album.id, path);
+            return path;
+          })()
+        : Promise.resolve(undefined),
+    ]);
+    if (guestResult.status === "rejected" && __DEV__) {
+      console.warn("[albums] guest user setup failed:", guestResult.reason);
+    }
+    if (coverResult.status === "fulfilled" && coverResult.value) {
+      album = { ...album, coverPhotoUrl: coverResult.value };
+    }
+
+    invalidateAlbumCaches(queryClient, userId);
+    setLoading(false);
+    handleClose();
+    if (coverResult.status === "rejected") {
+      Alert.alert(
+        "Album created",
+        `The cover photo didn't upload (${friendlyError(coverResult.reason)}). You can add it from the album's settings.`
+      );
+    }
+    if (onCreated) {
+      onCreated(album);
+    } else {
+      router.push({ pathname: "/album/[id]" as any, params: { id: album.id } });
     }
   };
 

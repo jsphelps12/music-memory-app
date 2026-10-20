@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,7 +13,7 @@ import * as Haptics from "expo-haptics";
 import { useQueryClient } from "@tanstack/react-query";
 import { CloseButton } from "@/components/CloseButton";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchAlbumByInviteCode, joinAlbum } from "@/lib/albums";
+import { AlbumUnavailableError, fetchAlbumByInviteCode, joinAlbum } from "@/lib/albums";
 import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/hooks/useTheme";
@@ -22,7 +21,7 @@ import { friendlyError } from "@/lib/errors";
 import { pluralMoments } from "@/lib/utils";
 import { AlbumPreview } from "@/types";
 
-type ScreenState = "loading" | "not_found" | "already_owner" | "already_member" | "ready" | "joining";
+type ScreenState = "loading" | "not_found" | "error" | "already_owner" | "already_member" | "ready" | "joining";
 
 export default function JoinScreen() {
   const { inviteCode } = useLocalSearchParams<{ inviteCode: string }>();
@@ -68,9 +67,17 @@ export default function JoinScreen() {
 
       if (membershipError) throw membershipError;
       setState(membership ? "already_member" : "ready");
-    } catch {
-      setState("not_found");
+    } catch (e) {
+      // A missing album returns null above; reaching here means the lookup
+      // itself failed (offline, a timeout), so offer a retry rather than
+      // calling a working link dead.
+      setError(friendlyError(e));
+      setState("error");
     }
+  }
+
+  function openAlbum(albumId: string) {
+    router.replace({ pathname: "/album/[id]", params: { id: albumId } });
   }
 
   async function handleJoin() {
@@ -79,16 +86,19 @@ export default function JoinScreen() {
     setError("");
     try {
       const joined = await joinAlbum(inviteCode, user.id);
-      // NOTE: post-join album auto-select is not implemented — the consumer
-      // that read this was removed some time ago, so the write was a no-op.
-      // To restore it, have the Albums tab select `joined.id` on focus.
       posthog.capture("collection_joined", { collection_name: collection?.name ?? null });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // The Albums tab / badge / shared-activity caches still predate this
-      // membership — without this the joined album isn't listed on arrival.
+      // The Albums screen, You's album row and badge caches still predate
+      // this membership; without this the album is missing from them.
       invalidateAlbumCaches(queryClient, user.id, joined.id);
-      router.replace("/(tabs)");
+      // Land in the album just joined: albums aren't a tab any more, so the
+      // Journal would leave no trace of it.
+      openAlbum(joined.id);
     } catch (e) {
+      if (e instanceof AlbumUnavailableError) {
+        setState("not_found");
+        return;
+      }
       setError(friendlyError(e));
       setState("ready");
     }
@@ -123,6 +133,28 @@ export default function JoinScreen() {
         </View>
       )}
 
+      {state === "error" && (
+        <View style={styles.centered}>
+          <Ionicons name="cloud-offline-outline" size={48} color={theme.colors.textTertiary} />
+          <Text style={[styles.title, { color: theme.colors.text, marginTop: 20 }]}>
+            Couldn't open this invite
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>{error}</Text>
+          <TouchableOpacity
+            style={[styles.primaryButton, { backgroundColor: theme.colors.accent }]}
+            onPress={loadPreview}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.primaryButtonText}>Try Again</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.replace("/(tabs)")} activeOpacity={0.7} style={styles.cancelButton}>
+            <Text style={[styles.cancelText, { color: theme.colors.textSecondary }]}>
+              Not now
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {state === "already_owner" && collection && (
         <View style={styles.centered}>
           <Ionicons name="star" size={48} color={theme.colors.accent} />
@@ -137,10 +169,10 @@ export default function JoinScreen() {
           </Text>
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: theme.colors.accent }]}
-            onPress={() => router.replace("/(tabs)")}
+            onPress={() => openAlbum(collection.id)}
             activeOpacity={0.8}
           >
-            <Text style={styles.primaryButtonText}>Got it</Text>
+            <Text style={styles.primaryButtonText}>Open Album</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -161,10 +193,10 @@ export default function JoinScreen() {
           ) : null}
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: theme.colors.accent }]}
-            onPress={() => router.replace("/(tabs)")}
+            onPress={() => openAlbum(collection.id)}
             activeOpacity={0.8}
           >
-            <Text style={styles.primaryButtonText}>Got it</Text>
+            <Text style={styles.primaryButtonText}>Open Album</Text>
           </TouchableOpacity>
         </View>
       )}

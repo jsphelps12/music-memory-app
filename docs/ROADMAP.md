@@ -383,6 +383,17 @@ questionnaire/ML, NFC products, Android.
     Data-URI artwork is never saved. Native part (needs a binary): no
     base64 artwork from now-playing, systemMusicPlayer read on main,
     ShazamKit restores the audio session.
+  - [x] WS-D, albums and browse (2026-10-20, JS only): album screens tell a
+    failed request (retry, or a banner over what's already shown) from a
+    missing album; invite links offer a retry when offline and land in the
+    album after joining; browse drill-downs no longer spin forever or show
+    an empty list on failure. Album detail and the Albums screen load in two
+    round trips instead of up to five, and artworks are capped per album on
+    the server. New albums no longer duplicate when the cover upload fails;
+    shared albums finish their guest setup (and retry it). Album covers get
+    a new path per upload and the old image is deleted, as is the cover of
+    a deleted album. Still to do outside WS-D: the You tab should read the
+    Albums screen's query instead of its own.
 - [x] **Pin `eas-cli`** to 25.2.0 in every workflow and the fingerprint
   scripts (v24's JSON rename had broken the gate silently).
 - [x] **Wire `lib/authRouting.ts` into `_layout.tsx`:** AuthGate now runs

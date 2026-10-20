@@ -8,7 +8,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   FlatList,
-  Alert,
   Dimensions,
   RefreshControl,
 } from "react-native";
@@ -18,13 +17,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { IconButton } from "@/components/IconButton";
 import { AlbumMosaic } from "@/components/AlbumMosaic";
-import {
-  fetchAlbums,
-  fetchAlbumArtworks,
-  fetchSharedAlbumActivity,
-} from "@/lib/albums";
+import { fetchAlbumsOverview } from "@/lib/albums";
+import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
+import { DEFAULT_SCREEN_STALE } from "@/lib/queryConfig";
 import { Album } from "@/types";
 import { friendlyError } from "@/lib/errors";
 import { pluralMoments } from "@/lib/utils";
@@ -33,17 +32,7 @@ const GRID_GAP = 12;
 const SCREEN_PAD = 16;
 const CELL_SIZE = (Dimensions.get("window").width - SCREEN_PAD * 2 - GRID_GAP) / 2;
 
-// ── Data ──────────────────────────────────────────────────────────────────────
-
-async function fetchAlbumsScreen(userId: string) {
-  const [albums, sharedActivity] = await Promise.all([
-    fetchAlbums(userId),
-    fetchSharedAlbumActivity(userId),
-  ]);
-  const activityMap = new Map(sharedActivity.map((a) => [a.collectionId, a.newMomentCount]));
-  const artworks = await fetchAlbumArtworks(albums.filter((a) => !a.coverPhotoUrl).map((a) => a.id));
-  return { albums, activityMap, artworks };
-}
+const STALE_TIME = DEFAULT_SCREEN_STALE;
 
 // ── Album cell ────────────────────────────────────────────────────────────────
 
@@ -99,20 +88,24 @@ export default function AlbumsScreen() {
 
   const [newAlbumVisible, setNewAlbumVisible] = useState(false);
 
-  const STALE_TIME = 2 * 60 * 1000;
-  const { data, isLoading, refetch, isFetching, dataUpdatedAt } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching, dataUpdatedAt, errorUpdatedAt } = useQuery({
     queryKey: ["collectionsScreen", user?.id],
-    queryFn: () => fetchAlbumsScreen(user!.id),
+    queryFn: () => fetchAlbumsOverview(user!.id),
     staleTime: STALE_TIME,
     enabled: !!user,
   });
+
+  // A failed background refetch keeps the albums on screen with a banner;
+  // only a failed first load replaces the screen.
+  const [bannerDismissedAt, setBannerDismissedAt] = useState(0);
+  const showBanner = isError && !!data && errorUpdatedAt > bannerDismissedAt;
 
   useFocusEffect(useCallback(() => {
     if (Date.now() - dataUpdatedAt > STALE_TIME) refetch();
   }, [refetch, dataUpdatedAt]));
 
-  const albums = data?.albums ?? [];
-  const activityMap = data?.activityMap ?? new Map();
+  const albums = useMemo(() => data?.albums ?? [], [data?.albums]);
+  const newCounts = useMemo(() => data?.newCounts ?? {}, [data?.newCounts]);
   const artworkMap = useMemo(() => data?.artworks ?? {}, [data?.artworks]);
 
   const personalAlbums = useMemo(
@@ -130,7 +123,7 @@ export default function AlbumsScreen() {
 
   const handleNewAlbumClose = useCallback(() => {
     setNewAlbumVisible(false);
-    queryClient.invalidateQueries({ queryKey: ["collectionsScreen", user?.id] });
+    invalidateAlbumCaches(queryClient, user?.id);
   }, [queryClient, user?.id]);
 
   const isEmpty = personalAlbums.length === 0 && sharedAlbums.length === 0;
@@ -167,7 +160,7 @@ export default function AlbumsScreen() {
           <AlbumCell
             key={col.id}
             collection={col}
-            newCount={activityMap.get(col.id) ?? 0}
+            newCount={newCounts[col.id] ?? 0}
             artworks={artworkMap[col.id] ?? []}
             onPress={() => handleTapAlbum(col)}
             theme={theme}
@@ -176,7 +169,7 @@ export default function AlbumsScreen() {
         {item.items.length === 1 && <View style={styles.cell} />}
       </View>
     );
-  }, [activityMap, artworkMap, dynamicStyles, theme, handleTapAlbum]);
+  }, [newCounts, artworkMap, dynamicStyles, theme, handleTapAlbum]);
 
   if (isLoading) {
     return (
@@ -199,7 +192,19 @@ export default function AlbumsScreen() {
         <IconButton name="add-outline" onPress={() => setNewAlbumVisible(true)} />
       </View>
 
-      {isEmpty ? (
+      {showBanner ? (
+        <View style={dynamicStyles.bannerWrap}>
+          <ErrorBanner
+            message={friendlyError(error)}
+            onRetry={() => refetch()}
+            onDismiss={() => setBannerDismissedAt(errorUpdatedAt)}
+          />
+        </View>
+      ) : null}
+
+      {isError && !data ? (
+        <ErrorState message={friendlyError(error)} onRetry={() => refetch()} />
+      ) : isEmpty ? (
         <EmptyState
           icon="albums-outline"
           title="No albums yet"
@@ -249,6 +254,10 @@ function createStyles(theme: Theme) {
     headerTitle: {
       fontSize: 30,
       fontFamily: theme.fonts.display,
+    },
+    bannerWrap: {
+      paddingHorizontal: SCREEN_PAD,
+      paddingTop: theme.spacing.sm,
     },
     listContent: {
       paddingHorizontal: SCREEN_PAD,

@@ -1,18 +1,30 @@
 import { useMemo, useState } from "react";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchBrowseMetadata, fetchAlbumMoments } from "@/lib/browse";
 import { BROWSE_META_STALE, BROWSE_DRILLDOWN_STALE } from "@/lib/queryConfig";
+import { friendlyError } from "@/lib/errors";
 import { BrowseScreen } from "@/components/BrowseScreen";
+import { ErrorState } from "@/components/ErrorState";
 
-const keyOf = (albumName: string, artist: string) => `${albumName}|||${artist}`;
+const SEPARATOR = "|||";
+const keyOf = (albumName: string, artist: string) => `${albumName}${SEPARATOR}${artist}`;
+function parseKey(key: string): { albumName: string; artist: string } {
+  const i = key.indexOf(SEPARATOR);
+  return i < 0
+    ? { albumName: key, artist: "" }
+    : { albumName: key.slice(0, i), artist: key.slice(i + SEPARATOR.length) };
+}
 
 export default function AlbumScreen() {
   const { user } = useAuth();
+  const router = useRouter();
   const { album: initialAlbum, artist: initialArtist } = useLocalSearchParams<{ album: string; artist: string }>();
   const [activeKey, setActiveKey] = useState(keyOf(initialAlbum ?? "", initialArtist ?? ""));
 
+  // Only feeds the switcher. The moments below don't wait on it, so a failed
+  // or outdated metadata fetch can't leave the screen loading forever.
   const { data: meta = [] } = useQuery({
     queryKey: ["browseMeta", user?.id],
     queryFn: () => fetchBrowseMetadata(user!.id),
@@ -32,19 +44,23 @@ export default function AlbumScreen() {
     return Array.from(seen.values()).sort((a, b) => b.count - a.count);
   }, [meta]);
 
-  const activeAlbum = allAlbums.find((a) => keyOf(a.albumName, a.artist) === activeKey);
+  const active = parseKey(activeKey);
 
-  const { data: moments = [], isLoading } = useQuery({
-    queryKey: ["albumMoments", user?.id, activeAlbum?.albumName, activeAlbum?.artist] as const,
-    queryFn: ({ queryKey }) => fetchAlbumMoments(queryKey[1]!, queryKey[2]!, queryKey[3]!),
-    enabled: !!user && !!activeAlbum,
+  const { data: moments, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["albumMoments", user?.id, active.albumName, active.artist] as const,
+    queryFn: ({ queryKey }) => fetchAlbumMoments(queryKey[1]!, queryKey[2], queryKey[3]),
+    enabled: !!user && !!active.albumName,
     staleTime: BROWSE_DRILLDOWN_STALE,
   });
 
+  if (isError && !moments) {
+    return <ErrorState message={friendlyError(error)} onRetry={() => refetch()} onBack={() => router.back()} />;
+  }
+
   return (
     <BrowseScreen
-      title={activeAlbum?.albumName ?? initialAlbum ?? ""}
-      subtitle={activeAlbum?.artist ?? initialArtist}
+      title={active.albumName}
+      subtitle={active.artist || undefined}
       items={allAlbums.map((a) => ({
         key: keyOf(a.albumName, a.artist),
         label: a.albumName,
@@ -52,9 +68,8 @@ export default function AlbumScreen() {
       }))}
       activeKey={activeKey}
       onSelect={setActiveKey}
-      moments={moments}
-      // Until browseMeta resolves there's no album to query, which isn't "empty".
-      isLoading={isLoading || (!activeAlbum && meta.length === 0)}
+      moments={moments ?? []}
+      isLoading={isLoading}
     />
   );
 }
