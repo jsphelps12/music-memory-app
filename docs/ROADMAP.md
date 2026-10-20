@@ -273,10 +273,29 @@ memorials, farewells, graduations, baby showers. Same engine for all.
   - **Wedding deliverable (decided 2026-10-20).** Value prop: "Your guests
     catch the songs of your night with two taps. You keep them forever."
     - Lazy capture: QR on the tables → web page → tap a suggested song (the
-      couple picks a handful) or search → name (required, so every song
-      says who picked it) → Add. A few words and a photo are optional. One
-      reminder after the wedding; collection stays open two weeks. No
-      account, no app, no RSVP step.
+      couple picks a handful) or search → **a photo from tonight** (asked
+      second, one tap into the camera roll; optional but expected) → name
+      (required, so every song says who picked it) → Add. Words are
+      optional, with one-tap starters ("The night we met…", "You two
+      in…") instead of an empty box. No account, no app, no RSVP step.
+    - The moment is the product (decided 2026-10-20): song, photo, words.
+      The song is the index; the moment is what people keep. The page,
+      the capture order and the book all lead with moments.
+    - One reminder the week after, about photos: "Add your photos to your
+      song." Guests attach photos to the entry they already made (same
+      device, or the link in the reminder), no retyping. Collection stays
+      open two weeks.
+    - **Designed in from the start: the couple's photos fill the gaps.**
+      The couple connects their photographer's gallery (upload or link).
+      For entries without a photo we suggest the gallery photo taken
+      closest to when that guest added their song (EXIF time vs the
+      entry's created_at; the couple confirms or picks another). Later,
+      maybe: opt-in matching of the guest's face. The data model gets a
+      per-entry photo source (guest / couple gallery) and the gallery
+      itself from day one, even if matching ships second.
+    - The book follows the content: a full page for every entry with a
+      photo or words, song-only entries gathered on tracklist pages, never
+      a padded page.
     - Cut: the DJ / dance-floor list, collecting through RSVPs, and song
       identification on the web (for now). The live wall at the reception
       is parked.
