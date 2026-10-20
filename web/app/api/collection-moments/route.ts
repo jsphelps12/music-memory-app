@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
 
   const profileRows =
     contributorIds.length > 0
-      ? (await supabase.from("profiles").select("id, display_name").in("id", contributorIds)).data ?? []
+      ? (await supabase.rpc("get_public_profiles", { p_ids: contributorIds })).data ?? []
       : [];
 
   const profileMap = new Map(

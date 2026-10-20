@@ -62,10 +62,7 @@ export default async function ContributePage({ params, searchParams }: PageProps
   const profileRows =
     contributorIds.length > 0
       ? (
-          await getSupabase()
-            .from("profiles")
-            .select("id, display_name")
-            .in("id", contributorIds)
+          await getSupabase().rpc("get_public_profiles", { p_ids: contributorIds })
         ).data ?? []
       : [];
 

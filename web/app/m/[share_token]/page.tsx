@@ -12,29 +12,36 @@ interface PageProps {
   params: Promise<{ share_token: string }>;
 }
 
-async function fetchMomentData(share_token: string) {
-  const { data: row } = await getSupabase()
-    .from("moments")
-    .select(
-      "id, song_title, song_artist, song_album_name, song_artwork_url, song_preview_url, reflection_text, photo_urls, moment_date, mood, location, user_id"
-    )
-    .eq("share_token", share_token)
-    .single();
-  if (!row) return null;
+interface SharedMoment {
+  id: string;
+  song_title: string | null;
+  song_artist: string | null;
+  song_album_name: string | null;
+  song_artwork_url: string | null;
+  song_preview_url: string | null;
+  reflection_text: string | null;
+  photo_urls: string[] | null;
+  moment_date: string | null;
+  mood: string | null;
+  location: string | null;
+  sender_name: string | null;
+  sender_friend_token: string | null;
+}
 
-  const { data: profile } = await getSupabase()
-    .from("profiles")
-    .select("display_name, friend_invite_token")
-    .eq("id", row.user_id)
-    .single();
+// One RPC returns only the page's fields, instead of reading moments and
+// profiles directly.
+async function fetchMomentData(share_token: string) {
+  const { data } = await getSupabase().rpc("get_shared_moment", { p_token: share_token });
+  const row = data as SharedMoment | null;
+  if (!row) return null;
 
   return {
     row,
-    senderName: profile?.display_name ?? "Someone",
+    senderName: row.sender_name ?? "Someone",
     // Powers the relational CTA below. /friend/{token} already handles both
     // cases (deep link if the app is installed, App Store if not), so the
     // page doesn't have to guess.
-    senderFriendToken: (profile?.friend_invite_token as string | null) ?? null,
+    senderFriendToken: row.sender_friend_token,
   };
 }
 
