@@ -109,7 +109,7 @@ const EXTRAS = [
   },
   {
     title: "The liner-notes book",
-    body: "A hardcover with a page for every guest: their song, their words, their photo.",
+    body: "A hardcover with a full page for every guest’s moment: their photo, their song, their words. Song-only picks gather on tracklist pages at the back.",
     price: "$119",
   },
 ];
@@ -133,7 +133,7 @@ const FAQ = [
   },
   {
     q: "When do we get it?",
-    a: "Guests can add songs from the day of the wedding until two weeks after. Your page is ready as soon as you close it; prints and cards ship after you approve the proofs.",
+    a: "Guests can add songs and photos from the day of the wedding until two weeks after, with one reminder the week after for the photos. Your page is ready as soon as you close it; prints, cards and the book ship after you approve the proofs.",
   },
 ];
 
@@ -203,13 +203,14 @@ export default async function WeddingsPage() {
             Easy for everyone. Room for more.
           </h2>
           <p className={s.body}>
-            Scan the code, tap a song, add their name. That&rsquo;s enough, so everyone does it, even the guest with a
-            drink in each hand. The ones with more to say write a few lines about you and add a photo from the night.
-            Those are the pages you&rsquo;ll read again.
+            Scan the code, tap a song, add a photo from tonight and their name. Everyone already has ten photos on
+            their phone by the first dance, so it&rsquo;s one more tap. Words are optional, and a tap on &ldquo;The night we
+            met&hellip;&rdquo; gets them started.
           </p>
           <p className={s.body}>
-            You choose a handful of suggestions for the top of the list, and anyone can search for anything else. No app,
-            no account.
+            The week after, guests get one note asking for their photos from the night, which land on the song they
+            already picked. You choose a handful of song suggestions; anyone can search for anything else. No app, no
+            account.
           </p>
         </div>
         <div className={s.guestsPhone}>
@@ -236,14 +237,16 @@ export default async function WeddingsPage() {
                   </li>
                 ))}
               </ul>
+              <p className={s.gLabel}>A photo from tonight</p>
+              <div className={s.gPhotoPicked}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/photos/wed-dancing-1100.webp" alt="" width={1100} height={733} />
+              </div>
               <div className={s.gName}>Mara</div>
-              <div className={s.gNote}>Boulder, windows down, the summer you two met&hellip;</div>
-              <div className={s.gPhoto}>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
-                  <circle cx="12" cy="13" r="3" />
-                </svg>
-                Add a photo
+              <div className={s.gStarters}>
+                <span>The night we met&hellip;</span>
+                <span>You two in&hellip;</span>
+                <span>Every summer&hellip;</span>
               </div>
               <div className={s.gButton}>Add my song</div>
             </div>
