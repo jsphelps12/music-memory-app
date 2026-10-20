@@ -19,10 +19,11 @@ import { setCachedMoment } from "@/lib/momentCache";
 import { deleteMomentWithCleanup } from "@/lib/deleteMoment";
 import { invalidateMomentCaches } from "@/lib/cacheInvalidation";
 import { friendlyError } from "@/lib/errors";
-import { useAuth } from "@/contexts/AuthContext";
-import { usePlayer } from "@/contexts/PlayerContext";
+import { usePlayerControls } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
-import { getPublicPhotoUrl, getPublicPhotoThumbnailUrl } from "@/lib/storage";
+import { momentCardImageUrls } from "@/lib/storage";
+import { artworkUrlAtSize } from "@/lib/itunes";
+import { moodWords as moodWordsFor } from "@/lib/moodLabels";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { PlayingIndicator } from "@/components/PlayingIndicator";
@@ -42,22 +43,35 @@ interface Props {
    * fires on the next focus, which never comes for an in-place delete.
    */
   onDeleted?: (id: string) => void;
+  /**
+   * The signed-in user's id. Required with onDeleted: only the owner gets the
+   * long-press menu. A prop rather than useAuth() so a profile refresh doesn't
+   * re-render every card in every list.
+   */
+  currentUserId?: string;
 }
 
-function MomentCardComponent({ item, allMoods, collectionId, collectionRole, showArtist = true, onDeleted }: Props) {
+// 56pt artwork at 3x. The stored URL is the 600px detail image.
+const ARTWORK_PX = 168;
+// The action menu's fade-out. iOS can drop a Modal presentation that starts
+// while another Modal is still dismissing, so the delete confirm waits for it.
+const MENU_DISMISS_MS = 350;
+
+function MomentCardComponent({ item, allMoods, collectionId, collectionRole, showArtist = true, onDeleted, currentUserId }: Props) {
   const theme = useTheme();
   const router = useRouter();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const scale = useSharedValue(1);
   const animatedRef = useAnimatedRef<Animated.View>();
-  const player = usePlayer();
-  const { user } = useAuth();
+  // Controls only: progress ticks live in a separate context, so playback
+  // doesn't re-render every card.
+  const player = usePlayerControls();
   const posthog = usePostHog();
   const queryClient = useQueryClient();
 
   // Long-press actions are for the owner's own moments only — tagged and
   // shared lists render other users' moments through this same card.
-  const canModify = !!onDeleted && !!user && item.userId === user.id;
+  const canModify = !!onDeleted && !!currentUserId && item.userId === currentUserId;
 
   // Match by the provider-native ID so both Apple Music and Spotify moments work
   const momentSongId = item.songSpotifyId ?? item.songAppleMusicId;
@@ -87,6 +101,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
 
   const handleMenuDelete = useCallback(async () => {
     setMenuAnchor(null);
+    await new Promise((resolve) => setTimeout(resolve, MENU_DISMISS_MS));
     const confirmed = await confirmSheet({
       title: "Delete Moment",
       message: "Are you sure? This cannot be undone.",
@@ -105,9 +120,9 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
       void player.stop();
     }
     posthog.capture("moment_deleted", { song_title: item.songTitle, song_artist: item.songArtist });
-    invalidateMomentCaches(queryClient, user?.id);
+    invalidateMomentCaches(queryClient, currentUserId);
     onDeleted?.(item.id);
-  }, [item, posthog, queryClient, user?.id, onDeleted, momentSongId, playingSongId, player]);
+  }, [item, posthog, queryClient, currentUserId, onDeleted, momentSongId, playingSongId, player]);
 
   const handlePlayPress = useCallback(() => {
     if (isThisPlaying) {
@@ -150,16 +165,15 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
       }
       runOnJS(router.push)(dest);
     })();
-  }, [item.id, item.contributorName, collectionId, collectionRole, router]);
+    // `item`, not just its id: an edited copy with the same id must be what
+    // gets cached for the detail screen.
+  }, [item, collectionId, collectionRole, router, animatedRef]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
 
-  const thumbUrls =
-    item.photoThumbnails.length > 0
-      ? item.photoThumbnails.map((p) => getPublicPhotoThumbnailUrl(p))
-      : item.photoUrls.map((p) => getPublicPhotoUrl(p));
+  const thumbUrls = momentCardImageUrls(item);
 
   // The year only when it isn't this one: lists without month headers
   // (browse, Surprise me, Shared) would otherwise make 2019 read as this fall.
@@ -173,12 +187,8 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
     : null;
 
   // Phase 1: moods as quiet words, not emoji. Capped at 3, in stored order.
-  const moodWords = item.moods
-    .slice(0, 3)
-    .map((value) => allMoods.find((m) => m.value === value)?.label ?? value)
-    .filter(Boolean)
-    .join(" · ")
-    .toUpperCase();
+  // Deleted custom moods are skipped rather than shown as raw ids.
+  const moodWords = moodWordsFor(item.moods, allMoods);
 
   const canPlay = !!(item.songAppleMusicId || item.songSpotifyId || item.songPreviewUrl);
 
@@ -207,7 +217,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
             style={styles.artworkButton}
           >
             {item.songArtworkUrl ? (
-              <AppImage source={{ uri: item.songArtworkUrl }} style={styles.artwork} transition={200} />
+              <AppImage source={{ uri: artworkUrlAtSize(item.songArtworkUrl, ARTWORK_PX) }} style={styles.artwork} transition={200} />
             ) : (
               <ArtworkPlaceholder style={styles.artwork} />
             )}

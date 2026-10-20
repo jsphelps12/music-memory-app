@@ -10,7 +10,9 @@ export default function TabLayout() {
     <SwipeTabs
       tabBarPosition="bottom"
       tabBar={(props) => <TabBar {...props} />}
-      screenOptions={{ swipeEnabled: true }}
+      // lazy: Rediscover and You used to mount (and run ~7 queries) behind
+      // the Journal at cold start. TabBar preloads them once startup settles.
+      screenOptions={{ swipeEnabled: true, lazy: true }}
     >
       {/* Phase 1 (2026-10): three tabs. Route names stay as they were so
           deep links and pushes keep working; albums moved to /albums. */}

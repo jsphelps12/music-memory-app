@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  AppState,
   View,
   Text,
   ScrollView,
@@ -30,7 +31,9 @@ import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { setCachedMoment } from "@/lib/momentCache";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
-import { pad } from "@/lib/dateUtils";
+import { pad, dateToStr } from "@/lib/dateUtils";
+import { artworkUrlAtSize } from "@/lib/itunes";
+import { moodLabel } from "@/lib/moodLabels";
 import { Moment } from "@/types";
 import {
   BROWSE_META_STALE,
@@ -116,11 +119,19 @@ function deriveMoodCounts(meta: BrowseMeta[], allMoods: { value: string; emoji: 
   }
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
-    .map(([mood, count]) => {
+    .flatMap(([mood, count]) => {
+      // A deleted custom mood has only its generated id left: leave it out.
+      const label = moodLabel(mood, allMoods);
+      if (!label) return [];
       const def = allMoods.find((m) => m.value === mood);
-      return { mood, count, emoji: def?.emoji ?? "🎵", label: def?.label ?? mood };
+      return [{ mood, count, emoji: def?.emoji ?? "🎵", label }];
     });
 }
+
+// Artwork is stored at 600px; rows ask for what they draw (at 3x).
+const HERO_ARTWORK_PX = 396;
+const ROW_ARTWORK_PX = 144;
+const SHEET_ARTWORK_PX = 120;
 
 function derivePeopleCounts(meta: BrowseMeta[]) {
   const counts: Record<string, number> = {};
@@ -183,7 +194,7 @@ function OnThisDayHero({ moment, yearsAgo, onPress }: { moment: Moment; yearsAgo
   return (
     <TouchableOpacity style={styles.heroRow} activeOpacity={0.8} onPress={onPress} accessibilityRole="button">
       {moment.songArtworkUrl ? (
-        <AppImage source={{ uri: moment.songArtworkUrl }} style={styles.heroArtwork} />
+        <AppImage source={{ uri: artworkUrlAtSize(moment.songArtworkUrl, HERO_ARTWORK_PX) }} style={styles.heroArtwork} />
       ) : (
         <ArtworkPlaceholder style={styles.heroArtwork} />
       )}
@@ -206,7 +217,7 @@ function OnThisDayRow({ moment, yearsAgo, onPress }: { moment: Moment; yearsAgo:
   return (
     <TouchableOpacity style={styles.otdRow} activeOpacity={0.7} onPress={onPress} accessibilityRole="button">
       {moment.songArtworkUrl ? (
-        <AppImage source={{ uri: moment.songArtworkUrl }} style={styles.otdArtwork} />
+        <AppImage source={{ uri: artworkUrlAtSize(moment.songArtworkUrl, ROW_ARTWORK_PX) }} style={styles.otdArtwork} />
       ) : (
         <ArtworkPlaceholder style={styles.otdArtwork} />
       )}
@@ -253,7 +264,7 @@ function SheetRow({ label, sublabel, count, artworkUrl, onPress }: {
     <TouchableOpacity style={styles.sheetRow} activeOpacity={0.7} onPress={onPress} accessibilityRole="button">
       {artworkUrl !== undefined ? (
         artworkUrl ? (
-          <AppImage source={{ uri: artworkUrl }} style={styles.sheetArtwork} />
+          <AppImage source={{ uri: artworkUrlAtSize(artworkUrl, SHEET_ARTWORK_PX) }} style={styles.sheetArtwork} />
         ) : (
           <ArtworkPlaceholder style={styles.sheetArtwork} />
         )
@@ -285,9 +296,23 @@ export default function ReflectionsScreen() {
     [profile?.customMoods]
   );
 
-  // Stable date params — computed once on mount
+  // Today's local date. The tab stays mounted while the app sits in the
+  // background, so it's re-read on focus and on return to the foreground;
+  // computing it once on mount froze On This Day to the day the tab mounted.
+  const [todayKey, setTodayKey] = useState(() => dateToStr(new Date()));
+  const refreshToday = useCallback(() => {
+    const key = dateToStr(new Date());
+    setTodayKey((prev) => (prev === key ? prev : key));
+  }, []);
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") refreshToday();
+    });
+    return () => sub.remove();
+  }, [refreshToday]);
+
   const dateParams = useMemo(() => {
-    const now = new Date();
+    const now = new Date(todayKey + "T00:00:00");
     const month = pad(now.getMonth() + 1);
     const day = pad(now.getDate());
     const thisYear = now.getFullYear();
@@ -295,7 +320,7 @@ export default function ReflectionsScreen() {
     const currentMonthKey = `${thisYear}-${month}`;
     const weekSeed = isoWeekSeed(now);
     return { month, day, thisYear, todayLabel, currentMonthKey, weekSeed };
-  }, []);
+  }, [todayKey]);
 
   const { month, day, thisYear, todayLabel, currentMonthKey, weekSeed } = dateParams;
 
@@ -309,7 +334,9 @@ export default function ReflectionsScreen() {
     dataUpdatedAt,
     errorUpdatedAt,
   } = useQuery({
-    queryKey: ["reflections", user?.id],
+    // The date is part of the key; invalidating ["reflections", userId]
+    // still matches it by prefix.
+    queryKey: ["reflections", user?.id, todayKey],
     queryFn: () => fetchOnThisDay(user!.id, month, day, thisYear),
     staleTime: STALE_TIME,
     enabled: !!user,
@@ -380,6 +407,7 @@ export default function ReflectionsScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      refreshToday();
       // Timeline search icon lands here wanting the search bar up and focused.
       if (consumeReflectionsSearchRequest()) {
         setSearchActive(true);
@@ -388,7 +416,7 @@ export default function ReflectionsScreen() {
       if (!dataUpdatedAt || Date.now() - dataUpdatedAt > STALE_TIME) {
         refetch();
       }
-    }, [refetch, dataUpdatedAt])
+    }, [refetch, dataUpdatedAt, refreshToday])
   );
 
   const handleShuffle = useCallback(() => {

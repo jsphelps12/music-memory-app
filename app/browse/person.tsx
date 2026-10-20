@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchBrowseMetadata, fetchPersonMoments } from "@/lib/browse";
 import { BROWSE_META_STALE, BROWSE_DRILLDOWN_STALE } from "@/lib/queryConfig";
 import { friendlyError } from "@/lib/errors";
 import { BrowseScreen } from "@/components/BrowseScreen";
-import { ErrorState } from "@/components/ErrorState";
 
 export default function PersonScreen() {
   const { user } = useAuth();
@@ -20,7 +19,6 @@ export default function PersonScreen() {
     staleTime: BROWSE_META_STALE,
   });
 
-  const router = useRouter();
   const { data: moments, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["personMoments", user?.id, activePerson] as const,
     queryFn: ({ queryKey }) => fetchPersonMoments(queryKey[1]!, queryKey[2]),
@@ -38,9 +36,6 @@ export default function PersonScreen() {
 
   // BrowseScreen has no error slot, and an empty list would claim there's
   // nothing here.
-  if (isError && !moments) {
-    return <ErrorState message={friendlyError(error)} onRetry={() => refetch()} onBack={() => router.back()} />;
-  }
 
   return (
     <BrowseScreen
@@ -50,6 +45,8 @@ export default function PersonScreen() {
       onSelect={setActivePerson}
       moments={moments ?? []}
       isLoading={isLoading}
+      error={isError ? friendlyError(error) : null}
+      onRetry={() => refetch()}
     />
   );
 }

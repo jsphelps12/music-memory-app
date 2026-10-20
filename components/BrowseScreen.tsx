@@ -10,6 +10,12 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { MOODS } from "@/constants/Moods";
 import { pluralMoments } from "@/lib/utils";
+import { artworkUrlAtSize } from "@/lib/itunes";
+import { ErrorState } from "@/components/ErrorState";
+import { ErrorBanner } from "@/components/ErrorBanner";
+
+// 22pt pill artwork at 3x.
+const PILL_ARTWORK_PX = 66;
 import type { Moment } from "@/types";
 
 export interface BrowseSwitcherItem {
@@ -27,6 +33,13 @@ interface Props {
   onSelect: (key: string) => void;
   moments: Moment[];
   isLoading: boolean;
+  /**
+   * A friendly message when the moments query failed. Shown in place of the
+   * list (or as a banner over moments still on screen), so the switcher stays
+   * usable and the user can hop to a sibling or retry.
+   */
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 /**
@@ -34,7 +47,7 @@ interface Props {
  * person, year or album. Phase 1 (2026-10): Journal rows instead of carded
  * rows, one pill switcher to hop between siblings, and no "When" bar.
  */
-export function BrowseScreen({ title, subtitle, items, activeKey, onSelect, moments, isLoading }: Props) {
+export function BrowseScreen({ title, subtitle, items, activeKey, onSelect, moments, isLoading, error, onRetry }: Props) {
   const router = useRouter();
   const { profile } = useAuth();
   const theme = useTheme();
@@ -50,6 +63,9 @@ export function BrowseScreen({ title, subtitle, items, activeKey, onSelect, mome
     return lead ? [lead, ...items.filter((i) => i.key !== leadKey)] : items;
   }, [items, leadKey]);
 
+  const [dismissedError, setDismissedError] = useState<string | null>(null);
+  const showBanner = !!error && moments.length > 0 && dismissedError !== error;
+
   const renderMoment = useCallback(
     ({ item }: { item: Moment }) => <MomentCard item={item} allMoods={allMoods} />,
     [allMoods]
@@ -63,7 +79,7 @@ export function BrowseScreen({ title, subtitle, items, activeKey, onSelect, mome
       <View style={styles.titleBlock}>
         <Text style={styles.title} numberOfLines={2}>{title}</Text>
         <Text style={styles.subtitle} numberOfLines={1}>
-          {[subtitle, isLoading ? null : pluralMoments(moments.length)].filter(Boolean).join(" · ") || " "}
+          {[subtitle, isLoading || (error && moments.length === 0) ? null : pluralMoments(moments.length)].filter(Boolean).join(" · ") || " "}
         </Text>
       </View>
 
@@ -85,7 +101,7 @@ export function BrowseScreen({ title, subtitle, items, activeKey, onSelect, mome
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
               >
-                {item.artworkUrl ? <AppImage source={{ uri: item.artworkUrl }} style={styles.pillArt} /> : null}
+                {item.artworkUrl ? <AppImage source={{ uri: artworkUrlAtSize(item.artworkUrl, PILL_ARTWORK_PX) }} style={styles.pillArt} /> : null}
                 <Text style={[styles.pillText, active && styles.pillTextActive]} numberOfLines={1}>
                   {item.label}
                 </Text>
@@ -102,9 +118,18 @@ export function BrowseScreen({ title, subtitle, items, activeKey, onSelect, mome
         renderItem={renderMoment}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          showBanner ? (
+            <ErrorBanner message={error!} onRetry={onRetry} onDismiss={() => setDismissedError(error!)} />
+          ) : null
+        }
         ListEmptyComponent={
           isLoading ? (
             <ActivityIndicator style={styles.empty} color={theme.colors.textSecondary} />
+          ) : error ? (
+            <View style={styles.empty}>
+              <ErrorState message={error} onRetry={onRetry} />
+            </View>
           ) : (
             <Text style={[styles.empty, styles.emptyText]}>Nothing here yet</Text>
           )

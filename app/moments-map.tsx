@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,19 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { supabase } from "@/lib/supabase";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
+import { friendlyError } from "@/lib/errors";
+import { artworkUrlAtSize } from "@/lib/itunes";
+
+// Where the map opens before the moments arrive and frame it.
+const DEFAULT_REGION = {
+  latitude: 37.0902,
+  longitude: -95.7129,
+  latitudeDelta: 50,
+  longitudeDelta: 50,
+};
+// 40pt markers and 52pt preview artwork, at 3x.
+const MARKER_ARTWORK_PX = 120;
+const PREVIEW_ARTWORK_PX = 156;
 
 interface MapMoment {
   id: string;
@@ -38,7 +51,7 @@ export default function MomentsMapScreen() {
 
   const [selectedMoment, setSelectedMoment] = useState<MapMoment | null>(null);
 
-  const { data: mapMoments = [] } = useQuery<MapMoment[]>({
+  const { data: mapMoments = [], isSuccess, isError, error, refetch } = useQuery<MapMoment[]>({
     queryKey: ["momentsMap", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -54,29 +67,34 @@ export default function MomentsMapScreen() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const initialRegion = useMemo(() => {
-    if (mapMoments.length > 0) {
-      return {
-        latitude: mapMoments[0].location_lat,
-        longitude: mapMoments[0].location_lng,
-        latitudeDelta: 30,
-        longitudeDelta: 30,
-      };
+  // initialRegion is only read at mount, and with a cold cache the data
+  // arrives after that. So the map frames the moments itself once both the
+  // map and the data are ready (and again if the set of moments changes).
+  const mapRef = useRef<MapView>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const framedForRef = useRef<MapMoment[] | null>(null);
+  useEffect(() => {
+    if (!mapReady || mapMoments.length === 0 || framedForRef.current === mapMoments) return;
+    framedForRef.current = mapMoments;
+    const coords = mapMoments.map((m) => ({ latitude: m.location_lat, longitude: m.location_lng }));
+    if (coords.length === 1) {
+      mapRef.current?.animateToRegion({ ...coords[0], latitudeDelta: 0.5, longitudeDelta: 0.5 }, 300);
+    } else {
+      mapRef.current?.fitToCoordinates(coords, {
+        edgePadding: { top: 120, right: 60, bottom: 160, left: 60 },
+        animated: true,
+      });
     }
-    return {
-      latitude: 37.0902,
-      longitude: -95.7129,
-      latitudeDelta: 50,
-      longitudeDelta: 50,
-    };
-  }, [mapMoments.length]);
+  }, [mapReady, mapMoments]);
 
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         style={StyleSheet.absoluteFill}
         provider={PROVIDER_DEFAULT}
-        initialRegion={initialRegion}
+        initialRegion={DEFAULT_REGION}
+        onMapReady={() => setMapReady(true)}
       >
         {mapMoments.map((m) => (
           <Marker
@@ -88,7 +106,7 @@ export default function MomentsMapScreen() {
           >
             <View style={styles.markerContainer} pointerEvents="none">
               {m.song_artwork_url ? (
-                <RNImage source={{ uri: m.song_artwork_url }} style={styles.markerArtwork} />
+                <RNImage source={{ uri: artworkUrlAtSize(m.song_artwork_url, MARKER_ARTWORK_PX) }} style={styles.markerArtwork} />
               ) : (
                 <View style={styles.markerDot} />
               )}
@@ -106,8 +124,21 @@ export default function MomentsMapScreen() {
         <Ionicons name="chevron-back" size={20} color="#fff" />
       </TouchableOpacity>
 
-      {/* Empty state */}
-      {mapMoments.length === 0 ? (
+      {/* Load failure: not the same as having no located moments */}
+      {isError && mapMoments.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>Couldn&apos;t load your map</Text>
+            <Text style={styles.emptySubtitle}>{friendlyError(error)}</Text>
+            <TouchableOpacity onPress={() => refetch()} activeOpacity={0.7} accessibilityRole="button">
+              <Text style={styles.retryText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
+
+      {/* Empty state, only once the query has actually answered */}
+      {isSuccess && mapMoments.length === 0 ? (
         <View style={styles.emptyContainer}>
           <View style={styles.emptyCard}>
             <Ionicons name="map-outline" size={28} color="rgba(0,0,0,0.3)" />
@@ -131,7 +162,7 @@ export default function MomentsMapScreen() {
         >
           {selectedMoment.song_artwork_url ? (
             <AppImage
-              source={{ uri: selectedMoment.song_artwork_url }}
+              source={{ uri: artworkUrlAtSize(selectedMoment.song_artwork_url, PREVIEW_ARTWORK_PX) }}
               style={styles.previewArtwork}
               contentFit="cover"
             />
@@ -269,6 +300,12 @@ function createStyles(theme: Theme) {
       color: theme.colors.textSecondary,
       textAlign: "center",
       lineHeight: 20,
+    },
+    retryText: {
+      marginTop: theme.spacing.xs,
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.bodySemibold,
+      color: theme.colors.text,
     },
   });
 }

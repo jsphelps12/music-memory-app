@@ -15,7 +15,11 @@ import { Moment } from "@/types";
 
 export const TIMELINE_PAGE_SIZE = 30;
 
-const CACHE_KEY_PREFIX = "timeline_cache_v1_";
+// Bump the version whenever the cached Moment shape changes. v1 predates the
+// multi-mood change (`mood` -> `moods: string[]`); a v1 cache would hand the
+// timeline objects without `moods` and crash MomentCard on first paint.
+const CACHE_KEY_PREFIX = "timeline_cache_v2_";
+const LEGACY_CACHE_KEY_PREFIXES = ["timeline_cache_v1_"];
 
 // null means "network failed with no cache" — distinct from [] which means "user has 0 moments"
 let _prefetch: { promise: Promise<Moment[] | null>; userId: string } | null = null;
@@ -31,14 +35,47 @@ function cacheKey(userId: string) {
   return `${CACHE_KEY_PREFIX}${userId}`;
 }
 
-async function readCache(userId: string): Promise<Moment[] | null> {
+function isCachedMoment(value: unknown): value is Moment {
+  if (typeof value !== "object" || value === null) return false;
+  const m = value as Record<string, unknown>;
+  return (
+    typeof m.id === "string" &&
+    Array.isArray(m.moods) &&
+    Array.isArray(m.photoUrls) &&
+    Array.isArray(m.photoThumbnails)
+  );
+}
+
+/**
+ * Shape check for the disk cache. The cache outlives app updates, so a bundle
+ * must never trust what an older bundle wrote: one malformed row is enough to
+ * throw during the first render, and offline the bad cache is never replaced.
+ * Returns null (treated as a cache miss) unless every row has the fields the
+ * card reads unguarded.
+ */
+export function parseCachedTimeline(raw: string | null): Moment[] | null {
+  if (!raw) return null;
   try {
-    const raw = await AsyncStorage.getItem(cacheKey(userId));
-    if (!raw) return null;
-    return JSON.parse(raw) as Moment[];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    return parsed.every(isCachedMoment) ? parsed : null;
   } catch {
     return null;
   }
+}
+
+async function readCache(userId: string): Promise<Moment[] | null> {
+  try {
+    return parseCachedTimeline(await AsyncStorage.getItem(cacheKey(userId)));
+  } catch {
+    return null;
+  }
+}
+
+function removeLegacyCaches(userId: string): Promise<void> {
+  return AsyncStorage.multiRemove(
+    LEGACY_CACHE_KEY_PREFIXES.map((prefix) => `${prefix}${userId}`)
+  ).catch(() => {});
 }
 
 async function writeCache(userId: string, moments: Moment[]): Promise<void> {
@@ -56,6 +93,9 @@ export function prefetchTimeline(userId: string): void {
   // putting the signed-out user's moments back on the device. Bumping the
   // generation makes any in-flight fetch recognise it has been superseded.
   const generation = ++_generation;
+
+  // Old-format caches are never read again; drop them so they don't linger.
+  void removeLegacyCaches(userId);
 
   // Fire network fetch immediately (runs in background)
   const networkFetch = Promise.resolve(
@@ -119,6 +159,65 @@ export function consumePrefetchNetworkPromise(userId: string): Promise<Moment[] 
   return p;
 }
 
+// ── Merging a refreshed first page into a paginated list ──────────────────
+// Pure, exported for tests. The timeline must not collapse to one page when it
+// refreshes in the background: that dropped every page the user had scrolled
+// through and threw them back near the top.
+
+/**
+ * Timeline order: moment_date descending with undated last, then created_at
+ * descending (the same order as the query). Negative when `a` comes first.
+ */
+export function compareTimelineOrder(
+  a: Pick<Moment, "momentDate" | "createdAt">,
+  b: Pick<Moment, "momentDate" | "createdAt">
+): number {
+  if (a.momentDate !== b.momentDate) {
+    if (!a.momentDate) return 1;
+    if (!b.momentDate) return -1;
+    return a.momentDate > b.momentDate ? -1 : 1;
+  }
+  if (a.createdAt === b.createdAt) return 0;
+  return a.createdAt > b.createdAt ? -1 : 1;
+}
+
+/**
+ * Applies a freshly fetched first page to the list on screen. The fresh page is
+ * authoritative for its range. Already-loaded rows that sort after it are kept;
+ * rows missing from it that would sort inside it were deleted (or moved) and go.
+ */
+export function mergeFirstPage(
+  current: Moment[],
+  fresh: Moment[],
+  currentHasMore: boolean,
+  pageSize = TIMELINE_PAGE_SIZE
+): { moments: Moment[]; hasMore: boolean } {
+  // A short first page is the whole timeline.
+  if (fresh.length < pageSize) return { moments: fresh, hasMore: false };
+  if (current.length <= pageSize) return { moments: fresh, hasMore: true };
+  const last = fresh[fresh.length - 1];
+  const freshIds = new Set(fresh.map((m) => m.id));
+  const tail = current.filter(
+    (m) => !freshIds.has(m.id) && compareTimelineOrder(m, last) >= 0
+  );
+  return { moments: [...fresh, ...tail], hasMore: tail.length > 0 ? currentHasMore : true };
+}
+
+/** Appends a page, skipping ids already shown (offsets shift when rows are added). */
+export function appendPage(current: Moment[], page: Moment[]): Moment[] {
+  const seen = new Set(current.map((m) => m.id));
+  return [...current, ...page.filter((m) => !seen.has(m.id))];
+}
+
+/**
+ * The last page index fully covered by `loadedCount` rows. Rounds down, so the
+ * next load-more may re-fetch a few rows (deduped by appendPage) but never
+ * skips any.
+ */
+export function lastLoadedPage(loadedCount: number, pageSize = TIMELINE_PAGE_SIZE): number {
+  return Math.max(0, Math.floor(loadedCount / pageSize) - 1);
+}
+
 export async function clearTimelineCache(userId: string): Promise<void> {
   if (_prefetch?.userId === userId) _prefetch = null;
   if (_network?.userId === userId) _network = null;
@@ -129,4 +228,5 @@ export async function clearTimelineCache(userId: string): Promise<void> {
   try {
     await AsyncStorage.removeItem(cacheKey(userId));
   } catch {}
+  await removeLegacyCaches(userId);
 }

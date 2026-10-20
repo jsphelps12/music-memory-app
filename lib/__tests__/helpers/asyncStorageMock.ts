@@ -11,7 +11,7 @@
  *
  *   const store = createAsyncStorageMock();
  *   vi.mock("@react-native-async-storage/async-storage", () => ({ default: store }));
- *   store.seed("timeline_cache_v1_u1", JSON.stringify(rows));
+ *   store.seed("timeline_cache_v2_u1", JSON.stringify(rows));
  */
 import { vi } from "vitest";
 
