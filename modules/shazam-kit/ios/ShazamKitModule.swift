@@ -26,6 +26,9 @@ public class ShazamKitModule: Module {
   private var pendingPromise: Promise?
   private var matchTimer: Timer?
   private var timeoutTimer: Timer?
+  // The shared audio session as it was before listening, restored after, so
+  // the app's playback mode (set by expo-audio) survives an Identify.
+  private var savedSessionConfig: (category: AVAudioSession.Category, mode: AVAudioSession.Mode, options: AVAudioSession.CategoryOptions)?
   // Serial queue protects signatureGenerator from concurrent audio tap + timer access
   private let genQueue = DispatchQueue(label: "com.tracks.shazam.gen")
 
@@ -101,11 +104,15 @@ public class ShazamKitModule: Module {
     // before the session is active returns an invalid format and crashes.
     do {
       let audioSession = AVAudioSession.sharedInstance()
+      if savedSessionConfig == nil {
+        savedSessionConfig = (audioSession.category, audioSession.mode, audioSession.categoryOptions)
+      }
       try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
       try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
     } catch {
       let promise = pendingPromise
       pendingPromise = nil
+      restoreAudioSession()
       promise?.reject("AUDIO_ERROR", error.localizedDescription)
       return
     }
@@ -173,5 +180,16 @@ public class ShazamKitModule: Module {
     shazamSession = nil
     shazamDelegate = nil
     try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    restoreAudioSession()
+  }
+
+  private func restoreAudioSession() {
+    guard let saved = savedSessionConfig else { return }
+    savedSessionConfig = nil
+    do {
+      try AVAudioSession.sharedInstance().setCategory(saved.category, mode: saved.mode, options: saved.options)
+    } catch {
+      NSLog("[ShazamKit] couldn't restore audio session: \(error.localizedDescription)")
+    }
   }
 }
