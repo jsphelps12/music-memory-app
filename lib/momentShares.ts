@@ -1,3 +1,4 @@
+import * as Crypto from "expo-crypto";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
@@ -135,13 +136,67 @@ export async function fetchUnviewedSharedCount(userId: string): Promise<number> 
   return count ?? 0;
 }
 
-/** Clears the unread badge — called when the "Shared with me" list is opened. */
-export async function markSharesViewed(userId: string): Promise<void> {
+/** The ids of the shares in a fetched list that haven't been seen yet. */
+export function unviewedShareIds(items: Pick<SharedMoment, "shareId" | "viewedAt">[]): string[] {
+  return items.filter((i) => !i.viewedAt).map((i) => i.shareId);
+}
+
+/**
+ * Marks the given shares seen — called with the unseen shares the "Shared with
+ * you" list is showing. Scoped to those ids so a share that arrives while the
+ * list is open keeps its unread dot until it has actually been on screen.
+ */
+export async function markSharesViewed(userId: string, shareIds: string[]): Promise<void> {
+  if (shareIds.length === 0) return;
   const { error } = await supabase
     .from("moment_shares")
     .update({ viewed_at: new Date().toISOString() })
     .eq("recipient_id", userId)
+    .in("id", shareIds)
     .is("viewed_at", null);
   if (error) throw error;
+}
+
+// ─── Share links (/m/{token}) ─────────────────────────────────────────────────
+
+/** The public link for a moment's share token. */
+export function momentShareUrl(token: string): string {
+  return `https://soundtracks.app/m/${token}`;
+}
+
+/**
+ * The moment's share token, creating one if it has none. Only the owner can
+ * set it, and an update that matches no row returns no error, so the write
+ * asks for the updated row back and treats an empty result as a failure:
+ * otherwise a link that leads nowhere gets shared.
+ *
+ * The update only fills an empty token, so a stale `current` (card-shaped
+ * moments don't carry the token) can never replace a link that's already live;
+ * in that case the live token is read back and returned.
+ */
+export async function ensureShareToken(
+  momentId: string,
+  current: string | null | undefined
+): Promise<string> {
+  if (current) return current;
+  const token = Crypto.randomUUID();
+  const { data, error } = await supabase
+    .from("moments")
+    .update({ share_token: token })
+    .eq("id", momentId)
+    .is("share_token", null)
+    .select("id");
+  if (error) throw error;
+  if ((data ?? []).length > 0) return token;
+
+  // No row updated: either a token already exists, or this user can't set it.
+  const { data: row, error: readError } = await supabase
+    .from("moments")
+    .select("share_token")
+    .eq("id", momentId)
+    .maybeSingle();
+  if (readError) throw readError;
+  if (row?.share_token) return row.share_token as string;
+  throw new Error("permission denied: share link not created");
 }
 

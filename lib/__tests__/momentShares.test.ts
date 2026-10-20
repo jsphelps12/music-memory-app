@@ -11,6 +11,7 @@ import { describe, it, expect, vi } from "vitest";
 // momentShares.ts imports the supabase client (which transitively imports
 // react-native) for its fetch functions; mapShareRow itself never touches it.
 vi.mock("@/lib/supabase", () => ({ supabase: {} }));
+vi.mock("expo-crypto", () => ({ randomUUID: () => "uuid-1" }));
 
 import { mapShareRow } from "../momentShares";
 

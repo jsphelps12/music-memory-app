@@ -11,7 +11,7 @@ import { MOODS } from "@/constants/Moods";
 import { IconButton } from "@/components/IconButton";
 import { MomentCard } from "@/components/MomentCard";
 import { ErrorState } from "@/components/ErrorState";
-import { fetchSharedWithMe, markSharesViewed, SharedMoment } from "@/lib/momentShares";
+import { fetchSharedWithMe, markSharesViewed, SharedMoment, unviewedShareIds } from "@/lib/momentShares";
 import { friendlyError } from "@/lib/errors";
 
 const STALE_TIME = 2 * 60 * 1000;
@@ -20,7 +20,7 @@ const STALE_TIME = 2 * 60 * 1000;
  * Everything friends have sent you (Sharing v2 direct shares). Phase 1 moved
  * this out of the Journal's "Shared with me" pill: the Journal is yours, and
  * this screen is reached from You or from the Journal's "new from friends"
- * row. Opening it marks everything seen.
+ * row. Opening it marks everything it shows as seen.
  */
 export default function SharedScreen() {
   const router = useRouter();
@@ -45,11 +45,15 @@ export default function SharedScreen() {
     }, [refetch, dataUpdatedAt])
   );
 
-  // The list is on screen, so everything in it counts as seen. The rows keep
-  // their dots until the next fetch, which is what you want while reading.
+  // The list is on screen, so everything in it counts as seen, and only that:
+  // a share arriving while the screen is open keeps its dot until a fetch
+  // shows it. The rows keep their dots until the next fetch, which is what you
+  // want while reading.
   useEffect(() => {
-    if (!user || !items.some((i) => !i.viewedAt)) return;
-    markSharesViewed(user.id)
+    if (!user) return;
+    const unseen = unviewedShareIds(items);
+    if (unseen.length === 0) return;
+    markSharesViewed(user.id, unseen)
       .then(() => queryClient.invalidateQueries({ queryKey: ["sharedUnviewed", user.id] }))
       .catch(() => {});
   }, [items, user, queryClient]);
