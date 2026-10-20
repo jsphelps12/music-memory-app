@@ -353,6 +353,17 @@ questionnaire/ML, NFC products, Android.
     read through narrow RPCs.
   - [ ] DB-2, RLS hardening step 2: waits for the app changes and the
     min-build gate.
+  - [x] WS-A, auth, profile and friends (2026-10-20, branch `ws-a-auth`):
+    the app reads its own profile through `get_my_profile()` (falls back to
+    an explicit column list until that RPC is deployed) and friend links
+    through `get_profile_by_invite_token`. All profile writes go through one
+    path in AuthContext (`lib/profile.ts`), so notification toggles no
+    longer snap back and Edit Profile saves only the fields that changed.
+    Token refreshes no longer re-run startup hydration. Sign-out also clears
+    the capture draft and the Spotify session. Friend link and Friends list
+    show a retryable error instead of "invalid link" or "no friends". The
+    Spotify connect fix is JS; the spotify-remote callback fix is native and
+    rides the next binary.
 - [x] **Pin `eas-cli`** to 25.2.0 in every workflow and the fingerprint
   scripts (v24's JSON rename had broken the gate silently).
 - [x] **Wire `lib/authRouting.ts` into `_layout.tsx`:** AuthGate now runs
