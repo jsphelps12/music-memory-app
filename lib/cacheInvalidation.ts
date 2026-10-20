@@ -7,8 +7,8 @@
  * the Reflections tab, the browse metadata (moods/people/years/albums/artists),
  * the profile stats counters, the map, and every drill-down list ("all moments
  * for this artist", "all moments tagged 2019", …). Same story for albums: the
- * Albums screen, the You tab's album row, the new-moments badge, and the album
- * detail screen each hold their own copy, and every one of them shows moments
+ * Albums screen and the You tab's album row (both ["collectionsScreen"]), the
+ * new-moments badge, and the album detail screen each hold their own copy, and every one of them shows moments
  * (counts, artwork, the list itself), so moment mutations reach them too.
  *
  * Historically each mutation only invalidated whatever the screen it lived on
@@ -29,7 +29,9 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 /**
- * Screen-level queries whose keys are exactly `[name, userId]`.
+ * Screen-level queries keyed `[name, userId, ...]`. invalidateQueries matches
+ * by prefix, so trailing segments are covered too (reflections is
+ * `["reflections", userId, date]`).
  */
 const MOMENT_SCREEN_KEYS = [
   "browseMeta",
@@ -58,10 +60,10 @@ const MOMENT_DRILLDOWN_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Album lists keyed exactly `[name, userId]`. They carry moment counts and
- * artwork, so a moment mutation changes them.
+ * Album lists keyed `[name, userId]` (matched by prefix). They carry moment
+ * counts and artwork, so a moment mutation changes them.
  */
-const ALBUM_LIST_KEYS = ["collectionsScreen", "collectionsBadge", "youAlbums"] as const;
+const ALBUM_LIST_KEYS = ["collectionsScreen", "collectionsBadge"] as const;
 
 /**
  * Album detail is keyed `["album", albumId, userId]` (user id at index 2, not

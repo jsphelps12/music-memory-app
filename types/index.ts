@@ -90,13 +90,20 @@ export type MomentCardData = Pick<
   | "contributorName"
 >;
 
+/**
+ * A moment that may be either a full Moment or only its card columns (a
+ * screen showing the momentCache hand-off while the full row loads). The
+ * non-card fields are undefined until then, never fabricated empties.
+ */
+export type PartialMoment = MomentCardData & Partial<Omit<Moment, keyof MomentCardData>>;
+
 export interface Album {
   id: string;
   userId: string;
   name: string;
   createdAt: string;
   momentCount?: number;
-  momentIds?: string[]; // IDs of moments in this album (personal albums only)
+  momentIds?: string[]; // IDs of moments in this album, when the query loaded them
   isPublic?: boolean;
   inviteCode?: string;
   role: "owner" | "member";

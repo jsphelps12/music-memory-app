@@ -4,7 +4,8 @@ import type { AnchorHTMLAttributes } from "react";
 
 // Deferred deep link: before someone without the app leaves for the App Store,
 // put a prefixed token on the clipboard. The app reads it once, on its first
-// launch (hooks/useDeepLinkHandler.ts), and picks up the gift or friend link.
+// launch (hooks/useDeepLinkHandler.ts), and picks up the gift, friend or
+// album invite link.
 //
 // Safari and every other iOS browser only allow a clipboard write during a
 // user gesture, so it has to happen inside the click handler. writeText is

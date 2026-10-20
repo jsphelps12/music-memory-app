@@ -111,13 +111,11 @@ describe("invalidateMomentCaches", () => {
   it("invalidates the album lists, which carry moment counts and artwork", () => {
     seed(["collectionsScreen", USER]);
     seed(["collectionsBadge", USER]);
-    seed(["youAlbums", USER]);
 
     invalidateMomentCaches(qc, USER);
 
     expect(isInvalidated(["collectionsScreen", USER])).toBe(true);
     expect(isInvalidated(["collectionsBadge", USER])).toBe(true);
-    expect(isInvalidated(["youAlbums", USER])).toBe(true);
   });
 
   it("invalidates every album detail for the user (user id at index 2)", () => {
@@ -152,16 +150,14 @@ describe("invalidateMomentCaches", () => {
 });
 
 describe("invalidateAlbumCaches", () => {
-  it("invalidates the albums tab and its badge", () => {
+  it("invalidates the Albums screen list and the album badge", () => {
     seed(["collectionsScreen", USER]);
     seed(["collectionsBadge", USER]);
-    seed(["youAlbums", USER]);
 
     invalidateAlbumCaches(qc, USER);
 
     expect(isInvalidated(["collectionsScreen", USER])).toBe(true);
     expect(isInvalidated(["collectionsBadge", USER])).toBe(true);
-    expect(isInvalidated(["youAlbums", USER])).toBe(true);
   });
 
   it("invalidates the album detail key only when an albumId is supplied", () => {

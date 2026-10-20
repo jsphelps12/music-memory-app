@@ -26,6 +26,7 @@ import { getPublicPhotoUrl } from "@/lib/storage";
 import { friendlyError } from "@/lib/errors";
 import { invalidateFriendCaches } from "@/lib/cacheInvalidation";
 import { fetchFriends, removeFriend } from "@/lib/friends";
+import { friendInviteUrl } from "@/lib/momentShares";
 import type { Friendship } from "@/types";
 
 const AVATAR_SIZE = 40;
@@ -58,7 +59,7 @@ export default function FriendsListScreen() {
   // pair instantly mutual, so sharing it IS the whole "add a person" flow.
   const handleShareLink = useCallback(() => {
     if (!profile?.friendInviteToken) return;
-    const url = `https://soundtracks.app/friend/${profile.friendInviteToken}`;
+    const url = friendInviteUrl(profile.friendInviteToken);
     Share.share(Platform.OS === "ios" ? { url } : { message: url });
   }, [profile?.friendInviteToken]);
 

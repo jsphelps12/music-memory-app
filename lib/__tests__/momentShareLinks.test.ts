@@ -16,6 +16,7 @@ import {
   ensureShareToken,
   markSharesViewed,
   momentShareUrl,
+  friendInviteUrl,
   unviewedShareIds,
 } from "../momentShares";
 
@@ -59,6 +60,12 @@ describe("ensureShareToken", () => {
 describe("momentShareUrl", () => {
   it("builds the public /m link", () => {
     expect(momentShareUrl("abc")).toBe("https://soundtracks.app/m/abc");
+  });
+});
+
+describe("friendInviteUrl", () => {
+  it("builds the public /friend link", () => {
+    expect(friendInviteUrl("tok")).toBe("https://soundtracks.app/friend/tok");
   });
 });
 

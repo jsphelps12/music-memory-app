@@ -134,7 +134,10 @@ Run the **Promote to Production** workflow from the Actions tab. Paste the exact
 SHA you verified on beta into the `sha` input — leaving it blank promotes
 whatever `main` is at that moment, which may not be what you tested.
 
-The workflow checks that a live App Store build actually serves this commit's
+First run **E2E Smoke** with the same `sha`: promote refuses a commit without a
+passing `e2e-smoke/embedded-js` status (see step 7 of "Binary Build" below).
+
+The workflow also checks that a live App Store build actually serves this commit's
 runtime version, and refuses to publish otherwise. That refusal is correct: it
 means production needs a new binary, not an OTA. There is no bypass, because
 bypassing it would publish an update to zero users rather than to some of them.
@@ -176,8 +179,11 @@ version: "1.2.0",
 
 **2. Cut the beta builds** via the "Binary Build" workflow
 - `preview`: the device build for testers (internal install link, **not** TestFlight)
-- `preview-simulator`: what E2E Smoke installs (it would rebuild one itself, but
-  cutting it now saves the wait)
+- `preview-simulator`: what E2E Smoke installs. A commit run uses only a
+  simulator build of that exact commit (EAS records its git hash) and builds
+  one from the commit if none exists (~15 min with an empty queue), so cutting
+  it now from the release commit saves the wait. The scheduled weekly run just
+  reuses the newest build.
 
 You can dispatch these against the release branch *before* merging
 (`gh workflow run production-build.yml --ref <branch> -f profile=preview`) to
@@ -196,7 +202,13 @@ section of the checklist. This is production data.
 build, paste "What's New", confirm the demo account, submit.
 
 **7. Later JS-only fixes** go out with the "Promote to Production" workflow,
-which requires a green E2E Smoke run on the exact commit.
+which requires a green E2E Smoke result on the exact commit. Before a
+promote, run "E2E Smoke" with `sha=<commit>`. It installs that commit's own
+simulator build with OTA updates turned off, so the flow runs the JS embedded
+in that build (not the newest preview OTA), and it posts the commit status
+`e2e-smoke/embedded-js` on the commit. Promote reads that status, not the
+run's head SHA, and the newest one wins: a later red run on the same commit
+blocks the promote again. Scheduled runs post no status.
 
 ---
 

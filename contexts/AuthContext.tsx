@@ -197,7 +197,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     function startPrefetches(userId: string) {
       prefetchTimeline(userId);
       // No albums prefetch: its only purpose was writing a disk cache nothing
-      // reads. The Albums tab fetches its own data under ["collectionsScreen"].
+      // reads. The Albums screen and the You tab fetch their own data under
+      // ["collectionsScreen"].
       readBrowseCache(userId).then((cached) => {
         if (cached) queryClient.setQueryData(["browseMeta", userId], cached);
         // staleTime 0: setQueryData above stamps dataUpdatedAt=now, so a non-zero
@@ -407,11 +408,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Everything that must leave this device when a user stops being the signed-in
    * user. Shared by signOut and deleteAccount — deleteAccount used to do none of
    * it, so a "permanently delete your account and all your moments" left every
-   * moment sitting in timeline_cache_v1_*, the profile in profile_cache_v1_*, and
-   * browse/shared metadata on disk, plus the whole query cache in memory.
+   * moment sitting in the timeline disk cache, the profile in profile_cache_v1_*,
+   * and browse/shared metadata on disk, plus the whole query cache in memory.
    *
-   * Each clear* helper removes its legacy key names alongside the current ones,
-   * so a cache-version bump never strands a copy of the data it replaced.
+   * Each clear* helper removes its legacy key names alongside the current ones
+   * (clearTimelineCache removes both timeline_cache_v2_* and the older
+   * timeline_cache_v1_*), so a cache-version bump never strands a copy of the
+   * data it replaced.
    */
   const clearLocalUserState = async (userId: string | undefined) => {
     // First, so a profile fetch still in flight is discarded instead of

@@ -448,6 +448,16 @@ questionnaire/ML, NFC products, Android.
     moods, take the user id as a prop, and wait for the action menu to close
     before confirming a delete. Browse drill-downs keep the switcher on
     errors. The You tab reads the shared albums overview.
+  - [x] Cleanup (2026-10-20, branch `review/cleanup`): moment detail draws
+    playback progress in a child, so the screen no longer re-renders per
+    tick; card-column data is typed as `MomentCardData` through the card,
+    cache hand-off, calendar and detail preview; the delete confirm opens
+    once the action menu has dismissed; one public photo URL helper;
+    `friendInviteUrl`; album membership read moved into `lib/albums.ts`;
+    `create-guest-user` can be retried safely; the album web page writes
+    the invite handoff on tap; DEPLOY.md describes the per-commit E2E gate.
+    Still open: list queries (timeline, browse, Rediscover, albums, search,
+    shares) still map card rows to a full `Moment`.
 - [x] **Pin `eas-cli`** to 25.2.0 in every workflow and the fingerprint
   scripts (v24's JSON rename had broken the gate silently).
 - [x] **Wire `lib/authRouting.ts` into `_layout.tsx`:** AuthGate now runs

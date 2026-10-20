@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentProps, type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePostHog } from "posthog-react-native";
 import {
   View,
@@ -34,15 +34,12 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePlayer } from "@/contexts/PlayerContext";
+import { usePlayerControls, usePlayerProgress } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
 import { getPublicPhotoUrl, momentCardImageUrls } from "@/lib/storage";
 import { deleteGuestMoment, deleteMomentWithCleanup } from "@/lib/deleteMoment";
-import {
-  applyMembershipResults,
-  diffAlbumMembership,
-  fetchAlbumIdsContainingMoment,
-} from "@/lib/momentAlbums";
+import { applyMembershipResults, diffAlbumMembership } from "@/lib/momentAlbums";
+import { fetchAlbumIdsContainingMoment } from "@/lib/albums";
 import { mapRowToMoment } from "@/lib/moments";
 import {
   fetchAlbums,
@@ -60,7 +57,7 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { confirmSheet } from "@/components/ConfirmSheet";
 import { friendlyError } from "@/lib/errors";
-import { Album, Moment, MoodOption } from "@/types";
+import { Album, MoodOption, PartialMoment } from "@/types";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches, invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { ShareMomentSheet } from "@/components/ShareMomentSheet";
@@ -90,7 +87,7 @@ export default function MomentDetailScreen() {
   }>();
   const router = useRouter();
   const { user, profile } = useAuth();
-  const { currentSong, isPlaying, playbackTime, playbackDuration, playError, playFull, pause, seekTo, stop } = usePlayer();
+  const { currentSong, isPlaying, playError, playFull, pause, seekTo, stop } = usePlayerControls();
   const theme = useTheme();
   const posthog = usePostHog();
   const queryClient = useQueryClient();
@@ -113,7 +110,9 @@ export default function MomentDetailScreen() {
   // swallowed navigation leaves a stale value in the module-level slot, and
   // entries that don't populate it (push-notification taps) would otherwise
   // render — and autoplay — someone else's moment.
-  const [moment, setMoment] = useState<Moment | null>(() => {
+  // Until the full row lands, a card hand-off only has card columns: people,
+  // location, weather, updatedAt and shareToken are undefined, not empty.
+  const [moment, setMoment] = useState<PartialMoment | null>(() => {
     const cached = consumeCachedMoment();
     return cached && cached.id === id ? cached : null;
   });
@@ -179,8 +178,9 @@ export default function MomentDetailScreen() {
   const scrollNativeGesture = useMemo(() => Gesture.Native(), []);
 
   const progressBarWidthRef = useRef(1);
-  const progressDurationRef = useRef(playbackDuration);
-  progressDurationRef.current = playbackDuration;
+  // Written by PlaybackProgress, which owns the per-tick subscription, so the
+  // seek gesture can read the duration without this screen re-rendering.
+  const progressDurationRef = useRef(0);
   const seekToRef = useRef(seekTo);
   seekToRef.current = seekTo;
 
@@ -838,7 +838,7 @@ export default function MomentDetailScreen() {
             {/* When and where, as a quiet line under the song. */}
             {(moment.momentDate || moment.timeOfDay || moment.location) ? (
               <Text style={styles.whenLine}>
-                {formatWhen(moment.momentDate, moment.timeOfDay, moment.location)}
+                {formatWhen(moment.momentDate, moment.timeOfDay ?? null, moment.location ?? null)}
               </Text>
             ) : null}
 
@@ -878,25 +878,14 @@ export default function MomentDetailScreen() {
                     color={playError ? theme.colors.textTertiary : theme.colors.buttonText}
                   />
                 </TouchableOpacity>
-                {isCurrentSong && playbackDuration > 0 ? (
-                  <>
-                    <GestureDetector gesture={seekGesture}>
-                      <View
-                        style={styles.progressTrackWrapper}
-                        onLayout={(e) => { progressBarWidthRef.current = e.nativeEvent.layout.width; }}
-                      >
-                        <View style={styles.progressTrack}>
-                          <View style={[styles.progressFill, { width: `${Math.min(100, (playbackTime / playbackDuration) * 100)}%` }]} />
-                        </View>
-                      </View>
-                    </GestureDetector>
-                    <Text style={styles.progressTime}>
-                      {formatTime(playbackTime)} / {formatTime(playbackDuration)}
-                    </Text>
-                  </>
-                ) : (
-                  <Text style={styles.playHint}>{playError ? "Unavailable" : "Play"}</Text>
-                )}
+                <PlaybackProgress
+                  isCurrentSong={!!isCurrentSong}
+                  playError={!!playError}
+                  seekGesture={seekGesture}
+                  barWidthRef={progressBarWidthRef}
+                  durationRef={progressDurationRef}
+                  styles={styles}
+                />
               </View>
             ) : null}
 
@@ -920,9 +909,9 @@ export default function MomentDetailScreen() {
             ) : null}
 
             {/* Quiet metadata: people, moods as words, weather. */}
-            {(moment.people.length > 0 || moodDefs.length > 0 || moment.weatherCondition) ? (
+            {((moment.people?.length ?? 0) > 0 || moodDefs.length > 0 || moment.weatherCondition) ? (
               <View style={styles.metaBlock}>
-                {moment.people.length > 0 ? (
+                {moment.people && moment.people.length > 0 ? (
                   <Text style={styles.metaLine}>{withPeople(moment.people)}</Text>
                 ) : null}
                 {moment.weatherCondition ? (
@@ -1265,6 +1254,50 @@ const collectionStyles = StyleSheet.create({
   },
 });
 
+
+/**
+ * The progress bar and time label. Only this subscribes to playback progress,
+ * so the rest of the detail screen doesn't re-render on every tick.
+ */
+function PlaybackProgress({
+  isCurrentSong,
+  playError,
+  seekGesture,
+  barWidthRef,
+  durationRef,
+  styles,
+}: {
+  isCurrentSong: boolean;
+  playError: boolean;
+  seekGesture: ComponentProps<typeof GestureDetector>["gesture"];
+  barWidthRef: MutableRefObject<number>;
+  durationRef: MutableRefObject<number>;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  const { playbackTime, playbackDuration } = usePlayerProgress();
+  durationRef.current = playbackDuration;
+
+  if (!isCurrentSong || playbackDuration <= 0) {
+    return <Text style={styles.playHint}>{playError ? "Unavailable" : "Play"}</Text>;
+  }
+  return (
+    <>
+      <GestureDetector gesture={seekGesture}>
+        <View
+          style={styles.progressTrackWrapper}
+          onLayout={(e) => { barWidthRef.current = e.nativeEvent.layout.width; }}
+        >
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${Math.min(100, (playbackTime / playbackDuration) * 100)}%` }]} />
+          </View>
+        </View>
+      </GestureDetector>
+      <Text style={styles.progressTime}>
+        {formatTime(playbackTime)} / {formatTime(playbackDuration)}
+      </Text>
+    </>
+  );
+}
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({

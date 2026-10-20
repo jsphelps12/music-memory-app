@@ -11,7 +11,7 @@ import {
 import { AppImage } from "@/components/AppImage";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
-import { Moment } from "@/types";
+import { MomentCardData } from "@/types";
 import { pad } from "@/lib/dateUtils";
 
 const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
@@ -19,8 +19,14 @@ const { width: SW } = Dimensions.get("window");
 const H_PAD = 16;
 const CELL = Math.floor((SW - H_PAD * 2) / 7);
 
+/** All the calendar draws: the Journal fetches just these columns for it. */
+export type CalendarMoment = Pick<
+  MomentCardData,
+  "id" | "momentDate" | "songArtworkUrl" | "songTitle" | "songArtist"
+>;
+
 interface Props {
-  moments: Moment[];
+  moments: CalendarMoment[];
   onDayPress: (momentId: string) => void;
   theme: Theme;
   loading?: boolean;
@@ -30,7 +36,7 @@ function CalendarViewComponent({ moments, onDayPress, theme, loading }: Props) {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const byDate = useMemo(() => {
-    const map = new Map<string, Moment[]>();
+    const map = new Map<string, CalendarMoment[]>();
     for (const m of moments) {
       if (!m.momentDate) continue;
       const arr = map.get(m.momentDate) ?? [];

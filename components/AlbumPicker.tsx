@@ -12,7 +12,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { BottomSheet } from "@/components/BottomSheet";
 import { Album } from "@/types";
-import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
+import { getPublicPhotoUrl } from "@/lib/storage";
 import { pluralMoments } from "@/lib/utils";
 
 interface Props {
@@ -46,7 +46,7 @@ export function AlbumPicker({
 
   const renderRow = (item: Album) => {
     const thumbUrl = item.coverPhotoUrl
-      ? getPublicPhotoThumbnailUrl(item.coverPhotoUrl)
+      ? getPublicPhotoUrl(item.coverPhotoUrl)
       : null;
     return (
     <TouchableOpacity

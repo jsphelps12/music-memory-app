@@ -44,7 +44,7 @@ Copy `.env.example` to `.env` and fill in:
 - Song data is denormalized on the `moments` table (no separate songs table)
 - Preview URLs are fetched from iTunes Lookup API (`/lookup?id={appleMusicId}`) at moment creation and stored in `song_preview_url`
 - Row Level Security enforces per-user data isolation in Supabase
-- Photo storage uses public `moment-photos` bucket with `{user_id}/` folder prefixes; avatars stored at `{user_id}/avatar.jpg`
+- Photo storage uses public `moment-photos` bucket with `{user_id}/` folder prefixes; avatars get a new versioned path per upload (`{user_id}/avatar-{timestamp}.jpg`, full-size companion `…_full.jpg`) and album covers likewise (`{user_id}/collection_covers/{collection_id}-{key}.jpg`), so a changed image gets a new URL instead of a stale cached one. Read the stored path from the row; never rebuild it
 - Photo/avatar URLs are generated synchronously via `getPublicPhotoUrl()` — no API calls needed (bucket is public for reads; RLS still protects uploads/deletes)
 - Deep link scheme is per-variant: `soundtracks://` in production, `soundtracks-beta://` in the preview build (`app.config.ts` switches on `EXPO_PUBLIC_APP_ENV`). Both apps installed at once would otherwise fight over one scheme
 - Only bare-scheme and `/confirm` deep links are treated as auth callbacks — never add a catch-all, it races the confirm route on single-use PKCE codes

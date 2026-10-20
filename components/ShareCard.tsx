@@ -12,7 +12,7 @@
 
 import { View, Text, StyleSheet, Dimensions } from "react-native";
 import { AppImage } from "@/components/AppImage";
-import { Moment } from "@/types";
+import { PartialMoment } from "@/types";
 import { MOODS } from "@/constants/Moods";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -24,7 +24,7 @@ export const CARD_HEIGHT_STORY = Math.round(CARD_WIDTH * (16 / 9));
 export type ShareCardVariant = "post" | "story";
 
 interface Props {
-  moment: Moment;
+  moment: PartialMoment;
   photoUrl: string | null;
   variant?: ShareCardVariant;
 }

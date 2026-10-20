@@ -27,6 +27,7 @@ import {
   deleteAlbum,
   ensureAlbumGuestUser,
   fetchAlbumArtworks,
+  fetchAlbumIdsContainingMoment,
   fetchAlbumByInviteCode,
   fetchAlbumDetail,
   joinAlbum,
@@ -66,9 +67,13 @@ describe("mapAlbumRow", () => {
     expect(album.ownerName).toBeUndefined();
   });
 
-  it("gives joined albums the owner's name and no moment ids", () => {
+  it("gives joined albums the owner's name and their moment ids", () => {
     const album = mapAlbumRow(row({ is_public: true, collection_moments: [{ moment_id: "m1" }] }), "member", "Sam");
-    expect(album).toMatchObject({ role: "member", ownerName: "Sam", isPublic: true, momentCount: 1 });
+    expect(album).toMatchObject({ role: "member", ownerName: "Sam", isPublic: true, momentCount: 1, momentIds: ["m1"] });
+  });
+
+  it("leaves a joined album's moment ids unset when the row has no collection_moments", () => {
+    const album = mapAlbumRow(row({ collection_moments: undefined }), "member", "Sam");
     expect(album.momentIds).toBeUndefined();
   });
 
@@ -355,5 +360,21 @@ describe("ensureAlbumGuestUser", () => {
     invoke.mockResolvedValue({ data: { guestUserId: "g1" }, error: null });
     await expect(ensureAlbumGuestUser("a1")).resolves.toBeUndefined();
     expect(invoke).toHaveBeenCalledWith("create-guest-user", { body: { collectionId: "a1" } });
+  });
+});
+
+describe("fetchAlbumIdsContainingMoment", () => {
+  it("reads collection_moments for the moment, deduped", async () => {
+    sb.queueData([{ collection_id: "a" }, { collection_id: "b" }, { collection_id: "a" }]);
+    expect(await fetchAlbumIdsContainingMoment("m1")).toEqual(["a", "b"]);
+    expect(sb.queries[0].table).toBe("collection_moments");
+    expect(sb.queries[0].chain[1]).toEqual({ method: "eq", args: ["moment_id", "m1"] });
+  });
+
+  it("throws on error instead of returning an empty membership", async () => {
+    sb.queueError("network request failed");
+    await expect(fetchAlbumIdsContainingMoment("m1")).rejects.toMatchObject({
+      message: "network request failed",
+    });
   });
 });

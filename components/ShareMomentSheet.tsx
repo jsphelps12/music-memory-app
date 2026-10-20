@@ -37,15 +37,16 @@ import {
   fetchMomentShareRecipients,
   MomentShareGrant,
   momentShareUrl,
+  friendInviteUrl,
   removeMomentShare,
   sendMomentShare,
 } from "@/lib/momentShares";
-import { fetchAlbumIdsContainingMoment } from "@/lib/momentAlbums";
+import { fetchAlbumIdsContainingMoment } from "@/lib/albums";
 import { fetchAlbums, removeMomentFromAlbum } from "@/lib/albums";
 import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { friendlyError } from "@/lib/errors";
-import { Friendship, Moment } from "@/types";
+import { Friendship, PartialMoment } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -60,7 +61,7 @@ interface AlbumGrant {
 
 interface Props {
   visible: boolean;
-  moment: Moment;
+  moment: PartialMoment;
   photoUrls: string[];
   onClose: () => void;
   /**
@@ -123,9 +124,8 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     setAlbumGrants([]);
   }, [moment.id]);
 
-  // Card-column-shaped moments always carry shareToken: null (MOMENT_CARD_COLUMNS
-  // omits it), so trusting the prop could mint a second token over a live one.
-  // Re-read the truth from the row every time the sheet opens — and reload the
+  // A card-column preview has no shareToken (MOMENT_CARD_COLUMNS omits it), so
+  // trusting the prop could mint a second token over a live one. Re-read the truth from the row every time the sheet opens — and reload the
   // grant chips alongside it (owner only). Every open, not once per moment:
   // "Add to album" and other screens change them between opens.
   useEffect(() => {
@@ -222,7 +222,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   const handleShareFriendLink = async () => {
     if (!profile?.friendInviteToken) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const url = `https://soundtracks.app/friend/${profile.friendInviteToken}`;
+    const url = friendInviteUrl(profile.friendInviteToken);
     try {
       await Share.share(Platform.OS === "ios" ? { url } : { message: url });
     } catch {

@@ -79,9 +79,29 @@ export function mapAlbumRow(row: AlbumRow, role: "owner" | "member", ownerName?:
     role,
     coverPhotoUrl: row.cover_photo_url ?? undefined,
   };
-  if (role === "owner") album.momentIds = refs.map((r) => r.moment_id);
-  else album.ownerName = ownerName ?? undefined;
+  // Joined albums get their ids too when the query embedded collection_moments
+  // (fetchJoinedRows does).
+  if (role === "owner" || row.collection_moments) album.momentIds = refs.map((r) => r.moment_id);
+  if (role === "member") album.ownerName = ownerName ?? undefined;
   return album;
+}
+
+/**
+ * Which albums a moment is in, for the "Add to album" sheet and the share
+ * sheet's "Shared with" chips. Read from collection_moments directly, so
+ * it covers every album the user can see without loading the album list. (It
+ * used to carry moment ids for owned albums only, so a joined shared album
+ * looked unchecked and ticking it tried to add the moment a second time.)
+ *
+ * RLS limits the rows to albums the user can see.
+ */
+export async function fetchAlbumIdsContainingMoment(momentId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("collection_moments")
+    .select("collection_id")
+    .eq("moment_id", momentId);
+  if (error) throw error;
+  return [...new Set((data ?? []).map((r: { collection_id: string }) => r.collection_id))];
 }
 
 /** Thrown when an album doesn't exist or the user can no longer open it. */
@@ -623,7 +643,7 @@ export async function fetchAlbumDetail(id: string, userId: string): Promise<Albu
 
   const album = mapAlbumRow(row, role, ownerNames.get(row.user_id));
   album.momentCount = moments.length;
-  if (role === "owner") album.momentIds = moments.map((m) => m.id);
+  album.momentIds = moments.map((m) => m.id);
   return { album, moments };
 }
 

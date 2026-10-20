@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { Alert, View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions } from "react-native";
 import * as Haptics from "expo-haptics";
 import { usePostHog } from "posthog-react-native";
@@ -29,10 +29,10 @@ import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { PlayingIndicator } from "@/components/PlayingIndicator";
 import { MomentActionMenu, MenuAnchor } from "@/components/MomentActionMenu";
 import { confirmSheet } from "@/components/ConfirmSheet";
-import { Moment, Song } from "@/types";
+import { MomentCardData, Song } from "@/types";
 
 interface Props {
-  item: Moment;
+  item: MomentCardData;
   allMoods: Array<{ value: string; emoji: string; label: string }>;
   collectionId?: string;
   collectionRole?: string;
@@ -53,9 +53,6 @@ interface Props {
 
 // 56pt artwork at 3x. The stored URL is the 600px detail image.
 const ARTWORK_PX = 168;
-// The action menu's fade-out. iOS can drop a Modal presentation that starts
-// while another Modal is still dismissing, so the delete confirm waits for it.
-const MENU_DISMISS_MS = 350;
 
 function MomentCardComponent({ item, allMoods, collectionId, collectionRole, showArtist = true, onDeleted, currentUserId }: Props) {
   const theme = useTheme();
@@ -99,9 +96,16 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
     router.push(`/moment/edit/${item.id}`);
   }, [item.id, router]);
 
-  const handleMenuDelete = useCallback(async () => {
+  // Delete was tapped: the confirm opens once the menu has finished closing
+  // (handleMenuDismissed), since iOS drops a Modal presentation that starts
+  // while another Modal is still dismissing.
+  const deletePendingRef = useRef(false);
+  const handleMenuDelete = useCallback(() => {
+    deletePendingRef.current = true;
     setMenuAnchor(null);
-    await new Promise((resolve) => setTimeout(resolve, MENU_DISMISS_MS));
+  }, []);
+
+  const confirmAndDelete = useCallback(async () => {
     const confirmed = await confirmSheet({
       title: "Delete Moment",
       message: "Are you sure? This cannot be undone.",
@@ -123,6 +127,12 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
     invalidateMomentCaches(queryClient, currentUserId);
     onDeleted?.(item.id);
   }, [item, posthog, queryClient, currentUserId, onDeleted, momentSongId, playingSongId, player]);
+
+  const handleMenuDismissed = useCallback(() => {
+    if (!deletePendingRef.current) return;
+    deletePendingRef.current = false;
+    void confirmAndDelete();
+  }, [confirmAndDelete]);
 
   const handlePlayPress = useCallback(() => {
     if (isThisPlaying) {
@@ -281,6 +291,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
         onEdit={handleMenuEdit}
         onDelete={handleMenuDelete}
         onClose={() => setMenuAnchor(null)}
+        onDismissed={handleMenuDismissed}
       />
     </Animated.View>
   );

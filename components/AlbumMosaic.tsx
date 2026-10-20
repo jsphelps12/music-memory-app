@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { View, StyleSheet, StyleProp, ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { AppImage } from "@/components/AppImage";
-import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
+import { getPublicPhotoUrl } from "@/lib/storage";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
@@ -27,7 +27,7 @@ export function AlbumMosaic({ coverPhotoPath, artworks = [], style }: Props) {
   if (coverPhotoPath) {
     content = (
       <AppImage
-        source={{ uri: getPublicPhotoThumbnailUrl(coverPhotoPath) }}
+        source={{ uri: getPublicPhotoUrl(coverPhotoPath) }}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />

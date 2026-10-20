@@ -31,7 +31,6 @@ vi.mock("expo-image-manipulator", () => ({
 import {
   momentCardImageUrls,
   getPublicPhotoUrl,
-  getPublicPhotoThumbnailUrl,
 } from "../storage";
 
 beforeEach(() => {
@@ -104,7 +103,7 @@ describe("momentCardImageUrls", () => {
   });
 });
 
-describe("getPublicPhotoUrl / getPublicPhotoThumbnailUrl", () => {
+describe("getPublicPhotoUrl", () => {
   it("builds a plain public object URL", () => {
     expect(getPublicPhotoUrl("u1/a.jpg")).toBe(
       `${sb.publicUrlBase}/moment-photos/u1/a.jpg`
@@ -112,10 +111,8 @@ describe("getPublicPhotoUrl / getPublicPhotoThumbnailUrl", () => {
   });
 
   it("treats thumbnails as plain public objects — they are pre-resized at upload", () => {
-    // Deliberately identical to getPublicPhotoUrl. The two functions exist to
-    // name the intent at the call site, not because the URLs differ; if this
-    // ever starts differing, it means someone reintroduced the transform.
-    expect(getPublicPhotoThumbnailUrl("u1/thumb_a.jpg")).toBe(
+    // Thumbnails go through the same plain URL; no transform options, ever.
+    expect(getPublicPhotoUrl("u1/thumb_a.jpg")).toBe(
       `${sb.publicUrlBase}/moment-photos/u1/thumb_a.jpg`
     );
     expect(sb.storage.getPublicUrl.mock.calls.every((c) => c.length === 1)).toBe(true);

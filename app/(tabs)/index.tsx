@@ -44,7 +44,7 @@ import { friendlyError } from "@/lib/errors";
 import { MomentCard } from "@/components/MomentCard";
 import { IconButton } from "@/components/IconButton";
 import { Ionicons } from "@expo/vector-icons";
-import { CalendarView } from "@/components/CalendarView";
+import { CalendarView, type CalendarMoment } from "@/components/CalendarView";
 import { EmptyState } from "@/components/EmptyState";
 import { Moment } from "@/types";
 
@@ -88,7 +88,7 @@ export default function TimelineScreen() {
 
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [calendarLoading, setCalendarLoading] = useState(true);
-  const [calendarMoments, setCalendarMoments] = useState<Moment[]>([]);
+  const [calendarMoments, setCalendarMoments] = useState<CalendarMoment[]>([]);
   const calendarFetchedRef = useRef<null | boolean>(null);
   const [pendingScrollId, setPendingScrollId] = useState<string | null>(null);
 
@@ -143,20 +143,12 @@ export default function TimelineScreen() {
     if (userIdRef.current !== userId) return;
     if (!error && data) {
       setCalendarMoments(
-        data.map((r: any): Moment => ({
+        data.map((r: any): CalendarMoment => ({
           id: r.id,
           momentDate: r.moment_date ?? null,
           songArtworkUrl: r.song_artwork_url ?? "",
           songTitle: r.song_title ?? "",
           songArtist: r.song_artist ?? "",
-          locationLat: null,
-          locationLng: null,
-          userId: "", reflectionText: "", photoUrls: [], photoThumbnails: [],
-          moods: [], people: [], location: null, timeOfDay: null,
-          weatherTempF: null, weatherCondition: null,
-          createdAt: "", updatedAt: "", songAlbumName: "",
-          songProvider: "apple_music", songAppleMusicId: null, songSpotifyId: null,
-          songPreviewUrl: null,
         }))
       );
       calendarFetchedRef.current = true;
