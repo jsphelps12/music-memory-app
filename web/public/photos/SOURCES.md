@@ -20,5 +20,3 @@ webp:
   https://unsplash.com/photos/two-women-dancing-on-floor-0JufVigFHj8
 - `wed-table-1100.webp`: "A group of people sitting around a white table",
   Ben Atkins, https://unsplash.com/photos/a-group-of-people-sitting-around-a-white-table-PNXx2A5s5Zk
-- `wed-floor-1100.webp`: "A group of people dancing at a party", Wesley
-  Tingey, https://unsplash.com/photos/a-group-of-people-dancing-at-a-party-9INtcavGkko
