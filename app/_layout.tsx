@@ -1,6 +1,5 @@
 import "../wdyr";
 import * as Sentry from "@sentry/react-native";
-import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
@@ -44,6 +43,9 @@ import { useOtaUpdate } from "@/hooks/useOtaUpdate";
 import { registerForPushNotifications } from "@/lib/notifications";
 
 const HAS_LAUNCHED_KEY = "has_launched";
+
+// Notification taps already routed in this process (request identifiers).
+const handledNotificationIds = new Set<string>();
 
 export { ErrorBoundary } from "expo-router";
 
@@ -230,7 +232,6 @@ function RootLayout() {
     DMSans_700Bold,
     Newsreader_400Regular,
     Newsreader_500Medium,
-    ...FontAwesome.font,
   });
 
   useEffect(() => {
@@ -241,8 +242,10 @@ function RootLayout() {
     if (loaded) markStartup("fonts_loaded");
   }, [loaded]);
 
-  if (!loaded) return null;
-
+  // The providers mount before the fonts finish loading, so session restore,
+  // the profile cache read and the timeline prefetch (all started by
+  // AuthProvider) overlap the font load instead of waiting for it. Only the
+  // UI waits; the launch screen stays up until AuthGate resolves anyway.
   return (
     <QueryClientProvider client={queryClient}>
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -251,7 +254,7 @@ function RootLayout() {
         <ShareIntentProvider>
           <AuthProvider>
             <PlayerProvider>
-              <RootLayoutNav />
+              {loaded ? <RootLayoutNav /> : null}
             </PlayerProvider>
           </AuthProvider>
         </ShareIntentProvider>
@@ -324,25 +327,36 @@ function RootLayoutNav() {
       }
     }
 
-    // Handle tap when app was cold-launched from a notification.
-    // Delay to let AuthGate finish routing to /(tabs) before we push on top.
-    Notifications.getLastNotificationResponseAsync().then((response) => {
-      if (response) {
-        setTimeout(() => {
-          handleNotificationData(
-            response.notification.request.content.data as Record<string, any> | undefined
-          );
-        }, 600);
-      }
-    });
-
-    // Handle tap when app is foregrounded or backgrounded
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+    // getLastNotificationResponseAsync keeps returning the same tap for the
+    // whole process, and this effect re-runs on sign-in/out and onboarding
+    // changes, so each tap is handled once (and never for the next account).
+    function handleResponseOnce(response: Notifications.NotificationResponse) {
+      const id = response.notification.request.identifier;
+      if (handledNotificationIds.has(id)) return;
+      handledNotificationIds.add(id);
       handleNotificationData(
         response.notification.request.content.data as Record<string, any> | undefined
       );
-    });
-    return () => sub.remove();
+    }
+
+    // Handle tap when app was cold-launched from a notification.
+    // Delay to let AuthGate finish routing to /(tabs) before we push on top.
+    let coldStartTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (!response || cancelled) return;
+        coldStartTimer = setTimeout(() => handleResponseOnce(response), 600);
+      })
+      .catch(() => {});
+
+    // Handle tap when app is foregrounded or backgrounded
+    const sub = Notifications.addNotificationResponseReceivedListener(handleResponseOnce);
+    return () => {
+      cancelled = true;
+      if (coldStartTimer) clearTimeout(coldStartTimer);
+      sub.remove();
+    };
   }, [user?.id, profile?.onboardingCompleted]);
 
   if (updateRequired) {
