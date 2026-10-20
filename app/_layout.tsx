@@ -434,6 +434,10 @@ function RootLayoutNav() {
             options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
+            name="m/[token]"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
             name="album/[id]"
             options={{ headerShown: false }}
           />
