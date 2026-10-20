@@ -406,7 +406,24 @@ questionnaire/ML, NFC products, Android.
     shared albums finish their guest setup (and retry it). Album covers get
     a new path per upload and the old image is deleted, as is the cover of
     a deleted album. Still to do outside WS-D: the You tab should read the
-    Albums screen's query instead of its own.
+    Albums screen's query instead of its own (done in WS-E).
+  - [x] WS-E, Journal, Rediscover, player (2026-10-20, JS only): the
+    timeline disk cache is versioned and shape-checked, so a cache from
+    before multi-mood can't crash the first paint. Background refresh and
+    the late launch fetch merge the first page instead of dropping loaded
+    pages. Playback progress lives in its own context, so cards don't
+    re-render on every tick (measure: scroll the Journal during playback);
+    stop, pause and previews cancel a pending full play, and ended tracks
+    release their listeners. Rediscover and You mount lazily and preload
+    after startup; session restore overlaps font loading (measure:
+    `app_startup` first_screen and profile marks). On This Day follows the
+    current date. Search quotes its terms; undated moments sort last in
+    song/album/artist lists; the map frames its moments and tells loading
+    and errors from "none"; push taps are routed once. Cards use the tested
+    image helper, smaller artwork everywhere in lists, hide deleted custom
+    moods, take the user id as a prop, and wait for the action menu to close
+    before confirming a delete. Browse drill-downs keep the switcher on
+    errors. The You tab reads the shared albums overview.
 - [x] **Pin `eas-cli`** to 25.2.0 in every workflow and the fingerprint
   scripts (v24's JSON rename had broken the gate silently).
 - [x] **Wire `lib/authRouting.ts` into `_layout.tsx`:** AuthGate now runs
