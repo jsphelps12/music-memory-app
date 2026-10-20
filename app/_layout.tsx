@@ -316,7 +316,8 @@ function RootLayoutNav() {
         // share_received (Sharing v2): straight to the moment
         router.push(`/moment/${data.momentId}`);
       } else if (data.type === "friends") {
-        // Legacy pushes from pre-v2 binaries — the old Friends tab is now Albums
+        // Legacy pushes from pre-v2 binaries: the old Friends tab became Albums,
+        // now a screen pushed from You
         router.push("/albums" as any);
       } else if (data.momentId) {
         router.push(`/moment/${data.momentId}`);
