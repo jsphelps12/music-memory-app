@@ -295,12 +295,16 @@ memorials, farewells, graduations, baby showers. Same engine for all.
   - Later, maybe: an optional AI host between songs on the listening page
     that reads guests' words verbatim (its voice clips are our own audio,
     mixed live in the browser).
-- [x] **`/weddings` demand test** (2026-10-20): the deliverable at real
-  prices with a "Reserve your date" form (names, date, guest count, email,
-  extras they're thinking about) into `wedding_reservations` (insert-only
-  RLS; read it from the dashboard). Nothing is charged. Decide in advance
-  what counts as a yes, e.g. 10 reservations by March. Linked from the
-  landing footer.
+- [x] **`/weddings` demand test** (2026-10-20): "A guest book that plays."
+  The hero is three guest pages (song, words, photo; and one song-only
+  page, because that counts too), then the lazy capture, the $79 keepsake,
+  and the physical extras at real prices beside the tracklist print. "Reserve
+  your date" (names, date, guest count, email, extras they're thinking
+  about) writes to `wedding_reservations` (insert-only RLS; read it from
+  the dashboard) and emails Josh through Resend once `RESEND_API_KEY` and
+  `RESERVATION_NOTIFY_EMAIL` are set in Vercel. Nothing is charged. Target,
+  arbitrary for now: 10 reservations by March 1, 2027. Linked from the
+  landing footer; not promoted anywhere yet while the page is refined.
 - [ ] **December keepsake, lite** (after occasions, decided 2026-10-19):
   reuses the occasions print and keepsake pipeline rather than being its own
   build. Sells this December only if that pipeline is ready in time. "Your
