@@ -56,6 +56,10 @@ below should move that, or it doesn't belong on this page.
 - [x] App Review approval → released (automatic release, 2026-10).
 - [ ] Watch Sentry and PostHog for a week.
 
+### Next native build (1.4)
+- [ ] SF Symbols, React Compiler, Face ID app lock, the photos ↔ music
+  native query. Batch them; each one moves the fingerprint.
+
 ### Ship 1.3.0
 - [x] Version bump + beta build 33 (PR #45).
 - [x] Production build 9 (owner ran it interactively to create the App Store
@@ -178,6 +182,19 @@ clutter, navigation.
   wordmark, held until routing resolves and faded into the first screen, so
   a cold launch from a widget reads as the app opening onto Capture. It
   used to hide at font load and show a blank spinner screen in between.
+- [ ] **Daily "what song did you listen to today?"** A one-question
+  check-in at a time you choose (notification first; voice entry with
+  on-device transcription next; a real AI phone call later, as a paid
+  feature, opening with a song you saved: "You saved Space Song a year ago
+  today. What's different now?").
+- [ ] **Photos ↔ music: three moments a week.** On device only: Apple Music
+  library `dateAdded` / play count / last played (+ Replay playlists) matched
+  to photos from ±3 days (date, place, favorites; iOS 18 on-device aesthetic
+  score picks the best photo), ranked by photo count, favorites, away from
+  home and play count. "You added Holocene June 3, 2019, the week of these
+  14 photos in Big Sur." Local notification, no server or AI cost. Step one:
+  a prototype screen on Josh's real library to check `dateAdded` quality.
+  Native (rides 1.4).
 - [ ] **Log what's playing without opening the app** (App Intent that saves
   the now-playing song straight to the journal, with a "write later" nudge).
   Needs an app group + the auth token in a shared keychain; the widget above
@@ -217,27 +234,71 @@ are.
 - [ ] **Thin-archive states:** Reflections strips show a teaser instead of
   disappearing when there's little data.
 
+## Business: one engine, two front doors (decided 2026-10-19)
+
+Josh chose to try to make money (path B). The journal stays the free core and
+the thing people find organically; occasions and keepsakes are the paid
+layer. Print is the shared output of both. Everything runs without Josh in
+the loop: Stripe on the web (physical goods can't use Apple IAP, and web
+sales skip the 30%), print-on-demand APIs ship direct, files are generated,
+emails are triggered, guests serve themselves.
+
+**Front door 1, the journal (free).** Landing page leads with it. Phases 2–3
+make it pull.
+
+**Front door 2, occasions (paid).** An occasion is a person, a group and a
+date: weddings, group birthday gifts, anniversaries / Valentine's,
+memorials, farewells, graduations, baby showers. Same engine for all.
+
+- [ ] **December keepsake** (first money, before Dec): "your year in songs"
+  from your own journal, as a printed book or a card / print pack carrying
+  Soundtracks codes (branded QR, the song's real waveform as art) for walls
+  and gifts. AI does the editing (picks and orders entries, crops photos,
+  pulls color from artwork, titles sections, never rewrites reflections);
+  templates do the layout; buyer previews before print. Partners to choose:
+  Prodigi / Gelato (prints, cards, frames), Lulu / Blurb / Gelato (books).
+- [ ] **Occasions, rebuilt from the ground up** (Jan–Mar, ready for spring
+  wedding season). This is albums v2; today's albums and guest
+  contributions are the starting point, not the design.
+  - Guest flow: QR on generated table cards → web page → search a song (the
+    guest's own pick; prompts like "the song that reminds you of them";
+    optional suggestion chips from the couple's list or the DJ's set), a
+    note, a photo with a disposable-camera filter. No account, no app.
+  - The couple adds their own songs and can hide entries before sharing; no
+    veto at submission. Duplicates are a feature ("6 people picked
+    September").
+  - The reveal ("your wedding soundtrack has developed"): a keepsake page
+    that plays like a radio station. Songs play through the viewer's own
+    service (MusicKit JS full playback for Apple Music subscribers, starting
+    at a chosen timestamp; 30s previews otherwise). An optional AI host
+    between songs reads guests' words verbatim; its voice clips are our own
+    audio, mixed with the songs live in the browser (never exported as one
+    file: the songs' licenses forbid it).
+  - Outputs: the playlist in Apple Music / Spotify, the keepsake page, the
+    printed book, prints with Soundtracks codes.
+  - Pricing to test: ~$49–99 per occasion plus print.
+- [ ] **Own pages for search:** `/weddings`, gifts; target "wedding guest
+  book ideas", "song guest book", "audio guest book" alternatives.
+- **Subscription last**, once people use the journal weekly: the Phase 2
+  intelligence, recaps, AI calls, more storage. Never paywall capture or
+  your own history; never ads or selling data.
+- **Video:** exported video can only use stock music (licensing). Later, if
+  at all.
+
 ## Not now
 
-Monetization, growth and invite loops, more social (friend feeds, linked
-moments), new Spotify work beyond keeping it working, printed books, the
-Music Memory Engine questionnaire/ML, weddings and events, Android.
-
-## Monetization (when the habit exists)
-
-Not before Josh uses it most days for a month *and* a few dozen people use it
-weekly; charging earlier teaches nothing.
-
-- **Free forever:** capture, writing, reading your own history.
-- **Paid depth** (small subscription priced like a journaling app; test the
-  number): the Phase 2 intelligence, rich recaps, more media storage, maybe AI
-  reflection help. Phases 2–3 are built so they can become this tier without a
-  redesign.
-- **One-time keepsakes:** a printed "year in songs", gifts like "our
-  relationship in 20 songs". Seasonal, high-value, no scale required.
-- **Never:** ads, selling data, gating the basics.
+More social (friend feeds, following), new Spotify work beyond search and
+links (extended API access needs ~250k MAU), the Music Memory Engine
+questionnaire/ML, NFC products, Android.
 
 ## Tech and backend
+
+- [x] **Landing page rebuilt** (2026-10-19): "One song's life": a night
+  drive, the Lock Screen widget, then one song (Space Song) captured,
+  written about and returned to seven years later, with a sticky phone
+  whose screen and date advance with the scroll. Demo journal entries shown
+  as entries, a founder note (Josh to approve), real app screens, an
+  Unsplash photo. `PRODUCT.md` and `.impeccable/` hold the design context.
 
 - [x] **Weekly checks self-heal** (2026-10-14): staging keepalive, E2E
   rebuilds expired simulator archives, fingerprint scripts read eas-cli v24
