@@ -5,11 +5,14 @@ import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { handleAuthDeepLink } from "@/lib/auth-linking";
-import { supabase } from "@/lib/supabase";
+import { wasShareTokenOpened } from "@/lib/sharedMomentLink";
 
 export const PENDING_INVITE_CODE_KEY = "pending_invite_code";
 export const PENDING_FRIEND_TOKEN_KEY = "pending_friend_token";
-export const PENDING_GIFT_TOKEN_KEY = "pending_gift_token";
+/** A /m/{token} share link that arrived before the app could open it. */
+export const PENDING_SHARE_TOKEN_KEY = "pending_share_token";
+/** Pre-v2 installs may still carry one; it is only ever cleared. */
+const LEGACY_PENDING_GIFT_TOKEN_KEY = "pending_gift_token";
 
 // Prefixes written to clipboard on web for deferred deep link (cold install) fallback.
 const CLIPBOARD_INVITE_PREFIX = "soundtracks-invite:";
@@ -73,31 +76,21 @@ export function useDeepLinkHandler() {
     }
   }, [user, router]);
 
-  const handleShareToken = useCallback(async (shareToken: string) => {
-    if (user) {
-      // Look up moment ID from share token and navigate directly
-      const { data } = await supabase
-        .from("moments")
-        .select("id")
-        .eq("share_token", shareToken)
-        .single();
-      if (data?.id) {
-        router.push({ pathname: "/moment/[id]" as any, params: { id: data.id } });
-      }
-    } else {
-      // Not logged in — store token; claimed after auth via existing PENDING_GIFT_TOKEN_KEY flow
-      await AsyncStorage.setItem(PENDING_GIFT_TOKEN_KEY, shareToken);
-    }
-  }, [user, router]);
-
   const handleUrl = useCallback(async (url: string) => {
     if (lastHandledUrlRef.current === url) return;
     lastHandledUrlRef.current = url;
 
     // Universal Links — https://soundtracks.app/m/{share_token}
+    // Expo Router opens app/m/[token].tsx itself. The token is parked whenever
+    // the app might not be able to show it yet: signed out, or a cold start
+    // where auth hasn't restored (user is null here even for a signed-in
+    // user). The pending-token effect below opens it once the user is in,
+    // skipping it if the route already did.
     const universalMomentMatch = url.match(/^https:\/\/soundtracks\.app\/m\/([a-zA-Z0-9-]+)/);
     if (universalMomentMatch) {
-      await handleShareToken(universalMomentMatch[1]);
+      if (!user || !profile?.onboardingCompleted) {
+        await AsyncStorage.setItem(PENDING_SHARE_TOKEN_KEY, universalMomentMatch[1]);
+      }
       return;
     }
 
@@ -146,7 +139,7 @@ export function useDeepLinkHandler() {
     if (isAuthCallback) {
       handleAuthDeepLink(url).catch(() => {});
     }
-  }, [handleInviteCode, handleFriendToken, handleShareToken]);
+  }, [handleInviteCode, handleFriendToken, user, profile?.onboardingCompleted]);
 
   // Clipboard check — deferred deep link fallback for cold installs via web invite/friend/gift pages
   useEffect(() => {
@@ -158,7 +151,7 @@ export function useDeepLinkHandler() {
         if (!link) return;
         if (link.kind === "invite") return handleInviteCode(link.value);
         if (link.kind === "friend") return handleFriendToken(link.value);
-        return AsyncStorage.setItem(PENDING_GIFT_TOKEN_KEY, link.value);
+        return AsyncStorage.setItem(PENDING_SHARE_TOKEN_KEY, link.value);
       })
       .catch((err) => { if (__DEV__) console.warn("[deep-link] clipboard fallback failed:", err); });
   }, [handleInviteCode, handleFriendToken]);
@@ -179,12 +172,25 @@ export function useDeepLinkHandler() {
       .catch((err) => { if (__DEV__) console.warn("[deep-link] pending friend token read failed:", err); });
   }, [user?.id, profile?.onboardingCompleted]);
 
-  // Clear any stale pending-gift token (pre-v2 installs may still carry one).
-  // Share links no longer create social state when claimed — the recipient-
-  // initiated "Keep this" flow arrives in Sharing v2 Phase E.
+  // After auth + onboarding complete, open a parked share link. Opening one
+  // records nothing, so a token that turns out dead or already opened costs
+  // nothing. Also clear the pre-v2 pending-gift key (never read).
   useEffect(() => {
     if (!user || !profile?.onboardingCompleted) return;
-    AsyncStorage.removeItem(PENDING_GIFT_TOKEN_KEY).catch(() => {});
+    AsyncStorage.removeItem(LEGACY_PENDING_GIFT_TOKEN_KEY).catch(() => {});
+    AsyncStorage.getItem(PENDING_SHARE_TOKEN_KEY)
+      .then((token) => {
+        if (!token) return;
+        AsyncStorage.removeItem(PENDING_SHARE_TOKEN_KEY)
+          .catch((err) => { if (__DEV__) console.warn("[deep-link] failed to clear pending share token:", err); });
+        // The delay lets a cold-start route to /m/{token} mount first, so the
+        // same link isn't opened twice.
+        setTimeout(() => {
+          if (wasShareTokenOpened(token)) return;
+          router.push({ pathname: "/m/[token]" as any, params: { token } });
+        }, 500);
+      })
+      .catch((err) => { if (__DEV__) console.warn("[deep-link] pending share token read failed:", err); });
   }, [user?.id, profile?.onboardingCompleted]);
 
   // URI scheme deep links — app already installed

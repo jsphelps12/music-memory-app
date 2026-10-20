@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,18 +7,23 @@ import {
   StyleSheet,
   Platform,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from "expo-audio";
 import { supabase } from "@/lib/supabase";
-import * as Crypto from "expo-crypto";
 import { mapRowToMoment } from "@/lib/moments";
 import { getPublicPhotoUrl } from "@/lib/storage";
+import { ensureShareToken, momentShareUrl } from "@/lib/momentShares";
+import { friendlyError } from "@/lib/errors";
+import { ErrorState } from "@/components/ErrorState";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { Moment } from "@/types";
+
+type ScreenState = "loading" | "error" | "ready";
 
 export default function OnboardingMomentPreviewScreen() {
   const router = useRouter();
@@ -29,7 +34,8 @@ export default function OnboardingMomentPreviewScreen() {
   const momentIdToShow = moment2Id || moment1Id || "";
 
   const [moment, setMoment] = useState<Moment | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [state, setState] = useState<ScreenState>("loading");
+  const [error, setError] = useState("");
   const [volumeBannerVisible, setVolumeBannerVisible] = useState(true);
   const soundRef = useRef<AudioPlayer | null>(null);
 
@@ -43,19 +49,40 @@ export default function OnboardingMomentPreviewScreen() {
     }
   }, []);
 
-  // Fetch moment data
-  useEffect(() => {
+  const goToCelebration = useCallback(() => {
+    router.replace({
+      pathname: "/onboarding/celebration",
+      params: { moment1Id: moment1Id ?? "", moment2Id: moment2Id ?? "" },
+    } as any);
+  }, [router, moment1Id, moment2Id]);
+
+  // Fetch moment data. Onboarding can't go back, so a failure offers Retry
+  // and Continue; a missing row skips the preview, as no id does.
+  const loadMoment = useCallback(async () => {
     if (!momentIdToShow) return;
-    supabase
+    setState("loading");
+    setError("");
+    const { data, error: fetchError } = await supabase
       .from("moments")
       .select("*")
       .eq("id", momentIdToShow)
-      .single()
-      .then(({ data, error }) => {
-        if (!error && data) setMoment(mapRowToMoment(data));
-        setLoading(false);
-      });
-  }, [momentIdToShow]);
+      .maybeSingle();
+    if (fetchError) {
+      setError(friendlyError(fetchError));
+      setState("error");
+      return;
+    }
+    if (!data) {
+      goToCelebration();
+      return;
+    }
+    setMoment(mapRowToMoment(data));
+    setState("ready");
+  }, [momentIdToShow, goToCelebration]);
+
+  useEffect(() => {
+    void loadMoment();
+  }, [loadMoment]);
 
   // Play preview audio. createAudioPlayer is synchronous (expo-av's create
   // was a promise), so the old cancelled-flag dance is gone.
@@ -87,26 +114,49 @@ export default function OnboardingMomentPreviewScreen() {
       soundRef.current?.remove();
     } catch {}
     soundRef.current = null;
-    router.replace({
-      pathname: "/onboarding/celebration",
-      params: { moment1Id: moment1Id ?? "", moment2Id: moment2Id ?? "" },
-    } as any);
+    goToCelebration();
   };
 
   const handleShare = async () => {
     if (!moment) return;
+    let token: string;
     try {
-      let token = moment.shareToken;
-      if (!token) {
-        token = Crypto.randomUUID();
-        await supabase.from("moments").update({ share_token: token }).eq("id", moment.id);
-      }
-      const url = `https://soundtracks.app/m/${token}`;
+      // Throws if the token wasn't saved, so a link that leads nowhere is
+      // never sent.
+      token = await ensureShareToken(moment.id, moment.shareToken);
+    } catch (err) {
+      Alert.alert("Couldn't create link", friendlyError(err));
+      return;
+    }
+    setMoment((prev) => (prev && prev.id === moment.id ? { ...prev, shareToken: token } : prev));
+    try {
+      const url = momentShareUrl(token);
       await Share.share({ message: url, url });
-    } catch {}
+    } catch {
+      // Share sheet dismissed or failed to present; the link exists.
+    }
   };
 
-  if (loading || !moment) {
+  if (state === "error") {
+    return (
+      <View style={styles.container}>
+        <ErrorState message={error} onRetry={loadMoment} />
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.continueButton, { backgroundColor: theme.colors.buttonBg }]}
+            onPress={handleContinue}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.continueButtonText, { color: theme.colors.buttonText }]}>
+              Continue →
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  if (state !== "ready" || !moment) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
         <ActivityIndicator color={theme.colors.textSecondary} />

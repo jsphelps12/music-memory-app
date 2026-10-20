@@ -20,7 +20,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { usePostHog } from "posthog-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import * as Crypto from "expo-crypto";
 import * as Clipboard from "expo-clipboard";
 import { AppImage } from "@/components/AppImage";
 import { BottomSheet } from "@/components/BottomSheet";
@@ -34,11 +33,14 @@ import {
 } from "@/components/ShareCard";
 import { fetchFriends } from "@/lib/friends";
 import {
+  ensureShareToken,
   fetchMomentShareRecipients,
   MomentShareGrant,
+  momentShareUrl,
   removeMomentShare,
   sendMomentShare,
 } from "@/lib/momentShares";
+import { fetchAlbumIdsContainingMoment } from "@/lib/momentAlbums";
 import { fetchAlbums, removeMomentFromAlbum } from "@/lib/albums";
 import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { getPublicPhotoUrl } from "@/lib/storage";
@@ -101,7 +103,6 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   // ── Grants ("Shared with" chips + person sent-state) ──────────────────
   const [peopleGrants, setPeopleGrants] = useState<MomentShareGrant[]>([]);
   const [albumGrants, setAlbumGrants] = useState<AlbumGrant[]>([]);
-  const grantsLoadedRef = useRef(false);
 
   // ── Person picker ─────────────────────────────────────────────────────
   const [friends, setFriends] = useState<Friendship[]>([]);
@@ -117,7 +118,6 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
 
   // Per-moment state resets when the sheet is reused for another moment.
   useEffect(() => {
-    grantsLoadedRef.current = false;
     friendsLoadedRef.current = false;
     setPeopleGrants([]);
     setAlbumGrants([]);
@@ -125,8 +125,9 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
 
   // Card-column-shaped moments always carry shareToken: null (MOMENT_CARD_COLUMNS
   // omits it), so trusting the prop could mint a second token over a live one.
-  // Re-read the truth from the row every time the sheet opens — and load the
-  // grant chips alongside it (owner only; sheet-open is the signal).
+  // Re-read the truth from the row every time the sheet opens — and reload the
+  // grant chips alongside it (owner only). Every open, not once per moment:
+  // "Add to album" and other screens change them between opens.
   useEffect(() => {
     if (!visible) return;
     setShareToken(moment.shareToken ?? null);
@@ -140,53 +141,45 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
         if (!error && data) setShareToken(data.share_token);
       });
 
-    if (isOwner && user && !grantsLoadedRef.current) {
-      grantsLoadedRef.current = true;
+    if (isOwner && user) {
+      // A failed load keeps the chips from the last successful one; the
+      // chips are state, not the action, so they don't block sharing.
       fetchMomentShareRecipients(moment.id)
         .then(setPeopleGrants)
-        .catch(() => {
-          grantsLoadedRef.current = false;
-        });
-      fetchAlbums(user.id)
-        .then((cols) =>
-          setAlbumGrants(
-            cols
-              .filter((c) => c.momentIds?.includes(moment.id))
-              .map((c) => ({ id: c.id, name: c.name }))
-          )
-        )
-        .catch(() => {});
+        .catch((err) => { if (__DEV__) console.warn("[share] recipients load failed:", err); });
+      Promise.all([fetchAlbums(user.id), fetchAlbumIdsContainingMoment(moment.id)])
+        .then(([cols, memberIds]) => {
+          const inAlbum = new Set(memberIds);
+          setAlbumGrants(cols.filter((c) => inAlbum.has(c.id)).map((c) => ({ id: c.id, name: c.name })));
+        })
+        .catch((err) => { if (__DEV__) console.warn("[share] album chips load failed:", err); });
     }
   }, [visible, moment.id, moment.shareToken, isOwner, user]);
 
   // ── Link handlers ─────────────────────────────────────────────────────
-  const mintToken = async (): Promise<string> => {
-    let token = shareToken;
-    if (!token) {
-      token = Crypto.randomUUID();
-      const { error } = await supabase
-        .from("moments")
-        .update({ share_token: token })
-        .eq("id", moment.id);
-      if (error) throw error;
-      setShareToken(token);
-    }
-    return token;
-  };
+  // Only the owner can create a link; anyone who can see the moment can send
+  // one that already exists.
+  const canSendLink = !!shareToken || isOwner;
 
   const handleSendLink = async () => {
-    if (sendingLink) return;
+    if (sendingLink || !canSendLink) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSendingLink(true);
+    let token: string;
     try {
-      const token = await mintToken();
-      const url = `https://soundtracks.app/m/${token}`;
+      token = await ensureShareToken(moment.id, shareToken);
+      setShareToken(token);
+    } catch (err) {
+      setSendingLink(false);
+      Alert.alert("Couldn't create link", friendlyError(err));
+      return;
+    }
+    try {
+      const url = momentShareUrl(token);
       await Share.share({ message: url, url });
       handleClose();
-    } catch (err: any) {
-      if (err?.code !== "ECANCELLED" && err?.message !== "Share action cancelled") {
-        Alert.alert("Couldn't create link", "Please try again.");
-      }
+    } catch {
+      // The share sheet was dismissed or failed to present; the link exists.
     } finally {
       setSendingLink(false);
     }
@@ -195,7 +188,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   const handleCopyLink = async () => {
     if (!shareToken) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await Clipboard.setStringAsync(`https://soundtracks.app/m/${shareToken}`);
+    await Clipboard.setStringAsync(momentShareUrl(shareToken));
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
   };
@@ -218,8 +211,8 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
       if (error) throw error;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setShareToken(null);
-    } catch {
-      Alert.alert("Couldn't turn off link", "Please try again.");
+    } catch (err) {
+      Alert.alert("Couldn't turn off link", friendlyError(err));
     } finally {
       setRevoking(false);
     }
@@ -414,7 +407,12 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
                 {divider}
               </>
             )}
-            {optionRow("link-outline", "Share a link", "Anyone with it can view — card export too", () => goTo("link"))}
+            {optionRow(
+              "link-outline",
+              canSendLink ? "Share a link" : "Share card",
+              canSendLink ? "Anyone with it can view — card export too" : "A designed image for posts and Stories",
+              () => goTo("link")
+            )}
           </View>
 
           {/* Honest state: one chip per grant, each removable */}
@@ -555,7 +553,9 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
         <>
           {renderBack("options")}
           <View style={[styles.optionCard, { backgroundColor: theme.colors.cardBg, borderColor: theme.colors.border }]}>
-            {/* Send / create the link */}
+            {/* Send / create the link. Only the owner can create one, so a
+                viewer of a moment with no link doesn't get the row at all. */}
+            {canSendLink && (
             <TouchableOpacity style={styles.optionRow} activeOpacity={0.7} onPress={handleSendLink} disabled={sendingLink}>
               <View style={[styles.iconBox, { backgroundColor: theme.colors.accent + "20" }]}>
                 {sendingLink
@@ -573,6 +573,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
             </TouchableOpacity>
+            )}
 
             {/* Honest link state — owner can copy or turn it off */}
             {!!shareToken && isOwner && (
@@ -604,7 +605,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
               </>
             )}
 
-            {divider}
+            {canSendLink && divider}
 
             {/* Card export lives here (spec: "card export lives here too") */}
             {optionRow("sparkles-outline", "Create share card", "A designed image for posts and Stories", () => goTo("card"))}

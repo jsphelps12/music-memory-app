@@ -414,6 +414,22 @@ questionnaire/ML, NFC products, Android.
     a new path per upload and the old image is deleted, as is the cover of
     a deleted album. Still to do outside WS-D: the You tab should read the
     Albums screen's query instead of its own.
+  - [x] WS-B, moment detail and sharing (2026-10-20, branch `ws-b-detail`,
+    JS only): signed-in share links open through `open_shared_moment` (the
+    previous lookup until it's deployed): the owner lands on the moment,
+    anyone else gets a read-only screen at `/m/[token]` with "add as a
+    friend". Links that arrive signed out or on a cold start are opened
+    after sign-in. Only the owner can create a link, and a link whose token
+    didn't save is never sent. Moment detail uses screen states, refetches
+    on focus only when stale or after an edit, and keeps the moment on
+    screen with a banner when a refresh fails. Add to Album shows joined
+    albums' membership, shows load and save errors and keeps what saved.
+    Album owners delete guest contributions through `delete-guest-moments`.
+    Moment changes now refresh album lists and album detail; friend changes
+    refresh the You summary. "Shared with you" only marks what it shows as
+    seen, the share sheet's chips reload on every open, the onboarding
+    preview has Retry/Continue on failure, and the detail photo strip uses
+    thumbnails.
 - [x] **Pin `eas-cli`** to 25.2.0 in every workflow and the fingerprint
   scripts (v24's JSON rename had broken the gate silently).
 - [x] **Wire `lib/authRouting.ts` into `_layout.tsx`:** AuthGate now runs
