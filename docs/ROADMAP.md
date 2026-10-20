@@ -320,8 +320,8 @@ questionnaire/ML, NFC products, Android.
   specific places and people), real app screens, an
   Unsplash photo. `PRODUCT.md` and `.impeccable/` hold the design context.
   Follow-up (2026-10-20): the hero is the night drive (softened) with
-  Space Song's sleeve and the app icon's record sliding out of it: the
-  song is theirs, the record is yours. The nav and a bar that slides in
+  a famous sleeve (Rumours, "Dreams") and the app icon's record sliding
+  out of it: the song is theirs, the record is yours. The nav and a bar that slides in
   after the hero carry the icon tile + wordmark and the App Store badge.
 
 - [x] **Weekly checks self-heal** (2026-10-14): staging keepalive, E2E

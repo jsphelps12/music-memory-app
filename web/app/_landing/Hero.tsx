@@ -5,8 +5,8 @@ import styles from "./landing.module.css";
 
 /**
  * The drive home as the ground, and the song's sleeve with our record sliding
- * out of it: the song is theirs, the record is yours. The caption is the
- * first line of the entry the story below follows.
+ * out of it: the song is theirs, the record is yours. Rumours because
+ * everyone knows that sleeve; the caption matches the demo album below.
  */
 export function Hero({ badge }: { badge: ReactNode }) {
   return (
@@ -38,15 +38,15 @@ export function Hero({ badge }: { badge: ReactNode }) {
           <div className={styles.sleevePair}>
             <RecordMark size={600} className={styles.sleeveRecord} />
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/art/space-song-600.jpg" alt="Depression Cherry by Beach House" width={600} height={600} />
+            <img src="/art/rumours-760.jpg" alt="Rumours by Fleetwood Mac" width={760} height={760} />
           </div>
           <figcaption>
-            <span className={styles.sleeveWhen}>Saturday, October 19, 2019 · 11:48 PM</span>
+            <span className={styles.sleeveWhen}>Friday, July 12, 2019 · 10:52 PM</span>
             <span className={styles.sleeveSong}>
-              <span>Space Song</span> <em>Beach House</em>
+              <span>Dreams</span> <em>Fleetwood Mac</em>
             </span>
             <span className={styles.sleeveText}>
-              Drove the long way home from Mara&rsquo;s so this would finish before the exit.
+              Windows down the whole way to Boulder. Priya knew every word.
             </span>
           </figcaption>
         </figure>
