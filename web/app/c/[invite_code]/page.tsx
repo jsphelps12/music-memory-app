@@ -24,10 +24,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!collection) return { title: "Shared Album · Soundtracks" };
 
   const { data: profile } = await getSupabase()
-    .from("profiles")
-    .select("display_name")
-    .eq("id", collection.user_id)
-    .single();
+    .rpc("get_public_profiles", { p_ids: [collection.user_id] })
+    .maybeSingle<{ display_name: string | null }>();
 
   const ownerName = profile?.display_name ?? null;
 
@@ -79,10 +77,8 @@ export default async function AlbumPage({ params }: PageProps) {
   if (!collection) notFound();
 
   const { data: ownerProfile } = await getSupabase()
-    .from("profiles")
-    .select("display_name")
-    .eq("id", collection.user_id)
-    .single();
+    .rpc("get_public_profiles", { p_ids: [collection.user_id] })
+    .maybeSingle<{ display_name: string | null }>();
 
   const ownerName = ownerProfile?.display_name ?? null;
 
@@ -122,10 +118,7 @@ export default async function AlbumPage({ params }: PageProps) {
   const contributorProfiles =
     contributorIds.length > 0
       ? (
-          await getSupabase()
-            .from("profiles")
-            .select("id, display_name")
-            .in("id", contributorIds)
+          await getSupabase().rpc("get_public_profiles", { p_ids: contributorIds })
         ).data ?? []
       : [];
 

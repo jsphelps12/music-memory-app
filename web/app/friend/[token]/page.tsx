@@ -13,11 +13,8 @@ interface PageProps {
 export default async function FriendInvitePage({ params }: PageProps) {
   const { token } = await params;
 
-  const { data: profile } = await getSupabase()
-    .from("profiles")
-    .select("id, display_name, avatar_url, username")
-    .eq("friend_invite_token", token)
-    .single();
+  const { data: rows } = await getSupabase().rpc("get_profile_by_invite_token", { p_token: token });
+  const profile = (rows as { id: string; display_name: string | null; avatar_url: string | null; username: string | null }[] | null)?.[0];
 
   if (!profile) notFound();
 

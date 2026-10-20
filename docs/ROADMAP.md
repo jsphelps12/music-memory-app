@@ -345,6 +345,14 @@ questionnaire/ML, NFC products, Android.
   min-build gate can force it).
 - [ ] **Leaked-password protection** (Supabase Auth dashboard toggle; check
   plan support).
+- [ ] **Fix the 2026-10-19 full review** (109 verified findings). The plan
+  and findings are kept out of this public repo until the security items
+  ship: `.claude/review-2026-10/` in the owner's checkout.
+  - [x] DB-1, RLS hardening step 1 (2026-10-20): tighter album, friendship
+    and tag write rules; staging storage policies match prod. Web pages
+    read through narrow RPCs.
+  - [ ] DB-2, RLS hardening step 2: waits for the app changes and the
+    min-build gate.
 - [x] **Pin `eas-cli`** to 25.2.0 in every workflow and the fingerprint
   scripts (v24's JSON rename had broken the gate silently).
 - [x] **Wire `lib/authRouting.ts` into `_layout.tsx`:** AuthGate now runs
