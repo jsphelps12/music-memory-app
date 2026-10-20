@@ -1,5 +1,6 @@
 import Link from "next/link";
 import s from "./share.module.css";
+import { HandoffLink } from "./HandoffLink";
 
 export const APP_STORE_URL = "https://apps.apple.com/us/app/soundtracks/id6759203604";
 
@@ -14,12 +15,27 @@ export function TopBar({ children }: { children?: React.ReactNode }) {
   );
 }
 
-export function AppStoreBadge() {
-  return (
-    <a className={s.badge} href={APP_STORE_URL} aria-label="Download Soundtracks on the App Store">
+/**
+ * `handoff` is a deferred deep link (e.g. `soundtracks-gift:{token}`) copied to
+ * the clipboard when the badge is tapped, so the app can pick it up on first
+ * launch after install. See HandoffLink.
+ */
+export function AppStoreBadge({ handoff }: { handoff?: string }) {
+  const badge = (
+    <>
       {/* Apple's official badge artwork, unmodified. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/badges/app-store-black.svg" alt="" width={150} height={50} />
+    </>
+  );
+  const label = "Download Soundtracks on the App Store";
+  return handoff ? (
+    <HandoffLink handoff={handoff} className={s.badge} href={APP_STORE_URL} aria-label={label}>
+      {badge}
+    </HandoffLink>
+  ) : (
+    <a className={s.badge} href={APP_STORE_URL} aria-label={label}>
+      {badge}
     </a>
   );
 }

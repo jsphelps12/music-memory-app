@@ -165,13 +165,13 @@ export default async function GiftedMomentPage({ params }: PageProps) {
                 <a href={`/friend/${senderFriendToken}`} className={s.button}>
                   Add {senderFirstName} on Soundtracks
                 </a>
-                <AppStoreBadge />
+                <AppStoreBadge handoff={`soundtracks-gift:${share_token}`} />
               </div>
             </>
           ) : (
             <>
               <p className={s.body}>Soundtracks is a journal for the songs that mark your days.</p>
-              <AppStoreBadge />
+              <AppStoreBadge handoff={`soundtracks-gift:${share_token}`} />
             </>
           )}
         </section>
