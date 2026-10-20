@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { Lockup } from "./RecordMark";
 import styles from "./landing.module.css";
 
 /** Wordmark and App Store badge that slide in once the hero is out of view,
@@ -21,7 +22,7 @@ export function StickyBar({ children }: { children: ReactNode }) {
   return (
     <div className={styles.bar} data-shown={shown}>
       <a href="#top" className={styles.wordmark}>
-        Soundtracks
+        <Lockup size={26} />
       </a>
       {children}
     </div>

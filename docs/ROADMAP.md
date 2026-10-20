@@ -316,9 +316,10 @@ questionnaire/ML, NFC products, Android.
   as entries, a founder note (Josh's words: songs that take him back to
   specific places and people), real app screens, an
   Unsplash photo. `PRODUCT.md` and `.impeccable/` hold the design context.
-  Follow-up: the hero is the photo alone (copy low-left, the song and
-  night as a caption) and a wordmark + badge bar slides in after the hero,
-  so the download is always one tap away.
+  Follow-up (2026-10-20): the hero is the night drive (softened) with
+  Space Song's sleeve and the app icon's record sliding out of it: the
+  song is theirs, the record is yours. The nav and a bar that slides in
+  after the hero carry the icon tile + wordmark and the App Store badge.
 
 - [x] **Weekly checks self-heal** (2026-10-14): staging keepalive, E2E
   rebuilds expired simulator archives, fingerprint scripts read eas-cli v24
