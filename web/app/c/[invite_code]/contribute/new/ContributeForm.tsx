@@ -108,8 +108,22 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // Every field is required: the server stores the note and the photo with
+    // the song and rejects a contribution without them.
+    if (!name.trim()) {
+      setError("Please add your name.");
+      return;
+    }
     if (!selectedSong) {
-      setError("Please select a song.");
+      setError("Please pick a song.");
+      return;
+    }
+    if (!reflection.trim()) {
+      setError("Please write a few words about the song.");
+      return;
+    }
+    if (!photoFile) {
+      setError("Please add a photo.");
       return;
     }
     setError(null);
@@ -120,10 +134,15 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
     formData.append("name", name.trim());
     formData.append("song", JSON.stringify(selectedSong));
     formData.append("reflection", reflection.trim());
-    if (photoFile) formData.append("photo", photoFile);
+    formData.append("photo", photoFile);
 
     try {
-      await submitContribution(formData);
+      const result = await submitContribution(formData);
+      // On success the action redirects, so a returned value is always an error.
+      if (result?.error) {
+        setError(result.error);
+        setSubmitting(false);
+      }
     } catch (err: unknown) {
       // Next.js redirect() throws a special error — re-throw it so the router handles navigation
       if ((err as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw err;
@@ -131,6 +150,8 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
       setSubmitting(false);
     }
   }
+
+  const canSubmit = !!name.trim() && !!selectedSong && !!reflection.trim() && !!photoFile;
 
   return (
     <main className={s.page}>
@@ -140,7 +161,7 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
         <header className={s.albumHead}>
           <h1 className={s.headline}>Add your song</h1>
           <p className={`${s.body} ${s.lede}`}>
-            For {collectionName}. Pick the song this brings to mind, and say why if you like.
+            For {collectionName}. Pick the song this brings to mind, say why, and add a photo.
           </p>
         </header>
 
@@ -153,6 +174,7 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
               id="guest-name"
               type="text"
               required
+              maxLength={100}
               autoComplete="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -216,10 +238,12 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
 
           <div className={s.field}>
             <label htmlFor="guest-note" className={s.label}>
-              A few words <span className={s.optional}>(optional)</span>
+              A few words
             </label>
             <textarea
               id="guest-note"
+              required
+              maxLength={5000}
               value={reflection}
               onChange={(e) => setReflection(e.target.value)}
               placeholder="What does it remind you of?"
@@ -230,7 +254,7 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
 
           <div className={s.field}>
             <span className={s.label}>
-              Photo <span className={s.optional}>(optional)</span>
+              Photo
             </span>
             <input
               ref={fileInputRef}
@@ -282,7 +306,7 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
             </p>
           )}
 
-          <button type="submit" disabled={submitting || !name.trim() || !selectedSong} className={s.button}>
+          <button type="submit" disabled={submitting || !canSubmit} className={s.button}>
             {submitting ? "Adding…" : "Add to the album"}
           </button>
         </form>
