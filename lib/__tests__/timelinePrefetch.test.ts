@@ -13,6 +13,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createSupabaseMock } from "./helpers/supabaseMock";
 import { createAsyncStorageMock } from "./helpers/asyncStorageMock";
+import type { Moment } from "@/types";
 
 const sb = createSupabaseMock();
 const storage = createAsyncStorageMock();
@@ -369,5 +370,84 @@ describe("disk cache shape (pre-multi-mood caches)", () => {
     const mod = await loadModule();
     await mod.clearTimelineCache(USER);
     expect(storage.map.has(LEGACY_CACHE_KEY)).toBe(false);
+  });
+});
+
+describe("mergeFirstPage (background refresh keeps loaded pages)", () => {
+  const PAGE = 3;
+  // Newest first.
+  function m(id: string, momentDate: string | null, createdAt = "2026-01-01T00:00:00Z") {
+    return { id, momentDate, createdAt } as Moment;
+  }
+  const loaded = [
+    m("a", "2026-10-09"),
+    m("b", "2026-10-08"),
+    m("c", "2026-10-07"),
+    m("d", "2026-10-06"),
+    m("e", "2026-10-05"),
+    m("f", null),
+  ];
+
+  it("keeps the already-loaded tail instead of collapsing to one page", async () => {
+    const mod = await loadModule();
+    const fresh = [m("a", "2026-10-09"), m("b", "2026-10-08"), m("c", "2026-10-07")];
+    const out = mod.mergeFirstPage(loaded, fresh, true, PAGE);
+    expect(out.moments.map((x) => x.id)).toEqual(["a", "b", "c", "d", "e", "f"]);
+    expect(out.hasMore).toBe(true);
+  });
+
+  it("prepends a new moment and keeps the row it pushed off page 0", async () => {
+    const mod = await loadModule();
+    const fresh = [m("new", "2026-10-10"), m("a", "2026-10-09"), m("b", "2026-10-08")];
+    const out = mod.mergeFirstPage(loaded, fresh, false, PAGE);
+    expect(out.moments.map((x) => x.id)).toEqual(["new", "a", "b", "c", "d", "e", "f"]);
+    expect(out.hasMore).toBe(false);
+  });
+
+  it("drops a row deleted from inside the first page", async () => {
+    const mod = await loadModule();
+    const fresh = [m("a", "2026-10-09"), m("c", "2026-10-07"), m("d", "2026-10-06")];
+    const out = mod.mergeFirstPage(loaded, fresh, true, PAGE);
+    expect(out.moments.map((x) => x.id)).toEqual(["a", "c", "d", "e", "f"]);
+  });
+
+  it("treats a short first page as the whole timeline", async () => {
+    const mod = await loadModule();
+    const out = mod.mergeFirstPage(loaded, [m("a", "2026-10-09")], true, PAGE);
+    expect(out.moments.map((x) => x.id)).toEqual(["a"]);
+    expect(out.hasMore).toBe(false);
+  });
+
+  it("replaces a list that only had the first page", async () => {
+    const mod = await loadModule();
+    const fresh = [m("x", "2026-10-09"), m("y", "2026-10-08"), m("z", "2026-10-07")];
+    const out = mod.mergeFirstPage(loaded.slice(0, 3), fresh, false, PAGE);
+    expect(out.moments.map((x) => x.id)).toEqual(["x", "y", "z"]);
+    expect(out.hasMore).toBe(true);
+  });
+
+  it("orders undated moments last and same-day moments by created_at", async () => {
+    const mod = await loadModule();
+    expect(mod.compareTimelineOrder(m("u", null), m("d", "2020-01-01"))).toBeGreaterThan(0);
+    expect(
+      mod.compareTimelineOrder(
+        m("late", "2026-10-01", "2026-10-01T20:00:00Z"),
+        m("early", "2026-10-01", "2026-10-01T08:00:00Z")
+      )
+    ).toBeLessThan(0);
+  });
+
+  it("appendPage skips ids already shown", async () => {
+    const mod = await loadModule();
+    const out = mod.appendPage(loaded.slice(0, 3), [m("c", "2026-10-07"), m("d", "2026-10-06")]);
+    expect(out.map((x) => x.id)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("lastLoadedPage rounds down so load-more never skips rows", async () => {
+    const mod = await loadModule();
+    expect(mod.lastLoadedPage(0, 30)).toBe(0);
+    expect(mod.lastLoadedPage(30, 30)).toBe(0);
+    expect(mod.lastLoadedPage(91, 30)).toBe(2);
+    expect(mod.lastLoadedPage(89, 30)).toBe(1);
   });
 });

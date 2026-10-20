@@ -159,6 +159,65 @@ export function consumePrefetchNetworkPromise(userId: string): Promise<Moment[] 
   return p;
 }
 
+// ── Merging a refreshed first page into a paginated list ──────────────────
+// Pure, exported for tests. The timeline must not collapse to one page when it
+// refreshes in the background: that dropped every page the user had scrolled
+// through and threw them back near the top.
+
+/**
+ * Timeline order: moment_date descending with undated last, then created_at
+ * descending (the same order as the query). Negative when `a` comes first.
+ */
+export function compareTimelineOrder(
+  a: Pick<Moment, "momentDate" | "createdAt">,
+  b: Pick<Moment, "momentDate" | "createdAt">
+): number {
+  if (a.momentDate !== b.momentDate) {
+    if (!a.momentDate) return 1;
+    if (!b.momentDate) return -1;
+    return a.momentDate > b.momentDate ? -1 : 1;
+  }
+  if (a.createdAt === b.createdAt) return 0;
+  return a.createdAt > b.createdAt ? -1 : 1;
+}
+
+/**
+ * Applies a freshly fetched first page to the list on screen. The fresh page is
+ * authoritative for its range. Already-loaded rows that sort after it are kept;
+ * rows missing from it that would sort inside it were deleted (or moved) and go.
+ */
+export function mergeFirstPage(
+  current: Moment[],
+  fresh: Moment[],
+  currentHasMore: boolean,
+  pageSize = TIMELINE_PAGE_SIZE
+): { moments: Moment[]; hasMore: boolean } {
+  // A short first page is the whole timeline.
+  if (fresh.length < pageSize) return { moments: fresh, hasMore: false };
+  if (current.length <= pageSize) return { moments: fresh, hasMore: true };
+  const last = fresh[fresh.length - 1];
+  const freshIds = new Set(fresh.map((m) => m.id));
+  const tail = current.filter(
+    (m) => !freshIds.has(m.id) && compareTimelineOrder(m, last) >= 0
+  );
+  return { moments: [...fresh, ...tail], hasMore: tail.length > 0 ? currentHasMore : true };
+}
+
+/** Appends a page, skipping ids already shown (offsets shift when rows are added). */
+export function appendPage(current: Moment[], page: Moment[]): Moment[] {
+  const seen = new Set(current.map((m) => m.id));
+  return [...current, ...page.filter((m) => !seen.has(m.id))];
+}
+
+/**
+ * The last page index fully covered by `loadedCount` rows. Rounds down, so the
+ * next load-more may re-fetch a few rows (deduped by appendPage) but never
+ * skips any.
+ */
+export function lastLoadedPage(loadedCount: number, pageSize = TIMELINE_PAGE_SIZE): number {
+  return Math.max(0, Math.floor(loadedCount / pageSize) - 1);
+}
+
 export async function clearTimelineCache(userId: string): Promise<void> {
   if (_prefetch?.userId === userId) _prefetch = null;
   if (_network?.userId === userId) _network = null;

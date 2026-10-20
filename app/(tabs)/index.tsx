@@ -18,7 +18,7 @@ import Animated, {
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useRouter } from "expo-router";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
@@ -26,6 +26,9 @@ import { consumeTimelineStale } from "@/lib/timelineRefresh";
 import {
   consumePrefetchPromise,
   consumePrefetchNetworkPromise,
+  mergeFirstPage,
+  appendPage,
+  lastLoadedPage,
   TIMELINE_PAGE_SIZE,
 } from "@/lib/timelinePrefetch";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
@@ -52,6 +55,11 @@ const SHARED_BADGE_STALE_MS = 60_000;
 export default function TimelineScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
+  // Keyed on the id, not the user object: a token refresh replaces the object,
+  // and that used to re-run the focus effect and refetch mid-scroll.
+  const userId = user?.id;
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
   const theme = useTheme();
   const posthog = usePostHog();
 
@@ -68,9 +76,14 @@ export default function TimelineScreen() {
   // Blocks load-more while a refresh is resetting pageRef, so the two can't
   // interleave and leave pageRef describing something other than what's rendered.
   const refreshInFlightRef = useRef(false);
+  // Latest rendered list and hasMore, for merging a refreshed first page into
+  // it outside a state updater.
+  const momentsRef = useRef<Moment[]>(moments);
+  momentsRef.current = moments;
+  const hasMoreRef = useRef(hasMore);
+  hasMoreRef.current = hasMore;
 
-
-  // Snapshot of the full timeline so calendar can derive data without another query
+  // Snapshot of the loaded timeline (every page) so the calendar can derive data without another query
   const timelineSnapshotRef = useRef<{ moments: Moment[]; hasMore: boolean } | null>(null);
 
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
@@ -92,11 +105,13 @@ export default function TimelineScreen() {
   // Clear data on user change (sign out / sign in as different user)
   useEffect(() => {
     setMoments([]);
+    momentsRef.current = [];
+    pageRef.current = 0;
     setCalendarMoments([]);
     calendarFetchedRef.current = null;
     lastFetchTime.current = 0;
     timelineSnapshotRef.current = null;
-  }, [user?.id]);
+  }, [userId]);
 
   const sectionListRef = useRef<SectionList>(null);
 
@@ -109,7 +124,7 @@ export default function TimelineScreen() {
   viewModeRef.current = viewMode;
 
   const fetchCalendarMoments = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
     setCalendarLoading(true);
 
     const snapshot = timelineSnapshotRef.current;
@@ -123,8 +138,9 @@ export default function TimelineScreen() {
     const { data, error } = await supabase
       .from("moments")
       .select("id, moment_date, song_artwork_url, song_title, song_artist")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .order("moment_date", { ascending: false, nullsFirst: false });
+    if (userIdRef.current !== userId) return;
     if (!error && data) {
       setCalendarMoments(
         data.map((r: any): Moment => ({
@@ -148,7 +164,7 @@ export default function TimelineScreen() {
       calendarFetchedRef.current = false;
     }
     setCalendarLoading(false);
-  }, [user]);
+  }, [userId]);
 
   const switchToList = useCallback(() => {
     if (viewModeRef.current !== "list") {
@@ -245,9 +261,24 @@ export default function TimelineScreen() {
     }
   }, [pendingScrollId, sections]);
 
+  // Sets the rendered list and keeps the snapshot (used by the calendar and
+  // the focus-time prepend/delete) in step with it, every page included.
+  const applyList = useCallback((list: Moment[], nextHasMore: boolean) => {
+    momentsRef.current = list;
+    timelineSnapshotRef.current = { moments: list, hasMore: nextHasMore };
+    setMoments(list);
+    setHasMore(nextHasMore);
+  }, []);
+
+  const mergeFresh = useCallback((fresh: Moment[]) => {
+    const merged = mergeFirstPage(momentsRef.current, fresh, hasMoreRef.current);
+    pageRef.current = lastLoadedPage(merged.moments.length);
+    applyList(merged.moments, merged.hasMore);
+  }, [applyList]);
+
   const fetchMomentsInner = useCallback(
     async (showLoading: boolean, append = false) => {
-      if (!user) return;
+      if (!userId) return;
       if (!append) {
         pageRef.current = 0;
         refreshInFlightRef.current = true;
@@ -256,14 +287,11 @@ export default function TimelineScreen() {
       const t0 = Date.now();
 
       if (showLoading && !append) {
-        const prefetchPromise = consumePrefetchPromise(user.id);
+        const prefetchPromise = consumePrefetchPromise(userId);
         if (prefetchPromise) {
           const prefetched = await prefetchPromise.catch(() => null);
-          if (prefetched !== null) {
-            const nextHasMore = prefetched.length === TIMELINE_PAGE_SIZE;
-            setMoments(prefetched);
-            setHasMore(nextHasMore);
-            timelineSnapshotRef.current = { moments: prefetched, hasMore: nextHasMore };
+          if (prefetched !== null && userIdRef.current === userId) {
+            applyList(prefetched, prefetched.length === TIMELINE_PAGE_SIZE);
             setLoading(false);
             lastFetchTime.current = Date.now();
             posthog?.capture("timeline_load", {
@@ -276,15 +304,16 @@ export default function TimelineScreen() {
             // The paint above may have come from the disk cache, i.e. the server
             // state as of the previous launch. Apply the network result when it
             // lands so a moment created last session isn't silently missing.
-            const networkPromise = consumePrefetchNetworkPromise(user.id);
+            // It can land after the user has already paged further (slow
+            // network), so it's merged as a first page rather than replacing
+            // the list, which used to drop the appended pages.
+            const networkPromise = consumePrefetchNetworkPromise(userId);
             if (networkPromise) {
               networkPromise
                 .then((fresh) => {
                   if (fresh === null) return; // offline — keep showing cache
-                  const freshHasMore = fresh.length === TIMELINE_PAGE_SIZE;
-                  setMoments(fresh);
-                  setHasMore(freshHasMore);
-                  timelineSnapshotRef.current = { moments: fresh, hasMore: freshHasMore };
+                  if (userIdRef.current !== userId) return; // signed out meanwhile
+                  mergeFresh(fresh);
                 })
                 .catch(() => {});
             }
@@ -295,18 +324,11 @@ export default function TimelineScreen() {
       setBannerError("");
       if (showLoading) setError("");
 
-      // Restore cached snapshot instantly so the user sees content while fresh fetch runs
-      if (!append && timelineSnapshotRef.current) {
-        setMoments(timelineSnapshotRef.current.moments);
-        setHasMore(timelineSnapshotRef.current.hasMore);
-        setLoading(false);
-      }
-
       const from = pageRef.current * TIMELINE_PAGE_SIZE;
       const { data, error: fetchError } = await supabase
         .from("moments")
         .select(MOMENT_CARD_COLUMNS)
-        .eq("user_id", user!.id)
+        .eq("user_id", userId)
         .order("moment_date", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false })
         .range(from, from + TIMELINE_PAGE_SIZE - 1);
@@ -325,15 +347,19 @@ export default function TimelineScreen() {
         return;
       }
 
+      if (userIdRef.current !== userId) return; // signed out meanwhile
+
       const mapped: Moment[] = (data ?? []).map(mapRowToMoment);
 
       if (append) {
-        setMoments((prev) => [...prev, ...mapped]);
+        applyList(appendPage(momentsRef.current, mapped), mapped.length === TIMELINE_PAGE_SIZE);
+      } else if (showLoading) {
+        applyList(mapped, mapped.length === TIMELINE_PAGE_SIZE);
       } else {
-        setMoments(mapped);
+        // Background refresh (focus, pull-to-refresh, retry): refetch page 0
+        // and merge it, keeping the pages the user has scrolled through.
+        mergeFresh(mapped);
       }
-      const nextHasMore = mapped.length === TIMELINE_PAGE_SIZE;
-      setHasMore(nextHasMore);
       setLoading(false);
       lastFetchTime.current = Date.now();
 
@@ -345,12 +371,8 @@ export default function TimelineScreen() {
           moment_count: mapped.length,
         });
       }
-
-      if (!append) {
-        timelineSnapshotRef.current = { moments: mapped, hasMore: nextHasMore };
-      }
     },
-    [user, posthog]
+    [userId, posthog, applyList, mergeFresh]
   );
 
   const fetchMoments = useCallback(
@@ -403,8 +425,8 @@ export default function TimelineScreen() {
       }
 
       // The "new from friends" row's count, on the badge cooldown.
-      if (user && Date.now() - unviewedUpdatedAt >= SHARED_BADGE_STALE_MS) refetchUnviewed();
-    }, [fetchMoments, fetchCalendarMoments, user, unviewedUpdatedAt, refetchUnviewed])
+      if (userId && Date.now() - unviewedUpdatedAt >= SHARED_BADGE_STALE_MS) refetchUnviewed();
+    }, [fetchMoments, fetchCalendarMoments, userId, unviewedUpdatedAt, refetchUnviewed])
   );
 
   const handleRefresh = useCallback(async () => {
@@ -428,8 +450,8 @@ export default function TimelineScreen() {
   }, []);
 
   const renderMoment = useCallback(({ item }: { item: Moment }) => (
-    <MomentCard item={item} allMoods={allMoods} onDeleted={handleCardDeleted} />
-  ), [allMoods, handleCardDeleted]);
+    <MomentCard item={item} allMoods={allMoods} onDeleted={handleCardDeleted} currentUserId={userId} />
+  ), [allMoods, handleCardDeleted, userId]);
 
   const listHeader = (
     <>
@@ -563,7 +585,7 @@ export default function TimelineScreen() {
                     loadingMore ? (
                       <ActivityIndicator
                         style={{ paddingVertical: 20 }}
-                        color={theme.colors.accent}
+                        color={theme.colors.textSecondary}
                       />
                     ) : null
                   }
