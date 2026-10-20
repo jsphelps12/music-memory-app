@@ -60,7 +60,7 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { confirmSheet } from "@/components/ConfirmSheet";
 import { friendlyError } from "@/lib/errors";
-import { Album, Moment, MoodOption } from "@/types";
+import { Album, MoodOption, PartialMoment } from "@/types";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches, invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { ShareMomentSheet } from "@/components/ShareMomentSheet";
@@ -113,7 +113,9 @@ export default function MomentDetailScreen() {
   // swallowed navigation leaves a stale value in the module-level slot, and
   // entries that don't populate it (push-notification taps) would otherwise
   // render — and autoplay — someone else's moment.
-  const [moment, setMoment] = useState<Moment | null>(() => {
+  // Until the full row lands, a card hand-off only has card columns: people,
+  // location, weather, updatedAt and shareToken are undefined, not empty.
+  const [moment, setMoment] = useState<PartialMoment | null>(() => {
     const cached = consumeCachedMoment();
     return cached && cached.id === id ? cached : null;
   });
@@ -839,7 +841,7 @@ export default function MomentDetailScreen() {
             {/* When and where, as a quiet line under the song. */}
             {(moment.momentDate || moment.timeOfDay || moment.location) ? (
               <Text style={styles.whenLine}>
-                {formatWhen(moment.momentDate, moment.timeOfDay, moment.location)}
+                {formatWhen(moment.momentDate, moment.timeOfDay ?? null, moment.location ?? null)}
               </Text>
             ) : null}
 
@@ -910,9 +912,9 @@ export default function MomentDetailScreen() {
             ) : null}
 
             {/* Quiet metadata: people, moods as words, weather. */}
-            {(moment.people.length > 0 || moodDefs.length > 0 || moment.weatherCondition) ? (
+            {((moment.people?.length ?? 0) > 0 || moodDefs.length > 0 || moment.weatherCondition) ? (
               <View style={styles.metaBlock}>
-                {moment.people.length > 0 ? (
+                {moment.people && moment.people.length > 0 ? (
                   <Text style={styles.metaLine}>{withPeople(moment.people)}</Text>
                 ) : null}
                 {moment.weatherCondition ? (

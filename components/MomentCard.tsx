@@ -29,10 +29,10 @@ import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { PlayingIndicator } from "@/components/PlayingIndicator";
 import { MomentActionMenu, MenuAnchor } from "@/components/MomentActionMenu";
 import { confirmSheet } from "@/components/ConfirmSheet";
-import { Moment, Song } from "@/types";
+import { MomentCardData, Song } from "@/types";
 
 interface Props {
-  item: Moment;
+  item: MomentCardData;
   allMoods: Array<{ value: string; emoji: string; label: string }>;
   collectionId?: string;
   collectionRole?: string;

@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { deleteMomentPhotos } from "@/lib/storage";
 import { markTimelineDeleted } from "@/lib/timelineRefresh";
-import type { Moment } from "@/types";
+import type { MomentCardData } from "@/types";
 
 /**
  * Delete a moment row plus everything that must go with it: the storage
@@ -12,7 +12,7 @@ import type { Moment } from "@/types";
  * invalidation — those differ per screen.
  */
 export async function deleteMomentWithCleanup(
-  moment: Pick<Moment, "id" | "photoUrls" | "photoThumbnails">
+  moment: Pick<MomentCardData, "id" | "photoUrls" | "photoThumbnails">
 ): Promise<{ error: Error | null }> {
   const { error } = await supabase.from("moments").delete().eq("id", moment.id);
   if (error) return { error };
