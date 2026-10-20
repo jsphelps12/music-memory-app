@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { removeAllUnder } from "../_shared/storage.ts";
+import { purgeAlbumGuestContent } from "../_shared/guestContent.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = {
@@ -38,50 +40,40 @@ Deno.serve(async (req) => {
   }
   const userId = user.id;
 
-  // Delete every storage object under moment-photos/{user_id}/.
-  // Must recurse (album covers live in {user_id}/collection_covers/) and page
-  // (a single list() call caps out, silently stranding heavy users' photos in
-  // a public bucket after they asked for deletion).
-  async function removeAllUnder(prefix: string): Promise<number> {
-    const PAGE = 100;
-    let removed = 0;
-    let offset = 0;
+  const cleanupFailed = () =>
+    new Response(
+      JSON.stringify({ error: "We couldn't finish deleting your data. Please try again." }),
+      { status: 500, headers: corsHeaders }
+    );
 
-    for (;;) {
-      const { data: entries, error: listError } = await adminClient.storage
-        .from("moment-photos")
-        .list(prefix, { limit: PAGE, offset });
-      if (listError || !entries || entries.length === 0) break;
-
-      // Entries without an `id` are folders (Supabase returns them as
-      // synthetic rows) and must be recursed into rather than removed.
-      const files = entries.filter((e) => e.id !== null);
-      const folders = entries.filter((e) => e.id === null);
-
-      if (files.length > 0) {
-        const paths = files.map((f) => `${prefix}/${f.name}`);
-        const { error: removeError } = await adminClient.storage
-          .from("moment-photos")
-          .remove(paths);
-        if (!removeError) removed += paths.length;
-      }
-
-      for (const folder of folders) {
-        removed += await removeAllUnder(`${prefix}/${folder.name}`);
-      }
-
-      if (entries.length < PAGE) break;
-      // Removed files disappear from the listing, so only advance past folders.
-      offset += folders.length;
-    }
-
-    return removed;
+  // 1. Guest contributions to this user's albums: owned by each album's guest
+  //    auth user, with photos under guest/. Neither cascades from this user,
+  //    so delete them first, while the albums still say which guest user
+  //    belongs to which album.
+  const { data: guestAlbums, error: albumsError } = await adminClient
+    .from("collections")
+    .select("id, guest_user_id")
+    .eq("user_id", userId)
+    .not("guest_user_id", "is", null);
+  if (albumsError) {
+    console.error("[delete-account] listing albums failed:", albumsError.message);
+    return cleanupFailed();
+  }
+  for (const album of guestAlbums ?? []) {
+    const result = await purgeAlbumGuestContent(adminClient, album);
+    if (!result.ok) return cleanupFailed();
   }
 
-  await removeAllUnder(userId);
+  // 2. Every storage object under moment-photos/{user_id}/. Recurses (album
+  //    covers live in {user_id}/collection_covers/) and pages (a single list()
+  //    call caps out). If anything is left behind, stop before deleting the
+  //    user so the request can be retried; afterwards nothing would point at
+  //    those public files any more.
+  const { failed } = await removeAllUnder(adminClient, userId);
+  if (failed > 0) return cleanupFailed();
 
-  // Delete the auth user — cascades to profiles, moments, collections,
-  // collection_moments, and any other tables with ON DELETE CASCADE
+  // 3. Delete the auth user — cascades to profiles, moments, collections,
+  //    collection_moments, and any other tables with ON DELETE CASCADE
   const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
   if (deleteError) {
     return new Response(JSON.stringify({ error: deleteError.message }), {
