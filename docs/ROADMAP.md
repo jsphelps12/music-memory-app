@@ -351,6 +351,13 @@ questionnaire/ML, NFC products, Android.
   - [x] DB-1, RLS hardening step 1 (2026-10-20): tighter album, friendship
     and tag write rules; staging storage policies match prod. Web pages
     read through narrow RPCs.
+  - [x] WS-F, backend (2026-10-20): `get_my_profile` and
+    `open_shared_moment` RPCs for the app to move onto; sending a moment
+    requires a friendship and the share push is tightened; legacy
+    `notify-friend` is a no-op; album owners delete guest contributions
+    server-side (`delete-guest-moments`), and account deletion covers them
+    too and never loops or deletes the user with files left behind;
+    notifications use each user's local day and page their queries.
   - [ ] DB-2, RLS hardening step 2: waits for the app changes and the
     min-build gate.
 - [x] **Pin `eas-cli`** to 25.2.0 in every workflow and the fingerprint
