@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
 import { ClipboardDeepLink } from "./ClipboardDeepLink";
 import { AppStoreBadge, TopBar } from "@/components/Share";
+import { HandoffLink } from "@/components/HandoffLink";
 import s from "@/components/share.module.css";
 
 export const dynamic = "force-dynamic";
@@ -26,10 +27,13 @@ export default async function FriendInvitePage({ params }: PageProps) {
   const displayName = profile.display_name ?? profile.username ?? "Someone";
   const firstName = displayName.split(" ")[0];
   const deepLink = `soundtracks://friend?token=${token}`;
+  const handoff = `soundtracks-friend:${token}`;
 
   return (
     <main className={s.page}>
-      {/* Deferred clipboard deep link: written on mount so a cold install can recover the token. */}
+      {/* Deferred clipboard deep link. iOS only allows the write on a tap (the
+          buttons below do it); this mount-time attempt is a best-effort extra
+          for browsers that allow it without one. */}
       <ClipboardDeepLink token={token} />
 
       <div className={`${s.column} ${s.narrow}`}>
@@ -54,10 +58,10 @@ export default async function FriendInvitePage({ params }: PageProps) {
 
         <section className={s.ask}>
           <div className={s.askActions}>
-            <a href={deepLink} className={s.button}>
+            <HandoffLink href={deepLink} handoff={handoff} className={s.button}>
               Connect with {firstName}
-            </a>
-            <AppStoreBadge />
+            </HandoffLink>
+            <AppStoreBadge handoff={handoff} />
           </div>
         </section>
       </div>

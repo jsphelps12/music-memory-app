@@ -38,6 +38,8 @@ jobs:
     timeout-minutes: 240
     outputs:
       url: ${{ steps.build.outputs.url }}
+      sha: ${{ steps.build.outputs.sha }}
+      exact: ${{ steps.build.outputs.exact }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -51,48 +53,78 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Reuse the newest finished simulator build rather than building every
-      # run. An EAS build is ~15 minutes when the queue is empty and hours when
-      # it isn't; the simulator binary only needs rebuilding when the preview
-      # fingerprint moves, which is exactly what scripts/fingerprint-check.mjs
-      # reports.
+      # Which binary runs decides which JS runs: the smoke job turns OTA
+      # updates off in the installed app, so it always runs the JS bundle
+      # embedded at build time.
+      #
+      # Commit runs (dispatch, workflow_call): the build must come from the
+      # tested commit itself (EAS records gitCommitHash), so the flow runs that
+      # commit's JS and the commit status it posts can vouch for it. If no such
+      # build exists, one is built from this checkout. That is one EAS build per
+      # promoted commit (~15 minutes with an empty queue); cutting the
+      # preview-simulator build from the release commit via "Binary Build"
+      # saves the wait.
+      #
+      # Scheduled runs only watch for rot (staging account, catalog search,
+      # auth), so they reuse the newest build and never post a status.
       #
       # EAS deletes build archives after a retention window, though, and a
       # deleted archive still shows up in build:list as "finished". The cron
       # 404'd on one every week from Aug to Oct 2026. So check that the archive
-      # is still downloadable, and build a fresh one when it isn't. That costs
-      # one build per retention window, not one per run.
+      # is still downloadable, and build a fresh one when it isn't.
       - name: Find or build a downloadable simulator build
         id: build
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXACT: ${{ github.event_name != 'schedule' }}
         run: |
           set -euo pipefail
-          first_url() {
-            node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s)[0];console.log(b&&b.artifacts&&b.artifacts.buildUrl||'')})"
+          SHA=$(git rev-parse HEAD)
+          # First build in the list (optionally the first whose commit is
+          # $1) that has an archive URL.
+          pick_url() {
+            node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const want=process.argv[1]||'';const b=JSON.parse(s).find(b=>b&&b.artifacts&&b.artifacts.buildUrl&&(!want||b.gitCommitHash===want));console.log(b?b.artifacts.buildUrl:'')})" "${1:-}"
           }
-          URL=$(npx eas-cli@25.2.0 build:list --platform ios --profile preview-simulator \
-            --status finished --limit 1 --json --non-interactive | first_url)
+          if [ "$EXACT" = "true" ]; then
+            URL=$(npx eas-cli@25.2.0 build:list --platform ios --profile preview-simulator \
+              --status finished --limit 50 --json --non-interactive | pick_url "$SHA")
+          else
+            URL=$(npx eas-cli@25.2.0 build:list --platform ios --profile preview-simulator \
+              --status finished --limit 1 --json --non-interactive | pick_url)
+          fi
           # A one-byte range read, not HEAD: it follows the same redirect a
           # real download does, and some storage backends reject HEAD.
           if [ -n "$URL" ] && curl -fsSL --max-time 60 -r 0-0 -o /dev/null "$URL"; then
             echo "Reusing $URL"
           else
-            echo "::notice::No downloadable preview-simulator build (archive missing or expired). Building one."
+            if [ "$EXACT" = "true" ]; then
+              echo "::notice::No downloadable preview-simulator build of $SHA. Building one from this commit."
+            else
+              echo "::notice::No downloadable preview-simulator build (archive missing or expired). Building one."
+            fi
             URL=$(npx eas-cli@25.2.0 build --platform ios --profile preview-simulator \
-              --wait --json --non-interactive | first_url)
+              --wait --json --non-interactive | pick_url)
             if [ -z "$URL" ]; then
               echo "::error::The preview-simulator build finished without an archive URL."
               exit 1
             fi
           fi
-          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          {
+            echo "url=$URL"
+            echo "sha=$SHA"
+            echo "exact=$EXACT"
+          } >> "$GITHUB_OUTPUT"
 
   smoke:
     name: Maestro smoke flow (iOS simulator)
     needs: resolve-build
     runs-on: macos-latest
     timeout-minutes: 45
+    # statuses: write is for the commit status promote-to-production checks.
+    # A workflow that calls this one (workflow_call) must grant it too.
+    permissions:
+      contents: read
+      statuses: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -116,6 +148,30 @@ jobs:
           curl -fsSL -o build.tar.gz "$BUILD_URL"
           mkdir -p build && tar -xzf build.tar.gz -C build
           echo "APP_PATH=$(find build -name '*.app' -maxdepth 2 | head -1)" >> "$GITHUB_ENV"
+
+      # The flow must run the JS embedded in this binary (built from the
+      # tested commit), not whatever preview OTA is newest. clearState wipes a
+      # downloaded update, but the app fetches one in the background on launch
+      # and the flow's stopApp/launchApp would then cold-start into it. With
+      # expo-updates disabled the app launches the embedded bundle and never
+      # checks for updates.
+      - name: Pin the app to its embedded JS
+        run: |
+          set -euo pipefail
+          PLIST="$APP_PATH/Expo.plist"
+          if [ ! -f "$PLIST" ]; then
+            echo "::error::$PLIST not found; can't disable OTA updates, so the flow could run a different commit's JS."
+            exit 1
+          fi
+          /usr/libexec/PlistBuddy -c "Set :EXUpdatesEnabled false" "$PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :EXUpdatesEnabled bool false" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :EXUpdatesEnabled" "$PLIST"
+          # Editing a file breaks the bundle's ad-hoc seal; re-sign ad hoc,
+          # keeping the entitlements (keychain, app group) the build was
+          # signed with.
+          if codesign -d "$APP_PATH" >/dev/null 2>&1; then
+            codesign --force --sign - --preserve-metadata=identifier,entitlements,flags "$APP_PATH"
+          fi
 
       - name: Boot simulator
         run: |
@@ -206,6 +262,29 @@ jobs:
             code=$?
           fi
           exit "$code"
+
+      # promote-to-production checks this status, not the run's head_sha:
+      # a dispatch records the selected branch head as head_sha whatever the
+      # sha input was, and a scheduled run tests a reused binary. The status
+      # goes on the commit this run checked out and built, and only on commit
+      # runs. A failure is posted too, so a later red run on the same commit
+      # supersedes an earlier green one.
+      - name: Record the result on the tested commit
+        if: (success() || failure()) && needs.resolve-build.outputs.exact == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ needs.resolve-build.outputs.sha }}
+          STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/$REPO/statuses/$SHA" \
+            -f state="$STATE" \
+            -f context="e2e-smoke/embedded-js" \
+            -f description="Maestro smoke flow on a simulator build of this commit" \
+            -f target_url="$RUN_URL" >/dev/null
+          echo "Posted $STATE for $SHA"
 
       - name: Upload Maestro artifacts
         if: failure()

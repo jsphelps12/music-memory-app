@@ -373,6 +373,13 @@ questionnaire/ML, NFC products, Android.
     notifications use each user's local day and page their queries.
   - [ ] DB-2, RLS hardening step 2: waits for the app changes and the
     min-build gate.
+  - [x] WS-G, web, scripts and CI (2026-10-20): the guest form asks for the
+    note and photo the server requires and shows its errors; the gift and
+    friend clipboard handoff is written on tap; one helper for album moment
+    lists; the photo sweep keeps live avatars and thumbnails, checks every
+    query and pages past the row cap; E2E builds and runs the promoted
+    commit's own JS and promote checks a commit status for it; the schema
+    diff compares policy expressions; migrations apply to staging first.
   - [x] WS-A, auth, profile and friends (2026-10-20, branch `ws-a-auth`):
     the app reads its own profile through `get_my_profile()` (falls back to
     an explicit column list until that RPC is deployed) and friend links
