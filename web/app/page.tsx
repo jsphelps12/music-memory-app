@@ -53,7 +53,7 @@ const ENTRIES = [
     song: "Pink + White",
     artist: "Frank Ocean",
     date: "October 14",
-    text: "Three weeks into deleting Instagram and the quiet is getting louder in a good way. I’ve been walking to the coffee shop without headphones, then putting this on for the walk back.",
+    text: "First real fall morning. Walked to the coffee shop the long way so this could play twice.",
   },
 ];
 
@@ -79,9 +79,6 @@ export default function Home() {
           <Link href="/" className={styles.wordmark}>
             Soundtracks
           </Link>
-          <a href={APP_STORE} className={styles.navLink}>
-            Get the app
-          </a>
         </header>
 
         <div className={styles.heroInner}>
@@ -122,7 +119,6 @@ export default function Home() {
             </li>
           ))}
         </ol>
-        <p className={styles.demoNote}>Entries from a demo journal.</p>
       </section>
 
       <section className={styles.album} aria-labelledby="album-title">
@@ -153,7 +149,6 @@ export default function Home() {
               </li>
             ))}
           </ol>
-          <p className={styles.demoNote}>A demo album.</p>
         </figure>
       </section>
 
@@ -167,13 +162,11 @@ export default function Home() {
         </h2>
         <div className={styles.noteBody}>
           <p>
-            I deleted Instagram this year and started noticing the songs. One would come on and I&rsquo;d be somewhere
-            else entirely: a kitchen, a parking lot, a summer I&rsquo;d half forgotten. And I was finding so much new
-            music that I wanted to remember where I was when I found it.
+            Some songs take me straight back. One comes on and I&rsquo;m in a specific kitchen, a specific car, next to
+            a specific person, years ago, like no time passed.
           </p>
           <p>
-            I wanted one place for all of it, so I built it. The song comes first, then as much or as little as you
-            feel like writing. It&rsquo;s the journal I wanted.
+            I wanted one place to keep those: the song, and whatever it brings back. So I built it.
           </p>
           <p className={styles.signature}>Josh, who made Soundtracks</p>
         </div>

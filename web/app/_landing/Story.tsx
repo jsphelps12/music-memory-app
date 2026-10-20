@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Phone, Screen, LockScreen } from "./Phone";
+import { Phone, Screen } from "./Phone";
 import styles from "./landing.module.css";
 
 type When = { day: string; year: number; tail: string };
@@ -16,12 +16,10 @@ type Chapter = {
   excerpt?: string[];
 };
 
-const NIGHT: When = { day: "Saturday, October 19", year: 2019, tail: "11:48 PM" };
-
 const CHAPTERS: Chapter[] = [
   {
     id: "catch",
-    when: NIGHT,
+    when: { day: "Saturday, October 19", year: 2019, tail: "11:48 PM" },
     title: "Catch it while it’s still playing.",
     body: [
       "Whatever’s on in Apple Music fills itself in. Or tap Identify and Soundtracks names the song playing in the room.",
@@ -95,14 +93,12 @@ function useRunningYear(target: number) {
 }
 
 /**
- * The signature: the hero's phone carries on down the page. It starts on the
- * same Lock Screen, then its screen and the date under it advance with the
- * story, from the night the song was caught to the day it comes back. On
- * small screens (and without JS) every chapter carries its own screen and
- * date inline.
+ * The signature: one phone pinned beside the story. Its screen and the date
+ * under it advance chapter by chapter, from the night the song was caught to
+ * the day it comes back. On small screens (and without JS) every chapter
+ * carries its own screen and date inline.
  */
 export function Story() {
-  // 0 is the Lock Screen (above the first chapter); 1..n are the chapters.
   const [active, setActive] = useState(0);
   const refs = useRef<(HTMLElement | null)[]>([]);
 
@@ -121,28 +117,20 @@ export function Story() {
     return () => observer.disconnect();
   }, []);
 
-  const current = active === 0 ? NIGHT : CHAPTERS[active - 1].when;
+  const current = CHAPTERS[active].when;
   const year = useRunningYear(current.year);
 
   return (
     <section className={styles.story} aria-label="One song, seven years">
       <div className={styles.chapters}>
-        <div
-          className={styles.sentinel}
-          data-stage={0}
-          ref={(el) => {
-            refs.current[0] = el;
-          }}
-          aria-hidden="true"
-        />
         {CHAPTERS.map((chapter, i) => (
           <article
             key={chapter.id}
             id={chapter.id}
             ref={(el) => {
-              refs.current[i + 1] = el;
+              refs.current[i] = el;
             }}
-            data-stage={i + 1}
+            data-stage={i}
             className={styles.chapter}
           >
             <h2 className={styles.chapterTitle}>{chapter.title}</h2>
@@ -172,11 +160,8 @@ export function Story() {
       <div className={styles.storyStage} aria-hidden="true">
         <div className={styles.storyStageInner}>
           <Phone>
-            <div className={styles.stageScreen} data-active={active === 0}>
-              <LockScreen />
-            </div>
             {CHAPTERS.map((chapter, i) => (
-              <div key={chapter.id} className={styles.stageScreen} data-active={i + 1 === active}>
+              <div key={chapter.id} className={styles.stageScreen} data-active={i === active}>
                 <Screen src={chapter.screen.src} alt="" />
               </div>
             ))}

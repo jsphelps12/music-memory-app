@@ -100,18 +100,6 @@
   letter-spacing: -0.01em;
 }
 
-.navLink {
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--night-text);
-  text-decoration: underline;
-  text-decoration-color: rgba(245, 240, 235, 0.4);
-}
-
-.navLink:hover {
-  text-decoration-color: var(--night-text);
-}
-
 .heroInner {
   flex: 1;
   display: grid;
@@ -390,10 +378,6 @@
   font-weight: 600;
 }
 
-.sentinel {
-  height: 64svh;
-}
-
 .chapters {
   padding: 8vh 0;
 }
@@ -527,11 +511,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.demoNote {
-  margin: 18px 0 0;
-  font-size: 13px;
-  color: var(--ink-soft);
-}
 
 /* ─── Albums together ──────────────────────────────────────────────── */
 
@@ -743,10 +722,6 @@
   }
 
   .storyStage,
-  .sentinel {
-    display: none;
-  }
-
   .chapterTitle {
     margin-bottom: 0;
   }

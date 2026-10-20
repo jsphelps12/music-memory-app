@@ -167,6 +167,14 @@ clutter, navigation.
   locked while a version is in review). The iOS 27 product-page header is
   still optional and not made.
 
+- [ ] **Phase 1 leftovers** (found while building the landing page, JS
+  only, can go out over the air): the Rediscover capture button covers the
+  last row (needs bottom padding); uppercase tracked eyebrows still sit above
+  titles on the entry screen, Rediscover and You (DESIGN.md says let the
+  title and a meta line carry it); the sign-in button isn't in DM Sans. The
+  album detail screen still has the old gradient cover, but it gets rebuilt
+  with occasions, so don't restyle it twice.
+
 ## Next — Phase 2: Pull
 *The app comes to you with something worth reacting to.*
 
@@ -250,15 +258,8 @@ make it pull.
 date: weddings, group birthday gifts, anniversaries / Valentine's,
 memorials, farewells, graduations, baby showers. Same engine for all.
 
-- [ ] **December keepsake** (first money, before Dec): "your year in songs"
-  from your own journal, as a printed book or a card / print pack carrying
-  Soundtracks codes (branded QR, the song's real waveform as art) for walls
-  and gifts. AI does the editing (picks and orders entries, crops photos,
-  pulls color from artwork, titles sections, never rewrites reflections);
-  templates do the layout; buyer previews before print. Partners to choose:
-  Prodigi / Gelato (prints, cards, frames), Lulu / Blurb / Gelato (books).
-- [ ] **Occasions, rebuilt from the ground up** (Jan–Mar, ready for spring
-  wedding season). This is albums v2; today's albums and guest
+- [ ] **Occasions, rebuilt from the ground up** (first; start now, ready
+  for spring wedding season). This is albums v2; today's albums and guest
   contributions are the starting point, not the design.
   - Guest flow: QR on generated table cards → web page → search a song (the
     guest's own pick; prompts like "the song that reminds you of them";
@@ -277,6 +278,15 @@ memorials, farewells, graduations, baby showers. Same engine for all.
   - Outputs: the playlist in Apple Music / Spotify, the keepsake page, the
     printed book, prints with Soundtracks codes.
   - Pricing to test: ~$49–99 per occasion plus print.
+- [ ] **December keepsake, lite** (after occasions, decided 2026-10-19):
+  reuses the occasions print and keepsake pipeline rather than being its own
+  build. Sells this December only if that pipeline is ready in time. "Your
+  year in songs" from your own journal, as a printed book or a card / print pack carrying
+  Soundtracks codes (branded QR, the song's real waveform as art) for walls
+  and gifts. AI does the editing (picks and orders entries, crops photos,
+  pulls color from artwork, titles sections, never rewrites reflections);
+  templates do the layout; buyer previews before print. Partners to choose:
+  Prodigi / Gelato (prints, cards, frames), Lulu / Blurb / Gelato (books).
 - [ ] **Own pages for search:** `/weddings`, gifts; target "wedding guest
   book ideas", "song guest book", "audio guest book" alternatives.
 - **Subscription last**, once people use the journal weekly: the Phase 2
@@ -297,7 +307,8 @@ questionnaire/ML, NFC products, Android.
   drive, the Lock Screen widget, then one song (Space Song) captured,
   written about and returned to seven years later, with a sticky phone
   whose screen and date advance with the scroll. Demo journal entries shown
-  as entries, a founder note (Josh to approve), real app screens, an
+  as entries, a founder note (Josh's words: songs that take him back to
+  specific places and people), real app screens, an
   Unsplash photo. `PRODUCT.md` and `.impeccable/` hold the design context.
 
 - [x] **Weekly checks self-heal** (2026-10-14): staging keepalive, E2E
