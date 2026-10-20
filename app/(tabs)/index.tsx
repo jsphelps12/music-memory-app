@@ -343,6 +343,9 @@ export default function TimelineScreen() {
         // this, the next load-more skips a whole page and those moments never
         // appear until the app restarts.
         if (append && pageRef.current > 0) pageRef.current -= 1;
+        // A failed background refresh keeps the list it had, so paging
+        // continues from what's loaded rather than from page 0.
+        if (!append) pageRef.current = lastLoadedPage(momentsRef.current.length);
         setLoading(false);
         return;
       }
