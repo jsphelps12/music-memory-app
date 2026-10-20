@@ -5,12 +5,14 @@ import { getProvider } from "@/lib/providers";
 import type { MusicProvider } from "@/lib/providers";
 import { Song } from "@/types";
 
-interface PlayerState {
+/**
+ * What changes only on discrete events (a song starts, pauses, stops, fails).
+ * Safe for list rows to subscribe to.
+ */
+interface PlayerControls {
   currentSong: Song | null;
   isPlaying: boolean;
   isPreview: boolean;
-  playbackTime: number;
-  playbackDuration: number;
   playError: boolean;
   playPreview: (song: Song, previewUrl: string) => Promise<void>;
   playFull: (song: Song, previewUrl?: string) => Promise<void>;
@@ -20,7 +22,18 @@ interface PlayerState {
   seekTo: (seconds: number) => void;
 }
 
-const PlayerContext = createContext<PlayerState | undefined>(undefined);
+/** Updates on every playback tick (0.5-1s). Only progress UI should read it. */
+interface PlayerProgress {
+  playbackTime: number;
+  playbackDuration: number;
+}
+
+type PlayerState = PlayerControls & PlayerProgress;
+
+// Two contexts so the per-tick progress updates re-render only the progress
+// UI. With one context, every mounted MomentCard re-rendered on every tick.
+const PlayerContext = createContext<PlayerControls | undefined>(undefined);
+const PlayerProgressContext = createContext<PlayerProgress | undefined>(undefined);
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
@@ -36,8 +49,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const activeProviderRef = useRef<MusicProvider | null>(null);
   // Unsubscribe function for the active provider's state listener
   const providerUnsubRef = useRef<(() => void) | null>(null);
-  // Generation counter to discard stale playback requests
+  // Generation counter to discard stale playback requests. Every action that
+  // changes what should be playing bumps it: playFull, playPreview, stop, and
+  // pause while a playFull is still pending.
   const playGenRef = useRef(0);
+  // Generation of the playFull still awaiting authorize()/play(), if any.
+  const pendingFullGenRef = useRef<number | null>(null);
 
   useEffect(() => {
     // Fire-and-forget: if the audio session can't be configured, preview
@@ -70,7 +87,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const playPreview = useCallback(async (song: Song, previewUrl: string) => {
+    // Supersedes any playFull still waiting on authorize()/play().
+    const gen = ++playGenRef.current;
+    pendingFullGenRef.current = null;
     await unloadSound();
+    if (gen !== playGenRef.current) return;
     stopProvider();
     setPlayError(false);
     setPlaybackTime(0);
@@ -104,6 +125,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const playFull = useCallback(async (song: Song, previewUrl?: string) => {
     const gen = ++playGenRef.current;
+    pendingFullGenRef.current = gen;
     await unloadSound();
     stopProvider();
     setPlayError(false);
@@ -137,6 +159,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (url) {
         await playPreview(song, url);
       } else {
+        pendingFullGenRef.current = null;
         setCurrentSong(null);
         setIsPlaying(false);
         setPlayError(true);
@@ -150,15 +173,26 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     try {
       await provider.play(song);
-      if (gen !== playGenRef.current) return;
+      if (gen !== playGenRef.current) {
+        // Stopped, paused or replaced by a preview while play() was in flight,
+        // but the system player has started anyway: stop it. A newer playFull
+        // replaces the queue itself, and stopping here could cut that one off.
+        if (pendingFullGenRef.current === null) provider.stop();
+        return;
+      }
+      pendingFullGenRef.current = null;
 
       activeProviderRef.current = provider;
       setCurrentSong(song);
       setIsPlaying(true);
       setIsPreview(false);
 
-      providerUnsubRef.current = provider.onStateChange((state) => {
+      // The provider is a shared singleton, so a listener only counts while its
+      // own unsubscribe is the current one. Anything else is orphaned.
+      let unsub: (() => void) | null = null;
+      unsub = provider.onStateChange((state) => {
         if (activeProviderRef.current !== provider) return;
+        if (unsub && providerUnsubRef.current !== unsub) return;
         setIsPlaying(state.isPlaying);
         if (state.positionMs > 0) setPlaybackTime(state.positionMs / 1000);
         if (state.durationMs > 0) setPlaybackDuration(state.durationMs / 1000);
@@ -169,9 +203,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           setPlaybackTime(0);
           setPlaybackDuration(0);
           activeProviderRef.current = null;
+          // Remove the native listeners as well, or they pile up on the singleton.
+          providerUnsubRef.current?.();
           providerUnsubRef.current = null;
         }
       });
+      if (activeProviderRef.current === provider) {
+        providerUnsubRef.current = unsub;
+      } else {
+        // The synchronous seed emit already reported a stop.
+        unsub();
+      }
     } catch {
       if (gen !== playGenRef.current) return;
       activeProviderRef.current = null;
@@ -182,6 +224,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, [playPreview, unloadSound, stopProvider]);
 
   const pause = useCallback(() => {
+    // A playFull still waiting on authorize()/play() would otherwise start the
+    // song after this pause, for example with the app already in the background.
+    if (pendingFullGenRef.current !== null) {
+      playGenRef.current++;
+      pendingFullGenRef.current = null;
+    }
     if (activeProviderRef.current) {
       activeProviderRef.current.pause();
     } else if (soundRef.current) {
@@ -214,6 +262,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const stop = useCallback(async () => {
+    // Cancels a playFull still waiting on authorize()/play().
+    playGenRef.current++;
+    pendingFullGenRef.current = null;
     stopProvider();
     await unloadSound();
     setCurrentSong(null);
@@ -234,22 +285,52 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setPlaybackTime(seconds);
   }, []);
 
-  const contextValue = useMemo(
-    () => ({ currentSong, isPlaying, isPreview, playbackTime, playbackDuration, playError, playPreview, playFull, pause, resume, stop, seekTo }),
-    [currentSong, isPlaying, isPreview, playbackTime, playbackDuration, playError, playPreview, playFull, pause, resume, stop, seekTo]
+  const controlsValue = useMemo<PlayerControls>(
+    () => ({ currentSong, isPlaying, isPreview, playError, playPreview, playFull, pause, resume, stop, seekTo }),
+    [currentSong, isPlaying, isPreview, playError, playPreview, playFull, pause, resume, stop, seekTo]
+  );
+  const progressValue = useMemo<PlayerProgress>(
+    () => ({ playbackTime, playbackDuration }),
+    [playbackTime, playbackDuration]
   );
 
   return (
-    <PlayerContext.Provider value={contextValue}>
-      {children}
+    <PlayerContext.Provider value={controlsValue}>
+      <PlayerProgressContext.Provider value={progressValue}>
+        {children}
+      </PlayerProgressContext.Provider>
     </PlayerContext.Provider>
   );
 }
 
-export function usePlayer() {
+/**
+ * Playback state and actions without the per-tick progress. Use this in list
+ * rows and anything else that doesn't draw a progress bar.
+ */
+export function usePlayerControls(): PlayerControls {
   const context = useContext(PlayerContext);
   if (context === undefined) {
-    throw new Error("usePlayer must be used within a PlayerProvider");
+    throw new Error("usePlayerControls must be used within a PlayerProvider");
   }
   return context;
+}
+
+/** playbackTime and playbackDuration only. The caller re-renders on every tick. */
+export function usePlayerProgress(): PlayerProgress {
+  const context = useContext(PlayerProgressContext);
+  if (context === undefined) {
+    throw new Error("usePlayerProgress must be used within a PlayerProvider");
+  }
+  return context;
+}
+
+/**
+ * Everything, progress included, so the caller re-renders on every playback
+ * tick. Prefer usePlayerControls, with usePlayerProgress in a small child that
+ * draws the progress.
+ */
+export function usePlayer(): PlayerState {
+  const controls = usePlayerControls();
+  const progress = usePlayerProgress();
+  return useMemo(() => ({ ...controls, ...progress }), [controls, progress]);
 }

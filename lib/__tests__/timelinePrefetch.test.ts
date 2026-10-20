@@ -13,6 +13,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createSupabaseMock } from "./helpers/supabaseMock";
 import { createAsyncStorageMock } from "./helpers/asyncStorageMock";
+import type { Moment } from "@/types";
 
 const sb = createSupabaseMock();
 const storage = createAsyncStorageMock();
@@ -28,7 +29,13 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
 
 const USER = "user-aaa";
 const OTHER_USER = "user-bbb";
-const CACHE_KEY = `timeline_cache_v1_${USER}`;
+const CACHE_KEY = `timeline_cache_v2_${USER}`;
+const LEGACY_CACHE_KEY = `timeline_cache_v1_${USER}`;
+
+/** A Moment as a previous launch wrote it to the disk cache. */
+function cachedMoment(id: string, songTitle: string) {
+  return { id, songTitle, moods: [], photoUrls: [], photoThumbnails: [] };
+}
 
 /** A `moments` row as the DB returns it, restricted to MOMENT_CARD_COLUMNS. */
 function row(id: string, title: string) {
@@ -73,14 +80,14 @@ beforeEach(() => {
 describe("prefetchTimeline — warm cache (the shipped regression)", () => {
   it("resolves from cache while still handing the network result to the caller", async () => {
     // Disk holds last launch's state; the server has a moment created since.
-    storage.seed(CACHE_KEY, JSON.stringify([{ id: "cached", songTitle: "From Disk" }]));
+    storage.seed(CACHE_KEY, JSON.stringify([cachedMoment("cached", "From Disk")]));
     sb.queueData([row("fresh-1", "From Network"), row("fresh-2", "Also New")]);
 
     const mod = await loadModule();
     mod.prefetchTimeline(USER);
 
     const fromCache = await mod.consumePrefetchPromise(USER);
-    expect(fromCache).toEqual([{ id: "cached", songTitle: "From Disk" }]);
+    expect(fromCache).toEqual([cachedMoment("cached", "From Disk")]);
 
     // THE REGRESSION: before the fix this returned nothing and the authoritative
     // first page was discarded, leaving the UI showing `fromCache` forever (the
@@ -94,7 +101,7 @@ describe("prefetchTimeline — warm cache (the shipped regression)", () => {
   });
 
   it("writes the network result back to the cache even though it rendered from cache", async () => {
-    storage.seed(CACHE_KEY, JSON.stringify([{ id: "cached", songTitle: "From Disk" }]));
+    storage.seed(CACHE_KEY, JSON.stringify([cachedMoment("cached", "From Disk")]));
     sb.queueData([row("fresh-1", "From Network")]);
 
     const mod = await loadModule();
@@ -193,7 +200,7 @@ describe("prefetchTimeline — cold cache", () => {
 
 describe("consume-once + cross-user guards", () => {
   it("returns null when consumed for a different user", async () => {
-    storage.seed(CACHE_KEY, JSON.stringify([{ id: "cached" }]));
+    storage.seed(CACHE_KEY, JSON.stringify([cachedMoment("cached", "C")]));
     sb.queueData([row("a", "A")]);
 
     const mod = await loadModule();
@@ -255,7 +262,7 @@ describe("consume-once + cross-user guards", () => {
 
 describe("clearTimelineCache", () => {
   it("drops both singletons and the AsyncStorage key", async () => {
-    storage.seed(CACHE_KEY, JSON.stringify([{ id: "cached" }]));
+    storage.seed(CACHE_KEY, JSON.stringify([cachedMoment("cached", "C")]));
     sb.queueData([row("a", "A")]);
 
     const mod = await loadModule();
@@ -311,5 +318,136 @@ describe("clearTimelineCache", () => {
     await mod.clearTimelineCache(OTHER_USER);
 
     expect(mod.consumePrefetchPromise(USER)).not.toBeNull();
+  });
+});
+
+describe("disk cache shape (pre-multi-mood caches)", () => {
+  it("ignores a v1 cache and removes it, falling through to the network", async () => {
+    // Written before the multi-mood change: `mood`, no `moods`. Rendering it
+    // made MomentCard call moods.slice on undefined on first paint.
+    storage.seed(
+      LEGACY_CACHE_KEY,
+      JSON.stringify([{ id: "old", songTitle: "Old", mood: "happy", photoUrls: [] }])
+    );
+    sb.queueData([row("a", "A")]);
+
+    const mod = await loadModule();
+    mod.prefetchTimeline(USER);
+
+    const result = await mod.consumePrefetchPromise(USER);
+    expect(result!.map((m) => m.id)).toEqual(["a"]);
+    await settle();
+    expect(storage.map.has(LEGACY_CACHE_KEY)).toBe(false);
+  });
+
+  it("treats a cache row without moods as a miss rather than rendering it", async () => {
+    storage.seed(
+      CACHE_KEY,
+      JSON.stringify([cachedMoment("ok", "Ok"), { id: "bad", songTitle: "Bad", photoUrls: [] }])
+    );
+    sb.queueData([row("a", "A")]);
+
+    const mod = await loadModule();
+    mod.prefetchTimeline(USER);
+
+    const result = await mod.consumePrefetchPromise(USER);
+    expect(result!.map((m) => m.id)).toEqual(["a"]);
+  });
+
+  it("returns null for anything that isn't an array of moments", async () => {
+    const mod = await loadModule();
+    expect(mod.parseCachedTimeline(null)).toBeNull();
+    expect(mod.parseCachedTimeline("not json")).toBeNull();
+    expect(mod.parseCachedTimeline(JSON.stringify({ id: "x" }))).toBeNull();
+    expect(mod.parseCachedTimeline(JSON.stringify([null]))).toBeNull();
+    expect(mod.parseCachedTimeline(JSON.stringify([cachedMoment("x", "X")]))).toEqual([
+      cachedMoment("x", "X"),
+    ]);
+  });
+
+  it("clearTimelineCache also removes the legacy key", async () => {
+    storage.seed(LEGACY_CACHE_KEY, "[]");
+    const mod = await loadModule();
+    await mod.clearTimelineCache(USER);
+    expect(storage.map.has(LEGACY_CACHE_KEY)).toBe(false);
+  });
+});
+
+describe("mergeFirstPage (background refresh keeps loaded pages)", () => {
+  const PAGE = 3;
+  // Newest first.
+  function m(id: string, momentDate: string | null, createdAt = "2026-01-01T00:00:00Z") {
+    return { id, momentDate, createdAt } as Moment;
+  }
+  const loaded = [
+    m("a", "2026-10-09"),
+    m("b", "2026-10-08"),
+    m("c", "2026-10-07"),
+    m("d", "2026-10-06"),
+    m("e", "2026-10-05"),
+    m("f", null),
+  ];
+
+  it("keeps the already-loaded tail instead of collapsing to one page", async () => {
+    const mod = await loadModule();
+    const fresh = [m("a", "2026-10-09"), m("b", "2026-10-08"), m("c", "2026-10-07")];
+    const out = mod.mergeFirstPage(loaded, fresh, true, PAGE);
+    expect(out.moments.map((x) => x.id)).toEqual(["a", "b", "c", "d", "e", "f"]);
+    expect(out.hasMore).toBe(true);
+  });
+
+  it("prepends a new moment and keeps the row it pushed off page 0", async () => {
+    const mod = await loadModule();
+    const fresh = [m("new", "2026-10-10"), m("a", "2026-10-09"), m("b", "2026-10-08")];
+    const out = mod.mergeFirstPage(loaded, fresh, false, PAGE);
+    expect(out.moments.map((x) => x.id)).toEqual(["new", "a", "b", "c", "d", "e", "f"]);
+    expect(out.hasMore).toBe(false);
+  });
+
+  it("drops a row deleted from inside the first page", async () => {
+    const mod = await loadModule();
+    const fresh = [m("a", "2026-10-09"), m("c", "2026-10-07"), m("d", "2026-10-06")];
+    const out = mod.mergeFirstPage(loaded, fresh, true, PAGE);
+    expect(out.moments.map((x) => x.id)).toEqual(["a", "c", "d", "e", "f"]);
+  });
+
+  it("treats a short first page as the whole timeline", async () => {
+    const mod = await loadModule();
+    const out = mod.mergeFirstPage(loaded, [m("a", "2026-10-09")], true, PAGE);
+    expect(out.moments.map((x) => x.id)).toEqual(["a"]);
+    expect(out.hasMore).toBe(false);
+  });
+
+  it("replaces a list that only had the first page", async () => {
+    const mod = await loadModule();
+    const fresh = [m("x", "2026-10-09"), m("y", "2026-10-08"), m("z", "2026-10-07")];
+    const out = mod.mergeFirstPage(loaded.slice(0, 3), fresh, false, PAGE);
+    expect(out.moments.map((x) => x.id)).toEqual(["x", "y", "z"]);
+    expect(out.hasMore).toBe(true);
+  });
+
+  it("orders undated moments last and same-day moments by created_at", async () => {
+    const mod = await loadModule();
+    expect(mod.compareTimelineOrder(m("u", null), m("d", "2020-01-01"))).toBeGreaterThan(0);
+    expect(
+      mod.compareTimelineOrder(
+        m("late", "2026-10-01", "2026-10-01T20:00:00Z"),
+        m("early", "2026-10-01", "2026-10-01T08:00:00Z")
+      )
+    ).toBeLessThan(0);
+  });
+
+  it("appendPage skips ids already shown", async () => {
+    const mod = await loadModule();
+    const out = mod.appendPage(loaded.slice(0, 3), [m("c", "2026-10-07"), m("d", "2026-10-06")]);
+    expect(out.map((x) => x.id)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("lastLoadedPage rounds down so load-more never skips rows", async () => {
+    const mod = await loadModule();
+    expect(mod.lastLoadedPage(0, 30)).toBe(0);
+    expect(mod.lastLoadedPage(30, 30)).toBe(0);
+    expect(mod.lastLoadedPage(91, 30)).toBe(2);
+    expect(mod.lastLoadedPage(89, 30)).toBe(1);
   });
 });

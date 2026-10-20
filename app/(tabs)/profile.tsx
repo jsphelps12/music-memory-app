@@ -27,14 +27,16 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ProviderSwitchResult } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { getPublicPhotoUrl, avatarFullPath } from "@/lib/storage";
-import { fetchAlbums, fetchAlbumArtworks, fetchSharedAlbumActivity } from "@/lib/albums";
+import { getPublicPhotoUrl, avatarFullPathFor } from "@/lib/storage";
+import { fetchAlbumsOverview, selectAlbumsPreview } from "@/lib/albums";
+import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
+import { artworkUrlAtSize } from "@/lib/itunes";
 import { fetchSharedWithMe } from "@/lib/momentShares";
 import { setCachedMoment } from "@/lib/momentCache";
 import { spotifyFailureMessage, SPOTIFY_FREE_NOTICE } from "@/lib/providers/spotifyErrors";
 import { friendlyError } from "@/lib/errors";
 import { pluralMoments } from "@/lib/utils";
-import { PROFILE_STATS_STALE } from "@/lib/queryConfig";
+import { PROFILE_STATS_STALE, DEFAULT_SCREEN_STALE } from "@/lib/queryConfig";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { Album, Moment } from "@/types";
@@ -49,6 +51,8 @@ const ALBUM_PREVIEW = 4;
 const ALBUM_GAP = 14;
 // Two columns inside the 20pt gutters.
 const ALBUM_CELL = (Dimensions.get("window").width - 40 - ALBUM_GAP) / 2;
+// A mosaic tile (or a single artwork filling the cell) at 3x, rounded up.
+const ALBUM_ARTWORK_PX = Math.ceil((ALBUM_CELL * 3) / 100) * 100;
 
 async function fetchYouSummary(userId: string) {
   const [{ count: entryCount, error }, { count: friendCount }] = await Promise.all([
@@ -61,21 +65,6 @@ async function fetchYouSummary(userId: string) {
   ]);
   if (error) throw error;
   return { entryCount: entryCount ?? 0, friendCount: friendCount ?? 0 };
-}
-
-async function fetchYouAlbums(userId: string) {
-  const [albums, activity] = await Promise.all([fetchAlbums(userId), fetchSharedAlbumActivity(userId)]);
-  // Newest activity first isn't tracked per album, so lead with ones that
-  // have something new, then the most recently made.
-  const newCounts = Object.fromEntries(activity.map((a) => [a.collectionId, a.newMomentCount]));
-  const sorted = [...albums].sort(
-    (a, b) =>
-      (newCounts[b.id] ?? 0) - (newCounts[a.id] ?? 0) ||
-      b.createdAt.localeCompare(a.createdAt)
-  );
-  const preview = sorted.slice(0, ALBUM_PREVIEW);
-  const artworks = await fetchAlbumArtworks(preview.filter((a) => !a.coverPhotoUrl).map((a) => a.id));
-  return { total: albums.length, preview, artworks, newCounts };
 }
 
 function formatShortDate(iso: string) {
@@ -110,10 +99,12 @@ export default function YouScreen() {
     staleTime: STALE_TIME,
     enabled: !!user,
   });
+  // Shares the Albums screen's query (and cache): the row is a preview of it.
   const albums = useQuery({
-    queryKey: ["youAlbums", user?.id],
-    queryFn: () => fetchYouAlbums(user!.id),
-    staleTime: STALE_TIME,
+    queryKey: ["collectionsScreen", user?.id],
+    queryFn: () => fetchAlbumsOverview(user!.id),
+    select: (overview) => selectAlbumsPreview(overview, ALBUM_PREVIEW),
+    staleTime: DEFAULT_SCREEN_STALE,
     enabled: !!user,
   });
 
@@ -157,18 +148,18 @@ export default function YouScreen() {
   // probe for it (public bucket, one HEAD per tap) and fall back to the 400px
   // file rather than opening a blank viewer.
   const handleAvatarPress = useCallback(async () => {
-    if (!user || !avatarUri) {
+    if (!user || !avatarUri || !profile?.avatarUrl) {
       router.push("/profile-edit");
       return;
     }
-    const fullUrl = getPublicPhotoUrl(avatarFullPath(user.id));
+    const fullUrl = getPublicPhotoUrl(avatarFullPathFor(profile.avatarUrl));
     try {
       const res = await fetch(fullUrl, { method: "HEAD" });
       setAvatarViewerUrl(res.ok ? fullUrl : avatarUri);
     } catch {
       setAvatarViewerUrl(avatarUri);
     }
-  }, [user, avatarUri, router]);
+  }, [user, profile, avatarUri, router]);
 
   async function switchProvider(type: "apple_music" | "spotify") {
     setSwitchingProvider(true);
@@ -330,7 +321,7 @@ export default function YouScreen() {
                 accessibilityRole="button"
               >
                 {item.moment.songArtworkUrl ? (
-                  <AppImage source={{ uri: item.moment.songArtworkUrl }} style={styles.sharedArtwork} />
+                  <AppImage source={{ uri: artworkUrlAtSize(item.moment.songArtworkUrl, 132) }} style={styles.sharedArtwork} />
                 ) : (
                   <ArtworkPlaceholder style={styles.sharedArtwork} />
                 )}
@@ -374,7 +365,7 @@ export default function YouScreen() {
                       activeOpacity={0.8}
                       accessibilityRole="button"
                     >
-                      <AlbumMosaic coverPhotoPath={album.coverPhotoUrl} artworks={albumData.artworks[album.id]} />
+                      <AlbumMosaic coverPhotoPath={album.coverPhotoUrl} artworks={albumData.artworks[album.id]?.map((url) => artworkUrlAtSize(url, ALBUM_ARTWORK_PX))} />
                       <View style={styles.albumNameRow}>
                         <Text style={styles.albumName} numberOfLines={1}>{album.name}</Text>
                         {fresh > 0 ? <View style={styles.unreadDot} accessibilityLabel={`${fresh} new`} /> : null}
@@ -427,7 +418,7 @@ export default function YouScreen() {
           userId={user.id}
           onClose={() => {
             setNewAlbumVisible(false);
-            queryClient.invalidateQueries({ queryKey: ["youAlbums", user.id] });
+            invalidateAlbumCaches(queryClient, user.id);
           }}
         />
       ) : null}

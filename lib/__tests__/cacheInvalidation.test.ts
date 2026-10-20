@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, beforeEach } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { invalidateMomentCaches, invalidateAlbumCaches } from "../cacheInvalidation";
+import { invalidateMomentCaches, invalidateAlbumCaches, invalidateFriendCaches } from "../cacheInvalidation";
 
 const USER = "user-aaa";
 const OTHER_USER = "user-bbb";
@@ -98,14 +98,40 @@ describe("invalidateMomentCaches", () => {
     expect(isInvalidated(["browseMeta", OTHER_USER])).toBe(false);
   });
 
-  it("does not invalidate a query whose name is not in either list", () => {
-    seed(["collectionsScreen", USER]);
+  it("does not invalidate a query whose name is not in any list", () => {
     seed(["somethingElse", USER, "x"]);
+    seed(["friendsList", USER]);
 
     invalidateMomentCaches(qc, USER);
 
-    expect(isInvalidated(["collectionsScreen", USER])).toBe(false);
     expect(isInvalidated(["somethingElse", USER, "x"])).toBe(false);
+    expect(isInvalidated(["friendsList", USER])).toBe(false);
+  });
+
+  it("invalidates the album lists, which carry moment counts and artwork", () => {
+    seed(["collectionsScreen", USER]);
+    seed(["collectionsBadge", USER]);
+    seed(["youAlbums", USER]);
+
+    invalidateMomentCaches(qc, USER);
+
+    expect(isInvalidated(["collectionsScreen", USER])).toBe(true);
+    expect(isInvalidated(["collectionsBadge", USER])).toBe(true);
+    expect(isInvalidated(["youAlbums", USER])).toBe(true);
+  });
+
+  it("invalidates every album detail for the user (user id at index 2)", () => {
+    // A deleted or edited moment can sit in any album; the caller doesn't know
+    // which, so every album detail for this user refetches.
+    seed(["album", "album-1", USER]);
+    seed(["album", "album-2", USER]);
+    seed(["album", "album-1", OTHER_USER]);
+
+    invalidateMomentCaches(qc, USER);
+
+    expect(isInvalidated(["album", "album-1", USER])).toBe(true);
+    expect(isInvalidated(["album", "album-2", USER])).toBe(true);
+    expect(isInvalidated(["album", "album-1", OTHER_USER])).toBe(false);
   });
 
   it("is a no-op when userId is undefined", () => {
@@ -190,5 +216,25 @@ describe("invalidateAlbumCaches", () => {
     expect(isInvalidated(["collectionsScreen", USER])).toBe(false);
     expect(isInvalidated(["collectionsBadge", USER])).toBe(false);
     expect(isInvalidated(["album", "album-1", USER])).toBe(false);
+  });
+});
+
+describe("invalidateFriendCaches", () => {
+  it("invalidates the friends list and the You summary (friend count)", () => {
+    seed(["friendsList", USER]);
+    seed(["youSummary", USER]);
+    seed(["youSummary", OTHER_USER]);
+
+    invalidateFriendCaches(qc, USER);
+
+    expect(isInvalidated(["friendsList", USER])).toBe(true);
+    expect(isInvalidated(["youSummary", USER])).toBe(true);
+    expect(isInvalidated(["youSummary", OTHER_USER])).toBe(false);
+  });
+
+  it("is a no-op when userId is undefined", () => {
+    seed(["friendsList", USER]);
+    invalidateFriendCaches(qc, undefined);
+    expect(isInvalidated(["friendsList", USER])).toBe(false);
   });
 });
