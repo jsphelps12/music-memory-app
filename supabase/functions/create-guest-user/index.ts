@@ -1,9 +1,31 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { guestEmailFor } from "../_shared/guestContent.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const USERS_PAGE = 1000;
+
+/**
+ * The id of the auth user with this email, or null. The admin API has no
+ * lookup by email, so this pages through the users; it only runs on the rare
+ * path where createUser failed.
+ */
+async function findUserIdByEmail(admin: SupabaseClient, email: string): Promise<string | null> {
+  const target = email.toLowerCase();
+  for (let page = 1; ; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: USERS_PAGE });
+    if (error) {
+      console.error("Failed to list users:", error);
+      return null;
+    }
+    const match = data.users.find((u) => u.email?.toLowerCase() === target);
+    if (match) return match.id;
+    if (data.users.length < USERS_PAGE) return null;
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -73,22 +95,29 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create a new guest auth user
+    // Create the guest auth user, or reuse the one an earlier call created if
+    // that call stopped before saving it on the collection below. Without the
+    // reuse, every retry would fail on the already-registered email.
+    const email = guestEmailFor(collectionId);
+    let guestUserId: string | null = null;
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
-      email: `guest-${collectionId}@guests.soundtracks.app`,
+      email,
       password: crypto.randomUUID(),
       email_confirm: true,
     });
+    if (!createError && newUser.user) {
+      guestUserId = newUser.user.id;
+    } else {
+      guestUserId = await findUserIdByEmail(adminClient, email);
+      if (!guestUserId) console.error("Failed to create guest user:", createError);
+    }
 
-    if (createError || !newUser.user) {
-      console.error("Failed to create guest user:", createError);
+    if (!guestUserId) {
       return new Response(JSON.stringify({ error: "Failed to create guest user" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const guestUserId = newUser.user.id;
 
     // Store the guest_user_id on the collection
     const { error: updateError } = await adminClient
