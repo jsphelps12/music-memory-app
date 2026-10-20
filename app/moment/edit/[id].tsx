@@ -25,9 +25,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { setWritingSession } from "@/lib/writingSession";
 import { supabase } from "@/lib/supabase";
-import { getProvider } from "@/lib/providers";
 import type { MusicProviderType } from "@/types";
-import { uploadMomentPhotoWithThumbnail, getPublicPhotoUrl, deleteMomentPhotos } from "@/lib/storage";
+import { getPublicPhotoUrl } from "@/lib/storage";
+import { updateMoment } from "@/lib/saveMoment";
+import { mapRowToMoment } from "@/lib/moments";
+import { LocationField } from "@/components/LocationField";
+import type { GeoResult } from "@/lib/geocoding";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
 import { useTheme } from "@/hooks/useTheme";
@@ -40,7 +43,6 @@ import { friendlyError } from "@/lib/errors";
 import { onSongSelected } from "@/lib/songEvents";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches } from "@/lib/cacheInvalidation";
-import { dateToStr } from "@/lib/dateUtils";
 
 export default function EditMomentScreen() {
   const router = useRouter();
@@ -64,6 +66,9 @@ export default function EditMomentScreen() {
   }>();
 
   const [song, setSong] = useState<Song | null>(null);
+  // The song as stored, so a save only replaces the preview URL when the
+  // song actually changed.
+  const originalSongRef = useRef<Song | null>(null);
   const [reflection, setReflection] = useState("");
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [people, setPeople] = useState<string[]>([]);
@@ -77,7 +82,7 @@ export default function EditMomentScreen() {
   });
   const [newPhotos, setNewPhotos] = useState<string[]>([]);
   const [momentDate, setMomentDate] = useState<Date | null>(new Date());
-  const [location, setLocation] = useState("");
+  const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
   const [loadingMoment, setLoadingMoment] = useState(true);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -102,29 +107,35 @@ export default function EditMomentScreen() {
       return;
     }
 
-    const row: any = data;
-    setSong({
-      id: row.song_spotify_id ?? row.song_apple_music_id ?? "",
-      title: row.song_title,
-      artistName: row.song_artist,
-      albumName: row.song_album_name ?? "",
-      artworkUrl: row.song_artwork_url ?? "",
-      provider: (row.song_provider as MusicProviderType) ?? 'apple_music',
-      appleMusicId: row.song_apple_music_id ?? null,
-      spotifyId: row.song_spotify_id ?? null,
+    const moment = mapRowToMoment(data);
+    const storedSong: Song = {
+      id: moment.songSpotifyId ?? moment.songAppleMusicId ?? "",
+      title: moment.songTitle,
+      artistName: moment.songArtist,
+      albumName: moment.songAlbumName ?? "",
+      artworkUrl: moment.songArtworkUrl ?? "",
+      provider: moment.songProvider,
+      appleMusicId: moment.songAppleMusicId,
+      spotifyId: moment.songSpotifyId,
       durationMs: 0,
-    });
-    setReflection(row.reflection_text ?? "");
-    setSelectedMoods(row.moods ?? (row.mood ? [row.mood] : []));
-    setPeople(row.people ?? []);
-    setExistingPhotos(row.photo_urls ?? []);
-    setExistingThumbnails(row.photo_thumbnails ?? []);
-    originalPhotosRef.current = {
-      photos: row.photo_urls ?? [],
-      thumbnails: row.photo_thumbnails ?? [],
     };
-    setMomentDate(row.moment_date ? new Date(row.moment_date + "T00:00:00") : null);
-    setLocation(row.location ?? "");
+    originalSongRef.current = storedSong;
+    setSong(storedSong);
+    setReflection(moment.reflectionText ?? "");
+    setSelectedMoods(moment.moods);
+    setPeople(moment.people);
+    setExistingPhotos(moment.photoUrls);
+    setExistingThumbnails(moment.photoThumbnails);
+    originalPhotosRef.current = {
+      photos: moment.photoUrls,
+      thumbnails: moment.photoThumbnails,
+    };
+    setMomentDate(moment.momentDate ? new Date(moment.momentDate + "T00:00:00") : null);
+    setLocationResult(
+      moment.location
+        ? { name: moment.location, lat: moment.locationLat, lng: moment.locationLng }
+        : null
+    );
     setLoadingMoment(false);
   }, [params.id]);
 
@@ -241,54 +252,22 @@ export default function EditMomentScreen() {
       return;
     }
     try {
-      const previewUrlVal = await getProvider(song!.provider).fetchPreviewUrl(song!);
-      const previewUrl = previewUrlVal;
-      const fetchedAlbumName: string | null = null;
-
-      const results = await Promise.all(
-        newPhotos.map((uri) => uploadMomentPhotoWithThumbnail(user.id, uri))
-      );
-      const newPaths = results.map((r) => r.fullPath);
-      const newThumbPaths = results.map((r) => r.thumbnailPath);
-
-      const { error: updateError } = await supabase
-        .from("moments")
-        .update({
-          song_title: song!.title,
-          song_artist: song!.artistName,
-          song_album_name: song!.albumName || fetchedAlbumName || null,
-          song_artwork_url: song!.artworkUrl || null,
-          song_provider: song!.provider,
-          song_apple_music_id: song!.appleMusicId ?? null,
-          song_spotify_id: song!.spotifyId ?? null,
-          song_preview_url: previewUrl,
-          reflection_text: reflection.trim(),
-          // Dual-write during the multi-mood transition (see lib/saveMoment.ts).
-          mood: selectedMoods[0] ?? null,
-          moods: selectedMoods,
-          people,
-          photo_urls: [...existingPhotos, ...newPaths],
-          photo_thumbnails: [...existingThumbnails, ...newThumbPaths],
-          location: location.trim() || null,
-          moment_date: momentDate
-            ? dateToStr(momentDate)
-            : null,
-        })
-        .eq("id", params.id);
-
-      if (updateError) throw updateError;
-
-      // Delete objects for photos the user removed — the row no longer points
-      // at them, but they'd stay publicly readable at their known URLs.
-      const removedPhotos = originalPhotosRef.current.photos.filter(
-        (p) => !existingPhotos.includes(p)
-      );
-      const removedThumbnails = originalPhotosRef.current.thumbnails.filter(
-        (t) => !existingThumbnails.includes(t)
-      );
-      if (removedPhotos.length || removedThumbnails.length) {
-        void deleteMomentPhotos(removedPhotos, removedThumbnails);
-      }
+      await updateMoment({
+        momentId: params.id,
+        userId: user.id,
+        song: song!,
+        originalSong: originalSongRef.current ?? song!,
+        reflection,
+        moods: selectedMoods,
+        people,
+        locationResult,
+        momentDate,
+        originalPhotos: originalPhotosRef.current.photos,
+        originalThumbnails: originalPhotosRef.current.thumbnails,
+        keptPhotos: existingPhotos,
+        keptThumbnails: existingThumbnails,
+        newPhotos,
+      });
 
       posthog.capture("moment_edited", {
         has_reflection: reflection.trim().length > 0,
@@ -296,7 +275,7 @@ export default function EditMomentScreen() {
         mood_count: selectedMoods.length,
         has_people: people.length > 0,
         photo_count: existingPhotos.length + newPhotos.length,
-        has_location: !!(location.trim()),
+        has_location: Boolean(locationResult),
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       markTimelineStale();
@@ -516,19 +495,7 @@ export default function EditMomentScreen() {
 
         {/* Location */}
         <Text style={styles.sectionLabel}>Location</Text>
-        <TextInput
-          style={[styles.input, focusedField === "location" && { borderColor: theme.colors.accent }]}
-          placeholder="Where were you?"
-          placeholderTextColor={theme.colors.placeholder}
-          cursorColor={theme.colors.accent}
-          autoCorrect={false}
-          autoCapitalize="words"
-          returnKeyType="done"
-          value={location}
-          onChangeText={setLocation}
-          onFocus={() => setFocusedField("location")}
-          onBlur={() => setFocusedField("")}
-        />
+        <LocationField value={locationResult} onChange={setLocationResult} />
 
         {/* Error */}
         {error ? <Text style={styles.error}>{error}</Text> : null}

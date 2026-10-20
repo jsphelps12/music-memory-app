@@ -13,6 +13,7 @@ import { CustomMoodDefinition } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
+import { ConfirmSheetHost, confirmSheet } from "@/components/ConfirmSheet";
 
 interface Props {
   // Selection order is meaningful: the first mood is written to the legacy
@@ -58,6 +59,15 @@ export function MoodSelector({
 
   const handleDelete = async (mood: CustomMoodDefinition) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Removing a custom mood removes it from the profile, not just this
+    // moment, so a long-press alone must not do it.
+    const confirmed = await confirmSheet({
+      title: `Delete "${mood.label}"?`,
+      message: "It will be removed from your moods everywhere.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
       await deleteCustomMood(mood.value);
       if (selectedMoods.includes(mood.value)) {
@@ -161,6 +171,9 @@ export function MoodSelector({
       )}
 
       {formError ? <Text style={styles.error}>{formError}</Text> : null}
+      {/* Own host: the capture screen shows this selector inside a
+          BottomSheet, where the root host's Modal cannot present. */}
+      <ConfirmSheetHost />
     </View>
   );
 }
