@@ -1,5 +1,5 @@
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { useMemo } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, InteractionManager } from "react-native";
+import { useEffect, useMemo, useRef } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,6 +19,10 @@ async function fetchAlbumsBadgeCount(userId: string): Promise<number> {
 // Phase 1 (2026-10): three tabs plus a floating capture button. Albums,
 // shared-with-you and friends live under You, so the shared-album activity
 // badge moved there with them.
+// After the cold-start burst (first_screen lands at ~0.5s, the profile fetch
+// and first timeline page shortly after).
+const TAB_PRELOAD_DELAY_MS = 2500;
+
 const TABS = [
   { label: "Journal",    icon: "book" },
   { label: "Rediscover", icon: "time" },
@@ -31,6 +35,34 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+
+  // The tabs are lazy (app/(tabs)/_layout.tsx), so Rediscover and You no
+  // longer mount and fetch alongside the Journal's first paint. Once startup
+  // has settled, preload them so a swipe still lands on a rendered screen.
+  const navigationRef = useRef(navigation);
+  navigationRef.current = navigation;
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const userId = user?.id;
+  useEffect(() => {
+    if (!userId) return;
+    let task: { cancel: () => void } | null = null;
+    const timer = setTimeout(() => {
+      task = InteractionManager.runAfterInteractions(() => {
+        // Only tabs never visited: preloading one that's mounted is pointless,
+        // and params are passed through so preload doesn't reset them.
+        const s = stateRef.current;
+        s.routes.forEach((route, index) => {
+          if (index === s.index || s.history.some((h) => h.key === route.key)) return;
+          navigationRef.current.preload(route.name, route.params);
+        });
+      });
+    }, TAB_PRELOAD_DELAY_MS);
+    return () => {
+      clearTimeout(timer);
+      task?.cancel();
+    };
+  }, [userId]);
 
   const { data: albumsBadge = 0 } = useQuery({
     queryKey: ["collectionsBadge", user?.id],
