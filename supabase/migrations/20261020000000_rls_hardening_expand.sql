@@ -70,7 +70,37 @@ DROP POLICY IF EXISTS "Users can send friend requests" ON public.friendships;
 --    DEFINER) still inserts as the function owner.
 REVOKE INSERT, UPDATE ON public.tagged_moments FROM anon, authenticated;
 
--- 5. Storage drift: the baseline's "Anyone can read photos" SELECT policy let
+-- 5. Row-scoped UPDATE policies only check who you are, not what you change,
+--    so a permitted row could be repointed (a membership at another album, a
+--    share or friendship at another moment or user). Grant UPDATE only on the
+--    columns clients actually write, and keep moments/profiles from being
+--    handed to another user. Client writes, for reference:
+--      collection_members: last_viewed_at   (lib/albums.ts)
+--      moment_shares:      viewed_at        (lib/momentShares.ts)
+--      friendships:        none (accept-friend-invite uses the service role;
+--                          old builds may still set status)
+REVOKE UPDATE ON public.collection_members FROM anon, authenticated;
+GRANT UPDATE (last_viewed_at) ON public.collection_members TO authenticated;
+
+REVOKE UPDATE ON public.moment_shares FROM anon, authenticated;
+GRANT UPDATE (viewed_at) ON public.moment_shares TO authenticated;
+
+REVOKE UPDATE ON public.friendships FROM anon, authenticated;
+GRANT UPDATE (status, updated_at) ON public.friendships TO authenticated;
+
+DROP POLICY IF EXISTS "Users can update their own moments" ON public.moments;
+CREATE POLICY "Users can update their own moments"
+  ON public.moments FOR UPDATE
+  USING ((SELECT auth.uid()) = user_id)
+  WITH CHECK ((SELECT auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
+CREATE POLICY "Users can update their own profile"
+  ON public.profiles FOR UPDATE
+  USING ((SELECT auth.uid()) = id)
+  WITH CHECK ((SELECT auth.uid()) = id);
+
+-- 6. Storage drift: the baseline's "Anyone can read photos" SELECT policy let
 --    anyone LIST every user's photo paths. Prod already replaced it with an
 --    own-folder policy outside any migration; staging still has the original.
 --    Public URLs don't need a SELECT policy (the bucket is public), so this
@@ -89,7 +119,7 @@ BEGIN
   END IF;
 END $$;
 
--- 6. Narrow public lookups for the web pages, replacing direct table reads.
+-- 7. Narrow public lookups for the web pages, replacing direct table reads.
 --    Each returns only what the page already shows.
 
 CREATE OR REPLACE FUNCTION public.get_public_profiles(p_ids uuid[])
