@@ -270,23 +270,37 @@ memorials, farewells, graduations, baby showers. Same engine for all.
 - [ ] **Occasions, rebuilt from the ground up** (first; start now, ready
   for spring wedding season). This is albums v2; today's albums and guest
   contributions are the starting point, not the design.
-  - Guest flow: QR on generated table cards → web page → search a song (the
-    guest's own pick; prompts like "the song that reminds you of them";
-    optional suggestion chips from the couple's list or the DJ's set), a
-    note, a photo with a disposable-camera filter. No account, no app.
-  - The couple adds their own songs and can hide entries before sharing; no
-    veto at submission. Duplicates are a feature ("6 people picked
-    September").
-  - The reveal ("your wedding soundtrack has developed"): a keepsake page
-    that plays like a radio station. Songs play through the viewer's own
-    service (MusicKit JS full playback for Apple Music subscribers, starting
-    at a chosen timestamp; 30s previews otherwise). An optional AI host
-    between songs reads guests' words verbatim; its voice clips are our own
-    audio, mixed with the songs live in the browser (never exported as one
-    file: the songs' licenses forbid it).
-  - Outputs: the playlist in Apple Music / Spotify, the keepsake page, the
-    printed book, prints with Soundtracks codes.
-  - Pricing to test: ~$49–99 per occasion plus print.
+  - **Wedding deliverable (decided 2026-10-20).** Value prop: "Your guests
+    catch the songs of your night with two taps. You keep them forever."
+    - Lazy capture: QR on the tables → web page → tap a suggested song (the
+      couple picks a handful) or search → name (required, so every song
+      says who picked it) → Add. A few words and a photo are optional. One
+      reminder after the wedding; collection stays open two weeks. No
+      account, no app, no RSVP step.
+    - Cut: the DJ / dance-floor list, collecting through RSVPs, and song
+      identification on the web (for now). The live wall at the reception
+      is parked.
+    - The keepsake ($79): a listening page in the order the night went,
+      playing like a radio show (MusicKit JS full songs for Apple Music
+      subscribers, 30s previews otherwise; never exported as one file, the
+      songs' licenses forbid it); the playlist to Apple Music / Spotify;
+      every note as a PDF and every photo in one download; anniversaries
+      ("One year ago tonight, Mara picked September").
+    - Physical, all offered from launch: the tracklist print (the wedding as
+      the back of a record sleeve, $49 / framed $129), thank-you cards with
+      each guest's song ($2.50 a card), the liner-notes book ($119); "The
+      whole album" bundle $279. Prices are a first guess to test.
+    - The couple sees every song before anything is shared or printed and
+      can hide any of them. Duplicates are a feature.
+  - Later, maybe: an optional AI host between songs on the listening page
+    that reads guests' words verbatim (its voice clips are our own audio,
+    mixed live in the browser).
+- [x] **`/weddings` demand test** (2026-10-20): the deliverable at real
+  prices with a "Reserve your date" form (names, date, guest count, email,
+  extras they're thinking about) into `wedding_reservations` (insert-only
+  RLS; read it from the dashboard). Nothing is charged. Decide in advance
+  what counts as a yes, e.g. 10 reservations by March. Linked from the
+  landing footer.
 - [ ] **December keepsake, lite** (after occasions, decided 2026-10-19):
   reuses the occasions print and keepsake pipeline rather than being its own
   build. Sells this December only if that pipeline is ready in time. "Your
@@ -296,7 +310,8 @@ memorials, farewells, graduations, baby showers. Same engine for all.
   pulls color from artwork, titles sections, never rewrites reflections);
   templates do the layout; buyer previews before print. Partners to choose:
   Prodigi / Gelato (prints, cards, frames), Lulu / Blurb / Gelato (books).
-- [ ] **Own pages for search:** `/weddings`, gifts; target "wedding guest
+- [ ] **Own pages for search:** gifts and other occasions (`/weddings` is
+  live); target "wedding guest
   book ideas", "song guest book", "audio guest book" alternatives.
 - **Subscription last**, once people use the journal weekly: the Phase 2
   intelligence, recaps, AI calls, more storage. Never paywall capture or

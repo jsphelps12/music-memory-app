@@ -156,6 +156,7 @@ export default function Home() {
       <footer className={styles.footer}>
         <span>© {new Date().getFullYear()} Soundtracks</span>
         <nav aria-label="Legal">
+          <Link href="/weddings">Weddings</Link>
           <a href="/privacy">Privacy</a>
           <a href="/terms">Terms</a>
           <a href="mailto:founder@soundtracks.app">Contact</a>
