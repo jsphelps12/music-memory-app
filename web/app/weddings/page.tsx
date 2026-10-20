@@ -132,8 +132,9 @@ export default async function WeddingsPage() {
           <div className={s.heroCopy}>
             <h1 className={s.heroTitle}>Every guest picks a song for you.</h1>
             <p className={s.heroLede}>
-              They scan a code on their table, pick a song and add their name. You keep the soundtrack of your wedding,
-              in their words: a page that plays it back, and a print for your wall.
+              They scan a code on their table, pick a song and add their name, with a few words or a photo if they
+              like. You keep the soundtrack of your wedding, in their words: a page that plays it back, and a print for
+              your wall.
             </p>
             <a href="#reserve" className={s.button}>
               Reserve your date
@@ -181,11 +182,12 @@ export default async function WeddingsPage() {
       <section className={s.guests} aria-labelledby="guests-title">
         <div className={s.guestsCopy}>
           <h2 id="guests-title" className={s.sectionTitle}>
-            Thirty seconds for your guests.
+            Thirty seconds, or as long as they like.
           </h2>
           <p className={s.body}>
-            Scan the code, tap a song, add their name. That&rsquo;s the whole thing, so even the guest with a drink in
-            each hand does it. A few words and a photo are there for anyone who wants them.
+            Scan the code, tap a song, add their name. That&rsquo;s all it takes, so even the guest with a drink in each
+            hand does it. The ones with more to say write a few lines about you and add a photo from the night, and
+            those end up on your page, your cards and your book.
           </p>
           <p className={s.body}>
             You choose a handful of suggestions for the top of the list, and anyone can search for anything else. No app,
@@ -217,7 +219,14 @@ export default async function WeddingsPage() {
                 ))}
               </ul>
               <div className={s.gName}>Mara</div>
-              <div className={s.gNote}>A few words, if you like</div>
+              <div className={s.gNote}>Boulder, windows down, the summer you two met&hellip;</div>
+              <div className={s.gPhoto}>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+                  <circle cx="12" cy="13" r="3" />
+                </svg>
+                Add a photo
+              </div>
               <div className={s.gButton}>Add my song</div>
             </div>
           </Phone>

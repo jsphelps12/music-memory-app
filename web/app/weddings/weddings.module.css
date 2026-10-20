@@ -385,13 +385,38 @@
 
 .gNote {
   flex: 1;
-  max-height: 34cqw;
+  max-height: 24cqw;
   margin-top: 3cqw;
   padding: 3.2cqw 3.6cqw;
   border-radius: 3cqw;
   background: #f0eae3;
-  color: #736a63;
+  color: var(--ink);
   font-family: var(--font-reading), Georgia, serif;
+  font-size: 4.2cqw;
+  line-height: 1.35;
+}
+
+.gPhoto {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2cqw;
+  margin-top: 3cqw;
+  padding: 3cqw;
+  border: 0.3cqw dashed #e0d8cf;
+  border-radius: 3cqw;
+  color: var(--ink-soft);
+  font-size: 3.6cqw;
+}
+
+.gPhoto svg {
+  width: 4.6cqw;
+  height: 4.6cqw;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .gName {
