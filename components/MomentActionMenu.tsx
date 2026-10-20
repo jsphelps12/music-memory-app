@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Dimensions,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -25,6 +26,12 @@ interface Props {
   onEdit: () => void;
   onDelete: () => void;
   onClose: () => void;
+  /**
+   * Fires once the menu has finished closing (after the fade-out on iOS).
+   * Anything that presents another Modal, like a confirm sheet, belongs here:
+   * iOS drops a presentation that starts while this Modal is still dismissing.
+   */
+  onDismissed?: () => void;
 }
 
 const MENU_WIDTH = 190;
@@ -32,30 +39,72 @@ const ROW_HEIGHT = 46;
 const MENU_GAP = 8;
 // Keep the menu clear of the status bar / notch when a card sits at the top.
 const TOP_SAFE = 70;
+const DISMISS_BACKSTOP_MS = 1000;
 
 /**
  * Floating context menu anchored to a long-pressed moment card — hovers just
  * above the card (below it when the card is at the top of the screen), instead
  * of a detached system action sheet at the bottom.
  */
-export function MomentActionMenu({ anchor, onEdit, onDelete, onClose }: Props) {
+export function MomentActionMenu({ anchor, onEdit, onDelete, onClose, onDismissed }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  if (!anchor) return null;
+  // The last anchor shown. It outlives `anchor` so the Modal stays mounted with
+  // visible={false} through its fade-out; unmounting it instead would skip
+  // onDismiss and leave nothing to tell when the dismissal is over.
+  const [shown, setShown] = useState<MenuAnchor | null>(anchor);
+  if (anchor && anchor !== shown) setShown(anchor);
+  const closing = !anchor && !!shown;
+
+  // True when no close is in flight, so onDismiss and the backstop below can't
+  // both report the same close.
+  const settledRef = useRef(true);
+  const finishDismiss = useCallback(() => {
+    if (settledRef.current) return;
+    settledRef.current = true;
+    setShown(null);
+    onDismissed?.();
+  }, [onDismissed]);
+
+  useEffect(() => {
+    if (!closing) {
+      settledRef.current = true;
+      return;
+    }
+    settledRef.current = false;
+    // Modal's onDismiss is iOS-only; elsewhere there is no dismissal to wait for.
+    if (Platform.OS !== "ios") {
+      finishDismiss();
+      return;
+    }
+    // Backstop only, well past the fade: should onDismiss ever not arrive, the
+    // menu still unmounts and a pending action still runs.
+    const backstop = setTimeout(finishDismiss, DISMISS_BACKSTOP_MS);
+    return () => clearTimeout(backstop);
+  }, [closing, finishDismiss]);
+
+  if (!shown) return null;
 
   const { width: screenWidth } = Dimensions.get("window");
   const menuHeight = ROW_HEIGHT * 2 + StyleSheet.hairlineWidth;
 
   const left = Math.min(
-    Math.max(anchor.x + anchor.width / 2 - MENU_WIDTH / 2, theme.spacing.lg),
+    Math.max(shown.x + shown.width / 2 - MENU_WIDTH / 2, theme.spacing.lg),
     screenWidth - MENU_WIDTH - theme.spacing.lg
   );
-  const aboveTop = anchor.y - menuHeight - MENU_GAP;
-  const top = aboveTop >= TOP_SAFE ? aboveTop : anchor.y + anchor.height + MENU_GAP;
+  const aboveTop = shown.y - menuHeight - MENU_GAP;
+  const top = aboveTop >= TOP_SAFE ? aboveTop : shown.y + shown.height + MENU_GAP;
 
   return (
-    <Modal transparent visible animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+    <Modal
+      transparent
+      visible={!!anchor}
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onClose}
+      onDismiss={Platform.OS === "ios" ? finishDismiss : undefined}
+    >
       <Pressable style={styles.backdrop} onPress={onClose}>
         <View style={[styles.menu, { top, left }, theme.shadows.card]}>
           <TouchableOpacity style={styles.row} onPress={onEdit} activeOpacity={0.7}>
