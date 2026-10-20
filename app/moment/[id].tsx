@@ -495,7 +495,7 @@ export default function MomentDetailScreen() {
 
   // "Tuesday, Oct 14 · Morning · Lake Dillon". The year appears only when it
   // isn't this year: old memories need it, today's entries don't.
-  const formatEyebrow = (dateStr: string | null, timeOfDay: string | null, location: string | null) => {
+  const formatWhen = (dateStr: string | null, timeOfDay: string | null, location: string | null) => {
     const parts: string[] = [];
     if (dateStr) {
       const d = new Date(dateStr + "T00:00:00");
@@ -708,12 +708,6 @@ export default function MomentDetailScreen() {
           )}
 
           <View style={styles.scrollBody}>
-            {(moment.momentDate || moment.timeOfDay || moment.location) ? (
-              <Text style={styles.eyebrow}>
-                {formatEyebrow(moment.momentDate, moment.timeOfDay, moment.location)}
-              </Text>
-            ) : null}
-
             {/* With photos the song steps back to a compact row; without, the
                 title leads. Title, artist and album each open their pages. */}
             <View style={hasPhotos ? styles.songRow : undefined}>
@@ -754,6 +748,13 @@ export default function MomentDetailScreen() {
                 </Text>
               </View>
             </View>
+
+            {/* When and where, as a quiet line under the song. */}
+            {(moment.momentDate || moment.timeOfDay || moment.location) ? (
+              <Text style={styles.whenLine}>
+                {formatWhen(moment.momentDate, moment.timeOfDay, moment.location)}
+              </Text>
+            ) : null}
 
             {/* Player: one compact row. Seeking only while this song plays. */}
             {(moment.songAppleMusicId || moment.songSpotifyId) ? (
@@ -1251,13 +1252,11 @@ function createStyles(theme: Theme) {
       paddingTop: 24,
       backgroundColor: theme.colors.background,
     },
-    eyebrow: {
-      fontSize: 12,
-      fontFamily: theme.fonts.bodySemibold,
-      letterSpacing: 1,
-      textTransform: "uppercase",
+    whenLine: {
+      fontSize: theme.fontSize.sm,
+      fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
-      marginBottom: 8,
+      marginTop: 10,
     },
     songRow: {
       flexDirection: "row",
