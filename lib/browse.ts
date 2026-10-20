@@ -143,7 +143,8 @@ export async function fetchSongMoments(userId: string, title: string, artist: st
     .eq("user_id", userId)
     .eq("song_title", title)
     .eq("song_artist", artist)
-    .order("moment_date", { ascending: false })
+    // Undated moments last, as everywhere else (Postgres puts NULLs first in DESC).
+    .order("moment_date", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map(mapRowToMoment);
@@ -156,7 +157,8 @@ export async function fetchAlbumMoments(userId: string, album: string, artist: s
     .eq("user_id", userId)
     .eq("song_album_name", album)
     .eq("song_artist", artist)
-    .order("moment_date", { ascending: false })
+    // Undated moments last, as everywhere else (Postgres puts NULLs first in DESC).
+    .order("moment_date", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map(mapRowToMoment);
@@ -168,8 +170,30 @@ export async function fetchArtistMoments(userId: string, artist: string): Promis
     .select(MOMENT_CARD_COLUMNS)
     .eq("user_id", userId)
     .eq("song_artist", artist)
-    .order("moment_date", { ascending: false })
+    // Undated moments last, as everywhere else (Postgres puts NULLs first in DESC).
+    .order("moment_date", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map(mapRowToMoment);
+}
+
+/** One PostgREST double-quoted value: inside quotes, \ escapes the next char. */
+function postgrestQuoted(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * The `.or()` filter for a free-text moment search. Pure, exported for tests.
+ *
+ * User text can't go into the filter raw: commas and parentheses are the
+ * or-grammar's own delimiters, so a title like "Hello, Goodbye" made the
+ * request fail. Each value is quoted, and LIKE wildcards in the text are
+ * escaped so they match literally.
+ */
+export function momentSearchOrFilter(text: string): string {
+  const literal = text.trim().replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+  const pattern = postgrestQuoted(`%${literal}%`);
+  return ["song_title", "song_artist", "reflection_text"]
+    .map((column) => `${column}.ilike.${pattern}`)
+    .join(",");
 }

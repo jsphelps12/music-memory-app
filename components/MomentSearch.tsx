@@ -4,6 +4,10 @@ import { useRouter } from "expo-router";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { AppImage } from "@/components/AppImage";
 import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
+import { friendlyError } from "@/lib/errors";
+import { momentSearchOrFilter } from "@/lib/browse";
+import { artworkUrlAtSize } from "@/lib/itunes";
 import { useTheme } from "@/hooks/useTheme";
 import { setCachedMoment } from "@/lib/momentCache";
 import { supabase } from "@/lib/supabase";
@@ -38,16 +42,15 @@ export function MomentSearch({ query, userId }: { query: string; userId: string 
   const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
   const debouncePending = query.trim() !== debouncedQuery.trim();
 
-  const { data: results = [], isLoading } = useQuery({
+  const { data: results = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["browseSearch", userId, debouncedQuery],
     queryFn: async () => {
       if (!debouncedQuery.trim()) return [];
-      const term = debouncedQuery.replace(/%/g, "\\%").replace(/_/g, "\\_");
       const { data, error } = await supabase
         .from("moments")
         .select(MOMENT_CARD_COLUMNS)
         .eq("user_id", userId)
-        .or(`song_title.ilike.%${term}%,song_artist.ilike.%${term}%,reflection_text.ilike.%${term}%`)
+        .or(momentSearchOrFilter(debouncedQuery))
         .order("moment_date", { ascending: false, nullsFirst: false })
         .limit(50);
       if (error) throw error;
@@ -70,6 +73,12 @@ export function MomentSearch({ query, userId }: { query: string; userId: string 
       </Text>
     </View>
   );
+
+  // keepPreviousData would otherwise keep the last query's results on screen
+  // as if they matched this one.
+  if (isError && !debouncePending) {
+    return <ErrorState message={friendlyError(error)} onRetry={() => refetch()} />;
+  }
 
   if (results.length === 0) {
     // Only distinguish "still working" from "genuinely nothing" when there is
@@ -103,7 +112,7 @@ export function MomentSearch({ query, userId }: { query: string; userId: string 
           activeOpacity={0.8}
         >
           {item.songArtworkUrl ? (
-            <AppImage source={{ uri: item.songArtworkUrl }} style={{ width: 44, height: 44, borderRadius: 6 }} />
+            <AppImage source={{ uri: artworkUrlAtSize(item.songArtworkUrl, 132) }} style={{ width: 44, height: 44, borderRadius: 6 }} />
           ) : (
             <View style={{ width: 44, height: 44, borderRadius: 6, backgroundColor: theme.colors.backgroundSecondary }} />
           )}
