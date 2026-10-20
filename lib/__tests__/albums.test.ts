@@ -313,14 +313,34 @@ describe("covers", () => {
   });
 
   it("deletes an album's cover with the album", async () => {
+    sb.queueData({ guest_user_id: null });
     sb.queueData([{ cover_photo_url: "owner/collection_covers/a1.jpg" }]);
     await deleteAlbum("a1");
     expect(sb.storage.remove).toHaveBeenCalledWith(["owner/collection_covers/a1.jpg"]);
+    expect(invoke).not.toHaveBeenCalled();
   });
 
   it("leaves storage alone when the album delete fails", async () => {
+    sb.queueData({ guest_user_id: null });
     sb.queueError("permission denied");
     await expect(deleteAlbum("a1")).rejects.toBeTruthy();
+    expect(sb.storage.remove).not.toHaveBeenCalled();
+  });
+
+  it("cleans up guest contributions before deleting an album with a guest user", async () => {
+    invoke.mockResolvedValue({ data: { ok: true, deleted: 2 }, error: null });
+    sb.queueData({ guest_user_id: "g1" });
+    sb.queueData([{ cover_photo_url: null }]);
+    await deleteAlbum("a1");
+    expect(invoke).toHaveBeenCalledWith("delete-guest-moments", { body: { collectionId: "a1" } });
+    expect(sb.queries.map((q) => q.chain.some((c) => c.method === "delete"))).toEqual([false, true]);
+  });
+
+  it("keeps the album when the guest cleanup fails, so it can be retried", async () => {
+    invoke.mockResolvedValue({ data: null, error: new Error("Edge Function returned a non-2xx status code") });
+    sb.queueData({ guest_user_id: "g1" });
+    await expect(deleteAlbum("a1")).rejects.toThrow("non-2xx");
+    expect(sb.queries).toHaveLength(1);
     expect(sb.storage.remove).not.toHaveBeenCalled();
   });
 });
