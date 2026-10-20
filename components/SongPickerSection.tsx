@@ -14,7 +14,10 @@ import { useRouter } from "expo-router";
 import { getNowPlaying, onNowPlayingChange } from "@/lib/now-playing";
 import { getProvider } from "@/lib/providers";
 import { identifyAudio, stopShazamListening } from "@/modules/shazam-kit";
+import { setAudioModeAsync } from "expo-audio";
 import { onSongSelected } from "@/lib/songEvents";
+import { lookupItunesSong } from "@/lib/itunes";
+import { persistableArtworkUrl } from "@/lib/momentRow";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Song } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -63,15 +66,29 @@ export function SongPickerSection({ song, onChange, photos = [], suggestNowPlayi
   const applyNowPlaying = useCallback(async (nowPlaying: Song) => {
     onChange(nowPlaying);
     setFromNowPlaying(nowPlaying);
-    if (nowPlaying.appleMusicId) return;
-    // The system player sometimes reports a track without a catalog id;
-    // look it up so the preview and the Apple Music link work.
+    // Artwork from the system player can be the image itself (a data: URI
+    // from older binaries) rather than a link; swap in the catalog URL, which
+    // is what gets saved and shared.
+    const needsArtwork = !persistableArtworkUrl(nowPlaying.artworkUrl);
+    if (nowPlaying.appleMusicId && !needsArtwork) return;
     try {
-      const query = [nowPlaying.title, nowPlaying.artistName].filter(Boolean).join(" ");
-      const results = await getProvider('apple_music').search(query);
-      const match = results.find((r) => r.title.toLowerCase() === nowPlaying.title.toLowerCase());
+      let match: Song | null | undefined;
+      if (nowPlaying.appleMusicId) {
+        match = await lookupItunesSong(nowPlaying.appleMusicId);
+      } else {
+        // The system player sometimes reports a track without a catalog id;
+        // look it up so the preview and the Apple Music link work.
+        const query = [nowPlaying.title, nowPlaying.artistName].filter(Boolean).join(" ");
+        const results = await getProvider('apple_music').search(query);
+        match = results.find((r) => r.title.toLowerCase() === nowPlaying.title.toLowerCase());
+      }
       if (match && songRef.current === nowPlaying) {
-        const resolved = { ...nowPlaying, appleMusicId: match.appleMusicId, durationMs: match.durationMs || nowPlaying.durationMs };
+        const resolved = {
+          ...nowPlaying,
+          appleMusicId: nowPlaying.appleMusicId ?? match.appleMusicId,
+          durationMs: match.durationMs || nowPlaying.durationMs,
+          artworkUrl: needsArtwork ? match.artworkUrl : nowPlaying.artworkUrl,
+        };
         onChange(resolved);
         setFromNowPlaying(resolved);
       }
@@ -146,6 +163,11 @@ export function SongPickerSection({ song, onChange, photos = [], suggestNowPlayi
       }
     } finally {
       setIsShazaming(false);
+      // Listening switches the shared audio session to record-only, and
+      // binaries before the native fix don't switch it back, which leaves
+      // previews silent. Re-apply the app's playback mode (the same one
+      // PlayerContext sets at launch).
+      setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
     }
   };
 

@@ -353,6 +353,18 @@ questionnaire/ML, NFC products, Android.
     read through narrow RPCs.
   - [ ] DB-2, RLS hardening step 2: waits for the app changes and the
     min-build gate.
+  - [x] WS-C, capture and edit (2026-10-20): create and edit save through
+    one path (`lib/momentRow.ts` + `saveMoment` / `updateMoment`). Edit uses
+    `LocationField`, so coordinates move with the place name, and keeps the
+    stored preview unless the song changed. Failed saves delete the photos
+    they uploaded; each photo is decoded once, two at a time; preview lookup
+    runs alongside uploads. Storage uploads get a 120s timeout, and only
+    GET/HEAD retry on 520. Avatars get a new path per upload (old files are
+    deleted). Search races fixed in song search and place search;
+    custom-mood delete asks first; prompt-category errors are shown.
+    Data-URI artwork is never saved. Native part (needs a binary): no
+    base64 artwork from now-playing, systemMusicPlayer read on main,
+    ShazamKit restores the audio session.
 - [x] **Pin `eas-cli`** to 25.2.0 in every workflow and the fingerprint
   scripts (v24's JSON rename had broken the gate silently).
 - [x] **Wire `lib/authRouting.ts` into `_layout.tsx`:** AuthGate now runs
