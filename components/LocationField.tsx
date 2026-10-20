@@ -33,6 +33,17 @@ export function LocationField({ value, onChange, detectCurrentLocation = false }
   const [dismissedSuggestion, setDismissedSuggestion] = useState(false);
   const [focusedField, setFocusedField] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Bumped on every keystroke, select and clear: a search whose id is no
+  // longer current answers an old query and is dropped.
+  const searchId = useRef(0);
+
+  useEffect(
+    () => () => {
+      searchId.current += 1;
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    },
+    []
+  );
 
   useEffect(() => {
     if (!detectCurrentLocation) return;
@@ -63,31 +74,41 @@ export function LocationField({ value, onChange, detectCurrentLocation = false }
   const handleQueryChange = (text: string) => {
     setLocationQuery(text);
     if (searchTimer.current) clearTimeout(searchTimer.current);
+    const id = ++searchId.current;
     if (!text.trim()) {
       setLocationResults([]);
+      setLocationSearching(false);
       return;
     }
     searchTimer.current = setTimeout(async () => {
       setLocationSearching(true);
       try {
         const results = await searchPlaces(text);
-        setLocationResults(results);
+        if (id === searchId.current) setLocationResults(results);
       } catch {
-        setLocationResults([]);
+        if (id === searchId.current) setLocationResults([]);
       } finally {
-        setLocationSearching(false);
+        if (id === searchId.current) setLocationSearching(false);
       }
     }, 400);
   };
 
+  const cancelSearch = () => {
+    searchId.current += 1;
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    setLocationSearching(false);
+  };
+
   const selectLocation = (result: GeoResult) => {
     Haptics.selectionAsync();
+    cancelSearch();
     onChange(result);
     setLocationQuery("");
     setLocationResults([]);
   };
 
   const clearLocation = () => {
+    cancelSearch();
     onChange(null);
     setLocationQuery("");
     setLocationResults([]);
