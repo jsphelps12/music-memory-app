@@ -37,6 +37,7 @@ import {
   fetchMomentShareRecipients,
   MomentShareGrant,
   momentShareUrl,
+  friendInviteUrl,
   removeMomentShare,
   sendMomentShare,
 } from "@/lib/momentShares";
@@ -221,7 +222,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   const handleShareFriendLink = async () => {
     if (!profile?.friendInviteToken) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const url = `https://soundtracks.app/friend/${profile.friendInviteToken}`;
+    const url = friendInviteUrl(profile.friendInviteToken);
     try {
       await Share.share(Platform.OS === "ios" ? { url } : { message: url });
     } catch {

@@ -28,6 +28,7 @@ import { IconButton } from "@/components/IconButton";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
+import { friendInviteUrl } from "@/lib/momentShares";
 
 /**
  * "1.2.0 (27) · update Oct 17, 3:40 PM": which binary and which OTA bundle
@@ -126,7 +127,7 @@ export default function SettingsScreen() {
 
   const handleInvite = () => {
     if (!profile?.friendInviteToken) return;
-    const url = `https://soundtracks.app/friend/${profile.friendInviteToken}`;
+    const url = friendInviteUrl(profile.friendInviteToken);
     Share.share(Platform.OS === "ios" ? { url } : { message: url });
   };
 

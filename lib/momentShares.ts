@@ -164,6 +164,11 @@ export function momentShareUrl(token: string): string {
   return `https://soundtracks.app/m/${token}`;
 }
 
+/** The public friend-invite link for a profile's friend_invite_token. */
+export function friendInviteUrl(token: string): string {
+  return `https://soundtracks.app/friend/${token}`;
+}
+
 /**
  * The moment's share token, creating one if it has none. Only the owner can
  * set it, and an update that matches no row returns no error, so the write
