@@ -7,8 +7,9 @@
  * the Reflections tab, the browse metadata (moods/people/years/albums/artists),
  * the profile stats counters, the map, and every drill-down list ("all moments
  * for this artist", "all moments tagged 2019", …). Same story for albums: the
- * Albums tab, its unread badge, and the album detail screen each hold their own
- * copy.
+ * Albums screen, the You tab's album row, the new-moments badge, and the album
+ * detail screen each hold their own copy, and every one of them shows moments
+ * (counts, artwork, the list itself), so moment mutations reach them too.
  *
  * Historically each mutation only invalidated whatever the screen it lived on
  * happened to read, so after a create/edit/delete the *other* surfaces kept
@@ -57,8 +58,25 @@ const MOMENT_DRILLDOWN_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Album lists keyed exactly `[name, userId]`. They carry moment counts and
+ * artwork, so a moment mutation changes them.
+ */
+const ALBUM_LIST_KEYS = ["collectionsScreen", "collectionsBadge", "youAlbums"] as const;
+
+/**
+ * Album detail is keyed `["album", albumId, userId]` (user id at index 2, not
+ * 1), so it needs its own match.
+ */
+function isAlbumDetailKeyFor(queryKey: readonly unknown[], userId: string): boolean {
+  return queryKey[0] === "album" && queryKey[2] === userId;
+}
+
+/**
  * Invalidate every cache that renders moment data for this user. Call after a
  * moment is created, edited or deleted, or moved in/out of an album.
+ *
+ * Covers the album lists and every album detail screen too: a moment can sit
+ * in any number of albums, and the caller rarely knows which.
  */
 export function invalidateMomentCaches(queryClient: QueryClient, userId: string | undefined): void {
   if (!userId) return;
@@ -66,11 +84,16 @@ export function invalidateMomentCaches(queryClient: QueryClient, userId: string 
   for (const name of MOMENT_SCREEN_KEYS) {
     void queryClient.invalidateQueries({ queryKey: [name, userId] });
   }
+  for (const name of ALBUM_LIST_KEYS) {
+    void queryClient.invalidateQueries({ queryKey: [name, userId] });
+  }
 
   void queryClient.invalidateQueries({
     predicate: (query) => {
       const [name, keyUserId] = query.queryKey;
-      return typeof name === "string" && MOMENT_DRILLDOWN_KEYS.has(name) && keyUserId === userId;
+      if (typeof name !== "string") return false;
+      if (MOMENT_DRILLDOWN_KEYS.has(name) && keyUserId === userId) return true;
+      return isAlbumDetailKeyFor(query.queryKey, userId);
     },
   });
 }
@@ -87,9 +110,9 @@ export function invalidateAlbumCaches(
 ): void {
   if (!userId) return;
 
-  void queryClient.invalidateQueries({ queryKey: ["collectionsScreen", userId] });
-  void queryClient.invalidateQueries({ queryKey: ["collectionsBadge", userId] });
-  void queryClient.invalidateQueries({ queryKey: ["youAlbums", userId] });
+  for (const name of ALBUM_LIST_KEYS) {
+    void queryClient.invalidateQueries({ queryKey: [name, userId] });
+  }
 
   if (albumId) {
     void queryClient.invalidateQueries({ queryKey: ["album", albumId, userId] });
@@ -98,10 +121,12 @@ export function invalidateAlbumCaches(
 
 /**
  * Invalidate every cache that renders the friend list for this user. Call
- * after a friend is added (invite link accepted) or removed.
+ * after a friend is added (invite link accepted) or removed. The You tab's
+ * summary carries the friend count.
  */
 export function invalidateFriendCaches(queryClient: QueryClient, userId: string | undefined): void {
   if (!userId) return;
 
   void queryClient.invalidateQueries({ queryKey: ["friendsList", userId] });
+  void queryClient.invalidateQueries({ queryKey: ["youSummary", userId] });
 }
