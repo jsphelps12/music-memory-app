@@ -160,6 +160,12 @@ clutter, navigation.
   1d); album covers as an artwork mosaic instead of a gradient placeholder
   (`components/AlbumMosaic.tsx`, on You and the Albums screen, Phase 1e);
   detail screen contrast and Dynamic Island overlap (Phase 1b).
+- [x] **New app icon** (2026-10-20): "Pressed S", an ink record on paper with
+  a terracotta label carrying the wordmark's serif S; the orange→purple
+  gradient is gone. Light, dark and tinted iOS variants, a green-label beta,
+  Android adaptive and favicon, from `scripts/make-app-icon.py`. Native, so
+  it rides the next binary; App Store screenshots that show the icon need
+  a refresh then.
 - [x] **New App Store assets:** six 6.9" screenshots (1320×2868) in
   `docs/app-store/screenshots/` (Journal, entry, capture, widget, On this
   day, dark entry), framed by `scripts/frame-screenshots.py` from simulator
