@@ -36,8 +36,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
-import { getPublicPhotoUrl } from "@/lib/storage";
-import { deleteMomentWithCleanup } from "@/lib/deleteMoment";
+import { getPublicPhotoUrl, momentCardImageUrls } from "@/lib/storage";
+import { deleteGuestMoment, deleteMomentWithCleanup } from "@/lib/deleteMoment";
+import {
+  applyMembershipResults,
+  diffAlbumMembership,
+  fetchAlbumIdsContainingMoment,
+} from "@/lib/momentAlbums";
 import { mapRowToMoment } from "@/lib/moments";
 import {
   fetchAlbums,
@@ -51,6 +56,7 @@ import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { SkeletonMomentDetail } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { confirmSheet } from "@/components/ConfirmSheet";
 import { friendlyError } from "@/lib/errors";
@@ -62,6 +68,11 @@ import { BottomSheet } from "@/components/BottomSheet";
 import { Ionicons } from "@expo/vector-icons";
 import { formatTime } from "@/lib/formatTime";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
+
+type ScreenState = "loading" | "not_found" | "error" | "ready";
+
+/** Focus refetch cooldown (CLAUDE.md: screen-level stale time). */
+const STALE_TIME = 2 * 60 * 1000;
 
 export default function MomentDetailScreen() {
   const {
@@ -79,7 +90,7 @@ export default function MomentDetailScreen() {
   }>();
   const router = useRouter();
   const { user, profile } = useAuth();
-  const { currentSong, isPlaying, playbackTime, playbackDuration, playError, playFull, pause, resume, seekTo, stop } = usePlayer();
+  const { currentSong, isPlaying, playbackTime, playbackDuration, playError, playFull, pause, seekTo, stop } = usePlayer();
   const theme = useTheme();
   const posthog = usePostHog();
   const queryClient = useQueryClient();
@@ -106,8 +117,12 @@ export default function MomentDetailScreen() {
     const cached = consumeCachedMoment();
     return cached && cached.id === id ? cached : null;
   });
-  const [loading, setLoading] = useState(false);
+  // "ready" straight away when the card handed over the moment; otherwise
+  // the skeleton shows until the first fetch, never a "not found" flash.
+  const [screenState, setScreenState] = useState<ScreenState>(() => (moment ? "ready" : "loading"));
   const [error, setError] = useState("");
+  // A background refresh failed: the moment on screen stays, with a banner.
+  const [refreshError, setRefreshError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
@@ -119,6 +134,8 @@ export default function MomentDetailScreen() {
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [pendingMemberIds, setPendingMemberIds] = useState<string[]>([]);
   const [collectionLoading, setCollectionLoading] = useState(false);
+  const [collectionLoadError, setCollectionLoadError] = useState("");
+  const [collectionError, setCollectionError] = useState("");
   const [savingCollections, setSavingCollections] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("");
   const [showingNewInput, setShowingNewInput] = useState(false);
@@ -283,53 +300,76 @@ export default function MomentDetailScreen() {
     [seekPanGesture, seekTapGesture]
   );
 
-  const fetchMoment = useCallback(async (showLoading: boolean) => {
-    if (showLoading) setLoading(true);
-    setError("");
+  const lastFetchRef = useRef(0);
+  // Set when this screen pushes the editor, so coming back shows the edit
+  // without waiting out the cooldown.
+  const refetchOnFocusRef = useRef(false);
+  const openTrackedRef = useRef(false);
+
+  // `blocking` swaps the screen for the skeleton (nothing to show yet). A
+  // background refresh keeps the moment on screen, and a failure there is a
+  // banner, not a full-screen error.
+  const fetchMoment = useCallback(async (blocking: boolean) => {
+    if (blocking) setScreenState("loading");
+    setRefreshError("");
     const t0 = Date.now();
-    const hadPreview = !showLoading; // pre-populated from momentCache
     const { data, error: fetchError } = await supabase
       .from("moments")
       .select("*")
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
     if (fetchError) {
-      if (showLoading) setError(friendlyError(fetchError));
-      setLoading(false);
+      if (blocking) {
+        setError(friendlyError(fetchError));
+        setScreenState("error");
+      } else {
+        setRefreshError(friendlyError(fetchError));
+      }
       return;
     }
 
+    lastFetchRef.current = Date.now();
+    if (!data) {
+      setScreenState("not_found");
+      return;
+    }
     setMoment(mapRowToMoment(data));
-    setLoading(false);
-    posthog?.capture("moment_detail_open", {
-      had_preview: hadPreview,
-      duration_ms: Date.now() - t0,
-    });
+    setScreenState("ready");
+    if (!openTrackedRef.current) {
+      openTrackedRef.current = true;
+      posthog?.capture("moment_detail_open", {
+        had_preview: !blocking, // pre-populated from momentCache
+        duration_ms: Date.now() - t0,
+      });
+    }
   }, [id, posthog]);
 
+  // Focus refetch per CLAUDE.md: only when there's nothing on screen, after an
+  // edit, or once the data is stale. The first focus always fetches: a moment
+  // handed over by a card has only the card columns.
   useFocusEffect(
     useCallback(() => {
+      const due =
+        momentRef.current === null ||
+        refetchOnFocusRef.current ||
+        Date.now() - lastFetchRef.current > STALE_TIME;
+      if (!due) return;
       const task = InteractionManager.runAfterInteractions(() => {
-        fetchMoment(moment === null);
+        refetchOnFocusRef.current = false;
+        void fetchMoment(momentRef.current === null);
       });
       return () => { task.cancel(); };
     }, [fetchMoment])
   );
 
+  // Full-size photos for the hero and the viewer; the strip's small squares
+  // use the thumbnails (full-size fallback for moments that predate them).
   const photoUrls = useMemo(
     () => moment?.photoUrls.map(getPublicPhotoUrl) ?? [],
     [moment?.photoUrls]
   );
-
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return null;
-    return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
+  const stripUrls = useMemo(() => (moment ? momentCardImageUrls(moment) : []), [moment]);
 
   const allMoods = useMemo(() => [...MOODS, ...(profile?.customMoods ?? [])], [profile?.customMoods]);
   const getMood = useCallback((value: MoodOption) =>
@@ -343,33 +383,45 @@ export default function MomentDetailScreen() {
   const handleEdit = () => {
     Haptics.selectionAsync();
     setMenuOpen(false);
-    if (moment) router.push(`/moment/edit/${moment.id}`);
+    if (moment) {
+      refetchOnFocusRef.current = true;
+      router.push(`/moment/edit/${moment.id}`);
+    }
   };
 
-  const handleAddToCollection = async () => {
-    Haptics.selectionAsync();
-    setMenuOpen(false);
+  const loadCollections = async () => {
+    if (!user) return;
     setCollectionLoading(true);
-    setCollectionModalVisible(true);
-    setShowingNewInput(false);
-    setNewCollectionName("");
+    setCollectionLoadError("");
     try {
-      // Always fetch fresh: the AsyncStorage albums cache is only written by the
-      // launch prefetch, so reading it here showed wrong checkmarks (and hid
-      // albums created later in the session) for the rest of the session.
-      const cols = await fetchAlbums(user!.id);
-
-      // Derive which albums contain this moment from the momentIds stored on
-      // each album — no second network call needed.
-      const memberCollectionIds = cols
-        .filter((c) => c.momentIds?.includes(id))
-        .map((c) => c.id);
+      // Always fetch fresh. Membership comes from collection_moments: the
+      // album list only knows the moment ids of albums the user owns, so a
+      // joined album always looked unchecked.
+      const [cols, containing] = await Promise.all([
+        fetchAlbums(user.id),
+        fetchAlbumIdsContainingMoment(id),
+      ]);
+      const listed = new Set(cols.map((c) => c.id));
+      const memberCollectionIds = containing.filter((cid) => listed.has(cid));
 
       setAllCollections(cols);
       setMemberIds(memberCollectionIds);
       setPendingMemberIds(memberCollectionIds);
-    } catch {}
+    } catch (e) {
+      // Not "No albums yet": that would read as an empty account.
+      setCollectionLoadError(friendlyError(e));
+    }
     setCollectionLoading(false);
+  };
+
+  const handleAddToCollection = () => {
+    Haptics.selectionAsync();
+    setMenuOpen(false);
+    setCollectionModalVisible(true);
+    setShowingNewInput(false);
+    setNewCollectionName("");
+    setCollectionError("");
+    void loadCollections();
   };
 
   const toggleCollection = (collection: Album) => {
@@ -380,41 +432,58 @@ export default function MomentDetailScreen() {
     );
   };
 
+  // Every add/remove settles on its own: whatever saved stays saved (and its
+  // caches are invalidated), and a failure keeps the sheet open with the
+  // error, so Save retries just what's left.
   const handleSaveCollections = async () => {
+    if (!user || savingCollections) return;
     setSavingCollections(true);
-    try {
-      const toAdd = pendingMemberIds.filter((cid) => !memberIds.includes(cid));
-      const toRemove = memberIds.filter((cid) => !pendingMemberIds.includes(cid));
-      await Promise.all([
-        ...toAdd.map((cid) => addMomentToAlbum(cid, id, user!.id)),
-        ...toRemove.map((cid) => removeMomentFromAlbum(cid, id)),
-      ]);
-      setMemberIds(pendingMemberIds);
-      const changedIds = [...toAdd, ...toRemove];
-      if (changedIds.length > 0) {
-        invalidateMomentCaches(queryClient, user!.id);
-        changedIds.forEach((cid) => invalidateAlbumCaches(queryClient, user!.id, cid));
-      }
-    } catch {}
+    setCollectionError("");
+    const { toAdd, toRemove } = diffAlbumMembership(memberIds, pendingMemberIds);
+    const results = await Promise.allSettled([
+      ...toAdd.map((cid) => addMomentToAlbum(cid, id, user.id)),
+      ...toRemove.map((cid) => removeMomentFromAlbum(cid, id)),
+    ]);
+    const outcome = applyMembershipResults(memberIds, toAdd, toRemove, results);
+    setMemberIds(outcome.memberIds);
+    if (outcome.changedIds.length > 0) {
+      invalidateMomentCaches(queryClient, user.id);
+      outcome.changedIds.forEach((cid) => invalidateAlbumCaches(queryClient, user.id, cid));
+    }
     setSavingCollections(false);
+    if (outcome.error) {
+      setCollectionError(friendlyError(outcome.error));
+      return;
+    }
     setCollectionModalVisible(false);
   };
 
   const handleCreateCollection = async () => {
     const trimmed = newCollectionName.trim();
-    if (!trimmed || creatingCollection) return;
+    if (!user || !trimmed || creatingCollection) return;
     setCreatingCollection(true);
+    setCollectionError("");
+    let created: Album | null = null;
     try {
-      const collection = await createAlbum(user!.id, trimmed);
-      await addMomentToAlbum(collection.id, id, user!.id);
+      const collection = await createAlbum(user.id, trimmed);
+      created = collection;
       setAllCollections((prev) => [...prev, collection]);
-      setMemberIds((prev) => [...prev, collection.id]);
-      setPendingMemberIds((prev) => [...prev, collection.id]);
       setNewCollectionName("");
       setShowingNewInput(false);
-      invalidateMomentCaches(queryClient, user!.id);
-      invalidateAlbumCaches(queryClient, user!.id, collection.id);
-    } catch {}
+      invalidateAlbumCaches(queryClient, user.id, collection.id);
+      await addMomentToAlbum(collection.id, id, user.id);
+      setMemberIds((prev) => [...prev, collection.id]);
+      setPendingMemberIds((prev) => [...prev, collection.id]);
+      invalidateMomentCaches(queryClient, user.id);
+    } catch (e) {
+      // If the album was created but the add failed, leave it ticked so Save
+      // retries the add instead of a second create making a duplicate.
+      const albumId = created?.id;
+      if (albumId) {
+        setPendingMemberIds((prev) => (prev.includes(albumId) ? prev : [...prev, albumId]));
+      }
+      setCollectionError(friendlyError(e));
+    }
     setCreatingCollection(false);
   };
 
@@ -430,11 +499,17 @@ export default function MomentDetailScreen() {
     });
     if (!confirmed) return;
     setDeleting(true);
-    const { error: deleteError } = await deleteMomentWithCleanup({
-      id,
-      photoUrls: moment?.photoUrls ?? [],
-      photoThumbnails: moment?.photoThumbnails ?? [],
-    });
+    // An album owner removing a guest's contribution: the server deletes the
+    // guest's photos and the row together (the owner's session can do
+    // neither for the photos). Never delete that row from here.
+    const isGuestRemoval = !!moment?.guestUuid && moment.userId !== user?.id;
+    const { error: deleteError } = isGuestRemoval
+      ? await deleteGuestMoment(id)
+      : await deleteMomentWithCleanup({
+          id,
+          photoUrls: moment?.photoUrls ?? [],
+          photoThumbnails: moment?.photoThumbnails ?? [],
+        });
 
     if (deleteError) {
       setDeleting(false);
@@ -451,6 +526,7 @@ export default function MomentDetailScreen() {
     }
 
     posthog.capture("moment_deleted", { song_title: moment?.songTitle ?? null, song_artist: moment?.songArtist ?? null });
+    // Covers every album's detail and list too (the moment may be in any).
     invalidateMomentCaches(queryClient, user?.id);
     animateOut(goBack);
   };
@@ -542,7 +618,7 @@ export default function MomentDetailScreen() {
         <TouchableOpacity style={styles.glassBtn} onPress={() => animateOut(goBack)} activeOpacity={0.8} hitSlop={8}>
           <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
         </TouchableOpacity>
-        {!loading && moment && (
+        {screenState === "ready" && moment && (
           <View style={styles.glassBtnRow}>
             <TouchableOpacity
               style={styles.glassBtn}
@@ -647,16 +723,18 @@ export default function MomentDetailScreen() {
         );
       })()}
 
-      {loading ? (
+      {screenState === "loading" ? (
         <View style={styles.loadingContainer}>
           <SkeletonMomentDetail />
         </View>
-      ) : error || !moment ? (
+      ) : screenState === "error" ? (
         <ErrorState
-          message={error || "Moment not found"}
+          message={error}
           onRetry={() => fetchMoment(true)}
           onBack={() => animateOut(goBack)}
         />
+      ) : screenState === "not_found" || !moment ? (
+        <ErrorState message="Moment not found" onBack={() => animateOut(goBack)} />
       ) : (
         // The hero lives INSIDE the scroll view. As a sibling above it, the top
         // ~280pt of the screen — photo, artwork, photo-count pill — was inert to
@@ -708,6 +786,14 @@ export default function MomentDetailScreen() {
           )}
 
           <View style={styles.scrollBody}>
+            {refreshError ? (
+              <ErrorBanner
+                message={refreshError}
+                onRetry={() => fetchMoment(false)}
+                onDismiss={() => setRefreshError("")}
+              />
+            ) : null}
+
             {/* With photos the song steps back to a compact row; without, the
                 title leads. Title, artist and album each open their pages. */}
             <View style={hasPhotos ? styles.songRow : undefined}>
@@ -853,20 +939,20 @@ export default function MomentDetailScreen() {
             ) : null}
 
             {/* More photos: the hero shows the first; the rest live here. */}
-            {hasPhotos && photoUrls.length > 1 ? (
+            {hasPhotos && stripUrls.length > 1 ? (
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 style={styles.photoStrip}
                 contentContainerStyle={styles.photoStripContent}
               >
-                {photoUrls.map((url, idx) => (
+                {stripUrls.map((url, idx) => (
                   <TouchableOpacity
                     key={idx}
                     activeOpacity={0.85}
                     onPress={() => { setViewerIndex(idx); setViewerVisible(true); }}
                     accessibilityRole="imagebutton"
-                    accessibilityLabel={`Photo ${idx + 1} of ${photoUrls.length}`}
+                    accessibilityLabel={`Photo ${idx + 1} of ${stripUrls.length}`}
                   >
                     <AppImage source={{ uri: url }} style={styles.photoStripThumb} contentFit="cover" transition={200} />
                   </TouchableOpacity>
@@ -944,6 +1030,15 @@ export default function MomentDetailScreen() {
           {collectionLoading ? (
             <View style={collectionStyles.loadingRow}>
               <ActivityIndicator color={theme.colors.textSecondary} />
+            </View>
+          ) : collectionLoadError ? (
+            <View style={collectionStyles.loadingRow}>
+              <Text style={[collectionStyles.emptyText, { color: theme.colors.textSecondary }]}>
+                {collectionLoadError}
+              </Text>
+              <TouchableOpacity onPress={loadCollections} activeOpacity={0.7} hitSlop={8}>
+                <Text style={[collectionStyles.newCollectionText, { color: theme.colors.accent }]}>Try again</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <FlatList
@@ -1040,6 +1135,12 @@ export default function MomentDetailScreen() {
             </TouchableOpacity>
           )}
 
+          {collectionError ? (
+            <Text style={[collectionStyles.errorText, { color: theme.colors.destructive }]}>
+              {collectionError}
+            </Text>
+          ) : null}
+
           <View style={collectionStyles.saveRow}>
             <TouchableOpacity
               style={[collectionStyles.saveBtn, {
@@ -1047,7 +1148,7 @@ export default function MomentDetailScreen() {
                 opacity: savingCollections ? 0.6 : 1,
               }]}
               onPress={handleSaveCollections}
-              disabled={savingCollections}
+              disabled={savingCollections || collectionLoading || !!collectionLoadError}
               activeOpacity={0.8}
             >
               <Text style={collectionStyles.saveBtnText}>
@@ -1075,6 +1176,12 @@ const collectionStyles = StyleSheet.create({
     textAlign: "center",
     paddingVertical: 20,
     paddingHorizontal: 20,
+  },
+  errorText: {
+    fontSize: 13,
+    textAlign: "center",
+    paddingHorizontal: 20,
+    paddingTop: 12,
   },
   row: {
     flexDirection: "row",
