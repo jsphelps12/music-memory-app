@@ -102,11 +102,11 @@
 
 .heroInner {
   flex: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-  align-items: center;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
   gap: clamp(32px, 6vw, 96px);
-  padding: 24px var(--gutter) 72px;
+  padding: 24px var(--gutter) clamp(56px, 8vh, 96px);
   max-width: 1360px;
   width: 100%;
   margin: 0 auto;
@@ -140,9 +140,29 @@
   color: var(--night-soft);
 }
 
-.heroPhone {
+.heroCaption {
   display: flex;
-  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 6px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--night-soft);
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+
+.heroCaption img {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  flex: none;
+}
+
+.heroCaption strong {
+  display: block;
+  font-weight: 600;
+  color: var(--night-text);
 }
 
 .badge {
@@ -158,6 +178,46 @@
 
 .badge:hover {
   opacity: 0.85;
+}
+
+.bar {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px var(--gutter);
+  background: rgba(251, 247, 242, 0.88);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border-bottom: 1px solid var(--divider);
+  color: var(--ink);
+  transform: translateY(-100%);
+  visibility: hidden;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s 0.35s;
+}
+
+.bar[data-shown="true"] {
+  transform: none;
+  visibility: visible;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bar .wordmark {
+  font-size: 22px;
+}
+
+.bar .badge img {
+  height: 40px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar,
+  .bar[data-shown="true"] {
+    transition: none;
+  }
 }
 
 /* ─── The phone ────────────────────────────────────────────────────── */
@@ -176,9 +236,7 @@
   flex: none;
 }
 
-.phoneHero,
 .storyStage .phone {
-  /* Same size in the hero and the story, so it reads as one phone. */
   --phone-w: min(330px, 25vw, calc((100svh - 170px) * 0.46));
 }
 
@@ -210,116 +268,6 @@
   height: 100%;
   object-fit: cover;
   object-position: top;
-}
-
-/* ─── Lock Screen ──────────────────────────────────────────────────── */
-
-.lock {
-  position: absolute;
-  inset: 0;
-  color: #fff;
-  text-align: center;
-  font-family: -apple-system, "SF Pro Display", system-ui, sans-serif;
-  background:
-    linear-gradient(180deg, rgba(10, 14, 22, 0.35) 0%, rgba(10, 14, 22, 0.1) 40%, rgba(10, 14, 22, 0.55) 100%),
-    url("/photos/driver-1200.webp") 62% 50% / cover;
-}
-
-.lockDate {
-  margin: 0;
-  padding-top: 17cqw;
-  font-size: 5cqw;
-  font-weight: 600;
-  opacity: 0.88;
-}
-
-.lockTime {
-  margin: -1cqw 0 0;
-  font-size: 25cqw;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1;
-  opacity: 0.94;
-}
-
-.lockWidget {
-  margin: 4cqw auto 0;
-  width: 66%;
-  padding: 3cqw 4cqw;
-  border-radius: 5cqw;
-  text-align: left;
-  background: rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-}
-
-.lockWidgetApp {
-  display: flex;
-  align-items: center;
-  gap: 1.4cqw;
-  margin: 0;
-  font-size: 3.3cqw;
-  font-weight: 600;
-  opacity: 0.85;
-}
-
-.lockWidgetApp svg {
-  width: 3.4cqw;
-  height: 3.4cqw;
-}
-
-.lockWidgetTitle {
-  margin: 0.6cqw 0 0;
-  font-family: var(--font-serif), Georgia, serif;
-  font-size: 5.4cqw;
-  line-height: 1.15;
-}
-
-.lockWidgetSub {
-  margin: 0.4cqw 0 0;
-  font-size: 3cqw;
-  opacity: 0.75;
-}
-
-.lockControls {
-  position: absolute;
-  left: 10%;
-  right: 10%;
-  bottom: 9%;
-  display: flex;
-  justify-content: space-between;
-}
-
-.lockButton {
-  display: grid;
-  place-items: center;
-  width: 12.5cqw;
-  height: 12.5cqw;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-.lockButton svg {
-  width: 5cqw;
-  height: 5cqw;
-}
-
-.lockButtonOurs {
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--ink);
-}
-
-.lockHome {
-  position: absolute;
-  left: 50%;
-  bottom: 2.2%;
-  width: 34%;
-  height: 1.2cqw;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.85);
 }
 
 /* ─── Story: one song, seven years ─────────────────────────────────── */
@@ -692,13 +640,9 @@
     font-size: 16px;
   }
 
-  .hero {
-    min-height: auto;
-  }
-
   .heroPhoto::after {
     background:
-      linear-gradient(180deg, rgba(14, 11, 10, 0.78) 0%, rgba(14, 11, 10, 0.8) 60%, rgba(14, 11, 10, 0.94) 100%);
+      linear-gradient(180deg, rgba(14, 11, 10, 0.5) 0%, rgba(14, 11, 10, 0.25) 22%, rgba(14, 11, 10, 0.82) 52%, rgba(14, 11, 10, 0.94) 100%);
   }
 
   .nav {
@@ -706,15 +650,17 @@
     padding-bottom: 20px;
   }
 
-  .heroInner {
-    grid-template-columns: 1fr;
-    gap: 48px;
-    padding-top: 28px;
-    padding-bottom: 56px;
+  .hero {
+    min-height: min(100svh, 760px);
   }
 
-  .phoneHero {
-    --phone-w: min(270px, 70vw);
+  .heroInner {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: 40px;
+    padding-top: 28px;
+    padding-bottom: 40px;
   }
 
   .story {
