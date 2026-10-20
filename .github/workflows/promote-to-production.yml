@@ -14,8 +14,8 @@ on:
 
 permissions:
   contents: read
-  # Required to query E2E Smoke run status for the commit being promoted.
-  actions: read
+  # Required to read the E2E Smoke commit status for the commit being promoted.
+  statuses: read
 
 concurrency:
   group: promote-to-production
@@ -46,9 +46,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # The E2E smoke flow must have passed for THIS exact commit, not merely
-      # at some point on main. Without the SHA match a green run from an
-      # unrelated commit would vouch for whatever is being promoted.
+      # The E2E smoke flow must have passed on THIS exact commit's JS, not
+      # merely at some point on main. E2E Smoke posts the commit status
+      # "e2e-smoke/embedded-js" on the commit it built and tested (see
+      # e2e.yml); a run's head_sha is not enough, since a dispatch records the
+      # branch head there whatever commit it was asked to test. The newest
+      # status wins, so a later red run on the same commit blocks again.
       - name: Require a passing E2E run for this commit
         env:
           GH_TOKEN: ${{ github.token }}
@@ -56,20 +59,23 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          # A dispatch input reaches a query string here; anything but a hex SHA
-          # could append its own parameters and change what is being asked.
+          # A dispatch input reaches a URL path here; anything but a hex SHA
+          # could change what is being asked.
           if ! printf '%s' "$TARGET_SHA" | grep -qE '^[0-9a-f]{7,40}$'; then
             echo "::error::sha input is not a valid commit SHA: $TARGET_SHA"
             exit 1
           fi
-          COUNT=$(gh api \
-            "repos/$REPO/actions/workflows/e2e.yml/runs?head_sha=$TARGET_SHA&status=success" \
-            --jq '.total_count')
-          if [ "$COUNT" -eq 0 ]; then
-            echo "::error::No successful E2E Smoke run for $TARGET_SHA. Run the 'E2E Smoke' workflow against this commit before promoting."
+          # The status is keyed by the full SHA; this checkout is the commit.
+          FULL_SHA=$(git rev-parse HEAD)
+          # Statuses come newest first, so the first page holds the latest
+          # one. Only statuses this repo's Actions posted count.
+          LATEST=$(gh api "repos/$REPO/commits/$FULL_SHA/statuses?per_page=100" \
+            --jq '[.[] | select(.context == "e2e-smoke/embedded-js" and .creator.login == "github-actions[bot]")] | .[0].state // ""')
+          if [ "$LATEST" != "success" ]; then
+            echo "::error::No passing E2E Smoke result for $FULL_SHA (latest: ${LATEST:-none}). Run the 'E2E Smoke' workflow with sha=$FULL_SHA before promoting."
             exit 1
           fi
-          echo "Found $COUNT successful E2E run(s) for $TARGET_SHA."
+          echo "E2E Smoke passed on $FULL_SHA."
 
       # runtimeVersion is "fingerprint", so EAS itself will never serve this
       # bundle to a binary built from different native code — the crash case is
