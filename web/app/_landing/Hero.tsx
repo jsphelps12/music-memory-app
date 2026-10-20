@@ -43,7 +43,7 @@ export function Hero({ badge }: { badge: ReactNode }) {
           <figcaption>
             <span className={styles.sleeveWhen}>Saturday, October 19, 2019 · 11:48 PM</span>
             <span className={styles.sleeveSong}>
-              Space Song <em>Beach House</em>
+              <span>Space Song</span> <em>Beach House</em>
             </span>
             <span className={styles.sleeveText}>
               Drove the long way home from Mara&rsquo;s so this would finish before the exit.
