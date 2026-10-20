@@ -305,6 +305,11 @@ memorials, farewells, graduations, baby showers. Same engine for all.
   `RESERVATION_NOTIFY_EMAIL` are set in Vercel. Nothing is charged. Target,
   arbitrary for now: 10 reservations by March 1, 2027. Linked from the
   landing footer; not promoted anywhere yet while the page is refined.
+- [ ] **Turn on reservation emails (Josh):** sign up at resend.com, create
+  an API key, then in Vercel set `RESEND_API_KEY` and
+  `RESERVATION_NOTIFY_EMAIL` and redeploy. The code is live and does
+  nothing until both exist. Until then, check `wedding_reservations` in the
+  Supabase dashboard.
 - [ ] **December keepsake, lite** (after occasions, decided 2026-10-19):
   reuses the occasions print and keepsake pipeline rather than being its own
   build. Sells this December only if that pipeline is ready in time. "Your
