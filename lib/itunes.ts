@@ -143,3 +143,34 @@ export async function findItunesPreview(title: string, artist: string): Promise<
     return null;
   }
 }
+
+/**
+ * The same Apple artwork at `size` px square. Apple's image CDN renders any
+ * size from the template in the path (`.../600x600bb.jpg`), so list rows can
+ * ask for what they draw instead of the 600px detail image. Any other URL
+ * (Spotify, a local file) comes back unchanged. Pure, exported for tests.
+ */
+export function artworkUrlAtSize<T extends string | null | undefined>(url: T, size: number): T {
+  if (!url || !/^https:\/\/[^/]*mzstatic\.com\//.test(url)) return url;
+  return url.replace(/\/\d+x\d+(bb|cc)?\.(jpg|jpeg|png|webp)$/i, `/${size}x${size}bb.$2`) as T;
+}
+
+/** The catalog song for an Apple Music id, or null. Never throws. */
+export async function lookupItunesSong(appleMusicId: string): Promise<Song | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(
+      `https://itunes.apple.com/lookup?id=${encodeURIComponent(appleMusicId)}&entity=song`,
+      { signal: controller.signal }
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    const track = ((json.results ?? []) as ItunesTrack[]).find((t) => t.trackId && t.trackName);
+    return track ? itunesTrackToSong(track) : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}

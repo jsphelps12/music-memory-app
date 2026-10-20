@@ -17,7 +17,7 @@ import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getProvider } from "@/lib/providers";
-import { searchItunes } from "@/lib/itunes";
+import { searchItunes, artworkUrlAtSize } from "@/lib/itunes";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { spotifyFailureOf, spotifySearchFallbackNotice } from "@/lib/providers/spotifyErrors";
 import { emitSongSelected } from "@/lib/songEvents";
@@ -121,9 +121,14 @@ export default function SongSearchScreen() {
 
     setLoading(true);
     setError("");
+    // A response that lands after the query changed (or the screen closed)
+    // belongs to an older search: drop it, or it would replace the newer
+    // results and clear the spinner while the current request is in flight.
+    let stale = false;
     timerRef.current = setTimeout(async () => {
       try {
         const songs = await provider.search(trimmed);
+        if (stale) return;
         setResults(songs);
         setFallbackNotice("");
         posthog.capture("song_searched", { query_length: trimmed.length, result_count: songs.length, provider: preferredProvider });
@@ -134,6 +139,7 @@ export default function SongSearchScreen() {
           const reason = spotifyFailureOf(e);
           try {
             const songs = await searchItunes(trimmed);
+            if (stale) return;
             setResults(songs);
             setFallbackNotice(spotifySearchFallbackNotice(reason));
             posthog.capture("song_search_fallback", { reason, result_count: songs.length });
@@ -142,14 +148,16 @@ export default function SongSearchScreen() {
             // fall through to the error state
           }
         }
+        if (stale) return;
         setResults([]);
         setError("Something went wrong. Try again.");
       } finally {
-        setLoading(false);
+        if (!stale) setLoading(false);
       }
     }, 300);
 
     return () => {
+      stale = true;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [query, retryKey, preferredProvider]);
@@ -264,7 +272,7 @@ export default function SongSearchScreen() {
               >
                 {item.artworkUrl ? (
                   <AppImage
-                    source={{ uri: item.artworkUrl }}
+                    source={{ uri: artworkUrlAtSize(item.artworkUrl, 160) }}
                     style={styles.artwork}
                   />
                 ) : (

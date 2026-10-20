@@ -27,6 +27,7 @@ import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { searchItunesArtists, searchItunesSongs } from "@/lib/musicSearch";
 import { checkUsernameAvailable } from "@/lib/friends";
+import { profileEditChanges } from "@/lib/profile";
 import { FavoriteArtist, FavoriteSong } from "@/types";
 
 const AVATAR_SIZE = 100;
@@ -82,7 +83,7 @@ const COUNTRIES = [
 
 export default function ProfileEditScreen() {
   const router = useRouter();
-  const { user, profile, updateProfile } = useAuth();
+  const { user, profile, updateProfile, refreshProfile } = useAuth();
   const posthog = usePostHog();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -162,6 +163,33 @@ export default function ProfileEditScreen() {
   const songDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const songSectionRef = useRef<View>(null);
 
+  // The form is seeded from the profile. If the profile hadn't loaded when
+  // the screen opened, seed it once it arrives (and ask for it), instead of
+  // leaving every field at its empty default.
+  const seededRef = useRef(profile !== null);
+  useEffect(() => {
+    if (!profile) {
+      refreshProfile().catch(() => {});
+      return;
+    }
+    if (seededRef.current) return;
+    seededRef.current = true;
+    setNameInput(profile.displayName ?? "");
+    setUsernameInput(profile.username ?? "");
+    setBirthYear(profile.birthYear ?? null);
+    setCountry(profile.country ?? "");
+    setSelectedGenres(profile.genrePreferences ?? []);
+    setSelectedArtists(profile.favoriteArtists ?? []);
+    setSelectedSongs(profile.favoriteSongs ?? []);
+  // refreshProfile is recreated every render; this only reacts to the profile.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
+
+  // Each search gets an id; only the newest one may write results, so a slow
+  // response can't overwrite newer results or refill a cleared list.
+  const artistRequestRef = useRef(0);
+  const songRequestRef = useRef(0);
+
   const avatarUri = profile?.avatarUrl ? getPublicPhotoUrl(profile.avatarUrl) : null;
   const displayName = profile?.displayName || null;
   const initials = displayName
@@ -237,10 +265,13 @@ export default function ProfileEditScreen() {
   const handleArtistQuery = useCallback((text: string) => {
     setArtistQuery(text);
     if (artistDebounce.current) clearTimeout(artistDebounce.current);
-    if (!text.trim()) { setArtistResults([]); return; }
+    const requestId = ++artistRequestRef.current;
+    if (!text.trim()) { setArtistResults([]); setArtistSearching(false); return; }
     artistDebounce.current = setTimeout(async () => {
       setArtistSearching(true);
-      setArtistResults(await searchItunesArtists(text));
+      const results = await searchItunesArtists(text);
+      if (requestId !== artistRequestRef.current) return;
+      setArtistResults(results);
       setArtistSearching(false);
     }, 350);
   }, []);
@@ -248,10 +279,13 @@ export default function ProfileEditScreen() {
   const handleSongQuery = useCallback((text: string) => {
     setSongQuery(text);
     if (songDebounce.current) clearTimeout(songDebounce.current);
-    if (!text.trim()) { setSongResults([]); return; }
+    const requestId = ++songRequestRef.current;
+    if (!text.trim()) { setSongResults([]); setSongSearching(false); return; }
     songDebounce.current = setTimeout(async () => {
       setSongSearching(true);
-      setSongResults(await searchItunesSongs(text));
+      const results = await searchItunesSongs(text);
+      if (requestId !== songRequestRef.current) return;
+      setSongResults(results);
       setSongSearching(false);
     }, 350);
   }, []);
@@ -261,9 +295,12 @@ export default function ProfileEditScreen() {
     setSelectedArtists((prev) => {
       if (prev.find((a) => a.id === artist.id)) return prev.filter((a) => a.id !== artist.id);
       if (prev.length >= 5) return prev;
-      // Clear search after adding
+      // Clear search after adding, and drop any search still in flight
+      artistRequestRef.current++;
+      if (artistDebounce.current) clearTimeout(artistDebounce.current);
       setArtistQuery("");
       setArtistResults([]);
+      setArtistSearching(false);
       return [...prev, artist];
     });
   }, []);
@@ -273,9 +310,12 @@ export default function ProfileEditScreen() {
     setSelectedSongs((prev) => {
       if (prev.find((s) => s.id === song.id)) return prev.filter((s) => s.id !== song.id);
       if (prev.length >= 5) return prev;
-      // Clear search after adding
+      // Clear search after adding, and drop any search still in flight
+      songRequestRef.current++;
+      if (songDebounce.current) clearTimeout(songDebounce.current);
       setSongQuery("");
       setSongResults([]);
+      setSongSearching(false);
       return [...prev, song];
     });
   }, []);
@@ -283,6 +323,13 @@ export default function ProfileEditScreen() {
   // ── Save ────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!profile) {
+      // Saving without the loaded profile would write the form's empty
+      // defaults over the real values.
+      Alert.alert("Profile not loaded", "Check your connection and try again.");
+      refreshProfile().catch(() => {});
+      return;
+    }
     if (usernameInput.trim() && usernameStatus === "taken") {
       Alert.alert("Username taken", "Please choose a different username.");
       return;
@@ -293,15 +340,17 @@ export default function ProfileEditScreen() {
     }
     setSaving(true);
     try {
-      await updateProfile({
-        displayName: nameInput.trim() || undefined,
-        username: usernameInput.trim() || null,
+      // Only what changed, so one edit can't overwrite another field.
+      const changes = profileEditChanges(profile, {
+        displayName: nameInput,
+        username: usernameInput,
         birthYear,
-        country: country.trim() || null,
+        country,
         favoriteArtists: selectedArtists,
         favoriteSongs: selectedSongs,
         genrePreferences: selectedGenres,
       });
+      await updateProfile(changes);
       posthog.capture("profile_updated", {
         has_username: !!(usernameInput.trim()),
         has_birth_year: birthYear !== null,

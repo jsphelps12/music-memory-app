@@ -1,14 +1,36 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
+  buildSelectionInputs,
   selectNotifications,
   type EligibleUser,
   type ExpoPushMessage,
-  type MomentRow,
   type UserMomentRow,
 } from "./selectNotifications.ts";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const BATCH_SIZE = 100;
+const PAGE_SIZE = 1000; // matches PostgREST's default max_rows
+const USER_CHUNK = 100;
+
+/**
+ * Read every row of a query, one range at a time, until an empty page comes
+ * back. Advances by the rows actually returned, so a server max_rows below
+ * PAGE_SIZE can't skip anything. The query must have a stable order.
+ */
+async function fetchAllPages<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>
+): Promise<{ rows: T[]; error: string | null }> {
+  const rows: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1);
+    if (error) return { rows, error: error.message };
+    const batch = (data ?? []) as T[];
+    if (batch.length === 0) return { rows, error: null };
+    rows.push(...batch);
+    from += batch.length;
+  }
+}
 
 /**
  * A single entry in Expo's push-send response. The `data` array is positionally
@@ -135,27 +157,30 @@ Deno.serve(async (req) => {
   );
 
   const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
-  const todayYear = now.getUTCFullYear();
-  const todayMM = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const todayDD = String(now.getUTCDate()).padStart(2, "0");
-  const todayDow = now.getUTCDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
-  const daySeed = now.getUTCDate(); // deterministic copy variant selector
 
-  const yesterday = new Date(now);
-  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-  const yesterdayStr = yesterday.toISOString().slice(0, 10);
+  // Step 1: get all users with a push token + their notification prefs.
+  // Paged: PostgREST caps a single response at max_rows (1000 by default),
+  // service role included.
+  const { rows: tokenUsers, error: tokenErr } = await fetchAllPages<EligibleUser>((from, to) =>
+    supabase
+      .from("profiles")
+      .select(
+        "id, push_token, notif_on_this_day, notif_streak, notif_prompts, notif_resurfacing, notif_milestones, created_at, timezone, last_reengagement_at"
+      )
+      .not("push_token", "is", null)
+      .order("id")
+      .range(from, to)
+  );
 
-  // Step 1: get all users with a push token + their notification prefs
-  const { data: tokenUsers, error: tokenErr } = await supabase
-    .from("profiles")
-    .select(
-      "id, push_token, notif_on_this_day, notif_streak, notif_prompts, notif_resurfacing, notif_milestones, created_at, timezone, last_reengagement_at"
-    )
-    .not("push_token", "is", null);
-
-  if (tokenErr || !tokenUsers || tokenUsers.length === 0) {
-    return new Response(JSON.stringify({ sent: 0, error: tokenErr?.message }), {
+  if (tokenErr) {
+    console.error("Failed to load profiles:", tokenErr);
+    return new Response(JSON.stringify({ sent: 0, error: tokenErr }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (tokenUsers.length === 0) {
+    return new Response(JSON.stringify({ sent: 0 }), {
       headers: { "Content-Type": "application/json" },
     });
   }
@@ -172,58 +197,47 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Step 2: fetch all moments for eligible users, paged, in chunks of users
+  // (keeps the `in` filter's URL short). Order by created_at so
+  // streak/re-engagement is based on when you logged, not the date of the
+  // memory — logging an old memory today still counts as activity.
+  // A failed fetch aborts the run: treating users as having no moments would
+  // send them the wrong notifications.
   const userIds = eligibleUsers.map((u) => u.id);
-  const tokenByUserId = Object.fromEntries(eligibleUsers.map((u) => [u.id, u.push_token as string]));
-  const prefsByUserId = Object.fromEntries(eligibleUsers.map((u) => [u.id, u]));
-
-  // Step 2: fetch all moments for eligible users in one query.
-  // Order by created_at so streak/re-engagement is based on when you logged, not
-  // the date of the memory — logging an old memory today still counts as activity.
-  const { data: allMoments } = await supabase
-    .from("moments")
-    .select("id, user_id, moment_date, song_title, song_artist, created_at")
-    .in("user_id", userIds)
-    .order("created_at", { ascending: false });
-
-  // Build per-user data maps from the single moments fetch
-  const momentRows = (allMoments ?? []) as UserMomentRow[];
-  const momentsByUser: Record<string, MomentRow[]> = {};
-  const loggedYesterdayByUser = new Map<string, string>(); // userId -> song_title
-  const loggedTodaySet = new Set<string>();
-
-  for (const row of momentRows) {
-    if (!momentsByUser[row.user_id]) momentsByUser[row.user_id] = [];
-    momentsByUser[row.user_id].push({
-      id: row.id,
-      moment_date: row.moment_date,
-      song_title: row.song_title,
-      song_artist: row.song_artist,
-      created_at: row.created_at,
-    });
-    const loggedDate = (row.created_at as string).slice(0, 10);
-    if (loggedDate === yesterdayStr && !loggedYesterdayByUser.has(row.user_id)) {
-      loggedYesterdayByUser.set(row.user_id, row.song_title);
+  const momentRows: UserMomentRow[] = [];
+  for (let i = 0; i < userIds.length; i += USER_CHUNK) {
+    const chunk = userIds.slice(i, i + USER_CHUNK);
+    const { rows, error } = await fetchAllPages<UserMomentRow>((from, to) =>
+      supabase
+        .from("moments")
+        .select("id, user_id, moment_date, song_title, song_artist, created_at")
+        .in("user_id", chunk)
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(from, to)
+    );
+    if (error) {
+      console.error("Failed to load moments:", error);
+      return new Response(JSON.stringify({ sent: 0, error }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
     }
-    if (loggedDate === todayStr) loggedTodaySet.add(row.user_id);
+    momentRows.push(...rows);
   }
+  // Chunks are each sorted; the cascade expects one created_at-desc list.
+  momentRows.sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
 
-  // Step 3: the 7-priority cascade — pure, see selectNotifications.ts
-  const { messages, reengagedUserIds } = selectNotifications({
-    eligibleUsers,
-    momentsByUser,
-    loggedYesterdayByUser,
-    loggedTodaySet,
-    allMoments: momentRows,
-    now,
-    todayStr,
-    todayYear,
-    todayMM,
-    todayDD,
-    todayDow,
-    daySeed,
-    prefsByUserId,
-    tokenByUserId,
-  });
+  // Step 3: the 7-priority cascade — pure, see selectNotifications.ts. Run
+  // once per local calendar day, so today/yesterday/On This Day/weekday are
+  // the user's own, not UTC's.
+  const messages: ExpoPushMessage[] = [];
+  const reengagedUserIds: string[] = [];
+  for (const input of buildSelectionInputs(eligibleUsers, momentRows, now)) {
+    const result = selectNotifications(input);
+    messages.push(...result.messages);
+    reengagedUserIds.push(...result.reengagedUserIds);
+  }
 
   // Step 4: send, then reap every token Expo told us is dead.
   let deadTokensCleared = 0;

@@ -27,13 +27,11 @@ import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { EmptyState } from "@/components/EmptyState";
 import { MOODS } from "@/constants/Moods";
-import { supabase } from "@/lib/supabase";
-import { mapRowToMoment } from "@/lib/moments";
-import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
-import { fetchSharedAlbumMoments, markAlbumViewed } from "@/lib/albums";
+import { AlbumNotFoundError, fetchAlbumDetail, markAlbumViewed } from "@/lib/albums";
+import { DEFAULT_SCREEN_STALE } from "@/lib/queryConfig";
 import { friendlyError } from "@/lib/errors";
 import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
-import { Album, Moment } from "@/types";
+import { Moment } from "@/types";
 import { pluralMoments } from "@/lib/utils";
 
 function groupByMonth(moments: Moment[]): { title: string; data: Moment[] }[] {
@@ -48,92 +46,7 @@ function groupByMonth(moments: Moment[]): { title: string; data: Moment[] }[] {
   return Object.entries(grouped).map(([title, data]) => ({ title, data }));
 }
 
-const STALE_TIME = 2 * 60 * 1000;
-
-async function fetchAlbumData(id: string, userId: string): Promise<{ album: Album; moments: Moment[] }> {
-  // Try owned first
-  const { data: owned } = await supabase
-    .from("collections")
-    .select("id, user_id, name, created_at, is_public, invite_code, cover_photo_url, collection_moments(moment_id)")
-    .eq("id", id)
-    .eq("user_id", userId)
-    .single();
-
-  if (owned) {
-    const col: Album = {
-      id: owned.id,
-      userId: owned.user_id,
-      name: owned.name,
-      createdAt: owned.created_at,
-      momentCount: (owned.collection_moments ?? []).length,
-      isPublic: owned.is_public ?? false,
-      inviteCode: owned.invite_code ?? undefined,
-      role: "owner",
-      coverPhotoUrl: owned.cover_photo_url ?? undefined,
-    };
-    const moments = await loadMoments(col);
-    return { album: col, moments };
-  }
-
-  // Try member
-  const { data: membership } = await supabase
-    .from("collection_members")
-    .select("collection_id")
-    .eq("collection_id", id)
-    .eq("user_id", userId)
-    .single();
-
-  if (membership) {
-    const { data: joined } = await supabase
-      .from("collections")
-      .select("id, user_id, name, created_at, is_public, invite_code, cover_photo_url, collection_moments(moment_id)")
-      .eq("id", id)
-      .single();
-
-    if (joined) {
-      const { data: ownerProfile } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", joined.user_id)
-        .single();
-
-      const col: Album = {
-        id: joined.id,
-        userId: joined.user_id,
-        name: joined.name,
-        createdAt: joined.created_at,
-        momentCount: (joined.collection_moments ?? []).length,
-        isPublic: joined.is_public ?? false,
-        inviteCode: joined.invite_code ?? undefined,
-        role: "member",
-        ownerName: ownerProfile?.display_name ?? undefined,
-        coverPhotoUrl: joined.cover_photo_url ?? undefined,
-      };
-      const moments = await loadMoments(col);
-      return { album: col, moments };
-    }
-  }
-
-  throw new Error("Album not found.");
-}
-
-async function loadMoments(col: Album): Promise<Moment[]> {
-  if (col.isPublic) {
-    return fetchSharedAlbumMoments(col.id);
-  }
-  const { data: cm } = await supabase
-    .from("collection_moments")
-    .select("moment_id")
-    .eq("collection_id", col.id);
-  const ids = (cm ?? []).map((r: any) => r.moment_id);
-  if (ids.length === 0) return [];
-  const { data } = await supabase
-    .from("moments")
-    .select(MOMENT_CARD_COLUMNS)
-    .in("id", ids)
-    .order("moment_date", { ascending: false });
-  return (data ?? []).map(mapRowToMoment);
-}
+const STALE_TIME = DEFAULT_SCREEN_STALE;
 
 const ART_SIZE = Math.round(Dimensions.get("window").width * 0.72);
 
@@ -154,13 +67,15 @@ export default function AlbumDetailScreen() {
 
   const { data, isLoading, isError, error, refetch, isFetching, dataUpdatedAt, errorUpdatedAt } = useQuery({
     queryKey: ["album", id, user?.id],
-    queryFn: () => fetchAlbumData(id!, user!.id),
+    queryFn: () => fetchAlbumDetail(id!, user!.id),
     staleTime: STALE_TIME,
     enabled: !!user && !!id,
+    // Same single retry as the app default, but not for an album that's gone.
+    retry: (failureCount, err) => !(err instanceof AlbumNotFoundError) && failureCount < 1,
   });
 
   const collection = data?.album ?? null;
-  const moments = data?.moments ?? [];
+  const moments = useMemo(() => data?.moments ?? [], [data?.moments]);
 
   // A failed background refetch keeps the previous data — show a banner, not a full-screen error
   const [bannerDismissedAt, setBannerDismissedAt] = useState(0);
@@ -168,8 +83,9 @@ export default function AlbumDetailScreen() {
 
   useEffect(() => {
     if (!data?.album || !user) return;
-    // Clearing the unread marker changes the tab bar badge and the "N new"
-    // pill on the Albums tab — both live in other caches, so refresh them.
+    // Clearing the unread marker changes the You tab's badge and the "N new"
+    // pills on the Albums screen and You's album row — all in other caches,
+    // so refresh them.
     // Deliberately no albumId: this screen's own data was just fetched and the
     // viewed marker doesn't affect it.
     markAlbumViewed(id!, user.id, data.album.role)
@@ -205,6 +121,16 @@ export default function AlbumDetailScreen() {
   }
 
   if (isError && !data) {
+    // A missing album won't come back on retry; anything else (offline, a
+    // timeout) might.
+    if (error instanceof AlbumNotFoundError) {
+      return (
+        <ErrorState
+          message="This album isn't available. It may have been deleted, or you're no longer a member."
+          onBack={() => router.back()}
+        />
+      );
+    }
     return (
       <ErrorState message={friendlyError(error)} onRetry={() => refetch()} onBack={() => router.back()} />
     );

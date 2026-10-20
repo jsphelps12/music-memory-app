@@ -4,7 +4,14 @@
  * worse than silence, so matching is strict and these tests pin that.
  */
 import { describe, it, expect } from "vitest";
-import { normalizeTitle, versionKey, pickItunesMatch, itunesTrackToSong, type ItunesTrack } from "../itunes";
+import {
+  normalizeTitle,
+  versionKey,
+  pickItunesMatch,
+  itunesTrackToSong,
+  artworkUrlAtSize,
+  type ItunesTrack,
+} from "../itunes";
 
 const track = (over: Partial<ItunesTrack>): ItunesTrack => ({
   trackId: 1,
@@ -90,5 +97,27 @@ describe("pickItunesMatch versions", () => {
   it("gives a picked remix the remix's preview, not the original's", () => {
     expect(pickItunesMatch([original, justice], "Electric Feel - Justice Remix", "MGMT")?.trackId).toBe(2);
     expect(pickItunesMatch([original], "Electric Feel (Justice Remix)", "MGMT")).toBeNull();
+  });
+});
+
+describe("artworkUrlAtSize", () => {
+  it("asks Apple's CDN for the drawn size", () => {
+    expect(
+      artworkUrlAtSize("https://is1-ssl.mzstatic.com/image/thumb/Music/ab/cd/600x600bb.jpg", 160)
+    ).toBe("https://is1-ssl.mzstatic.com/image/thumb/Music/ab/cd/160x160bb.jpg");
+  });
+
+  it("rewrites what itunesTrackToSong stores", () => {
+    const url = itunesTrackToSong(
+      track({ artworkUrl100: "https://is2-ssl.mzstatic.com/image/thumb/x/100x100bb.jpg" })
+    ).artworkUrl;
+    expect(artworkUrlAtSize(url, 200)).toBe("https://is2-ssl.mzstatic.com/image/thumb/x/200x200bb.jpg");
+  });
+
+  it("leaves other URLs and empty values alone", () => {
+    expect(artworkUrlAtSize("https://i.scdn.co/image/abc", 160)).toBe("https://i.scdn.co/image/abc");
+    expect(artworkUrlAtSize("data:image/png;base64,AA", 160)).toBe("data:image/png;base64,AA");
+    expect(artworkUrlAtSize("", 160)).toBe("");
+    expect(artworkUrlAtSize(null, 160)).toBeNull();
   });
 });

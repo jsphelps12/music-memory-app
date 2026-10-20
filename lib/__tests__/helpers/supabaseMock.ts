@@ -102,6 +102,7 @@ export interface SupabaseMock {
     getPublicUrl: ReturnType<typeof vi.fn>;
     upload: ReturnType<typeof vi.fn>;
     remove: ReturnType<typeof vi.fn>;
+    list: ReturnType<typeof vi.fn>;
     /** Bucket names passed to `storage.from()`, in call order. */
     buckets: string[];
   };
@@ -156,6 +157,7 @@ export function createSupabaseMock(): SupabaseMock {
   });
   const upload = vi.fn(async () => ({ data: { path: "uploaded" }, error: null }));
   const remove = vi.fn(async () => ({ data: [], error: null }));
+  const list = vi.fn(async () => ({ data: [] as { name: string }[], error: null }));
 
   const mock: SupabaseMock = {
     client: {
@@ -164,7 +166,7 @@ export function createSupabaseMock(): SupabaseMock {
       storage: {
         from: vi.fn((bucket: string) => {
           storageBuckets.push(bucket);
-          return { getPublicUrl, upload, remove };
+          return { getPublicUrl, upload, remove, list };
         }),
       },
       auth: {
@@ -186,7 +188,7 @@ export function createSupabaseMock(): SupabaseMock {
       defaultResult = result;
     },
     publicUrlBase: DEFAULT_PUBLIC_URL_BASE,
-    storage: { getPublicUrl, upload, remove, buckets: storageBuckets },
+    storage: { getPublicUrl, upload, remove, list, buckets: storageBuckets },
     reset() {
       queue.length = 0;
       queries.length = 0;
@@ -195,6 +197,7 @@ export function createSupabaseMock(): SupabaseMock {
       getPublicUrl.mockClear();
       upload.mockClear();
       remove.mockClear();
+      list.mockClear();
       (mock.client.from as ReturnType<typeof vi.fn>).mockClear();
       (
         (mock.client.storage as { from: ReturnType<typeof vi.fn> }).from

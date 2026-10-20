@@ -7,6 +7,8 @@ import { supabase } from "@/lib/supabase";
 import { posthog } from "@/lib/posthog";
 import { markStartup } from "@/lib/perf";
 import { CustomMoodDefinition, CustomPromptCategory, FavoriteArtist, FavoriteSong, MusicProviderType, UserProfile } from "@/types";
+import { fetchOwnProfileRow, mapProfileRow, sameProfile, toProfileDbFields, type ProfilePatch } from "@/lib/profile";
+import { clearCaptureDraft } from "@/lib/captureDraft";
 import { getProvider, connectSpotify, disconnectSpotify } from "@/lib/providers";
 import type { SpotifyFailure } from "@/lib/providers/spotifyErrors";
 import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
@@ -46,16 +48,8 @@ interface AuthState {
   signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
-  updateProfile: (updates: {
-    displayName?: string;
-    username?: string | null;
-    avatarUrl?: string;
-    birthYear?: number | null;
-    country?: string | null;
-    favoriteArtists?: FavoriteArtist[];
-    favoriteSongs?: FavoriteSong[];
-    genrePreferences?: string[];
-  }) => Promise<void>;
+  /** Write only the named fields, then refresh the profile. */
+  updateProfile: (updates: ProfilePatch) => Promise<void>;
   refreshProfile: () => Promise<void>;
   saveOnboardingData: (data: { displayName: string; username?: string; birthYear?: number | null; country?: string | null }) => Promise<void>;
   completeOnboarding: (data: OnboardingData) => Promise<void>;
@@ -77,7 +71,11 @@ const AuthContext = createContext<AuthState | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfileState] = useState<UserProfile | null>(null);
+  // Latest profile, readable from async callbacks. Updated together with the
+  // state (see setProfile) so a mutation that starts right after another one
+  // sees its result instead of the render-time closure.
+  const profileRef = useRef<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileReady, setProfileReady] = useState(false);
   const [profileError, setProfileError] = useState(false);
@@ -87,6 +85,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Guards against the duplicate concurrent hydration that getSession +
   // onAuthStateChange used to trigger on every cold start.
   const hydratingUserIdRef = useRef<string | null>(null);
+  // The user whose hydration has started. Later auth events for the same user
+  // (hourly TOKEN_REFRESHED, resume) don't need the profile and prefetches
+  // reloaded; only a different user, or a failed profile load, does.
+  const hydratedUserIdRef = useRef<string | null>(null);
+  const profileErrorRef = useRef(false);
+  profileErrorRef.current = profileError;
+  // Custom mood / prompt-category edits run one at a time, each reading the
+  // list the previous one left behind.
+  const listEditChainRef = useRef<Promise<unknown>>(Promise.resolve());
   // Mirror of `session` readable from callbacks without stale closure capture.
   const sessionRef = useRef<Session | null>(null);
   sessionRef.current = session;
@@ -117,28 +124,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return resolved ?? null;
   }
 
+  /**
+   * Set the profile. Keeps the current object when the data is unchanged, so
+   * a refetch that finds nothing new doesn't re-render every consumer
+   * memoized on profile fields (customMoods feeds every Journal card).
+   */
+  function setProfile(next: UserProfile | null) {
+    if (sameProfile(profileRef.current, next)) return;
+    profileRef.current = next;
+    setProfileState(next);
+  }
+
   // keepOnError: don't wipe cached profile on network failure (prevents bouncing user to onboarding)
   async function fetchProfile(userId: string, { keepOnError = false, email }: { keepOnError?: boolean; email?: string | null } = {}) {
     currentFetchUserIdRef.current = userId;
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
+    const { row: data, error, stale } = await fetchOwnProfileRow(userId);
 
-    // Discard result if user changed while fetch was in-flight
-    if (currentFetchUserIdRef.current !== userId) return;
+    // Discard result if user changed (or signed out) while fetch was in-flight
+    if (stale || currentFetchUserIdRef.current !== userId) return;
 
     if (error || !data) {
       // A failed fetch is NOT the same as "this user has no profile". Routing
       // on profile===null alone sends an existing user into onboarding, where
       // completing it overwrites their real profile data.
       //
-      // PGRST116 is the exception: it means the row genuinely doesn't exist
-      // (the handle_new_user trigger hasn't run or the row was removed), and
-      // that user *should* go through onboarding. Treating it as an error would
+      // A missing row (no error, no data) is the exception: the
+      // handle_new_user trigger hasn't run or the row was removed, and that
+      // user *should* go through onboarding. Treating it as an error would
       // strand them on an empty timeline with no profile instead.
-      const isMissingRow = (error as { code?: string } | null)?.code === "PGRST116";
+      const isMissingRow = !error;
       setProfileError(!isMissingRow);
       if (!keepOnError) setProfile(null);
       setProfileReady(true);
@@ -146,30 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setProfileError(false);
 
-    const profile: UserProfile = {
-      id: data.id,
-      displayName: data.display_name,
-      avatarUrl: data.avatar_url,
-      username: data.username ?? null,
-      usernameCustomized: data.username_customized ?? false,
-      friendInviteToken: data.friend_invite_token ?? "",
-      customMoods: data.custom_moods ?? [],
-      customPromptCategories: data.custom_prompt_categories ?? [],
-      birthYear: data.birth_year ?? null,
-      country: data.country ?? null,
-      favoriteArtists: data.favorite_artists ?? [],
-      favoriteSongs: data.favorite_songs ?? [],
-      onboardingCompleted: data.onboarding_completed ?? false,
-      genrePreferences: data.genre_preferences ?? [],
-      preferredMusicProvider: (data.preferred_music_provider as MusicProviderType) ?? 'apple_music',
-      notifOnThisDay: data.notif_on_this_day ?? true,
-      notifStreak: data.notif_streak ?? true,
-      notifPrompts: data.notif_prompts ?? true,
-      notifResurfacing: data.notif_resurfacing ?? true,
-      notifMilestones: data.notif_milestones ?? true,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    };
+    const profile = mapProfileRow(data);
     setProfile(profile);
     setProfileReady(true);
     writeProfileCache(userId, profile);
@@ -244,13 +235,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // bandwidth is scarcest.
       if (hydratingUserIdRef.current === userId) return;
       hydratingUserIdRef.current = userId;
+      hydratedUserIdRef.current = userId;
 
       startPrefetches(userId);
 
       try {
         const cached = await readProfileCache(userId);
         markStartup(cached ? "profile_cached" : "profile_cache_miss");
-        if (isMountedRef.current && cached) {
+        // Skip if the user signed out while the cache was being read.
+        if (isMountedRef.current && cached && hydratingUserIdRef.current === userId) {
           setProfile(cached);
           setProfileReady(true);
           setLoading(false); // release the overlay immediately
@@ -304,6 +297,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const session = result.data.session;
         setSession(session);
         if (session?.user) {
+          // The listener may already have hydrated this user (INITIAL_SESSION
+          // can land first); hydrateUser only dedupes runs still in flight.
+          if (hydratedUserIdRef.current === session.user.id && !profileErrorRef.current) return;
           void hydrateUser(session.user.id, session.user.email);
         } else {
           setLoading(false);
@@ -327,14 +323,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // SIGNED_IN / TOKEN_REFRESHED, so doing profile I/O here stalled session
         // recovery and the token-refresh tick behind our own network call.
         const { id, email } = session.user;
+        // Same user, already hydrated (hourly TOKEN_REFRESHED, resume, a
+        // duplicate SIGNED_IN): the session above is all that changed.
+        if (hydratedUserIdRef.current === id && !profileErrorRef.current) return;
         setTimeout(() => void hydrateUser(id, email), 0);
       } else {
+        // Drop any profile fetch still in flight, so it can't re-cache or
+        // re-identify the user who just left.
+        currentFetchUserIdRef.current = null;
         posthog.reset();
         Sentry.setUser(null);
         setProfile(null);
         setProfileReady(false);
         setProfileError(false);
         hydratingUserIdRef.current = null;
+        hydratedUserIdRef.current = null;
       }
     });
 
@@ -411,14 +414,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * so a cache-version bump never strands a copy of the data it replaced.
    */
   const clearLocalUserState = async (userId: string | undefined) => {
+    // First, so a profile fetch still in flight is discarded instead of
+    // re-writing the cache cleared below.
+    currentFetchUserIdRef.current = null;
+    hydratedUserIdRef.current = null;
     if (userId) {
       await Promise.all([
         clearTimelineCache(userId),
         clearProfileCache(userId),
         clearLegacyAlbumCaches(userId),
         clearBrowseCache(userId),
+        clearCaptureDraft(userId),
       ]);
     }
+    // Spotify's session is stored device-wide, not per user: the next person
+    // to sign in here must connect their own account.
+    await disconnectSpotify().catch(() => {});
     // Drop in-memory query state and the one-shot cross-screen stores too.
     // Query keys are user-scoped so the next user can't *see* this data, but
     // consumeTimelineStale carries a pending Moment with no user scoping — it
@@ -478,138 +489,101 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await clearLocalUserState(userId);
   };
 
-  const updateProfile = async (updates: {
-    displayName?: string;
-    username?: string | null;
-    avatarUrl?: string;
-    birthYear?: number | null;
-    country?: string | null;
-    favoriteArtists?: FavoriteArtist[];
-    favoriteSongs?: FavoriteSong[];
-    genrePreferences?: string[];
-  }) => {
-    if (!session?.user) throw new Error("Not authenticated");
-
-    const dbUpdates: Record<string, any> = {};
-    if (updates.displayName !== undefined) dbUpdates.display_name = updates.displayName;
-    if (updates.username !== undefined) {
-      dbUpdates.username = updates.username ? updates.username.toLowerCase().trim() : null;
-      if (updates.username) dbUpdates.username_customized = true;
-    }
-    if (updates.avatarUrl !== undefined) dbUpdates.avatar_url = updates.avatarUrl;
-    if (updates.birthYear !== undefined) dbUpdates.birth_year = updates.birthYear;
-    if (updates.country !== undefined) dbUpdates.country = updates.country;
-    if (updates.favoriteArtists !== undefined) dbUpdates.favorite_artists = updates.favoriteArtists;
-    if (updates.favoriteSongs !== undefined) dbUpdates.favorite_songs = updates.favoriteSongs;
-    if (updates.genrePreferences !== undefined) dbUpdates.genre_preferences = updates.genrePreferences;
+  /**
+   * The one write path for the user's own profile: map the patch, update only
+   * those columns, check a row was actually written, apply the patch locally
+   * (so the UI and the next mutation see it even if the refetch fails), then
+   * refetch.
+   */
+  const patchProfile = async (patch: ProfilePatch) => {
+    const userId = sessionRef.current?.user?.id;
+    if (!userId) throw new Error("Not authenticated");
+    const { db, local } = toProfileDbFields(patch);
+    if (Object.keys(db).length === 0) return;
 
     const { data: rows, error } = await supabase
       .from("profiles")
-      .update(dbUpdates)
-      .eq("id", session.user.id)
+      .update(db)
+      .eq("id", userId)
       .select("id");
-
     if (error) throw error;
     if (!rows || rows.length === 0) throw new Error("Profile update blocked — check RLS policies.");
 
-    await fetchProfile(session.user.id);
+    const current = profileRef.current;
+    if (current && current.id === userId) setProfile({ ...current, ...local });
+    await fetchProfile(userId);
+  };
+
+  /** Edit a list stored on the profile, one edit at a time, from the latest list. */
+  const editProfileList = (build: (current: UserProfile) => ProfilePatch): Promise<void> => {
+    const run = listEditChainRef.current
+      .catch(() => {})
+      .then(async () => {
+        const current = profileRef.current;
+        // Without a loaded profile the current list is unknown, and writing a
+        // list built from nothing would wipe the stored one.
+        if (!current) throw new Error("Profile not loaded");
+        await patchProfile(build(current));
+      });
+    listEditChainRef.current = run;
+    return run;
+  };
+
+  const updateProfile = async (updates: ProfilePatch) => {
+    const patch = { ...updates };
+    if (patch.username && patch.usernameCustomized === undefined) patch.usernameCustomized = true;
+    await patchProfile(patch);
   };
 
   const refreshProfile = async () => {
-    if (session?.user) {
-      await fetchProfile(session.user.id);
-    }
+    const userId = sessionRef.current?.user?.id;
+    if (userId) await fetchProfile(userId);
   };
 
   const saveOnboardingData = async (data: { displayName: string; username?: string; birthYear?: number | null; country?: string | null }) => {
-    if (!session?.user) throw new Error("Not authenticated");
-    const updates: Record<string, any> = {
-      display_name: data.displayName,
-    };
-    if (data.birthYear !== undefined) updates.birth_year = data.birthYear;
-    if (data.country !== undefined) updates.country = data.country;
-    if (data.username) updates.username = data.username.toLowerCase().trim();
-    const { data: rows, error } = await supabase
-      .from("profiles")
-      .update(updates)
-      .eq("id", session.user.id)
-      .select("id");
-    if (error) throw error;
-    if (!rows || rows.length === 0) throw new Error("Profile update blocked — check RLS policies.");
-    await fetchProfile(session.user.id);
+    await patchProfile({
+      displayName: data.displayName,
+      birthYear: data.birthYear,
+      country: data.country,
+      // A blank username leaves the stored one alone.
+      username: data.username || undefined,
+    });
   };
 
   const completeOnboarding = async (data: OnboardingData) => {
-    if (!session?.user) throw new Error("Not authenticated");
-    const updates: Record<string, any> = {
-      birth_year: data.birthYear,
+    await patchProfile({
+      birthYear: data.birthYear,
       country: data.country,
-      favorite_artists: data.favoriteArtists,
-      favorite_songs: data.favoriteSongs,
-      genre_preferences: data.genrePreferences,
-      onboarding_completed: true,
-    };
-    // Only set display_name if non-empty — never overwrite with blank
-    if (data.displayName.trim()) updates.display_name = data.displayName.trim();
-    if (data.username) updates.username = data.username.toLowerCase().trim();
-    const { data: rows, error } = await supabase
-      .from("profiles")
-      .update(updates)
-      .eq("id", session.user.id)
-      .select("id");
-    if (error) throw error;
-    if (!rows || rows.length === 0) throw new Error("Profile update blocked — check RLS policies.");
-    await fetchProfile(session.user.id);
+      favoriteArtists: data.favoriteArtists,
+      favoriteSongs: data.favoriteSongs,
+      genrePreferences: data.genrePreferences,
+      onboardingCompleted: true,
+      // Never overwrite the name with blank
+      displayName: data.displayName.trim() || undefined,
+      username: data.username || undefined,
+    });
   };
 
-  const saveCustomMood = async (mood: CustomMoodDefinition) => {
-    if (!session?.user) throw new Error("Not authenticated");
-    const current = profile?.customMoods ?? [];
-    const updated = [...current.filter((m) => m.value !== mood.value), mood];
-    const { error } = await supabase
-      .from("profiles")
-      .update({ custom_moods: updated })
-      .eq("id", session.user.id);
-    if (error) throw error;
-    await fetchProfile(session.user.id);
-  };
+  const saveCustomMood = (mood: CustomMoodDefinition) =>
+    editProfileList((p) => ({
+      customMoods: [...p.customMoods.filter((m) => m.value !== mood.value), mood],
+    }));
 
-  const deleteCustomMood = async (value: string) => {
-    if (!session?.user) throw new Error("Not authenticated");
-    const updated = (profile?.customMoods ?? []).filter((m) => m.value !== value);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ custom_moods: updated })
-      .eq("id", session.user.id);
-    if (error) throw error;
-    await fetchProfile(session.user.id);
-  };
+  const deleteCustomMood = (value: string) =>
+    editProfileList((p) => ({ customMoods: p.customMoods.filter((m) => m.value !== value) }));
 
-  const saveCustomPromptCategory = async (category: CustomPromptCategory) => {
-    if (!session?.user) throw new Error("Not authenticated");
-    const current = profile?.customPromptCategories ?? [];
-    const updated = [...current.filter((c) => c.id !== category.id), category];
-    const { error } = await supabase
-      .from("profiles")
-      .update({ custom_prompt_categories: updated })
-      .eq("id", session.user.id);
-    if (error) throw error;
-    await fetchProfile(session.user.id);
-  };
+  const saveCustomPromptCategory = (category: CustomPromptCategory) =>
+    editProfileList((p) => ({
+      customPromptCategories: [...p.customPromptCategories.filter((c) => c.id !== category.id), category],
+    }));
 
-  const deleteCustomPromptCategory = async (id: string) => {
-    if (!session?.user) throw new Error("Not authenticated");
-    const updated = (profile?.customPromptCategories ?? []).filter((c) => c.id !== id);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ custom_prompt_categories: updated })
-      .eq("id", session.user.id);
-    if (error) throw error;
-    await fetchProfile(session.user.id);
-  };
+  const deleteCustomPromptCategory = (id: string) =>
+    editProfileList((p) => ({
+      customPromptCategories: p.customPromptCategories.filter((c) => c.id !== id),
+    }));
 
   const setPreferredProvider = async (type: MusicProviderType): Promise<ProviderSwitchResult> => {
-    if (!session?.user) return { ok: false, reason: "save_failed" };
+    if (!sessionRef.current?.user) return { ok: false, reason: "save_failed" };
     // Authorize (and for Spotify, prove the account can use the API) before
     // persisting, so a failed or cancelled connect leaves the old provider.
     let premium: boolean | undefined;
@@ -626,20 +600,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({ preferred_music_provider: type })
-      .eq("id", session.user.id);
-    if (error) return { ok: false, reason: "save_failed" };
+    try {
+      await patchProfile({ preferredMusicProvider: type });
+    } catch {
+      return { ok: false, reason: "save_failed" };
+    }
     // Leaving Spotify: drop its session so a stale token can't linger.
     if (type !== "spotify") await disconnectSpotify().catch(() => {});
-    await fetchProfile(session.user.id);
     return { ok: true, premium };
   };
 
+  // A token refresh hands us a new user object for the same user. Keep the old
+  // one so effects keyed on `user` don't re-run every hour.
+  const sessionUser = session?.user ?? null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const user = useMemo(() => sessionUser, [sessionUser?.id, sessionUser?.email]);
+
   const contextValue = useMemo(() => ({
     session,
-    user: session?.user ?? null,
+    user,
     profile,
     loading,
     profileReady,
@@ -660,7 +639,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     preferredProvider: (profile?.preferredMusicProvider ?? 'apple_music') as MusicProviderType,
     setPreferredProvider,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [session, profile, loading, profileReady, profileError]);
+  }), [session, user, profile, loading, profileReady, profileError]);
 
   return (
     <AuthContext.Provider value={contextValue}>

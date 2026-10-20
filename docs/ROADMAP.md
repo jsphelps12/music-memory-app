@@ -364,8 +364,49 @@ questionnaire/ML, NFC products, Android.
   - [x] DB-1, RLS hardening step 1 (2026-10-20): tighter album, friendship
     and tag write rules; staging storage policies match prod. Web pages
     read through narrow RPCs.
+  - [x] WS-F, backend (2026-10-20): `get_my_profile` and
+    `open_shared_moment` RPCs for the app to move onto; sending a moment
+    requires a friendship and the share push is tightened; legacy
+    `notify-friend` is a no-op; album owners delete guest contributions
+    server-side (`delete-guest-moments`), and account deletion covers them
+    too and never loops or deletes the user with files left behind;
+    notifications use each user's local day and page their queries.
   - [ ] DB-2, RLS hardening step 2: waits for the app changes and the
     min-build gate.
+  - [x] WS-A, auth, profile and friends (2026-10-20, branch `ws-a-auth`):
+    the app reads its own profile through `get_my_profile()` (falls back to
+    an explicit column list until that RPC is deployed) and friend links
+    through `get_profile_by_invite_token`. All profile writes go through one
+    path in AuthContext (`lib/profile.ts`), so notification toggles no
+    longer snap back and Edit Profile saves only the fields that changed.
+    Token refreshes no longer re-run startup hydration. Sign-out also clears
+    the capture draft and the Spotify session. Friend link and Friends list
+    show a retryable error instead of "invalid link" or "no friends". The
+    Spotify connect fix is JS; the spotify-remote callback fix is native and
+    rides the next binary.
+  - [x] WS-C, capture and edit (2026-10-20): create and edit save through
+    one path (`lib/momentRow.ts` + `saveMoment` / `updateMoment`). Edit uses
+    `LocationField`, so coordinates move with the place name, and keeps the
+    stored preview unless the song changed. Failed saves delete the photos
+    they uploaded; each photo is decoded once, two at a time; preview lookup
+    runs alongside uploads. Storage uploads get a 120s timeout, and only
+    GET/HEAD retry on 520. Avatars get a new path per upload (old files are
+    deleted). Search races fixed in song search and place search;
+    custom-mood delete asks first; prompt-category errors are shown.
+    Data-URI artwork is never saved. Native part (needs a binary): no
+    base64 artwork from now-playing, systemMusicPlayer read on main,
+    ShazamKit restores the audio session.
+  - [x] WS-D, albums and browse (2026-10-20, JS only): album screens tell a
+    failed request (retry, or a banner over what's already shown) from a
+    missing album; invite links offer a retry when offline and land in the
+    album after joining; browse drill-downs no longer spin forever or show
+    an empty list on failure. Album detail and the Albums screen load in two
+    round trips instead of up to five, and artworks are capped per album on
+    the server. New albums no longer duplicate when the cover upload fails;
+    shared albums finish their guest setup (and retry it). Album covers get
+    a new path per upload and the old image is deleted, as is the cover of
+    a deleted album. Still to do outside WS-D: the You tab should read the
+    Albums screen's query instead of its own.
 - [x] **Pin `eas-cli`** to 25.2.0 in every workflow and the fingerprint
   scripts (v24's JSON rename had broken the gate silently).
 - [x] **Wire `lib/authRouting.ts` into `_layout.tsx`:** AuthGate now runs

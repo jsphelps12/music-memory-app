@@ -16,17 +16,22 @@ import { Theme } from "@/constants/theme";
 import { CloseButton } from "@/components/CloseButton";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { friendlyError } from "@/lib/errors";
+import { useQueryClient } from "@tanstack/react-query";
+import { ErrorState } from "@/components/ErrorState";
 import {
   fetchProfileByFriendToken,
+  fetchFriendshipStatus,
+  isConnected,
   acceptFriendInvite,
   ProfileResult,
 } from "@/lib/friends";
+import { invalidateFriendCaches } from "@/lib/cacheInvalidation";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/lib/supabase";
 
 type ScreenState =
   | "loading"
   | "not_found"
+  | "error"
   | "already_self"
   | "already_friends"
   | "ready"
@@ -39,6 +44,7 @@ export default function FriendInviteScreen() {
   const { user } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const queryClient = useQueryClient();
 
   const [state, setState] = useState<ScreenState>("loading");
   const [profile, setProfile] = useState<ProfileResult | null>(null);
@@ -57,6 +63,8 @@ export default function FriendInviteScreen() {
     setState("loading");
     setError("");
     try {
+      // null means no profile has this token; a failed request throws and
+      // lands in the catch below as "error", not "not_found".
       const data = await fetchProfileByFriendToken(token!);
       if (!data) {
         setState("not_found");
@@ -70,23 +78,15 @@ export default function FriendInviteScreen() {
         return;
       }
 
-      // Check for existing friendship (any status)
-      const { data: existing } = await supabase
-        .from("friendships")
-        .select("id, status")
-        .or(
-          `and(requester_id.eq.${user!.id},addressee_id.eq.${data.id}),and(requester_id.eq.${data.id},addressee_id.eq.${user!.id})`
-        )
-        .maybeSingle();
+      // Only an accepted row counts. Connecting upgrades a legacy pending or
+      // declined row, so those still get the Connect button.
+      const status = await fetchFriendshipStatus(user!.id, data.id);
 
       setProfile(data);
-      if (existing) {
-        setState("already_friends");
-      } else {
-        setState("ready");
-      }
-    } catch {
-      setState("not_found");
+      setState(isConnected(status) ? "already_friends" : "ready");
+    } catch (e) {
+      setError(friendlyError(e));
+      setState("error");
     }
   }
 
@@ -96,6 +96,9 @@ export default function FriendInviteScreen() {
     setError("");
     try {
       await acceptFriendInvite(token);
+      invalidateFriendCaches(queryClient, user.id);
+      // The You tab's friend count, which invalidateFriendCaches doesn't cover yet.
+      void queryClient.invalidateQueries({ queryKey: ["youSummary", user.id] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setState("sent");
       setTimeout(() => router.replace("/(tabs)" as any), 1500);
@@ -130,6 +133,8 @@ export default function FriendInviteScreen() {
           <ActivityIndicator color={theme.colors.textSecondary} size="large" />
         </View>
       )}
+
+      {state === "error" && <ErrorState message={error} onRetry={loadProfile} onBack={handleClose} />}
 
       {state === "not_found" && (
         <View style={styles.center}>
