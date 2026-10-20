@@ -804,8 +804,12 @@
 
 @media (max-width: 899px) {
   .sleeve {
-    width: 52%;
+    width: 100%;
     margin: 0;
+  }
+
+  .sleevePair {
+    width: 52%;
   }
 }
 
