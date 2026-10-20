@@ -38,11 +38,8 @@ import { usePlayerControls, usePlayerProgress } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
 import { getPublicPhotoUrl, momentCardImageUrls } from "@/lib/storage";
 import { deleteGuestMoment, deleteMomentWithCleanup } from "@/lib/deleteMoment";
-import {
-  applyMembershipResults,
-  diffAlbumMembership,
-  fetchAlbumIdsContainingMoment,
-} from "@/lib/momentAlbums";
+import { applyMembershipResults, diffAlbumMembership } from "@/lib/momentAlbums";
+import { fetchAlbumIdsContainingMoment } from "@/lib/albums";
 import { mapRowToMoment } from "@/lib/moments";
 import {
   fetchAlbums,

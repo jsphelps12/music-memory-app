@@ -1,23 +1,3 @@
-import { supabase } from "@/lib/supabase";
-
-/**
- * Which albums a moment is in, for the "Add to album" sheet and the share
- * sheet's "Shared with" chips. Read from collection_moments directly: the
- * album list only carries moment ids for albums the user owns, so a shared
- * album the user joined always looked unchecked, and ticking it tried to add
- * the moment a second time.
- *
- * RLS limits the rows to albums the user can see.
- */
-export async function fetchAlbumIdsContainingMoment(momentId: string): Promise<string[]> {
-  const { data, error } = await supabase
-    .from("collection_moments")
-    .select("collection_id")
-    .eq("moment_id", momentId);
-  if (error) throw error;
-  return [...new Set((data ?? []).map((r: { collection_id: string }) => r.collection_id))];
-}
-
 /** Albums to add the moment to and remove it from, going from `current` to `pending`. */
 export function diffAlbumMembership(
   current: readonly string[],

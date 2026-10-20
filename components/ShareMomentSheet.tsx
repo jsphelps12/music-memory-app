@@ -41,7 +41,7 @@ import {
   removeMomentShare,
   sendMomentShare,
 } from "@/lib/momentShares";
-import { fetchAlbumIdsContainingMoment } from "@/lib/momentAlbums";
+import { fetchAlbumIdsContainingMoment } from "@/lib/albums";
 import { fetchAlbums, removeMomentFromAlbum } from "@/lib/albums";
 import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { getPublicPhotoUrl } from "@/lib/storage";

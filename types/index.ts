@@ -103,7 +103,7 @@ export interface Album {
   name: string;
   createdAt: string;
   momentCount?: number;
-  momentIds?: string[]; // IDs of moments in this album (personal albums only)
+  momentIds?: string[]; // IDs of moments in this album, when the query loaded them
   isPublic?: boolean;
   inviteCode?: string;
   role: "owner" | "member";

@@ -1,38 +1,11 @@
 /**
- * Album membership for one moment: read for every album the user can see (not
- * just owned ones), and a partial save keeps what did succeed.
+ * Album membership changes for one moment: the add/remove diff, and folding
+ * a partial save back so it keeps what did succeed. (The membership read,
+ * fetchAlbumIdsContainingMoment, is tested in albums.test.ts.)
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 
-const sb = await vi.hoisted(async () => {
-  const { createSupabaseMock } = await import("./helpers/supabaseMock");
-  return createSupabaseMock();
-});
-vi.mock("@/lib/supabase", () => ({ supabase: sb.client }));
-
-import {
-  applyMembershipResults,
-  diffAlbumMembership,
-  fetchAlbumIdsContainingMoment,
-} from "../momentAlbums";
-
-beforeEach(() => sb.reset());
-
-describe("fetchAlbumIdsContainingMoment", () => {
-  it("reads collection_moments for the moment, deduped", async () => {
-    sb.queueData([{ collection_id: "a" }, { collection_id: "b" }, { collection_id: "a" }]);
-    expect(await fetchAlbumIdsContainingMoment("m1")).toEqual(["a", "b"]);
-    expect(sb.queries[0].table).toBe("collection_moments");
-    expect(sb.queries[0].chain[1]).toEqual({ method: "eq", args: ["moment_id", "m1"] });
-  });
-
-  it("throws on error instead of returning an empty membership", async () => {
-    sb.queueError("network request failed");
-    await expect(fetchAlbumIdsContainingMoment("m1")).rejects.toMatchObject({
-      message: "network request failed",
-    });
-  });
-});
+import { applyMembershipResults, diffAlbumMembership } from "../momentAlbums";
 
 describe("diffAlbumMembership", () => {
   it("splits into adds and removes", () => {
