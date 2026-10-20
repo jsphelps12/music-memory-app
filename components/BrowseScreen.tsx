@@ -61,9 +61,10 @@ export function BrowseScreen({ title, subtitle, items, activeKey, onSelect, mome
         <IconButton name="chevron-back" onPress={() => router.back()} accessibilityLabel="Back" />
       </View>
       <View style={styles.titleBlock}>
-        <Text style={styles.eyebrow}>{isLoading ? " " : pluralMoments(moments.length)}</Text>
         <Text style={styles.title} numberOfLines={2}>{title}</Text>
-        {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
+        <Text style={styles.subtitle} numberOfLines={1}>
+          {[subtitle, isLoading ? null : pluralMoments(moments.length)].filter(Boolean).join(" · ") || " "}
+        </Text>
       </View>
 
       {items.length > 1 && (
@@ -125,13 +126,6 @@ function createStyles(theme: Theme) {
     titleBlock: {
       paddingHorizontal: theme.spacing.xl,
       paddingBottom: theme.spacing.md,
-    },
-    eyebrow: {
-      fontSize: 13,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.textSecondary,
-      textTransform: "uppercase",
-      letterSpacing: 1,
     },
     title: {
       marginTop: theme.spacing.xs,

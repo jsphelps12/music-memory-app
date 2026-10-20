@@ -530,9 +530,9 @@ export default function ReflectionsScreen() {
           {/* ── On This Day ── */}
           {onThisDaySorted.length > 0 && (
             <View>
-              <View style={styles.eyebrowRow}>
-                <Text style={styles.eyebrow}>On this day</Text>
-                <Text style={styles.eyebrowDetail}>{todayLabel}</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>On this day</Text>
+                <Text style={styles.sectionDetail}>{todayLabel}</Text>
               </View>
               <OnThisDayHero
                 moment={onThisDaySorted[0].moment}
@@ -553,8 +553,8 @@ export default function ReflectionsScreen() {
           {/* ── Weekly Rewind ── */}
           {rewindLabel && rewindMoments.length > 0 && (
             <View style={onThisDaySorted.length > 0 && styles.sectionSpaced}>
-              <View style={styles.eyebrowRow}>
-                <Text style={styles.eyebrow}>From {rewindLabel}</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>From {rewindLabel}</Text>
               </View>
               {rewindMoments.map((m) => (
                 <MomentCard key={m.id} item={m} allMoods={allMoods} />
@@ -565,7 +565,7 @@ export default function ReflectionsScreen() {
           {/* ── Browse by ── */}
           {browseRows.length > 0 && (
             <View style={styles.sectionSpaced}>
-              <Text style={styles.eyebrow}>Browse by</Text>
+              <Text style={styles.sectionTitle}>Browse by</Text>
               <View style={styles.browseList}>
                 {browseRows.map((row, i) => (
                   <BrowseRow
@@ -583,8 +583,8 @@ export default function ReflectionsScreen() {
           {/* ── Surprise Me ── */}
           {randomMoment && (
             <View style={styles.sectionSpaced}>
-              <View style={styles.eyebrowRow}>
-                <Text style={styles.eyebrow}>Surprise me</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Surprise me</Text>
                 <TouchableOpacity
                   onPress={handleShuffle}
                   disabled={shuffling}
@@ -702,25 +702,25 @@ function createStyles(theme: Theme) {
     scrollContent: {
       paddingHorizontal: theme.spacing.xl,
       paddingTop: theme.spacing.lg,
-      paddingBottom: theme.spacing["4xl"],
+      // Clears the floating tab bar and capture button.
+      paddingBottom: 120,
     },
     sectionSpaced: {
       marginTop: 30,
     },
-    eyebrowRow: {
+    sectionHeader: {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "baseline",
       justifyContent: "space-between",
       marginBottom: theme.spacing.md,
     },
-    eyebrow: {
-      fontSize: 13,
-      fontFamily: theme.fonts.bodySemibold,
+    sectionTitle: {
+      fontSize: theme.fontSize.xl,
+      lineHeight: 26,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
-      textTransform: "uppercase",
-      letterSpacing: 1,
     },
-    eyebrowDetail: {
+    sectionDetail: {
       fontSize: theme.fontSize.sm,
       fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
@@ -785,7 +785,7 @@ function createStyles(theme: Theme) {
       color: theme.colors.textSecondary,
     },
     browseList: {
-      marginTop: theme.spacing.xs,
+      marginTop: theme.spacing.sm,
     },
     browseRow: {
       height: 48,

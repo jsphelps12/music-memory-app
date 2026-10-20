@@ -145,6 +145,7 @@ function createStyles(theme: Theme) {
       marginBottom: theme.spacing.xs,
     },
     subtitle: {
+      fontFamily: theme.fonts.body,
       fontSize: theme.fontSize.base,
       color: theme.colors.textSecondary,
       marginBottom: theme.spacing["3xl"],
@@ -155,6 +156,7 @@ function createStyles(theme: Theme) {
       borderColor: theme.colors.border,
       borderRadius: theme.radii.md,
       paddingHorizontal: theme.spacing.lg,
+      fontFamily: theme.fonts.body,
       fontSize: theme.fontSize.base,
       color: theme.colors.text,
       marginBottom: 14,
@@ -173,11 +175,13 @@ function createStyles(theme: Theme) {
     },
     inputInner: {
       flex: 1,
+      fontFamily: theme.fonts.body,
       fontSize: theme.fontSize.base,
       color: theme.colors.text,
     },
     error: {
       color: theme.colors.destructive,
+      fontFamily: theme.fonts.body,
       fontSize: theme.fontSize.sm,
       marginBottom: 14,
     },
@@ -195,18 +199,19 @@ function createStyles(theme: Theme) {
     buttonText: {
       color: theme.colors.buttonText,
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     linkContainer: {
       marginTop: theme.spacing["2xl"],
       alignItems: "center",
     },
     linkText: {
+      fontFamily: theme.fonts.body,
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
     },
     linkBold: {
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
   });

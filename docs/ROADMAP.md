@@ -173,13 +173,16 @@ clutter, navigation.
   locked while a version is in review). The iOS 27 product-page header is
   still optional and not made.
 
-- [ ] **Phase 1 leftovers** (found while building the landing page, JS
-  only, can go out over the air): the Rediscover capture button covers the
-  last row (needs bottom padding); uppercase tracked eyebrows still sit above
-  titles on the entry screen, Rediscover and You (DESIGN.md says let the
-  title and a meta line carry it); the sign-in button isn't in DM Sans. The
-  album detail screen still has the old gradient cover, but it gets rebuilt
-  with occasions, so don't restyle it twice.
+- [x] **Phase 1 leftovers** (2026-10-20, JS only): Rediscover clears the
+  capture button (120pt bottom padding); the entry screen's date, time of
+  day and place moved from an uppercase eyebrow to a quiet line under the
+  artist; Rediscover and You section headers are serif titles in their own
+  case; Browse drill-downs put the count under the title; the auth screens
+  use DM Sans everywhere (they fell back to the system font). The album
+  detail screen is left for the occasions rebuild.
+- **Fingerprint trap:** the root `.gitignore` is part of Expo's native
+  fingerprint. Adding one line to it (2026-10-19) made every OTA from main
+  unreachable; the rule moved to `.impeccable/.gitignore`.
 
 ## Next — Phase 2: Pull
 *The app comes to you with something worth reacting to.*
