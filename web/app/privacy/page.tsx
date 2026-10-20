@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { TopBar } from "@/components/Share";
+import s from "@/components/share.module.css";
 
 export const metadata: Metadata = {
   title: "Privacy Policy — Soundtracks",
@@ -7,19 +8,14 @@ export const metadata: Metadata = {
 
 export default function PrivacyPolicy() {
   return (
-    <main style={{ backgroundColor: "var(--bg)", minHeight: "100vh" }}>
-      <div style={{ maxWidth: 680, margin: "0 auto", padding: "64px 24px 96px" }}>
-        <Link
-          href="/"
-          style={{ fontSize: 14, color: "var(--accent)", textDecoration: "none", display: "inline-block", marginBottom: 40 }}
-        >
-          ← Soundtracks
-        </Link>
+    <main className={s.page}>
+      <div className={`${s.column} ${s.wide}`}>
+        <TopBar />
 
-        <h1 style={{ fontSize: 36, fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>
+        <h1 className={s.headline}>
           Privacy Policy
         </h1>
-        <p style={{ fontSize: 14, color: "var(--text-meta)", marginBottom: 48 }}>Last updated: May 2026</p>
+        <p className={`${s.meta} ${s.legalUpdated}`}>Last updated: May 2026</p>
 
         <Section>
           <p>
@@ -29,7 +25,7 @@ export default function PrivacyPolicy() {
           </p>
           <p>
             Soundtracks is operated by <strong>Joshua Phelps</strong>. If you have any questions, email us
-            at <a href="mailto:founder@soundtracks.app" style={{ color: "var(--accent)" }}>founder@soundtracks.app</a>.
+            at <a href="mailto:founder@soundtracks.app">founder@soundtracks.app</a>.
           </p>
         </Section>
 
@@ -113,14 +109,14 @@ export default function PrivacyPolicy() {
 
         <H2>Third-party services</H2>
         <Section>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <table className={s.legalTable}>
             <thead>
-              <tr style={{ borderBottom: "1px solid var(--border-rule)" }}>
-                <th style={{ textAlign: "left", padding: "8px 12px 8px 0", color: "var(--text)" }}>Service</th>
-                <th style={{ textAlign: "left", padding: "8px 12px 8px 0", color: "var(--text)" }}>Purpose</th>
+              <tr>
+                <th>Service</th>
+                <th>Purpose</th>
               </tr>
             </thead>
-            <tbody style={{ color: "var(--text-body)" }}>
+            <tbody>
               {[
                 ["Supabase", "Database, authentication, and photo storage"],
                 ["Apple (Sign In with Apple, MusicKit, APNs)", "Authentication, song catalog, push notification delivery"],
@@ -131,9 +127,9 @@ export default function PrivacyPolicy() {
                 ["Vercel", "Web app hosting"],
                 ["iTunes Search API", "Song metadata lookup"],
               ].map(([service, purpose]) => (
-                <tr key={service} style={{ borderBottom: "1px solid var(--border-rule)" }}>
-                  <td style={{ padding: "10px 12px 10px 0", fontWeight: 500, whiteSpace: "nowrap" }}>{service}</td>
-                  <td style={{ padding: "10px 0" }}>{purpose}</td>
+                <tr key={service}>
+                  <td>{service}</td>
+                  <td>{purpose}</td>
                 </tr>
               ))}
             </tbody>
@@ -158,7 +154,7 @@ export default function PrivacyPolicy() {
             <li><strong>Access</strong> — you can view all your data inside the app at any time.</li>
             <li><strong>Correction</strong> — you can edit or update any moment, your display name, and your profile photo.</li>
             <li><strong>Deletion</strong> — you can delete your account from the Profile screen. This permanently removes your account, all moments, all photos, and all associated data from our systems. This cannot be undone.</li>
-            <li><strong>Data portability</strong> — we plan to add an export feature. In the meantime, email us at <a href="mailto:founder@soundtracks.app" style={{ color: "var(--accent)" }}>founder@soundtracks.app</a> and we can provide a data export.</li>
+            <li><strong>Data portability</strong> — we plan to add an export feature. In the meantime, email us at <a href="mailto:founder@soundtracks.app">founder@soundtracks.app</a> and we can provide a data export.</li>
             <li><strong>Complaints</strong> — EU residents have the right to lodge a complaint with their local data protection supervisory authority.</li>
           </ul>
         </Section>
@@ -186,13 +182,13 @@ export default function PrivacyPolicy() {
         <Section>
           <p>
             Questions, concerns, or requests:{" "}
-            <a href="mailto:founder@soundtracks.app" style={{ color: "var(--accent)" }}>founder@soundtracks.app</a>
+            <a href="mailto:founder@soundtracks.app">founder@soundtracks.app</a>
           </p>
         </Section>
 
-        <footer style={{ marginTop: 64, paddingTop: 24, borderTop: "1px solid var(--border-rule)", fontSize: 13, color: "var(--text-meta)", display: "flex", justifyContent: "space-between" }}>
+        <footer className={`${s.meta} ${s.legalFooter}`}>
           <span>© {new Date().getFullYear()} Soundtracks</span>
-          <a href="/terms" style={{ color: "var(--text-meta)" }}>Terms of Use</a>
+          <a href="/terms">Terms of Use</a>
         </footer>
       </div>
     </main>
@@ -201,7 +197,7 @@ export default function PrivacyPolicy() {
 
 function H2({ children }: { children: React.ReactNode }) {
   return (
-    <h2 style={{ fontSize: 22, fontWeight: 700, color: "var(--text)", marginTop: 48, marginBottom: 16 }}>
+    <h2 className={s.legalH2}>
       {children}
     </h2>
   );
@@ -209,7 +205,7 @@ function H2({ children }: { children: React.ReactNode }) {
 
 function H3({ children }: { children: React.ReactNode }) {
   return (
-    <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--text)", marginTop: 28, marginBottom: 10 }}>
+    <h3 className={s.legalH3}>
       {children}
     </h3>
   );
@@ -217,7 +213,7 @@ function H3({ children }: { children: React.ReactNode }) {
 
 function Section({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: 15, lineHeight: 1.75, color: "var(--text-body)" }}>
+    <div className={s.legal}>
       {children}
     </div>
   );

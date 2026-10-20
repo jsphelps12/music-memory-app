@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSupabase } from "@/lib/supabase";
 import AlbumMomentList, { type MomentItem } from "@/components/AlbumMomentList";
+import { AppStoreBadge, TopBar } from "@/components/Share";
+import s from "@/components/share.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -189,138 +191,45 @@ export default async function AlbumPage({ params }: PageProps) {
 
   const dateRange = formatDateRange(collection.date_from, collection.date_to);
 
+  const meta = [
+    ownerName ? `By ${ownerName}` : null,
+    `${moments.length} ${moments.length === 1 ? "song" : "songs"}`,
+    dateRange,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "var(--bg)" }}>
+    <main className={s.page}>
+      <div className={s.column}>
+        <TopBar />
 
-      {/* Album header — the same cream keepsake card every Soundtracks share
-          arrives as: cover printed clean, title written on the mat below it. */}
-      <div style={{ padding: "24px 16px 0", maxWidth: 600, margin: "0 auto" }}>
-        <div className="artifact-card">
-          <div style={{ aspectRatio: "16/9", width: "100%", backgroundColor: "var(--artifact-deep)" }}>
-            {coverImageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={coverImageUrl}
-                alt=""
-                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  background: "linear-gradient(135deg, rgba(232,130,92,0.35) 0%, rgba(107,95,140,0.35) 100%)",
-                }}
-              />
-            )}
-          </div>
+        <header className={s.albumHead}>
+          {coverImageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={coverImageUrl} alt="" className={s.cover} />
+          )}
+          <h1 className={s.headline}>{collection.name}</h1>
+          <p className={s.meta}>{meta}</p>
+        </header>
 
-          <div style={{ padding: "18px 22px 18px" }}>
-            <h1
-              className="artifact-serif"
-              style={{
-                fontSize: "clamp(1.6rem, 5vw, 2.1rem)",
-                color: "var(--artifact-ink)",
-                margin: 0,
-                lineHeight: 1.15,
-              }}
-            >
-              {collection.name}
-            </h1>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-                borderTop: "1px solid var(--artifact-hairline)",
-                paddingTop: 12,
-                marginTop: 14,
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 500,
-                  letterSpacing: "0.1em",
-                  color: "var(--artifact-ink-soft)",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {[
-                  ownerName ? `BY ${ownerName.toUpperCase()}` : null,
-                  `${moments.length} ${moments.length === 1 ? "MOMENT" : "MOMENTS"}`,
-                  dateRange?.toUpperCase(),
-                ]
-                  .filter(Boolean)
-                  .join("  ·  ")}
-              </span>
-              <span className="artifact-wordmark">SOUNDTRACKS</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Moment list */}
-      <div style={{ padding: "16px 16px 140px", maxWidth: 600, margin: "0 auto" }}>
         {moments.length === 0 ? (
-          <p style={{ textAlign: "center", padding: "48px 0", color: "var(--text-tertiary)" }}>
-            No moments yet.
-          </p>
+          <p className={`${s.empty} ${s.tracklist}`}>No songs in this album yet.</p>
         ) : (
-          <AlbumMomentList moments={moments} />
+          <AlbumMomentList moments={moments} numbered />
         )}
-      </div>
 
-      {/* Sticky CTA */}
-      <div
-        style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: "12px 20px 20px",
-          backgroundColor: "var(--bg)",
-          borderTop: "1px solid var(--border)",
-        }}
-      >
-        <div style={{ maxWidth: 600, margin: "0 auto", display: "flex", flexDirection: "column", gap: 8 }}>
-          <p style={{ fontSize: 12, textAlign: "center", color: "var(--text-tertiary)", margin: 0 }}>
-            Remember a song that takes you back?
-          </p>
-          <a
-            href="https://apps.apple.com/us/app/soundtracks/id6759203604"
-            style={{
-              display: "block",
-              textAlign: "center",
-              padding: "13px 20px",
-              borderRadius: 14,
-              backgroundColor: "#E8825C",
-              color: "#fff",
-              fontWeight: 600,
-              fontSize: 15,
-              textDecoration: "none",
-            }}
-          >
-            Capture your own memories in Soundtracks
-          </a>
-          <a
-            href={`soundtracks://join?inviteCode=${invite_code}`}
-            style={{
-              display: "block",
-              textAlign: "center",
-              padding: "8px",
-              fontSize: 13,
-              color: "var(--text-tertiary)",
-              textDecoration: "none",
-            }}
-          >
-            Already have the app? Open in Soundtracks
-          </a>
-        </div>
+        {/* The ask comes after the album, never over it. */}
+        <section className={s.ask}>
+          <p className={s.body}>Soundtracks is a journal for the songs that mark your days.</p>
+          <div className={s.askActions}>
+            <AppStoreBadge />
+            <a href={`soundtracks://join?inviteCode=${invite_code}`} className={`${s.meta} ${s.textLink}`}>
+              Have the app? Open this album
+            </a>
+          </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }

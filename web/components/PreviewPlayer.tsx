@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { PauseIcon, PlayIcon } from "./Share";
+import s from "./share.module.css";
 
 export function PreviewPlayer({ url }: { url: string }) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -13,34 +15,21 @@ export function PreviewPlayer({ url }: { url: string }) {
       audio.pause();
       setPlaying(false);
     } else {
-      audio.play();
-      setPlaying(true);
+      audio.play().then(
+        () => setPlaying(true),
+        () => setPlaying(false)
+      );
     }
   };
 
   return (
-    <div className="mt-4 flex items-center gap-3">
-      <audio
-        ref={audioRef}
-        src={url}
-        onEnded={() => setPlaying(false)}
-      />
-      <button
-        onClick={toggle}
-        className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-opacity hover:opacity-80"
-        style={{ backgroundColor: "#E8825C", color: "#fff" }}
-      >
-        {playing ? (
-          <>
-            <span style={{ fontSize: 12 }}>■</span> Stop preview
-          </>
-        ) : (
-          <>
-            <span style={{ fontSize: 12 }}>▶</span> Play preview
-          </>
-        )}
+    <div className={s.player}>
+      <audio ref={audioRef} src={url} preload="none" onEnded={() => setPlaying(false)} />
+      <button type="button" onClick={toggle} className={s.pill} aria-pressed={playing}>
+        {playing ? <PauseIcon /> : <PlayIcon />}
+        {playing ? "Pause" : "Play preview"}
       </button>
-      <span className="text-xs" style={{ color: "#999" }}>30s preview</span>
+      <span className={s.meta}>30-second preview</span>
     </div>
   );
 }

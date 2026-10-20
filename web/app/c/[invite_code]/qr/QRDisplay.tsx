@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
+import { TopBar } from "@/components/Share";
+import s from "@/components/share.module.css";
 
 interface Props {
   url: string;
@@ -15,65 +17,47 @@ export default function QRDisplay({ url, collectionName }: Props) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    // Ink on paper in both themes: it gets printed and scanned, and dark-on-
+    // light scans most reliably. Rendered at 2x so the download prints sharp.
     QRCode.toCanvas(canvas, url, {
-      width: 320,
+      width: 640,
       margin: 2,
-      color: {
-        dark: "#2C2C3A",
-        light: "#FBF6F1",
-      },
+      color: { dark: "#23222B", light: "#FBF7F2" },
     }).then(() => setReady(true));
   }, [url]);
 
   function handleDownload() {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const dataUrl = canvas.toDataURL("image/png");
     const a = document.createElement("a");
-    a.href = dataUrl;
+    a.href = canvas.toDataURL("image/png");
     a.download = `${collectionName.replace(/\s+/g, "-").toLowerCase()}-qr.png`;
     a.click();
   }
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center px-6 py-12 gap-6"
-      style={{ backgroundColor: "#FBF6F1" }}
-    >
-      <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#E8825C" }}>
-        Guest Contributions
-      </p>
-      <h1 className="text-2xl font-bold text-center" style={{ color: "#2C2C3A" }}>
-        {collectionName}
-      </h1>
+    <main className={s.page}>
+      <div className={`${s.column} ${s.narrow}`}>
+        <div className={s.noPrint}>
+          <TopBar />
+        </div>
 
-      {/* QR Code */}
-      <div
-        className="rounded-3xl p-6 shadow-lg"
-        style={{ backgroundColor: "#FBF6F1", border: "2px solid #E8D8CC" }}
-      >
-        <canvas
-          ref={canvasRef}
-          style={{ display: "block", opacity: ready ? 1 : 0, transition: "opacity 0.2s" }}
-        />
+        <h1 className={s.headline}>{collectionName}</h1>
+        <p className={`${s.body} ${s.lede}`}>
+          Guests scan this to add a song and a few words. No app, no account.
+        </p>
+
+        <div className={s.qr}>
+          <canvas ref={canvasRef} style={{ opacity: ready ? 1 : 0 }} />
+        </div>
+
+        <div className={s.noPrint}>
+          <button type="button" onClick={handleDownload} disabled={!ready} className={s.button}>
+            Download QR code
+          </button>
+          <p className={`${s.meta} ${s.url}`}>{url}</p>
+        </div>
       </div>
-
-      <p className="text-sm text-center max-w-xs" style={{ color: "#999" }}>
-        Guests scan this code to add their song memories — no app required.
-      </p>
-
-      <button
-        onClick={handleDownload}
-        disabled={!ready}
-        className="px-8 py-3 rounded-full font-semibold text-base transition-opacity hover:opacity-90 disabled:opacity-40"
-        style={{ backgroundColor: "#2C2C3A", color: "#fff" }}
-      >
-        Download QR Code
-      </button>
-
-      <p className="text-xs" style={{ color: "#bbb" }}>
-        {url}
-      </p>
-    </div>
+    </main>
   );
 }

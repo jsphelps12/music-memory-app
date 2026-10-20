@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { TopBar } from "@/components/Share";
+import s from "@/components/share.module.css";
 
 export const metadata: Metadata = {
   title: "Terms of Use — Soundtracks",
@@ -7,19 +8,14 @@ export const metadata: Metadata = {
 
 export default function TermsOfUse() {
   return (
-    <main style={{ backgroundColor: "var(--bg)", minHeight: "100vh" }}>
-      <div style={{ maxWidth: 680, margin: "0 auto", padding: "64px 24px 96px" }}>
-        <Link
-          href="/"
-          style={{ fontSize: 14, color: "var(--accent)", textDecoration: "none", display: "inline-block", marginBottom: 40 }}
-        >
-          ← Soundtracks
-        </Link>
+    <main className={s.page}>
+      <div className={`${s.column} ${s.wide}`}>
+        <TopBar />
 
-        <h1 style={{ fontSize: 36, fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>
+        <h1 className={s.headline}>
           Terms of Use
         </h1>
-        <p style={{ fontSize: 14, color: "var(--text-meta)", marginBottom: 48 }}>Last updated: March 2026</p>
+        <p className={`${s.meta} ${s.legalUpdated}`}>Last updated: March 2026</p>
 
         <Section>
           <p>
@@ -159,13 +155,13 @@ export default function TermsOfUse() {
         <Section>
           <p>
             Questions about these terms:{" "}
-            <a href="mailto:founder@soundtracks.app" style={{ color: "var(--accent)" }}>founder@soundtracks.app</a>
+            <a href="mailto:founder@soundtracks.app">founder@soundtracks.app</a>
           </p>
         </Section>
 
-        <footer style={{ marginTop: 64, paddingTop: 24, borderTop: "1px solid var(--border-rule)", fontSize: 13, color: "var(--text-meta)", display: "flex", justifyContent: "space-between" }}>
+        <footer className={`${s.meta} ${s.legalFooter}`}>
           <span>© {new Date().getFullYear()} Soundtracks</span>
-          <a href="/privacy" style={{ color: "var(--text-meta)" }}>Privacy Policy</a>
+          <a href="/privacy">Privacy Policy</a>
         </footer>
       </div>
     </main>
@@ -174,7 +170,7 @@ export default function TermsOfUse() {
 
 function H2({ children }: { children: React.ReactNode }) {
   return (
-    <h2 style={{ fontSize: 22, fontWeight: 700, color: "var(--text)", marginTop: 48, marginBottom: 16 }}>
+    <h2 className={s.legalH2}>
       {children}
     </h2>
   );
@@ -182,7 +178,7 @@ function H2({ children }: { children: React.ReactNode }) {
 
 function Section({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: 15, lineHeight: 1.75, color: "var(--text-body)" }}>
+    <div className={s.legal}>
       {children}
     </div>
   );
