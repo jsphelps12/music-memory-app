@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchBrowseMetadata, fetchAlbumMoments } from "@/lib/browse";
 import { BROWSE_META_STALE, BROWSE_DRILLDOWN_STALE } from "@/lib/queryConfig";
 import { friendlyError } from "@/lib/errors";
 import { BrowseScreen } from "@/components/BrowseScreen";
-import { ErrorState } from "@/components/ErrorState";
 
 const SEPARATOR = "|||";
 const keyOf = (albumName: string, artist: string) => `${albumName}${SEPARATOR}${artist}`;
@@ -19,7 +18,6 @@ function parseKey(key: string): { albumName: string; artist: string } {
 
 export default function AlbumScreen() {
   const { user } = useAuth();
-  const router = useRouter();
   const { album: initialAlbum, artist: initialArtist } = useLocalSearchParams<{ album: string; artist: string }>();
   const [activeKey, setActiveKey] = useState(keyOf(initialAlbum ?? "", initialArtist ?? ""));
 
@@ -53,9 +51,6 @@ export default function AlbumScreen() {
     staleTime: BROWSE_DRILLDOWN_STALE,
   });
 
-  if (isError && !moments) {
-    return <ErrorState message={friendlyError(error)} onRetry={() => refetch()} onBack={() => router.back()} />;
-  }
 
   return (
     <BrowseScreen
@@ -70,6 +65,8 @@ export default function AlbumScreen() {
       onSelect={setActiveKey}
       moments={moments ?? []}
       isLoading={isLoading}
+      error={isError ? friendlyError(error) : null}
+      onRetry={() => refetch()}
     />
   );
 }
