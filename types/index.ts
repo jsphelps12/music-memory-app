@@ -60,6 +60,36 @@ export interface Moment {
   contributorName?: string | null;
 }
 
+/**
+ * What a list query selecting MOMENT_CARD_COLUMNS actually has. Those rows
+ * lack people, location, weather, updated_at and share_token, so typing them
+ * as a full Moment makes the missing fields read as real empty values (a null
+ * shareToken looks like "no link yet"). Target type for card queries, the
+ * momentCache hand-off and MomentCard; screens that need the rest must fetch
+ * it. Keep in step with lib/momentColumns.ts.
+ */
+export type MomentCardData = Pick<
+  Moment,
+  | "id"
+  | "userId"
+  | "momentDate"
+  | "createdAt"
+  | "songTitle"
+  | "songArtist"
+  | "songAlbumName"
+  | "songArtworkUrl"
+  | "songProvider"
+  | "songAppleMusicId"
+  | "songSpotifyId"
+  | "songPreviewUrl"
+  | "moods"
+  | "photoUrls"
+  | "photoThumbnails"
+  | "reflectionText"
+  | "guestUuid"
+  | "contributorName"
+>;
+
 export interface Album {
   id: string;
   userId: string;
