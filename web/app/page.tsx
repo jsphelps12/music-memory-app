@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { DM_Serif_Display, DM_Sans, Newsreader } from "next/font/google";
-import { Phone, LockScreen } from "./_landing/Phone";
 import { Story } from "./_landing/Story";
+import { StickyBar } from "./_landing/StickyBar";
 import styles from "./_landing/landing.module.css";
 
 const serif = DM_Serif_Display({ weight: "400", subsets: ["latin"], variable: "--font-serif", display: "swap" });
@@ -68,7 +68,11 @@ const ALBUM = [
 export default function Home() {
   return (
     <main className={`${styles.page} ${serif.variable} ${sans.variable} ${reading.variable}`}>
-      <section className={styles.hero}>
+      <StickyBar>
+        <AppStoreBadge />
+      </StickyBar>
+
+      <section id="top" className={styles.hero}>
         {/* Unsplash photographs (Unsplash License); see public/photos/SOURCES.md. */}
         <picture className={styles.heroPhoto}>
           <source media="(min-width: 900px)" srcSet="/photos/drive-2400.webp" />
@@ -91,11 +95,14 @@ export default function Home() {
             <AppStoreBadge />
             <p className={styles.heroFine}>Free for iPhone. Works with Apple Music.</p>
           </div>
-          <div className={styles.heroPhone}>
-            <Phone className={styles.phoneHero}>
-              <LockScreen />
-            </Phone>
-          </div>
+          <p className={styles.heroCaption}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/art/space-song.jpg" alt="" width={44} height={44} />
+            <span>
+              <strong>Space Song · Beach House</strong>
+              Saturday, October 19, 2019 · 11:48 PM
+            </span>
+          </p>
         </div>
       </section>
 

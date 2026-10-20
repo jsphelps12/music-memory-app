@@ -304,12 +304,15 @@ questionnaire/ML, NFC products, Android.
 ## Tech and backend
 
 - [x] **Landing page rebuilt** (2026-10-19): "One song's life": a night
-  drive, the Lock Screen widget, then one song (Space Song) captured,
+  drive, then one song (Space Song) captured,
   written about and returned to seven years later, with a sticky phone
   whose screen and date advance with the scroll. Demo journal entries shown
   as entries, a founder note (Josh's words: songs that take him back to
   specific places and people), real app screens, an
   Unsplash photo. `PRODUCT.md` and `.impeccable/` hold the design context.
+  Follow-up: the hero is the photo alone (copy low-left, the song and
+  night as a caption) and a wordmark + badge bar slides in after the hero,
+  so the download is always one tap away.
 
 - [x] **Weekly checks self-heal** (2026-10-14): staging keepalive, E2E
   rebuilds expired simulator archives, fingerprint scripts read eas-cli v24
