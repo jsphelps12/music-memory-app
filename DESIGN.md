@@ -269,7 +269,8 @@ A shared album shown as a record's tracklist: 2px ink top rule, serif title with
 
 ### Navigation
 - **Tab bar:** paper ground, hairline top border, four slots with 11px DM Sans labels (500, 600 when active); active in ink, inactive in warm gray. New activity is an 8px terracotta dot on the icon, never a count.
-- **Web nav:** serif wordmark (24px DM Serif Display) left, a single underlined text link right, on the night hero.
+- **Web nav:** the app icon tile (30px, 22.5% corners) beside the serif wordmark (24px DM Serif Display), on the night hero. Once the hero scrolls away, a frosted paper bar slides in with the same lockup and the App Store badge.
+- **Record mark (web):** the icon's record (ink disc, terracotta label, serif S) drawn without its tile. The hero shows it sliding out of a song's sleeve; keep the S label visible whenever it appears.
 - **Surfaces:** every surface is a full screen or a compact bottom sheet sized to content (Deep Paper, 20px top radius, grabber in Edge). No page-sheet cards that cover most of a screen.
 
 ### Device (web)
