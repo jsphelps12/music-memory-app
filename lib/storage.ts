@@ -245,22 +245,16 @@ export async function uploadAvatar(
 }
 
 /**
- * Return the public URL for a storage path.
- * The moment-photos bucket must be set to public in the Supabase dashboard.
- * No API call needed — the URL is deterministic.
+ * Return the public URL for a storage path: photos, thumbnails, covers and
+ * avatars alike. The moment-photos bucket must be set to public in the
+ * Supabase dashboard. No API call needed — the URL is deterministic.
+ *
+ * Thumbnails are pre-resized to 400px at upload time
+ * (uploadMomentPhotoWithThumbnail), so they need no options either —
+ * Supabase's on-the-fly transform endpoint is a paid feature and returns 403
+ * FeatureNotEnabled on this project.
  */
 export function getPublicPhotoUrl(path: string): string {
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  return data.publicUrl;
-}
-
-/**
- * Public URL for a thumbnail storage path. Thumbnails are pre-resized to 400px
- * at upload time (uploadMomentPhotoWithThumbnail), so this is a plain public
- * URL — Supabase's on-the-fly transform endpoint is a paid feature and returns
- * 403 FeatureNotEnabled on this project.
- */
-export function getPublicPhotoThumbnailUrl(path: string): string {
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }
@@ -284,7 +278,7 @@ export function momentCardImageUrls(
 ): string[] {
   const thumbnails = moment.photoThumbnails ?? [];
   if (thumbnails.length > 0) {
-    return thumbnails.map((path) => getPublicPhotoThumbnailUrl(path));
+    return thumbnails.map((path) => getPublicPhotoUrl(path));
   }
   return (moment.photoUrls ?? []).map((path) => getPublicPhotoUrl(path));
 }

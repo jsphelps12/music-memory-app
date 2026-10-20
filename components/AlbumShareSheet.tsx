@@ -32,7 +32,7 @@ import {
   updateAlbumCover,
   AlbumMember,
 } from "@/lib/albums";
-import { uploadAlbumCover, getPublicPhotoThumbnailUrl } from "@/lib/storage";
+import { uploadAlbumCover, getPublicPhotoUrl } from "@/lib/storage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { friendlyError } from "@/lib/errors";
@@ -363,7 +363,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                   hitSlop={4}
                 >
                   <AppImage
-                    source={{ uri: getPublicPhotoThumbnailUrl(collection.coverPhotoUrl) }}
+                    source={{ uri: getPublicPhotoUrl(collection.coverPhotoUrl) }}
                     style={styles.coverThumb}
                     contentFit="cover"
                   />

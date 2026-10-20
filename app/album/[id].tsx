@@ -19,7 +19,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
-import { getPublicPhotoThumbnailUrl } from "@/lib/storage";
+import { getPublicPhotoUrl } from "@/lib/storage";
 import { MomentCard } from "@/components/MomentCard";
 import { AlbumShareSheet } from "@/components/AlbumShareSheet";
 import { IconButton } from "@/components/IconButton";
@@ -140,7 +140,7 @@ export default function AlbumDetailScreen() {
   const isOwner = collection?.role === "owner";
 
   const coverUrl = collection?.coverPhotoUrl
-    ? getPublicPhotoThumbnailUrl(collection.coverPhotoUrl)
+    ? getPublicPhotoUrl(collection.coverPhotoUrl)
     : null;
 
   const subLine = collection?.role === "member" && collection?.ownerName
