@@ -5,8 +5,11 @@
  * This compares the actual public-schema shape of both projects and fails on
  * any difference.
  *
- * Compared: tables + columns (type, nullability, default), RLS policies
- * (name, command, roles, permissiveness), and function signatures. Values and
+ * Compared: tables + columns (type, nullability, default), RLS policies on
+ * public and storage tables (name, command, roles, permissiveness, and the
+ * USING / WITH CHECK expressions with whitespace collapsed), and function
+ * signatures. Two policies with the same name but different expressions are
+ * a difference. Values and
  * data are never read.
  *
  * Usage:
@@ -32,10 +35,17 @@ from information_schema.columns
 where table_schema = 'public'
 union all
 select 'policy' as kind,
-       tablename || '.' || policyname as key,
-       cmd || ' roles=' || array_to_string(roles, ',') || ' permissive=' || permissive as shape
+       case when schemaname = 'public' then '' else schemaname || '.' end
+         || tablename || '.' || policyname as key,
+       cmd || ' roles=' || array_to_string(array(select unnest(roles) order by 1), ',')
+         || ' permissive=' || permissive
+         -- pg_policies deparses the stored expression trees, so the same
+         -- policy text reads back identically on both projects; whitespace is
+         -- collapsed anyway in case of a server-version formatting change.
+         || ' using=' || coalesce(regexp_replace(qual, '\\s+', ' ', 'g'), '-')
+         || ' check=' || coalesce(regexp_replace(with_check, '\\s+', ' ', 'g'), '-') as shape
 from pg_policies
-where schemaname = 'public'
+where schemaname in ('public', 'storage')
 union all
 select 'function' as kind,
        p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' as key,
