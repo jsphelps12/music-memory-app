@@ -17,6 +17,9 @@ verify_jwt = true
 [functions.delete-account]
 verify_jwt = false # verifies the caller's JWT in-code
 
+[functions.delete-guest-moments]
+verify_jwt = true # album owners only; also verifies the caller in-code (writes with service role)
+
 [functions.notify-friend]
 verify_jwt = true # legacy, kept deployed for old binaries until the build-23 caboose
 
