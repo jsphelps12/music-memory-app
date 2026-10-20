@@ -51,8 +51,8 @@ const SCOPES = [
 
 function generateCodeVerifier(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
-  const randomBytes = new Uint8Array(64);
-  crypto.getRandomValues(randomBytes);
+  // expo-crypto, not the global: Hermes has no Web Crypto `crypto` object.
+  const randomBytes = Crypto.getRandomValues(new Uint8Array(64));
   return Array.from(randomBytes, (b) => chars[b % chars.length]).join("");
 }
 
