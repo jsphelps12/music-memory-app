@@ -4,6 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 import AlbumMomentList from "@/components/AlbumMomentList";
 import { fetchAlbumMomentItems, publicPhotoUrl } from "@/lib/albumMoments";
 import { AppStoreBadge, TopBar } from "@/components/Share";
+import { HandoffLink } from "@/components/HandoffLink";
 import s from "@/components/share.module.css";
 
 export const dynamic = "force-dynamic";
@@ -110,6 +111,10 @@ export default async function AlbumPage({ params }: PageProps) {
 
   const dateRange = formatDateRange(collection.date_from, collection.date_to);
 
+  // Deferred deep link: tapping either link puts this on the clipboard, and
+  // a fresh install reads it on first launch and opens the join screen.
+  const handoff = `soundtracks-invite:${invite_code}`;
+
   const meta = [
     ownerName ? `By ${ownerName}` : null,
     `${moments.length} ${moments.length === 1 ? "song" : "songs"}`,
@@ -142,10 +147,14 @@ export default async function AlbumPage({ params }: PageProps) {
         <section className={s.ask}>
           <p className={s.body}>Soundtracks is a journal for the songs that mark your days.</p>
           <div className={s.askActions}>
-            <AppStoreBadge />
-            <a href={`soundtracks://join?inviteCode=${invite_code}`} className={`${s.meta} ${s.textLink}`}>
+            <AppStoreBadge handoff={handoff} />
+            <HandoffLink
+              href={`soundtracks://join?inviteCode=${invite_code}`}
+              handoff={handoff}
+              className={`${s.meta} ${s.textLink}`}
+            >
               Have the app? Open this album
-            </a>
+            </HandoffLink>
           </div>
         </section>
       </div>
