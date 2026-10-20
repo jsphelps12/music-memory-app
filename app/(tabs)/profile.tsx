@@ -316,7 +316,7 @@ export default function YouScreen() {
         {sharedItems.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.eyebrow}>Shared with you</Text>
+              <Text style={styles.sectionTitle}>Shared with you</Text>
               <TouchableOpacity onPress={() => router.push("/shared")} hitSlop={10} accessibilityRole="button">
                 <Text style={styles.sectionAction}>See all</Text>
               </TouchableOpacity>
@@ -350,7 +350,7 @@ export default function YouScreen() {
         {/* Albums */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.eyebrow}>Albums</Text>
+            <Text style={styles.sectionTitle}>Albums</Text>
             <TouchableOpacity onPress={() => setNewAlbumVisible(true)} hitSlop={10} accessibilityRole="button">
               <Text style={styles.sectionAction}>New album</Text>
             </TouchableOpacity>
@@ -503,12 +503,11 @@ function createStyles(theme: Theme) {
       justifyContent: "space-between",
       marginBottom: theme.spacing.sm,
     },
-    eyebrow: {
-      fontSize: 13,
-      fontFamily: theme.fonts.bodySemibold,
+    sectionTitle: {
+      fontSize: theme.fontSize.xl,
+      lineHeight: 26,
+      fontFamily: theme.fonts.display,
       color: theme.colors.text,
-      textTransform: "uppercase",
-      letterSpacing: 1,
     },
     sectionAction: {
       fontSize: theme.fontSize.sm,

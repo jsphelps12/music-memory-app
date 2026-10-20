@@ -51,6 +51,3 @@ supabase/.temp/
 .env.local
 
 .env.local
-
-# Impeccable review captures (regenerated per review)
-.impeccable/review/
