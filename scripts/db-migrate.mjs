@@ -22,9 +22,12 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Staging first. On apply, any staging failure (drift, or a migration that
+// errors) stops the run before production is touched, so a bad migration
+// lands on staging alone.
 const PROJECTS = [
-  { name: "production", ref: "izfhbtipzuvinyacttin" },
   { name: "staging", ref: "bqyrpahvdukllasafdpv" },
+  { name: "production", ref: "izfhbtipzuvinyacttin" },
 ];
 
 const TOKEN = process.env.SUPABASE_ACCESS_TOKEN;
@@ -59,6 +62,10 @@ async function runSql(ref, query) {
 let failed = false;
 
 for (const project of PROJECTS) {
+  if (failed && !CHECK_ONLY) {
+    console.error(`\n✗ stopping before ${project.name}: an earlier project failed`);
+    break;
+  }
   console.log(`\n── ${project.name} (${project.ref}) ──`);
   const rows = await runSql(
     project.ref,
@@ -105,11 +112,23 @@ for (const project of PROJECTS) {
   for (const m of pending) {
     const sql = readFileSync(join(migrationsDir, m.file), "utf8");
     console.log(`→ applying ${m.file}`);
-    await runSql(project.ref, sql);
-    await runSql(
-      project.ref,
-      `insert into supabase_migrations.schema_migrations (version, name) values ('${m.version}', '${m.name.replace(/'/g, "''")}')`
-    );
+    try {
+      await runSql(project.ref, sql);
+    } catch (e) {
+      console.error(`✗ ${m.file} failed on ${project.name}: ${e.message}`);
+      failed = true;
+      break;
+    }
+    try {
+      await runSql(
+        project.ref,
+        `insert into supabase_migrations.schema_migrations (version, name) values ('${m.version}', '${m.name.replace(/'/g, "''")}')`
+      );
+    } catch (e) {
+      console.error(`✗ ${m.file} applied on ${project.name} but recording it failed: ${e.message}`);
+      failed = true;
+      break;
+    }
     console.log(`✓ applied + recorded ${m.version}`);
   }
 }
