@@ -732,8 +732,9 @@
 /* ─── Hero: the sleeve on the drive home ───────────────────────────── */
 
 .sleeve {
-  margin: 0 clamp(150px, 18vw, 280px) 0 0;
-  width: min(380px, 28vw);
+  margin: 0 clamp(120px, 16vw, 280px) 0 0;
+  width: clamp(270px, 28vw, 380px);
+  flex: none;
   align-self: center;
 }
 
@@ -774,9 +775,17 @@
 }
 
 .sleeveSong {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
   font-family: var(--font-serif), Georgia, serif;
   font-size: 30px;
   line-height: 1.1;
+}
+
+.sleeveSong span {
+  white-space: nowrap;
 }
 
 .sleeveSong em {
@@ -784,7 +793,6 @@
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 17px;
   color: var(--night-soft);
-  margin-left: 8px;
 }
 
 .sleeveText {
