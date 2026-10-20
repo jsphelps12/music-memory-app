@@ -9,6 +9,8 @@
   --ink-soft: #5e5c66;
   --divider: #e9e2d9;
   --accent: #d9693f;
+  /* Terracotta darkened for small text on paper (4.9:1; #d9693f is 3.3:1). */
+  --accent-text: #b04f2a;
   --night: #0e0b0a;
   --night-text: #f5f0eb;
   --night-soft: #c9c0b9;
@@ -380,7 +382,7 @@
   margin: 0;
   font-size: 15px;
   font-variant-numeric: tabular-nums;
-  color: var(--accent);
+  color: var(--accent-text);
   text-align: center;
 }
 
@@ -419,7 +421,7 @@
   margin: 14px 0 26px;
   font-size: 14px;
   font-variant-numeric: tabular-nums;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .chapterBody {

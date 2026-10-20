@@ -1,0 +1,651 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-20T00:05:40+00:00",
+  "title": "Design System: Soundtracks",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "#FBF7F2",
+        "oklch": "oklch(97.8% 0.008 73.7)",
+        "tonalRamp": [
+          "#0D0B08",
+          "#272521",
+          "#45413D",
+          "#64615C",
+          "#85827D",
+          "#A8A4A0",
+          "#CCC8C4",
+          "#F2EEE9"
+        ]
+      },
+      "paper-deep": {
+        "role": "neutral",
+        "displayName": "Deep Paper",
+        "canonical": "#F3EDE6",
+        "oklch": "oklch(94.9% 0.011 71.9)",
+        "tonalRamp": [
+          "#0E0A06",
+          "#29241F",
+          "#46413C",
+          "#65605A",
+          "#87817B",
+          "#AAA49D",
+          "#CEC8C1",
+          "#F3EDE6"
+        ]
+      },
+      "paper-tertiary": {
+        "role": "neutral",
+        "displayName": "Paper Shade",
+        "canonical": "#EBE4DC",
+        "oklch": "oklch(92.2% 0.013 71.3)",
+        "tonalRamp": [
+          "#0F0A06",
+          "#29241E",
+          "#47413A",
+          "#666059",
+          "#87817A",
+          "#AAA49C",
+          "#CFC8C0",
+          "#F4EDE5"
+        ]
+      },
+      "paper-input": {
+        "role": "neutral",
+        "displayName": "Paper Input",
+        "canonical": "#F8F3EE",
+        "oklch": "oklch(96.7% 0.009 67.7)",
+        "tonalRamp": [
+          "#0E0B08",
+          "#282421",
+          "#45413D",
+          "#65605C",
+          "#86817D",
+          "#A9A49F",
+          "#CDC8C3",
+          "#F2EDE8"
+        ]
+      },
+      "elevated": {
+        "role": "neutral",
+        "displayName": "Raised White",
+        "canonical": "#FFFFFF",
+        "oklch": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#A5A5A5",
+          "#C9C9C9",
+          "#EEEEEE"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#23222B",
+        "oklch": "oklch(25.7% 0.017 290.3)",
+        "tonalRamp": [
+          "#0B0A12",
+          "#25242D",
+          "#42414B",
+          "#61606A",
+          "#82818C",
+          "#A5A3AF",
+          "#C9C7D4",
+          "#EEEDF9"
+        ]
+      },
+      "ink-body": {
+        "role": "neutral",
+        "displayName": "Body Ink",
+        "canonical": "#3A3943",
+        "oklch": "oklch(35.0% 0.017 290.1)",
+        "tonalRamp": [
+          "#0B0A12",
+          "#25242D",
+          "#42414B",
+          "#61606B",
+          "#82818C",
+          "#A4A3AF",
+          "#C9C7D4",
+          "#EEEDFA"
+        ]
+      },
+      "ink-secondary": {
+        "role": "neutral",
+        "displayName": "Graphite",
+        "canonical": "#5E5C66",
+        "oklch": "oklch(48.0% 0.016 295.0)",
+        "tonalRamp": [
+          "#0C0A11",
+          "#25242C",
+          "#42404A",
+          "#62606A",
+          "#83818B",
+          "#A5A3AE",
+          "#C9C7D3",
+          "#EFEDF8"
+        ]
+      },
+      "ink-tertiary": {
+        "role": "neutral",
+        "displayName": "Umber Gray",
+        "canonical": "#736A63",
+        "oklch": "oklch(53.0% 0.016 60.4)",
+        "tonalRamp": [
+          "#100A05",
+          "#2B231D",
+          "#48403A",
+          "#685F58",
+          "#8A8079",
+          "#ADA39B",
+          "#D1C7BF",
+          "#F7ECE4"
+        ]
+      },
+      "divider": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#E9E2D9",
+        "oklch": "oklch(91.6% 0.014 74.4)",
+        "tonalRamp": [
+          "#0F0A05",
+          "#29241D",
+          "#47413A",
+          "#666058",
+          "#888179",
+          "#AAA49B",
+          "#CFC8BF",
+          "#F4EDE4"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Edge",
+        "canonical": "#E0D8CF",
+        "oklch": "oklch(88.6% 0.015 70.9)",
+        "tonalRamp": [
+          "#0F0A05",
+          "#2A241D",
+          "#474139",
+          "#676058",
+          "#888179",
+          "#ABA49B",
+          "#D0C8BF",
+          "#F5EDE4"
+        ]
+      },
+      "chip": {
+        "role": "neutral",
+        "displayName": "Chip Paper",
+        "canonical": "#F0EAE3",
+        "oklch": "oklch(94.0% 0.011 71.9)",
+        "tonalRamp": [
+          "#0E0A06",
+          "#29241F",
+          "#46413B",
+          "#65605A",
+          "#87817B",
+          "#AAA49D",
+          "#CEC8C1",
+          "#F3EDE6"
+        ]
+      },
+      "terracotta": {
+        "role": "primary",
+        "displayName": "Terracotta",
+        "canonical": "#D9693F",
+        "oklch": "oklch(64.7% 0.152 40.5)",
+        "tonalRamp": [
+          "#260000",
+          "#4B0500",
+          "#742300",
+          "#9F3F17",
+          "#CB5D33",
+          "#EB8561",
+          "#FFAE8D",
+          "#FFD7B9"
+        ]
+      },
+      "terracotta-wash": {
+        "role": "primary",
+        "displayName": "Terracotta Wash",
+        "canonical": "#FDF0EB",
+        "oklch": "oklch(96.4% 0.016 42.4)",
+        "tonalRamp": [
+          "#110906",
+          "#2C231F",
+          "#4A3F3C",
+          "#695F5A",
+          "#8B807B",
+          "#AEA29D",
+          "#D3C6C1",
+          "#F8EBE6"
+        ]
+      },
+      "slate-violet": {
+        "role": "secondary",
+        "displayName": "Slate Violet",
+        "canonical": "#6B5F8C",
+        "oklch": "oklch(51.5% 0.071 296.1)",
+        "tonalRamp": [
+          "#0D071B",
+          "#27203A",
+          "#453C5D",
+          "#645A82",
+          "#867AA8",
+          "#A89DC9",
+          "#CCC2EA",
+          "#F1E9FF"
+        ]
+      },
+      "night": {
+        "role": "neutral",
+        "displayName": "Night",
+        "canonical": "#0E0B0A",
+        "oklch": "oklch(15.3% 0.006 39.3)",
+        "tonalRamp": [
+          "#0D0A09",
+          "#282423",
+          "#454140",
+          "#64605F",
+          "#858180",
+          "#A8A4A2",
+          "#CDC8C6",
+          "#F2EDEC"
+        ]
+      },
+      "night-raised": {
+        "role": "neutral",
+        "displayName": "Night Raised",
+        "canonical": "#1E1A18",
+        "oklch": "oklch(22.2% 0.007 48.4)",
+        "tonalRamp": [
+          "#0E0A09",
+          "#282422",
+          "#45413F",
+          "#65605E",
+          "#86817E",
+          "#A9A4A1",
+          "#CDC8C5",
+          "#F3EDEA"
+        ]
+      },
+      "night-tertiary": {
+        "role": "neutral",
+        "displayName": "Night Shade",
+        "canonical": "#2A2422",
+        "oklch": "oklch(26.6% 0.010 39.3)",
+        "tonalRamp": [
+          "#0F0A08",
+          "#2A2422",
+          "#47403E",
+          "#665F5D",
+          "#88807E",
+          "#ABA3A0",
+          "#CFC7C4",
+          "#F5ECEA"
+        ]
+      },
+      "night-text": {
+        "role": "neutral",
+        "displayName": "Night Paper",
+        "canonical": "#F5F0EB",
+        "oklch": "oklch(95.8% 0.009 67.7)",
+        "tonalRamp": [
+          "#0E0B08",
+          "#282421",
+          "#45413D",
+          "#65605C",
+          "#86817D",
+          "#A9A49F",
+          "#CDC8C3",
+          "#F2EDE8"
+        ]
+      },
+      "night-soft": {
+        "role": "neutral",
+        "displayName": "Night Soft",
+        "canonical": "#C9C0B9",
+        "oklch": "oklch(81.3% 0.014 60.5)",
+        "tonalRamp": [
+          "#100A06",
+          "#2A241E",
+          "#48403B",
+          "#676059",
+          "#89817A",
+          "#ACA39C",
+          "#D0C7C0",
+          "#F6EDE5"
+        ]
+      },
+      "night-secondary": {
+        "role": "neutral",
+        "displayName": "Night Gray",
+        "canonical": "#ABA39E",
+        "oklch": "oklch(72.1% 0.012 54.4)",
+        "tonalRamp": [
+          "#0F0A07",
+          "#2A2420",
+          "#47403C",
+          "#67605B",
+          "#88817C",
+          "#ABA39E",
+          "#D0C7C2",
+          "#F5EDE7"
+        ]
+      },
+      "night-terracotta": {
+        "role": "primary",
+        "displayName": "Ember",
+        "canonical": "#EE8B62",
+        "oklch": "oklch(73.4% 0.133 42.8)",
+        "tonalRamp": [
+          "#230000",
+          "#470E00",
+          "#6E2A06",
+          "#984621",
+          "#C2643C",
+          "#E38B67",
+          "#FFB392",
+          "#FFDBBE"
+        ]
+      },
+      "night-button": {
+        "role": "neutral",
+        "displayName": "Night Button",
+        "canonical": "#F5EEE8",
+        "oklch": "oklch(95.3% 0.011 63.4)",
+        "tonalRamp": [
+          "#0F0A07",
+          "#292420",
+          "#46413C",
+          "#66605B",
+          "#87817C",
+          "#AAA49E",
+          "#CEC8C2",
+          "#F4EDE7"
+        ]
+      },
+      "destructive": {
+        "role": "status",
+        "displayName": "Destructive",
+        "canonical": "#D32F2F",
+        "oklch": "oklch(56.8% 0.200 26.4)",
+        "tonalRamp": [
+          "#2D0000",
+          "#570000",
+          "#830007",
+          "#B11F21",
+          "#E13F3C",
+          "#FF7167",
+          "#FF9E92",
+          "#FFCABD"
+        ]
+      },
+      "success": {
+        "role": "status",
+        "displayName": "Success",
+        "canonical": "#2E7D32",
+        "oklch": "oklch(52.3% 0.135 144.2)",
+        "tonalRamp": [
+          "#001200",
+          "#003000",
+          "#125017",
+          "#2D7230",
+          "#49974B",
+          "#74B974",
+          "#9EDC9D",
+          "#C9FFC8"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Web hero headlines only; closing statements at clamp(40px, 5.6vw, 76px)."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "App screen titles and entry song titles; web section titles at clamp(34px, 4vw, 52px)."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card, album and section names inside screens."
+      },
+      "reading": {
+        "displayName": "Reading",
+        "purpose": "Only words a person wrote: reflections, excerpts, notes. 22px/33px in the writer; clamp(21px, 2vw, 26px) on web."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "UI copy; 17px at 1.55 on web."
+      },
+      "body-strong": {
+        "displayName": "Body Strong",
+        "purpose": "Song names in rows and button labels."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "List section headers (timeline month), in the text's own case."
+      },
+      "meta": {
+        "displayName": "Meta",
+        "purpose": "Dates, counts, footnotes; tabular figures."
+      }
+    },
+    "shadows": [
+      {
+        "name": "segment-lift",
+        "value": "0 1px 2px rgba(0,0,0,0.08)",
+        "purpose": "Selected segment in a segmented control; none in dark."
+      },
+      {
+        "name": "card-hint",
+        "value": "0 1px 4px rgba(0,0,0,0.08)",
+        "purpose": "Theme card shadow; rarely used since rows replaced cards."
+      },
+      {
+        "name": "float",
+        "value": "0 8px 12px rgba(0,0,0,0.2)",
+        "purpose": "Floating capture button (0.5 opacity in dark)."
+      },
+      {
+        "name": "artwork-lift",
+        "value": "0 18px 24px rgba(0,0,0,0.25)",
+        "purpose": "Large album artwork on an entry."
+      },
+      {
+        "name": "device",
+        "value": "inset 0 0 0 1.5px #3b3a40, 0 2px 4px rgba(0,0,0,0.18), 0 34px 70px -18px rgba(0,0,0,0.55)",
+        "purpose": "The CSS iPhone on web."
+      },
+      {
+        "name": "night-scrim",
+        "value": "linear-gradient(90deg, rgba(14,11,10,0.86) 0%, rgba(14,11,10,0.5) 42%, rgba(14,11,10,0.08) 100%)",
+        "purpose": "Over night photographs so text holds contrast; near-solid rgba(14,11,10,0.86) on small screens."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-expo",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Device screen cross-fade with 8px blur, 0.7s."
+      },
+      {
+        "name": "fade-quick",
+        "value": "opacity 0.2s ease",
+        "purpose": "Badge and link hover."
+      },
+      {
+        "name": "count-run",
+        "value": "900ms ease-out cubic",
+        "purpose": "A year counter runs to its new value; lands instantly with reduced motion."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "prefers-reduced-motion: reduce",
+        "purpose": "Transitions, blur and transforms removed; content identical."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "web-stack",
+        "value": "900px"
+      }
+    ],
+    "layout": {
+      "webGutter": "clamp(20px, 5vw, 72px)",
+      "webMaxWide": "1360px",
+      "webMaxList": "1200px",
+      "webSectionGap": "clamp(96px, 12vw, 160px)",
+      "appPagePadding": "20px"
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Full-width ink button for the one primary action on a screen (sign in, continue).",
+      "html": "<button class=\"ds-btn-primary\">Continue</button>",
+      "css": ".ds-btn-primary { width: 320px; height: 52px; background: #23222B; color: #FBF7F2; border: none; border-radius: 14px; font-family: \"DM Sans\", -apple-system, system-ui, sans-serif; font-size: 16px; font-weight: 600; cursor: pointer; transition: opacity 0.2s ease; } .ds-btn-primary:hover { opacity: 0.9; } .ds-btn-primary:active { opacity: 0.8; } .ds-btn-primary:focus-visible { outline: 2px solid #D9693F; outline-offset: 4px; } .ds-btn-primary:disabled { opacity: 0.6; }"
+    },
+    {
+      "name": "Save Pill",
+      "kind": "button",
+      "refersTo": "button-pill",
+      "description": "Compact header action (Save) as an ink pill.",
+      "html": "<button class=\"ds-btn-pill\">Save</button>",
+      "css": ".ds-btn-pill { height: 36px; padding: 0 18px; background: #23222B; color: #FBF7F2; border: none; border-radius: 9999px; font-family: \"DM Sans\", -apple-system, system-ui, sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity 0.2s ease; } .ds-btn-pill:hover { opacity: 0.9; } .ds-btn-pill:focus-visible { outline: 2px solid #D9693F; outline-offset: 3px; }"
+    },
+    {
+      "name": "Capture Button",
+      "kind": "button",
+      "refersTo": "button-capture",
+      "description": "The floating 60px ink circle above the tab bar; the app's persistent capture action.",
+      "html": "<button class=\"ds-capture\" aria-label=\"Capture a song\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" aria-hidden=\"true\"><path d=\"M9 18.5a2.5 2.5 0 1 1-2.5-2.5c.53 0 1.02.16 1.5.44V5.2a1 1 0 0 1 .78-.98l9-2a1 1 0 0 1 1.22.98v12.3a2.5 2.5 0 1 1-1.5-2.3V7.1l-8.5 1.9v9.5Z\" fill=\"currentColor\"/></svg></button>",
+      "css": ".ds-capture { width: 60px; height: 60px; border-radius: 9999px; border: none; background: #23222B; color: #FBF7F2; display: grid; place-items: center; box-shadow: 0 8px 12px rgba(0,0,0,0.2); cursor: pointer; transition: transform 0.15s ease; } .ds-capture:hover { transform: translateY(-1px); } .ds-capture:active { transform: scale(0.96); } .ds-capture:focus-visible { outline: 2px solid #D9693F; outline-offset: 4px; }"
+    },
+    {
+      "name": "Mood Chips",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Outlined pills for moods and people; selected fills with ink; add chip is dashed.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip ds-chip-on\">nostalgic</button><button class=\"ds-chip\">restless</button><button class=\"ds-chip\">calm</button><button class=\"ds-chip ds-chip-add\">Add</button></div>",
+      "css": ".ds-chips { display: flex; flex-wrap: wrap; gap: 8px; } .ds-chip { padding: 8px 12px; border-radius: 9999px; border: 1px solid #E0D8CF; background: transparent; color: #3D3C48; font-family: \"DM Sans\", -apple-system, system-ui, sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.15s ease, color 0.15s ease; } .ds-chip:hover { background: #F0EAE3; } .ds-chip:focus-visible { outline: 2px solid #D9693F; outline-offset: 2px; } .ds-chip-on, .ds-chip-on:hover { background: #23222B; border-color: #23222B; color: #FFFFFF; } .ds-chip-add { padding: 8px 14px; background: #F0EAE3; border-style: dashed; color: #5E5C66; }"
+    },
+    {
+      "name": "Entry Row",
+      "kind": "card",
+      "refersTo": "entry-row",
+      "description": "The journal's core unit: artwork, song then artist, the reflection in Newsreader, meta, hairline below.",
+      "html": "<div class=\"ds-rows\"><article class=\"ds-row\"><div class=\"ds-art\"></div><div><p class=\"ds-song\">Space Song <span>Beach House</span></p><p class=\"ds-text\">Drove the long way home so this would finish before the exit.</p><p class=\"ds-meta\">October 19, 2019 &middot; <span class=\"ds-moods\">NOSTALGIC</span></p></div></article></div>",
+      "css": ".ds-rows { max-width: 420px; background: #FBF7F2; padding: 0 20px; } .ds-row { display: grid; grid-template-columns: 56px 1fr; gap: 12px; padding: 16px 0; border-bottom: 1px solid #E9E2D9; } .ds-art { width: 56px; height: 56px; border-radius: 8px; background: linear-gradient(135deg, #2b4a6b, #c98a5a); } .ds-song { margin: 0; font-family: \"DM Sans\", -apple-system, system-ui, sans-serif; font-size: 16px; font-weight: 600; color: #23222B; } .ds-song span { font-weight: 400; color: #5E5C66; margin-left: 4px; font-size: 14px; } .ds-text { margin: 6px 0 0; font-family: Newsreader, Georgia, serif; font-size: 17px; line-height: 25px; color: #23222B; } .ds-meta { margin: 8px 0 0; font-family: \"DM Sans\", -apple-system, system-ui, sans-serif; font-size: 13px; color: #5E5C66; font-variant-numeric: tabular-nums; } .ds-moods { font-size: 11px; font-weight: 600; letter-spacing: 1px; color: #736A63; }"
+    },
+    {
+      "name": "Tracklist",
+      "kind": "custom",
+      "refersTo": "tracklist",
+      "description": "A shared album as a record tracklist: 2px ink rule, serif title, numbered rows, contributor words in Newsreader.",
+      "html": "<figure class=\"ds-tl\"><figcaption><span class=\"ds-tl-title\">Windows down</span><span class=\"ds-tl-meta\">2 songs &middot; 2 people</span></figcaption><ol><li><span class=\"ds-tl-no\">1</span><span class=\"ds-tl-song\">Dreams <em>Fleetwood Mac</em></span><span class=\"ds-tl-by\">Priya, &ldquo;Boulder, windows down&rdquo;</span></li><li><span class=\"ds-tl-no\">2</span><span class=\"ds-tl-song\">Lovely Day <em>Bill Withers</em></span><span class=\"ds-tl-by\">Mara, &ldquo;every Sunday that summer&rdquo;</span></li></ol></figure>",
+      "css": ".ds-tl { margin: 0; max-width: 460px; padding: 24px 0 0; border-top: 2px solid #23222B; background: #FBF7F2; color: #23222B; } .ds-tl figcaption { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; } .ds-tl-title { font-family: \"DM Serif Display\", Georgia, serif; font-size: 30px; line-height: 1; } .ds-tl-meta { font-family: \"DM Sans\", -apple-system, system-ui, sans-serif; font-size: 14px; color: #5E5C66; } .ds-tl ol { list-style: none; margin: 0; padding: 0; } .ds-tl li { display: grid; grid-template-columns: 28px 1fr; column-gap: 12px; padding: 16px 0; border-top: 1px solid #E9E2D9; } .ds-tl-no { grid-row: span 2; font-family: \"DM Sans\", -apple-system, system-ui, sans-serif; font-size: 15px; color: #5E5C66; font-variant-numeric: tabular-nums; } .ds-tl-song { font-family: \"DM Sans\", -apple-system, system-ui, sans-serif; font-size: 17px; font-weight: 600; } .ds-tl-song em { font-style: normal; font-weight: 400; color: #5E5C66; margin-left: 6px; } .ds-tl-by { margin-top: 4px; font-family: Newsreader, Georgia, serif; font-size: 18px; color: #3A3943; }"
+    },
+    {
+      "name": "Search Field",
+      "kind": "input",
+      "refersTo": "search-field",
+      "description": "Borderless filled field on Chip Paper, 12px radius.",
+      "html": "<label class=\"ds-search\"><svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"m20 20-3.5-3.5\"/></svg><input placeholder=\"Search your journal\" /></label>",
+      "css": ".ds-search { display: flex; align-items: center; gap: 8px; width: 320px; padding: 10px 12px; border-radius: 12px; background: #F0EAE3; color: #7A716A; } .ds-search input { flex: 1; border: none; background: transparent; font-family: \"DM Sans\", -apple-system, system-ui, sans-serif; font-size: 15px; color: #23222B; outline: none; } .ds-search input::placeholder { color: #7A716A; } .ds-search:focus-within { box-shadow: 0 0 0 2px #D9693F; }"
+    },
+    {
+      "name": "Tab Bar",
+      "kind": "nav",
+      "refersTo": "tab-bar",
+      "description": "Paper bar with hairline top; ink active, warm gray inactive; terracotta dot for new activity.",
+      "html": "<nav class=\"ds-tabs\"><a class=\"ds-tab ds-tab-on\" href=\"#\"><span class=\"ds-ico\"></span>Moments</a><a class=\"ds-tab\" href=\"#\"><span class=\"ds-ico\"><i class=\"ds-dot\"></i></span>Reflections</a><a class=\"ds-tab\" href=\"#\"><span class=\"ds-ico\"></span>Albums</a><a class=\"ds-tab\" href=\"#\"><span class=\"ds-ico\"></span>Me</a></nav>",
+      "css": ".ds-tabs { display: flex; width: 390px; background: #FBF7F2; border-top: 1px solid #E9E2D9; padding: 8px 0 6px; } .ds-tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; font-family: \"DM Sans\", -apple-system, system-ui, sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.1px; color: #6E655E; text-decoration: none; } .ds-tab:hover { color: #23222B; } .ds-tab:focus-visible { outline: 2px solid #D9693F; outline-offset: 2px; border-radius: 6px; } .ds-tab-on { color: #23222B; font-weight: 600; } .ds-ico { position: relative; width: 22px; height: 22px; border: 2px solid currentColor; border-radius: 6px; } .ds-dot { position: absolute; top: -3px; right: -7px; width: 8px; height: 8px; border-radius: 4px; background: #D9693F; }"
+    },
+    {
+      "name": "Bottom Sheet",
+      "kind": "card",
+      "refersTo": "sheet",
+      "description": "Quick-pick surface sized to content: Deep Paper, 20px top corners, grabber, over a dim scrim.",
+      "html": "<div class=\"ds-scrim\"><div class=\"ds-sheet\"><span class=\"ds-grab\"></span><p class=\"ds-sheet-title\">Add to album</p><p class=\"ds-sheet-row\">Windows down</p><p class=\"ds-sheet-row\">Summer 2019</p></div></div>",
+      "css": ".ds-scrim { width: 390px; height: 300px; background: rgba(0,0,0,0.3); display: flex; align-items: flex-end; } .ds-sheet { width: 100%; background: #F3EDE6; border-radius: 20px 20px 0 0; padding: 10px 20px 24px; } .ds-grab { display: block; width: 36px; height: 4px; border-radius: 2px; background: #E0D8CF; margin: 0 auto 16px; } .ds-sheet-title { margin: 0 0 8px; font-family: \"DM Serif Display\", Georgia, serif; font-size: 22px; color: #23222B; } .ds-sheet-row { margin: 0; padding: 12px 0; border-bottom: 1px solid #E9E2D9; font-family: \"DM Sans\", -apple-system, system-ui, sans-serif; font-size: 16px; color: #23222B; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Liner Notes",
+    "overview": "**Creative North Star: \"The Liner Notes\"**\n\nSoundtracks reads like the paper insert inside a record sleeve: warm paper, dark ink, a serif title, a tracklist ruled with hairlines, and the album cover carrying all the color. The interface steps back so the artwork and the person's own words lead. It is a journal first, so the type system separates three voices: DM Serif Display names things, Newsreader sets anything a person wrote, DM Sans runs the interface.\n\nDensity is calm and list-shaped. Entries are rows on paper separated by hairline dividers, not cards in a grid. Color is rationed: neutrals are warm-tinted (no pure grays), terracotta appears as one signal at a time (an unread dot, an active indicator, a focus ring), and saturated color otherwise only arrives through album artwork and photographs. Night (#0E0B0A) is the second material: the app's dark theme, and on the web the full-bleed photographic sections where a song was heard.\n\nThe system is shared across the iOS app (the authority, `constants/theme.ts`) and its web surfaces in `web/`, which carry the same values as CSS custom properties.",
+    "keyCharacteristics": [
+      "Paper and ink, warm-tinted neutrals, never pure gray.",
+      "One terracotta signal per view; artwork is the color.",
+      "Three type voices: serif display for names, Newsreader for writing, DM Sans for UI.",
+      "Hairline-ruled rows instead of boxed cards.",
+      "Flat at rest; shadow only on things that float or lift (the capture button, artwork, a device).",
+      "Dark mode is a true night, not inverted gray."
+    ],
+    "rules": [
+      {
+        "name": "The One Signal Rule",
+        "body": "Terracotta marks one thing at a time on a view: a dot, an indicator, a focus ring. If two terracotta elements compete, one of them should be ink.",
+        "section": "colors"
+      },
+      {
+        "name": "The Artwork Is the Color Rule",
+        "body": "No decorative color fields, gradients, or tinted panels. Saturation comes from album art and photographs; everything the system draws is paper, ink, or night.",
+        "section": "colors"
+      },
+      {
+        "name": "The Warm Neutral Rule",
+        "body": "Every gray is tinted warm. Do not introduce neutral `#999`-style grays or pure-white text on night; use the named neutrals.",
+        "section": "colors"
+      },
+      {
+        "name": "The Who's Speaking Rule",
+        "body": "Newsreader is only for words a person wrote. UI copy never borrows it, and a reflection is never set in DM Sans or the display face.",
+        "section": "typography"
+      },
+      {
+        "name": "The Song Then Artist Rule",
+        "body": "A song is always shown as name in Body Strong, then artist in regular weight and Graphite, on one line.",
+        "section": "typography"
+      },
+      {
+        "name": "The Rows Not Boxes Rule",
+        "body": "Collections of entries are rows on the page ruled by hairlines (top border on the list, bottom border per row), never a grid of filled cards.",
+        "section": "layout"
+      },
+      {
+        "name": "The Lift Means Physical Rule",
+        "body": "Shadow is reserved for things that sit above the page in the real world. If it is part of the page, it is flat and divided by a hairline.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do take every value from `constants/theme.ts` (app) or the matching custom properties (web); paper is #FBF7F2 and ink #23222B on both.",
+      "Do separate list items with hairline dividers in `divider` and let rows run full width.",
+      "Do set anything a person wrote in Newsreader, upright, at reading size.",
+      "Do show a song as name (600) then artist (400, Graphite).",
+      "Do let artwork and photographs carry the color; keep the chrome paper, ink, or night.",
+      "Do use an 8px terracotta dot for \"something new\", and Graphite for spinners.",
+      "Do make every web section read fully without motion and on a phone."
+    ],
+    "donts": [
+      "Don't use terracotta for body-size text or for more than one element per view.",
+      "Don't box entries in filled cards or shadowed tiles; rows and hairlines only.",
+      "Don't use pure grays (#999, rgba of black on white) or pure white text on night.",
+      "Don't set UI copy in Newsreader or a reflection in DM Sans or the display face.",
+      "Don't add shadows to things that are part of the page; shadow is for the capture button, lifted artwork, sheets and devices.",
+      "Don't stack an uppercase tracked label above a title; let the serif title and Meta line carry hierarchy.",
+      "Don't show counts on badges; a dot is the signal."
+    ]
+  }
+}
