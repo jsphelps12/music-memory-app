@@ -5,8 +5,8 @@ import styles from "./landing.module.css";
 
 /**
  * The drive home as the ground, and the song's sleeve with our record sliding
- * out of it: the song is theirs, the record is yours. Rumours because
- * everyone knows that sleeve; the caption matches the demo album below.
+ * out of it: the song is theirs, the record is yours. Blonde ("Nights")
+ * on the night it came out.
  */
 export function Hero({ badge }: { badge: ReactNode }) {
   return (
@@ -38,15 +38,15 @@ export function Hero({ badge }: { badge: ReactNode }) {
           <div className={styles.sleevePair}>
             <RecordMark size={600} className={styles.sleeveRecord} />
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/art/rumours-760.jpg" alt="Rumours by Fleetwood Mac" width={760} height={760} />
+            <img src="/art/blonde-760.jpg" alt="Blonde by Frank Ocean" width={760} height={760} />
           </div>
           <figcaption>
-            <span className={styles.sleeveWhen}>Friday, July 12, 2019 · 10:52 PM</span>
+            <span className={styles.sleeveWhen}>Saturday, August 20, 2016 · 11:52 PM</span>
             <span className={styles.sleeveSong}>
-              <span>Dreams</span> <em>Fleetwood Mac</em>
+              <span>Nights</span> <em>Frank Ocean</em>
             </span>
             <span className={styles.sleeveText}>
-              Windows down the whole way to Boulder. Priya knew every word.
+              Drove past our exit to hear the beat switch again.
             </span>
           </figcaption>
         </figure>
