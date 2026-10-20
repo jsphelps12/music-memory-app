@@ -271,8 +271,26 @@ async function removeCoverObject(path: string | null | undefined): Promise<void>
  * Delete an album and its cover image. The bucket is public, so the image has
  * to go with the row (CLAUDE.md). The cover is removed only once the row
  * delete has succeeded.
+ *
+ * An album with a guest user also holds guest contributions, which only the
+ * server can clean up (rows and photos). That runs first, and a failure stops
+ * the delete so it can be retried; deleting the album first would leave them
+ * behind with nothing pointing at them.
  */
 export async function deleteAlbum(id: string): Promise<void> {
+  const { data: album, error: lookupError } = await supabase
+    .from("collections")
+    .select("guest_user_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  if (album?.guest_user_id) {
+    const { error: cleanupError } = await supabase.functions.invoke("delete-guest-moments", {
+      body: { collectionId: id },
+    });
+    if (cleanupError) throw cleanupError;
+  }
+
   const { data, error } = await supabase
     .from("collections")
     .delete()
