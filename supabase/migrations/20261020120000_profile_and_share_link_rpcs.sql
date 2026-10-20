@@ -17,24 +17,22 @@ AS $$
   WHERE p.id = (SELECT auth.uid());
 $$;
 
--- 2. Opening a /m/{share_token} link while signed in. Resolves the token and,
---    when the caller isn't the owner, records a moment_shares row from the
---    owner to the caller, so the moment is readable through the normal
---    "shared with me" access rule and appears in the caller's inbox. The row
---    is marked viewed (the caller is opening it now). The owner can remove it
---    like any other share. Returns the moment id, or NULL when the token is
---    malformed, unknown or revoked.
+-- 2. Opening a /m/{share_token} link while signed in. A read-only lookup
+--    tied to the token's current value: clearing or rotating share_token
+--    ends access, and nothing is recorded for the caller. Returns NULL when
+--    the token is malformed or matches no moment. For the owner it returns
+--    only {"id", "is_owner": true} so the app opens the normal detail screen;
+--    for anyone else, the public fields the /m page shows (as
+--    get_shared_moment) plus what a read-only in-app view needs.
 CREATE OR REPLACE FUNCTION public.open_shared_moment(p_token text)
-RETURNS uuid
+RETURNS jsonb
 LANGUAGE plpgsql
-VOLATILE SECURITY DEFINER
+STABLE SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 DECLARE
-  v_uid       uuid := auth.uid();
-  v_token     uuid;
-  v_moment_id uuid;
-  v_owner_id  uuid;
+  v_uid   uuid := auth.uid();
+  v_token uuid;
 BEGIN
   IF v_uid IS NULL THEN
     RETURN NULL;
@@ -46,21 +44,36 @@ BEGIN
     RETURN NULL;
   END;
 
-  SELECT m.id, m.user_id INTO v_moment_id, v_owner_id
-  FROM public.moments m
-  WHERE m.share_token = v_token;
-
-  IF v_moment_id IS NULL THEN
-    RETURN NULL;
-  END IF;
-
-  IF v_owner_id IS DISTINCT FROM v_uid THEN
-    INSERT INTO public.moment_shares (moment_id, sender_id, recipient_id, viewed_at)
-    VALUES (v_moment_id, v_owner_id, v_uid, now())
-    ON CONFLICT (moment_id, recipient_id) DO NOTHING;
-  END IF;
-
-  RETURN v_moment_id;
+  RETURN (
+    SELECT CASE
+      WHEN m.user_id = v_uid THEN
+        jsonb_build_object('id', m.id, 'is_owner', true)
+      ELSE
+        jsonb_build_object(
+          'id', m.id,
+          'is_owner', false,
+          'song_title', m.song_title,
+          'song_artist', m.song_artist,
+          'song_album_name', m.song_album_name,
+          'song_artwork_url', m.song_artwork_url,
+          'song_preview_url', m.song_preview_url,
+          'song_apple_music_id', m.song_apple_music_id,
+          'reflection_text', m.reflection_text,
+          'photo_urls', m.photo_urls,
+          'photo_thumbnails', m.photo_thumbnails,
+          'moment_date', m.moment_date,
+          'mood', m.mood,
+          'moods', m.moods,
+          'location', m.location,
+          'sender_name', p.display_name,
+          'sender_avatar_url', p.avatar_url,
+          'sender_friend_token', p.friend_invite_token
+        )
+    END
+    FROM public.moments m
+    LEFT JOIN public.profiles p ON p.id = m.user_id
+    WHERE m.share_token = v_token
+  );
 END;
 $$;
 
