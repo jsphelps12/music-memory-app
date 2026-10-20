@@ -3,7 +3,8 @@
 import { useState, useRef, useCallback } from "react";
 import { submitContribution } from "./actions";
 import { compressImage } from "@/lib/compressImage";
-import Image from "next/image";
+import { TopBar } from "@/components/Share";
+import s from "@/components/share.module.css";
 
 interface SongResult {
   trackId: number;
@@ -132,216 +133,160 @@ export default function ContributeForm({ collectionName, inviteCode }: Props) {
   }
 
   return (
-    <div className="min-h-screen pb-12" style={{ backgroundColor: "var(--bg)" }}>
-      {/* Header */}
-      <div className="px-6 pt-10 pb-6 max-w-xl mx-auto">
-        <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--accent)" }}>
-          {collectionName}
-        </p>
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          Add Your Memory
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: "var(--text-meta)" }}>
-          Share a song that reminds you of this moment.
-        </p>
-      </div>
+    <main className={s.page}>
+      <div className={`${s.column} ${s.narrow}`}>
+        <TopBar />
 
-      <form onSubmit={handleSubmit} className="px-6 max-w-xl mx-auto space-y-6">
-        {/* Name */}
-        <div>
-          <label className="block text-sm font-semibold mb-1" style={{ color: "var(--text)" }}>
-            Your name <span style={{ color: "var(--accent)" }}>*</span>
-          </label>
-          <input
-            type="text"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Sarah"
-            className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-            style={{
-              backgroundColor: "var(--input-bg)",
-              color: "var(--text)",
-              border: "none",
-            }}
-          />
-        </div>
-
-        {/* Song search */}
-        <div>
-          <label className="block text-sm font-semibold mb-1" style={{ color: "var(--text)" }}>
-            Song <span style={{ color: "var(--accent)" }}>*</span>
-          </label>
-
-          {selectedSong ? (
-            /* Selected song chip */
-            <div
-              className="flex items-center gap-3 rounded-xl px-4 py-3"
-              style={{ backgroundColor: "var(--input-bg)" }}
-            >
-              <Image
-                src={selectedSong.artworkUrl100}
-                alt=""
-                width={40}
-                height={40}
-                className="rounded-lg object-cover shrink-0"
-                unoptimized
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate" style={{ color: "var(--text)" }}>
-                  {selectedSong.trackName}
-                </p>
-                <p className="text-xs truncate" style={{ color: "var(--text-meta)" }}>
-                  {selectedSong.artistName}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleClearSong}
-                className="shrink-0 text-sm font-semibold"
-                style={{ color: "var(--accent)" }}
-              >
-                Change
-              </button>
-            </div>
-          ) : (
-            <>
-              <input
-                type="text"
-                value={songQuery}
-                onChange={handleSongQueryChange}
-                placeholder="Search for a song..."
-                className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                style={{
-                  backgroundColor: "var(--input-bg)",
-                  color: "var(--text)",
-                  border: "none",
-                }}
-              />
-              {searching && (
-                <p className="text-xs mt-1" style={{ color: "var(--text-meta)" }}>Searching…</p>
-              )}
-              {songResults.length > 0 && (
-                <div
-                  className="mt-1 rounded-xl overflow-hidden"
-                  style={{ backgroundColor: "var(--input-bg)", border: "1px solid var(--input-border)" }}
-                >
-                  {songResults.map((song) => (
-                    <button
-                      key={song.trackId}
-                      type="button"
-                      onClick={() => handleSelectSong(song)}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:opacity-80 transition-opacity"
-                      style={{ borderBottom: "1px solid var(--input-border)" }}
-                    >
-                      <Image
-                        src={song.artworkUrl100}
-                        alt=""
-                        width={36}
-                        height={36}
-                        className="rounded-lg object-cover shrink-0"
-                        unoptimized
-                      />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate" style={{ color: "var(--text)" }}>
-                          {song.trackName}
-                        </p>
-                        <p className="text-xs truncate" style={{ color: "var(--text-meta)" }}>
-                          {song.artistName}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Reflection */}
-        <div>
-          <label className="block text-sm font-semibold mb-1" style={{ color: "var(--text)" }}>
-            Message <span style={{ color: "var(--text-meta)", fontWeight: 400 }}>(optional)</span>
-          </label>
-          <textarea
-            value={reflection}
-            onChange={(e) => setReflection(e.target.value)}
-            placeholder="What does this song mean to you, or what does it remind you of? (optional)"
-            rows={4}
-            className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-none"
-            style={{
-              backgroundColor: "var(--input-bg)",
-              color: "var(--text)",
-              border: "none",
-            }}
-          />
-        </div>
-
-        {/* Photo */}
-        <div>
-          <label className="block text-sm font-semibold mb-1" style={{ color: "var(--text)" }}>
-            Photo <span style={{ color: "var(--text-meta)", fontWeight: 400 }}>(optional)</span>
-          </label>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handlePhotoChange}
-          />
-          {photoPreview ? (
-            <div className="relative rounded-xl overflow-hidden" style={{ aspectRatio: "4/3" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={photoPreview}
-                alt="Preview"
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setPhotoPreview(null);
-                  setPhotoFile(null);
-                  if (fileInputRef.current) fileInputRef.current.value = "";
-                }}
-                className="absolute top-2 right-2 rounded-full px-3 py-1 text-xs font-semibold"
-                style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "#fff" }}
-              >
-                Change
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full rounded-xl flex flex-col items-center justify-center gap-2 py-10 transition-opacity hover:opacity-80"
-              style={{ backgroundColor: "var(--input-bg)", border: "2px dashed var(--input-border)" }}
-            >
-              <span className="text-2xl">📷</span>
-              <span className="text-sm font-medium" style={{ color: "var(--text-meta)" }}>
-                Tap to add a photo
-              </span>
-            </button>
-          )}
-        </div>
-
-        {/* Error */}
-        {error && (
-          <p className="text-sm font-medium" style={{ color: "#E53E3E" }}>
-            {error}
+        <header className={s.albumHead}>
+          <h1 className={s.headline}>Add your song</h1>
+          <p className={`${s.body} ${s.lede}`}>
+            For {collectionName}. Pick the song this brings to mind, and say why if you like.
           </p>
-        )}
+        </header>
 
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={submitting || !name.trim() || !selectedSong}
-          className="w-full py-4 rounded-full text-white font-semibold text-base transition-opacity hover:opacity-90 disabled:opacity-50"
-          style={{ backgroundColor: "var(--accent)" }}
-        >
-          {submitting ? "Submitting…" : "Share Memory"}
-        </button>
-      </form>
-    </div>
+        <form onSubmit={handleSubmit} className={s.form}>
+          <div className={s.field}>
+            <label htmlFor="guest-name" className={s.label}>
+              Your name
+            </label>
+            <input
+              id="guest-name"
+              type="text"
+              required
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Sarah"
+              className={s.input}
+            />
+          </div>
+
+          <div className={s.field}>
+            <label htmlFor="song-search" className={s.label}>
+              Song
+            </label>
+
+            {selectedSong ? (
+              <div className={s.picked}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={selectedSong.artworkUrl100} alt="" />
+                <p className={`${s.resultText} ${s.oneLine}`}>
+                  <span className={s.song}>{selectedSong.trackName}</span>{" "}
+                  <span className={s.artist}>{selectedSong.artistName}</span>
+                </p>
+                <button type="button" onClick={handleClearSong} className={s.quietButton}>
+                  Change
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  id="song-search"
+                  type="search"
+                  value={songQuery}
+                  onChange={handleSongQueryChange}
+                  placeholder="Search for a song"
+                  autoComplete="off"
+                  className={s.input}
+                />
+                {searching && <p className={s.meta}>Searching…</p>}
+                {songResults.length > 0 && (
+                  <ul className={s.results}>
+                    {songResults.map((song) => (
+                      <li key={song.trackId}>
+                        <button type="button" onClick={() => handleSelectSong(song)} className={s.result}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={song.artworkUrl100} alt="" />
+                          <span className={s.resultText}>
+                            <span className={`${s.song} ${s.oneLine} ${s.block}`}>
+                              {song.trackName}
+                            </span>
+                            <span className={`${s.artist} ${s.oneLine} ${s.block}`}>
+                              {song.artistName}
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+
+          <div className={s.field}>
+            <label htmlFor="guest-note" className={s.label}>
+              A few words <span className={s.optional}>(optional)</span>
+            </label>
+            <textarea
+              id="guest-note"
+              value={reflection}
+              onChange={(e) => setReflection(e.target.value)}
+              placeholder="What does it remind you of?"
+              rows={4}
+              className={`${s.input} ${s.textarea}`}
+            />
+          </div>
+
+          <div className={s.field}>
+            <span className={s.label}>
+              Photo <span className={s.optional}>(optional)</span>
+            </span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className={s.hidden}
+              onChange={handlePhotoChange}
+            />
+            {photoPreview ? (
+              <div className={s.photoPreview}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photoPreview} alt="Your photo" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotoPreview(null);
+                    setPhotoFile(null);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                  className={s.photoChange}
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => fileInputRef.current?.click()} className={s.photoAdd}>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+                  <circle cx="12" cy="13" r="3" />
+                </svg>
+                Add a photo
+              </button>
+            )}
+          </div>
+
+          {error && (
+            <p className={s.error} role="alert">
+              {error}
+            </p>
+          )}
+
+          <button type="submit" disabled={submitting || !name.trim() || !selectedSong} className={s.button}>
+            {submitting ? "Adding…" : "Add to the album"}
+          </button>
+        </form>
+      </div>
+    </main>
   );
 }

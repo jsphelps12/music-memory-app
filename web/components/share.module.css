@@ -1,0 +1,840 @@
+/* Shared surfaces (moments, albums, guest books, invites, legal): the app's
+   entry screen carried onto the web. Rows on paper, hairlines not boxes. */
+
+.page {
+  min-height: 100vh;
+  min-height: 100svh;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.55;
+  padding: 0 20px;
+}
+
+.column {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  padding-bottom: 72px;
+}
+
+.narrow {
+  max-width: 440px;
+}
+
+.wide {
+  max-width: 680px;
+}
+
+/* ─── Top bar ─────────────────────────────────────────────────────── */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 0 0;
+  margin-bottom: clamp(32px, 6vw, 56px);
+}
+
+.wordmark {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+/* ─── Type voices ─────────────────────────────────────────────────── */
+
+.headline {
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(32px, 6vw, 44px);
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  margin: 0;
+}
+
+.title {
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+/* Only for words a person wrote. */
+.reading {
+  font-family: var(--font-reading), Georgia, serif;
+  font-size: clamp(19px, 2.2vw, 21px);
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+
+.body {
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--ink-secondary);
+  margin: 0;
+  max-width: 44ch;
+}
+
+.meta {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+.song {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.artist {
+  font-weight: 400;
+  color: var(--ink-secondary);
+}
+
+.lede {
+  margin-top: 14px;
+}
+
+.block {
+  display: block;
+}
+
+.oneLine {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.textLink {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+/* ─── Buttons ─────────────────────────────────────────────────────── */
+
+.button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--button-bg);
+  color: var(--button-text);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.button:hover {
+  opacity: 0.88;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--button-bg);
+  color: var(--button-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.pill:hover {
+  opacity: 0.88;
+}
+
+.quietButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.badge {
+  display: inline-block;
+  line-height: 0;
+  transition: opacity 0.15s ease;
+}
+
+.badge:hover {
+  opacity: 0.85;
+}
+
+.badge img {
+  height: 50px;
+  width: auto;
+}
+
+/* ─── The ask: after the content, never a gate ────────────────────── */
+
+.ask {
+  margin-top: 56px;
+  padding-top: 28px;
+  border-top: 1px solid var(--divider);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.askActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  width: 100%;
+}
+
+.askActions .button {
+  width: auto;
+  flex: 0 1 auto;
+}
+
+/* ─── A single entry ──────────────────────────────────────────────── */
+
+.from {
+  margin-bottom: 20px;
+}
+
+.hero {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+  border-radius: 10px;
+  background: var(--paper-deep);
+}
+
+.coverArt {
+  width: min(320px, 72vw);
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+  border-radius: 10px;
+  box-shadow: var(--artwork-lift);
+  background: var(--paper-deep);
+}
+
+.songHead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.songHead .headline {
+  font-size: clamp(30px, 5.4vw, 40px);
+}
+
+.thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--paper-deep);
+}
+
+.entryArtist {
+  font-size: 17px;
+  color: var(--ink-secondary);
+  margin: 6px 0 0;
+}
+
+.player {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.entryText {
+  margin-top: 28px;
+  max-width: 36em;
+}
+
+.entryMeta {
+  margin-top: 24px;
+  padding-top: 14px;
+  border-top: 1px solid var(--divider);
+}
+
+.photos {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.photos img {
+  width: 100%;
+  display: block;
+  border-radius: 10px;
+  background: var(--paper-deep);
+}
+
+/* ─── Tracklist (albums, guest books) ─────────────────────────────── */
+
+.albumHead {
+  margin-bottom: 36px;
+}
+
+.cover {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  display: block;
+  border-radius: 10px;
+  margin-bottom: 28px;
+  background: var(--paper-deep);
+}
+
+.albumHead .meta {
+  margin-top: 10px;
+}
+
+.tracklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 2px solid var(--ink);
+}
+
+.track {
+  display: grid;
+  grid-template-columns: 28px 52px minmax(0, 1fr);
+  column-gap: 14px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.unnumbered {
+  grid-template-columns: 52px minmax(0, 1fr);
+}
+
+.trackNo {
+  font-size: 15px;
+  line-height: 52px;
+  color: var(--ink-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.art {
+  position: relative;
+  width: 52px;
+  height: 52px;
+}
+
+.art img,
+.artBlank {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+  background: var(--paper-deep);
+}
+
+.play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  padding: 0;
+  background: rgba(14, 11, 10, 0.32);
+  color: #f5f0eb;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.track:hover .play,
+.play:focus-visible,
+.playing {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .play {
+    opacity: 1;
+    background: rgba(14, 11, 10, 0.22);
+  }
+}
+
+.trackBody {
+  min-width: 0;
+}
+
+.trackSong {
+  font-size: 16px;
+  line-height: 1.35;
+  margin: 4px 0 0;
+}
+
+.trackText {
+  font-family: var(--font-reading), Georgia, serif;
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  margin: 10px 0 0;
+}
+
+.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.more {
+  margin-top: 6px;
+  font-size: 14px;
+}
+
+.strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin-top: 12px;
+  scrollbar-width: none;
+}
+
+.strip img {
+  width: 76px;
+  height: 76px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: block;
+  background: var(--paper-deep);
+}
+
+.trackMeta {
+  margin-top: 10px;
+}
+
+.mood {
+  color: var(--ink-tertiary);
+}
+
+.empty {
+  padding: 48px 0;
+  color: var(--ink-secondary);
+  font-size: 16px;
+  border-bottom: 1px solid var(--divider);
+}
+
+/* ─── Guest book ──────────────────────────────────────────────────── */
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--divider);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--success);
+  flex-shrink: 0;
+}
+
+.dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 12px 20px calc(16px + env(safe-area-inset-bottom));
+  background: var(--paper);
+  border-top: 1px solid var(--divider);
+}
+
+.dockInner {
+  max-width: 600px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.dockSpacer {
+  height: 120px;
+}
+
+/* ─── Form ────────────────────────────────────────────────────────── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.optional {
+  font-weight: 400;
+  color: var(--ink-secondary);
+}
+
+.input {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--paper-input);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+}
+
+.input::placeholder {
+  color: var(--ink-tertiary);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.textarea {
+  font-family: var(--font-reading), Georgia, serif;
+  font-size: 19px;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 144px;
+}
+
+.results {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--divider);
+}
+
+.result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid var(--divider);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.result:hover .song {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.result img,
+.picked img {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.resultText {
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.picked {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--paper-input);
+}
+
+.picked .resultText {
+  flex: 1;
+}
+
+.photoAdd {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 120px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--paper-input);
+  color: var(--ink-secondary);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.photoPreview {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+}
+
+.photoPreview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.photoChange {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(14, 11, 10, 0.6);
+  backdrop-filter: blur(8px);
+  color: #f5f0eb;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.error {
+  font-size: 15px;
+  color: var(--destructive);
+  margin: 0;
+}
+
+.hidden {
+  display: none;
+}
+
+/* ─── Invite (a person) ───────────────────────────────────────────── */
+
+.avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 48px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper-deep);
+  margin-bottom: 24px;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.initial {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 42px;
+  color: var(--ink-secondary);
+}
+
+.handle {
+  margin-top: 6px;
+}
+
+/* ─── QR (printed and propped on a table) ─────────────────────────── */
+
+.qr {
+  display: inline-block;
+  padding: 14px;
+  margin: 32px 0 24px;
+  border-radius: 12px;
+  background: #fbf7f2;
+  line-height: 0;
+}
+
+.qr canvas {
+  width: min(320px, 70vw) !important;
+  height: auto !important;
+  transition: opacity 0.2s ease;
+}
+
+.url {
+  margin-top: 16px;
+  overflow-wrap: anywhere;
+}
+
+@media print {
+  .noPrint {
+    display: none;
+  }
+}
+
+/* ─── Legal (Read) ────────────────────────────────────────────────── */
+
+.legalUpdated {
+  margin: 14px 0 40px;
+}
+
+.legal {
+  font-size: 17px;
+  line-height: 1.65;
+  color: var(--ink-body);
+}
+
+.legal p,
+.legal ul {
+  margin: 0 0 16px;
+}
+
+.legal ul {
+  padding-left: 1.2em;
+  list-style: disc;
+}
+
+.legal li {
+  margin-bottom: 8px;
+}
+
+.legal li::marker {
+  color: var(--ink-tertiary);
+}
+
+.legal strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.legal a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.legalH2 {
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: 26px;
+  line-height: 1.2;
+  color: var(--ink);
+  margin: 56px 0 16px;
+  padding-top: 20px;
+  border-top: 1px solid var(--divider);
+}
+
+.legalH3 {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 28px 0 10px;
+}
+
+.legalTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+  margin: 0 0 16px;
+}
+
+.legalTable th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 8px 12px 8px 0;
+  border-bottom: 2px solid var(--ink);
+}
+
+.legalTable td {
+  padding: 10px 12px 10px 0;
+  border-bottom: 1px solid var(--divider);
+  vertical-align: top;
+}
+
+.legalTable td:first-child {
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.legalFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 64px;
+  padding-top: 20px;
+  border-top: 1px solid var(--divider);
+}
+
+.legalFooter a {
+  color: inherit;
+}

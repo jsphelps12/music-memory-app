@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import AlbumMomentList, { type MomentItem } from "@/components/AlbumMomentList";
 import Link from "next/link";
+import { APP_STORE_URL, TopBar } from "@/components/Share";
+import s from "@/components/share.module.css";
 
 interface Props {
   collectionName: string;
@@ -11,7 +13,6 @@ interface Props {
   justSubmitted: boolean;
 }
 
-const APP_STORE_URL = "https://apps.apple.com/us/app/soundtracks/id6759203604";
 const POLL_INTERVAL_MS = 30_000;
 
 export default function ContributeHub({ collectionName, inviteCode, moments: initialMoments, justSubmitted }: Props) {
@@ -57,75 +58,46 @@ export default function ContributeHub({ collectionName, inviteCode, moments: ini
   const count = moments.length;
 
   return (
-    <div className="min-h-screen pb-36" style={{ backgroundColor: "var(--bg)" }}>
-      {/* Success banner */}
-      {justSubmitted && (
-        <div
-          className="px-6 py-3 text-center text-sm font-semibold"
-          style={{ backgroundColor: "#22863A", color: "#fff" }}
-        >
-          ✓ Memory added — thank you!
-        </div>
-      )}
+    <main className={s.page}>
+      <div className={s.column}>
+        <TopBar />
 
-      {/* Header */}
-      <div className="px-6 pt-10 pb-6 max-w-xl mx-auto">
-        <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--accent)" }}>
-          Guest Book
-        </p>
-        <h1 className="text-3xl font-bold" style={{ color: "var(--text)" }}>
-          {collectionName}
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: "var(--text-meta)" }}>
-          {count} {count === 1 ? "memory" : "memories"} so far
-        </p>
-      </div>
-
-      {/* Moment feed */}
-      <div className="px-6 max-w-xl mx-auto">
-        {moments.length === 0 ? (
-          <p className="text-center py-12" style={{ color: "var(--text-tertiary)" }}>
-            No memories yet — be the first!
+        {justSubmitted && (
+          <p className={s.notice} role="status">
+            <span className={s.dot} aria-hidden="true" />
+            Your song is in. Thank you.
           </p>
+        )}
+
+        <header className={s.albumHead}>
+          <h1 className={s.headline}>{collectionName}</h1>
+          <p className={s.meta}>
+            {count} {count === 1 ? "song" : "songs"} so far
+          </p>
+        </header>
+
+        {count === 0 ? (
+          <p className={`${s.empty} ${s.tracklist}`}>No songs yet. Yours could be the first.</p>
         ) : (
           <AlbumMomentList moments={moments} />
         )}
+
+        <div className={s.dockSpacer} />
       </div>
 
-      {/* Sticky bottom CTA */}
-      <div
-        className="fixed bottom-0 left-0 right-0 px-6 py-4"
-        style={{ backgroundColor: "var(--bg)", borderTop: "1px solid var(--border-rule)" }}
-      >
-        <div className="max-w-xl mx-auto flex flex-col gap-2">
-          {justSubmitted ? (
-            <>
-              <Link
-                href={`/c/${inviteCode}/contribute/new`}
-                className="block text-center py-3 rounded-full font-semibold text-base transition-opacity hover:opacity-90"
-                style={{ backgroundColor: "var(--btn-alt-bg)", color: "var(--btn-alt-text)" }}
-              >
-                Add Another Memory
-              </Link>
-              <a
-                href={APP_STORE_URL}
-                className="block text-center py-3 rounded-full font-semibold text-base transition-opacity hover:opacity-90"
-                style={{ backgroundColor: "var(--accent)", color: "#fff" }}
-              >
-                Download Soundtracks
-              </a>
-            </>
-          ) : (
-            <Link
-              href={`/c/${inviteCode}/contribute/new`}
-              className="block text-center py-3 rounded-full font-semibold text-base transition-opacity hover:opacity-90"
-              style={{ backgroundColor: "var(--accent)", color: "#fff" }}
-            >
-              Add Your Memory →
-            </Link>
+      {/* Adding a song is why a guest is here, so it stays in reach. */}
+      <div className={s.dock}>
+        <div className={s.dockInner}>
+          <Link href={`/c/${inviteCode}/contribute/new`} className={s.button}>
+            {justSubmitted ? "Add another song" : "Add your song"}
+          </Link>
+          {justSubmitted && (
+            <a href={APP_STORE_URL} className={`${s.meta} ${s.textLink}`}>
+              Keep your own songs in Soundtracks
+            </a>
           )}
         </div>
       </div>
-    </div>
+    </main>
   );
 }

@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
+import { DM_Serif_Display, DM_Sans, Newsreader } from "next/font/google";
 import "./globals.css";
+
+// Three voices (DESIGN.md): the serif names things, Newsreader sets what a
+// person wrote, DM Sans runs the interface.
+const serif = DM_Serif_Display({ weight: "400", subsets: ["latin"], variable: "--font-serif", display: "swap" });
+const sans = DM_Sans({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+const reading = Newsreader({ subsets: ["latin"], variable: "--font-reading", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Soundtracks",
-  description: "Your music, your memories.",
+  description: "A journal for the songs that mark your days.",
 };
 
 export default function RootLayout({
@@ -12,16 +19,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,900;1,600;1,700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=DM+Serif+Display:ital@0;1&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body className="antialiased font-sans">{children}</body>
+    <html lang="en" className={`${serif.variable} ${sans.variable} ${reading.variable}`}>
+      <body>{children}</body>
     </html>
   );
 }

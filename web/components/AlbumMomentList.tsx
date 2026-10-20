@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import MomentCard from "./MomentCard";
+import s from "./share.module.css";
 
 export interface MomentItem {
   id: string;
@@ -16,7 +17,14 @@ export interface MomentItem {
   mood: string | null;
 }
 
-export default function AlbumMomentList({ moments }: { moments: MomentItem[] }) {
+export default function AlbumMomentList({
+  moments,
+  numbered = false,
+}: {
+  moments: MomentItem[];
+  /** Number the rows like a record's tracklist (albums read oldest first). */
+  numbered?: boolean;
+}) {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -32,8 +40,8 @@ export default function AlbumMomentList({ moments }: { moments: MomentItem[] }) 
 
     audio.src = moment.previewUrl;
     audio.currentTime = 0;
-    audio.play().catch(() => {});
     setPlayingId(moment.id);
+    audio.play().catch(() => setPlayingId(null));
   }
 
   return (
@@ -45,10 +53,11 @@ export default function AlbumMomentList({ moments }: { moments: MomentItem[] }) 
           if (audioRef.current?.ended === false) setPlayingId(null);
         }}
       />
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {moments.map((moment) => (
+      <ol className={s.tracklist}>
+        {moments.map((moment, i) => (
           <MomentCard
             key={moment.id}
+            index={numbered ? i + 1 : undefined}
             artworkUrl={moment.artworkUrl}
             songTitle={moment.songTitle}
             songArtist={moment.songArtist}
@@ -62,7 +71,7 @@ export default function AlbumMomentList({ moments }: { moments: MomentItem[] }) 
             onPlayPause={() => handlePlayPause(moment)}
           />
         ))}
-      </div>
+      </ol>
     </>
   );
 }

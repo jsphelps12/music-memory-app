@@ -243,6 +243,14 @@ weekly; charging earlier teaches nothing.
   rebuilds expired simulator archives, fingerprint scripts read eas-cli v24
   JSON.
 - [x] **Binary Build submits the build it made** (PR #30).
+- [x] **Web share pages on the new system** (2026-10-19): shared moments,
+  albums, the guest book, the guest form, the QR page, friend invites,
+  email confirm, privacy and terms now use paper and ink (true night in
+  dark mode), DM Serif / Newsreader / DM Sans via `next/font`, hairline
+  rows, moods as words and Apple's real badge. The cream keepsake card, the
+  emoji and the sticky install bars are gone; the install ask sits after
+  the content. Shared styles: `web/components/share.module.css` and
+  `web/components/Share.tsx`.
 - [x] **Signed-out access to SECURITY DEFINER RPCs** closed (PR #31): the
   PUBLIC grant was never revoked; applied to both projects, advisor findings
   gone in production.

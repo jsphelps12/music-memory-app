@@ -2,20 +2,9 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSupabase } from "@/lib/supabase";
 import { PreviewPlayer } from "@/components/PreviewPlayer";
+import { AppStoreBadge, TopBar, formatMomentDate, moodLabel } from "@/components/Share";
+import s from "@/components/share.module.css";
 import { GiftClipboardWriter } from "./GiftClipboardWriter";
-
-const MOODS: Record<string, { emoji: string; label: string }> = {
-  nostalgic:   { emoji: "🕰️", label: "Nostalgic" },
-  joyful:      { emoji: "😊", label: "Joyful" },
-  melancholy:  { emoji: "🌧️", label: "Melancholy" },
-  energetic:   { emoji: "⚡", label: "Energetic" },
-  peaceful:    { emoji: "🌿", label: "Peaceful" },
-  romantic:    { emoji: "💕", label: "Romantic" },
-  rebellious:  { emoji: "🔥", label: "Rebellious" },
-  hopeful:     { emoji: "🌅", label: "Hopeful" },
-  bittersweet: { emoji: "🍂", label: "Bittersweet" },
-  empowered:   { emoji: "💪", label: "Empowered" },
-};
 
 export const dynamic = "force-dynamic";
 
@@ -99,245 +88,87 @@ export default async function GiftedMomentPage({ params }: PageProps) {
     (path: string) => `${supabaseUrl}/storage/v1/object/public/moment-photos/${path}`
   );
 
-  const heroUrl = photoUrls[0] ?? row.song_artwork_url ?? null;
+  // A photo leads when there is one; otherwise the artwork is the picture.
+  const heroPhoto = photoUrls[0] ?? null;
   const remainingPhotos = photoUrls.slice(1);
 
-  // moment_date is a bare YYYY-MM-DD; parsed alone it becomes UTC midnight and
-  // renders a day off in western timezones. T00:00:00 matches the app's parse.
-  const formattedDate = row.moment_date
-    ? new Date(row.moment_date + "T00:00:00")
-        .toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-        .toUpperCase()
-    : null;
-
-  const moodDef = row.mood ? MOODS[row.mood] : null;
+  const meta = [formatMomentDate(row.moment_date), row.location, moodLabel(row.mood)].filter(Boolean);
 
   return (
-    <div
-      style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", backgroundColor: "var(--bg)" }}
-    >
+    <main className={s.page}>
       <GiftClipboardWriter shareToken={share_token} />
-      <div style={{ width: "100%", maxWidth: 390, padding: "40px 20px 48px" }}>
+      <div className={s.column}>
+        <TopBar />
 
-        {/* Sender label */}
-        <p
-          style={{
-            fontSize: 11,
-            fontWeight: 500,
-            textAlign: "center",
-            marginBottom: 16,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            color: "var(--text-tertiary)",
-          }}
-        >
-          {senderName} shared a memory with you
-        </p>
+        <p className={`${s.body} ${s.from}`}>{senderName} shared a moment with you.</p>
 
-        {/* The artifact — same cream keepsake the app exports: photo printed
-            clean, everything written on the mat below, never on the image. */}
-        <div className="artifact-card">
-          {heroUrl && (
-            <div style={{ aspectRatio: "4/3", width: "100%", backgroundColor: "var(--artifact-deep)" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={heroUrl}
-                alt=""
-                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-              />
+        <article>
+          {heroPhoto ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={heroPhoto} alt="" className={s.hero} />
+          ) : row.song_artwork_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={row.song_artwork_url} alt="" className={s.coverArt} />
+          ) : null}
+
+          <div className={s.songHead}>
+            {heroPhoto && row.song_artwork_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={row.song_artwork_url} alt="" className={s.thumb} />
+            )}
+            <div style={{ minWidth: 0 }}>
+              <h1 className={s.headline}>{row.song_title}</h1>
+              <p className={s.entryArtist}>{row.song_artist}</p>
+            </div>
+          </div>
+
+          {row.song_preview_url && <PreviewPlayer url={row.song_preview_url} />}
+
+          {row.reflection_text && (
+            <div className={s.entryText}>
+              <p className={s.reading}>{row.reflection_text}</p>
             </div>
           )}
 
-          {/* The mat */}
-          <div style={{ padding: "18px 22px 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              {row.song_artwork_url && (
+          <p className={`${s.meta} ${s.entryMeta}`}>
+            {[senderName, ...meta].join(" · ")}
+          </p>
+
+          {remainingPhotos.length > 0 && (
+            <div className={s.photos}>
+              {remainingPhotos.map((url, i) => (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={row.song_artwork_url}
-                  alt=""
-                  style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0 }}
-                />
-              )}
-              <div style={{ minWidth: 0 }}>
-                <p
-                  className="artifact-serif"
-                  style={{
-                    fontSize: 24,
-                    lineHeight: 1.15,
-                    color: "var(--artifact-ink)",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    margin: 0,
-                  }}
-                >
-                  {row.song_title}
-                </p>
-                <p
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: "var(--artifact-ink-soft)",
-                    margin: "2px 0 0",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {row.song_artist}
-                </p>
-              </div>
+                <img key={i} src={url} alt="" loading="lazy" />
+              ))}
             </div>
+          )}
+        </article>
 
-            {row.reflection_text && (
-              <p
-                className="artifact-serif"
-                style={{
-                  fontStyle: "italic",
-                  fontSize: 17,
-                  lineHeight: 1.55,
-                  color: "var(--artifact-ink)",
-                  margin: "14px 0 0",
-                }}
-              >
-                &ldquo;{row.reflection_text}&rdquo;
-              </p>
-            )}
-
-            {/* One quiet meta line + wordmark */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-                borderTop: "1px solid var(--artifact-hairline)",
-                paddingTop: 12,
-                marginTop: 14,
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 500,
-                  letterSpacing: "0.1em",
-                  color: "var(--artifact-ink-soft)",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {moodDef ? `${moodDef.emoji}  ` : ""}
-                {[formattedDate, row.location].filter(Boolean).join("  ·  ")}
-              </span>
-              <span className="artifact-wordmark">SOUNDTRACKS</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Preview player */}
-        {row.song_preview_url && (
-          <div style={{ marginTop: 16, display: "flex", justifyContent: "center" }}>
-            <PreviewPlayer url={row.song_preview_url} />
-          </div>
-        )}
-
-        {/* Additional photos */}
-        {remainingPhotos.length > 0 && (
-          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-            {remainingPhotos.map((url, i) => (
-              <div key={i} style={{ borderRadius: 16, overflow: "hidden" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" style={{ width: "100%", objectFit: "cover", display: "block" }} />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* The ask — deliberately NOT sticky and below the memory.
-            Owner constraint: someone with no app and no account (a grandparent)
-            must get the whole thing — card, preview, photos — without ever
-            meeting a wall. So this sits at the end of the page, after the
-            artifact, and is skippable by simply not scrolling to it. */}
-        <div
-          style={{
-            marginTop: 36,
-            paddingTop: 24,
-            borderTop: "1px solid var(--border)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
+        {/* The ask: below the memory and never sticky. Someone with no app
+            and no account (a grandparent) gets the whole thing (words,
+            preview, photos) without meeting a wall. */}
+        <section className={s.ask}>
           {senderFriendToken ? (
             <>
-              <p
-                style={{
-                  fontSize: 14,
-                  lineHeight: 1.5,
-                  textAlign: "center",
-                  color: "var(--text-secondary)",
-                  margin: 0,
-                }}
-              >
-                Add {senderFirstName} back and you&rsquo;ll see each other&rsquo;s moments
-                when a song means something.
+              <p className={s.body}>
+                Add {senderFirstName} back and you&rsquo;ll see each other&rsquo;s moments when a song means
+                something.
               </p>
-              <a
-                href={`/friend/${senderFriendToken}`}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  textAlign: "center",
-                  padding: "13px 20px",
-                  borderRadius: 14,
-                  backgroundColor: "#E8825C",
-                  color: "#fff",
-                  fontWeight: 600,
-                  fontSize: 15,
-                  textDecoration: "none",
-                }}
-              >
-                Add {senderFirstName} on Soundtracks
-              </a>
+              <div className={s.askActions}>
+                <a href={`/friend/${senderFriendToken}`} className={s.button}>
+                  Add {senderFirstName} on Soundtracks
+                </a>
+                <AppStoreBadge />
+              </div>
             </>
           ) : (
-            <p
-              style={{
-                fontSize: 14,
-                lineHeight: 1.5,
-                textAlign: "center",
-                color: "var(--text-secondary)",
-                margin: 0,
-              }}
-            >
-              Soundtracks is where you keep the songs tied to your own memories.
-            </p>
+            <>
+              <p className={s.body}>Soundtracks is a journal for the songs that mark your days.</p>
+              <AppStoreBadge />
+            </>
           )}
-
-          {/* Apple App Store badge — the quiet second tier. The badge art is
-              white, which nearly disappears on the light theme's cream, so it
-              carries its own hairline. */}
-          <a
-            href="https://apps.apple.com/us/app/soundtracks/id6759203604"
-            style={{
-              display: "inline-block",
-              lineHeight: 0,
-              borderRadius: 8,
-              border: "1px solid var(--border)",
-            }}
-          >
-            <svg height="40" viewBox="0 0 120 40" xmlns="http://www.w3.org/2000/svg" aria-label="Download on the App Store">
-              <rect width="120" height="40" rx="8" fill="#fff" />
-              <text x="38" y="13" fontFamily="-apple-system, Helvetica, Arial, sans-serif" fontSize="8" fill="#0F0D0B" fontWeight="400">Download on the</text>
-              <text x="32" y="27" fontFamily="-apple-system, Helvetica, Arial, sans-serif" fontSize="14" fill="#0F0D0B" fontWeight="600">App Store</text>
-              <path d="M16 8.8c-.5.6-1.3.9-2 .9-.1-.8.3-1.6.8-2.1.5-.6 1.4-1 2.1-1 .1.9-.2 1.7-.9 2.2zm.9 1.3c-1.1-.1-2.1.6-2.6.6-.5 0-1.3-.6-2.2-.6-1.1 0-2.2.7-2.7 1.7-1.2 2-.3 5 .8 6.6.6.8 1.2 1.7 2.1 1.7.8 0 1.1-.5 2.1-.5s1.2.5 2.1.5c.9 0 1.5-.9 2-1.7.4-.6.6-1.1.8-1.7-.8-.4-1.4-1.2-1.4-2.2 0-.9.5-1.7 1.2-2.1-.5-.7-1.3-1.3-2.2-1.3z" fill="#0F0D0B" />
-            </svg>
-          </a>
-        </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }
