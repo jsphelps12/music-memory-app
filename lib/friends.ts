@@ -6,7 +6,6 @@ export interface ProfileResult {
   displayName: string | null;
   avatarUrl: string | null;
   username: string | null;
-  friendInviteToken?: string;
 }
 
 // Social Architecture v2: friendships are mutual-by-link only. A pair exists
@@ -59,14 +58,37 @@ export async function fetchFriends(userId: string): Promise<Friendship[]> {
   return enrichFriendships(data ?? [], userId);
 }
 
+/** The typed failures accept-friend-invite reports in its JSON body. */
+export type FriendInviteErrorCode = "self_request" | "not_found";
+
+export function friendInviteErrorCode(body: unknown): FriendInviteErrorCode | null {
+  const code = (body as { error?: unknown } | null)?.error;
+  return code === "self_request" || code === "not_found" ? code : null;
+}
+
+/**
+ * On a non-2xx response functions-js returns `data: null` and puts the
+ * Response on `error.context`, so the typed body has to be read from there.
+ */
+async function readFunctionErrorBody(error: unknown): Promise<unknown> {
+  const context = (error as { context?: { json?: () => Promise<unknown> } } | null)?.context;
+  if (!context || typeof context.json !== "function") return null;
+  try {
+    return await context.json();
+  } catch {
+    return null;
+  }
+}
+
+/** Throws Error("self_request" | "not_found") for those cases, else the original error. */
 export async function acceptFriendInvite(token: string): Promise<void> {
   const { data, error } = await supabase.functions.invoke("accept-friend-invite", {
     body: { token },
   });
-  // Check typed errors from response body first (edge fn may return 4xx with JSON body)
-  if (data?.error === "self_request") throw new Error("self_request");
-  if (data?.error === "not_found") throw new Error("not_found");
-  if (error || data?.error) throw new Error(data?.error ?? error?.message ?? "Unknown error");
+  if (!error && !data?.error) return;
+  const code = friendInviteErrorCode(data) ?? (error ? friendInviteErrorCode(await readFunctionErrorBody(error)) : null);
+  if (code) throw new Error(code);
+  throw error ?? new Error(String(data?.error ?? "Unknown error"));
 }
 
 export async function removeFriend(friendshipId: string): Promise<void> {
@@ -77,30 +99,68 @@ export async function removeFriend(friendshipId: string): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * The owner of a friend invite link, or null when no profile has that token.
+ * Throws on a failed request, so callers can tell "invalid link" from
+ * "couldn't check".
+ */
 export async function fetchProfileByFriendToken(token: string): Promise<ProfileResult | null> {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, display_name, avatar_url, username, friend_invite_token")
-    .eq("friend_invite_token", token)
-    .single();
-  if (error || !data) return null;
+  const { data, error } = await supabase.rpc("get_profile_by_invite_token", { p_token: token });
+  if (error) throw error;
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { id: string; display_name: string | null; avatar_url: string | null; username: string | null }
+    | null
+    | undefined;
+  if (!row?.id) return null;
   return {
-    id: data.id,
-    displayName: data.display_name,
-    avatarUrl: data.avatar_url,
-    username: data.username,
-    friendInviteToken: data.friend_invite_token,
+    id: row.id,
+    displayName: row.display_name,
+    avatarUrl: row.avatar_url,
+    username: row.username,
   };
 }
 
+/** Status of the friendship row between two users, or null when there is none. */
+export async function fetchFriendshipStatus(
+  userId: string,
+  otherUserId: string
+): Promise<Friendship["status"] | null> {
+  const { data, error } = await supabase
+    .from("friendships")
+    .select("id, status")
+    .or(
+      `and(requester_id.eq.${userId},addressee_id.eq.${otherUserId}),and(requester_id.eq.${otherUserId},addressee_id.eq.${userId})`
+    )
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.status as Friendship["status"] | undefined) ?? null;
+}
+
+/**
+ * Only an accepted row means connected. A legacy pending or declined row is
+ * upgraded by accept-friend-invite, so the link must still offer Connect.
+ */
+export function isConnected(status: Friendship["status"] | null): boolean {
+  return status === "accepted";
+}
+
+/** Escape LIKE/ILIKE wildcards so the text matches literally. */
+export function escapeLikePattern(text: string): string {
+  return text.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+/** Throws on a failed request rather than reporting the name as free. */
 export async function checkUsernameAvailable(username: string, currentUserId: string): Promise<boolean> {
-  if (!username.trim()) return false;
-  const { data } = await supabase
+  const cleaned = username.trim();
+  if (!cleaned) return false;
+  const { data, error } = await supabase
     .from("profiles")
     .select("id")
-    .ilike("username", username.trim())
+    .ilike("username", escapeLikePattern(cleaned))
     .neq("id", currentUserId)
     .limit(1)
     .maybeSingle();
+  if (error) throw error;
   return !data;
 }

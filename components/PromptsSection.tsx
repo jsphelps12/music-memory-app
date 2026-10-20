@@ -14,6 +14,7 @@ import { confirmSheet } from "@/components/ConfirmSheet";
 import { Theme } from "@/constants/theme";
 import { PROMPT_CATEGORIES } from "@/constants/Prompts";
 import { CustomPromptCategory } from "@/types";
+import { friendlyError } from "@/lib/errors";
 
 const MAX_CUSTOM_CATEGORIES = 3;
 const MAX_STARTERS = 5;
@@ -52,7 +53,13 @@ export function PromptsSection({ customCategories, onSave, onDelete }: Props) {
       confirmLabel: "Delete",
       destructive: true,
     });
-    if (confirmed) onDelete(cat.id);
+    if (!confirmed) return;
+    try {
+      await onDelete(cat.id);
+    } catch (e) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert("Couldn't delete category", friendlyError(e));
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -67,7 +74,14 @@ export function PromptsSection({ customCategories, onSave, onDelete }: Props) {
       Alert.alert("Add at least one starter");
       return;
     }
-    await onSave({ ...editingCategory, label, starters });
+    try {
+      await onSave({ ...editingCategory, label, starters });
+    } catch (e) {
+      // Keep the editor open so nothing typed is lost.
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert("Couldn't save category", friendlyError(e));
+      return;
+    }
     setEditingCategory(null);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };

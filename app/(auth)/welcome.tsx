@@ -143,6 +143,7 @@ function createStyles(theme: Theme) {
       marginBottom: theme.spacing.sm,
     },
     tagline: {
+      fontFamily: theme.fonts.body,
       fontSize: theme.fontSize.base,
       color: theme.colors.textSecondary,
       textAlign: "center",
@@ -160,6 +161,7 @@ function createStyles(theme: Theme) {
       width: 32,
     },
     featureText: {
+      fontFamily: theme.fonts.body,
       fontSize: theme.fontSize.base,
       color: theme.colors.text,
       flex: 1,
@@ -174,6 +176,7 @@ function createStyles(theme: Theme) {
     },
     error: {
       color: theme.colors.destructive,
+      fontFamily: theme.fonts.body,
       fontSize: theme.fontSize.sm,
       textAlign: "center",
       marginBottom: theme.spacing.md,
@@ -188,18 +191,19 @@ function createStyles(theme: Theme) {
     buttonText: {
       color: theme.colors.buttonText,
       fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
     },
     linkContainer: {
       marginTop: theme.spacing["2xl"],
       alignItems: "center",
     },
     linkText: {
+      fontFamily: theme.fonts.body,
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
     },
     linkBold: {
-      fontWeight: theme.fontWeight.semibold,
+      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
   });

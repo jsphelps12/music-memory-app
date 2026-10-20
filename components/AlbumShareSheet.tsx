@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   StyleSheet,
   Platform,
-  Alert,
   ScrollView,
   TextInput,
 } from "react-native";
@@ -14,15 +13,18 @@ import { AppImage } from "@/components/AppImage";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ConfirmSheetHost, confirmSheet } from "@/components/ConfirmSheet";
 import * as Haptics from "expo-haptics";
 import { Album } from "@/types";
 import {
+  albumCoverKey,
+  albumNeedsGuestUser,
   convertAlbumToShared,
   deleteAlbum,
+  ensureAlbumGuestUser,
   leaveAlbum,
   fetchAlbumMembers,
   removeAlbumMember,
@@ -31,7 +33,6 @@ import {
   AlbumMember,
 } from "@/lib/albums";
 import { uploadAlbumCover, getPublicPhotoThumbnailUrl } from "@/lib/storage";
-import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { friendlyError } from "@/lib/errors";
@@ -88,6 +89,20 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
     }
   }, [visible, isOwner, collection.id, collection.isPublic]);
 
+  // A shared album whose guest-user setup failed (or that was created shared
+  // before the create sheet did it) is finished here, quietly: the owner
+  // opening the sheet is the retry. Nothing to show if it fails again.
+  useEffect(() => {
+    if (!visible || !isOwner || !collection.isPublic) return;
+    let cancelled = false;
+    albumNeedsGuestUser(collection.id)
+      .then((needed) => (needed && !cancelled ? ensureAlbumGuestUser(collection.id) : undefined))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, isOwner, collection.id, collection.isPublic]);
+
   const inviteUrl = collection.inviteCode
     ? `${WEB_BASE_URL}/c/${collection.inviteCode}`
     : null;
@@ -121,8 +136,10 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
     setUploadingCover(true);
     setError("");
     try {
-      const path = await uploadAlbumCover(user.id, collection.id, result.assets[0].uri);
-      await updateAlbumCover(collection.id, path);
+      // A new name per upload, so the new cover gets a new URL; the old
+      // object is deleted once the album points at the new one.
+      const path = await uploadAlbumCover(user.id, albumCoverKey(collection.id), result.assets[0].uri);
+      await updateAlbumCover(collection.id, path, collection.coverPhotoUrl);
       onUpdated({ ...collection, coverPhotoUrl: path });
       invalidateAlbumCaches(queryClient, user.id, collection.id);
     } catch (e: any) {
@@ -135,7 +152,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
   async function handleRemoveCover() {
     setError("");
     try {
-      await updateAlbumCover(collection.id, null);
+      await updateAlbumCover(collection.id, null, collection.coverPhotoUrl);
       onUpdated({ ...collection, coverPhotoUrl: undefined });
       invalidateAlbumCaches(queryClient, user?.id, collection.id);
     } catch (e: any) {
@@ -154,8 +171,11 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
     setError("");
     try {
       await convertAlbumToShared(collection.id);
-      await supabase.functions.invoke("create-guest-user", {
-        body: { collectionId: collection.id },
+      // The album is shared from here on. A failed guest-user setup doesn't
+      // undo that: the effect above retries it once the sheet sees the album
+      // as shared, and again whenever the owner opens the sheet.
+      await ensureAlbumGuestUser(collection.id).catch((e) => {
+        if (__DEV__) console.warn("[albums] guest user setup failed:", e);
       });
       onUpdated({ ...collection, isPublic: true });
       invalidateAlbumCaches(queryClient, user?.id, collection.id);

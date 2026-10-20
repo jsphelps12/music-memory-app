@@ -25,7 +25,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { PromptsSection } from "@/components/PromptsSection";
 import { confirmSheet } from "@/components/ConfirmSheet";
 import { IconButton } from "@/components/IconButton";
-import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
@@ -49,11 +48,20 @@ function versionLine(): string {
 }
 
 type NotifField =
-  | "notif_on_this_day"
-  | "notif_streak"
-  | "notif_prompts"
-  | "notif_resurfacing"
-  | "notif_milestones";
+  | "notifOnThisDay"
+  | "notifStreak"
+  | "notifPrompts"
+  | "notifResurfacing"
+  | "notifMilestones";
+
+// Analytics names predate the camelCase fields; keep the event values stable.
+const NOTIF_EVENT_NAME: Record<NotifField, string> = {
+  notifOnThisDay: "notif_on_this_day",
+  notifStreak: "notif_streak",
+  notifPrompts: "notif_prompts",
+  notifResurfacing: "notif_resurfacing",
+  notifMilestones: "notif_milestones",
+};
 
 /**
  * Settings (Phase 1, 2026-10): everything that used to stack up under the
@@ -65,6 +73,7 @@ export default function SettingsScreen() {
   const {
     user,
     profile,
+    updateProfile,
     signOut,
     deleteAccount,
     saveCustomPromptCategory,
@@ -81,12 +90,9 @@ export default function SettingsScreen() {
   const [showPrompts, setShowPrompts] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifPermission, setNotifPermission] = useState<"granted" | "denied" | "undetermined">("granted");
-  const [notifOnThisDay, setNotifOnThisDay] = useState(true);
-  const [notifStreak, setNotifStreak] = useState(true);
-  const [notifPrompts, setNotifPrompts] = useState(true);
-  const [notifResurfacing, setNotifResurfacing] = useState(true);
-  const [notifMilestones, setNotifMilestones] = useState(true);
-  const [savingNotifField, setSavingNotifField] = useState<NotifField | null>(null);
+  // The profile in AuthContext is the source of truth for the toggles; this
+  // only holds the value being saved, so the switch moves on tap.
+  const [pendingNotif, setPendingNotif] = useState<{ field: NotifField; value: boolean } | null>(null);
 
   // Permission can change in iOS Settings while we're away, so read it on
   // every focus; it's a local call.
@@ -100,38 +106,21 @@ export default function SettingsScreen() {
     }, [])
   );
 
-  // Sync notif prefs from profile into local toggle state
-  useFocusEffect(
-    useCallback(() => {
-      if (!profile) return;
-      setNotifOnThisDay(profile.notifOnThisDay);
-      setNotifStreak(profile.notifStreak);
-      setNotifPrompts(profile.notifPrompts);
-      setNotifResurfacing(profile.notifResurfacing);
-      setNotifMilestones(profile.notifMilestones);
-    }, [profile])
-  );
-
-  const setNotifLocal = (field: NotifField, value: boolean) => {
-    if (field === "notif_on_this_day") setNotifOnThisDay(value);
-    if (field === "notif_streak") setNotifStreak(value);
-    if (field === "notif_prompts") setNotifPrompts(value);
-    if (field === "notif_resurfacing") setNotifResurfacing(value);
-    if (field === "notif_milestones") setNotifMilestones(value);
-  };
+  const notifValue = (field: NotifField): boolean =>
+    pendingNotif?.field === field ? pendingNotif.value : profile?.[field] ?? true;
 
   const handleNotifToggle = async (field: NotifField, value: boolean) => {
-    if (!user || savingNotifField !== null) return;
-    setNotifLocal(field, value);
-    posthog.capture("notification_preferences_changed", { notification_type: field, enabled: value });
-    setSavingNotifField(field);
-    const { error } = await supabase.from("profiles").update({ [field]: value }).eq("id", user.id);
-    setSavingNotifField(null);
-    if (error) {
-      // Roll back optimistic update
-      setNotifLocal(field, !value);
-    } else {
+    if (!user || !profile || pendingNotif !== null) return;
+    setPendingNotif({ field, value });
+    posthog.capture("notification_preferences_changed", { notification_type: NOTIF_EVENT_NAME[field], enabled: value });
+    try {
+      // Goes through AuthContext so the profile everyone reads is updated too.
+      await updateProfile({ [field]: value });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      Alert.alert("Couldn't save", friendlyError(e));
+    } finally {
+      setPendingNotif(null);
     }
   };
 
@@ -183,11 +172,11 @@ export default function SettingsScreen() {
   };
 
   const notifRows = [
-    { field: "notif_on_this_day", label: "On this day", sub: "When a song anniversary comes up", value: notifOnThisDay },
-    { field: "notif_resurfacing", label: "Random memories", sub: "A random moment from your past", value: notifResurfacing },
-    { field: "notif_milestones", label: "Streak milestones", sub: "Celebrate hitting a new streak", value: notifMilestones },
-    { field: "notif_streak", label: "Streak reminders", sub: "Keep your logging streak going", value: notifStreak },
-    { field: "notif_prompts", label: "Journal prompts", sub: "Occasional nudges to capture a moment", value: notifPrompts },
+    { field: "notifOnThisDay", label: "On this day", sub: "When a song anniversary comes up" },
+    { field: "notifResurfacing", label: "Random memories", sub: "A random moment from your past" },
+    { field: "notifMilestones", label: "Streak milestones", sub: "Celebrate hitting a new streak" },
+    { field: "notifStreak", label: "Streak reminders", sub: "Keep your logging streak going" },
+    { field: "notifPrompts", label: "Journal prompts", sub: "Occasional nudges to capture a moment" },
   ] as const;
 
   return (
@@ -220,16 +209,16 @@ export default function SettingsScreen() {
                 <Text style={styles.notifSettingsLink}>Open Settings</Text>
               </TouchableOpacity>
             ) : (
-              notifRows.map(({ field, label, sub, value }, idx) => (
+              notifRows.map(({ field, label, sub }, idx) => (
                 <View key={field} style={[styles.notifRow, idx > 0 && styles.notifRowBorder]}>
                   <View style={styles.notifRowText}>
                     <Text style={styles.notifRowLabel}>{label}</Text>
                     <Text style={styles.notifRowSub}>{sub}</Text>
                   </View>
                   <Switch
-                    value={value}
+                    value={notifValue(field)}
                     onValueChange={(v) => handleNotifToggle(field, v)}
-                    disabled={savingNotifField !== null}
+                    disabled={pendingNotif !== null || !profile}
                     trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
                     thumbColor="#fff"
                   />

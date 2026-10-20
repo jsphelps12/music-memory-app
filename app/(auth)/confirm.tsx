@@ -39,6 +39,7 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.background },
     error: {
+      fontFamily: theme.fonts.body,
       fontSize: theme.fontSize.base,
       color: theme.colors.textSecondary,
       textAlign: "center",

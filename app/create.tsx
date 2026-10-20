@@ -187,12 +187,17 @@ export default function CreateMomentScreen() {
 
   const [photos, setPhotos] = useState<string[]>([]);
 
-  // If share intent lookup failed, open song search
+  // If share intent lookup failed, open song search, once. The param stays
+  // set for the screen's lifetime, so without the guard any later photo
+  // change would open song search again.
+  const photosRef = useRef(photos);
+  photosRef.current = photos;
+  const openedSearchFor = useRef<string | null>(null);
   useEffect(() => {
-    if (params.shareFailedUrl) {
-      router.push({ pathname: "/song-search", params: { photos: JSON.stringify(photos) } });
-    }
-  }, [params.shareFailedUrl, photos, router]);
+    if (!params.shareFailedUrl || openedSearchFor.current === params.shareFailedUrl) return;
+    openedSearchFor.current = params.shareFailedUrl;
+    router.push({ pathname: "/song-search", params: { photos: JSON.stringify(photosRef.current) } });
+  }, [params.shareFailedUrl, router]);
 
   // Restore photos from params after song-search navigation
   useEffect(() => {
@@ -399,9 +404,6 @@ export default function CreateMomentScreen() {
     }
     try {
       const sinceSave = startTimer();
-      const prefetchedPreview = previewFetchRef.current
-        ? await previewFetchRef.current.catch(() => null)
-        : undefined;
       const { id: insertedId, moment: savedMoment, secondaryFailures } = await saveMoment({
         userId: user.id,
         song: song!,
@@ -412,7 +414,8 @@ export default function CreateMomentScreen() {
         locationResult,
         momentDate,
         selectedAlbum,
-        prefetchedPreview,
+        // The pending lookup itself, so photo uploads start alongside it.
+        prefetchedPreview: previewFetchRef.current,
         weatherResult,
       });
 

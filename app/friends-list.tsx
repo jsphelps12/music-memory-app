@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   View,
@@ -18,6 +18,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { CloseButton } from "@/components/CloseButton";
+import { ErrorState } from "@/components/ErrorState";
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { IconButton } from "@/components/IconButton";
 import { confirmSheet } from "@/components/ConfirmSheet";
 import { getPublicPhotoUrl } from "@/lib/storage";
@@ -60,12 +62,16 @@ export default function FriendsListScreen() {
     Share.share(Platform.OS === "ios" ? { url } : { message: url });
   }, [profile?.friendInviteToken]);
 
-  const { data: friends = [], isLoading, isFetching, refetch } = useQuery({
+  const { data, isLoading, isFetching, isError, error, errorUpdatedAt, refetch } = useQuery({
     queryKey: ["friendsList", user?.id],
     queryFn: () => fetchFriends(user!.id),
     staleTime: STALE_TIME,
     enabled: !!user,
   });
+  const friends = data ?? [];
+  // A background refresh failure over existing data; dismissing hides this
+  // failure only, a later one shows again.
+  const [dismissedErrorAt, setDismissedErrorAt] = useState(0);
 
   const handleRemoveFriend = async (friendship: Friendship) => {
     const name = friendship.otherUserDisplayName ?? "this person";
@@ -82,6 +88,8 @@ export default function FriendsListScreen() {
         old ? old.filter((f) => f.id !== friendship.id) : old
       );
       invalidateFriendCaches(queryClient, user?.id);
+      // The You tab's friend count, which invalidateFriendCaches doesn't cover yet.
+      void queryClient.invalidateQueries({ queryKey: ["youSummary", user?.id] });
     } catch (e) {
       Alert.alert("Error", friendlyError(e));
     }
@@ -102,6 +110,9 @@ export default function FriendsListScreen() {
         <View style={s.center}>
           <ActivityIndicator color={theme.colors.textSecondary} />
         </View>
+      ) : isError && !data ? (
+        // Nothing to show: a failed load must not read as "no friends".
+        <ErrorState message={friendlyError(error)} onRetry={() => refetch()} />
       ) : (
         <ScrollView
           contentContainerStyle={s.scrollContent}
@@ -114,6 +125,13 @@ export default function FriendsListScreen() {
             />
           }
         >
+          {isError && dismissedErrorAt !== errorUpdatedAt ? (
+            <ErrorBanner
+              message={friendlyError(error)}
+              onRetry={() => refetch()}
+              onDismiss={() => setDismissedErrorAt(errorUpdatedAt)}
+            />
+          ) : null}
           <View style={s.section}>
             <Text style={[s.sectionLabel, { color: theme.colors.textTertiary }]}>
               My Friends ({friends.length})
