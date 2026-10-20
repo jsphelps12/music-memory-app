@@ -23,6 +23,11 @@ export interface MomentRow {
   song_title: string;
   song_artist: string;
   created_at: string;
+  /**
+   * created_at as a YYYY-MM-DD date in the owner's timezone. Set by
+   * buildSelectionInputs; when absent, the UTC date is used.
+   */
+  local_created_date?: string;
 }
 
 /** A moment row as it comes back from the single cross-user moments query. */
@@ -57,9 +62,9 @@ export interface SelectNotificationsInput {
   todayYear: number;
   todayMM: string;
   todayDD: string;
-  /** 0=Sun … 6=Sat, in UTC */
+  /** 0=Sun … 6=Sat, in the users' local timezone (see buildSelectionInputs) */
   todayDow: number;
-  /** deterministic copy-variant selector (UTC day of month) */
+  /** deterministic copy-variant selector (local day of month) */
   daySeed: number;
   prefsByUserId: Record<string, EligibleUser | undefined>;
   tokenByUserId: Record<string, string>;
@@ -191,7 +196,9 @@ export function selectNotifications(input: SelectNotificationsInput): SelectNoti
     // Streak can only be non-zero if user logged today
     if (!loggedTodaySet.has(userId)) continue;
 
-    const dates = (momentsByUser[userId] ?? []).map(m => m.created_at.slice(0, 10));
+    const dates = (momentsByUser[userId] ?? []).map(
+      m => m.local_created_date ?? m.created_at.slice(0, 10)
+    );
     const streak = computeStreak(dates, todayStr);
     if (!STREAK_MILESTONES.has(streak)) continue;
 
@@ -376,4 +383,156 @@ export function selectNotifications(input: SelectNotificationsInput): SelectNoti
   }
 
   return { messages, reengagedUserIds };
+}
+
+// ── Local-day inputs ─────────────────────────────────────────────────────────
+// Users are picked when it is 10am in their own timezone, so "today",
+// "yesterday", On This Day and the weekday prompts must use that zone's
+// calendar too, not the UTC one (for UTC+10 the 10am run happens on the
+// previous UTC day).
+
+/** The calendar day in one timezone at a given instant. */
+export interface LocalDay {
+  dateStr: string; // YYYY-MM-DD
+  yesterdayStr: string; // YYYY-MM-DD
+  year: number;
+  mm: string;
+  dd: string;
+  dow: number; // 0=Sun … 6=Sat
+}
+
+const WEEKDAYS: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+function formatterFor(timezone: string): Intl.DateTimeFormat {
+  let f = formatters.get(timezone);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      weekday: "short",
+    });
+    formatters.set(timezone, f);
+  }
+  return f;
+}
+
+/** A usable IANA timezone, falling back to UTC for missing or unknown ones. */
+export function normalizeTimezone(timezone: string | null | undefined): string {
+  if (!timezone) return "UTC";
+  try {
+    formatterFor(timezone);
+    return timezone;
+  } catch {
+    return "UTC";
+  }
+}
+
+function parts(instant: Date, timezone: string) {
+  const out: Record<string, string> = {};
+  for (const p of formatterFor(timezone).formatToParts(instant)) out[p.type] = p.value;
+  return out;
+}
+
+/** YYYY-MM-DD of `instant` in `timezone` (pass a normalized timezone). */
+export function localDateStr(instant: Date, timezone: string): string {
+  const p = parts(instant, timezone);
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+export function localDay(instant: Date, timezone: string): LocalDay {
+  const p = parts(instant, timezone);
+  const dateStr = `${p.year}-${p.month}-${p.day}`;
+  const y = new Date(`${dateStr}T00:00:00Z`);
+  y.setUTCDate(y.getUTCDate() - 1);
+  return {
+    dateStr,
+    yesterdayStr: y.toISOString().slice(0, 10),
+    year: Number(p.year),
+    mm: p.month,
+    dd: p.day,
+    dow: WEEKDAYS[p.weekday] ?? 0,
+  };
+}
+
+/**
+ * Turn the eligible users and their moments (sorted created_at desc) into one
+ * selectNotifications input per local calendar day. Users at their local 10am
+ * can still be on different dates (UTC-10 and UTC+14), so each group gets its
+ * own today/yesterday/MM-DD/weekday, and every moment's "logged on" date is
+ * taken in its owner's timezone.
+ */
+export function buildSelectionInputs(
+  eligibleUsers: EligibleUser[],
+  momentRows: UserMomentRow[],
+  now: Date,
+  random?: () => number
+): SelectNotificationsInput[] {
+  const tzByUser = new Map<string, string>();
+  const dayByUser = new Map<string, LocalDay>();
+  const groups = new Map<string, { day: LocalDay; users: EligibleUser[] }>();
+
+  for (const u of eligibleUsers) {
+    const tz = normalizeTimezone(u.timezone);
+    const day = localDay(now, tz);
+    tzByUser.set(u.id, tz);
+    dayByUser.set(u.id, day);
+    const g = groups.get(day.dateStr) ?? { day, users: [] };
+    g.users.push(u);
+    groups.set(day.dateStr, g);
+  }
+
+  const momentsByUser: Record<string, MomentRow[]> = {};
+  const rowsByUser = new Map<string, UserMomentRow[]>();
+  const loggedYesterdayByUser = new Map<string, string>();
+  const loggedTodaySet = new Set<string>();
+
+  for (const row of momentRows) {
+    const tz = tzByUser.get(row.user_id);
+    const day = dayByUser.get(row.user_id);
+    if (!tz || !day) continue;
+    const loggedDate = localDateStr(new Date(row.created_at), tz);
+    (momentsByUser[row.user_id] ??= []).push({
+      id: row.id,
+      moment_date: row.moment_date,
+      song_title: row.song_title,
+      song_artist: row.song_artist,
+      created_at: row.created_at,
+      local_created_date: loggedDate,
+    });
+    const list = rowsByUser.get(row.user_id) ?? [];
+    list.push(row);
+    rowsByUser.set(row.user_id, list);
+    if (loggedDate === day.yesterdayStr && !loggedYesterdayByUser.has(row.user_id)) {
+      loggedYesterdayByUser.set(row.user_id, row.song_title);
+    }
+    if (loggedDate === day.dateStr) loggedTodaySet.add(row.user_id);
+  }
+
+  const inputs: SelectNotificationsInput[] = [];
+  for (const { day, users } of groups.values()) {
+    const ids = new Set(users.map((u) => u.id));
+    inputs.push({
+      eligibleUsers: users,
+      momentsByUser: Object.fromEntries(
+        Object.entries(momentsByUser).filter(([id]) => ids.has(id))
+      ),
+      loggedYesterdayByUser: new Map([...loggedYesterdayByUser].filter(([id]) => ids.has(id))),
+      loggedTodaySet: new Set([...loggedTodaySet].filter((id) => ids.has(id))),
+      allMoments: users.flatMap((u) => rowsByUser.get(u.id) ?? []),
+      now,
+      todayStr: day.dateStr,
+      todayYear: day.year,
+      todayMM: day.mm,
+      todayDD: day.dd,
+      todayDow: day.dow,
+      daySeed: Number(day.dd),
+      prefsByUserId: Object.fromEntries(users.map((u) => [u.id, u])),
+      tokenByUserId: Object.fromEntries(users.map((u) => [u.id, u.push_token as string])),
+      ...(random ? { random } : {}),
+    });
+  }
+  return inputs;
 }

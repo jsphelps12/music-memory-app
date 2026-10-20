@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildSelectionInputs,
   computeStreak,
+  localDay,
+  normalizeTimezone,
   selectNotifications,
   type EligibleUser,
   type SelectNotificationsInput,
@@ -405,5 +408,87 @@ describe("selectNotifications priority cascade", () => {
       return messages[0].body;
     });
     expect(new Set(bodies).size).toBe(3);
+  });
+});
+
+describe("local-day inputs (users' own calendar, not UTC)", () => {
+  it("localDay gives the zone's date, yesterday and weekday", () => {
+    // 23:00 UTC Wed Jul 15 is 09:00 Thu Jul 16 in Sydney (UTC+10).
+    const at = new Date("2026-07-15T23:00:00.000Z");
+    expect(localDay(at, "Australia/Sydney")).toEqual({
+      dateStr: "2026-07-16",
+      yesterdayStr: "2026-07-15",
+      year: 2026,
+      mm: "07",
+      dd: "16",
+      dow: 4,
+    });
+    expect(localDay(at, "UTC").dateStr).toBe("2026-07-15");
+    // 04:00 UTC Jan 1 is still Dec 31 in New York; yesterday crosses the year.
+    expect(localDay(new Date("2026-01-01T04:00:00Z"), "America/New_York").yesterdayStr).toBe(
+      "2025-12-30"
+    );
+  });
+
+  it("normalizeTimezone falls back to UTC for missing or unknown zones", () => {
+    expect(normalizeTimezone(null)).toBe("UTC");
+    expect(normalizeTimezone("Not/AZone")).toBe("UTC");
+    expect(normalizeTimezone("Europe/Paris")).toBe("Europe/Paris");
+  });
+
+  it("a moment logged late evening local counts as yesterday, not today", () => {
+    // New York user: 10am EDT Jul 19 = 14:00 UTC. They logged 9pm EDT Jul 18
+    // (01:00 UTC Jul 19), which UTC would call "today".
+    const now = new Date("2026-07-19T14:00:00.000Z");
+    const ny = user("ny", { timezone: "America/New_York" });
+    const rows = [moment("ny", { created_at: "2026-07-19T01:00:00.000Z", song_title: "Late" })];
+    const [input] = buildSelectionInputs([ny], rows, now, () => 0);
+    expect(input.todayStr).toBe("2026-07-19");
+    expect(input.loggedTodaySet.has("ny")).toBe(false);
+    expect(input.loggedYesterdayByUser.get("ny")).toBe("Late");
+    const { messages } = selectNotifications(input);
+    expect(messages[0]?.title).toBe("Keep your streak going 🔥");
+  });
+
+  it("groups users on different local dates and uses each date for On This Day and weekday", () => {
+    // 20:00 UTC Mon Jul 13: 10am Tue Jul 14 in Kiritimati (UTC+14),
+    // 10am Mon Jul 13 in Honolulu (UTC-10).
+    const now = new Date("2026-07-13T20:00:00.000Z");
+    const east = user("east", { timezone: "Pacific/Kiritimati" });
+    const west = user("west", { timezone: "Pacific/Honolulu" });
+    const rows = [
+      moment("west", { moment_date: "2024-07-14", created_at: "2026-07-10T00:00:00.000Z" }),
+      moment("east", { moment_date: "2024-07-14", created_at: "2026-06-01T00:00:00.000Z" }),
+    ];
+    const inputs = buildSelectionInputs([east, west], rows, now, () => 0);
+    expect(inputs).toHaveLength(2);
+    const byUser = Object.fromEntries(inputs.map((i) => [i.eligibleUsers[0].id, i]));
+    expect(byUser.east.todayStr).toBe("2026-07-14");
+    expect(byUser.east.todayDow).toBe(2);
+    expect(byUser.west.todayStr).toBe("2026-07-13");
+    expect(byUser.west.todayDow).toBe(1);
+    expect(byUser.west.allMoments?.every((m) => m.user_id === "west")).toBe(true);
+
+    // East's Jul 14 anniversary is today for them; for West it's tomorrow.
+    expect(selectNotifications(byUser.east).messages[0]?.title).toBe("On This Day 🎵");
+    expect(selectNotifications(byUser.west).messages[0]?.title).not.toBe("On This Day 🎵");
+  });
+
+  it("streak milestones count local logging days", () => {
+    // Tokyo (UTC+9), now = 10am Jul 15 local. Five consecutive local days,
+    // most of them at 23:30 local, which UTC files under the same date but
+    // one of them (01:00 local Jul 15) UTC files under Jul 14.
+    const now = new Date("2026-07-15T01:00:00.000Z");
+    const tk = user("tk", { timezone: "Asia/Tokyo" });
+    const rows = [
+      moment("tk", { created_at: "2026-07-14T16:00:00.000Z" }), // Jul 15 01:00 local
+      moment("tk", { created_at: "2026-07-14T14:30:00.000Z" }), // Jul 14 23:30
+      moment("tk", { created_at: "2026-07-13T14:30:00.000Z" }), // Jul 13 23:30
+      moment("tk", { created_at: "2026-07-12T14:30:00.000Z" }), // Jul 12 23:30
+      moment("tk", { created_at: "2026-07-11T14:30:00.000Z" }), // Jul 11 23:30
+    ];
+    const [input] = buildSelectionInputs([tk], rows, now, () => 0);
+    expect(input.loggedTodaySet.has("tk")).toBe(true);
+    expect(selectNotifications(input).messages[0]?.title).toBe("5-Day Streak 🔥");
   });
 });
