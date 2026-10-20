@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentProps, type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePostHog } from "posthog-react-native";
 import {
   View,
@@ -34,7 +34,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePlayer } from "@/contexts/PlayerContext";
+import { usePlayerControls, usePlayerProgress } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
 import { getPublicPhotoUrl, momentCardImageUrls } from "@/lib/storage";
 import { deleteGuestMoment, deleteMomentWithCleanup } from "@/lib/deleteMoment";
@@ -90,7 +90,7 @@ export default function MomentDetailScreen() {
   }>();
   const router = useRouter();
   const { user, profile } = useAuth();
-  const { currentSong, isPlaying, playbackTime, playbackDuration, playError, playFull, pause, seekTo, stop } = usePlayer();
+  const { currentSong, isPlaying, playError, playFull, pause, seekTo, stop } = usePlayerControls();
   const theme = useTheme();
   const posthog = usePostHog();
   const queryClient = useQueryClient();
@@ -179,8 +179,9 @@ export default function MomentDetailScreen() {
   const scrollNativeGesture = useMemo(() => Gesture.Native(), []);
 
   const progressBarWidthRef = useRef(1);
-  const progressDurationRef = useRef(playbackDuration);
-  progressDurationRef.current = playbackDuration;
+  // Written by PlaybackProgress, which owns the per-tick subscription, so the
+  // seek gesture can read the duration without this screen re-rendering.
+  const progressDurationRef = useRef(0);
   const seekToRef = useRef(seekTo);
   seekToRef.current = seekTo;
 
@@ -878,25 +879,14 @@ export default function MomentDetailScreen() {
                     color={playError ? theme.colors.textTertiary : theme.colors.buttonText}
                   />
                 </TouchableOpacity>
-                {isCurrentSong && playbackDuration > 0 ? (
-                  <>
-                    <GestureDetector gesture={seekGesture}>
-                      <View
-                        style={styles.progressTrackWrapper}
-                        onLayout={(e) => { progressBarWidthRef.current = e.nativeEvent.layout.width; }}
-                      >
-                        <View style={styles.progressTrack}>
-                          <View style={[styles.progressFill, { width: `${Math.min(100, (playbackTime / playbackDuration) * 100)}%` }]} />
-                        </View>
-                      </View>
-                    </GestureDetector>
-                    <Text style={styles.progressTime}>
-                      {formatTime(playbackTime)} / {formatTime(playbackDuration)}
-                    </Text>
-                  </>
-                ) : (
-                  <Text style={styles.playHint}>{playError ? "Unavailable" : "Play"}</Text>
-                )}
+                <PlaybackProgress
+                  isCurrentSong={!!isCurrentSong}
+                  playError={!!playError}
+                  seekGesture={seekGesture}
+                  barWidthRef={progressBarWidthRef}
+                  durationRef={progressDurationRef}
+                  styles={styles}
+                />
               </View>
             ) : null}
 
@@ -1265,6 +1255,50 @@ const collectionStyles = StyleSheet.create({
   },
 });
 
+
+/**
+ * The progress bar and time label. Only this subscribes to playback progress,
+ * so the rest of the detail screen doesn't re-render on every tick.
+ */
+function PlaybackProgress({
+  isCurrentSong,
+  playError,
+  seekGesture,
+  barWidthRef,
+  durationRef,
+  styles,
+}: {
+  isCurrentSong: boolean;
+  playError: boolean;
+  seekGesture: ComponentProps<typeof GestureDetector>["gesture"];
+  barWidthRef: MutableRefObject<number>;
+  durationRef: MutableRefObject<number>;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  const { playbackTime, playbackDuration } = usePlayerProgress();
+  durationRef.current = playbackDuration;
+
+  if (!isCurrentSong || playbackDuration <= 0) {
+    return <Text style={styles.playHint}>{playError ? "Unavailable" : "Play"}</Text>;
+  }
+  return (
+    <>
+      <GestureDetector gesture={seekGesture}>
+        <View
+          style={styles.progressTrackWrapper}
+          onLayout={(e) => { barWidthRef.current = e.nativeEvent.layout.width; }}
+        >
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${Math.min(100, (playbackTime / playbackDuration) * 100)}%` }]} />
+          </View>
+        </View>
+      </GestureDetector>
+      <Text style={styles.progressTime}>
+        {formatTime(playbackTime)} / {formatTime(playbackDuration)}
+      </Text>
+    </>
+  );
+}
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
