@@ -15,7 +15,11 @@ import { Moment } from "@/types";
 
 export const TIMELINE_PAGE_SIZE = 30;
 
-const CACHE_KEY_PREFIX = "timeline_cache_v1_";
+// Bump the version whenever the cached Moment shape changes. v1 predates the
+// multi-mood change (`mood` -> `moods: string[]`); a v1 cache would hand the
+// timeline objects without `moods` and crash MomentCard on first paint.
+const CACHE_KEY_PREFIX = "timeline_cache_v2_";
+const LEGACY_CACHE_KEY_PREFIXES = ["timeline_cache_v1_"];
 
 // null means "network failed with no cache" — distinct from [] which means "user has 0 moments"
 let _prefetch: { promise: Promise<Moment[] | null>; userId: string } | null = null;
@@ -31,14 +35,47 @@ function cacheKey(userId: string) {
   return `${CACHE_KEY_PREFIX}${userId}`;
 }
 
-async function readCache(userId: string): Promise<Moment[] | null> {
+function isCachedMoment(value: unknown): value is Moment {
+  if (typeof value !== "object" || value === null) return false;
+  const m = value as Record<string, unknown>;
+  return (
+    typeof m.id === "string" &&
+    Array.isArray(m.moods) &&
+    Array.isArray(m.photoUrls) &&
+    Array.isArray(m.photoThumbnails)
+  );
+}
+
+/**
+ * Shape check for the disk cache. The cache outlives app updates, so a bundle
+ * must never trust what an older bundle wrote: one malformed row is enough to
+ * throw during the first render, and offline the bad cache is never replaced.
+ * Returns null (treated as a cache miss) unless every row has the fields the
+ * card reads unguarded.
+ */
+export function parseCachedTimeline(raw: string | null): Moment[] | null {
+  if (!raw) return null;
   try {
-    const raw = await AsyncStorage.getItem(cacheKey(userId));
-    if (!raw) return null;
-    return JSON.parse(raw) as Moment[];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    return parsed.every(isCachedMoment) ? parsed : null;
   } catch {
     return null;
   }
+}
+
+async function readCache(userId: string): Promise<Moment[] | null> {
+  try {
+    return parseCachedTimeline(await AsyncStorage.getItem(cacheKey(userId)));
+  } catch {
+    return null;
+  }
+}
+
+function removeLegacyCaches(userId: string): Promise<void> {
+  return AsyncStorage.multiRemove(
+    LEGACY_CACHE_KEY_PREFIXES.map((prefix) => `${prefix}${userId}`)
+  ).catch(() => {});
 }
 
 async function writeCache(userId: string, moments: Moment[]): Promise<void> {
@@ -56,6 +93,9 @@ export function prefetchTimeline(userId: string): void {
   // putting the signed-out user's moments back on the device. Bumping the
   // generation makes any in-flight fetch recognise it has been superseded.
   const generation = ++_generation;
+
+  // Old-format caches are never read again; drop them so they don't linger.
+  void removeLegacyCaches(userId);
 
   // Fire network fetch immediately (runs in background)
   const networkFetch = Promise.resolve(
@@ -129,4 +169,5 @@ export async function clearTimelineCache(userId: string): Promise<void> {
   try {
     await AsyncStorage.removeItem(cacheKey(userId));
   } catch {}
+  await removeLegacyCaches(userId);
 }

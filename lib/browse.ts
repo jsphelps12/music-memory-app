@@ -4,7 +4,7 @@ import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import type { Moment } from "@/types";
 
-// Versioned, like timeline_cache_v1_ / profile_cache_v1_. What lands here is
+// Versioned, like timeline_cache_v2_ / profile_cache_v1_. What lands here is
 // JSON.parsed straight into BrowseMeta[] and handed to queryClient.setQueryData,
 // so a shape change would feed stale-shaped objects to five screens with nothing
 // to notice. Bump the suffix whenever BrowseMeta changes and add the old prefix
