@@ -32,15 +32,19 @@ public class NowPlayingModule: Module {
       isObserving = false
     }
 
+    // MPMusicPlayerController is main-thread only; AsyncFunctions run on the
+    // module's background queue unless told otherwise.
     AsyncFunction("getNowPlaying") { () -> [String: Any]? in
       return self.buildNowPlayingInfo()
-    }
+    }.runOnQueue(.main)
   }
 
   @objc private func nowPlayingItemDidChange() {
-    guard isObserving else { return }
-    let info = buildNowPlayingInfo()
-    sendEvent("onNowPlayingChanged", ["item": info as Any])
+    DispatchQueue.main.async {
+      guard self.isObserving else { return }
+      let info = self.buildNowPlayingInfo()
+      self.sendEvent("onNowPlayingChanged", ["item": info as Any])
+    }
   }
 
   private func buildNowPlayingInfo() -> [String: Any]? {
@@ -51,16 +55,6 @@ public class NowPlayingModule: Module {
 
     let title = item.title ?? ""
     let artist = item.artist ?? ""
-
-    var artworkDataUri: String? = nil
-    if let artwork = item.artwork {
-      let size = CGSize(width: 600, height: 600)
-      if let image = artwork.image(at: size),
-         let data = image.pngData() {
-        artworkDataUri = "data:image/png;base64," + data.base64EncodedString()
-      }
-    }
-
     let durationMs = Int(item.playbackDuration * 1000)
     let storeId = item.value(forProperty: MPMediaItemPropertyPlaybackStoreID) as? String
 
@@ -68,8 +62,30 @@ public class NowPlayingModule: Module {
       "id": storeId ?? "",
       "title": title,
       "artistName": artist,
-      "artworkUrl": artworkDataUri ?? "",
+      "artworkUrl": artworkFileUrl(for: item) ?? "",
       "durationMs": durationMs,
     ]
+  }
+
+  /// The item's artwork as a file:// URL in the temp directory, for display
+  /// only. Image data never crosses the bridge, and JS never persists a local
+  /// URL: it swaps in the catalog artwork before saving.
+  private func artworkFileUrl(for item: MPMediaItem) -> String? {
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent("now-playing-artwork-\(item.persistentID).jpg")
+    if FileManager.default.fileExists(atPath: url.path) {
+      return url.absoluteString
+    }
+    guard let artwork = item.artwork,
+          let image = artwork.image(at: CGSize(width: 600, height: 600)),
+          let data = image.jpegData(compressionQuality: 0.8) else {
+      return nil
+    }
+    do {
+      try data.write(to: url, options: .atomic)
+      return url.absoluteString
+    } catch {
+      return nil
+    }
   }
 }
