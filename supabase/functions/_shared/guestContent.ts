@@ -1,17 +1,15 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { removeAllUnder } from "./storage.ts";
+import { isUuid } from "./uuid.ts";
+
+export { isUuid };
 
 // Guest contributions (submit-guest-contribution) are owned by a per-album
 // guest auth user and store their photo under guest/{guest_uuid}/. Neither is
 // reachable with the album owner's own session, so cleanup runs here with the
 // service role, after the caller has been checked against the album.
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PAGE = 500;
-
-export function isUuid(value: unknown): value is string {
-  return typeof value === "string" && UUID_RE.test(value);
-}
 
 /** The email create-guest-user gives an album's guest auth user. */
 export function guestEmailFor(collectionId: string): string {

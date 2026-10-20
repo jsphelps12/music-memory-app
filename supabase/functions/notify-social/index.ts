@@ -1,16 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isUuid } from "../_shared/uuid.ts";
 
 // Sharing v2 (docs/SOCIAL-ARCHITECTURE.md "Notifications"): the one edge
 // function path for social pushes on v2 clients, replacing notify-friend's
 // four types. friend_added is not here — it fires server-side inside
 // accept-friend-invite, the only place a friendship is created. notify-friend
-// stays deployed untouched for stranded old binaries until the build-23
+// stays deployed (as a no-op) for stranded old binaries until the build-23
 // caboose deletes it.
 //
 // Push content is looked up server-side from the caller's identity and the
-// moment row — the client only names the share. The moment_shares row is
-// required to exist before a push goes out, so this endpoint cannot be used
-// to spam arbitrary notification text at arbitrary users.
+// moment row — the client only names the share. A push goes out only for a
+// share the caller sent in the last few minutes, to an accepted friend.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,6 +18,15 @@ const corsHeaders = {
 };
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
+
+// Only a share sent in the last few minutes is announced; the app calls this
+// right after inserting the row.
+const SHARE_PUSH_WINDOW_MS = 5 * 60 * 1000;
+
+function clip(text: string, max: number): string {
+  const t = text.replace(/\s+/g, " ").trim();
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+}
 
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
@@ -52,9 +61,10 @@ Deno.serve(async (req) => {
       return json(400, { error: "invalid_body" });
     }
     const { type, toUserId, momentId } = body;
-    if (type !== "share_received" || !toUserId || !momentId) {
+    if (type !== "share_received" || !isUuid(toUserId) || !isUuid(momentId)) {
       return json(400, { error: "type, toUserId and momentId required" });
     }
+    if (toUserId === caller.id) return json(400, { error: "invalid_recipient" });
 
     // Authorize: the caller owns the moment, and the grant row this push
     // announces actually exists.
@@ -67,18 +77,39 @@ Deno.serve(async (req) => {
 
     const { data: share } = await adminClient
       .from("moment_shares")
-      .select("id")
+      .select("id, sender_id, created_at")
       .eq("moment_id", momentId)
       .eq("recipient_id", toUserId)
       .maybeSingle();
-    if (!share) return json(400, { error: "no_share" });
+    if (!share || share.sender_id !== caller.id) return json(400, { error: "no_share" });
+
+    // The push announces a share that was just sent; an old share doesn't
+    // push again.
+    const sharedAt = Date.parse(share.created_at);
+    if (!Number.isFinite(sharedAt) || Date.now() - sharedAt > SHARE_PUSH_WINDOW_MS) {
+      return json(200, { ok: true, skipped: "stale_share" });
+    }
+
+    // Sharing is between friends: require an accepted friendship either way.
+    const { data: friendship } = await adminClient
+      .from("friendships")
+      .select("id")
+      .eq("status", "accepted")
+      .or(
+        `and(requester_id.eq.${caller.id},addressee_id.eq.${toUserId}),` +
+          `and(requester_id.eq.${toUserId},addressee_id.eq.${caller.id})`
+      )
+      .limit(1)
+      .maybeSingle();
+    if (!friendship) return json(403, { error: "not_friends" });
 
     const { data: senderProfile } = await adminClient
       .from("profiles")
       .select("display_name")
       .eq("id", caller.id)
       .single();
-    const senderName = senderProfile?.display_name ?? "Someone";
+    const senderName = clip(senderProfile?.display_name || "Someone", 40);
+    const songTitle = moment.song_title ? clip(moment.song_title, 80) : "";
 
     const { data: recipientProfile } = await adminClient
       .from("profiles")
@@ -95,8 +126,8 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         to: recipientProfile.push_token,
         title: "Shared with you",
-        body: moment.song_title
-          ? `${senderName} shared ${moment.song_title} with you`
+        body: songTitle
+          ? `${senderName} shared ${songTitle} with you`
           : `${senderName} shared a moment with you`,
         data: { type: "shared_moment", momentId },
         sound: "default",
