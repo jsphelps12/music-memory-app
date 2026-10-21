@@ -7,7 +7,9 @@ export const APP_STORE_URL = "https://apps.apple.com/us/app/soundtracks/id675920
 export function TopBar({ children }: { children?: React.ReactNode }) {
   return (
     <header className={s.topbar}>
-      <Link href="/" className={s.wordmark}>
+      {/* No prefetch: these pages are opened by guests on venue signal, and
+          prefetching pulls in the landing page's images for nothing. */}
+      <Link href="/" className={s.wordmark} prefetch={false}>
         Soundtracks
       </Link>
       {children}

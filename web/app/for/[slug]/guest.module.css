@@ -1,0 +1,200 @@
+/* Guest capture (/for/{slug}): the share pages' paper-and-ink world, with a
+   few pieces of its own. Phone-first; a guest is standing at a reception. */
+
+.head {
+  margin-bottom: 32px;
+}
+
+.when {
+  margin-top: 10px;
+}
+
+.step {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-secondary);
+}
+
+.search {
+  margin-top: 4px;
+}
+
+.artBlank {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  background: var(--paper-deep);
+}
+
+/* Scroll targets clear the top of the screen a little. */
+.scrollTarget {
+  scroll-margin-top: 16px;
+}
+
+.starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.starter {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.starter:hover {
+  background: var(--paper-input);
+}
+
+/* The add button stays in reach on a phone, above the home indicator. */
+.submitBar {
+  position: sticky;
+  bottom: 0;
+  margin: 0 -20px;
+  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, transparent, var(--paper) 30%);
+}
+
+.done {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.focusTarget:focus {
+  outline: none;
+}
+
+.focusTarget:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--paper-input);
+}
+
+.cardPhoto {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+
+.cardSong {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cardSong img,
+.cardSong .artBlank {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.cardWords {
+  margin: 0;
+  font-family: var(--font-reading), Georgia, serif;
+  font-size: 19px;
+  line-height: 1.45;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 0;
+  border-top: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
+}
+
+.emailForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.emailRow {
+  display: flex;
+  gap: 8px;
+}
+
+.emailRow .emailButton {
+  width: auto;
+  flex: none;
+  padding: 0 22px;
+}
+
+.another {
+  margin-top: 8px;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--border);
+}
+
+.yours {
+  margin-top: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.yourRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.yourRow img {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.yourRow .resultText,
+.yourRow p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
