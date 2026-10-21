@@ -25,5 +25,8 @@
       ]
     }
   },
-  "include": ["./**/*.ts"]
+  "include": ["./**/*.ts"],
+  // Deno tests (*_test.ts) import deno.land/std and use Deno.test, which this
+  // approximation doesn't model. Run them with `deno test supabase/functions`.
+  "exclude": ["./**/*_test.ts"]
 }
