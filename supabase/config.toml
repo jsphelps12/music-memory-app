@@ -26,6 +26,9 @@ verify_jwt = true # legacy, kept deployed for old binaries until the build-23 ca
 [functions.notify-social]
 verify_jwt = true
 
+[functions.occasion-entry]
+verify_jwt = false # guests have no JWT; authenticates via the occasion slug and per-entry edit tokens
+
 [functions.send-notifications]
 verify_jwt = false # cron-invoked with the service key, not user JWTs
 

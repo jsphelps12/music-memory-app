@@ -276,8 +276,17 @@ memorials, farewells, graduations, baby showers. Same engine for all.
     `occasion_gallery_photos`, the private `occasion-photos` bucket, host
     policies with column grants, and account deletion cleaning up occasion
     photos.
-  - [ ] P1.2 guest capture (`/for/{slug}`) · P1.3 host setup + Stripe ·
-    P1.4 host dashboard + emails · P1.5 keepsake page
+  - [x] P1.2 guest capture (2026-10-21): `/for/{slug}` (song from the
+    couple's suggestions or Apple search → a photo from tonight → name →
+    words with starters), the `occasion-entry` edge function (song checked
+    against Apple's catalog, photo type from its bytes, edit tokens stored
+    as hashes, per-device / per-address / per-occasion limits), "Your
+    songs" with add-a-photo-later on the same phone, an optional email for
+    the reminder and the finished book, and `get_occasion_for_guests`.
+    Retries can't duplicate (phone-made edit tokens); hosts can't read
+    guests' address hashes or emails. Follow-up: Turnstile bot check.
+  - [ ] P1.3 host setup + Stripe · P1.4 host dashboard + emails ·
+    P1.5 keepsake page
   - **Wedding deliverable (decided 2026-10-20).** Value prop: "Your guests
     catch the songs of your night with two taps. You keep them forever."
     - Lazy capture: QR on the tables → web page → tap a suggested song (the
