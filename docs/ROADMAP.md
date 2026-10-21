@@ -272,6 +272,12 @@ memorials, farewells, graduations, baby showers. Same engine for all.
   contributions are the starting point, not the design. **Spec:
   `docs/OCCASIONS.md`** (signed off 2026-10-20: flows, data model,
   automation, phases P1–P3; web-only payment, no pilot, readable links).
+  - [x] P1.1 foundation (2026-10-21): `occasions`, `occasion_entries`,
+    `occasion_gallery_photos`, the private `occasion-photos` bucket, host
+    policies with column grants, and account deletion cleaning up occasion
+    photos.
+  - [ ] P1.2 guest capture (`/for/{slug}`) · P1.3 host setup + Stripe ·
+    P1.4 host dashboard + emails · P1.5 keepsake page
   - **Wedding deliverable (decided 2026-10-20).** Value prop: "Your guests
     catch the songs of your night with two taps. You keep them forever."
     - Lazy capture: QR on the tables → web page → tap a suggested song (the

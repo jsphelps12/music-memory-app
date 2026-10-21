@@ -64,6 +64,23 @@ Deno.serve(async (req) => {
     if (!result.ok) return cleanupFailed();
   }
 
+  // 1b. Occasions this user hosts cascade away with the user, but their
+  //     photos (guests' and the gallery) live in the private occasion-photos
+  //     bucket under {occasion_id}/, which nothing cascades to. Occasions
+  //     they only co-host survive (co_host_user_id goes null).
+  const { data: hosted, error: occasionsError } = await adminClient
+    .from("occasions")
+    .select("id")
+    .eq("host_user_id", userId);
+  if (occasionsError) {
+    console.error("[delete-account] listing occasions failed:", occasionsError.message);
+    return cleanupFailed();
+  }
+  for (const occasion of hosted ?? []) {
+    const { failed } = await removeAllUnder(adminClient, occasion.id, "occasion-photos");
+    if (failed > 0) return cleanupFailed();
+  }
+
   // 2. Every storage object under moment-photos/{user_id}/. Recurses (album
   //    covers live in {user_id}/collection_covers/) and pages (a single list()
   //    call caps out). If anything is left behind, stop before deleting the
@@ -73,7 +90,8 @@ Deno.serve(async (req) => {
   if (failed > 0) return cleanupFailed();
 
   // 3. Delete the auth user — cascades to profiles, moments, collections,
-  //    collection_moments, and any other tables with ON DELETE CASCADE
+  //    collection_moments, occasions (and their entries and gallery rows),
+  //    and any other tables with ON DELETE CASCADE
   const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
   if (deleteError) {
     return new Response(JSON.stringify({ error: deleteError.message }), {

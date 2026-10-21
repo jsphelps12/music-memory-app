@@ -9,8 +9,9 @@ export interface RemoveResult {
 }
 
 /**
- * Delete every object under `prefix` in moment-photos, recursing into folders
- * and paging through listings. Needs the service role.
+ * Delete every object under `prefix` in a bucket (moment-photos unless told
+ * otherwise), recursing into folders and paging through listings. Needs the
+ * service role.
  *
  * A failed remove() is counted, not retried: the offset steps past entries
  * that are still listed, so every pass makes progress and the loop ends.
@@ -19,14 +20,15 @@ export interface RemoveResult {
  */
 export async function removeAllUnder(
   admin: SupabaseClient,
-  prefix: string
+  prefix: string,
+  bucket: string = BUCKET
 ): Promise<RemoveResult> {
   const result: RemoveResult = { removed: 0, failed: 0 };
   let offset = 0;
 
   for (;;) {
     const { data: entries, error: listError } = await admin.storage
-      .from(BUCKET)
+      .from(bucket)
       .list(prefix, { limit: PAGE, offset });
     if (listError) {
       console.error(`[storage] list failed under ${prefix}:`, listError.message);
@@ -42,7 +44,7 @@ export async function removeAllUnder(
 
     if (files.length > 0) {
       const paths = files.map((f) => `${prefix}/${f.name}`);
-      const { error: removeError } = await admin.storage.from(BUCKET).remove(paths);
+      const { error: removeError } = await admin.storage.from(bucket).remove(paths);
       if (removeError) {
         console.error(`[storage] remove failed under ${prefix}:`, removeError.message);
         result.failed += paths.length;
@@ -54,7 +56,7 @@ export async function removeAllUnder(
     }
 
     for (const folder of folders) {
-      const sub = await removeAllUnder(admin, `${prefix}/${folder.name}`);
+      const sub = await removeAllUnder(admin, `${prefix}/${folder.name}`, bucket);
       result.removed += sub.removed;
       result.failed += sub.failed;
       // A folder disappears once it's empty; one that still holds files

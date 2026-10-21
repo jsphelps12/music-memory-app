@@ -203,61 +203,56 @@ gallery table and a per-entry photo source (`guest` | `gallery`).
 On the date each year: "One year ago tonight, Mara picked September," with her
 photo and words, a link into the keepsake, and push if a host has the app.
 
-## Data model (proposed)
+## Data model (built 2026-10-21)
 
-New tables, separate from personal albums. Albums stay as they are for app
-users; occasions replace guest contributions (*proposed*, see "What happens to
-albums").
+Migration `20261021000000_occasions_foundation.sql`. New tables, separate from
+personal albums. Albums stay as they are for app users; occasions replace guest
+contributions (see "What happens to albums").
 
-```sql
-occasions (
-  id uuid pk, kind text default 'wedding',
-  host_user_id uuid references auth.users, co_host_user_id uuid null,
-  names text, event_date date, city text, time_zone text, guest_estimate int,
-  slug text unique,            -- /for/{slug}, the guest link (readable)
-  book_token text unique,      -- unlisted keepsake link
-  status text,                 -- draft | collecting | curating | revealed
-  collect_closes_at timestamptz, revealed_at timestamptz,
-  suggested_songs jsonb,       -- [{appleMusicId, title, artist, artworkUrl, previewUrl}]
-  paid_at timestamptz, stripe_checkout_id text,
-  created_at timestamptz
-)
+- **`occasions`**: host and optional co-host, names, date, city, time zone,
+  guest estimate, readable `slug` (`/for/{slug}`, lowercase words joined by
+  hyphens), `book_token` (unlisted keepsake link, 122 random bits),
+  `status` (draft → collecting → curating → revealed; only a paid occasion
+  can leave draft), `share_book_with_guests` (the "Just us" switch, default
+  on), `suggested_songs` (0–6), `paid_at`, `stripe_checkout_id`, and a link
+  back to the `wedding_reservations` row it came from.
+- **`occasion_entries`**: one guest moment. Name (required, printed as
+  typed), words, the song (Apple Music id, title, artist, album, artwork,
+  preview), the photo (`photo_source` `guest` with a `photo_path`, or
+  `gallery` with a `gallery_photo_id`, or none), `edit_token_hash` (the
+  token itself only ever lives on the guest's phone and in their email),
+  `device_id`, optional `guest_email`, `hidden`, and `created_at` (when they
+  added it, which gallery matching uses).
+- **`occasion_gallery_photos`**: the couple's photographer photos, with the
+  EXIF `taken_at`. A composite foreign key means a gallery photo can only fill
+  an entry of the same occasion; deleting one puts the entries it filled back
+  to song-only.
+- **Orders** (`occasion_orders`) arrive with P2 in their own migration.
 
-occasion_entries (
-  id uuid pk, occasion_id uuid references occasions on delete cascade,
-  guest_name text not null, words text null,
-  song_apple_id text, song_title text, song_artist text,
-  song_artwork_url text, song_preview_url text,
-  photo_path text null, photo_source text null,   -- 'guest' | 'gallery'
-  gallery_photo_id uuid null,
-  edit_token_hash text, device_id text, guest_email text null,
-  hidden boolean default false,
-  created_at timestamptz, updated_at timestamptz
-)
+Who can do what:
 
-occasion_gallery_photos (
-  id uuid pk, occasion_id uuid, path text, taken_at timestamptz null,
-  width int, height int, created_at timestamptz
-)
+- **Hosts** (host or co-host, `is_occasion_host()`) read their occasions,
+  create drafts, edit the details (names, date, city, time zone, guest
+  estimate, suggested songs, "Just us"), hide entries, fill entries from the
+  gallery, and manage the gallery. They **cannot** touch `status`, `paid_at`,
+  Stripe ids, `book_token` or `slug`, or a guest's words and photo: column
+  grants enforce that, not just policies. Only an unpaid draft can be deleted
+  by its host.
+- **Guests** never get a session. Their entries and photos go through the
+  service role (an edge function that validates and rate-limits).
+- **Nobody anonymous** can read anything. The keepsake page is
+  server-rendered and checks `book_token` with the service role.
+- **Storage:** a new **private** `occasion-photos` bucket
+  (`{occasion_id}/entries/{id}.jpg` for guests, `{occasion_id}/gallery/{id}.jpg`
+  for hosts), served by short-lived signed URLs. Hosts can read their
+  occasion's photos and upload or delete only gallery photos. Deleting an
+  account removes the photos of every occasion it hosted
+  (`delete-account`).
+- Tested against a local Postgres with Supabase's roles stubbed: 29 checks
+  covering hosts, other users, anon and the bucket.
 
-occasion_orders (
-  id uuid pk, occasion_id uuid, product text, quantity int, amount_cents int,
-  stripe_session_id text, partner text, partner_order_id text,
-  status text,                -- proof | paid | submitted | shipped | delivered
-  proof_path text, created_at timestamptz
-)
-```
-
-- **Writes from guests** go through one edge function (service role) that
-  validates, rate-limits and hashes the edit token. Guests never get a
-  Supabase session; the guest-auth-user-per-album trick goes away.
-- **RLS:** hosts read/write their own occasions and entries. No anon reads; the
-  keepsake page is server-rendered and checks `book_token`.
-- **Storage:** a new **private** `occasion-photos` bucket, served by short-lived
-  signed URLs. Deleting an entry or occasion deletes its objects (the existing
-  rule for moment photos).
-- Reservations (`wedding_reservations`) convert to a draft occasion when setup
-  opens; the email is the bridge.
+Reservations (`wedding_reservations`) convert to a draft occasion when setup
+opens; the email is the bridge.
 
 ## Automation (Josh out of the loop)
 
