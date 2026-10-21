@@ -1,6 +1,6 @@
 # Occasions: spec (weddings first)
 
-Status: **draft for Josh's sign-off** (2026-10-20). Decisions marked *decided*
+Status: **signed off** (2026-10-20), open questions answered below. Decisions marked *decided*
 are settled in conversation; everything else is a proposal. Open questions are
 at the end. Update this file as decisions change, the way
 `SOCIAL-ARCHITECTURE.md` is kept.
@@ -80,15 +80,20 @@ opens), the landing page, and later the app's second onboarding path
 2. **Pick a few songs:** 3 to 6 suggestions that sit at the top of the guest
    list. Search is Apple's catalog (iTunes Search API, same as today's guest
    form). Optional; a sensible default set exists.
-3. **Pay $79:** Stripe Checkout. Account is created or signed in here (email
-   magic link), so nothing is lost.
-4. **Your table cards:** a printable PDF (QR + "Pick a song for Sam & Priya"
-   + the couple's names), the plain link for the wedding website or a group
-   text, and an upsell to have table cards printed and shipped.
+3. **Pay $79:** Stripe Checkout, on the web only (*decided*: no in-app
+   purchase in v1; the app manages occasions bought on the web). Account is
+   created or signed in here (email magic link), so nothing is lost.
+4. **Your link:** a readable slug from the names (`sam-and-priya`), editable;
+   on a clash we add the month and year (`sam-and-priya-june-2027`)
+   (*decided*: readable).
+5. **Your table cards:** a printable PDF (QR + "Pick a song for Sam & Priya"
+   + the couple's names), the plain link (`soundtracks.app/for/sam-and-priya`)
+   for the wedding website or a group text, and an upsell to have table cards
+   printed and shipped.
 
 Done. The host's dashboard shows a live count and the latest moments.
 
-### 2. Guest capture (`/o/{code}`, web, no account)
+### 2. Guest capture (`/for/{slug}`, web, no account)
 
 ```mermaid
 flowchart TD
@@ -106,7 +111,10 @@ flowchart TD
   "Every summer…") (*decided*).
 - Photos are compressed on the phone before upload (as `compressImage` does
   today) and stored privately.
-- **Name is remembered** in `localStorage`, so a second moment is two taps.
+- **Name:** labelled "Your name" with the placeholder "First and last", so
+  most guests give a full name, but nothing is enforced. It prints exactly as
+  typed ("Aunt Linda" and "Table 9" are fine) (*decided*). Remembered in
+  `localStorage`, so a second moment is two taps.
 - **Edit later from the same phone:** each entry gets a random `edit_token`
   kept in `localStorage`; reopening the link shows "Your moments" with "Add a
   photo" on any entry missing one.
@@ -153,9 +161,11 @@ gallery table and a per-entry photo source (`guest` | `gallery`).
   Hide/unhide per entry. Duplicate songs group ("6 people picked
   September"), a feature (*decided*).
 - "Reveal" publishes the keepsake and emails every guest who left an email:
-  "Sam & Priya's guest book is ready."
+  "Sam & Priya's guest book is ready." The couple also gets a ready-made
+  message with the link for the group chat. The link is unlisted and shared
+  with all guests by default; a "Just us" switch turns it off (*decided*).
 
-### 6. The keepsake page (`/o/{code}/book` with an unlisted token)
+### 6. The keepsake page (`/for/{slug}/book?k={token}`, unlisted)
 
 - **Plays like a radio show:** one moment at a time, full-bleed photo, song,
   words, name and time, in the order the night went. The song plays under
@@ -204,7 +214,7 @@ occasions (
   id uuid pk, kind text default 'wedding',
   host_user_id uuid references auth.users, co_host_user_id uuid null,
   names text, event_date date, city text, time_zone text, guest_estimate int,
-  code text unique,            -- /o/{code}, the guest link
+  slug text unique,            -- /for/{slug}, the guest link (readable)
   book_token text unique,      -- unlisted keepsake link
   status text,                 -- draft | collecting | curating | revealed
   collect_closes_at timestamptz, revealed_at timestamptz,
@@ -274,24 +284,24 @@ occasion_orders (
 
 | Phase | What ships | Goal |
 |---|---|---|
-| **P0: run a real one** | Tables, private bucket, guest capture (song → photo → name → words), host setup on the web without payment, a basic host dashboard (count, list, hide), keepsake page with previews | Run 1–2 real weddings free (friends) this winter or spring and watch guests use it |
-| **P1: sell it** | Stripe $79, reservations → draft occasions, photo reminder and guest emails, edit-later, downloads (PDF + zip), Apple Music full playback and playlist save, auto close/reveal | First paid weddings |
+| **P1: sell it** (first release, no free pilot, *decided*) | Tables, private bucket, guest capture (song → photo → name → words), host setup on the web with Stripe ($79), readable links, reservations → draft occasions, host dashboard (count, list, hide), photo reminder + guest and host emails, edit-later, keepsake page (previews, Apple Music full playback, playlist save), downloads (PDF + zip), auto close/reveal | First paid weddings, spring 2027 |
 | **P2: the gaps and the print** | Gallery upload + time-matched fill with host review, tracklist print and thank-you cards with proofs (Prodigi) | First physical orders |
 | **P3: the book and the app** | Liner-notes book (layout + proofs), anniversaries, host experience in the app + the second onboarding path | The full product |
 | Later | Other occasions, gift-giver checkout, AI host, live wall at the reception, gallery links, face matching | |
 
-## Open questions for Josh
+## Answered (2026-10-20)
 
-1. **Where hosts pay.** Proposed: setup and payment on the web (Stripe), with
-   the app managing occasions bought there. A digital unlock bought inside the
-   iOS app must use Apple's in-app purchase unless we use the US external
-   purchase link. Web-only purchase for v1?
-2. **Free pilot.** Run P0 free at one or two friends' weddings before charging?
-3. **Who sees the keepsake.** Proposed: unlisted link the couple shares with
-   all guests by default; a "just us" switch hides it. OK?
-4. **Guest email.** Optional on the done screen, used only for the reminder and
-   the reveal. OK, or skip email entirely and rely on the group-chat message?
-5. **The link.** `/o/{code}` (short, random), or a readable slug like
-   `/sam-and-priya`?
-6. **Names on print.** Guests type whatever they like ("Aunt Linda", "Table 9").
-   Print as typed, or ask for a first and last name?
+1. **Where hosts pay:** web only (Stripe) for v1. The app manages occasions
+   bought on the web; no in-app purchase.
+2. **Free pilot:** no. The first release charges.
+3. **Who sees the keepsake:** an unlisted link shared with all guests by
+   default, with a "Just us" switch.
+4. **Reaching guests:** both. An optional email on the done screen ("Get the
+   photo reminder and the finished book"), and a ready-made message the couple
+   pastes into the group chat for everyone else. Guests have no account, so
+   these are the only two ways to reach them.
+5. **The link:** readable, `soundtracks.app/for/sam-and-priya`. Guest links
+   are meant to be shared (they're on the tables), so guessable is fine; the
+   keepsake keeps its own unlisted token.
+6. **Names:** the field suggests "First and last" but accepts anything, and
+   prints as typed.
