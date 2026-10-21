@@ -104,9 +104,9 @@ and nothing for drafts.
   `cf-connecting-ip`, which a client can't set; venue wifi shares one), 600 an
   hour per occasion from anyone, 3,000 visible entries per occasion (hiding
   spam frees room) and 6,000 in all. Bodies over 8 MB are refused before
-  they're read. The per-address limit is best-effort until the gateway's
-  client-IP header is confirmed on staging; the per-occasion limits hold
-  regardless.
+  they're read. The address comes from Cloudflare's `cf-connecting-ip`,
+  confirmed on staging: it matches `x-real-ip`, and Cloudflare rejects a
+  request that tries to send its own.
 - **No duplicates on retry:** the edit token is made on the guest's phone and
   is unique, so a retry after a lost response returns the entry it already
   made. Changing the moment starts a new token.
@@ -114,6 +114,11 @@ and nothing for drafts.
   device id, edit-token hash and guest email are server-only.
 - **Follow-up:** a bot check (Cloudflare Turnstile) on create, once a site key
   exists, so a script inventing device ids can't fill a guest book.
+- **Verified on staging (2026-10-21)** against the test wedding
+  `/for/sam-and-priya-test` (host: staging E2E Two): a real entry with a
+  photo (song details from Apple, a ~110 KB JPEG in the private bucket, only
+  the token hash stored), the optional email, a song-only entry with a photo
+  added later, a retry returning the same entry, and a forged token refused.
 
 ```mermaid
 flowchart TD

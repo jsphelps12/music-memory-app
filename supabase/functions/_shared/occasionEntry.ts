@@ -130,14 +130,12 @@ export function sameHex(a: string, b: string): boolean {
 }
 
 /**
- * Best effort: the per-address limit is a courtesy, not the defence. The
- * limits that hold no matter what a client sends are per occasion (hourly,
- * visible total, hard total). Which header the Supabase gateway sets is to be
- * confirmed against staging after deploy.
- *
- * The client's address as our edge saw it. Cloudflare (in front of Supabase)
- * overwrites cf-connecting-ip, so a client can't choose it. X-Forwarded-For
- * is only a fallback, and then its rightmost entry: the leftmost one is
+ * The client's address as our edge saw it. Confirmed on staging (2026-10-21):
+ * Supabase sits behind Cloudflare, every request arrives with
+ * cf-connecting-ip (equal to x-real-ip) and no X-Forwarded-For, and
+ * Cloudflare rejects a request that sends its own cf-connecting-ip (403), so
+ * a client can't choose it. The fallbacks only matter off Cloudflare (local
+ * runs); there the rightmost X-Forwarded-For entry, since the leftmost is
  * whatever the client claimed.
  */
 export function clientIp(headers: Headers): string | null {
