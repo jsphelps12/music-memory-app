@@ -98,8 +98,19 @@ Done. The host's dashboard shows a live count and the latest moments.
 *Built 2026-10-21 (P1.2).* `web/app/for/[slug]` + `web/lib/occasionGuest.ts`,
 the `occasion-entry` edge function (`create` / `update` with the edit token),
 and the `get_occasion_for_guests` RPC, which returns only what a guest needs
-and nothing for drafts. Rate limits: 15 an hour per phone, 300 an hour per
-address (venue wifi), 3,000 per occasion.
+and nothing for drafts.
+
+- **Limits:** 15 an hour per phone, 300 an hour per address (from Cloudflare's
+  `cf-connecting-ip`, which a client can't set; venue wifi shares one), 600 an
+  hour per occasion from anyone, and 3,000 visible entries per occasion
+  (hiding spam frees room). Bodies over 8 MB are refused before they're read.
+- **No duplicates on retry:** the edit token is made on the guest's phone and
+  is unique, so a retry after a lost response returns the entry it already
+  made. Changing the moment starts a new token.
+- **What hosts can read:** entries column by column. The address hash,
+  device id, edit-token hash and guest email are server-only.
+- **Follow-up:** a bot check (Cloudflare Turnstile) on create, once a site key
+  exists, so a script inventing device ids can't fill a guest book.
 
 ```mermaid
 flowchart TD

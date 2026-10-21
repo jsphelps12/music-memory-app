@@ -8,6 +8,7 @@ import {
   applyStarter,
   createEntry,
   deviceId,
+  newEditToken,
   markPhoto,
   rememberedName,
   rememberName,
@@ -92,6 +93,14 @@ export function GuestBook({ occasion, when }: { occasion: GuestOccasion; when: s
   const photoSection = useRef<HTMLDivElement>(null);
   const wordsInput = useRef<HTMLTextAreaElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
+  // One token per moment: retries of the same moment reuse it (so a lost
+  // response can't create a duplicate); a new moment gets a new one.
+  const draftToken = useRef<string | null>(null);
+  // Changing the moment after a failed try makes it a different moment: if
+  // that try did save, a duplicate beats silently dropping the edit.
+  useEffect(() => {
+    draftToken.current = null;
+  }, [song, photo, name, words]);
   const ids = { search: useId(), name: useId(), words: useId(), photo: useId() };
 
   // Search as they type, dropping answers to questions they've stopped asking.
@@ -149,18 +158,22 @@ export function GuestBook({ occasion, when }: { occasion: GuestOccasion; when: s
     if (!name.trim()) return setError("Add your name, so they know who picked it.");
     setSubmitting(true);
     setError(null);
+    draftToken.current ??= newEditToken();
+    const editToken = draftToken.current;
     const result = await createEntry({
       slug: occasion.slug,
       appleMusicId: song.appleMusicId,
       guestName: name,
       words,
       deviceId: deviceId(storage(), () => crypto.randomUUID()),
+      editToken,
       photo: photo?.file ?? null,
     });
     setSubmitting(false);
     if (!result.ok) return setError(result.error);
 
-    const { entryId, editToken, photoSaved } = result.data;
+    const { entryId, photoSaved } = result.data;
+    draftToken.current = null;
     rememberName(storage(), name.trim());
     const record: SavedMoment = {
       entryId,

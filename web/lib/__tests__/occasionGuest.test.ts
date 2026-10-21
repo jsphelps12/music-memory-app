@@ -3,6 +3,7 @@ import {
   applyStarter,
   deviceId,
   formatEventDate,
+  newEditToken,
   markPhoto,
   parseGuestOccasion,
   parseSearch,
@@ -137,5 +138,19 @@ describe("what the phone remembers", () => {
     expect(savedMoments(throwingStore, "x")).toEqual([]);
     expect(() => saveMoment(throwingStore, "x", moment("a"))).not.toThrow();
     expect(deviceId(throwingStore, () => "fresh-device-id")).toBe("fresh-device-id");
+  });
+});
+
+describe("newEditToken", () => {
+  it("is 43 base64url characters, and random", () => {
+    const token = newEditToken();
+    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(newEditToken()).not.toBe(token);
+  });
+
+  it("maps bytes that need +, / and = in base64 to url-safe output", () => {
+    const token = newEditToken((b) => b.fill(0xff));
+    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(token.startsWith("_")).toBe(true);
   });
 });

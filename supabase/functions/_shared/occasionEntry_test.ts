@@ -8,7 +8,7 @@ import {
   cleanWords,
   clientIp,
   LIMITS,
-  newEditToken,
+  isEditToken,
   rateLimitError,
   sameHex,
   sha256Hex,
@@ -56,19 +56,25 @@ Deno.test("sniffImage trusts bytes, not claims", () => {
   assertEquals(sniffImage(new TextEncoder().encode("<html>")), null);
 });
 
-Deno.test("edit tokens are random and hash to 64 hex", async () => {
-  const a = newEditToken();
-  const b = newEditToken();
-  assert(a !== b);
-  assert(/^[A-Za-z0-9_-]{43}$/.test(a));
-  const h = await sha256Hex(a);
+Deno.test("edit tokens: 43 base64url chars, hashed to 64 hex", async () => {
+  const token = "Qx0_".padEnd(43, "a");
+  assert(isEditToken(token));
+  assert(!isEditToken(token + "a"));
+  assert(!isEditToken("short"));
+  assert(!isEditToken("x".repeat(42) + "/"));
+  const h = await sha256Hex(token);
   assertEquals(h.length, 64);
-  assert(sameHex(h, await sha256Hex(a)));
-  assert(!sameHex(h, await sha256Hex(b)));
+  assert(sameHex(h, await sha256Hex(token)));
+  assert(!sameHex(h, await sha256Hex(token.replace("Q", "R"))));
 });
 
-Deno.test("clientIp takes the first forwarded address", () => {
-  assertEquals(clientIp(new Headers({ "x-forwarded-for": "203.0.113.7, 10.0.0.1" })), "203.0.113.7");
+Deno.test("clientIp prefers the edge's header and never the client's claim", () => {
+  assertEquals(
+    clientIp(new Headers({ "cf-connecting-ip": "203.0.113.7", "x-forwarded-for": "1.2.3.4, 203.0.113.7" })),
+    "203.0.113.7"
+  );
+  // A spoofed leftmost entry is ignored; the rightmost was added by a proxy.
+  assertEquals(clientIp(new Headers({ "x-forwarded-for": "6.6.6.6, 198.51.100.9" })), "198.51.100.9");
   assertEquals(clientIp(new Headers({ "x-real-ip": "198.51.100.2" })), "198.51.100.2");
   assertEquals(clientIp(new Headers()), null);
 });
@@ -97,8 +103,10 @@ Deno.test("songFromLookup keeps only Apple's fields for the right track", () => 
 });
 
 Deno.test("rateLimitError picks the right limit", () => {
-  assertEquals(rateLimitError({ device: 0, ip: 0, total: 0 }), null);
-  assert(rateLimitError({ device: LIMITS.perDevicePerHour, ip: 0, total: 0 })?.includes("few minutes"));
-  assert(rateLimitError({ device: 0, ip: LIMITS.perIpPerHour, total: 0 })?.includes("few minutes"));
-  assertEquals(rateLimitError({ device: 0, ip: 0, total: LIMITS.perOccasionTotal }), "This guest book is full.");
+  const zero = { device: 0, ip: 0, hour: 0, total: 0 };
+  assertEquals(rateLimitError(zero), null);
+  assert(rateLimitError({ ...zero, device: LIMITS.perDevicePerHour })?.includes("few minutes"));
+  assert(rateLimitError({ ...zero, ip: LIMITS.perIpPerHour })?.includes("few minutes"));
+  assert(rateLimitError({ ...zero, hour: LIMITS.perOccasionPerHour })?.includes("few minutes"));
+  assertEquals(rateLimitError({ ...zero, total: LIMITS.perOccasionTotal }), "This guest book is full.");
 });

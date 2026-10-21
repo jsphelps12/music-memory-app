@@ -196,6 +196,18 @@ export function markPhoto(store: Store | undefined, slug: string, entryId: strin
 
 // ─── Calls to the occasion-entry edge function ────────────────────────────
 
+/**
+ * A new edit token: 32 random bytes as base64url (43 chars). Made here, on
+ * the phone, so a retry of the same moment reuses it and the server returns
+ * the entry it already made instead of a duplicate.
+ */
+export function newEditToken(random: (bytes: Uint8Array) => Uint8Array = (b) => crypto.getRandomValues(b)): string {
+  const bytes = random(new Uint8Array(32));
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
 const OFFLINE = "That didn't send. Check your signal and try again; nothing you added is lost.";
@@ -224,17 +236,19 @@ export function createEntry(input: {
   guestName: string;
   words: string;
   deviceId: string;
+  editToken: string;
   photo: File | null;
 }) {
   const form = new FormData();
   form.set("action", "create");
   form.set("slug", input.slug);
+  form.set("editToken", input.editToken);
   form.set("appleMusicId", input.appleMusicId);
   form.set("guestName", input.guestName);
   if (input.words.trim()) form.set("words", input.words);
   form.set("deviceId", input.deviceId);
   if (input.photo) form.set("photo", input.photo);
-  return post<{ entryId: string; editToken: string; photoSaved: boolean }>(form);
+  return post<{ entryId: string; photoSaved: boolean }>(form);
 }
 
 export function updateEntry(input: {

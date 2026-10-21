@@ -8,11 +8,16 @@ export const LIMITS = {
   emailMax: 320,
   deviceIdMax: 64,
   photoMaxBytes: 8 * 1024 * 1024,
+  // Whole request: the photo plus a little room for the other fields.
+  requestMaxBytes: 8 * 1024 * 1024 + 64 * 1024,
   // Per occasion, per rolling hour.
   perDevicePerHour: 15,
   // Venue wifi puts a whole wedding behind one address, so this is loose.
   perIpPerHour: 300,
-  // Per occasion, ever.
+  // Per occasion, per rolling hour, from anyone. The backstop when a client
+  // invents a fresh device id for every request.
+  perOccasionPerHour: 600,
+  // Per occasion, visible entries only (hiding spam frees room).
   perOccasionTotal: 3000,
 } as const;
 
@@ -100,10 +105,13 @@ export function sniffImage(bytes: Uint8Array): ImageKind | null {
   return null;
 }
 
-/** 32 random bytes as base64url. Shown to the guest's phone once; never stored. */
-export function newEditToken(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+/**
+ * The edit token is 32 random bytes made on the guest's phone, as base64url.
+ * Only its hash is stored. Made client-side so a retry after a lost response
+ * reuses it and finds the entry it already created.
+ */
+export function isEditToken(v: unknown): v is string {
+  return typeof v === "string" && /^[A-Za-z0-9_-]{43}$/.test(v);
 }
 
 export async function sha256Hex(input: string): Promise<string> {
@@ -119,11 +127,17 @@ export function sameHex(a: string, b: string): boolean {
   return diff === 0;
 }
 
-/** First address in X-Forwarded-For (the client, as the gateway saw it). */
+/**
+ * The client's address as our edge saw it. Cloudflare (in front of Supabase)
+ * overwrites cf-connecting-ip, so a client can't choose it. X-Forwarded-For
+ * is only a fallback, and then its rightmost entry: the leftmost one is
+ * whatever the client claimed.
+ */
 export function clientIp(headers: Headers): string | null {
-  const forwarded = headers.get("x-forwarded-for");
-  const first = forwarded?.split(",")[0]?.trim();
-  return first || headers.get("x-real-ip") || null;
+  const cf = headers.get("cf-connecting-ip")?.trim();
+  if (cf) return cf;
+  const forwarded = headers.get("x-forwarded-for")?.split(",").map((p) => p.trim()).filter(Boolean);
+  return forwarded?.at(-1) ?? headers.get("x-real-ip")?.trim() ?? null;
 }
 
 export type CanonicalSong = {
@@ -162,10 +176,14 @@ export function songFromLookup(json: unknown, appleMusicId: string): CanonicalSo
   };
 }
 
-/** Which limit, if any, a new entry would break. Counts are for the last hour. */
-export function rateLimitError(counts: { device: number; ip: number; total: number }): string | null {
+/** Which limit, if any, a new entry would break. device/ip/hour are last-hour counts. */
+export function rateLimitError(counts: { device: number; ip: number; hour: number; total: number }): string | null {
   if (counts.total >= LIMITS.perOccasionTotal) return "This guest book is full.";
-  if (counts.device >= LIMITS.perDevicePerHour || counts.ip >= LIMITS.perIpPerHour) {
+  if (
+    counts.device >= LIMITS.perDevicePerHour ||
+    counts.ip >= LIMITS.perIpPerHour ||
+    counts.hour >= LIMITS.perOccasionPerHour
+  ) {
     return "That's a lot of songs at once. Give it a few minutes and try again.";
   }
   return null;

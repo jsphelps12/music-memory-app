@@ -283,6 +283,8 @@ memorials, farewells, graduations, baby showers. Same engine for all.
     as hashes, per-device / per-address / per-occasion limits), "Your
     songs" with add-a-photo-later on the same phone, an optional email for
     the reminder and the finished book, and `get_occasion_for_guests`.
+    Retries can't duplicate (phone-made edit tokens); hosts can't read
+    guests' address hashes or emails. Follow-up: Turnstile bot check.
   - [ ] P1.3 host setup + Stripe · P1.4 host dashboard + emails ·
     P1.5 keepsake page
   - **Wedding deliverable (decided 2026-10-20).** Value prop: "Your guests
