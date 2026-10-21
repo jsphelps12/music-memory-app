@@ -17,8 +17,10 @@ export const LIMITS = {
   // Per occasion, per rolling hour, from anyone. The backstop when a client
   // invents a fresh device id for every request.
   perOccasionPerHour: 600,
-  // Per occasion, visible entries only (hiding spam frees room).
+  // Per occasion, visible entries only (hiding spam frees room)...
   perOccasionTotal: 3000,
+  // ...and every entry, hidden ones included, so hiding can't make room forever.
+  perOccasionHardTotal: 6000,
 } as const;
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -128,6 +130,11 @@ export function sameHex(a: string, b: string): boolean {
 }
 
 /**
+ * Best effort: the per-address limit is a courtesy, not the defence. The
+ * limits that hold no matter what a client sends are per occasion (hourly,
+ * visible total, hard total). Which header the Supabase gateway sets is to be
+ * confirmed against staging after deploy.
+ *
  * The client's address as our edge saw it. Cloudflare (in front of Supabase)
  * overwrites cf-connecting-ip, so a client can't choose it. X-Forwarded-For
  * is only a fallback, and then its rightmost entry: the leftmost one is
@@ -177,8 +184,16 @@ export function songFromLookup(json: unknown, appleMusicId: string): CanonicalSo
 }
 
 /** Which limit, if any, a new entry would break. device/ip/hour are last-hour counts. */
-export function rateLimitError(counts: { device: number; ip: number; hour: number; total: number }): string | null {
-  if (counts.total >= LIMITS.perOccasionTotal) return "This guest book is full.";
+export function rateLimitError(counts: {
+  device: number;
+  ip: number;
+  hour: number;
+  total: number;
+  allTotal: number;
+}): string | null {
+  if (counts.total >= LIMITS.perOccasionTotal || counts.allTotal >= LIMITS.perOccasionHardTotal) {
+    return "This guest book is full.";
+  }
   if (
     counts.device >= LIMITS.perDevicePerHour ||
     counts.ip >= LIMITS.perIpPerHour ||

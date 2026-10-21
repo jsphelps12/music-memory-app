@@ -103,10 +103,11 @@ Deno.test("songFromLookup keeps only Apple's fields for the right track", () => 
 });
 
 Deno.test("rateLimitError picks the right limit", () => {
-  const zero = { device: 0, ip: 0, hour: 0, total: 0 };
+  const zero = { device: 0, ip: 0, hour: 0, total: 0, allTotal: 0 };
   assertEquals(rateLimitError(zero), null);
   assert(rateLimitError({ ...zero, device: LIMITS.perDevicePerHour })?.includes("few minutes"));
   assert(rateLimitError({ ...zero, ip: LIMITS.perIpPerHour })?.includes("few minutes"));
   assert(rateLimitError({ ...zero, hour: LIMITS.perOccasionPerHour })?.includes("few minutes"));
   assertEquals(rateLimitError({ ...zero, total: LIMITS.perOccasionTotal }), "This guest book is full.");
+  assertEquals(rateLimitError({ ...zero, allTotal: LIMITS.perOccasionHardTotal }), "This guest book is full.");
 });

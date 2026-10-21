@@ -183,15 +183,16 @@ async function create(admin: SupabaseClient, form: FormData, headers: Headers) {
   const ip = clientIp(headers);
   const ipHash = ip ? await sha256Hex(`${occasion.id}:${ip}`) : null;
   const since = new Date(Date.now() - HOUR_MS).toISOString();
-  const [device, ipCount, hour, total] = await Promise.all([
+  const [device, ipCount, hour, total, allTotal] = await Promise.all([
     countEntries(admin, occasion.id, { since, only: { column: "device_id", value: deviceId } }),
     // No address (it shouldn't happen behind the edge) falls back to the
     // per-occasion hourly cap below rather than skipping limits.
     ipHash ? countEntries(admin, occasion.id, { since, only: { column: "ip_hash", value: ipHash } }) : 0,
     countEntries(admin, occasion.id, { since }),
     countEntries(admin, occasion.id, { visibleOnly: true }),
+    countEntries(admin, occasion.id),
   ]);
-  const limited = rateLimitError({ device, ip: ipCount, hour, total });
+  const limited = rateLimitError({ device, ip: ipCount, hour, total, allTotal });
   if (limited) return failWith(429, limited);
 
   let song;

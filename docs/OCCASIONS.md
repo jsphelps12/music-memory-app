@@ -102,8 +102,11 @@ and nothing for drafts.
 
 - **Limits:** 15 an hour per phone, 300 an hour per address (from Cloudflare's
   `cf-connecting-ip`, which a client can't set; venue wifi shares one), 600 an
-  hour per occasion from anyone, and 3,000 visible entries per occasion
-  (hiding spam frees room). Bodies over 8 MB are refused before they're read.
+  hour per occasion from anyone, 3,000 visible entries per occasion (hiding
+  spam frees room) and 6,000 in all. Bodies over 8 MB are refused before
+  they're read. The per-address limit is best-effort until the gateway's
+  client-IP header is confirmed on staging; the per-occasion limits hold
+  regardless.
 - **No duplicates on retry:** the edit token is made on the guest's phone and
   is unique, so a retry after a lost response returns the entry it already
   made. Changing the moment starts a new token.
