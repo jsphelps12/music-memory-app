@@ -23,6 +23,19 @@ function useBrowserTimeZone(): string | null {
   );
 }
 
+// The full zone list differs between Node and each browser, so the server
+// renders only the US zones and the browser adds the rest after hydration.
+// A joined string keeps the snapshot stable between reads.
+let zoneCache: string | null = null;
+function useZoneOptions(): string[] {
+  const joined = useSyncExternalStore(
+    noop,
+    () => (zoneCache ??= timeZoneOptions().join("|")),
+    () => timeZoneOptions([]).join("|")
+  );
+  return useMemo(() => joined.split("|"), [joined]);
+}
+
 function todayIso(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -31,7 +44,7 @@ function todayIso(): string {
 export function SetupForm({ reservation }: { reservation: Reservation | null }) {
   const router = useRouter();
   const browserZone = useBrowserTimeZone();
-  const zones = useMemo(() => timeZoneOptions(), []);
+  const zoneList = useZoneOptions();
 
   const [names, setNames] = useState(reservation?.couple_names ?? "");
   const [eventDate, setEventDate] = useState(reservation?.wedding_date ?? "");
@@ -50,6 +63,8 @@ export function SetupForm({ reservation }: { reservation: Reservation | null }) 
   // The link follows the names until the couple edits it themselves.
   const slug = slugInput ?? slugify(names);
   const timeZone = zone ?? browserZone ?? "America/New_York";
+  // The selected zone is always an option, even an alias the list lacks.
+  const zones = zoneList.includes(timeZone) ? zoneList : [timeZone, ...zoneList];
 
   // Is the link free? Asked a moment after typing stops; stale answers ignored.
   useEffect(() => {
@@ -131,7 +146,9 @@ export function SetupForm({ reservation }: { reservation: Reservation | null }) 
           <label htmlFor={ids.date} className={s.label}>
             Wedding date
           </label>
-          <input id={ids.date} type="date" className={s.input} min={todayIso()} value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
+          {/* No min attribute: "today" differs between the server and the
+              couple's phone; the form checks the date on submit instead. */}
+          <input id={ids.date} type="date" className={s.input} value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
         </div>
         <div className={s.field}>
           <label htmlFor={ids.guests} className={s.label}>

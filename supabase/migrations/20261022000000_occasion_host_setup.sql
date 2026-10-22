@@ -13,6 +13,37 @@
 --   * activate_occasion: paid → collecting. Service role only: Stripe's
 --     webhook calls it later; until then a staging-only edge function does.
 
+-- create_occasion_draft (below) is the only way to create an occasion, so it
+-- can enforce the draft cap, reserved links, a real time zone and the date
+-- range. The foundation migration's direct insert path goes away.
+REVOKE INSERT ON public.occasions FROM authenticated;
+DROP POLICY IF EXISTS "Hosts create draft occasions" ON public.occasions;
+
+-- Rules that must hold however a row changes (the create function, or a
+-- host editing details later through their column grants): a real time
+-- zone, and a date no more than three years after the occasion was created.
+-- Without these, a later edit could push the date decades out (and with it
+-- how long a paid guest book stays open) or break activation's time math.
+CREATE OR REPLACE FUNCTION public.occasions_validate()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_timezone_names WHERE name = NEW.time_zone) THEN
+    RAISE EXCEPTION 'unknown time zone' USING ERRCODE = '22023';
+  END IF;
+  IF NEW.event_date > (coalesce(NEW.created_at, now()) + interval '3 years')::date THEN
+    RAISE EXCEPTION 'date out of range' USING ERRCODE = '22023';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS occasions_validate ON public.occasions;
+CREATE TRIGGER occasions_validate BEFORE INSERT OR UPDATE OF time_zone, event_date ON public.occasions
+  FOR EACH ROW EXECUTE FUNCTION public.occasions_validate();
+
 CREATE OR REPLACE FUNCTION public.occasion_slug_reserved(p_slug text)
 RETURNS boolean
 LANGUAGE sql
@@ -23,6 +54,16 @@ AS $$
     'privacy', 'settings', 'sign-in', 'signin', 'soundtracks', 'support',
     'terms', 'test', 'wedding', 'weddings'
   ]);
+$$;
+
+CREATE OR REPLACE FUNCTION public.occasion_slug_shape(p_slug text)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT p_slug IS NOT NULL
+    AND char_length(p_slug) BETWEEN 3 AND 80
+    AND p_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$';
 $$;
 
 CREATE OR REPLACE FUNCTION public.occasion_slug_valid(p_slug text)
@@ -76,8 +117,9 @@ $$;
 REVOKE ALL ON FUNCTION public.occasion_slug_available(text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.occasion_slug_available(text) TO authenticated;
 
--- The caller's reservations from /weddings, matched on their verified email,
--- that haven't become an occasion yet.
+-- The caller's reservations from /weddings, matched on their account's
+-- confirmed email (not the token's email claim, which can be unconfirmed or
+-- stale after an email change), that haven't become an occasion yet.
 CREATE OR REPLACE FUNCTION public.my_wedding_reservations()
 RETURNS TABLE (id uuid, couple_names text, wedding_date date, guest_count integer)
 LANGUAGE sql
@@ -87,8 +129,12 @@ SET search_path = public
 AS $$
   SELECT r.id, r.couple_names, r.wedding_date, r.guest_count
   FROM public.wedding_reservations r
-  WHERE lower(r.email) = lower((SELECT auth.jwt() ->> 'email'))
-    AND (SELECT auth.jwt() ->> 'email') IS NOT NULL
+  WHERE EXISTS (
+      SELECT 1 FROM auth.users u
+      WHERE u.id = (SELECT auth.uid())
+        AND u.email_confirmed_at IS NOT NULL
+        AND lower(u.email) = lower(r.email)
+    )
     AND NOT EXISTS (SELECT 1 FROM public.occasions o WHERE o.reservation_id = r.id)
   ORDER BY r.created_at DESC;
 $$;
@@ -115,6 +161,8 @@ DECLARE
   v_uid uuid := (SELECT auth.uid());
   v_base text := lower(btrim(p_slug));
   v_try text;
+  v_stem text;
+  v_suffix text;
   v_reservation uuid;
   v_id uuid;
   n integer := 1;
@@ -138,13 +186,25 @@ BEGIN
     SELECT r.id INTO v_reservation FROM public.my_wedding_reservations() r WHERE r.id = p_reservation_id;
   END IF;
 
-  IF NOT public.occasion_slug_valid(v_base) THEN
+  IF NOT public.occasion_slug_shape(v_base) THEN
     RAISE EXCEPTION 'invalid link' USING ERRCODE = '22023';
   END IF;
 
-  -- The requested link, else with the month and year, else numbered.
-  v_try := v_base;
+  -- The requested link, else with the month and year, else numbered. The
+  -- base is cut to leave room for the longest suffix ("-september-2027-19")
+  -- without ending on a dash. A reserved word goes straight to the suffix.
+  v_stem := regexp_replace(left(v_base, 56), '-+$', '');
+  v_suffix := lower(to_char(p_event_date, 'FMmonth-YYYY'));
+  IF public.occasion_slug_reserved(v_base) THEN
+    n := 2;
+    v_try := v_stem || '-' || v_suffix;
+  ELSE
+    v_try := v_base;
+  END IF;
   LOOP
+    IF NOT public.occasion_slug_valid(v_try) THEN
+      RAISE EXCEPTION 'invalid link' USING ERRCODE = '22023';
+    END IF;
     BEGIN
       INSERT INTO public.occasions (host_user_id, names, event_date, city, time_zone,
                                     guest_estimate, slug, suggested_songs, reservation_id)
@@ -156,9 +216,9 @@ BEGIN
     EXCEPTION WHEN unique_violation THEN
       n := n + 1;
       IF n = 2 THEN
-        v_try := left(v_base, 64) || '-' || lower(to_char(p_event_date, 'FMmonth-YYYY'));
+        v_try := v_stem || '-' || v_suffix;
       ELSIF n <= 20 THEN
-        v_try := left(v_base, 64) || '-' || lower(to_char(p_event_date, 'FMmonth-YYYY')) || '-' || (n - 1);
+        v_try := v_stem || '-' || v_suffix || '-' || (n - 1);
       ELSE
         RAISE EXCEPTION 'no free link' USING ERRCODE = '23505';
       END IF;

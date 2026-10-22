@@ -26,7 +26,7 @@ type Occasion = {
 
 export default async function OccasionOverview({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) notFound();
   const supabase = await getHostSupabase();
   const [{ data: occasion, error }, { count }] = await Promise.all([
     supabase

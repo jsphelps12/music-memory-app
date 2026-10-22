@@ -71,6 +71,35 @@ flowchart LR
 
 ### 1. Host setup (web first)
 
+*Built 2026-10-22 (P1.3), payment stubbed.* `web/app/host/**` behind
+`web/proxy.ts` (signed-in couples only; Supabase session cookies via
+`@supabase/ssr`):
+
+- **Sign in** at `/host/sign-in`: an emailed link (PKCE, landing on
+  `/host/auth/callback`), or the Soundtracks password for app users. After
+  sign-in, only `/host` paths are allowed as the return address.
+- **Your weddings** (`/host`): the couple's occasions, and any `/weddings`
+  reservation made with the same email, ready to set up.
+- **Setup** (`/host/new`): names, date, guest count, city, time zone (the
+  browser's by default), up to six suggested songs from Apple search, and
+  the link (from the names, editable, checked as you type). Saved through
+  `create_occasion_draft`, the only way to create an occasion (direct
+  inserts are revoked). It picks a free link (the requested one, then with
+  the month and year, then numbered; reserved words go straight to the
+  dated form), links only a reservation whose email matches the caller's
+  **confirmed** account email, and caps drafts at five. A table trigger keeps
+  every edit to a real time zone and a date at most three years out.
+- **Overview** (`/host/{id}`): a draft shows the $79 step; once open, the
+  guest link with copy, the QR code, the song count and the closing date.
+- **Table cards** (`/host/{id}/cards`): four to a letter page with cut lines
+  and a QR code, printed from the browser (no PDF library).
+- **Payment is a stand-in until Stripe:** the `occasion-host` edge function's
+  `dev-activate` opens a draft only when its environment sets
+  `ALLOW_DEV_PAYMENTS=true` (staging only), and the button only shows in
+  builds with `NEXT_PUBLIC_DEV_PAYMENTS=true`. Stripe's webhook will call the
+  same `activate_occasion()` (service role only): collecting until the end
+  of the 14th day after the wedding, in the wedding's time zone.
+
 Entry points: "Reserve your date" on `/weddings` (email arrives when setup
 opens), the landing page, and later the app's second onboarding path
 (*decided:* two onboarding flows, both available in the app).

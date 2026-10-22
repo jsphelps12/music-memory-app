@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 // browser ("Save as PDF" works too), so there's no PDF library to keep.
 export default async function TableCards({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) notFound();
   const supabase = await getHostSupabase();
   const { data: occasion } = await supabase
     .from("occasions")
