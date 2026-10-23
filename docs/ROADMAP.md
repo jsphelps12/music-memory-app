@@ -285,8 +285,21 @@ memorials, farewells, graduations, baby showers. Same engine for all.
     the reminder and the finished book, and `get_occasion_for_guests`.
     Retries can't duplicate (phone-made edit tokens); hosts can't read
     guests' address hashes or emails. Follow-up: Turnstile bot check.
-  - [ ] P1.3 host setup + Stripe · P1.4 host dashboard + emails ·
-    P1.5 keepsake page
+  - [x] P1.3 couple setup (2026-10-22, payment stubbed): sign-in (email
+    link or app password), "Your weddings" with `/weddings` reservations,
+    setup with suggested songs and a checked link, the overview with the
+    guest link and QR, printable table cards, and a staging-only "open
+    without paying" step that Stripe's webhook will replace.
+  - [ ] P1.4 couple dashboard (moments, hide, Just us, group-chat message,
+    close/reveal) · P1.5 keepsake page · P1.6 scheduled close/reveal and
+    downloads
+  - [ ] Last, the third-party batch: Stripe checkout + webhook, Resend
+    (setup, reminder, reveal emails and a real sender for sign-in links),
+    Turnstile, MusicKit full playback.
+  - [ ] **Josh:** add `https://soundtracks.app/host/auth/callback` and
+    `https://www.soundtracks.app/host/auth/callback` to Supabase Auth's
+    redirect URLs (production and staging), or emailed sign-in links fall
+    back to the Site URL.
   - **Wedding deliverable (decided 2026-10-20).** Value prop: "Your guests
     catch the songs of your night with two taps. You keep them forever."
     - Lazy capture: QR on the tables → web page → tap a suggested song (the

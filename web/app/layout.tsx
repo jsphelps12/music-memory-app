@@ -9,6 +9,8 @@ const sans = DM_Sans({ subsets: ["latin"], variable: "--font-sans", display: "sw
 const reading = Newsreader({ subsets: ["latin"], variable: "--font-reading", display: "swap" });
 
 export const metadata: Metadata = {
+  // Absolute URLs for social preview images.
+  metadataBase: new URL("https://soundtracks.app"),
   title: "Soundtracks",
   description: "A journal for the songs that mark your days.",
 };

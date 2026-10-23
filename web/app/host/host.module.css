@@ -1,0 +1,149 @@
+/* Couple pages under /host: the share pages' paper-and-ink world. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 28px;
+  padding: 20px;
+  border-radius: 14px;
+  background: var(--paper-input);
+}
+
+.signIn {
+  margin-top: 28px;
+}
+
+.list {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--divider);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--divider);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.row:hover .title,
+.row:hover span:first-child {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.newButton {
+  margin-top: 28px;
+}
+
+.twoUp {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 480px) {
+  .twoUp {
+    grid-template-columns: 1fr;
+  }
+}
+
+.songRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.songRow img {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.songRow p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.artBlank {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  background: var(--paper-deep);
+}
+
+.slugRow {
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+  background: var(--paper-input);
+  padding-left: 14px;
+}
+
+.slugPrefix {
+  color: var(--ink-secondary);
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.slugRow .slugInput {
+  padding-left: 0;
+  background: transparent;
+}
+
+.link {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+}
+
+.qr {
+  width: 180px;
+  height: 180px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.qr svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.inline {
+  align-self: flex-start;
+  width: auto;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Space between an intro and the form or note that follows it. */
+.after {
+  margin-top: 28px;
+}

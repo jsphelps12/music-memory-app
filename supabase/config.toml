@@ -26,6 +26,9 @@ verify_jwt = true # legacy, kept deployed for old binaries until the build-23 ca
 [functions.notify-social]
 verify_jwt = true
 
+[functions.occasion-host]
+verify_jwt = true # signed-in hosts only; also verifies the caller in-code (writes with service role)
+
 [functions.occasion-entry]
 verify_jwt = false # guests have no JWT; authenticates via the occasion slug and per-entry edit tokens
 

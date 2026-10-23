@@ -1,0 +1,133 @@
+/* Printable table cards. On screen: a preview of the sheet. On paper: a
+   letter page of four 4.25 × 5.5 in cards with dashed cut lines. Colors are
+   fixed paper and ink in both themes: this is a print. */
+
+.page {
+  min-height: 100vh;
+  background: #e9e2d9;
+  color: #23222b;
+  padding: 24px 16px 48px;
+}
+
+.toolbar {
+  max-width: 8.5in;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 15px;
+}
+
+.toolbar p {
+  margin: 0;
+  color: #5e5c66;
+}
+
+.toolbar a,
+.toolbar button {
+  font: inherit;
+  font-weight: 600;
+  color: #23222b;
+}
+
+.toolbar button {
+  min-height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 12px;
+  background: #23222b;
+  color: #fbf7f2;
+  cursor: pointer;
+}
+
+.sheet {
+  /* Everything inside is sized in cqw of the sheet, so the on-screen preview
+     scales down on a phone and prints at true size (8.5in wide = 100cqw). */
+  container-type: inline-size;
+  width: 8.5in;
+  max-width: 100%;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #fbf7f2;
+  box-shadow: 0 10px 30px rgba(35, 34, 43, 0.15);
+}
+
+.card {
+  aspect-ratio: 4.25 / 5.5;
+  padding: 5.3cqw 4.7cqw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  border: 1px dashed #c9c0b9;
+  margin: -0.5px;
+}
+
+.names {
+  margin: 0;
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 3.4cqw;
+  line-height: 1.1;
+}
+
+.ask {
+  margin: 1.7cqw 0 0;
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 2.7cqw;
+}
+
+.how {
+  margin: 1cqw 0 0;
+  font-size: 1.55cqw;
+  line-height: 1.45;
+  color: #3a3943;
+  max-width: 26ch;
+}
+
+.qr {
+  width: 20.6cqw;
+  height: 20.6cqw;
+  margin: auto 0 0;
+}
+
+.qr svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.url {
+  margin: 1.2cqw 0 0;
+  font-size: 1.35cqw;
+  color: #5e5c66;
+  overflow-wrap: anywhere;
+}
+
+@media print {
+  @page {
+    size: letter;
+    margin: 0;
+  }
+
+  .page {
+    padding: 0;
+    background: #fff;
+  }
+
+  .toolbar {
+    display: none;
+  }
+
+  .sheet {
+    width: 8.5in;
+    height: 11in;
+    box-shadow: none;
+    background: #fff;
+  }
+
+  .card {
+    height: 5.5in;
+  }
+}
