@@ -101,6 +101,14 @@ export function lastDayLabel(closesAtIso: string, timeZone: string): string {
   return lastMoment.toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone });
 }
 
+/**
+ * The day an unrevealed book reveals itself (occasions_tick: a week after the
+ * close), in the wedding's time zone: "October 9".
+ */
+export function autoRevealLabel(closesAtIso: string, timeZone: string): string {
+  return new Date(Date.parse(closesAtIso) + 7 * 86_400_000).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone });
+}
+
 /** When a guest added their song, in the wedding's own time zone: "Sat 10:42 PM". */
 export function entryTimeLabel(createdAtIso: string, timeZone: string): string {
   return new Date(createdAtIso).toLocaleString("en-US", {

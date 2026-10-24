@@ -1,0 +1,160 @@
+/* The guest book in words: liner notes on a letter page. On screen, a
+   preview of the paper; printed, just the paper. Fixed paper and ink in both
+   themes, because this is a print. */
+
+.page {
+  min-height: 100vh;
+  background: #e9e2d9;
+  color: #23222b;
+  padding: 24px 16px 48px;
+}
+
+.toolbar {
+  max-width: 8.5in;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 15px;
+}
+
+.toolbar p {
+  margin: 0;
+  color: #5e5c66;
+}
+
+.toolbar a,
+.toolbar button {
+  font: inherit;
+  font-weight: 600;
+  color: #23222b;
+}
+
+.toolbar button {
+  min-height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 12px;
+  background: #23222b;
+  color: #fbf7f2;
+  cursor: pointer;
+}
+
+.sheet {
+  width: 8.5in;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: clamp(28px, 7vw, 0.8in);
+  background: #fbf7f2;
+  box-shadow: 0 10px 30px rgba(35, 34, 43, 0.15);
+}
+
+.head {
+  margin-bottom: 28px;
+}
+
+.names {
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(34px, 6vw, 48px);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  margin: 0 0 8px;
+}
+
+.meta {
+  margin: 0;
+  font-size: 14px;
+  color: #5e5c66;
+  font-variant-numeric: tabular-nums;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 2px solid #23222b;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid #e9e2d9;
+  break-inside: avoid;
+}
+
+.no {
+  padding-top: 2px;
+  font-size: 13px;
+  color: #736a63;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.song {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.song strong {
+  font-weight: 600;
+}
+
+.song span {
+  color: #5e5c66;
+}
+
+.words {
+  margin: 6px 0 0;
+  font-family: var(--font-reading), Georgia, serif;
+  font-size: 18px;
+  line-height: 1.47;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.by {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #736a63;
+  font-variant-numeric: tabular-nums;
+}
+
+@page {
+  size: letter;
+  margin: 0.6in;
+}
+
+@media print {
+  /* Paper prints white: the page's own paper color would print as a tinted
+     block inside the printer's margins. */
+  :global(html),
+  :global(body) {
+    background: #fff !important;
+  }
+
+  .page {
+    background: none;
+    padding: 0;
+  }
+
+  .toolbar {
+    display: none;
+  }
+
+  .sheet {
+    width: auto;
+    padding: 0;
+    box-shadow: none;
+    background: none;
+  }
+
+  .head {
+    break-after: avoid;
+  }
+}
