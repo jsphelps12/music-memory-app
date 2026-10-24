@@ -239,6 +239,25 @@ Collection stays open two weeks after the date (*decided*).
 
 ### 4. Gallery fill (*decided: designed in from the start*)
 
+*Built 2026-10-26.* `/host/{id}/gallery`, linked from the dashboard under
+Moments ("N moments have no photo. Add your photographer's photos"):
+
+- Upload many at once. In the browser, each photo's capture time is read
+  from the original's EXIF (`DateTimeOriginal`, with the camera's offset if
+  it wrote one, else read as the wedding's local time), then it's stored as
+  a 2800px JPEG for the keepsake, zip and book plus a 480px `_thumb` for
+  grids. A file with no time is still added and can be picked by hand.
+- Suggestions (`web/lib/occasionGallery.ts`): song-only moments from the
+  night (the date, or before 6 the next morning, in the wedding's zone)
+  pair with the photo taken closest to when the guest picked their song,
+  within 45 minutes, closest pairs first, each photo once. "Was the
+  camera's clock off?" shifts every photo by up to three hours.
+- The couple uses a suggestion, uses all, picks another (nearest first, then
+  the whole gallery), or leaves it song-only. Moments added after the night
+  can get a photo picked by hand. Fills can be undone; removing a photo
+  from the gallery hands its moment back to song-only (the trigger) and
+  deletes both files.
+
 Song-only entries get a photo from the couple's photographer.
 
 1. The host adds the gallery: upload photos on the web (multi-select, or a

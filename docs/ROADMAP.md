@@ -304,6 +304,9 @@ memorials, farewells, graduations, baby showers. Same engine for all.
     Phase 1's build is done apart from the third-party batch below.
   - [x] Guests remove their own moments; couples delete a wedding (photos
     first); partner invites as co-host (2026-10-26).
+  - [x] Gallery fill (2026-10-26): upload the photographer's gallery, photos
+    suggested for song-only moments by when they were taken, the couple
+    approves each (pulled forward from P2).
   - [ ] Last, the third-party batch: Stripe checkout + webhook, Resend
     (setup, reminder, reveal emails and a real sender for sign-in links),
     Turnstile, MusicKit full playback and "Save to Apple Music" on the

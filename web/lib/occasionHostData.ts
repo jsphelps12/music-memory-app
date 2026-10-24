@@ -96,3 +96,36 @@ export async function signPhotos(
     photosMissing,
   };
 }
+
+export type GalleryRow = { id: string; path: string; taken_at: string | null; created_at: string };
+
+/** The small copy uploaded beside each gallery photo, for grids. */
+export const galleryThumbPath = (path: string) => path.replace(/\.jpg$/, "_thumb.jpg");
+
+/** Every gallery photo, in the order they were taken (untimed ones last). */
+export async function allGallery(supabase: Supabase, occasionId: string): Promise<GalleryRow[]> {
+  const rows: GalleryRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("occasion_gallery_photos")
+      .select("id, path, taken_at, created_at")
+      .eq("occasion_id", occasionId)
+      .order("taken_at", { ascending: true, nullsFirst: false })
+      .order("id")
+      .range(from, from + PAGE - 1)
+      .returns<GalleryRow[]>();
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE) return rows;
+  }
+}
+
+/** Signed URLs for a list of storage paths, in batches. Missing ones are left out. */
+export async function signPaths(supabase: Supabase, paths: string[]): Promise<Map<string, string>> {
+  const urls = new Map<string, string>();
+  for (const batch of chunks([...new Set(paths)], 500)) {
+    const { data } = await supabase.storage.from("occasion-photos").createSignedUrls(batch, PHOTO_URL_SECONDS);
+    for (const item of data ?? []) if (item.path && item.signedUrl) urls.set(item.path, item.signedUrl);
+  }
+  return urls;
+}
