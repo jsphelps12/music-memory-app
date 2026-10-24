@@ -1,0 +1,532 @@
+/* The keepsake (DESIGN.md, "The Liner Notes"): the front of the sleeve is
+   night with the night's photographs full-bleed; the back is paper, a
+   tracklist ruled in hairlines. Photographs and album art are the color. */
+
+.book {
+  --night: #0e0b0a;
+  --night-raised: #1e1a18;
+  --night-text: #f5f0eb;
+  --night-soft: #c9c0b9;
+  --night-secondary: #aba39e;
+  --ember: #ee8b62;
+  --gutter: clamp(20px, 5vw, 72px);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  background: var(--paper);
+}
+
+/* ── The host's preview note ─────────────────────────────────────────── */
+
+.previewBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 10px var(--gutter);
+  background: var(--night-raised);
+  color: var(--night-soft);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.previewBar a {
+  color: var(--night-text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: rgba(245, 240, 235, 0.4);
+  text-underline-offset: 3px;
+}
+
+/* ── The stage (night) ───────────────────────────────────────────────── */
+
+/* The preview bar sits above the stage; the stage gives up its height so
+   the controls still land on the first screen. */
+.book:has(.previewBar) .stage {
+  min-height: max(calc(100svh - 64px), 560px);
+}
+
+@media (min-width: 900px) {
+  .book:has(.previewBar) .stage {
+    min-height: max(calc(100svh - 42px), 560px);
+  }
+}
+
+.stage {
+  position: relative;
+  isolation: isolate;
+  min-height: max(100svh, 560px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  background: var(--night);
+  color: var(--night-text);
+  scroll-margin-top: 0;
+}
+
+.stage ::selection {
+  background: rgba(238, 139, 98, 0.32);
+}
+
+.stage :focus-visible {
+  outline-color: var(--ember);
+}
+
+.layers,
+.layer {
+  position: absolute;
+  inset: 0;
+}
+
+.layers {
+  z-index: -1;
+}
+
+/* Each layer is opaque, so a song-only moment fully covers the photo before it. */
+.layer {
+  background: var(--night);
+  overflow: hidden;
+}
+
+/* A night scrim so the words always hold: near-solid at the foot on a
+   phone, directional from the left on a wide screen. Per layer, so a
+   song-only moment can leave its cover undimmed. */
+.layer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(14, 11, 10, 0.94) 0%,
+    rgba(14, 11, 10, 0.82) 30%,
+    rgba(14, 11, 10, 0.32) 58%,
+    rgba(14, 11, 10, 0.08) 100%
+  );
+}
+
+.photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+}
+
+/* Song-only moments: the cover, lifted, over a wash of itself. */
+.songOnly::after {
+  background: linear-gradient(to top, rgba(14, 11, 10, 0.94) 0%, rgba(14, 11, 10, 0.7) 30%, transparent 48%);
+}
+
+.songOnly {
+  display: grid;
+  place-items: start center;
+  padding-top: clamp(84px, 14svh, 140px);
+}
+
+.wash {
+  position: absolute;
+  inset: -10%;
+  width: 120%;
+  height: 120%;
+  object-fit: cover;
+  filter: blur(60px) saturate(1.1);
+  opacity: 0.5;
+}
+
+.art {
+  position: relative;
+  width: min(64vw, 40svh, 380px);
+  aspect-ratio: 1;
+  border-radius: 10px;
+  box-shadow: 0 18px 24px rgba(0, 0, 0, 0.25), 0 40px 80px -20px rgba(0, 0, 0, 0.6);
+}
+
+/* The one authored moment: each new moment blurs in over the last. */
+.entering {
+  animation: arrive 0.9s var(--ease-out) both;
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    filter: blur(16px);
+    transform: scale(1.03);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entering {
+    animation: none;
+  }
+}
+
+.top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px var(--gutter);
+  background: linear-gradient(to bottom, rgba(14, 11, 10, 0.5), transparent);
+}
+
+.wordmark {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 22px;
+  color: var(--night-text);
+  text-decoration: none;
+}
+
+.count {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--night-soft);
+}
+
+.intro,
+.now {
+  position: relative;
+  padding: 0 var(--gutter) clamp(36px, 7svh, 72px);
+  max-width: 44rem;
+}
+
+.names {
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(48px, 9vw, 96px);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  margin: 0 0 16px;
+}
+
+.meta {
+  font-size: 15px;
+  color: var(--night-soft);
+  margin: 0;
+}
+
+.summary {
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--night-text);
+  margin: 6px 0 0;
+}
+
+.introActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  margin-top: 28px;
+}
+
+.play {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 24px 0 18px;
+  border: 0;
+  border-radius: 9999px;
+  background: #f5eee8;
+  color: var(--night);
+  font: 600 16px/1 var(--font-sans), system-ui, sans-serif;
+  cursor: pointer;
+  transition: transform 0.2s var(--ease-out), background-color 0.2s;
+}
+
+.play:hover {
+  background: #fff8f2;
+}
+
+.play:active {
+  transform: scale(0.97);
+}
+
+.quiet {
+  color: var(--night-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: rgba(245, 240, 235, 0.4);
+  text-underline-offset: 3px;
+}
+
+.quiet:hover {
+  text-decoration-color: currentColor;
+}
+
+.song {
+  margin: 0 0 10px;
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.song strong {
+  font-weight: 600;
+}
+
+.song span {
+  color: var(--night-secondary);
+}
+
+/* Words are the guest's: Newsreader, upright. Long ones scroll in place. */
+.words {
+  margin: 0 0 12px;
+  font-family: var(--font-reading), Georgia, serif;
+  font-size: clamp(21px, 2.4vw, 26px);
+  line-height: 1.42;
+  color: var(--night-text);
+  white-space: pre-line;
+  max-height: min(34svh, 12em);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 240, 235, 0.3) transparent;
+}
+
+.by {
+  margin: 0;
+  font-size: 14px;
+  color: var(--night-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.control {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 9999px;
+  background: rgba(245, 240, 235, 0.12);
+  color: var(--night-text);
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: background-color 0.2s, transform 0.2s var(--ease-out);
+}
+
+.control:hover:not(:disabled) {
+  background: rgba(245, 240, 235, 0.2);
+}
+
+.control:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.control:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.main {
+  width: 56px;
+  height: 56px;
+  background: #f5eee8;
+  color: var(--night);
+}
+
+.main:hover:not(:disabled) {
+  background: #fff8f2;
+}
+
+.noPreview {
+  margin-left: 6px;
+  font-size: 13px;
+  color: var(--night-secondary);
+}
+
+/* Playing state: the one ember signal on the stage. */
+.progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgba(245, 240, 235, 0.14);
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  background: var(--ember);
+  transform-origin: left;
+  transition: transform 0.25s linear;
+}
+
+@media (min-width: 900px) {
+  .layer::after {
+    background:
+      linear-gradient(to right, rgba(14, 11, 10, 0.9) 0%, rgba(14, 11, 10, 0.62) 38%, rgba(14, 11, 10, 0.06) 72%),
+      linear-gradient(to top, rgba(14, 11, 10, 0.6) 0%, transparent 45%);
+  }
+
+  .songOnly::after {
+    background: linear-gradient(to right, rgba(14, 11, 10, 0.85) 0%, rgba(14, 11, 10, 0.4) 40%, transparent 55%);
+  }
+
+  .songOnly {
+    place-items: center end;
+    padding: 0 calc(var(--gutter) + 4vw) 0 0;
+  }
+
+  .art {
+    width: min(38vw, 62svh, 560px);
+  }
+}
+
+/* ── The liner notes (paper; night in dark mode) ─────────────────────── */
+
+.notes {
+  padding: clamp(56px, 9vw, 120px) var(--gutter) clamp(64px, 9vw, 120px);
+  color: var(--ink);
+}
+
+.notesInner {
+  max-width: 46rem;
+  margin: 0 auto;
+}
+
+.notesTitle {
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(32px, 4vw, 44px);
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  margin: 0 0 8px;
+}
+
+.notesMeta {
+  font-size: 14px;
+  color: var(--ink-secondary);
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.picked {
+  margin: 20px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink-secondary);
+}
+
+.picked strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.tracks {
+  list-style: none;
+  margin: 32px 0 0;
+  padding: 0;
+  border-top: 2px solid var(--ink);
+}
+
+.track {
+  border-bottom: 1px solid var(--divider);
+}
+
+.trackButton {
+  display: grid;
+  grid-template-columns: 28px 56px 1fr;
+  gap: 14px;
+  align-items: start;
+  width: 100%;
+  padding: 16px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trackButton:hover .trackSong strong {
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 3px;
+}
+
+.trackNo {
+  padding-top: 2px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-tertiary);
+  text-align: right;
+}
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--accent);
+  margin-top: 5px;
+}
+
+.thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--paper-deep);
+}
+
+.trackText {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.trackSong {
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.trackSong strong {
+  font-weight: 600;
+}
+
+.trackSong span {
+  color: var(--ink-secondary);
+}
+
+.trackWords {
+  font-family: var(--font-reading), Georgia, serif;
+  font-size: 18px;
+  line-height: 1.47;
+  color: var(--ink);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.trackBy {
+  font-size: 13px;
+  color: var(--ink-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.footer {
+  margin: 48px 0 0;
+  font-size: 14px;
+  color: var(--ink-secondary);
+}
+
+.footer a {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 3px;
+}

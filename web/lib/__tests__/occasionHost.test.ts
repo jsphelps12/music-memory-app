@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   entryTimeLabel,
+  bookLink,
+  bookReadyMessage,
   groupChatMessages,
   guestLink,
   isSlugShape,
@@ -102,5 +104,14 @@ describe("groupChatMessages", () => {
     const m = groupChatMessages("https://soundtracks.app/for/jo-and-lee");
     expect(m.ask).toContain("https://soundtracks.app/for/jo-and-lee");
     expect(m.photoReminder).toContain("https://soundtracks.app/for/jo-and-lee");
+  });
+});
+
+describe("bookLink", () => {
+  it("carries the token as k", () => {
+    expect(bookLink("jo-and-lee", "0123456789abcdef0123456789abcdef")).toBe(
+      "https://soundtracks.app/for/jo-and-lee/book?k=0123456789abcdef0123456789abcdef"
+    );
+    expect(bookReadyMessage("https://x/book")).toContain("https://x/book");
   });
 });

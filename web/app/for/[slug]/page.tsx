@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { TopBar } from "@/components/Share";
@@ -47,9 +48,20 @@ export default async function GuestPage({ params }: PageProps) {
           <TopBar />
           <h1 className={s.headline}>{occasion.names}</h1>
           <p className={`${s.meta} ${s.lede}`}>{when}</p>
-          <p className={`${s.body} ${s.lede}`}>
-            Their guest book has closed. Thank you for being part of it.
-          </p>
+          {occasion.bookToken ? (
+            <>
+              <p className={`${s.body} ${s.lede}`}>
+                Their guest book is out: every song their guests picked, with the photos and the words.
+              </p>
+              <Link className={`${s.button} ${s.lede}`} href={`/for/${occasion.slug}/book?k=${occasion.bookToken}`}>
+                Open the guest book
+              </Link>
+            </>
+          ) : (
+            <p className={`${s.body} ${s.lede}`}>
+              Their guest book has closed. Thank you for being part of it.
+            </p>
+          )}
         </div>
       </main>
     );

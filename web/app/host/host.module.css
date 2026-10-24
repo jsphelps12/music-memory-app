@@ -159,6 +159,14 @@
   margin-top: 0;
 }
 
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+
 .moments {
   list-style: none;
   margin: 0;

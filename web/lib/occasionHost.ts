@@ -86,6 +86,11 @@ export function guestLink(slug: string, origin = "https://soundtracks.app"): str
   return `${origin}/for/${slug}`;
 }
 
+/** The unlisted keepsake link: the book_token is its key. */
+export function bookLink(slug: string, bookToken: string, origin = "https://soundtracks.app"): string {
+  return `${origin}/for/${slug}/book?k=${bookToken}`;
+}
+
 /**
  * The last day guests can add songs, as couples would say it. Collection
  * closes at midnight starting the next day (in the wedding's zone), so the
@@ -114,4 +119,9 @@ export function groupChatMessages(link: string) {
     ask: `We're collecting a song from everyone for our guest book. Pick one for us, add a photo from the day if you have one, and your name: ${link}`,
     photoReminder: `Thank you for celebrating with us! If you took photos, add them to the song you picked (or pick one now): ${link}`,
   };
+}
+
+/** Ready-to-paste message for when the guest book is out. */
+export function bookReadyMessage(bookUrl: string): string {
+  return `Our guest book is ready! Every song you picked for us, with your photos and words, played back: ${bookUrl}`;
 }

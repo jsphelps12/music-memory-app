@@ -108,6 +108,7 @@ export function AutoRefresh({ occasionId, known, seconds = 30 }: { occasionId: s
 
 /** "Just us": whether guests can open the finished guest book. */
 export function JustUsSwitch({ occasionId, initial }: { occasionId: string; initial: boolean }) {
+  const router = useRouter();
   const [shared, setShared] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const id = useId();
@@ -123,7 +124,10 @@ export function JustUsSwitch({ occasionId, initial }: { occasionId: string; init
     if (error || !data?.length) {
       setShared(!next);
       setError("That didn't save. Try again.");
+      return;
     }
+    // The reveal panel's link and message depend on this.
+    router.refresh();
   }
 
   return (
@@ -187,6 +191,55 @@ export function CloseCollecting({ occasionId }: { occasionId: string }) {
         </button>
         <button type="button" className={s.quietButton} onClick={() => setConfirming(false)} disabled={busy}>
           Keep it open
+        </button>
+      </div>
+      {error ? (
+        <p className={s.error} role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Reveal the keepsake. Asks once more, because it can't be taken back. */
+export function RevealButton({ occasionId, disabled = false }: { occasionId: string; disabled?: boolean }) {
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function reveal() {
+    setBusy(true);
+    setError(null);
+    const { error } = await getBrowserSupabase().rpc("reveal_occasion", { p_occasion_id: occasionId });
+    setBusy(false);
+    if (error) {
+      // Already revealed (by the other host, or in another tab): show where it is now.
+      if (error.code === "42501") return router.refresh();
+      return setError("That didn't work. Try again.");
+    }
+    router.refresh();
+  }
+
+  if (!confirming) {
+    return (
+      <button type="button" className={`${s.button} ${h.inline}`} onClick={() => setConfirming(true)} disabled={disabled}>
+        Reveal it
+      </button>
+    );
+  }
+  return (
+    <div className={h.confirm} role="group" aria-label="Reveal the guest book">
+      <p className={s.body}>
+        Reveal it now? It can&rsquo;t be taken back, but you can still hide moments or turn on Just us afterwards.
+      </p>
+      <div className={h.actions}>
+        <button type="button" className={`${s.button} ${h.inline}`} onClick={reveal} disabled={busy} aria-busy={busy}>
+          {busy ? "Revealing…" : "Reveal it"}
+        </button>
+        <button type="button" className={s.quietButton} onClick={() => setConfirming(false)} disabled={busy}>
+          Not yet
         </button>
       </div>
       {error ? (
