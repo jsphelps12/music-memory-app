@@ -61,8 +61,12 @@ flowchart LR
 - **Collecting:** opens on payment (so couples can test it), counts from the
   wedding date for the close. Guests add moments.
 - **Curating:** closed to new entries. Host hides anything, reviews gallery
-  fills, then reveals. Auto-reveals after 7 days if the host does nothing,
-  with everything visible (the host can still hide later).
+  fills, then reveals. Auto-reveals after 7 days if the host does nothing;
+  what they hid stays hidden, and they can still hide more later.
+  *Built 2026-10-26 (P1.6):* `occasions_tick()` runs every ten minutes on
+  pg_cron, moving collecting books past their close to curating and curating
+  books a week past it to revealed. Until it runs, the dashboard and the
+  guest function already treat a book past its close as closed.
 - **Revealed:** keepsake page live; downloads ready; orders open.
 - **Anniversary:** each year on the date, one moment comes back by email (and
   push if the host has the app).
@@ -269,7 +273,15 @@ sends no Referer (the token is the key) and isn't indexed.
 - Underneath, the liner notes: a tracklist of every moment in order with
   "Picked more than once", each row playing from there.
 - Not yet: full playback and "Save to Apple Music" (MusicKit, third-party
-  batch), a moment's own page, downloads (P1.6).
+  batch), a moment's own page.
+
+*Downloads, built 2026-10-26 (P1.6), for the couple on the dashboard under
+"Keep it":* every photo as a zip, made in their browser from the page's
+signed URLs with fflate (stored, not recompressed; named "007 Alex Rivera -
+Mr. Brightside.jpg" in the order the night went; any photo that fails is
+counted, not dropped silently), and every note on a print page
+(`/host/{id}/notes`) whose "Save as PDF" is the download, like the table
+cards. Hidden moments are left out of both. Guests don't get downloads.
 
 The spec as decided:
 
@@ -365,8 +377,8 @@ opens; the email is the bridge.
 - **Email (Resend):** host setup confirmation, collection open, a short daily
   digest during collection (count + a few new moments), close, reveal ready;
   guest copy, photo reminder, reveal; order status; anniversaries.
-- **Scheduled jobs (Supabase cron):** close collection, auto-reveal, the photo
-  reminder, anniversaries.
+- **Scheduled jobs (Supabase cron):** close collection and auto-reveal (built,
+  `occasions-tick`); the photo reminder and anniversaries come with Resend.
 - **Webhooks:** Stripe (paid), print partners (shipped).
 - **Admin view:** a protected page listing occasions, failed jobs and stuck
   orders, with resend and refund buttons. For exceptions only.

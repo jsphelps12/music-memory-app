@@ -12,12 +12,14 @@ import {
   entryTimeLabel,
   groupChatMessages,
   guestLink,
+  autoRevealLabel,
   lastDayLabel,
 } from "@/lib/occasionHost";
 import { formatEventDate } from "@/lib/occasionGuest";
 import { getHostSupabase } from "@/lib/supabase/server";
 import h from "../host.module.css";
 import { ActivateButton, AutoRefresh, CloseCollecting, CopyButton, JustUsSwitch, RevealButton } from "./HostActions";
+import { PhotoZip } from "./Downloads";
 import { Moments, type Moment } from "./Moments";
 
 export const metadata: Metadata = { title: "Your wedding" };
@@ -74,8 +76,12 @@ export default async function OccasionDashboard({ params }: { params: Promise<{ 
   const book = bookLink(occasion.slug, occasion.book_token);
   const when = [formatEventDate(occasion.event_date), occasion.city].filter(Boolean).join(" · ");
   const lastDay = occasion.collect_closes_at ? lastDayLabel(occasion.collect_closes_at, occasion.time_zone) : null;
+  const revealsOn = occasion.collect_closes_at ? autoRevealLabel(occasion.collect_closes_at, occasion.time_zone) : null;
   const messages = groupChatMessages(link);
   const preview = `/host/${occasion.id}/book`;
+  // The zip follows the keepsake: visible moments with a photo. Its links are
+  // signed when the couple taps download, so only the count is needed here.
+  const photoCount = shown.filter((e) => e.photo_source).length;
 
   return (
     <main className={s.page}>
@@ -129,7 +135,8 @@ export default async function OccasionDashboard({ params }: { params: Promise<{ 
                   Reveal your guest book
                 </h2>
                 <p className={s.body}>
-                  Play it through, hide anything you&rsquo;d rather not keep, then reveal it.{" "}
+                  Play it through, hide anything you&rsquo;d rather not keep, then reveal it.
+                  {revealsOn && shown.length ? ` If you don't, it reveals itself on ${revealsOn}.` : ""}{" "}
                   {occasion.share_book_with_guests
                     ? "We'll give you a link and a message for the group chat, so everyone who added a song can open it."
                     : "Just us is on, so only the two of you will be able to open it."}
@@ -209,6 +216,19 @@ export default async function OccasionDashboard({ params }: { params: Promise<{ 
                     <Message label="The week after: the photo reminder" text={messages.photoReminder} />
                   </div>
                 ) : null}
+              </section>
+            ) : null}
+
+            {shown.length ? (
+              <section className={h.section} aria-labelledby="keep-title">
+                <h2 id="keep-title" className={s.title}>
+                  Keep it
+                </h2>
+                {photoCount ? <PhotoZip occasionId={occasion.id} slug={occasion.slug} count={photoCount} /> : null}
+                <Link className={s.textLink} href={`/host/${occasion.id}/notes`}>
+                  Every note, to print or save as a PDF
+                </Link>
+                <p className={s.meta}>Hidden moments are left out of both, as they are from the guest book.</p>
               </section>
             ) : null}
 

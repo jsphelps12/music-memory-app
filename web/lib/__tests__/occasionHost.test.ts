@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  autoRevealLabel,
   entryTimeLabel,
   bookLink,
   bookReadyMessage,
@@ -113,5 +114,12 @@ describe("bookLink", () => {
       "https://soundtracks.app/for/jo-and-lee/book?k=0123456789abcdef0123456789abcdef"
     );
     expect(bookReadyMessage("https://x/book")).toContain("https://x/book");
+  });
+});
+
+describe("autoRevealLabel", () => {
+  it("is a week after the close, in the wedding's zone", () => {
+    // Closes at midnight starting Oct 3 in New York (04:00Z); reveals Oct 10.
+    expect(autoRevealLabel("2027-10-03T04:00:00Z", "America/New_York")).toBe("October 10");
   });
 });
