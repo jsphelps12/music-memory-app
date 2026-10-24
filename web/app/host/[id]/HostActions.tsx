@@ -5,6 +5,19 @@ import { useState } from "react";
 import s from "@/components/share.module.css";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
 
+/**
+ * The edge function's own words when it answered with an error (its body is
+ * {error}), else a generic line. supabase-js puts the Response on .context.
+ */
+async function functionErrorMessage(error: unknown): Promise<string> {
+  const context = (error as { context?: unknown })?.context;
+  if (context instanceof Response) {
+    const body = (await context.json().catch(() => null)) as { error?: unknown } | null;
+    if (typeof body?.error === "string") return body.error;
+  }
+  return "That didn't work. Try again.";
+}
+
 /** Staging only: opens the guest book without a charge (Stripe replaces this). */
 export function ActivateButton({ occasionId }: { occasionId: string }) {
   const router = useRouter();
@@ -18,7 +31,7 @@ export function ActivateButton({ occasionId }: { occasionId: string }) {
       body: { action: "dev-activate", occasionId },
     });
     setBusy(false);
-    if (error) return setError("That didn't work. Try again.");
+    if (error) return setError(await functionErrorMessage(error));
     router.refresh();
   }
 
