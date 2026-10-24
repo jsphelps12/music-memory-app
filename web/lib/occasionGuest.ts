@@ -17,6 +17,8 @@ export type GuestOccasion = {
   city: string | null;
   accepting: boolean;
   suggestedSongs: SuggestedSong[];
+  /** Only once the couple has revealed the keepsake and left it shared. */
+  bookToken: string | null;
 };
 
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null);
@@ -36,6 +38,7 @@ export function parseGuestOccasion(raw: unknown): GuestOccasion | null {
     eventDate,
     city: str(o.city),
     accepting: o.accepting === true,
+    bookToken: typeof o.bookToken === "string" && /^[0-9a-f]{32}$/.test(o.bookToken) ? o.bookToken : null,
     suggestedSongs: songs.flatMap((s): SuggestedSong[] => {
       const song = s as Record<string, unknown>;
       const id = song.appleMusicId == null ? null : String(song.appleMusicId);

@@ -60,6 +60,12 @@ describe("parseGuestOccasion", () => {
     expect(parseGuestOccasion({ ...good, names: "  " })).toBeNull();
   });
 
+  it("keeps a well-formed book token only", () => {
+    expect(parseGuestOccasion(good)?.bookToken).toBeNull();
+    expect(parseGuestOccasion({ ...good, bookToken: "0123456789abcdef0123456789abcdef" })?.bookToken).toBe("0123456789abcdef0123456789abcdef");
+    expect(parseGuestOccasion({ ...good, bookToken: "../evil" })?.bookToken).toBeNull();
+  });
+
   it("treats anything but true as not accepting", () => {
     expect(parseGuestOccasion({ ...good, accepting: "yes" })?.accepting).toBe(false);
   });

@@ -143,8 +143,8 @@ Done. The host's dashboard shows a live count and the latest moments.
   the close with it (the `occasions_validate` trigger); edits after closing,
   by hand or by time, never reopen it. Until P1.6's scheduled close flips the
   status, the dashboard treats a book past its close as closed.
-- Not yet: duplicate songs grouped ("6 people picked September"), the
-  reveal (P1.5, with the keepsake page).
+- Since P1.5: "Most picked" under the count, a preview of the keepsake
+  (`/host/{id}/book`), and the reveal (flow 5).
 
 ### 2. Guest capture (`/for/{slug}`, web, no account)
 
@@ -243,7 +243,35 @@ gallery table and a per-entry photo source (`guest` | `gallery`).
   message with the link for the group chat. The link is unlisted and shared
   with all guests by default; a "Just us" switch turns it off (*decided*).
 
+*Built 2026-10-25 (P1.5), emails pending Resend.* Once the book is closed (by
+hand or by time), the dashboard offers "Play it first" (the preview) and
+**Reveal it** (`reveal_occasion()`: host or co-host, closed books only, once,
+can't be undone). After the reveal it shows the keepsake link with a
+ready-made group-chat message, or, with "Just us" on, a button for the two of
+them. Guests who open the capture link again find a link to the book. The
+email to guests who left one comes with the Resend batch; auto-reveal after
+7 days with P1.6.
+
 ### 6. The keepsake page (`/for/{slug}/book?k={token}`, unlisted)
+
+*Built 2026-10-25 (P1.5).* `web/components/Keepsake.tsx`, fed by the
+`occasion-book` edge function for guests (the token checked in constant time,
+revealed and shared only, every refusal the same 404; visible entries only;
+signed photo URLs for six hours) and by the couple's own session for
+`/host/{id}/book`, which always opens for them, "Just us" included. The page
+sends no Referer (the token is the key) and isn't indexed.
+
+- A night stage: each moment full-bleed (a song-only moment shows its cover
+  over a wash of itself), song, words in Newsreader, name and time (just the
+  time on the wedding night). The 30-second preview plays, then the next;
+  previous/next, keyboard and lock-screen controls (Media Session). One audio
+  element, so iOS keeps going after the first tap.
+- Underneath, the liner notes: a tracklist of every moment in order with
+  "Picked more than once", each row playing from there.
+- Not yet: full playback and "Save to Apple Music" (MusicKit, third-party
+  batch), a moment's own page, downloads (P1.6).
+
+The spec as decided:
 
 - **Plays like a radio show:** one moment at a time, full-bleed photo, song,
   words, name and time, in the order the night went. The song plays under
