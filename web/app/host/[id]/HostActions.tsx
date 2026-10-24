@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
 import s from "@/components/share.module.css";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
+import h from "../host.module.css";
 
 /**
  * The edge function's own words when it answered with an error (its body is
@@ -76,5 +77,123 @@ export function PrintButton() {
     <button type="button" onClick={() => window.print()}>
       Print
     </button>
+  );
+}
+
+/**
+ * While a guest book is open, checks every 30 seconds the page is visible
+ * for new moments, and reloads the list only when the count moved. (A
+ * reload signs every photo URL again, so the photos would download again.)
+ */
+export function AutoRefresh({ occasionId, known, seconds = 30 }: { occasionId: string; known: number; seconds?: number }) {
+  const router = useRouter();
+  useEffect(() => {
+    const tick = async () => {
+      if (document.visibilityState !== "visible") return;
+      const { count, error } = await getBrowserSupabase()
+        .from("occasion_entries")
+        .select("id", { count: "exact", head: true })
+        .eq("occasion_id", occasionId);
+      if (!error && count !== null && count !== known) router.refresh();
+    };
+    const timer = setInterval(tick, seconds * 1000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [router, occasionId, known, seconds]);
+  return null;
+}
+
+/** "Just us": whether guests can open the finished guest book. */
+export function JustUsSwitch({ occasionId, initial }: { occasionId: string; initial: boolean }) {
+  const [shared, setShared] = useState(initial);
+  const [error, setError] = useState<string | null>(null);
+  const id = useId();
+
+  async function change(next: boolean) {
+    setShared(next);
+    setError(null);
+    const { data, error } = await getBrowserSupabase()
+      .from("occasions")
+      .update({ share_book_with_guests: next })
+      .eq("id", occasionId)
+      .select("id");
+    if (error || !data?.length) {
+      setShared(!next);
+      setError("That didn't save. Try again.");
+    }
+  }
+
+  return (
+    <div className={h.switchRow}>
+      <label htmlFor={id} className={h.switchLabel}>
+        <span className={s.song}>Guests can open the finished guest book</span>
+        <span className={s.meta}>
+          {shared ? "Everyone who added a song gets the link when you reveal it." : "Just us: only you two will see it."}
+        </span>
+      </label>
+      <input
+        id={id}
+        type="checkbox"
+        role="switch"
+        className={h.switch}
+        checked={shared}
+        onChange={(e) => change(e.target.checked)}
+      />
+      {error ? (
+        <p className={s.error} role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Close collection now. Asks once more, because guests can't add songs after. */
+export function CloseCollecting({ occasionId }: { occasionId: string }) {
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function close() {
+    setBusy(true);
+    setError(null);
+    const { error } = await getBrowserSupabase().rpc("close_occasion", { p_occasion_id: occasionId });
+    setBusy(false);
+    if (error) {
+      // Already closed (by the other host, or in another tab): show where it is now.
+      if (error.code === "42501") return router.refresh();
+      return setError("That didn't work. Try again.");
+    }
+    router.refresh();
+  }
+
+  if (!confirming) {
+    return (
+      <button type="button" className={s.quietButton} onClick={() => setConfirming(true)}>
+        Close it to new songs now
+      </button>
+    );
+  }
+  return (
+    <div className={h.confirm} role="group" aria-label="Close the guest book">
+      <p className={s.body}>Guests won&rsquo;t be able to add songs or photos after this. It can&rsquo;t be undone.</p>
+      <div className={h.actions}>
+        <button type="button" className={`${s.button} ${h.inline}`} onClick={close} disabled={busy} aria-busy={busy}>
+          {busy ? "Closing…" : "Close it"}
+        </button>
+        <button type="button" className={s.quietButton} onClick={() => setConfirming(false)} disabled={busy}>
+          Keep it open
+        </button>
+      </div>
+      {error ? (
+        <p className={s.error} role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }

@@ -290,13 +290,16 @@ memorials, farewells, graduations, baby showers. Same engine for all.
     setup with suggested songs and a checked link, the overview with the
     guest link and QR, printable table cards, and a staging-only "open
     without paying" step that Stripe's webhook will replace.
-  - [ ] P1.4 couple dashboard (moments, hide, Just us, group-chat message,
-    close/reveal) · P1.5 keepsake page · P1.6 scheduled close/reveal and
-    downloads
+  - [x] P1.4 couple dashboard (2026-10-24): moments with photos, hide and
+    show, auto-refresh while collecting, the group-chat ask and week-after
+    photo reminder, "Just us", edit details, close early, and the close date
+    following date or time-zone edits. Reveal moves to P1.5.
+  - [ ] P1.5 keepsake page and reveal (plus duplicate-song grouping) · P1.6
+    scheduled close/reveal and downloads
   - [ ] Last, the third-party batch: Stripe checkout + webhook, Resend
     (setup, reminder, reveal emails and a real sender for sign-in links),
     Turnstile, MusicKit full playback.
-  - [ ] **Josh:** add `https://soundtracks.app/host/auth/callback` and
+  - [x] **Josh:** (done 2026-10-24) add `https://soundtracks.app/host/auth/callback` and
     `https://www.soundtracks.app/host/auth/callback` to Supabase Auth's
     redirect URLs (production and staging), or emailed sign-in links fall
     back to the Site URL.
