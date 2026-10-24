@@ -46,6 +46,23 @@ except copy and templates.
 | Viewer | Anyone the couple sends the keepsake link to | No |
 | Buyer | Whoever pays (usually a host; later, a gift-giver) | Email only at checkout |
 
+*Built 2026-10-26.* The person who set it up is the **primary host**; their
+partner joins as **co-host** from a single-use invite link
+(`/host/join/{token}`, 7 days, only its SHA-256 kept; joining is a tap on the
+page, so a link preview can't use it up). A co-host can do everything on the
+dashboard except invite someone else or delete the wedding; the primary host
+can remove them and they can leave. **Deleting a wedding** goes only through
+the `occasion-host` edge function (primary host, type DELETE to confirm): it
+closes the book to guests, removes every photo under `occasion-photos/{id}/`
+and leaves the wedding in place if any photo won't go, deletes it, then
+sweeps once more for an upload that was already in flight. Deleting doesn't
+refund (the confirm says so for a paid wedding).
+Clients have no DELETE on occasions. **A guest can remove their own moment**
+at any time, even after the reveal, from "Your songs" on the phone they used
+(the edit token proves it's theirs); their photo goes with it, a gallery
+photo stays with the couple. Removing is safe to retry: a moment that's
+already gone counts as removed.
+
 ## Lifecycle
 
 ```mermaid
@@ -354,8 +371,12 @@ Who can do what:
   estimate, suggested songs, "Just us"), hide entries, fill entries from the
   gallery, and manage the gallery. They **cannot** touch `status`, `paid_at`,
   Stripe ids, `book_token` or `slug`, or a guest's words and photo: column
-  grants enforce that, not just policies. Only an unpaid draft can be deleted
-  by its host.
+  grants enforce that, not just policies. Hosts can't delete an occasion
+  directly; the primary host deletes it through the `occasion-host` function
+  (photos first). Every delete leaves a row in `occasion_deletions` (the
+  link, and payment if any; nothing personal; server-only), and a deleted
+  wedding's link stays retired for two years so printed cards never open
+  someone else's guest book.
 - **Guests** never get a session. Their entries and photos go through the
   service role (an edge function that validates and rate-limits).
 - **Nobody anonymous** can read anything. The keepsake page is

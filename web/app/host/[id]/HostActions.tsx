@@ -10,7 +10,7 @@ import h from "../host.module.css";
  * The edge function's own words when it answered with an error (its body is
  * {error}), else a generic line. supabase-js puts the Response on .context.
  */
-async function functionErrorMessage(error: unknown): Promise<string> {
+export async function functionErrorMessage(error: unknown): Promise<string> {
   const context = (error as { context?: unknown })?.context;
   if (context instanceof Response) {
     const body = (await context.json().catch(() => null)) as { error?: unknown } | null;

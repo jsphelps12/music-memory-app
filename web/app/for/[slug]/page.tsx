@@ -6,7 +6,7 @@ import { TopBar } from "@/components/Share";
 import s from "@/components/share.module.css";
 import { getSupabase } from "@/lib/supabase";
 import { formatEventDate, parseGuestOccasion } from "@/lib/occasionGuest";
-import { GuestBook } from "./GuestBook";
+import { GuestBook, SavedMomentsSection } from "./GuestBook";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +62,7 @@ export default async function GuestPage({ params }: PageProps) {
               Their guest book has closed. Thank you for being part of it.
             </p>
           )}
+          <SavedMomentsSection slug={occasion.slug} />
         </div>
       </main>
     );

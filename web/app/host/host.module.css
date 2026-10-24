@@ -343,3 +343,21 @@
   flex-direction: column;
   gap: 8px;
 }
+
+.ownership {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 0;
+  border-top: 1px solid var(--divider);
+}
+
+/* Deleting is the one destructive control: status red, used only here. */
+.danger {
+  color: var(--destructive);
+}
+
+.dangerButton {
+  background: var(--destructive);
+  color: #fff;
+}

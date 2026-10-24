@@ -27,6 +27,8 @@ import {
 //              returns the entry it already made)
 //   update: entryId, editToken, words?, guestEmail?, photo?
 //           → { photoSaved }
+//   delete: entryId, editToken → { deleted: true }   (any time, even after
+//           the reveal: a guest can always take their moment back)
 //
 // Everything stored is validated here: the song comes from Apple's catalog
 // (the client only names a track id), the photo's type comes from its bytes,
@@ -293,6 +295,41 @@ async function update(admin: SupabaseClient, form: FormData) {
   return json(200, { photoSaved: !!newPath });
 }
 
+/**
+ * A guest removes their own moment. The edit token proves it's theirs. Their
+ * photo goes first, then the row, so a failure never leaves a photo behind
+ * without its moment. A gallery photo is the couple's and stays.
+ */
+async function remove(admin: SupabaseClient, form: FormData) {
+  const entryId = form.get("entryId");
+  const editToken = form.get("editToken");
+  if (!isUuid(entryId) || typeof editToken !== "string" || editToken.length > 100) {
+    return failWith(403, "This link can't change that moment.");
+  }
+  const { data: entry, error } = await admin
+    .from("occasion_entries")
+    .select("id, occasion_id, edit_token_hash, photo_source, photo_path")
+    .eq("id", entryId)
+    .maybeSingle<{ id: string; occasion_id: string; edit_token_hash: string; photo_source: string | null; photo_path: string | null }>();
+  if (error) throw error;
+  // Already gone (a retry after a lost response, or another tab): the guest
+  // wanted it removed and it is. Entry ids are random, so this says nothing
+  // to anyone guessing.
+  if (!entry) return json(200, { deleted: true });
+  if (!sameHex(entry.edit_token_hash, await sha256Hex(editToken))) {
+    return failWith(403, "This link can't change that moment.");
+  }
+  // The guest's photo, plus any copy an interrupted upload left under the
+  // entry's id. A gallery photo is the couple's and stays.
+  const paths = ["jpg", "png", "webp"].map((ext) => `${entry.occasion_id}/entries/${entry.id}.${ext}`);
+  if (entry.photo_source === "guest" && entry.photo_path) paths.push(entry.photo_path);
+  const { error: removeError } = await admin.storage.from(BUCKET).remove([...new Set(paths)]);
+  if (removeError) throw removeError;
+  const { error: deleteError } = await admin.from("occasion_entries").delete().eq("id", entry.id);
+  if (deleteError) throw deleteError;
+  return json(200, { deleted: true });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return failWith(405, "Method not allowed.");
@@ -315,6 +352,8 @@ Deno.serve(async (req) => {
         return await create(admin, form, req.headers);
       case "update":
         return await update(admin, form);
+      case "delete":
+        return await remove(admin, form);
       default:
         return failWith(400, "Unknown action.");
     }

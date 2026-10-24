@@ -9,6 +9,8 @@ import {
   createEntry,
   deviceId,
   newEditToken,
+  deleteEntry,
+  forgetMoment,
   markPhoto,
   rememberedName,
   rememberName,
@@ -549,11 +551,32 @@ function DoneView({
   );
 }
 
-function YourMoments({ slug, saved }: { slug: string; saved: SavedMoment[] }) {
+/**
+ * "Your songs" on its own, for the closed guest page: a guest can still take
+ * their moment back after the book closes, though no longer add a photo.
+ */
+export function SavedMomentsSection({ slug }: { slug: string }) {
+  const saved = useSavedMoments(slug);
+  return saved.length > 0 ? <YourMoments slug={slug} saved={saved} canAddPhoto={false} /> : null;
+}
+
+function YourMoments({ slug, saved, canAddPhoto = true }: { slug: string; saved: SavedMoment[]; canAddPhoto?: boolean }) {
   const input = useRef<HTMLInputElement>(null);
   const [target, setTarget] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function remove(moment: SavedMoment) {
+    setBusy(moment.entryId);
+    setError(null);
+    const r = await deleteEntry({ entryId: moment.entryId, editToken: moment.editToken });
+    setBusy(null);
+    setConfirming(null);
+    if (!r.ok) return setError(r.error);
+    forgetMoment(storage(), slug, moment.entryId);
+    notifySaved();
+  }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -586,20 +609,41 @@ function YourMoments({ slug, saved }: { slug: string; saved: SavedMoment[] }) {
             <p className={`${s.resultText} ${s.oneLine}`}>
               <span className={s.song}>{m.title}</span> <span className={s.artist}>{m.artist}</span>
             </p>
-            {m.hasPhoto ? (
-              <span className={s.meta}>Photo added</span>
+            {confirming === m.entryId ? (
+              <span className={g.confirmRemove}>
+                <button type="button" className={s.quietButton} disabled={busy === m.entryId} onClick={() => remove(m)}>
+                  {busy === m.entryId ? "Removing…" : "Remove it"}
+                </button>
+                <button type="button" className={s.quietButton} disabled={busy === m.entryId} onClick={() => setConfirming(null)}>
+                  Keep
+                </button>
+              </span>
             ) : (
-              <button
-                type="button"
-                className={s.quietButton}
-                disabled={busy === m.entryId}
-                onClick={() => {
-                  setTarget(m.entryId);
-                  input.current?.click();
-                }}
-              >
-                {busy === m.entryId ? "Adding…" : "Add a photo"}
-              </button>
+              <>
+                {m.hasPhoto ? (
+                  <span className={s.meta}>Photo added</span>
+                ) : canAddPhoto ? (
+                  <button
+                    type="button"
+                    className={s.quietButton}
+                    disabled={busy === m.entryId}
+                    onClick={() => {
+                      setTarget(m.entryId);
+                      input.current?.click();
+                    }}
+                  >
+                    {busy === m.entryId ? "Adding…" : "Add a photo"}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className={`${s.quietButton} ${g.removeButton}`}
+                  onClick={() => setConfirming(m.entryId)}
+                  aria-label={`Remove ${m.title} from their guest book`}
+                >
+                  Remove
+                </button>
+              </>
             )}
           </li>
         ))}

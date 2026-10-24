@@ -302,6 +302,8 @@ memorials, farewells, graduations, baby showers. Same engine for all.
     `occasions_tick()` on pg_cron every ten minutes (close at the deadline,
     auto-reveal a week later); the couple's photo zip and printable notes.
     Phase 1's build is done apart from the third-party batch below.
+  - [x] Guests remove their own moments; couples delete a wedding (photos
+    first); partner invites as co-host (2026-10-26).
   - [ ] Last, the third-party batch: Stripe checkout + webhook, Resend
     (setup, reminder, reveal emails and a real sender for sign-in links),
     Turnstile, MusicKit full playback and "Save to Apple Music" on the
