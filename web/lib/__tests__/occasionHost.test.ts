@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { guestLink, isSlugShape, safeNext, setupProblem, slugify, timeZoneOptions } from "../occasionHost";
+import {
+  entryTimeLabel,
+  groupChatMessages,
+  guestLink,
+  isSlugShape,
+  lastDayLabel,
+  safeNext,
+  setupProblem,
+  slugify,
+  timeZoneOptions,
+} from "../occasionHost";
 
 describe("slugify", () => {
   it("makes a readable link from the couple's names", () => {
@@ -70,5 +80,27 @@ describe("setupProblem", () => {
 describe("guestLink", () => {
   it("is the public /for/ link", () => {
     expect(guestLink("sam-and-priya")).toBe("https://soundtracks.app/for/sam-and-priya");
+  });
+});
+
+describe("lastDayLabel", () => {
+  it("is the day before the midnight close, in the wedding's zone", () => {
+    // Midnight starting Oct 3 in New York = 04:00Z.
+    expect(lastDayLabel("2027-10-03T04:00:00Z", "America/New_York")).toBe("October 2");
+    expect(lastDayLabel("2027-10-03T04:00:00Z", "Europe/London")).toBe("October 3");
+  });
+});
+
+describe("entryTimeLabel", () => {
+  it("shows the day and time where the wedding is", () => {
+    expect(entryTimeLabel("2027-09-19T02:42:00Z", "America/New_York")).toBe("Sat, Sep 18, 10:42 PM");
+  });
+});
+
+describe("groupChatMessages", () => {
+  it("carries the link in both messages", () => {
+    const m = groupChatMessages("https://soundtracks.app/for/jo-and-lee");
+    expect(m.ask).toContain("https://soundtracks.app/for/jo-and-lee");
+    expect(m.photoReminder).toContain("https://soundtracks.app/for/jo-and-lee");
   });
 });

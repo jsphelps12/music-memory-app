@@ -147,3 +147,185 @@
 .after {
   margin-top: 28px;
 }
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 48px;
+}
+
+.section > .panel {
+  margin-top: 0;
+}
+
+.moments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.moment {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--paper-input);
+}
+
+.momentHidden {
+  opacity: 0.55;
+}
+
+.momentPhoto {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+  background: var(--paper-deep);
+}
+
+.momentSong {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.momentSong img {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.momentSong p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.momentWords {
+  margin: 0;
+  font-family: var(--font-reading), Georgia, serif;
+  font-size: 19px;
+  line-height: 1.45;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+
+.momentFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.momentFoot p {
+  margin: 0;
+}
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 16px 0;
+  border-top: 1px solid var(--divider);
+}
+
+.messageText {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink-body);
+}
+
+.switchRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 16px 0;
+  border-top: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
+}
+
+.switchRow .error {
+  grid-column: 1 / -1;
+}
+
+.switchLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+}
+
+/* A native checkbox drawn as a switch: keyboard and screen readers get the
+   real control (role="switch"); this only changes how it looks. */
+.switch {
+  appearance: none;
+  width: 48px;
+  height: 28px;
+  border-radius: 14px;
+  background: var(--border);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  flex: none;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease;
+}
+
+.switch:checked {
+  background: var(--ink);
+}
+
+.switch:checked::after {
+  transform: translateX(20px);
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .switch::after {
+    transition: none;
+  }
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--paper-input);
+}

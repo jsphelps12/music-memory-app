@@ -85,3 +85,33 @@ export function setupProblem(input: SetupInput, today: string): string | null {
 export function guestLink(slug: string, origin = "https://soundtracks.app"): string {
   return `${origin}/for/${slug}`;
 }
+
+/**
+ * The last day guests can add songs, as couples would say it. Collection
+ * closes at midnight starting the next day (in the wedding's zone), so the
+ * last day is the one before that instant.
+ */
+export function lastDayLabel(closesAtIso: string, timeZone: string): string {
+  const lastMoment = new Date(Date.parse(closesAtIso) - 60_000);
+  return lastMoment.toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone });
+}
+
+/** When a guest added their song, in the wedding's own time zone: "Sat 10:42 PM". */
+export function entryTimeLabel(createdAtIso: string, timeZone: string): string {
+  return new Date(createdAtIso).toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone,
+  });
+}
+
+/** Ready-to-paste messages for the wedding group chat. */
+export function groupChatMessages(link: string) {
+  return {
+    ask: `We're collecting a song from everyone for our guest book. Pick one for us, add a photo from the day if you have one, and your name: ${link}`,
+    photoReminder: `Thank you for celebrating with us! If you took photos, add them to the song you picked (or pick one now): ${link}`,
+  };
+}

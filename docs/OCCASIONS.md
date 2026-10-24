@@ -122,6 +122,30 @@ opens), the landing page, and later the app's second onboarding path
 
 Done. The host's dashboard shows a live count and the latest moments.
 
+### 1b. The couple's dashboard (`/host/{id}`)
+
+*Built 2026-10-24 (P1.4).* Once open, the overview is the dashboard:
+
+- **Moments,** newest first: photo (signed URLs from the private bucket;
+  gallery fills by their gallery path), song, words, guest name and time in
+  the wedding's time zone. Hide and show per moment (writes
+  `occasion_entries.hidden`; hidden ones fold behind "Show hidden (n)").
+  The page refreshes itself every 30 seconds while the tab is visible and
+  the book is collecting.
+- **Share it:** the link, copy, QR, table cards, and two ready-made messages
+  for the group chat: the ask (now) and the photo reminder (the week after).
+- **Settings:** the "Just us" switch (`share_book_with_guests`), **Edit**
+  (`/host/{id}/edit`, the setup form prefilled; the link is fixed once
+  open), and **close early** (`close_occasion()`, host or co-host only,
+  collecting only, can't be undone).
+- The closing line names the last day ("through October 2"), not the
+  midnight it closes at. Moving the date or time zone while collecting moves
+  the close with it (the `occasions_validate` trigger); edits after closing,
+  by hand or by time, never reopen it. Until P1.6's scheduled close flips the
+  status, the dashboard treats a book past its close as closed.
+- Not yet: duplicate songs grouped ("6 people picked September"), the
+  reveal (P1.5, with the keepsake page).
+
 ### 2. Guest capture (`/for/{slug}`, web, no account)
 
 *Built 2026-10-21 (P1.2).* `web/app/for/[slug]` + `web/lib/occasionGuest.ts`,
