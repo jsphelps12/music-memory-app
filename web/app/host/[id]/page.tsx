@@ -21,6 +21,7 @@ import h from "../host.module.css";
 import { ActivateButton, AutoRefresh, CloseCollecting, CopyButton, JustUsSwitch, RevealButton } from "./HostActions";
 import { PhotoZip } from "./Downloads";
 import { Moments, type Moment } from "./Moments";
+import { DeleteWedding, Partner, type Hosts } from "./Ownership";
 
 export const metadata: Metadata = { title: "Your wedding" };
 export const dynamic = "force-dynamic";
@@ -44,17 +45,19 @@ export default async function OccasionDashboard({ params }: { params: Promise<{ 
   const { id } = await params;
   if (!UUID.test(id)) notFound();
   const supabase = await getHostSupabase();
-  const [{ data: occasion, error }, entries] = await Promise.all([
+  const [{ data: occasion, error }, entries, { data: hostsData }] = await Promise.all([
     supabase
       .from("occasions")
       .select("id, names, event_date, city, slug, status, collect_closes_at, time_zone, share_book_with_guests, book_token")
       .eq("id", id)
       .maybeSingle<Occasion>(),
     allEntries(supabase, id, { newestFirst: true }),
+    supabase.rpc("occasion_hosts", { p_occasion_id: id }),
   ]);
   if (error) throw error;
   if (!occasion) notFound();
 
+  const hosts = parseHosts(hostsData);
   const { photoUrl, photosMissing } = await signPhotos(supabase, entries);
   const moments: Moment[] = entries.map((r) => ({
     id: r.id,
@@ -113,6 +116,7 @@ export default async function OccasionDashboard({ params }: { params: Promise<{ 
             <Link className={s.textLink} href={`/host/${occasion.id}/edit`}>
               Edit details
             </Link>
+            {hosts.youAreHost ? <DeleteWedding occasionId={occasion.id} paid={false} /> : null}
           </section>
         ) : (
           <>
@@ -241,12 +245,26 @@ export default async function OccasionDashboard({ params }: { params: Promise<{ 
                 Edit names, date and suggested songs
               </Link>
               {phase === "open" ? <CloseCollecting occasionId={occasion.id} /> : null}
+              <Partner occasionId={occasion.id} hosts={hosts} />
+              {hosts.youAreHost ? <DeleteWedding occasionId={occasion.id} paid /> : null}
             </section>
           </>
         )}
       </div>
     </main>
   );
+}
+
+/** occasion_hosts(), checked. Unknown means "not the primary host", the safe default. */
+function parseHosts(raw: unknown): Hosts {
+  const o = (raw ?? {}) as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === "string" ? v : null);
+  return {
+    hostEmail: str(o.hostEmail),
+    cohostEmail: str(o.cohostEmail),
+    youAreHost: o.youAreHost === true,
+    invitePending: o.invitePending === true,
+  };
 }
 
 type Phase = "draft" | "open" | "closed" | "revealed";

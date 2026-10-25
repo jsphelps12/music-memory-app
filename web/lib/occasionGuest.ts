@@ -189,6 +189,15 @@ export function saveMoment(store: Store | undefined, slug: string, moment: Saved
   write(store, momentsKey(slug), [moment, ...rest].slice(0, 50));
 }
 
+/** Forgets a moment on this phone (after the guest removes it). */
+export function forgetMoment(store: Store | undefined, slug: string, entryId: string) {
+  write(
+    store,
+    momentsKey(slug),
+    savedMoments(store, slug).filter((m) => m.entryId !== entryId)
+  );
+}
+
 export function markPhoto(store: Store | undefined, slug: string, entryId: string) {
   write(
     store,
@@ -267,4 +276,13 @@ export function updateEntry(input: {
   if (input.photo) form.set("photo", input.photo);
   if (input.guestEmail !== undefined) form.set("guestEmail", input.guestEmail);
   return post<{ photoSaved: boolean }>(form);
+}
+
+/** The guest takes their moment back: the entry and its photo are deleted. */
+export function deleteEntry(input: { entryId: string; editToken: string }) {
+  const form = new FormData();
+  form.set("action", "delete");
+  form.set("entryId", input.entryId);
+  form.set("editToken", input.editToken);
+  return post<{ deleted: boolean }>(form);
 }

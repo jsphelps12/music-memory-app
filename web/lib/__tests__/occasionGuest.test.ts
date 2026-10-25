@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyStarter,
   deviceId,
+  forgetMoment,
   formatEventDate,
   newEditToken,
   markPhoto,
@@ -137,6 +138,16 @@ describe("what the phone remembers", () => {
     expect(savedMoments(store, "sam-and-priya").map((m) => m.entryId)).toEqual(["b", "a"]);
     markPhoto(store, "sam-and-priya", "a");
     expect(savedMoments(store, "sam-and-priya").find((m) => m.entryId === "a")?.hasPhoto).toBe(true);
+  });
+
+  it("forgets a removed moment, only on that guest book", () => {
+    const store = memoryStore();
+    saveMoment(store, "sam-and-priya", moment("a"));
+    saveMoment(store, "sam-and-priya", moment("b"));
+    saveMoment(store, "other-wedding", moment("a"));
+    forgetMoment(store, "sam-and-priya", "a");
+    expect(savedMoments(store, "sam-and-priya").map((m) => m.entryId)).toEqual(["b"]);
+    expect(savedMoments(store, "other-wedding")).toHaveLength(1);
   });
 
   it("survives storage that throws", () => {

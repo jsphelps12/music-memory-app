@@ -198,3 +198,13 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+.removeButton {
+  color: var(--ink-secondary);
+}
+
+.confirmRemove {
+  display: flex;
+  gap: 14px;
+  flex-shrink: 0;
+}
