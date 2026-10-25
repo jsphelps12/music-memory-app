@@ -1,0 +1,203 @@
+/* Gallery fill: rows ruled by hairlines (DESIGN.md, rows not boxes), photos
+   as the color. */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.clock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 22rem;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--divider);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.rowCompact {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.rowCompact > :nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+
+.entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.art {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--paper-deep);
+}
+
+.entryText {
+  margin: 0;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.by {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--ink-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.match {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.thumb,
+.thumbLarge {
+  display: block;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--paper-deep);
+}
+
+.thumb {
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.thumbLarge {
+  width: min(100%, 22rem);
+  aspect-ratio: 3 / 2;
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 6px;
+}
+
+.rowCompact .thumb {
+  width: 56px;
+  flex-shrink: 0;
+}
+
+.pick {
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.pick:hover .thumb {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.cell {
+  position: relative;
+  margin: 0;
+}
+
+.cellRemove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 9999px;
+  background: rgba(14, 11, 10, 0.55);
+  color: #f5f0eb;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.cellConfirm {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 8px;
+  background: rgba(14, 11, 10, 0.72);
+}
+
+.cellConfirm button {
+  border: 0;
+  background: none;
+  color: #f5f0eb;
+  font: 600 13px/1.2 var(--font-sans), system-ui, sans-serif;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pick {
+  position: relative;
+}
+
+.pick:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* A photo already filling a moment. */
+.used {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: rgba(14, 11, 10, 0.62);
+  color: #f5f0eb;
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.skipped {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding-top: 12px;
+}

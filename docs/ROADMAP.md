@@ -298,13 +298,16 @@ memorials, farewells, graduations, baby showers. Same engine for all.
     night back (photo, song preview, words, name; then the next) over a
     tracklist; the couple's preview; reveal with the group-chat message;
     "most picked"; the guest page links to the book once it's out.
-  - [x] P1.6 scheduled close/reveal and downloads (2026-10-26):
+  - [x] P1.6 scheduled close/reveal and downloads (2026-10-24):
     `occasions_tick()` on pg_cron every ten minutes (close at the deadline,
     auto-reveal a week later); the couple's photo zip and printable notes.
     Phase 1's build is done apart from the third-party batch below.
-  - [x] Link previews for the guest and keepsake links (2026-10-26).
+  - [x] Link previews for the guest and keepsake links (2026-10-25).
   - [x] Guests remove their own moments; couples delete a wedding (photos
-    first); partner invites as co-host (2026-10-26).
+    first); partner invites as co-host (2026-10-25).
+  - [x] Gallery fill (2026-10-25): upload the photographer's gallery, photos
+    suggested for song-only moments by when they were taken, the couple
+    approves each (pulled forward from P2).
   - [ ] Last, the third-party batch: Stripe checkout + webhook, Resend
     (setup, reminder, reveal emails and a real sender for sign-in links),
     Turnstile, MusicKit full playback and "Save to Apple Music" on the

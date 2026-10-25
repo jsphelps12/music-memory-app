@@ -85,6 +85,7 @@ export default async function OccasionDashboard({ params }: { params: Promise<{ 
   // The zip follows the keepsake: visible moments with a photo. Its links are
   // signed when the couple taps download, so only the count is needed here.
   const photoCount = shown.filter((e) => e.photo_source).length;
+  const songOnlyCount = shown.length - photoCount;
 
   return (
     <main className={s.page}>
@@ -194,6 +195,16 @@ export default async function OccasionDashboard({ params }: { params: Promise<{ 
               </div>
               {photosMissing ? <p className={s.meta}>Some photos didn&rsquo;t load. Refresh to try again.</p> : null}
               <Moments moments={moments} />
+              {shown.length ? (
+                <p className={s.meta}>
+                  {songOnlyCount
+                    ? `${songOnlyCount} ${songOnlyCount === 1 ? "moment has" : "moments have"} no photo. `
+                    : ""}
+                  <Link className={s.textLink} href={`/host/${occasion.id}/gallery`}>
+                    Add your photographer&rsquo;s photos
+                  </Link>
+                </p>
+              ) : null}
             </section>
 
             {phase !== "revealed" ? (
