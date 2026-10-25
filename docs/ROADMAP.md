@@ -302,6 +302,7 @@ memorials, farewells, graduations, baby showers. Same engine for all.
     `occasions_tick()` on pg_cron every ten minutes (close at the deadline,
     auto-reveal a week later); the couple's photo zip and printable notes.
     Phase 1's build is done apart from the third-party batch below.
+  - [x] Link previews for the guest and keepsake links (2026-10-26).
   - [x] Guests remove their own moments; couples delete a wedding (photos
     first); partner invites as co-host (2026-10-26).
   - [x] Gallery fill (2026-10-26): upload the photographer's gallery, photos
