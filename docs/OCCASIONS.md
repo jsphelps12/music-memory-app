@@ -150,6 +150,15 @@ Done. The host's dashboard shows a live count and the latest moments.
 - Since P1.5: "Most picked" under the count, a preview of the keepsake
   (`/host/{id}/book`), and the reveal (flow 5).
 
+### Link previews
+
+*Built 2026-10-26.* The guest link and the keepsake link unfurl in group chats
+as cards (`opengraph-image.tsx` next to each page, drawn with `next/og` in the
+brand's faces from `web/assets/fonts`): "Pick a song for Sam & Priya" with the
+date and the couple's suggested covers on paper, and "The guest book of Sam &
+Priya" on night. The keepsake card is fetched without the link's token, so it
+shows only what the public guest page shows, never a guest's photo or words.
+
 ### 2. Guest capture (`/for/{slug}`, web, no account)
 
 *Built 2026-10-21 (P1.2).* `web/app/for/[slug]` + `web/lib/occasionGuest.ts`,

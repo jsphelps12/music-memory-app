@@ -31,6 +31,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // A wedding's guest page is for the people with the link, not search.
     robots: { index: false, follow: false },
     openGraph: { title, siteName: "Soundtracks" },
+    twitter: { card: "summary_large_image", title },
   };
 }
 

@@ -45,6 +45,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
     robots: { index: false, follow: false },
     referrer: "no-referrer",
     openGraph: { title, siteName: "Soundtracks" },
+    twitter: { card: "summary_large_image", title },
   };
 }
 
