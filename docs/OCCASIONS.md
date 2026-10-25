@@ -46,7 +46,7 @@ except copy and templates.
 | Viewer | Anyone the couple sends the keepsake link to | No |
 | Buyer | Whoever pays (usually a host; later, a gift-giver) | Email only at checkout |
 
-*Built 2026-10-26.* The person who set it up is the **primary host**; their
+*Built 2026-10-25.* The person who set it up is the **primary host**; their
 partner joins as **co-host** from a single-use invite link
 (`/host/join/{token}`, 7 days, only its SHA-256 kept; joining is a tap on the
 page, so a link preview can't use it up). A co-host can do everything on the
@@ -80,7 +80,7 @@ flowchart LR
 - **Curating:** closed to new entries. Host hides anything, reviews gallery
   fills, then reveals. Auto-reveals after 7 days if the host does nothing;
   what they hid stays hidden, and they can still hide more later.
-  *Built 2026-10-26 (P1.6):* `occasions_tick()` runs every ten minutes on
+  *Built 2026-10-24 (P1.6):* `occasions_tick()` runs every ten minutes on
   pg_cron, moving collecting books past their close to curating and curating
   books a week past it to revealed. Until it runs, the dashboard and the
   guest function already treat a book past its close as closed.
@@ -169,7 +169,7 @@ Done. The host's dashboard shows a live count and the latest moments.
 
 ### Link previews
 
-*Built 2026-10-26.* The guest link and the keepsake link unfurl in group chats
+*Built 2026-10-25.* The guest link and the keepsake link unfurl in group chats
 as cards (`opengraph-image.tsx` next to each page, drawn with `next/og` in the
 brand's faces from `web/assets/fonts`): "Pick a song for Sam & Priya" with the
 date and the couple's suggested covers on paper, and "The guest book of Sam &
@@ -248,7 +248,7 @@ Collection stays open two weeks after the date (*decided*).
 
 ### 4. Gallery fill (*decided: designed in from the start*)
 
-*Built 2026-10-26.* `/host/{id}/gallery`, linked from the dashboard under
+*Built 2026-10-25.* `/host/{id}/gallery`, linked from the dashboard under
 Moments ("N moments have no photo. Add your photographer's photos"):
 
 - Upload many at once. In the browser, each photo's capture time is read
@@ -320,7 +320,7 @@ sends no Referer (the token is the key) and isn't indexed.
 - Not yet: full playback and "Save to Apple Music" (MusicKit, third-party
   batch), a moment's own page.
 
-*Downloads, built 2026-10-26 (P1.6), for the couple on the dashboard under
+*Downloads, built 2026-10-24 (P1.6), for the couple on the dashboard under
 "Keep it":* every photo as a zip, made in their browser from the page's
 signed URLs with fflate (stored, not recompressed; named "007 Alex Rivera -
 Mr. Brightside.jpg" in the order the night went; any photo that fails is
