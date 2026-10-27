@@ -308,7 +308,13 @@ memorials, farewells, graduations, baby showers. Same engine for all.
   - [x] Gallery fill (2026-10-25): upload the photographer's gallery, photos
     suggested for song-only moments by when they were taken, the couple
     approves each (pulled forward from P2).
-  - [ ] Last, the third-party batch: Stripe checkout + webhook, Resend
+  - [x] `/weddings` shows the real product (2026-10-26): the keepsake playing
+    in the hero (a muted loop from a demo wedding on staging), the real
+    guest page and couple's page, and copy matched to what's built (no
+    Spotify playlist export; gallery fill, co-hosts and taking a moment back
+    added).
+  - [ ] Last, the third-party batch (setup checklist for Josh:
+    `docs/THIRD-PARTY-SETUP.md`): Stripe checkout + webhook, Resend
     (setup, reminder, reveal emails and a real sender for sign-in links),
     Turnstile, MusicKit full playback and "Save to Apple Music" on the
     keepsake.
