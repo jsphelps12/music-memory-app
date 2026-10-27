@@ -8,7 +8,9 @@
 //   3. The couple signs in, sees both moments, closes the book and reveals it.
 //   4. The keepsake opens from the link the dashboard gives them, shows both
 //      moments and starts playing.
-//   5. The guest page now links to the book.
+//   5. "Share" gives a moment link without the book's key; it opens that
+//      moment, and a tampered one doesn't.
+//   6. The guest page now links to the book.
 //
 // The wedding is always deleted at the end, through delete-wedding, pass or
 // fail. Runs against a web build of this checkout at BASE_URL; the database
@@ -259,6 +261,20 @@ try {
   await click("Play the night");
   await waitFor("the first song playing", "(()=>{const a=document.querySelector('audio'); return a && a.src.startsWith('https://') && !a.paused && a.currentTime > 0})()", 20_000);
   await screenshot("4-keepsake-playing");
+
+  step("share a moment on its own");
+  // Catch what Share would hand the share sheet or the clipboard.
+  await js("Object.defineProperty(navigator, 'share', { value: undefined, configurable: true }); navigator.clipboard.writeText = (u) => { window.__shared = u; return Promise.resolve(); };");
+  await click("Share");
+  const momentUrl = await waitFor("a shared link", "window.__shared");
+  const bookToken = new URL(bookUrl.trim()).searchParams.get("k");
+  if (momentUrl.includes(bookToken)) throw new Error("the moment link carries the book's key");
+  await go(momentUrl.replace(/^https:\/\/soundtracks\.app/, BASE));
+  await waitForText("From E2E Wedding (test)");
+  if (!(await text()).includes("First dance, and everyone sang.")) throw new Error("the shared moment page doesn't show the guest's words");
+  await screenshot("5-moment");
+  await go(momentUrl.replace(/^https:\/\/soundtracks\.app/, BASE).replace(/[0-9a-f]{32}$/, "f".repeat(32)));
+  await waitForText("This moment isn’t here");
 
   step("the guest page links to the book");
   await go(`/for/${draft.slug}`);

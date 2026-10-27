@@ -342,6 +342,8 @@ against **staging**:
 - a guest adds a photo moment on the real page;
 - the couple signs in, sees it, closes and reveals;
 - the keepsake plays;
+- "Share" gives a moment link without the book's key, which opens that
+  moment (and a tampered one doesn't);
 - the guest page links to the book.
 
 It always deletes its wedding at the end. Screenshots and the server log are
