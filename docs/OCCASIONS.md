@@ -317,8 +317,22 @@ sends no Referer (the token is the key) and isn't indexed.
   element, so iOS keeps going after the first tap.
 - Underneath, the liner notes: a tracklist of every moment in order with
   "Picked more than once", each row playing from there.
+- **A moment's own page** (*built 2026-10-27*): "Share" on the player sends
+  `/for/{slug}/m/{entryId}/{sig}`. The sig is an HMAC-SHA256 of the moment's
+  id keyed by the book token (first 128 bits). The link opens that moment
+  only and can't be turned into the key to the whole book.
+  - `occasion-book` checks it in constant time and returns the moment only
+    while the book is revealed and shared, and the moment visible. Hiding
+    the moment, or "Just us", closes the link.
+  - The page shows the photo or cover, the song with its preview, the words
+    and name, whose wedding it's from, and one plain line about Soundtracks
+    that links to /weddings.
+  - Its preview card shows the photo, song and words (in Newsreader). It's
+    not indexed and sends no Referer.
+  - The couple's preview signs links on the server (`web/lib/occasionShare.ts`,
+    the same HMAC), and only once guests can open the book.
 - Not yet: full playback and "Save to Apple Music" (MusicKit, third-party
-  batch), a moment's own page.
+  batch).
 
 *Downloads, built 2026-10-24 (P1.6), for the couple on the dashboard under
 "Keep it":* every photo as a zip, made in their browser from the page's

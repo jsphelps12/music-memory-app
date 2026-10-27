@@ -1,5 +1,16 @@
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { bookMoment, canOpenBook, chunks, isBookToken, photoPathFor, type BookEntryRow, type BookOccasion } from "./occasionBook.ts";
+import {
+  bookMoment,
+  canOpenBook,
+  canShareMoments,
+  chunks,
+  isBookToken,
+  isMomentSig,
+  momentSig,
+  photoPathFor,
+  type BookEntryRow,
+  type BookOccasion,
+} from "./occasionBook.ts";
 
 const TOKEN = "0123456789abcdef0123456789abcdef";
 
@@ -61,4 +72,18 @@ Deno.test("a moment carries no storage paths", () => {
 Deno.test("chunks", () => {
   assertEquals(chunks([1, 2, 3, 4, 5], 2), [[1, 2], [3, 4], [5]]);
   assertEquals(chunks([], 3), []);
+});
+
+Deno.test("moment signatures match the web's (HMAC-SHA256, first 128 bits)", async () => {
+  // Same vector as web/lib/__tests__/occasionBook.test.ts.
+  assertEquals(await momentSig(TOKEN, "5a757ee6-203b-4d58-9dbd-44bdc33108ef"), "3caac8aa49ba8fed9347bb56c71eca01");
+  assert(isMomentSig("3caac8aa49ba8fed9347bb56c71eca01"));
+  assert(!isMomentSig(TOKEN + "0"));
+  assert((await momentSig(TOKEN, "a")) !== (await momentSig(TOKEN, "b")));
+});
+
+Deno.test("moments are shareable only from a revealed, shared book", () => {
+  assert(canShareMoments(occasion));
+  assert(!canShareMoments({ ...occasion, share_book_with_guests: false }));
+  assert(!canShareMoments({ ...occasion, status: "curating" }));
 });

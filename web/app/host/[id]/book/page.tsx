@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { Keepsake } from "@/components/Keepsake";
 import { keepsakeView, type BookMoment } from "@/lib/occasionBook";
 import { allEntries, signPhotos } from "@/lib/occasionHostData";
+import { momentSig } from "@/lib/occasionShare";
 import { getHostSupabase } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Your guest book" };
@@ -18,6 +19,8 @@ type Occasion = {
   time_zone: string;
   status: "draft" | "collecting" | "curating" | "revealed";
   share_book_with_guests: boolean;
+  slug: string;
+  book_token: string;
 };
 
 /**
@@ -32,7 +35,7 @@ export default async function HostKeepsake({ params }: { params: Promise<{ id: s
   const [{ data: occasion, error }, rows] = await Promise.all([
     supabase
       .from("occasions")
-      .select("id, names, event_date, city, time_zone, status, share_book_with_guests")
+      .select("id, names, event_date, city, time_zone, status, share_book_with_guests, slug, book_token")
       .eq("id", id)
       .maybeSingle<Occasion>(),
     allEntries(supabase, id, { visibleOnly: true }),
@@ -42,6 +45,8 @@ export default async function HostKeepsake({ params }: { params: Promise<{ id: s
   if (occasion.status === "draft") redirect(`/host/${id}`);
 
   const { photoUrl } = await signPhotos(supabase, rows);
+  // Moments can be shared once guests can see the book, as on theirs.
+  const sharing = occasion.status === "revealed" && occasion.share_book_with_guests;
   const moments: BookMoment[] = rows.map((r) => ({
     id: r.id,
     guestName: r.guest_name,
@@ -54,6 +59,7 @@ export default async function HostKeepsake({ params }: { params: Promise<{ id: s
     previewUrl: r.song_preview_url,
     photoUrl: photoUrl(r),
     createdAt: r.created_at,
+    shareSig: sharing ? momentSig(occasion.book_token, r.id) : null,
   }));
   const view = keepsakeView({
     occasion: { names: occasion.names, eventDate: occasion.event_date, city: occasion.city, timeZone: occasion.time_zone },
@@ -66,5 +72,5 @@ export default async function HostKeepsake({ params }: { params: Promise<{ id: s
         ? "This is what your guests see."
         : "Just us: only the two of you can open this.";
 
-  return <Keepsake {...view} preview={{ note, backHref: `/host/${id}` }} />;
+  return <Keepsake {...view} preview={{ note, backHref: `/host/${id}` }} shareSlug={sharing ? occasion.slug : undefined} />;
 }

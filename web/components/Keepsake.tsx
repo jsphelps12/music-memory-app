@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { artworkAt, type BookMoment, type Picked } from "@/lib/occasionBook";
+import { artworkAt, momentLink, type BookMoment, type Picked } from "@/lib/occasionBook";
 import k from "./keepsake.module.css";
 
 export type KeepsakeMoment = BookMoment & { when: string };
@@ -18,6 +18,8 @@ type Props = {
   picked: Picked[];
   /** The host's preview: a note across the top and a way back. */
   preview?: { note: string; backHref: string };
+  /** The wedding's slug, when its moments can be shared (revealed, not "Just us"). */
+  shareSlug?: string;
 };
 
 // A moment without a song preview stays up this long.
@@ -65,7 +67,7 @@ function silence(): string {
  * <audio> element plays every preview, so after the first tap iOS keeps
  * playing from song to song.
  */
-export function Keepsake({ names, when, summary, moments, picked, preview }: Props) {
+export function Keepsake({ names, when, summary, moments, picked, preview, shareSlug }: Props) {
   const audio = useRef<HTMLAudioElement>(null);
   const stage = useRef<HTMLElement>(null);
   // Which moment the audio element was last loaded for, so moving to the
@@ -78,6 +80,7 @@ export function Keepsake({ names, when, summary, moments, picked, preview }: Pro
   const [playing, setPlaying] = useState(false);
   const [finished, setFinished] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [copied, setCopied] = useState<string | null>(null);
   const total = moments.length;
   const current = moments[index];
   const cover = moments.find((m) => m.photoUrl) ?? moments[0];
@@ -227,6 +230,28 @@ export function Keepsake({ names, when, summary, moments, picked, preview }: Pro
     return () => window.removeEventListener("keydown", onKey);
   }, [go, index, started, toggle]);
 
+  // One moment's own link (it opens only that moment): the share sheet where
+  // there is one, else the clipboard.
+  async function shareMoment(m: KeepsakeMoment) {
+    if (!shareSlug || !m.shareSig) return;
+    const url = momentLink(shareSlug, m.id, m.shareSig);
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `${m.guestName} picked ${m.title}`, text: `From ${names}'s guest book`, url });
+        return;
+      } catch (e) {
+        if ((e as DOMException)?.name === "AbortError") return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(m.id);
+      setTimeout(() => setCopied((c) => (c === m.id ? null : c)), 2500);
+    } catch {
+      // Nothing more to try; the button just doesn't confirm.
+    }
+  }
+
   const shown = started ? current : cover;
   const below = started && previous !== null && previous !== index ? moments[previous] : null;
 
@@ -296,6 +321,12 @@ export function Keepsake({ names, when, summary, moments, picked, preview }: Pro
               <button type="button" className={k.control} onClick={() => go(index + 1)} disabled={index + 1 >= total} aria-label="Next moment">
                 <NextIcon />
               </button>
+              {shareSlug && current.shareSig ? (
+                <button type="button" className={k.share} onClick={() => shareMoment(current)} aria-live="polite">
+                  <ShareIcon />
+                  {copied === current.id ? "Link copied" : "Share"}
+                </button>
+              ) : null}
               {!current.previewUrl ? <span className={k.noPreview}>No preview for this song</span> : null}
             </div>
           </div>
@@ -381,7 +412,7 @@ export function Keepsake({ names, when, summary, moments, picked, preview }: Pro
 }
 
 /** The photo, or for a song-only moment its artwork over a wash of itself. */
-function Backdrop({ moment, entering = false }: { moment: KeepsakeMoment; entering?: boolean }) {
+export function Backdrop({ moment, entering = false }: { moment: KeepsakeMoment; entering?: boolean }) {
   const cls = `${k.layer} ${entering ? k.entering : ""}`;
   if (moment.photoUrl) {
     return (
@@ -403,12 +434,12 @@ function Backdrop({ moment, entering = false }: { moment: KeepsakeMoment; enteri
   );
 }
 
-const PlayIcon = () => (
+export const PlayIcon = () => (
   <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
     <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" fill="currentColor" />
   </svg>
 );
-const PauseIcon = () => (
+export const PauseIcon = () => (
   <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
     <rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="currentColor" />
     <rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="currentColor" />
@@ -422,5 +453,17 @@ const PrevIcon = () => (
 const NextIcon = () => (
   <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
     <path d="M6 6.3v11.4a.9.9 0 0 0 1.38.76l8.12-5.26v4.3a1 1 0 0 0 2 0v-11a1 1 0 0 0-2 0v4.3L7.38 5.54A.9.9 0 0 0 6 6.3Z" fill="currentColor" />
+  </svg>
+);
+const ShareIcon = () => (
+  <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+    <path
+      d="M12 3v12M12 3l-4 4M12 3l4 4M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 );

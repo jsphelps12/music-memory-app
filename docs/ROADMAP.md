@@ -316,6 +316,9 @@ memorials, farewells, graduations, baby showers. Same engine for all.
   - [x] CI test of the paid flow (2026-10-27): `occasion-e2e.yml` runs
     guest → couple → close → reveal → keepsake against staging on every
     web/occasion PR and weekly.
+  - [x] A page for each moment (2026-10-27): "Share" on the keepsake sends
+    one guest's moment on its own (its own signed link, never the book's
+    key), with a preview card of their photo, song and words.
   - [ ] Last, the third-party batch (setup checklist for Josh:
     `docs/THIRD-PARTY-SETUP.md`): Stripe checkout + webhook, Resend
     (setup, reminder, reveal emails and a real sender for sign-in links),
