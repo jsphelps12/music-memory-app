@@ -340,6 +340,29 @@
   background: #fff8f2;
 }
 
+/* Share one moment: a quiet pill beside the controls. */
+.share {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  margin-left: 6px;
+  padding: 0 16px 0 13px;
+  border: 0;
+  border-radius: 9999px;
+  background: rgba(245, 240, 235, 0.12);
+  color: var(--night-text);
+  font: 600 14px/1 var(--font-sans), system-ui, sans-serif;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: background-color 0.2s;
+}
+
+.share:hover {
+  background: rgba(245, 240, 235, 0.2);
+}
+
 .noPreview {
   margin-left: 6px;
   font-size: 13px;
@@ -529,4 +552,20 @@
   text-decoration: underline;
   text-decoration-color: var(--border);
   text-underline-offset: 3px;
+}
+
+/* ── A shared moment ─────────────────────────────────────────────────── */
+
+.from {
+  margin: 0 0 14px;
+  font-size: 14px;
+  color: var(--night-soft);
+}
+
+.about {
+  margin: 24px 0 0;
+  max-width: 40ch;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--ink-secondary);
 }

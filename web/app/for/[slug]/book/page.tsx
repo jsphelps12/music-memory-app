@@ -68,5 +68,5 @@ export default async function KeepsakePage({ params, searchParams }: PageProps) 
     );
   }
 
-  return <Keepsake {...keepsakeView(book)} />;
+  return <Keepsake {...keepsakeView(book)} shareSlug={slug} />;
 }

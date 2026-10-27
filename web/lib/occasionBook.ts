@@ -17,6 +17,8 @@ export type BookMoment = {
   previewUrl: string | null;
   photoUrl: string | null;
   createdAt: string;
+  /** Opens just this moment when shared (null where sharing is off). */
+  shareSig?: string | null;
 };
 
 export type Book = {
@@ -31,41 +33,61 @@ const https = (v: unknown): string | null => {
   return s && s.startsWith("https://") ? s : null;
 };
 
-/** The occasion-book response, checked. Malformed moments are dropped. */
-export function parseBook(raw: unknown): Book | null {
-  if (!raw || typeof raw !== "object") return null;
-  const r = raw as { occasion?: Record<string, unknown>; moments?: unknown };
-  const o = r.occasion;
+function parseOccasion(o: Record<string, unknown> | undefined): Book["occasion"] | null {
   const names = str(o?.names);
   const eventDate = str(o?.eventDate);
   const timeZone = str(o?.timeZone);
   if (!o || !names || !eventDate || !/^\d{4}-\d{2}-\d{2}$/.test(eventDate) || !timeZone) return null;
-  const moments = Array.isArray(r.moments) ? r.moments : [];
+  return { names, eventDate, city: str(o.city), timeZone };
+}
+
+function parseMoment(m: unknown): BookMoment | null {
+  const x = (m ?? {}) as Record<string, unknown>;
+  const id = str(x.id);
+  const guestName = str(x.guestName);
+  const title = str(x.title);
+  const artist = str(x.artist);
+  const createdAt = str(x.createdAt);
+  if (!id || !guestName || !title || !artist || !createdAt || Number.isNaN(Date.parse(createdAt))) return null;
+  const sig = str(x.shareSig);
   return {
-    occasion: { names, eventDate, city: str(o.city), timeZone },
-    moments: moments.flatMap((m): BookMoment[] => {
-      const x = (m ?? {}) as Record<string, unknown>;
-      const id = str(x.id);
-      const guestName = str(x.guestName);
-      const title = str(x.title);
-      const artist = str(x.artist);
-      const createdAt = str(x.createdAt);
-      if (!id || !guestName || !title || !artist || !createdAt || Number.isNaN(Date.parse(createdAt))) return [];
-      return [{
-        id,
-        guestName,
-        words: str(x.words),
-        appleMusicId: str(x.appleMusicId) ?? "",
-        title,
-        artist,
-        album: str(x.album),
-        artworkUrl: https(x.artworkUrl),
-        previewUrl: https(x.previewUrl),
-        photoUrl: https(x.photoUrl),
-        createdAt,
-      }];
-    }),
+    id,
+    guestName,
+    words: str(x.words),
+    appleMusicId: str(x.appleMusicId) ?? "",
+    title,
+    artist,
+    album: str(x.album),
+    artworkUrl: https(x.artworkUrl),
+    previewUrl: https(x.previewUrl),
+    photoUrl: https(x.photoUrl),
+    createdAt,
+    shareSig: sig && /^[0-9a-f]{32}$/.test(sig) ? sig : null,
   };
+}
+
+/** The occasion-book response, checked. Malformed moments are dropped. */
+export function parseBook(raw: unknown): Book | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as { occasion?: Record<string, unknown>; moments?: unknown };
+  const occasion = parseOccasion(r.occasion);
+  if (!occasion) return null;
+  const moments = Array.isArray(r.moments) ? r.moments : [];
+  return { occasion, moments: moments.map(parseMoment).filter((m): m is BookMoment => !!m) };
+}
+
+/** occasion-book's shared-moment response: one moment and whose wedding it's from. */
+export function parseSharedMoment(raw: unknown): { occasion: Book["occasion"]; moment: BookMoment } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as { occasion?: Record<string, unknown>; moment?: unknown };
+  const occasion = parseOccasion(r.occasion);
+  const moment = parseMoment(r.moment);
+  return occasion && moment ? { occasion, moment } : null;
+}
+
+/** A shared moment's link: it carries the moment's signature, never the book token. */
+export function momentLink(slug: string, entryId: string, sig: string, origin = "https://soundtracks.app"): string {
+  return `${origin}/for/${slug}/m/${entryId}/${sig}`;
 }
 
 /** Bigger album art: Apple's URLs carry their size ("…/600x600bb.jpg"). */

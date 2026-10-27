@@ -72,3 +72,25 @@ export function chunks<T>(items: T[], size: number): T[][] {
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
   return out;
 }
+
+/**
+ * A moment's share signature: HMAC-SHA256 of its id, keyed by the book's
+ * token, first 128 bits as hex. A shared moment link carries this instead of
+ * the book token, so it opens that one moment and can't be turned into the
+ * key to the whole book.
+ */
+export async function momentSig(bookToken: string, entryId: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(bookToken), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(entryId)));
+  return Array.from(mac.slice(0, 16), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export function isMomentSig(v: unknown): v is string {
+  return typeof v === "string" && /^[0-9a-f]{32}$/.test(v);
+}
+
+/** A shared moment opens only from a revealed book that isn't "Just us". */
+export function canShareMoments(o: Pick<BookOccasion, "status" | "share_book_with_guests">): boolean {
+  return o.status === "revealed" && o.share_book_with_guests;
+}

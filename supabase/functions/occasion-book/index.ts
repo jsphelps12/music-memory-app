@@ -2,13 +2,16 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import {
   bookMoment,
   canOpenBook,
+  canShareMoments,
   chunks,
   isBookToken,
+  isMomentSig,
+  momentSig,
   photoPathFor,
   type BookEntryRow,
   type BookOccasion,
 } from "../_shared/occasionBook.ts";
-import { cleanSlug } from "../_shared/occasionEntry.ts";
+import { cleanSlug, isUuid, sameHex } from "../_shared/occasionEntry.ts";
 
 // The keepsake for guests (docs/OCCASIONS.md, the keepsake page). The page
 // at /for/{slug}/book?k={token} is server-rendered and posts here; nobody
@@ -17,7 +20,11 @@ import { cleanSlug } from "../_shared/occasionEntry.ts";
 // book and left it shared ("Just us" off). Photos stay in the private
 // bucket; the response carries short-lived signed URLs.
 //
-//   POST { slug, token } → { occasion: {...}, moments: [...] }  (oldest first)
+//   POST { slug, token } → { occasion: {...}, moments: [...] }  (oldest first;
+//                          each moment carries its shareSig)
+//   POST { slug, entryId, sig } → { occasion: {...}, moment }  (one shared
+//                          moment: sig is its HMAC under the book token, so
+//                          the link can't open anything else)
 //                        → 404 for every refusal, alike.
 
 const BUCKET = "occasion-photos";
@@ -33,14 +40,22 @@ function json(status: number, body: unknown) {
 
 const notFound = () => json(404, { error: "This link doesn't open a guest book." });
 
+const ENTRY_COLUMNS =
+  "id, guest_name, words, song_apple_id, song_title, song_artist, song_album, song_artwork_url, song_preview_url, photo_source, photo_path, gallery_photo_id, created_at";
+
+const publicOccasion = (o: BookOccasion) => ({
+  names: o.names,
+  eventDate: o.event_date,
+  city: o.city,
+  timeZone: o.time_zone,
+});
+
 async function visibleEntries(admin: SupabaseClient, occasionId: string): Promise<BookEntryRow[]> {
   const rows: BookEntryRow[] = [];
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await admin
       .from("occasion_entries")
-      .select(
-        "id, guest_name, words, song_apple_id, song_title, song_artist, song_album, song_artwork_url, song_preview_url, photo_source, photo_path, gallery_photo_id, created_at"
-      )
+      .select(ENTRY_COLUMNS)
       .eq("occasion_id", occasionId)
       .eq("hidden", false)
       .order("created_at", { ascending: true })
@@ -75,17 +90,47 @@ async function signedUrls(admin: SupabaseClient, rows: BookEntryRow[]) {
   };
 }
 
+/** One shared moment, by its signature. */
+async function sharedMoment(admin: SupabaseClient, slug: string, entryId: string, sig: string) {
+  const { data: occasion, error } = await admin
+    .from("occasions")
+    .select("id, names, event_date, city, time_zone, status, share_book_with_guests, book_token")
+    .eq("slug", slug)
+    .maybeSingle<BookOccasion>();
+  if (error) throw error;
+  if (!occasion || !canShareMoments(occasion) || !sameHex(await momentSig(occasion.book_token, entryId), sig)) {
+    return notFound();
+  }
+  const { data: row, error: entryError } = await admin
+    .from("occasion_entries")
+    .select(ENTRY_COLUMNS)
+    .eq("id", entryId)
+    .eq("occasion_id", occasion.id)
+    .eq("hidden", false)
+    .maybeSingle<BookEntryRow>();
+  if (entryError) throw entryError;
+  if (!row) return notFound();
+  const photoUrl = await signedUrls(admin, [row]);
+  return json(200, { occasion: publicOccasion(occasion), moment: bookMoment(row, photoUrl(row)) });
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json(405, { error: "Method not allowed." });
   try {
-    const body = (await req.json().catch(() => null)) as { slug?: unknown; token?: unknown } | null;
+    const body = (await req.json().catch(() => null)) as { slug?: unknown; token?: unknown; entryId?: unknown; sig?: unknown } | null;
     const slug = cleanSlug(body?.slug);
-    const token = body?.token;
-    if (!slug || !isBookToken(token)) return notFound();
-
+    if (!slug) return notFound();
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
       auth: { persistSession: false },
     });
+
+    if (body?.entryId !== undefined) {
+      if (!isUuid(body.entryId) || !isMomentSig(body.sig)) return notFound();
+      return await sharedMoment(admin, slug, body.entryId, body.sig);
+    }
+
+    const token = body?.token;
+    if (!isBookToken(token)) return notFound();
     const { data: occasion, error } = await admin
       .from("occasions")
       .select("id, names, event_date, city, time_zone, status, share_book_with_guests, book_token")
@@ -96,14 +141,10 @@ Deno.serve(async (req) => {
 
     const rows = await visibleEntries(admin, occasion.id);
     const photoUrl = await signedUrls(admin, rows);
+    const sigs = await Promise.all(rows.map((r) => momentSig(occasion.book_token, r.id)));
     return json(200, {
-      occasion: {
-        names: occasion.names,
-        eventDate: occasion.event_date,
-        city: occasion.city,
-        timeZone: occasion.time_zone,
-      },
-      moments: rows.map((r) => bookMoment(r, photoUrl(r))),
+      occasion: publicOccasion(occasion),
+      moments: rows.map((r, i) => ({ ...bookMoment(r, photoUrl(r)), shareSig: sigs[i] })),
     });
   } catch (e) {
     console.error("[occasion-book] failed:", (e as Error)?.message ?? e);
