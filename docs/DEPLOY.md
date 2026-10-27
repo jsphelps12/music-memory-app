@@ -332,6 +332,26 @@ password is `E2E_PASSWORD` in `.maestro/.env.e2e.local`.
 
 ---
 
+## Web: the occasion E2E
+
+`.github/workflows/occasion-e2e.yml` runs `web/e2e/occasion-flow.mjs` on every
+PR that touches `web/`, the occasion functions or migrations, weekly, and on
+demand. It builds the PR's web app, serves it, and drives headless Chrome
+against **staging**:
+- set up a wedding, and open it with staging's dev-activate;
+- a guest adds a photo moment on the real page;
+- the couple signs in, sees it, closes and reveals;
+- the keepsake plays;
+- the guest page links to the book.
+
+It always deletes its wedding at the end. Screenshots and the server log are
+uploaded when it fails. It needs `ALLOW_DEV_PAYMENTS=true` on staging and the
+`E2E_PASSWORD` secret.
+
+The database and functions under test are staging's, which is main's. So a PR
+that changes an occasion function is tested against the old function until
+it merges. Run it locally with the command at the top of the script.
+
 ## Database Migrations
 
 ### Rules
