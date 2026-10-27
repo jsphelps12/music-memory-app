@@ -313,6 +313,9 @@ memorials, farewells, graduations, baby showers. Same engine for all.
     guest page and couple's page, and copy matched to what's built (no
     Spotify playlist export; gallery fill, co-hosts and taking a moment back
     added).
+  - [x] CI test of the paid flow (2026-10-27): `occasion-e2e.yml` runs
+    guest → couple → close → reveal → keepsake against staging on every
+    web/occasion PR and weekly.
   - [x] A page for each moment (2026-10-27): "Share" on the keepsake sends
     one guest's moment on its own (its own signed link, never the book's
     key), with a preview card of their photo, song and words.
