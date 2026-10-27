@@ -313,6 +313,9 @@ memorials, farewells, graduations, baby showers. Same engine for all.
     guest page and couple's page, and copy matched to what's built (no
     Spotify playlist export; gallery fill, co-hosts and taking a moment back
     added).
+  - [x] CI test of the paid flow (2026-10-27): `occasion-e2e.yml` runs
+    guest → couple → close → reveal → keepsake against staging on every
+    web/occasion PR and weekly.
   - [ ] Last, the third-party batch (setup checklist for Josh:
     `docs/THIRD-PARTY-SETUP.md`): Stripe checkout + webhook, Resend
     (setup, reminder, reveal emails and a real sender for sign-in links),

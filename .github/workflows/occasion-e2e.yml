@@ -1,0 +1,91 @@
+name: Occasion E2E
+
+# The paid wedding flow, end to end, against staging (web/e2e/occasion-flow.mjs):
+# a guest adds moments, the couple closes and reveals, the keepsake plays.
+# Builds this checkout's web app and serves it locally; the database and edge
+# functions are staging's (main's, deployed on merge). The test wedding is
+# deleted at the end, pass or fail.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "supabase/functions/occasion-*/**"
+      - "supabase/functions/_shared/occasion*"
+      - "supabase/migrations/**"
+      - ".github/workflows/occasion-e2e.yml"
+  schedule:
+    # Weekly, Monday 09:30 UTC, beside the app's E2E: catches rot in staging,
+    # the catalog search and the edge functions between PRs.
+    - cron: "30 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # One at a time: every run signs in as the same staging host.
+  group: occasion-e2e
+  cancel-in-progress: false
+
+env:
+  # Staging's public URL and publishable key (they ship in every client).
+  SUPABASE_URL: https://bqyrpahvdukllasafdpv.supabase.co
+  SUPABASE_ANON_KEY: sb_publishable_4XiPUOqz9dfdnhaAROdirg_UspTg8oL
+
+jobs:
+  flow:
+    name: Guest → couple → keepsake
+    # Pull requests from forks get no secrets.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build against staging
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.SUPABASE_ANON_KEY }}
+
+      - name: Serve
+        run: |
+          npx next start -p 3300 > "$RUNNER_TEMP/next.log" 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://localhost:3300/weddings && exit 0
+            sleep 1
+          done
+          echo "web app didn't start"; cat "$RUNNER_TEMP/next.log"; exit 1
+
+      - name: Run the flow
+        run: node e2e/occasion-flow.mjs
+        env:
+          BASE_URL: http://localhost:3300
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          CHROME_PATH: google-chrome
+          ARTIFACTS_DIR: ${{ runner.temp }}/occasion-e2e
+
+      - name: Keep the screenshots and server log
+        if: failure()
+        run: cp "$RUNNER_TEMP/next.log" "$RUNNER_TEMP/occasion-e2e/" 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: occasion-e2e
+          path: ${{ runner.temp }}/occasion-e2e
+          retention-days: 7
