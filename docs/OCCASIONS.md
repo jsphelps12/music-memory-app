@@ -443,8 +443,21 @@ opens; the email is the bridge.
 - **Scheduled jobs (Supabase cron):** close collection and auto-reveal (built,
   `occasions-tick`); the photo reminder and anniversaries come with Resend.
 - **Webhooks:** Stripe (paid), print partners (shipped).
-- **Admin view:** a protected page listing occasions, failed jobs and stuck
-  orders, with resend and refund buttons. For exceptions only.
+- **Admin view** (*built 2026-10-27*, `/host/admin`): for exceptions only. It
+  shows:
+  - every occasion with its host, counts, payment kind and anything stuck
+    (should have closed, should have revealed, an old draft, no moments
+    after the wedding);
+  - reservations not yet set up, with their email;
+  - recent deletions;
+  - the scheduled jobs' last runs;
+  - a button to run the close-and-reveal job now.
+
+  Data comes from `admin_overview()` (service role only) through the
+  `occasion-admin` edge function, which requires the caller to be in
+  `app_admins`. Anyone else gets a 404. `app_admins` is filled by hand per
+  project (docs/DEPLOY.md), so no email lands in the public repo. Resend and
+  refund buttons come with Resend and Stripe.
 
 ## What happens to albums and guest contributions
 
