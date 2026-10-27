@@ -319,6 +319,9 @@ memorials, farewells, graduations, baby showers. Same engine for all.
   - [x] A page for each moment (2026-10-27): "Share" on the keepsake sends
     one guest's moment on its own (its own signed link, never the book's
     key), with a preview card of their photo, song and words.
+  - [x] Admin view (2026-10-27): `/host/admin`. Every wedding, what's
+    stuck, reservations to set up, scheduled-job health, run the tick.
+    Admins are added by hand (docs/DEPLOY.md).
   - [ ] Last, the third-party batch (setup checklist for Josh:
     `docs/THIRD-PARTY-SETUP.md`): Stripe checkout + webhook, Resend
     (setup, reminder, reveal emails and a real sender for sign-in links),

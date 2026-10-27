@@ -354,6 +354,21 @@ The database and functions under test are staging's, which is main's. So a PR
 that changes an occasion function is tested against the old function until
 it merges. Run it locally with the command at the top of the script.
 
+## Admin view: who can see it
+
+`/host/admin` is for accounts in `app_admins`. That table is empty in the
+migrations on purpose, because the repo is public. To add yourself, open
+each project's Supabase SQL editor (staging and production separately) and
+run:
+
+```sql
+insert into public.app_admins (user_id)
+select id from auth.users where email = 'you@example.com'
+on conflict do nothing;
+```
+
+To remove someone: `delete from public.app_admins where user_id = '…';`
+
 ## Database Migrations
 
 ### Rules

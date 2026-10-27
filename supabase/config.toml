@@ -35,6 +35,9 @@ verify_jwt = false # guests have no JWT; authenticates via the occasion slug and
 [functions.occasion-book]
 verify_jwt = false # the keepsake page's server; authenticates via the occasion's book_token
 
+[functions.occasion-admin]
+verify_jwt = true # signed-in users only; the function also requires app_admins
+
 [functions.send-notifications]
 verify_jwt = false # cron-invoked with the service key, not user JWTs
 
