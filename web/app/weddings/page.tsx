@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import QRCode from "qrcode";
-import { Phone } from "../_landing/Phone";
+import { Phone, Screen } from "../_landing/Phone";
 import { Lockup, RecordMark } from "../_landing/RecordMark";
 import landing from "../_landing/landing.module.css";
+import { KeepsakeLoop } from "./KeepsakeLoop";
 import { ReserveForm } from "./ReserveForm";
 import s from "./weddings.module.css";
 
@@ -38,53 +39,18 @@ const TRACKS = [
   ["Sweet Caroline", "Table 9"],
 ];
 
-// Three pages from a demo guest book: two guests who wrote and added a photo,
-// and one who only picked a song (that counts too).
-const PAGES = [
-  {
-    photo: "/photos/wed-dancing-1100.webp",
-    art: "/art/september-160.jpg",
-    song: "September",
-    artist: "Earth, Wind & Fire",
-    note: "You two played this in the kitchen the night you got engaged. We could hear it from the street.",
-    by: "Mara",
-    when: "9:48 PM",
-  },
-  {
-    photo: "/photos/wed-table-1100.webp",
-    art: "/art/lovely-day-160.jpg",
-    song: "Lovely Day",
-    artist: "Bill Withers",
-    note: "Every Sunday the summer we all lived on Pine Street.",
-    by: "Dev",
-    when: "10:15 PM",
-  },
-  {
-    photo: null,
-    art: "/art/dancing-queen-160.jpg",
-    song: "Dancing Queen",
-    artist: "ABBA",
-    note: null,
-    by: "Aunt Linda",
-    when: "10:31 PM",
-  },
-];
-
-const SUGGESTED = [
-  { art: "/art/september-160.jpg", song: "September", artist: "Earth, Wind & Fire" },
-  { art: "/art/dancing-queen-160.jpg", song: "Dancing Queen", artist: "ABBA" },
-  { art: "/art/lovely-day-160.jpg", song: "Lovely Day", artist: "Bill Withers" },
-  { art: "/art/dreams-160.jpg", song: "Dreams", artist: "Fleetwood Mac" },
-];
-
 const KEEPSAKE = [
   {
     title: "The guest book that plays",
-    body: "Every guest’s song with their words and photo, in the order the night went. Open it and it plays them back, one after another: full songs if you have Apple Music, 30-second previews if you don’t. Send it to everyone who was there.",
+    body: "Every guest’s song with their words and photo, in the order the night went. Open it and it plays them back, one after another: full songs if you have Apple Music, 30-second previews if you don’t. Send it to everyone who was there, or keep it just for the two of you.",
   },
   {
     title: "The playlist",
-    body: "Every song in one playlist, saved to Apple Music or Spotify in a tap.",
+    body: "Every song in one playlist, saved to Apple Music in a tap.",
+  },
+  {
+    title: "Your photographer’s photos, too",
+    body: "Guests who only picked a song still get a photo. Add your photographer’s gallery and each one gets the picture taken closest to when they chose it. You approve every match.",
   },
   {
     title: "Everything, kept",
@@ -132,6 +98,18 @@ const FAQ = [
     a: "Yes. You see every song before anything is shared or printed, and you can hide any of them.",
   },
   {
+    q: "What if a guest doesn’t add a photo?",
+    a: "Their song and words still get a page. And once your photographer’s gallery comes in, you can add it: each song-only moment gets the photo taken closest to when that guest picked their song, and you approve each one.",
+  },
+  {
+    q: "Can we both manage it?",
+    a: "Yes. Whoever sets it up can invite their partner with a link, and you both see everything, share it and reveal it together.",
+  },
+  {
+    q: "Can a guest take back what they added?",
+    a: "Yes, any time, from the phone they used. You can also hide anything yourself.",
+  },
+  {
     q: "When do we get it?",
     a: "Guests can add songs and photos from the day of the wedding until two weeks after, with one reminder the week after for the photos. Your page is ready as soon as you close it; prints, cards and the book ship after you approve the proofs.",
   },
@@ -173,26 +151,10 @@ export default async function WeddingsPage() {
             <p className={s.fine}>Opening for 2027 weddings. Nothing to pay now.</p>
           </div>
 
-          <div className={s.pages} aria-label="Three pages from a guest book">
-            {PAGES.map((p, i) => (
-              <article key={p.song} className={s.pageCard} data-i={i}>
-                {p.photo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img className={s.pagePhoto} src={p.photo} alt="" width={1100} height={733} />
-                ) : null}
-                <div className={s.pageSong}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={p.art} alt="" width={80} height={80} />
-                  <p>
-                    <b>{p.song}</b> {p.artist}
-                  </p>
-                </div>
-                {p.note ? <p className={s.pageNote}>{p.note}</p> : null}
-                <p className={s.pageBy}>
-                  {p.by} · {p.when}
-                </p>
-              </article>
-            ))}
+          <div className={s.heroPhone}>
+            <Phone>
+              <KeepsakeLoop />
+            </Phone>
           </div>
         </div>
       </section>
@@ -215,42 +177,29 @@ export default async function WeddingsPage() {
         </div>
         <div className={s.guestsPhone}>
           <Phone>
-            <div className={s.guestScreen}>
-              <p className={s.gTitle}>Sam &amp; Priya</p>
-              <p className={s.gSub}>Pick a song for them</p>
-              <div className={s.gSearch}>Search for a song</div>
-              <p className={s.gLabel}>Suggested by Sam &amp; Priya</p>
-              <ul className={s.gList}>
-                {SUGGESTED.map((t, i) => (
-                  <li key={t.song} className={i === 0 ? s.gPicked : undefined}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={t.art} alt="" width={80} height={80} />
-                    <span>
-                      <b>{t.song}</b>
-                      {t.artist}
-                    </span>
-                    {i === 0 ? (
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-              <p className={s.gLabel}>A photo from tonight</p>
-              <div className={s.gPhotoPicked}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/photos/wed-dancing-1100.webp" alt="" width={1100} height={733} />
-              </div>
-              <div className={s.gName}>Mara</div>
-              <div className={s.gStarters}>
-                <span>The night we met&hellip;</span>
-                <span>You two in&hellip;</span>
-                <span>Every summer&hellip;</span>
-              </div>
-              <div className={s.gButton}>Add my song</div>
-            </div>
+            <Screen src="/weddings/guest.webp" alt="The guest page: a song picked, a photo from the night, a name and a few words" />
           </Phone>
+        </div>
+      </section>
+
+      <section className={`${s.guests} ${s.couple}`} aria-labelledby="couple-title">
+        <div className={s.guestsPhone}>
+          <Phone>
+            <Screen src="/weddings/dashboard.webp" alt="The couple's page: every moment as it arrives, with a photo, song, words and name" />
+          </Phone>
+        </div>
+        <div className={s.guestsCopy}>
+          <h2 id="couple-title" className={s.sectionTitle}>
+            Yours to run.
+          </h2>
+          <p className={s.body}>
+            Set it up in a few minutes: your names, the date, a handful of songs to suggest. You get the link, a QR code,
+            table cards to print and a message ready for the group chat.
+          </p>
+          <p className={s.body}>
+            Moments arrive as the night goes. Hide anything you&rsquo;d rather not keep, invite your partner to run it
+            with you, and when it closes two weeks after the wedding, play it through and send it to everyone.
+          </p>
         </div>
       </section>
 
