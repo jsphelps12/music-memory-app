@@ -322,6 +322,9 @@ memorials, farewells, graduations, baby showers. Same engine for all.
   - [x] Admin view (2026-10-27): `/host/admin`. Every wedding, what's
     stuck, reservations to set up, scheduled-job health, run the tick.
     Admins are added by hand (docs/DEPLOY.md).
+  - [x] Print proofs (2026-10-29): the tracklist print, thank-you cards and
+    the liner-notes book, made from the real guest book and printable at
+    true size. Ordering waits on Stripe and a print partner.
   - [ ] Last, the third-party batch (setup checklist for Josh:
     `docs/THIRD-PARTY-SETUP.md`): Stripe checkout + webhook, Resend
     (setup, reminder, reveal emails and a real sender for sign-in links),
