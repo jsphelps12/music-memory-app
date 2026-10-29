@@ -243,6 +243,9 @@ export default async function OccasionDashboard({ params }: { params: Promise<{ 
                 <Link className={s.textLink} href={`/host/${occasion.id}/notes`}>
                   Every note, to print or save as a PDF
                 </Link>
+                <Link className={s.textLink} href={`/host/${occasion.id}/print`}>
+                  Things to hold: the print, thank-you cards and the book
+                </Link>
                 <p className={s.meta}>Hidden moments are left out of both, as they are from the guest book.</p>
               </section>
             ) : null}

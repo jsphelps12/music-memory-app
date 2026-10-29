@@ -1,0 +1,496 @@
+/* Proofs of the things couples can order. On screen: the sheets on a table,
+   at preview size. Printed: just the sheets, each at its true size (named
+   pages below). Fixed paper and ink in both themes: these are prints. Every
+   size inside a sheet is in cqw of that sheet, so the preview and the print
+   are the same layout. */
+
+.page {
+  min-height: 100vh;
+  background: #e9e2d9;
+  color: #23222b;
+  padding: 20px 16px 64px;
+  --ink: #23222b;
+  --soft: #5e5c66;
+  --faint: #736a63;
+  --rule: #e2d9cd;
+  --paper: #fffdf9;
+}
+
+/* ── The bar ─────────────────────────────────────────────────────────── */
+
+.bar {
+  max-width: 8.5in;
+  margin: 0 auto 20px;
+  font-size: 15px;
+}
+
+.barRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.barRow a,
+.barRow button {
+  font: inherit;
+  font-weight: 600;
+  color: #23222b;
+}
+
+.barRow button {
+  min-height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 12px;
+  background: #23222b;
+  color: #fbf7f2;
+  cursor: pointer;
+}
+
+.barText {
+  margin: 10px 0 0;
+  color: #5e5c66;
+  line-height: 1.5;
+}
+
+.barNote {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f3ede6;
+  color: #5e5c66;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* ── Index rows ──────────────────────────────────────────────────────── */
+
+.listRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 8px 24px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.listRow h2 {
+  margin: 0 0 6px;
+}
+
+.listRow p {
+  margin: 0 0 4px;
+  max-width: 44ch;
+}
+
+/* ── Shared sheet ────────────────────────────────────────────────────── */
+
+.sheet {
+  container-type: inline-size;
+  margin: 0 auto 28px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 10px 30px rgba(35, 34, 43, 0.15);
+  overflow: hidden;
+}
+
+.qr {
+  line-height: 0;
+  flex: none;
+}
+
+.qr svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ── The tracklist print: 18 × 24 in ─────────────────────────────────── */
+
+.poster {
+  width: 18in;
+  max-width: 100%;
+  aspect-ratio: 3 / 4;
+  padding: 7cqw 7cqw 6cqw;
+  display: flex;
+  flex-direction: column;
+  page: poster;
+}
+
+.posterHead {
+  border-bottom: 0.45cqw solid var(--ink);
+  padding-bottom: 3cqw;
+}
+
+.posterNames {
+  margin: 0;
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: 10cqw;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.posterMeta {
+  margin: 1.6cqw 0 0;
+  font-size: 2.4cqw;
+  color: var(--soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.sides {
+  flex: 1;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  column-gap: 4cqw;
+  padding-top: 3.5cqw;
+  min-height: 0;
+}
+
+.side {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sideLabel {
+  font-size: 1.7cqw;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--soft);
+  padding-bottom: 0.8cqw;
+}
+
+/* Row size comes from the page (--row, in cqw) so any count fits the sheet. */
+.track {
+  display: grid;
+  grid-template-columns: calc(var(--row) * 1.2cqw) minmax(0, 1fr);
+  column-gap: calc(var(--row) * 0.25cqw);
+  align-items: baseline;
+  height: calc(var(--row) * 1cqw);
+  border-bottom: 0.12cqw solid var(--rule);
+  font-size: calc(var(--row) * 0.36cqw);
+  line-height: 1.15;
+  overflow: hidden;
+}
+
+.trackNo {
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.trackText {
+  display: flex;
+  gap: 0.8em;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.trackSong {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 1 auto;
+}
+
+.trackBy {
+  color: var(--soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 10 auto;
+}
+
+.posterFoot {
+  display: flex;
+  align-items: center;
+  gap: 2.5cqw;
+  border-top: 0.15cqw solid var(--rule);
+  padding-top: 2.4cqw;
+  font-size: 1.9cqw;
+  line-height: 1.4;
+  color: var(--soft);
+}
+
+.posterFoot p {
+  margin: 0;
+  flex: 1;
+}
+
+.posterFoot .mark {
+  width: 5cqw;
+  height: 5cqw;
+  flex: none;
+}
+
+.posterFoot .qr {
+  width: 9cqw;
+  height: 9cqw;
+}
+
+/* ── Thank-you cards: four 4.25 × 5.5 in to a letter page ────────────── */
+
+.cardSheet {
+  width: 8.5in;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  page: cards;
+}
+
+.card {
+  aspect-ratio: 4.25 / 5.5;
+  /* Exactly a quarter page, whatever's on it. */
+  min-height: 0;
+  overflow: hidden;
+  padding: 6cqw 5cqw 5cqw;
+  display: flex;
+  flex-direction: column;
+  outline: 0.15cqw dashed #cfc6bb;
+  outline-offset: -0.08cqw;
+}
+
+.cardTo {
+  margin: 0;
+  font-size: 2.3cqw;
+  color: var(--soft);
+}
+
+.cardThanks {
+  margin: 1.2cqw 0 0;
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 4.4cqw;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+.cardSong {
+  margin: auto 0 0;
+  padding-top: 3cqw;
+  border-top: 0.25cqw solid var(--ink);
+  font-size: 2.2cqw;
+  color: var(--soft);
+}
+
+.cardTitle {
+  display: block;
+  margin-top: 0.8cqw;
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 4cqw;
+  line-height: 1.05;
+  color: var(--ink);
+}
+
+.cardArtist {
+  display: block;
+  margin-top: 0.6cqw;
+  font-size: 2.3cqw;
+  color: var(--soft);
+}
+
+.cardFoot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 3cqw;
+  margin-top: 3cqw;
+  font-size: 1.8cqw;
+  line-height: 1.4;
+  color: var(--soft);
+}
+
+.cardFoot p {
+  margin: 0;
+}
+
+.cardFoot .qr {
+  width: 11cqw;
+  height: 11cqw;
+}
+
+/* ── The liner-notes book: 8 × 8 in pages ────────────────────────────── */
+
+.bookPage {
+  width: 8in;
+  max-width: 100%;
+  aspect-ratio: 1;
+  padding: 8cqw;
+  display: flex;
+  flex-direction: column;
+  page: book;
+}
+
+.cover {
+  justify-content: space-between;
+}
+
+.coverNames {
+  margin: 0;
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: 12cqw;
+  line-height: 0.98;
+  letter-spacing: -0.015em;
+}
+
+.coverMeta {
+  margin: 3cqw 0 0;
+  font-size: 2.8cqw;
+  color: var(--soft);
+}
+
+.coverFoot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 4cqw;
+  font-size: 2.4cqw;
+  line-height: 1.45;
+  color: var(--soft);
+}
+
+.coverFoot p {
+  margin: 0;
+}
+
+.coverFoot .qr {
+  width: 14cqw;
+  height: 14cqw;
+}
+
+.bookPhoto {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: 0.6cqw;
+  margin-bottom: 4cqw;
+}
+
+.bookSong {
+  margin: 0;
+  font-size: 2.8cqw;
+  color: var(--soft);
+}
+
+.bookSong strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.bookWords {
+  margin: 2.4cqw 0 0;
+  font-family: var(--font-reading), Georgia, serif;
+  line-height: 1.42;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.large {
+  font-size: 5.2cqw;
+}
+
+.medium {
+  font-size: 3.6cqw;
+}
+
+.small {
+  font-size: 2.8cqw;
+}
+
+/* A page of words alone starts lower, like a liner note. */
+.textOnly {
+  padding-top: 24cqw;
+}
+
+.bookBy {
+  margin: auto 0 0;
+  padding-top: 3cqw;
+  display: flex;
+  justify-content: space-between;
+  font-size: 2.4cqw;
+  color: var(--soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.listTitle {
+  margin: 0 0 3cqw;
+  padding-bottom: 2.4cqw;
+  border-bottom: 0.4cqw solid var(--ink);
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: 5cqw;
+}
+
+.listRows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.listRows li {
+  display: grid;
+  grid-template-columns: 6cqw minmax(0, 1fr) auto;
+  gap: 2cqw;
+  padding: 1.3cqw 0;
+  border-bottom: 0.15cqw solid var(--rule);
+  font-size: 2.6cqw;
+}
+
+.listRows li span:first-child {
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.listRows li span:last-child {
+  color: var(--soft);
+}
+
+/* ── Paper ───────────────────────────────────────────────────────────── */
+
+@page poster {
+  size: 18in 24in;
+  margin: 0;
+}
+
+@page cards {
+  size: letter;
+  margin: 0;
+}
+
+@page book {
+  size: 8in 8in;
+  margin: 0;
+}
+
+@media print {
+  :global(html),
+  :global(body) {
+    background: #fff !important;
+  }
+
+  .page {
+    background: none;
+    padding: 0;
+  }
+
+  .bar {
+    display: none;
+  }
+
+  .sheet {
+    margin: 0;
+    box-shadow: none;
+    break-after: page;
+  }
+
+  .sheet:last-child {
+    break-after: auto;
+  }
+
+  .poster,
+  .cardSheet,
+  .bookPage {
+    max-width: none;
+  }
+}

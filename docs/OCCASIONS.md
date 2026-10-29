@@ -368,7 +368,22 @@ The spec as decided:
 | The whole album | $279 | | Keepsake + framed print + book |
 
 - Every order shows a **proof** rendered from real entries; the host approves
-  before anything prints. Print files are generated server-side (HTML → PDF).
+  before anything prints. *Proofs built 2026-10-29*, at `/host/{id}/print`
+  ("Things to hold", linked from the dashboard's Keep it). They're
+  printed from the browser at true size (named `@page`s):
+  - **The tracklist print**, 18 × 24 in: two sides up to 40 songs, then
+    three or four, with rows sized to fit (`web/lib/occasionPrint.ts`). Its
+    code plays the keepsake.
+  - **Thank-you cards**, four 4.25 × 5.5 in to a letter page, one per guest
+    (by name, their first song). Each card's code opens that guest's own
+    shared moment.
+  - **The liner-notes book**, 8 × 8 in: a cover, a page for each moment with
+    a photo or words, then song-only picks on tracklist pages, and a last
+    page.
+
+  Codes reach guests only once the book is out and shared; until then the
+  print's code opens the couple's preview and the cards print without
+  codes. Approval and ordering come with checkout and a print partner. Print files are generated server-side (HTML → PDF).
 - Stripe Checkout on the web takes payment and shipping address; the partner
   API gets the order; partner webhooks drive "printed / shipped / delivered"
   emails.
