@@ -67,7 +67,21 @@ below should move that, or it doesn't belong on this page.
 - [x] App Store Connect: 1.3.0 version, build 9, six 6.9" screenshots,
   What's New, new subtitle/keywords/description, **manual release**;
   submitted for review 2026-10-19.
-- [ ] On approval: check build 9 on TestFlight, then release manually.
+- [x] Approved; released manually 2026-11-13.
+
+### Ship 1.3.1 (the new look)
+Build 9 was cut on 2026-10-19, a day before the "Pressed S" icon (#53) and
+the review waves (#58–#64) merged, so the store's 1.3.0 doesn't have them.
+Beta build 36 does. 1.3.1 is that beta, as a store build. No app code
+changed since build 36.
+- [x] Version bump to 1.3.1 (release PR).
+- [ ] Beta builds from the release commit (`preview`, `preview-simulator`);
+  the bump moves the preview fingerprint.
+- [ ] Production build, submitted to App Store Connect.
+- [ ] **Josh:** TestFlight pass, then the 1.3.1 version in App Store Connect
+  (attach the build, What's New), submit for review, release.
+- [ ] After it's live: raise the min-build gate, which unblocks DB-2 (RLS
+  hardening step 2).
 - [x] E2E green on `main` so the promote path works for JS fixes (PR #33:
   search-input race fix, Maestro driver-death retry, seed no longer signs out
   testers).
