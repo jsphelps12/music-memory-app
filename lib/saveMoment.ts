@@ -6,12 +6,8 @@ import { uploadMomentPhotos, deleteMomentPhotos, type UploadedMomentPhotos } fro
 import { addMomentToAlbum } from "@/lib/albums";
 import { Song, Album, Moment } from "@/types";
 import { mapRowToMoment } from "@/lib/moments";
-import {
-  momentRowFields,
-  removedPaths,
-  songIdentityChanged,
-  type MomentFieldsInput,
-} from "@/lib/momentRow";
+import { momentRowFields, songIdentityChanged, type MomentFieldsInput } from "@/lib/momentRow";
+import { buildPhotoColumns, newPhotoUris, type EditedPhoto, type PhotoColumns } from "@/lib/photoOrder";
 
 function getTimeOfDay(): string {
   const hour = new Date().getHours();
@@ -144,17 +140,19 @@ export interface UpdateMomentInput extends MomentFieldsInput {
   /** Photo and thumbnail paths on the row when the editor loaded it. */
   originalPhotos: string[];
   originalThumbnails: string[];
-  /** Existing paths the user kept, in order. */
-  keptPhotos: string[];
-  keptThumbnails: string[];
-  /** Local URIs of photos added in the editor. */
-  newPhotos: string[];
+  /**
+   * Every photo in the editor's strip, in on-screen order: stored photos the
+   * user kept and local photos to upload, interleaved however they arranged
+   * them. Saved in exactly this order; the first is the cover.
+   */
+  photos: EditedPhoto[];
 }
 
 /**
  * Save an edited moment through the same column mapping as saveMoment.
- * Uploads added photos first and deletes them again if the update doesn't
- * land; deletes removed photos only after it does. The stored preview URL is
+ * Photos are written in the editor's order (lib/photoOrder.ts). Uploads added
+ * photos first and deletes them again if the update doesn't land; deletes
+ * removed photos only after it does. The stored preview URL is
  * replaced only when the song changed, so a text edit can't lose it to a
  * flaky lookup.
  */
@@ -163,19 +161,28 @@ export async function updateMoment(input: UpdateMomentInput): Promise<Moment> {
 
   const [preview, uploaded] = await Promise.all([
     songChanged ? lookupPreview(input.song) : Promise.resolve(null),
-    uploadMomentPhotos(input.userId, input.newPhotos),
+    uploadMomentPhotos(input.userId, newPhotoUris(input.photos)),
   ]);
 
-  const photoUrls = [...input.keptPhotos, ...uploaded.photoPaths];
-  const photoThumbnails = [...input.keptThumbnails, ...uploaded.thumbnailPaths];
+  let columns: PhotoColumns;
+  try {
+    columns = buildPhotoColumns(input.photos, uploaded, {
+      photos: input.originalPhotos,
+      thumbnails: input.originalThumbnails,
+    });
+  } catch (e) {
+    // Nothing references these uploads yet.
+    void deleteMomentPhotos(uploaded.photoPaths, uploaded.thumbnailPaths);
+    throw e;
+  }
 
   const { data: updatedRow, error: updateError } = await supabase
     .from("moments")
     .update({
       ...momentRowFields(input, preview?.albumName ?? null),
       ...(preview ? { song_preview_url: preview.previewUrl } : {}),
-      photo_urls: photoUrls,
-      photo_thumbnails: photoThumbnails,
+      photo_urls: columns.photo_urls,
+      photo_thumbnails: columns.photo_thumbnails,
     })
     .eq("id", input.momentId)
     .select("*")
@@ -198,8 +205,7 @@ export async function updateMoment(input: UpdateMomentInput): Promise<Moment> {
 
   // The row no longer points at removed photos, but they'd stay publicly
   // readable at their known URLs.
-  const goneThumbs = removedPaths(input.originalThumbnails, input.keptThumbnails);
-  const gonePhotos = removedPaths(input.originalPhotos, input.keptPhotos);
+  const { photos: gonePhotos, thumbnails: goneThumbs } = columns.removed;
   if (gonePhotos.length || goneThumbs.length) {
     void deleteMomentPhotos(gonePhotos, goneThumbs);
   }

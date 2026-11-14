@@ -40,25 +40,37 @@ export function ScreenHeader({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const showBar = leading !== "none" || !!right;
+  // Top-level (tab) screens: the title and its actions share one row, so
+  // every tab's title lands at the same height whether or not it has actions.
+  if (leading === "none") {
+    return (
+      <View style={[styles.wrap, { paddingTop: insets.top + theme.spacing.sm }, style]}>
+        <View style={styles.inlineRow}>
+          {title ? (
+            <Text style={[styles.title, styles.inlineTitle]} accessibilityRole="header" numberOfLines={1}>
+              {title}
+            </Text>
+          ) : (
+            <View />
+          )}
+          {right ? <View style={styles.right}>{right}</View> : null}
+        </View>
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      </View>
+    );
+  }
 
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top + (showBar ? 0 : theme.spacing.lg) }, style]}>
-      {showBar ? (
-        <View style={styles.bar}>
-          {leading === "none" ? (
-            <View />
-          ) : (
-            <IconButton
-              name={leading === "back" ? "chevron-back" : "close"}
-              onPress={onLeadingPress ?? (() => router.back())}
-              accessibilityLabel={leading === "back" ? "Back" : "Close"}
-              style={styles.leading}
-            />
-          )}
-          <View style={styles.right}>{right}</View>
-        </View>
-      ) : null}
+    <View style={[styles.wrap, { paddingTop: insets.top }, style]}>
+      <View style={styles.bar}>
+        <IconButton
+          name={leading === "back" ? "chevron-back" : "close"}
+          onPress={onLeadingPress ?? (() => router.back())}
+          accessibilityLabel={leading === "back" ? "Back" : "Close"}
+          style={styles.leading}
+        />
+        <View style={styles.right}>{right}</View>
+      </View>
       {title ? (
         <Text style={styles.title} accessibilityRole="header" numberOfLines={2}>
           {title}
@@ -89,7 +101,17 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.xs,
-      marginRight: -8,
+    },
+    inlineRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      minHeight: 48,
+      gap: theme.spacing.md,
+    },
+    inlineTitle: {
+      marginTop: 0,
+      flexShrink: 1,
     },
     title: {
       ...theme.typography.headline,

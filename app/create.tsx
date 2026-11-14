@@ -6,15 +6,16 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
-  ActivityIndicator,
   FlatList,
   Keyboard,
   StyleSheet,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { AppImage } from "@/components/AppImage";
+import { Button } from "@/components/Button";
+import { Chip } from "@/components/Chip";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -561,23 +562,15 @@ export default function CreateMomentScreen() {
       behavior="padding"
     >
       <View style={[styles.topBar, { paddingTop: insets.top }]}>
-        <TouchableOpacity onPress={close} hitSlop={8} style={styles.cancelButton} accessibilityRole="button">
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+        <Button label="Cancel" variant="text" tone="secondary" onPress={close} style={styles.inRow} />
+        <Button
           testID="create-save"
-          style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+          label="Save"
+          size="pill"
           onPress={handleSave}
-          disabled={loading}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color={theme.colors.buttonText} />
-          ) : (
-            <Text style={styles.saveButtonText}>Save</Text>
-          )}
-        </TouchableOpacity>
+          loading={loading}
+          style={styles.saveButton}
+        />
       </View>
 
       <ScrollView
@@ -597,28 +590,28 @@ export default function CreateMomentScreen() {
 
         <View style={styles.dividerRow}>
           <View style={styles.dividerLine} />
-          <TouchableOpacity
+          <Button
             testID="create-full-page"
-            style={styles.fullPageButton}
+            label="Full page"
+            icon="expand-outline"
+            variant="text"
+            tone="secondary"
+            size="pill"
             onPress={openFullPage}
-            hitSlop={8}
-            accessibilityRole="button"
             accessibilityLabel="Write on a full page"
-          >
-            <Ionicons name="expand-outline" size={15} color={theme.colors.textSecondary} />
-            <Text style={styles.fullPageText}>Full page</Text>
-          </TouchableOpacity>
+            style={styles.inRow}
+          />
         </View>
 
         {restoredDraft ? (
           <View style={styles.draftRow}>
             <Text style={styles.draftText}>Picked up where you left off</Text>
-            <TouchableOpacity onPress={startFresh} hitSlop={8} accessibilityRole="button">
-              <Text style={styles.draftAction}>Start fresh</Text>
-            </TouchableOpacity>
+            <Button label="Start fresh" variant="text" size="pill" onPress={startFresh} style={styles.inRow} />
           </View>
         ) : null}
 
+        {/* Borderless, in the reading face: this is a page, not a form
+            field, so it is the writer exception to TextField. */}
         <TextInput
           key={reflectionSeed.key}
           testID="create-reflection"
@@ -641,25 +634,15 @@ export default function CreateMomentScreen() {
         {reflection.trim().length === 0 && (
           <View style={styles.starters}>
             {STARTERS.map((starter) => (
-              <TouchableOpacity
-                key={starter.label}
-                style={styles.starterChip}
-                activeOpacity={0.7}
-                onPress={() => applyStarter(starter.text)}
-              >
-                <Text style={styles.starterText}>{starter.label}</Text>
-              </TouchableOpacity>
+              <Chip key={starter.label} label={starter.label} onPress={() => applyStarter(starter.text)} />
             ))}
-            <TouchableOpacity
-              style={styles.starterChip}
-              activeOpacity={0.7}
+            <Chip
+              label="More prompts"
               onPress={() => {
                 Keyboard.dismiss();
                 setPromptPickerVisible(true);
               }}
-            >
-              <Text style={styles.starterText}>More prompts</Text>
-            </TouchableOpacity>
+            />
           </View>
         )}
 
@@ -677,6 +660,8 @@ export default function CreateMomentScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
 
+      {/* The detail bar: quiet chip-paper pills that fill with ink once they
+          hold a value, so the bar doubles as a summary of what's attached. */}
       <View style={[styles.detailBar, { paddingBottom: keyboardVisible ? theme.spacing.md : Math.max(insets.bottom, theme.spacing.md) }]}>
         <ScrollView
           horizontal
@@ -685,23 +670,16 @@ export default function CreateMomentScreen() {
           contentContainerStyle={styles.detailBarContent}
         >
           {chips.map((chip) => (
-            <TouchableOpacity
+            <Chip
               key={chip.key}
               testID={`create-detail-${chip.key}`}
-              style={styles.detailChip}
-              activeOpacity={0.7}
+              label={chip.label}
+              icon={chip.icon}
+              variant="filled"
+              selected={chip.set}
               onPress={chip.onPress}
-              accessibilityRole="button"
-            >
-              <Ionicons
-                name={chip.icon}
-                size={17}
-                color={chip.set ? theme.colors.accent : theme.colors.text}
-              />
-              <Text style={[styles.detailChipText, chip.set && styles.detailChipTextSet]} numberOfLines={1}>
-                {chip.label}
-              </Text>
-            </TouchableOpacity>
+              style={styles.detailChip}
+            />
           ))}
         </ScrollView>
       </View>
@@ -745,18 +723,18 @@ export default function CreateMomentScreen() {
               maximumDate={new Date()}
               onChange={(_event: DateTimePickerEvent, date?: Date) => { if (date) setMomentDate(date); }}
               themeVariant={theme.isDark ? "dark" : "light"}
+              // The selected day is the sheet's one terracotta signal.
               accentColor={theme.colors.accent}
             />
           ) : (
             <Text style={styles.noDateText}>This entry has no specific date.</Text>
           )}
-          <TouchableOpacity
-            style={styles.dateToggle}
+          <Button
+            label={momentDate ? "No specific date" : "Set a date"}
+            variant="text"
+            size="pill"
             onPress={() => setMomentDate(momentDate ? null : new Date())}
-            hitSlop={8}
-          >
-            <Text style={styles.dateToggleText}>{momentDate ? "No specific date" : "Set a date"}</Text>
-          </TouchableOpacity>
+          />
         </View>
       </BottomSheet>
 
@@ -808,23 +786,24 @@ export default function CreateMomentScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.candidateList}
           renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.candidateRow}
-                activeOpacity={0.7}
-                onPress={() => handleSelectCandidate(item)}
-              >
-                {item.artworkUrl ? (
-                  <AppImage source={{ uri: item.artworkUrl }} style={styles.candidateArtwork} />
-                ) : (
-                  <ArtworkPlaceholder style={styles.candidateArtwork} />
-                )}
-                <View style={styles.candidateInfo}>
-                  <Text style={styles.candidateSongTitle} numberOfLines={1}>{item.title}</Text>
-                  <Text style={styles.candidateArtist} numberOfLines={1}>{item.artistName}</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-          />
+            <Pressable
+              style={({ pressed }) => [styles.candidateRow, pressed && styles.pressed]}
+              onPress={() => handleSelectCandidate(item)}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.title} by ${item.artistName}`}
+            >
+              {item.artworkUrl ? (
+                <AppImage source={{ uri: item.artworkUrl }} style={styles.candidateArtwork} />
+              ) : (
+                <ArtworkPlaceholder style={styles.candidateArtwork} />
+              )}
+              <View style={styles.candidateInfo}>
+                <Text style={styles.candidateSongTitle} numberOfLines={1}>{item.title}</Text>
+                <Text style={styles.candidateArtist} numberOfLines={1}>{item.artistName}</Text>
+              </View>
+            </Pressable>
+          )}
+        />
       </BottomSheet>
     </KeyboardAvoidingView>
   );
@@ -840,90 +819,56 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingLeft: theme.spacing.sm,
+      paddingLeft: theme.spacing.lg,
       paddingRight: theme.spacing.xl,
       paddingBottom: theme.spacing.xs,
     },
-    cancelButton: {
-      height: 44,
-      paddingHorizontal: theme.spacing.md,
-      justifyContent: "center",
-    },
-    cancelText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.body,
-      color: theme.colors.textSecondary,
-    },
+    // Holds its width while the spinner replaces the label.
     saveButton: {
-      height: 36,
       minWidth: 72,
-      paddingHorizontal: 18,
-      borderRadius: theme.radii.full,
-      backgroundColor: theme.colors.buttonBg,
-      alignItems: "center",
-      justifyContent: "center",
+      alignSelf: "center",
     },
-    saveButtonDisabled: {
-      opacity: 0.6,
-    },
-    saveButtonText: {
-      color: theme.colors.buttonText,
-      fontSize: 15,
-      fontFamily: theme.fonts.bodySemibold,
+    // Button hugs with alignSelf flex-start; in a row it should center.
+    inRow: {
+      alignSelf: "center",
     },
     scrollView: {
       flex: 1,
     },
     scrollContent: {
       paddingHorizontal: theme.spacing.xl,
-      paddingTop: 14,
+      paddingTop: theme.spacing.md,
       paddingBottom: theme.spacing["3xl"],
     },
     dividerRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.md,
-      marginTop: 22,
-      marginBottom: 18,
+      marginTop: theme.spacing.md,
+      marginBottom: theme.spacing.sm,
     },
     dividerLine: {
       flex: 1,
       height: StyleSheet.hairlineWidth,
       backgroundColor: theme.colors.divider,
     },
-    fullPageButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 5,
-    },
-    fullPageText: {
-      fontSize: 13,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.textSecondary,
-    },
     draftRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      marginBottom: theme.spacing.md,
+      marginBottom: theme.spacing.sm,
     },
     draftText: {
-      fontSize: 13,
-      fontFamily: theme.fonts.body,
+      ...theme.typography.meta,
       color: theme.colors.textSecondary,
     },
-    draftAction: {
-      fontSize: 13,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.text,
-    },
-    // Borderless, in the reading face: this is a page, not a form field.
+    // The writer: Newsreader at 22/33 on paper, no field chrome.
     reflectionInput: {
       minHeight: 200,
       padding: 0,
-      fontSize: theme.fontSize.xl,
-      lineHeight: 33,
       fontFamily: theme.fonts.reading,
+      fontSize: theme.fontSize.xl,
+      lineHeight: theme.fontSize.xl * 1.5,
       color: theme.colors.text,
     },
     starters: {
@@ -932,26 +877,13 @@ function createStyles(theme: Theme) {
       gap: theme.spacing.sm,
       marginTop: theme.spacing.xs,
     },
-    starterChip: {
-      height: 32,
-      paddingHorizontal: theme.spacing.md,
-      borderRadius: theme.radii.full,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      justifyContent: "center",
-    },
-    starterText: {
-      fontSize: 13,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.textSecondary,
-    },
     photos: {
       marginTop: theme.spacing.xl,
     },
     error: {
-      color: theme.colors.destructive,
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
+      color: theme.colors.destructive,
       marginTop: theme.spacing.lg,
     },
     detailBar: {
@@ -965,85 +897,58 @@ function createStyles(theme: Theme) {
       gap: theme.spacing.sm,
     },
     detailChip: {
-      height: 40,
+      minHeight: 40,
       maxWidth: 200,
-      paddingHorizontal: 13,
-      borderRadius: theme.radii.full,
-      backgroundColor: theme.colors.chipBg,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 7,
-    },
-    detailChipText: {
-      flexShrink: 1,
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.text,
-    },
-    detailChipTextSet: {
-      fontFamily: theme.fonts.bodySemibold,
     },
     sheetBody: {
       paddingHorizontal: theme.spacing.xl,
       paddingTop: theme.spacing.sm,
     },
     weatherText: {
-      marginTop: theme.spacing.md,
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
+      ...theme.typography.meta,
       color: theme.colors.textSecondary,
+      marginTop: theme.spacing.md,
     },
     noDateText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.body,
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
       paddingVertical: theme.spacing.lg,
     },
-    dateToggle: {
-      alignSelf: "flex-start",
-      paddingVertical: theme.spacing.sm,
-      marginTop: theme.spacing.sm,
-    },
-    dateToggleText: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.accent,
-    },
+    pressed: { opacity: 0.6 },
     // Candidate selection sheet
     candidateSubtitle: {
-      fontSize: 14,
-      fontFamily: "DMSans_400Regular",
+      ...theme.typography.body,
+      fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
-      paddingHorizontal: 20,
-      marginBottom: 16,
+      paddingHorizontal: theme.spacing.xl,
+      marginBottom: theme.spacing.sm,
     },
     candidateList: {
-      paddingHorizontal: 20,
+      paddingHorizontal: theme.spacing.xl,
     },
     candidateRow: {
       flexDirection: "row",
       alignItems: "center",
-      paddingVertical: 12,
+      gap: theme.spacing.md,
+      paddingVertical: theme.spacing.md,
       borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.border,
+      borderBottomColor: theme.colors.divider,
     },
     candidateArtwork: {
       width: 48,
       height: 48,
-      borderRadius: 8,
+      borderRadius: theme.radii.sm,
     },
     candidateInfo: {
       flex: 1,
-      marginLeft: 12,
     },
     candidateSongTitle: {
-      fontSize: 16,
-      fontFamily: "DMSans_600SemiBold",
+      ...theme.typography.bodyStrong,
       color: theme.colors.text,
     },
     candidateArtist: {
-      fontSize: 14,
-      fontFamily: "DMSans_400Regular",
+      ...theme.typography.body,
+      fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
       marginTop: 2,
     },

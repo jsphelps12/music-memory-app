@@ -4,25 +4,28 @@ import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
+import { Button } from "@/components/Button";
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const ICON = require("@/assets/images/app-icon.png");
 
 const FEATURES = [
   {
-    icon: "musical-notes" as const,
+    icon: "musical-notes-outline" as const,
     text: "Search and save the songs that matter",
   },
   {
-    icon: "journal" as const,
+    icon: "journal-outline" as const,
     text: "Write reflections tied to each song",
   },
   {
-    icon: "time" as const,
+    icon: "time-outline" as const,
     text: "Build a timeline of musical memories",
   },
 ];
@@ -32,6 +35,7 @@ export default function WelcomeScreen() {
   const { signInWithApple } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [error, setError] = useState("");
 
@@ -69,7 +73,7 @@ export default function WelcomeScreen() {
               <Ionicons
                 name={feature.icon}
                 size={22}
-                color={theme.colors.accent}
+                color={theme.colors.textSecondary}
                 style={styles.featureIcon}
               />
               <Text style={styles.featureText}>{feature.text}</Text>
@@ -78,7 +82,7 @@ export default function WelcomeScreen() {
         </View>
       </View>
 
-      <View style={styles.bottom}>
+      <View style={[styles.bottom, { paddingBottom: insets.bottom + theme.spacing.xl }]}>
         {appleAvailable && (
           <AppleAuthentication.AppleAuthenticationButton
             buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
@@ -87,30 +91,25 @@ export default function WelcomeScreen() {
                 ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
                 : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
             }
-            cornerRadius={10}
+            cornerRadius={theme.radii.button}
             style={styles.appleButton}
             onPress={handleAppleSignIn}
           />
         )}
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
 
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => router.replace("/(auth)/sign-up")}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.buttonText}>Get Started</Text>
-        </TouchableOpacity>
+        <Button label="Get started" onPress={() => router.replace("/(auth)/sign-up")} />
 
         <TouchableOpacity
           onPress={() => router.replace("/(auth)/sign-in")}
           activeOpacity={0.7}
           style={styles.linkContainer}
+          accessibilityRole="link"
         >
           <Text style={styles.linkText}>
             Already have an account?{" "}
-            <Text style={styles.linkBold}>Sign In</Text>
+            <Text style={styles.linkBold}>Sign in</Text>
           </Text>
         </TouchableOpacity>
       </View>
@@ -133,18 +132,16 @@ function createStyles(theme: Theme) {
     icon: {
       width: 100,
       height: 100,
-      borderRadius: 22,
+      borderRadius: theme.radii.lg + 2,
       marginBottom: theme.spacing["2xl"],
     },
     title: {
-      fontSize: theme.fontSize["3xl"],
-      fontFamily: theme.fonts.display,
+      ...theme.typography.headline,
       color: theme.colors.text,
       marginBottom: theme.spacing.sm,
     },
     tagline: {
-      fontFamily: theme.fonts.body,
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
       textAlign: "center",
       marginBottom: theme.spacing["4xl"],
@@ -161,44 +158,31 @@ function createStyles(theme: Theme) {
       width: 32,
     },
     featureText: {
-      fontFamily: theme.fonts.body,
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.text,
       flex: 1,
     },
-    bottom: {
-      paddingBottom: 50,
-    },
+    bottom: {},
     appleButton: {
       height: 52,
       width: "100%",
       marginBottom: theme.spacing.md,
     },
     error: {
-      color: theme.colors.destructive,
-      fontFamily: theme.fonts.body,
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
+      color: theme.colors.destructive,
       textAlign: "center",
       marginBottom: theme.spacing.md,
     },
-    button: {
-      height: 52,
-      backgroundColor: theme.colors.buttonBg,
-      borderRadius: theme.radii.button,
+    linkContainer: {
+      marginTop: theme.spacing.lg,
       alignItems: "center",
+      minHeight: 44,
       justifyContent: "center",
     },
-    buttonText: {
-      color: theme.colors.buttonText,
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-    },
-    linkContainer: {
-      marginTop: theme.spacing["2xl"],
-      alignItems: "center",
-    },
     linkText: {
-      fontFamily: theme.fonts.body,
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
     },

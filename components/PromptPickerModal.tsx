@@ -1,10 +1,6 @@
 import { useMemo, useState } from "react";
-import {
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-} from "react-native";
+import { Text, Pressable, ScrollView, StyleSheet } from "react-native";
+import { Chip } from "@/components/Chip";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { PROMPT_CATEGORIES } from "@/constants/Prompts";
@@ -40,41 +36,37 @@ export function PromptPickerModal({ visible, onSelect, onClose, customCategories
       minHeight="55%"
       maxHeight="65%"
     >
-      {/* Category tabs */}
+      {/* Categories: ink chips, the same choice control as moods. */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.tabs}
-        style={{ flexShrink: 0, flexGrow: 0 }}
+        style={styles.tabsScroll}
       >
         {allCategories.map((cat, i) => (
-          <TouchableOpacity
+          <Chip
             key={cat.label}
-            style={[styles.tab, i === selectedCategory && styles.tabActive]}
+            label={cat.label}
+            selected={i === selectedCategory}
             onPress={() => setSelectedCategory(i)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.tabText, i === selectedCategory && styles.tabTextActive]}>
-              {cat.label}
-            </Text>
-          </TouchableOpacity>
+          />
         ))}
       </ScrollView>
 
       {/* Prompts */}
       <ScrollView style={styles.promptsScroll} contentContainerStyle={styles.prompts}>
         {category.prompts.map((prompt) => (
-          <TouchableOpacity
+          <Pressable
             key={prompt.question}
-            style={styles.promptRow}
+            style={({ pressed }) => [styles.promptRow, pressed && styles.pressed]}
             onPress={() => {
               onSelect(prompt.starter);
               onClose();
             }}
-            activeOpacity={0.7}
+            accessibilityRole="button"
           >
             <Text style={styles.promptText}>{prompt.question}</Text>
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </ScrollView>
     </BottomSheet>
@@ -83,50 +75,32 @@ export function PromptPickerModal({ visible, onSelect, onClose, customCategories
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    promptsScroll: {
-      flex: 1,
+    tabsScroll: {
+      flexGrow: 0,
+      flexShrink: 0,
     },
     tabs: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm,
-      paddingHorizontal: 24,
-      paddingBottom: 0,
+      paddingHorizontal: theme.spacing.xl,
+      paddingBottom: theme.spacing.sm,
     },
-    tab: {
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: 6,
-      borderRadius: theme.spacing.lg,
-      backgroundColor: theme.colors.backgroundInput,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
-    tabActive: {
-      backgroundColor: theme.colors.accent,
-      borderColor: theme.colors.accent,
-    },
-    tabText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
-      fontFamily: theme.fonts.bodyMedium,
-    },
-    tabTextActive: {
-      color: theme.colors.chipSelectedText,
+    promptsScroll: {
+      flex: 1,
     },
     prompts: {
-      paddingHorizontal: 24,
-      paddingTop: 4,
-      gap: 2,
+      paddingHorizontal: theme.spacing.xl,
     },
     promptRow: {
-      paddingVertical: 14,
+      paddingVertical: theme.spacing.lg,
       borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.border,
+      borderBottomColor: theme.colors.divider,
     },
+    pressed: { opacity: 0.6 },
     promptText: {
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.text,
-      lineHeight: 22,
     },
   });
 }

@@ -23,16 +23,25 @@ export function moodLabel(value: string, allMoods: readonly MoodLabelDefinition[
   return CUSTOM_MOOD_ID.test(value) ? null : value;
 }
 
-/** Up to `max` labels in stored order, joined for the card's quiet mood line. */
+/**
+ * Up to `max` labels in stored order, as one sentence-case Meta line:
+ * "Nostalgic · joyful · bittersweet" (design sweep, 2026-11: moods are words,
+ * never upper-cased or tracked). Built-in moods drop to lower case after the
+ * first; a custom mood keeps the case its owner typed, since it may be a name.
+ */
 export function moodWords(
   moods: readonly string[],
   allMoods: readonly MoodLabelDefinition[],
   max = 3
 ): string {
-  return moods
-    .map((value) => moodLabel(value, allMoods))
+  const line = moods
+    .map((value) => {
+      const label = moodLabel(value, allMoods);
+      if (!label) return null;
+      return CUSTOM_MOOD_ID.test(value) ? label : label.toLowerCase();
+    })
     .filter((label): label is string => !!label)
     .slice(0, max)
-    .join(" · ")
-    .toUpperCase();
+    .join(" · ");
+  return line.charAt(0).toUpperCase() + line.slice(1);
 }

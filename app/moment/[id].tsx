@@ -5,12 +5,10 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Pressable,
   Alert,
   StyleSheet,
   FlatList,
   ActivityIndicator,
-  TextInput,
   Linking,
   InteractionManager,
 } from "react-native";
@@ -35,6 +33,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayerControls, usePlayerProgress } from "@/contexts/PlayerContext";
+import { playAction } from "@/lib/playerAction";
 import { supabase } from "@/lib/supabase";
 import { getPublicPhotoUrl, momentCardImageUrls } from "@/lib/storage";
 import { deleteGuestMoment, deleteMomentWithCleanup } from "@/lib/deleteMoment";
@@ -48,6 +47,7 @@ import {
   createAlbum,
 } from "@/lib/albums";
 import { MOODS } from "@/constants/Moods";
+import { moodWords } from "@/lib/moodLabels";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
@@ -57,11 +57,15 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { confirmSheet } from "@/components/ConfirmSheet";
 import { friendlyError } from "@/lib/errors";
-import { Album, MoodOption, PartialMoment } from "@/types";
+import { Album, PartialMoment } from "@/types";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches, invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { ShareMomentSheet } from "@/components/ShareMomentSheet";
 import { BottomSheet } from "@/components/BottomSheet";
+import { Button } from "@/components/Button";
+import { TextField } from "@/components/TextField";
+import { IconButton } from "@/components/IconButton";
+import { MomentActionMenu, MenuAnchor, MomentMenuItem } from "@/components/MomentActionMenu";
 import { Ionicons } from "@expo/vector-icons";
 import { formatTime } from "@/lib/formatTime";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
@@ -70,6 +74,12 @@ type ScreenState = "loading" | "not_found" | "error" | "ready";
 
 /** Focus refetch cooldown (CLAUDE.md: screen-level stale time). */
 const STALE_TIME = 2 * 60 * 1000;
+
+// Over photos and artwork only (DESIGN.md allows warm ink and night over
+// imagery): the photo counter, and the shadow under lifted artwork.
+const INK_GLASS = "rgba(35,34,43,0.55)";
+const PAPER_ON_GLASS = "#FBF7F2";
+const SHADOW_INK = "#0E0B0A";
 
 export default function MomentDetailScreen() {
   const {
@@ -87,7 +97,7 @@ export default function MomentDetailScreen() {
   }>();
   const router = useRouter();
   const { user, profile } = useAuth();
-  const { currentSong, isPlaying, playError, playFull, pause, seekTo, stop } = usePlayerControls();
+  const { currentSong, isPlaying, playError, playFull, pause, resume, seekTo, stop } = usePlayerControls();
   const theme = useTheme();
   const posthog = usePostHog();
   const queryClient = useQueryClient();
@@ -122,7 +132,9 @@ export default function MomentDetailScreen() {
   const [error, setError] = useState("");
   // A background refresh failed: the moment on screen stays, with a banner.
   const [refreshError, setRefreshError] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
+  // The "…" button's frame while the context menu is open.
+  const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
+  const menuButtonRef = useRef<View>(null);
   const [deleting, setDeleting] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -372,17 +384,17 @@ export default function MomentDetailScreen() {
   const stripUrls = useMemo(() => (moment ? momentCardImageUrls(moment) : []), [moment]);
 
   const allMoods = useMemo(() => [...MOODS, ...(profile?.customMoods ?? [])], [profile?.customMoods]);
-  const getMood = useCallback((value: MoodOption) =>
-    allMoods.find((m) => m.value === value), [allMoods]);
 
   const openMenu = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setMenuOpen(true);
+    // Anchored under the "…" itself, inside the safe area.
+    menuButtonRef.current?.measureInWindow((x, y, width, height) => {
+      setMenuAnchor({ x, y, width, height });
+    });
   };
 
   const handleEdit = () => {
     Haptics.selectionAsync();
-    setMenuOpen(false);
     if (moment) {
       refetchOnFocusRef.current = true;
       router.push(`/moment/edit/${moment.id}`);
@@ -416,7 +428,6 @@ export default function MomentDetailScreen() {
 
   const handleAddToCollection = () => {
     Haptics.selectionAsync();
-    setMenuOpen(false);
     setCollectionModalVisible(true);
     setShowingNewInput(false);
     setNewCollectionName("");
@@ -490,7 +501,6 @@ export default function MomentDetailScreen() {
   const handleDelete = async () => {
     if (deleting) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    setMenuOpen(false);
     const confirmed = await confirmSheet({
       title: "Delete Moment",
       message: "Are you sure? This cannot be undone.",
@@ -534,7 +544,6 @@ export default function MomentDetailScreen() {
   const handleRemoveFromCollection = async () => {
     if (!collectionId) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    setMenuOpen(false);
     const confirmed = await confirmSheet({
       title: "Remove from Album",
       message: "Remove this moment from the album? The moment won't be deleted.",
@@ -561,11 +570,59 @@ export default function MomentDetailScreen() {
     animateOut(goBack);
   };
 
-  // Unknown values (a custom mood someone else defined) fall back to a raw chip
-  // rather than disappearing.
-  const moodDefs = moment
-    ? moment.moods.map((value) => getMood(value) ?? { value, emoji: "🎵", label: value })
-    : [];
+  // Moods as one sentence-case Meta line. Every mood shows here (the card caps
+  // at three); a deleted custom mood is left out rather than shown as its id.
+  const moodLine = moment ? moodWords(moment.moods, allMoods, Infinity) : "";
+
+  const openShare = () => {
+    if (!moment) return;
+    Haptics.selectionAsync();
+    setShareModalVisible(true);
+    posthog.capture("moment_shared", { song_title: moment.songTitle, song_artist: moment.songArtist });
+  };
+
+  const reportMoment = () => {
+    if (!moment) return;
+    Haptics.selectionAsync();
+    const subject = encodeURIComponent(`Report: ${moment.songTitle} by ${moment.songArtist}`);
+    const body = encodeURIComponent(`Please describe what you'd like to report about this moment:\n\n\n\n---\nMoment ID: ${moment.id}\nContributor: ${moment.contributorName ?? "unknown"}`);
+    Linking.openURL(`mailto:founder@soundtracks.app?subject=${subject}&body=${body}`);
+  };
+
+  // The "…" menu. Each row runs once the menu has closed (MomentActionMenu),
+  // so the sheets and confirms these open can present.
+  const menuItems: MomentMenuItem[] = [];
+  if (moment) {
+    const isOwnMoment = moment.userId === user?.id;
+    const isGuest = !!moment.guestUuid;
+    const isCollectionOwner = collectionRole === "owner";
+    const inCollection = !!collectionId;
+    const canDelete = isOwnMoment || (isGuest && isCollectionOwner);
+    const canRemove = inCollection && (isOwnMoment || isCollectionOwner);
+    // Report for non-own, non-guest moments (guests are managed by the owner directly)
+    const canReport = !isOwnMoment && !isGuest;
+
+    menuItems.push({ key: "share", label: "Share", icon: "share-outline", onPress: openShare });
+    if (isOwnMoment) {
+      menuItems.push({ key: "edit", label: "Edit", icon: "pencil-outline", onPress: handleEdit });
+      menuItems.push({ key: "album", label: "Add to album", icon: "albums-outline", onPress: handleAddToCollection });
+    }
+    if (canReport) {
+      menuItems.push({ key: "report", label: "Report", icon: "flag-outline", destructive: true, onPress: reportMoment });
+    }
+    if (canRemove) {
+      menuItems.push({
+        key: "remove",
+        label: "Remove from album",
+        icon: "remove-circle-outline",
+        destructive: true,
+        onPress: () => void handleRemoveFromCollection(),
+      });
+    }
+    if (canDelete) {
+      menuItems.push({ key: "delete", label: "Delete", icon: "trash-outline", destructive: true, onPress: () => void handleDelete() });
+    }
+  }
 
   const hasPhotos = photoUrls.length > 0;
 
@@ -597,8 +654,11 @@ export default function MomentDetailScreen() {
 
   const momentSongId = moment?.songSpotifyId ?? moment?.songAppleMusicId;
   const playingSongId = currentSong?.spotifyId ?? currentSong?.appleMusicId;
-  const isCurrentSong = isPlaying && !!momentSongId && momentSongId === playingSongId;
-  const playLabel = isCurrentSong ? "Pause" : playError ? "Unavailable" : "Play";
+  // Loaded (playing or paused) is what keeps the progress bar and resume; a
+  // pause from the background used to drop both and restart the song.
+  const action = playAction(momentSongId, playingSongId, isPlaying);
+  const isCurrentSong = action !== "play";
+  const playLabel = action === "pause" ? "Pause" : action === "resume" ? "Resume" : playError ? "Unavailable" : "Play";
 
   return (
     <GestureDetector gesture={swipeGesture}>
@@ -615,113 +675,37 @@ export default function MomentDetailScreen() {
           itself is transparent to touches and only the two buttons capture
           them; as a plain View it was eating drags across the top of the page. */}
       <View style={[styles.glassNav, { top: insets.top + 6 }]} pointerEvents="box-none">
-        <TouchableOpacity style={styles.glassBtn} onPress={() => animateOut(goBack)} activeOpacity={0.8} hitSlop={8}>
-          <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
-        </TouchableOpacity>
+        {/* Glass discs: the filled-over-imagery case, one size for all three. */}
+        <IconButton
+          variant="glass"
+          name="chevron-back"
+          size={20}
+          onPress={() => animateOut(goBack)}
+          accessibilityLabel="Back"
+        />
         {screenState === "ready" && moment && (
           <View style={styles.glassBtnRow}>
-            <TouchableOpacity
-              style={styles.glassBtn}
-              onPress={() => {
-                Haptics.selectionAsync();
-                setShareModalVisible(true);
-                posthog.capture("moment_shared", { song_title: moment.songTitle, song_artist: moment.songArtist });
-              }}
-              activeOpacity={0.8}
-              hitSlop={8}
-            >
-              <Ionicons name="share-outline" size={18} color={theme.colors.text} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.glassBtn} onPress={openMenu} activeOpacity={0.8} hitSlop={8}>
-              <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text} />
-            </TouchableOpacity>
+            <IconButton
+              variant="glass"
+              name="share-outline"
+              size={20}
+              onPress={openShare}
+              accessibilityLabel="Share"
+            />
+            <View ref={menuButtonRef} collapsable={false}>
+              <IconButton
+                variant="glass"
+                name="ellipsis-horizontal"
+                size={20}
+                onPress={openMenu}
+                accessibilityLabel="More"
+              />
+            </View>
           </View>
         )}
       </View>
 
-      {menuOpen && moment && (() => {
-        const isOwnMoment = moment.userId === user?.id;
-        const isGuest = !!moment.guestUuid;
-        const isCollectionOwner = collectionRole === "owner";
-        const inCollection = !!collectionId;
-
-        const canEdit = isOwnMoment;
-        const canAddToCollection = isOwnMoment;
-        const canDelete = isOwnMoment || (isGuest && isCollectionOwner);
-        const canRemove = inCollection && (isOwnMoment || isCollectionOwner);
-        // Report for non-own, non-guest moments (guests are managed by the owner directly)
-        const canReport = !isOwnMoment && !isGuest;
-
-        return (
-          <>
-            <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)} />
-            <View style={styles.menuContainer}>
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setMenuOpen(false);
-                  setShareModalVisible(true);
-                  posthog.capture("moment_shared", { song_title: moment.songTitle, song_artist: moment.songArtist });
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.menuItemText}>Share Moment</Text>
-              </TouchableOpacity>
-              {canEdit && (
-                <>
-                  <View style={styles.menuDivider} />
-                  <TouchableOpacity style={styles.menuItem} onPress={handleEdit} activeOpacity={0.7}>
-                    <Text style={styles.menuItemText}>Edit Moment</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-              {canAddToCollection && (
-                <>
-                  <View style={styles.menuDivider} />
-                  <TouchableOpacity style={styles.menuItem} onPress={handleAddToCollection} activeOpacity={0.7}>
-                    <Text style={styles.menuItemText}>Add to Album</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-              {canReport && (
-                <>
-                  <View style={styles.menuDivider} />
-                  <TouchableOpacity
-                    style={styles.menuItem}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setMenuOpen(false);
-                      const subject = encodeURIComponent(`Report: ${moment.songTitle} by ${moment.songArtist}`);
-                      const body = encodeURIComponent(`Please describe what you'd like to report about this moment:\n\n\n\n---\nMoment ID: ${moment.id}\nContributor: ${moment.contributorName ?? "unknown"}`);
-                      Linking.openURL(`mailto:founder@soundtracks.app?subject=${subject}&body=${body}`);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.menuItemTextDestructive}>Report Moment</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-              {canRemove && (
-                <>
-                  <View style={styles.menuDivider} />
-                  <TouchableOpacity style={styles.menuItem} onPress={handleRemoveFromCollection} activeOpacity={0.7}>
-                    <Text style={styles.menuItemTextDestructive}>Remove from Album</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-              {canDelete && (
-                <>
-                  <View style={styles.menuDivider} />
-                  <TouchableOpacity style={styles.menuItem} onPress={handleDelete} activeOpacity={0.7}>
-                    <Text style={styles.menuItemTextDestructive}>Delete Moment</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          </>
-        );
-      })()}
+      <MomentActionMenu anchor={menuAnchor} items={menuItems} onClose={() => setMenuAnchor(null)} />
 
       {screenState === "loading" ? (
         <View style={styles.loadingContainer}>
@@ -852,8 +836,10 @@ export default function MomentDetailScreen() {
                   accessibilityLabel={playLabel}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    if (isCurrentSong) {
+                    if (action === "pause") {
                       pause();
+                    } else if (action === "resume") {
+                      resume();
                     } else {
                       playFull(
                         {
@@ -873,7 +859,7 @@ export default function MomentDetailScreen() {
                   }}
                 >
                   <Ionicons
-                    name={isCurrentSong ? "pause" : "play"}
+                    name={action === "pause" ? "pause" : "play"}
                     size={18}
                     color={playError ? theme.colors.textTertiary : theme.colors.buttonText}
                   />
@@ -909,7 +895,7 @@ export default function MomentDetailScreen() {
             ) : null}
 
             {/* Quiet metadata: people, moods as words, weather. */}
-            {((moment.people?.length ?? 0) > 0 || moodDefs.length > 0 || moment.weatherCondition) ? (
+            {((moment.people?.length ?? 0) > 0 || !!moodLine || moment.weatherCondition) ? (
               <View style={styles.metaBlock}>
                 {moment.people && moment.people.length > 0 ? (
                   <Text style={styles.metaLine}>{withPeople(moment.people)}</Text>
@@ -919,11 +905,7 @@ export default function MomentDetailScreen() {
                     {moment.weatherCondition}{moment.weatherTempF != null ? ` · ${moment.weatherTempF}°F` : ""}
                   </Text>
                 ) : null}
-                {moodDefs.length > 0 ? (
-                  <Text style={styles.moodWords}>
-                    {moodDefs.map((m) => m.label).join(" · ").toUpperCase()}
-                  </Text>
-                ) : null}
+                {moodLine ? <Text style={styles.moodWords}>{moodLine}</Text> : null}
               </View>
             ) : null}
 
@@ -1008,252 +990,110 @@ export default function MomentDetailScreen() {
         />
       )}
 
-      {/* Collection membership sheet */}
+      {/* Album membership: a quick pick, ticks apply on Save. */}
       <BottomSheet
         visible={collectionModalVisible}
         onClose={() => setCollectionModalVisible(false)}
-        title="Add to Album"
+        title="Add to album"
         keyboardAvoiding
         maxHeight="60%"
       >
-          {collectionLoading ? (
-            <View style={collectionStyles.loadingRow}>
-              <ActivityIndicator color={theme.colors.textSecondary} />
-            </View>
-          ) : collectionLoadError ? (
-            <View style={collectionStyles.loadingRow}>
-              <Text style={[collectionStyles.emptyText, { color: theme.colors.textSecondary }]}>
-                {collectionLoadError}
-              </Text>
-              <TouchableOpacity onPress={loadCollections} activeOpacity={0.7} hitSlop={8}>
-                <Text style={[collectionStyles.newCollectionText, { color: theme.colors.accent }]}>Try again</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <FlatList
-              data={allCollections}
-              keyExtractor={(item) => item.id}
-              style={collectionStyles.list}
-              ListEmptyComponent={
-                <Text style={[collectionStyles.emptyText, { color: theme.colors.textTertiary }]}>
-                  No albums yet
-                </Text>
-              }
-              renderItem={({ item }) => {
-                const isMember = pendingMemberIds.includes(item.id);
-                return (
-                  <TouchableOpacity
-                    style={collectionStyles.row}
-                    onPress={() => toggleCollection(item)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons
-                      name={item.isPublic ? "people-outline" : "folder-outline"}
-                      size={18}
-                      color={item.isPublic ? theme.colors.accentSecondary : theme.colors.textSecondary}
-                      style={{ marginRight: 10 }}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[collectionStyles.rowName, { color: theme.colors.text }]}>
-                        {item.name}
-                      </Text>
-                      {item.isPublic && (
-                        <Text style={{ fontSize: 11, color: theme.colors.textTertiary, marginTop: 1 }}>
-                          Shared album
-                        </Text>
-                      )}
-                    </View>
-                    {isMember ? (
-                      <View style={[collectionStyles.checkmark, { backgroundColor: theme.colors.accent }]}>
-                        <Text style={collectionStyles.checkmarkText}>✓</Text>
-                      </View>
-                    ) : (
-                      <View style={[collectionStyles.checkmarkEmpty, { borderColor: theme.colors.border }]} />
-                    )}
-                  </TouchableOpacity>
-                );
-              }}
-              ItemSeparatorComponent={() => (
-                <View style={[collectionStyles.divider, { backgroundColor: theme.colors.border }]} />
-              )}
-            />
-          )}
-
-          <View style={[collectionStyles.divider, { backgroundColor: theme.colors.border }]} />
-
-          {showingNewInput ? (
-            <View style={[collectionStyles.newInputRow, collectionStyles.newInputInner]}>
-              <TextInput
-                style={[collectionStyles.newInputField, {
-                  backgroundColor: theme.colors.backgroundInput,
-                  color: theme.colors.text,
-                }]}
-                placeholder="Album name..."
-                placeholderTextColor={theme.colors.placeholder}
-                cursorColor={theme.colors.accent}
-                value={newCollectionName}
-                onChangeText={setNewCollectionName}
-                returnKeyType="done"
-                onSubmitEditing={handleCreateCollection}
-                maxLength={60}
-                autoFocus
-              />
-              <TouchableOpacity
-                style={[collectionStyles.createBtn, {
-                  backgroundColor: theme.colors.buttonBg,
-                  opacity: !newCollectionName.trim() || creatingCollection ? 0.5 : 1,
-                }]}
-                onPress={handleCreateCollection}
-                disabled={!newCollectionName.trim() || creatingCollection}
-                activeOpacity={0.7}
-              >
-                <Text style={[collectionStyles.createBtnText, { color: theme.colors.buttonText }]}>
-                  {creatingCollection ? "..." : "Create"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={collectionStyles.row}
-              onPress={() => setShowingNewInput(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={[collectionStyles.newCollectionText, { color: theme.colors.accent }]}>
-                + New Album
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {collectionError ? (
-            <Text style={[collectionStyles.errorText, { color: theme.colors.destructive }]}>
-              {collectionError}
-            </Text>
-          ) : null}
-
-          <View style={collectionStyles.saveRow}>
-            <TouchableOpacity
-              style={[collectionStyles.saveBtn, {
-                backgroundColor: theme.colors.accent,
-                opacity: savingCollections ? 0.6 : 1,
-              }]}
-              onPress={handleSaveCollections}
-              disabled={savingCollections || collectionLoading || !!collectionLoadError}
-              activeOpacity={0.8}
-            >
-              <Text style={collectionStyles.saveBtnText}>
-                {savingCollections ? "Saving…" : "Save Changes"}
-              </Text>
-            </TouchableOpacity>
+        {collectionLoading ? (
+          <View style={styles.sheetStatus}>
+            <ActivityIndicator color={theme.colors.textSecondary} />
           </View>
+        ) : collectionLoadError ? (
+          <View style={styles.sheetStatus}>
+            <Text style={styles.sheetStatusText}>{collectionLoadError}</Text>
+            <Button label="Try again" variant="text" onPress={loadCollections} />
+          </View>
+        ) : (
+          <FlatList
+            data={allCollections}
+            keyExtractor={(item) => item.id}
+            style={styles.albumList}
+            ListEmptyComponent={<Text style={styles.sheetStatusText}>No albums yet</Text>}
+            renderItem={({ item }) => {
+              const isMember = pendingMemberIds.includes(item.id);
+              return (
+                <TouchableOpacity
+                  style={styles.albumRow}
+                  onPress={() => toggleCollection(item)}
+                  activeOpacity={0.7}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: isMember }}
+                >
+                  <Ionicons
+                    name={item.isPublic ? "people-outline" : "albums-outline"}
+                    size={18}
+                    color={theme.colors.textSecondary}
+                  />
+                  <View style={styles.albumRowText}>
+                    <Text style={styles.albumRowName} numberOfLines={1}>{item.name}</Text>
+                    {item.isPublic ? <Text style={styles.albumRowMeta}>Shared album</Text> : null}
+                  </View>
+                  {/* Ink, never terracotta: a tick is a choice, not a signal. */}
+                  {isMember ? (
+                    <View style={styles.tickOn}>
+                      <Ionicons name="checkmark" size={15} color={theme.colors.buttonText} />
+                    </View>
+                  ) : (
+                    <View style={styles.tickOff} />
+                  )}
+                </TouchableOpacity>
+              );
+            }}
+            ItemSeparatorComponent={() => <View style={styles.albumHairline} />}
+          />
+        )}
+
+        <View style={styles.albumHairline} />
+
+        {showingNewInput ? (
+          <View style={styles.newAlbumRow}>
+            <TextField
+              placeholder="Album name"
+              value={newCollectionName}
+              onChangeText={setNewCollectionName}
+              returnKeyType="done"
+              onSubmitEditing={handleCreateCollection}
+              maxLength={60}
+              autoFocus
+              containerStyle={styles.newAlbumField}
+            />
+            <Button
+              label="Create"
+              size="pill"
+              onPress={handleCreateCollection}
+              loading={creatingCollection}
+              disabled={!newCollectionName.trim()}
+            />
+          </View>
+        ) : (
+          <Button
+            label="New album"
+            icon="add"
+            variant="text"
+            onPress={() => setShowingNewInput(true)}
+            style={styles.newAlbumButton}
+          />
+        )}
+
+        {collectionError ? <Text style={styles.sheetError}>{collectionError}</Text> : null}
+
+        <View style={styles.sheetSave}>
+          <Button
+            label="Save"
+            onPress={handleSaveCollections}
+            loading={savingCollections}
+            disabled={collectionLoading || !!collectionLoadError}
+          />
+        </View>
       </BottomSheet>
     </Animated.View>
     </GestureDetector>
   );
 }
-
-const collectionStyles = StyleSheet.create({
-  list: {
-    flexGrow: 0,
-    maxHeight: 280,
-  },
-  loadingRow: {
-    paddingVertical: 24,
-    alignItems: "center",
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: "center",
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-  },
-  errorText: {
-    fontSize: 13,
-    textAlign: "center",
-    paddingHorizontal: 20,
-    paddingTop: 12,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  rowName: {
-    fontSize: 16,
-    fontFamily: "DMSans_500Medium",
-    flex: 1,
-  },
-  checkmark: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkmarkText: {
-    color: "#fff",
-    fontSize: 13,
-    fontFamily: "DMSans_700Bold",
-  },
-  checkmarkEmpty: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1.5,
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    marginHorizontal: 20,
-  },
-  newCollectionText: {
-    fontSize: 16,
-    fontFamily: "DMSans_500Medium",
-  },
-  newInputRow: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  newInputField: {
-    flex: 1,
-    height: 40,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    fontSize: 15,
-  },
-  newInputInner: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
-  },
-  createBtn: {
-    height: 40,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  createBtnText: {
-    fontSize: 15,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  saveRow: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
-  saveBtn: {
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  saveBtnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontFamily: "DMSans_600SemiBold",
-  },
-});
-
 
 /**
  * The progress bar and time label. Only this subscribes to playback progress,
@@ -1329,16 +1169,6 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       zIndex: 10,
     },
-    // These float over artwork and photos, so they keep a soft disc for
-    // contrast (the "filled" case in the Phase 1 icon rules).
-    glassBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 999,
-      backgroundColor: theme.isDark ? "rgba(28,23,22,0.8)" : "rgba(255,255,255,0.82)",
-      alignItems: "center",
-      justifyContent: "center",
-    },
     glassBtnRow: {
       flexDirection: "row",
       gap: 8,
@@ -1351,16 +1181,16 @@ function createStyles(theme: Theme) {
       position: "absolute",
       bottom: 14,
       right: 14,
-      backgroundColor: "rgba(20,18,24,0.55)",
-      borderRadius: 999,
+      backgroundColor: INK_GLASS,
+      borderRadius: theme.radii.full,
       paddingHorizontal: 10,
       paddingVertical: 4,
     },
     photoCounterText: {
-      fontSize: 12,
+      ...theme.typography.meta,
+      fontSize: theme.fontSize.xs,
       fontFamily: theme.fonts.bodySemibold,
-      fontVariant: ["tabular-nums"],
-      color: "#FBF7F2",
+      color: PAPER_ON_GLASS,
     },
     ambientHero: {
       flexShrink: 0,
@@ -1374,8 +1204,9 @@ function createStyles(theme: Theme) {
     artworkHero: {
       width: 232,
       height: 232,
-      borderRadius: 12,
-      shadowColor: "#000",
+      borderRadius: theme.radii.md,
+      // Artwork lift (DESIGN.md, Shadow Vocabulary).
+      shadowColor: SHADOW_INK,
       shadowOffset: { width: 0, height: 18 },
       shadowOpacity: 0.25,
       shadowRadius: 24,
@@ -1414,10 +1245,7 @@ function createStyles(theme: Theme) {
       borderRadius: 10,
     },
     songTitleHero: {
-      fontFamily: theme.fonts.display,
-      fontSize: 34,
-      lineHeight: 38,
-      letterSpacing: -0.3,
+      ...theme.typography.headline,
       color: theme.colors.text,
     },
     songTitleCompact: {
@@ -1500,10 +1328,9 @@ function createStyles(theme: Theme) {
       fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
     },
+    // Moods are words: Meta, sentence case, Umber Gray.
     moodWords: {
-      fontSize: 11,
-      fontFamily: theme.fonts.bodySemibold,
-      letterSpacing: 1,
+      ...theme.typography.meta,
       color: theme.colors.textTertiary,
       marginTop: 2,
     },
@@ -1544,60 +1371,87 @@ function createStyles(theme: Theme) {
       fontFamily: theme.fonts.bodyMedium,
       color: theme.colors.text,
     },
-    shareMomentBtn: {
-      flex: 1,
-      height: 48,
-      borderRadius: 14,
-      backgroundColor: theme.colors.buttonBg,
+    // ── Add to album sheet ───────────────────────────────────────────────────
+    sheetStatus: {
+      paddingVertical: theme.spacing["2xl"],
+      alignItems: "center",
+    },
+    sheetStatusText: {
+      ...theme.typography.body,
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+      textAlign: "center",
+      paddingVertical: theme.spacing.xl,
+      paddingHorizontal: theme.spacing.xl,
+    },
+    albumList: {
+      flexGrow: 0,
+      maxHeight: 280,
+    },
+    albumRow: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-    },
-    shareMomentBtnText: {
-      fontSize: 14,
-      fontFamily: "DMSans_600SemiBold",
-      color: theme.colors.buttonText,
-    },
-    // ── Context menu ─────────────────────────────────────────────────────────
-    menuBackdrop: {
-      ...StyleSheet.absoluteFillObject,
-      zIndex: 10,
-    },
-    menuContainer: {
-      position: "absolute",
-      top: 56 + 36 + 12,
-      right: 16,
-      backgroundColor: theme.colors.backgroundSecondary,
-      borderRadius: 14,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      minWidth: 190,
-      zIndex: 11,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.4,
-      shadowRadius: 20,
-      elevation: 8,
-      overflow: "hidden",
-    },
-    menuItem: {
+      gap: theme.spacing.md,
+      paddingHorizontal: theme.spacing.xl,
       paddingVertical: 14,
-      paddingHorizontal: 20,
     },
-    menuItemText: {
-      fontSize: 16,
-      fontFamily: "DMSans_400Regular",
+    albumRowText: {
+      flex: 1,
+      minWidth: 0,
+    },
+    albumRowName: {
+      ...theme.typography.body,
       color: theme.colors.text,
     },
-    menuItemTextDestructive: {
-      fontSize: 16,
-      fontFamily: "DMSans_400Regular",
-      color: theme.colors.destructive,
+    albumRowMeta: {
+      ...theme.typography.meta,
+      color: theme.colors.textTertiary,
+      marginTop: 1,
     },
-    menuDivider: {
+    tickOn: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.buttonBg,
+    },
+    tickOff: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+    },
+    albumHairline: {
       height: StyleSheet.hairlineWidth,
-      backgroundColor: theme.colors.border,
+      marginHorizontal: theme.spacing.xl,
+      backgroundColor: theme.colors.divider,
+    },
+    newAlbumRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.xl,
+      paddingVertical: theme.spacing.md,
+    },
+    newAlbumField: {
+      flex: 1,
+    },
+    newAlbumButton: {
+      marginHorizontal: theme.spacing.xl - theme.spacing.xs,
+    },
+    sheetError: {
+      ...theme.typography.meta,
+      color: theme.colors.destructive,
+      textAlign: "center",
+      paddingHorizontal: theme.spacing.xl,
+      paddingTop: theme.spacing.md,
+    },
+    sheetSave: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingTop: theme.spacing.md,
+      paddingBottom: theme.spacing.xs,
     },
   });
 }

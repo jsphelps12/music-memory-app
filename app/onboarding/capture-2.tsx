@@ -5,19 +5,19 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   StyleSheet,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { SongPickerSection } from "@/components/SongPickerSection";
+import { Button } from "@/components/Button";
+import { ScreenHeader } from "@/components/ScreenHeader";
+import { SectionLabel } from "@/components/SectionLabel";
 import { PhotoPickerSection } from "@/components/PhotoPickerSection";
 import { LocationField } from "@/components/LocationField";
 import { MoodSelector } from "@/components/MoodSelector";
@@ -42,7 +42,6 @@ export default function OnboardingCapture2Screen() {
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [momentDate, setMomentDate] = useState<Date | null>(new Date());
   const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
-  const [focusedField, setFocusedField] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -113,9 +112,9 @@ export default function OnboardingCapture2Screen() {
         <View style={[styles.progressBarFill, { width: "100%" }]} />
       </View>
 
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()} hitSlop={12} activeOpacity={0.7}>
-        <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-      </TouchableOpacity>
+      {/* In the layout flow (not absolute), so scrolled content passes under
+          a header with the page behind it instead of under a bare chevron. */}
+      <ScreenHeader leading="back" style={styles.header} />
 
       <ScrollView
         style={styles.scrollView}
@@ -129,34 +128,37 @@ export default function OnboardingCapture2Screen() {
 
         <SongPickerSection song={song} onChange={setSong} photos={photos} />
 
-        <Text style={styles.sectionLabel}>Reflection</Text>
+        <SectionLabel style={styles.sectionLabel}>Reflection</SectionLabel>
+        {/* The writer, not a form field: what a person writes is set in the
+            reading face with no chrome, ruled off by a hairline. */}
         <TextInput
-          style={[styles.reflectionInput, focusedField && { borderColor: theme.colors.accent }]}
+          style={styles.reflectionInput}
           placeholder="Who were you with and what was happening? (optional)"
           placeholderTextColor={theme.colors.placeholder}
           cursorColor={theme.colors.accent}
+          selectionColor={theme.colors.accent}
+          accessibilityLabel="Reflection"
           multiline
+          scrollEnabled={false}
           textAlignVertical="top"
           autoCapitalize="sentences"
           autoCorrect
           value={reflection}
           onChangeText={setReflection}
-          onFocus={() => setFocusedField(true)}
-          onBlur={() => setFocusedField(false)}
         />
 
-        <Text style={styles.sectionLabel}>Photos</Text>
+        <SectionLabel style={styles.sectionLabel}>Photos</SectionLabel>
         <PhotoPickerSection
           photos={photos}
           onChange={setPhotos}
           onApplyMeta={handleApplyMeta}
-          horizontalPadding={20}
+          horizontalPadding={theme.spacing.xl}
         />
 
-        <Text style={styles.sectionLabel}>People</Text>
+        <SectionLabel style={styles.sectionLabel}>People</SectionLabel>
         <PeopleInput people={people} onChangePeople={setPeople} />
 
-        <Text style={styles.sectionLabel}>Mood</Text>
+        <SectionLabel style={styles.sectionLabel}>Mood</SectionLabel>
         <MoodSelector
           selectedMoods={selectedMoods}
           onChangeMoods={setSelectedMoods}
@@ -165,18 +167,18 @@ export default function OnboardingCapture2Screen() {
           deleteCustomMood={deleteCustomMood}
         />
 
-        <View style={styles.sectionLabelRow}>
-          <Text style={styles.sectionLabel}>Date</Text>
-          {momentDate ? (
-            <TouchableOpacity onPress={() => setMomentDate(null)} hitSlop={8}>
-              <Text style={styles.dateClearText}>Clear</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={() => setMomentDate(new Date())} hitSlop={8}>
-              <Text style={styles.dateSetText}>Set date</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        <SectionLabel
+          style={styles.sectionLabel}
+          right={
+            momentDate ? (
+              <Button label="Clear" variant="text" tone="secondary" size="pill" onPress={() => setMomentDate(null)} style={styles.inRow} />
+            ) : (
+              <Button label="Set date" variant="text" size="pill" onPress={() => setMomentDate(new Date())} style={styles.inRow} />
+            )
+          }
+        >
+          Date
+        </SectionLabel>
         {momentDate ? (
           <DateTimePicker
             value={momentDate}
@@ -192,27 +194,25 @@ export default function OnboardingCapture2Screen() {
           <Text style={styles.noDateText}>No specific date</Text>
         )}
 
-        <Text style={styles.sectionLabel}>Location</Text>
+        <SectionLabel style={styles.sectionLabel}>Location</SectionLabel>
         <LocationField value={locationResult} onChange={setLocationResult} detectCurrentLocation />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <TouchableOpacity
-          style={[styles.saveButton, { opacity: !song || loading ? 0.5 : 1 }]}
+        <Button
+          label="Save moment"
           onPress={handleSave}
-          disabled={!song || loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color={theme.colors.buttonText} />
-          ) : (
-            <Text style={styles.saveButtonText}>Save moment →</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.skipLink} onPress={handleSkip} activeOpacity={0.7}>
-          <Text style={styles.skipText}>Skip for now</Text>
-        </TouchableOpacity>
+          disabled={!song}
+          loading={loading}
+          style={styles.saveButton}
+        />
+        <Button
+          label="Skip for now"
+          variant="text"
+          tone="secondary"
+          onPress={handleSkip}
+          style={styles.skipButton}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -230,103 +230,69 @@ function createStyles(theme: Theme) {
     },
     progressBarFill: {
       height: 3,
-      backgroundColor: theme.colors.accent,
+      backgroundColor: theme.colors.accent, // design-lint-ignore: the onboarding progress indicator
       borderRadius: 2,
     },
-    backButton: {
-      position: "absolute",
-      top: 56,
-      left: theme.spacing.xl,
-      zIndex: 10,
+    header: {
+      paddingBottom: 0,
     },
     scrollView: {
       flex: 1,
     },
     scrollContent: {
       paddingHorizontal: theme.spacing.xl,
-      paddingTop: 100,
+      paddingTop: theme.spacing.sm,
       paddingBottom: 48,
     },
     title: {
-      fontSize: theme.fontSize["2xl"],
       fontFamily: theme.fonts.display,
+      fontSize: theme.fontSize["2xl"],
+      lineHeight: theme.fontSize["2xl"] * 1.2,
       color: theme.colors.text,
       marginBottom: theme.spacing.sm,
     },
     subtitle: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.textSecondary,
+      ...theme.typography.body,
       lineHeight: 24,
+      color: theme.colors.textSecondary,
       marginBottom: theme.spacing["2xl"],
     },
     sectionLabel: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.text,
       marginTop: theme.spacing["2xl"],
-      marginBottom: theme.spacing.sm,
+      marginBottom: theme.spacing.xs,
     },
-    sectionLabelRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginTop: theme.spacing["2xl"],
-      marginBottom: theme.spacing.sm,
+    inRow: {
+      alignSelf: "center",
     },
     reflectionInput: {
-      height: 120,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.md,
-      paddingHorizontal: theme.spacing.lg,
-      paddingTop: theme.spacing.md,
+      ...theme.typography.reading,
+      minHeight: 120,
+      padding: 0,
       paddingBottom: theme.spacing.md,
-      fontSize: theme.fontSize.base,
       color: theme.colors.text,
-      backgroundColor: theme.colors.backgroundInput,
-    },
-    dateClearText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.destructive,
-    },
-    dateSetText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.accent,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
     },
     noDateText: {
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.placeholder,
       paddingVertical: theme.spacing.sm,
     },
     datePicker: {
-      alignSelf: "center",
+      alignSelf: "flex-start",
     },
     error: {
-      color: theme.colors.destructive,
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
+      color: theme.colors.destructive,
       marginTop: theme.spacing.lg,
     },
     saveButton: {
-      height: 52,
-      backgroundColor: theme.colors.buttonBg,
-      borderRadius: theme.radii.button,
-      alignItems: "center",
-      justifyContent: "center",
       marginTop: theme.spacing["2xl"],
     },
-    saveButtonText: {
-      color: theme.colors.buttonText,
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-    },
-    skipLink: {
-      alignItems: "center",
-      paddingVertical: 12,
-      marginTop: 8,
-    },
-    skipText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
+    skipButton: {
+      alignSelf: "center",
+      marginTop: theme.spacing.sm,
     },
   });
 }

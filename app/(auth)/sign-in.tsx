@@ -1,13 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePostHog } from "posthog-react-native";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +10,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
+import { TextField } from "@/components/TextField";
+import { Button } from "@/components/Button";
 
 export default function SignInScreen() {
   const { signIn, signInWithApple } = useAuth();
@@ -28,7 +23,6 @@ export default function SignInScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [focusedField, setFocusedField] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [appleAvailable, setAppleAvailable] = useState(false);
 
@@ -81,26 +75,27 @@ export default function SignInScreen() {
       behavior="padding"
     >
       <View style={styles.inner}>
-        <Text style={styles.title}>Sign In</Text>
+        <Text style={styles.title} accessibilityRole="header">Sign in</Text>
         <Text style={styles.subtitle}>Welcome to Soundtracks</Text>
 
         {registered ? (
           <View style={styles.successBox}>
-            <Text style={styles.successTitle}>Check your email</Text>
-            <Text style={styles.successMessage}>
-              We sent a confirmation link to your email. Tap it to verify your
-              account, then come back here and sign in.{"\n\n"}Don't worry if the
-              link shows an error page — your account will still be confirmed.
-            </Text>
+            <Ionicons name="mail-outline" size={20} color={theme.colors.textSecondary} />
+            <View style={styles.successText}>
+              <Text style={styles.successTitle}>Check your email</Text>
+              <Text style={styles.successMessage}>
+                We sent a confirmation link to your email. Tap it to verify your
+                account, then come back here and sign in.{"\n\n"}If the link
+                shows an error page, don&apos;t worry: your account is still confirmed.
+              </Text>
+            </View>
           </View>
         ) : null}
 
-        <TextInput
+        <TextField
           testID="signin-email"
-          style={[styles.input, focusedField === "email" && { borderColor: theme.colors.accent }]}
+          containerStyle={styles.field}
           placeholder="Email"
-          placeholderTextColor={theme.colors.placeholder}
-          cursorColor={theme.colors.accent}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
@@ -109,49 +104,46 @@ export default function SignInScreen() {
           returnKeyType="next"
           value={email}
           onChangeText={setEmail}
-          onFocus={() => setFocusedField("email")}
-          onBlur={() => setFocusedField("")}
         />
 
-        <View style={[styles.inputRow, focusedField === "password" && { borderColor: theme.colors.accent }]}>
-          <TextInput
-            testID="signin-password"
-            style={styles.inputInner}
-            placeholder="Password"
-            placeholderTextColor={theme.colors.placeholder}
-            cursorColor={theme.colors.accent}
-            secureTextEntry={!showPassword}
-            autoCapitalize="none"
-            autoCorrect={false}
-            textContentType="password"
-            autoComplete="password"
-            returnKeyType="go"
-            onSubmitEditing={handleSignIn}
-            value={password}
-            onChangeText={setPassword}
-            onFocus={() => setFocusedField("password")}
-            onBlur={() => setFocusedField("")}
-          />
-          <TouchableOpacity onPress={() => setShowPassword(v => !v)} hitSlop={8}>
-            <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={theme.colors.textTertiary} />
-          </TouchableOpacity>
-        </View>
+        <TextField
+          testID="signin-password"
+          containerStyle={styles.field}
+          placeholder="Password"
+          secureTextEntry={!showPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="password"
+          autoComplete="password"
+          returnKeyType="go"
+          onSubmitEditing={handleSignIn}
+          value={password}
+          onChangeText={setPassword}
+          trailing={
+            <TouchableOpacity
+              onPress={() => setShowPassword((v) => !v)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+            >
+              <Ionicons
+                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color={theme.colors.textSecondary}
+              />
+            </TouchableOpacity>
+          }
+        />
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
 
-        <TouchableOpacity
+        <Button
           testID="signin-submit"
-          style={[styles.button, loading && styles.buttonDisabled]}
+          label="Sign in"
           onPress={handleSignIn}
-          disabled={loading}
-          activeOpacity={0.7}
-        >
-          {loading ? (
-            <ActivityIndicator color={theme.colors.buttonText} />
-          ) : (
-            <Text style={styles.buttonText}>Sign In</Text>
-          )}
-        </TouchableOpacity>
+          loading={loading}
+          style={styles.button}
+        />
 
         {appleAvailable && (
           <>
@@ -168,7 +160,7 @@ export default function SignInScreen() {
                   ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
                   : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
               }
-              cornerRadius={10}
+              cornerRadius={theme.radii.button}
               style={styles.appleButton}
               onPress={handleAppleSignIn}
             />
@@ -178,7 +170,7 @@ export default function SignInScreen() {
         <Link href="/(auth)/sign-up" replace asChild>
           <TouchableOpacity style={styles.linkContainer}>
             <Text style={styles.linkText}>
-              Don't have an account? <Text style={styles.linkBold}>Sign Up</Text>
+              Don&apos;t have an account? <Text style={styles.linkBold}>Sign up</Text>
             </Text>
           </TouchableOpacity>
         </Link>
@@ -199,94 +191,57 @@ function createStyles(theme: Theme) {
       padding: theme.spacing["2xl"],
     },
     title: {
-      fontSize: theme.fontSize["3xl"],
-      fontFamily: theme.fonts.display,
+      ...theme.typography.headline,
       color: theme.colors.text,
       marginBottom: theme.spacing.xs,
     },
     subtitle: {
-      fontFamily: theme.fonts.body,
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
       marginBottom: theme.spacing["3xl"],
     },
-    input: {
-      height: 52,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.md,
-      paddingHorizontal: theme.spacing.lg,
-      fontFamily: theme.fonts.body,
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      marginBottom: 14,
-      backgroundColor: theme.colors.backgroundInput,
-    },
-    inputRow: {
-      height: 52,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.md,
-      paddingHorizontal: theme.spacing.lg,
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 14,
-      backgroundColor: theme.colors.backgroundInput,
-    },
-    inputInner: {
-      flex: 1,
-      fontFamily: theme.fonts.body,
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
+    field: {
+      marginBottom: theme.spacing.md,
     },
     successBox: {
-      backgroundColor: theme.colors.backgroundSecondary,
-      borderRadius: theme.radii.md,
-      padding: theme.spacing.lg,
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: theme.spacing.md,
+      paddingBottom: theme.spacing.lg,
       marginBottom: theme.spacing.lg,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
+    },
+    successText: {
+      flex: 1,
     },
     successTitle: {
-      color: theme.colors.success,
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+      ...theme.typography.bodyStrong,
+      color: theme.colors.text,
       marginBottom: theme.spacing.xs,
     },
     successMessage: {
-      color: theme.colors.textSecondary,
-      fontFamily: theme.fonts.body,
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
       lineHeight: 20,
+      color: theme.colors.textSecondary,
     },
     error: {
-      color: theme.colors.destructive,
-      fontFamily: theme.fonts.body,
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
-      marginBottom: 14,
+      lineHeight: 20,
+      color: theme.colors.destructive,
+      marginBottom: theme.spacing.md,
     },
     button: {
-      height: 52,
-      backgroundColor: theme.colors.buttonBg,
-      borderRadius: theme.radii.button,
-      alignItems: "center",
-      justifyContent: "center",
       marginTop: theme.spacing.xs,
-    },
-    buttonDisabled: {
-      opacity: 0.6,
-    },
-    buttonText: {
-      color: theme.colors.buttonText,
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
     },
     linkContainer: {
       marginTop: theme.spacing["2xl"],
       alignItems: "center",
     },
     linkText: {
-      fontFamily: theme.fonts.body,
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
     },
@@ -303,12 +258,11 @@ function createStyles(theme: Theme) {
     dividerLine: {
       flex: 1,
       height: StyleSheet.hairlineWidth,
-      backgroundColor: theme.colors.border,
+      backgroundColor: theme.colors.divider,
     },
     dividerText: {
+      ...theme.typography.meta,
       color: theme.colors.textSecondary,
-      fontFamily: theme.fonts.body,
-      fontSize: theme.fontSize.sm,
       marginHorizontal: theme.spacing.md,
     },
     appleButton: {

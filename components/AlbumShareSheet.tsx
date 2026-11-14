@@ -2,21 +2,24 @@ import {
   View,
   Text,
   Share,
-  TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   StyleSheet,
   Platform,
   ScrollView,
-  TextInput,
 } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ConfirmSheetHost, confirmSheet } from "@/components/ConfirmSheet";
+import { Button } from "@/components/Button";
+import { IconButton } from "@/components/IconButton";
+import { SectionLabel } from "@/components/SectionLabel";
+import { TextField } from "@/components/TextField";
 import * as Haptics from "expo-haptics";
 import { Album } from "@/types";
 import {
@@ -35,6 +38,7 @@ import {
 import { uploadAlbumCover, getPublicPhotoUrl } from "@/lib/storage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
+import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { pluralMoments } from "@/lib/utils";
@@ -51,6 +55,7 @@ interface Props {
 
 export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLeft }: Props) {
   const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const { user } = useAuth();
 
   const [converting, setConverting] = useState(false);
@@ -69,7 +74,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
   // Cover photo state
   const [uploadingCover, setUploadingCover] = useState(false);
 
-  // Invite member by username
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const queryClient = useQueryClient();
   const isOwner = collection.role === "owner";
@@ -86,6 +91,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
       setMembers([]);
       setError("");
       setRenaming(false);
+      setLinkCopied(false);
     }
   }, [visible, isOwner, collection.id, collection.isPublic]);
 
@@ -130,7 +136,9 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
       mediaTypes: ["images"],
       quality: 0.9,
       allowsEditing: true,
-      aspect: [16, 9],
+      // Square, like everywhere the cover shows (AlbumMosaic, the album
+      // screen) and the create sheet's picker; it used to crop 16:9.
+      aspect: [1, 1],
     });
     if (result.canceled || !result.assets[0]) return;
     setUploadingCover(true);
@@ -195,6 +203,14 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
           : { message: inviteUrl }
       );
     } catch {}
+  }
+
+  async function handleCopyLink() {
+    if (!inviteUrl) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await Clipboard.setStringAsync(inviteUrl);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
   }
 
   async function handleRemoveMember(member: AlbumMember) {
@@ -265,290 +281,219 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
   }
 
   const totalMembers = members.length + 1; // +1 for owner
+  const renameDirty = !!renameText.trim() && renameText.trim() !== collection.name;
 
+  const metaLine = isOwner
+    ? `${pluralMoments(collection.momentCount)} · ${
+        collection.isPublic
+          ? `${totalMembers} ${totalMembers === 1 ? "member" : "members"}`
+          : "just you"
+      }`
+    : `Shared album · ${pluralMoments(collection.momentCount)}${
+        collection.ownerName ? ` · by ${collection.ownerName}` : ""
+      }`;
+
+  // Design sweep (2026-11): the sheet's own serif title is the album name (it
+  // used to draw a second title row), rename lives in a row, the invite link
+  // is a quiet Meta line, and the actions are the shared Button. Sized to
+  // content; a long member list scrolls inside the sheet's default cap.
   return (
-    <BottomSheet visible={visible} onClose={onClose} keyboardAvoiding maxHeight="88%">
-      {/* Header — inline rename for owners (custom, so no BottomSheet title) */}
-      <View style={[styles.header, { paddingHorizontal: 20 }]}>
-        {isOwner && renaming ? (
-          <View style={styles.renameRow}>
-            <TextInput
-              style={[styles.renameInput, { color: theme.colors.text, backgroundColor: theme.colors.backgroundInput }]}
-              value={renameText}
-              onChangeText={setRenameText}
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={handleRename}
-              maxLength={60}
-            />
-            <TouchableOpacity
-              onPress={handleRename}
-              disabled={savingRename || !renameText.trim() || renameText.trim() === collection.name}
-              hitSlop={8}
-            >
-              {savingRename ? (
-                <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-              ) : (
-                <Text style={[styles.renameSave, { color: theme.colors.text, opacity: !renameText.trim() || renameText.trim() === collection.name ? 0.35 : 1 }]}>
-                  Save
-                </Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => { setRenaming(false); setRenameText(collection.name); }} hitSlop={8}>
-              <Text style={[styles.renameCancel, { color: theme.colors.textSecondary }]}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
+    <BottomSheet visible={visible} onClose={onClose} title={collection.name} keyboardAvoiding>
+      <ScrollView
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        bounces={false}
+      >
+        <Text style={styles.meta}>{metaLine}</Text>
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        {isOwner ? (
           <>
-            <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
-              {collection.name}
-            </Text>
-            {isOwner && (
-              <TouchableOpacity
-                onPress={() => { setRenaming(true); setRenameText(collection.name); }}
-                hitSlop={8}
-                style={{ marginRight: 10 }}
-              >
-                <Ionicons name="pencil-outline" size={18} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            )}
-          </>
-        )}
-      </View>
-
-      {isOwner ? (
-          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            {/* Metadata row */}
-            <View style={[styles.row, { borderBottomColor: theme.colors.backgroundInput }]}>
-              <View style={styles.rowLeft}>
-                <Ionicons
-                  name={collection.isPublic ? "people-outline" : "lock-closed-outline"}
-                  size={20}
-                  color={theme.colors.text}
-                />
-                <View style={styles.rowText}>
-                  <Text style={[styles.rowLabel, { color: theme.colors.text }]}>
-                    {collection.isPublic ? "Shared Collection" : "Personal Collection"}
-                  </Text>
-                  <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
-                    {pluralMoments(collection.momentCount)}
-                    {collection.isPublic
-                      ? ` · ${totalMembers} ${totalMembers === 1 ? "member" : "members"}`
-                      : " · just you"}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Cover photo row — owners only */}
-            <View style={[styles.row, { borderBottomColor: theme.colors.backgroundInput }]}>
-              <View style={styles.rowLeft}>
-                <Ionicons name="image-outline" size={20} color={theme.colors.text} />
-                <View style={styles.rowText}>
-                  <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Cover Photo</Text>
-                  <TouchableOpacity onPress={handlePickCover} disabled={uploadingCover} hitSlop={4}>
-                    <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
-                      {collection.coverPhotoUrl ? "Change photo" : "Add a cover photo"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-              {uploadingCover ? (
-                <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-              ) : collection.coverPhotoUrl ? (
-                <TouchableOpacity
-                  onLongPress={handleRemoveCover}
-                  onPress={handlePickCover}
-                  activeOpacity={0.8}
-                  hitSlop={4}
-                >
-                  <AppImage
-                    source={{ uri: getPublicPhotoUrl(collection.coverPhotoUrl) }}
-                    style={styles.coverThumb}
-                    contentFit="cover"
-                  />
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  onPress={handlePickCover}
-                  style={[styles.coverPlaceholder, { backgroundColor: theme.colors.backgroundInput, borderColor: theme.colors.border }]}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="camera-outline" size={16} color={theme.colors.textTertiary} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {error ? (
-              <Text style={[styles.error, { color: theme.colors.destructive ?? "#E53E3E" }]}>
-                {error}
-              </Text>
-            ) : null}
-
             {collection.isPublic && inviteUrl ? (
-              <>
-                {/* Invite link */}
-                <View style={styles.shareSection}>
-                  <View style={[styles.urlBox, { backgroundColor: theme.colors.backgroundInput }]}>
-                    <Text
-                      style={[styles.urlText, { color: theme.colors.textSecondary }]}
-                      numberOfLines={1}
-                      ellipsizeMode="middle"
-                    >
-                      {inviteUrl}
-                    </Text>
-                  </View>
-                  <View style={styles.linkButtonRow}>
-                    <TouchableOpacity
-                      style={[styles.linkButton, { backgroundColor: theme.colors.backgroundInput }]}
-                      onPress={() => Clipboard.setStringAsync(inviteUrl)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="copy-outline" size={16} color={theme.colors.text} />
-                      <Text style={[styles.linkButtonText, { color: theme.colors.text }]}>Copy</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.shareButton, { backgroundColor: theme.colors.buttonBg }]}
-                      onPress={handleShare}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="share-outline" size={16} color={theme.colors.buttonText} />
-                      <Text style={[styles.shareButtonText, { color: theme.colors.buttonText }]}>Share Link</Text>
-                    </TouchableOpacity>
-                  </View>
+              <View style={styles.inviteBlock}>
+                <View style={styles.linkRow}>
+                  <Ionicons name="link-outline" size={16} color={theme.colors.textSecondary} />
+                  <Text style={styles.linkText} numberOfLines={1} ellipsizeMode="middle">
+                    {inviteUrl.replace(/^https?:\/\//, "")}
+                  </Text>
+                  <Button
+                    variant="text"
+                    size="pill"
+                    label={linkCopied ? "Copied" : "Copy"}
+                    onPress={handleCopyLink}
+                    accessibilityLabel="Copy invite link"
+                  />
                 </View>
-
-              </>
-            ) : (
-              /* Personal: convert button */
-              <View style={styles.shareSection}>
-                <TouchableOpacity
-                  style={[
-                    styles.convertButton,
-                    { backgroundColor: theme.colors.buttonBg, borderColor: "transparent" },
-                    converting && styles.buttonDisabled,
-                  ]}
-                  onPress={handleConvert}
-                  disabled={converting}
-                  activeOpacity={0.8}
-                >
-                  {converting ? (
-                    <ActivityIndicator color={theme.colors.buttonText} />
-                  ) : (
-                    <>
-                      <Ionicons name="people-outline" size={16} color={theme.colors.buttonText} />
-                      <Text style={[styles.convertButtonText, { color: theme.colors.buttonText }]}>
-                        Convert to Shared
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+                <Button label="Share invite link" icon="share-outline" onPress={handleShare} />
               </View>
+            ) : (
+              <Button
+                label="Make shared"
+                icon="people-outline"
+                onPress={handleConvert}
+                loading={converting}
+                style={styles.inviteBlock}
+              />
             )}
 
-            {/* Members list */}
-            <View style={styles.membersSection}>
-              <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
-                MEMBERS
-              </Text>
-              {/* Owner row */}
-              <View style={[styles.memberRow, { borderBottomColor: theme.colors.backgroundInput }]}>
-                <Text style={[styles.memberName, { color: theme.colors.text }]}>You (owner)</Text>
-              </View>
-              {loadingMembers ? (
-                <ActivityIndicator size="small" color={theme.colors.textSecondary} style={{ marginVertical: 12 }} />
+            <View style={styles.rows}>
+              {/* Name, renamed inline */}
+              {renaming ? (
+                <View style={styles.renameRow}>
+                  <TextField
+                    value={renameText}
+                    onChangeText={setRenameText}
+                    autoFocus
+                    returnKeyType="done"
+                    onSubmitEditing={handleRename}
+                    maxLength={60}
+                    accessibilityLabel="Album name"
+                    containerStyle={styles.renameField}
+                  />
+                  <Button
+                    variant="text"
+                    size="pill"
+                    label="Save"
+                    onPress={handleRename}
+                    loading={savingRename}
+                    disabled={!renameDirty}
+                  />
+                  <Button
+                    variant="text"
+                    size="pill"
+                    tone="secondary"
+                    label="Cancel"
+                    onPress={() => {
+                      setRenaming(false);
+                      setRenameText(collection.name);
+                    }}
+                  />
+                </View>
               ) : (
-                <>
-                  {members.map((member) => (
-                    <View
-                      key={member.userId}
-                      style={[styles.memberRow, { borderBottomColor: theme.colors.backgroundInput }]}
-                    >
-                      <Text style={[styles.memberName, { color: theme.colors.text }]}>
-                        {member.displayName ?? "Unknown"}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() => handleRemoveMember(member)}
-                        disabled={removingMemberId === member.userId}
-                        hitSlop={8}
-                      >
+                <Pressable
+                  style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+                  onPress={() => {
+                    setRenaming(true);
+                    setRenameText(collection.name);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Rename album"
+                >
+                  <Text style={styles.rowLabel}>Name</Text>
+                  <Text style={styles.rowValue} numberOfLines={1}>
+                    {collection.name}
+                  </Text>
+                  <Ionicons name="pencil-outline" size={16} color={theme.colors.textSecondary} />
+                </Pressable>
+              )}
+
+              {/* Cover photo: tap to change; Remove (or long-press the thumb) clears it */}
+              <Pressable
+                style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+                onPress={handlePickCover}
+                disabled={uploadingCover}
+                accessibilityRole="button"
+                accessibilityLabel={collection.coverPhotoUrl ? "Change cover photo" : "Add a cover photo"}
+              >
+                <Text style={styles.rowLabel}>Cover photo</Text>
+                <View style={styles.rowTrailing}>
+                  {uploadingCover ? (
+                    <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                  ) : collection.coverPhotoUrl ? (
+                    <>
+                      <Button
+                        variant="text"
+                        size="pill"
+                        tone="secondary"
+                        label="Remove"
+                        onPress={handleRemoveCover}
+                        accessibilityLabel="Remove cover photo"
+                      />
+                      <Pressable onPress={handlePickCover} onLongPress={handleRemoveCover}>
+                        <AppImage
+                          source={{ uri: getPublicPhotoUrl(collection.coverPhotoUrl) }}
+                          style={styles.coverThumb}
+                          contentFit="cover"
+                        />
+                      </Pressable>
+                    </>
+                  ) : (
+                    <View style={[styles.coverThumb, styles.coverEmpty]}>
+                      <Ionicons name="image-outline" size={18} color={theme.colors.textSecondary} />
+                    </View>
+                  )}
+                </View>
+              </Pressable>
+            </View>
+
+            {/* Members: only a shared album can have any */}
+            {collection.isPublic ? (
+              <View style={styles.section}>
+                <SectionLabel meta={loadingMembers ? undefined : String(totalMembers)}>
+                  Members
+                </SectionLabel>
+                <View style={[styles.rows, styles.rowsTight]}>
+                  <View style={styles.row}>
+                    <Text style={styles.memberName}>You</Text>
+                    <Text style={styles.memberRole}>Owner</Text>
+                  </View>
+                  {loadingMembers ? (
+                    <View style={styles.row}>
+                      <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                    </View>
+                  ) : members.length === 0 ? (
+                    <View style={styles.row}>
+                      <Text style={styles.emptyMembers}>No one else has joined yet.</Text>
+                    </View>
+                  ) : (
+                    members.map((member) => (
+                      <View key={member.userId} style={styles.row}>
+                        <Text style={styles.memberName} numberOfLines={1}>
+                          {member.displayName ?? "Unknown"}
+                        </Text>
                         {removingMemberId === member.userId ? (
                           <ActivityIndicator size="small" color={theme.colors.textSecondary} />
                         ) : (
-                          <Ionicons name="person-remove-outline" size={18} color={theme.colors.destructive ?? "#E53E3E"} />
+                          <IconButton
+                            name="person-remove-outline"
+                            size={18}
+                            color={theme.colors.textSecondary}
+                            onPress={() => handleRemoveMember(member)}
+                            accessibilityLabel={`Remove ${member.displayName ?? "member"}`}
+                            style={styles.memberAction}
+                          />
                         )}
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                  {members.length === 0 && (
-                    <Text style={[styles.emptyMembers, { color: theme.colors.textTertiary }]}>
-                      No one else has joined yet.
-                    </Text>
+                      </View>
+                    ))
                   )}
-                </>
-              )}
-            </View>
-
-            {/* Delete */}
-            <TouchableOpacity
-              style={[styles.deleteButton, deleting && styles.buttonDisabled]}
-              onPress={handleDelete}
-              disabled={deleting}
-              activeOpacity={0.8}
-            >
-              {deleting ? (
-                <ActivityIndicator color={theme.colors.destructive} />
-              ) : (
-                <Text style={[styles.deleteButtonText, { color: theme.colors.destructive ?? "#E53E3E" }]}>
-                  Delete Album
-                </Text>
-              )}
-            </TouchableOpacity>
-          </ScrollView>
-        ) : (
-          /* Member view */
-          <View style={styles.memberViewContent}>
-            <View style={[styles.row, { borderBottomColor: theme.colors.backgroundInput }]}>
-              <View style={styles.rowLeft}>
-                <Ionicons name="people-outline" size={20} color={theme.colors.text} />
-                <View style={styles.rowText}>
-                  <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Shared Album</Text>
-                  <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
-                    {pluralMoments(collection.momentCount)}
-                    {collection.ownerName ? ` · by ${collection.ownerName}` : ""}
-                  </Text>
                 </View>
               </View>
-            </View>
-
-            {error ? (
-              <Text style={[styles.error, { color: theme.colors.destructive ?? "#E53E3E" }]}>
-                {error}
-              </Text>
             ) : null}
 
-            <View style={styles.shareSection}>
-              <TouchableOpacity
-                style={[
-                  styles.leaveButton,
-                  { borderColor: theme.colors.destructive ?? "#E53E3E" },
-                  leaving && styles.buttonDisabled,
-                ]}
-                onPress={handleLeave}
-                disabled={leaving}
-                activeOpacity={0.8}
-              >
-                {leaving ? (
-                  <ActivityIndicator color={theme.colors.destructive} />
-                ) : (
-                  <Text style={[styles.leaveButtonText, { color: theme.colors.destructive ?? "#E53E3E" }]}>
-                    Leave Album
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-      )}
+            <Button
+              variant="text"
+              tone="destructive"
+              label="Delete album"
+              onPress={handleDelete}
+              loading={deleting}
+              fullWidth
+              style={styles.endAction}
+            />
+          </>
+        ) : (
+          <Button
+            variant="text"
+            tone="destructive"
+            label="Leave album"
+            onPress={handleLeave}
+            loading={leaving}
+            fullWidth
+            style={styles.endAction}
+          />
+        )}
+      </ScrollView>
       {/* Local confirm host: a root-level Modal can't present over this open
           sheet (iOS silently drops it), so confirms asked from in here need a
           host nested inside the sheet's own Modal hierarchy. */}
@@ -557,281 +502,119 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
   );
 }
 
-const styles = StyleSheet.create({
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 48,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-  },
-  title: {
-    fontSize: 18,
-    fontFamily: "DMSans_700Bold",
-    flex: 1,
-    marginRight: 8,
-  },
-  renameRow: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  renameInput: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: "DMSans_600SemiBold",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  renameSave: {
-    fontSize: 15,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  renameCancel: {
-    fontSize: 15,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  rowLeft: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    flex: 1,
-    marginRight: 12,
-  },
-  rowText: {
-    flex: 1,
-  },
-  rowLabel: {
-    fontSize: 15,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  rowSub: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  coverThumb: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-  },
-  coverPlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  error: {
-    fontSize: 13,
-    marginTop: 8,
-  },
-  shareSection: {
-    marginTop: 20,
-    gap: 10,
-  },
-  linkButtonRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  linkButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-  },
-  linkButtonText: {
-    fontSize: 14,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  urlBox: {
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  urlText: {
-    fontSize: 13,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
-  shareButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  shareButtonText: {
-    fontSize: 14,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  leaveButton: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  leaveButtonText: {
-    fontSize: 16,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  convertButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  convertButtonText: {
-    fontSize: 16,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  deleteButton: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#E53E3E",
-    marginTop: 24,
-  },
-  deleteButtonText: {
-    fontSize: 16,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  memberViewContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-  },
-  membersSection: {
-    marginTop: 24,
-  },
-  sectionLabel: {
-    fontSize: 11,
-    fontFamily: "DMSans_600SemiBold",
-    letterSpacing: 0.8,
-    marginBottom: 8,
-  },
-  emptyMembers: {
-    fontSize: 14,
-    marginVertical: 12,
-  },
-  memberRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  memberName: {
-    fontSize: 15,
-  },
-  // Add member
-  addMemberSection: {
-    marginTop: 24,
-    gap: 8,
-  },
-  addMemberInputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  addMemberInput: {
-    flex: 1,
-    fontSize: 14,
-    padding: 0,
-  },
-  addMemberResult: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  addMemberName: {
-    fontSize: 14,
-    fontFamily: "DMSans_500Medium",
-  },
-  addMemberUsername: {
-    fontSize: 12,
-    marginTop: 1,
-  },
-  addBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
-    minWidth: 52,
-    alignItems: "center",
-  },
-  addBtnText: {
-    fontSize: 13,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  addMemberEmpty: {
-    fontSize: 13,
-    paddingVertical: 8,
-  },
-  // Guest contributions
-  guestSection: {
-    marginTop: 24,
-    gap: 10,
-  },
-  guestSubtext: {
-    fontSize: 12,
-    marginBottom: 2,
-  },
-  guestButtonRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  guestButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  guestButtonText: {
-    fontSize: 14,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  qrButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  qrButtonText: {
-    fontSize: 16,
-    fontFamily: "DMSans_600SemiBold",
-  },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    body: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingBottom: theme.spacing.sm,
+    },
+    meta: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+    },
+    error: {
+      ...theme.typography.meta,
+      color: theme.colors.destructive,
+      marginTop: theme.spacing.sm,
+    },
+    inviteBlock: {
+      marginTop: theme.spacing.lg,
+      gap: theme.spacing.sm,
+    },
+    // The link as a quiet line of Meta between hairlines, not a monospaced box.
+    linkRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      minHeight: 44,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.divider,
+    },
+    linkText: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+      flex: 1,
+    },
+    section: {
+      marginTop: theme.spacing.xl,
+    },
+    rows: {
+      marginTop: theme.spacing.lg,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
+    },
+    rowsTight: {
+      marginTop: theme.spacing.xs,
+    },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md,
+      minHeight: 52,
+      paddingVertical: theme.spacing.xs,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
+    },
+    pressed: { opacity: 0.6 },
+    rowLabel: {
+      ...theme.typography.body,
+      color: theme.colors.text,
+    },
+    rowValue: {
+      ...theme.typography.body,
+      color: theme.colors.textSecondary,
+      flex: 1,
+      textAlign: "right",
+    },
+    rowTrailing: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "flex-end",
+      gap: theme.spacing.sm,
+    },
+    renameRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+      paddingVertical: theme.spacing.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
+    },
+    renameField: {
+      flex: 1,
+      minHeight: 40,
+    },
+    coverThumb: {
+      width: 36,
+      height: 36,
+      borderRadius: theme.radii.sm,
+    },
+    coverEmpty: {
+      backgroundColor: theme.colors.artworkPlaceholder,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    memberName: {
+      ...theme.typography.body,
+      color: theme.colors.text,
+      flex: 1,
+    },
+    memberRole: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+    },
+    memberAction: {
+      marginRight: -12,
+    },
+    emptyMembers: {
+      ...theme.typography.body,
+      fontSize: theme.fontSize.callout,
+      color: theme.colors.textSecondary,
+    },
+    endAction: {
+      marginTop: theme.spacing.lg,
+    },
+  });
+}

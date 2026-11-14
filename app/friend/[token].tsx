@@ -1,19 +1,13 @@
 import { useMemo, useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, Alert } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
-import { CloseButton } from "@/components/CloseButton";
+import { ScreenHeader } from "@/components/ScreenHeader";
+import { Button } from "@/components/Button";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { friendlyError } from "@/lib/errors";
 import { useQueryClient } from "@tanstack/react-query";
@@ -38,6 +32,8 @@ type ScreenState =
   | "sending"
   | "sent";
 
+// Opened from a friend link: a task presented full screen, so it closes
+// with an ✕ (DESIGN.md, Pushed vs presented). Ink actions, never terracotta.
 export default function FriendInviteScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const router = useRouter();
@@ -57,6 +53,8 @@ export default function FriendInviteScreen() {
   useEffect(() => {
     if (!token || !user) return;
     loadProfile();
+  // loadProfile reads token/user, which are the deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, user]);
 
   async function loadProfile() {
@@ -122,15 +120,23 @@ export default function FriendInviteScreen() {
   const displayName = profile?.displayName ?? profile?.username ?? "Unknown";
   const initials = displayName[0]?.toUpperCase() ?? "?";
 
+  const avatar = (
+    <View style={styles.avatarContainer}>
+      {avatarUri ? (
+        <AppImage source={{ uri: avatarUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+      ) : (
+        <Text style={styles.initials}>{initials}</Text>
+      )}
+    </View>
+  );
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.header}>
-        <CloseButton onPress={handleClose} />
-      </View>
+    <View style={styles.container}>
+      <ScreenHeader leading="close" onLeadingPress={handleClose} />
 
       {state === "loading" && (
         <View style={styles.center}>
-          <ActivityIndicator color={theme.colors.textSecondary} size="large" />
+          <ActivityIndicator color={theme.colors.textSecondary} />
         </View>
       )}
 
@@ -138,135 +144,68 @@ export default function FriendInviteScreen() {
 
       {state === "not_found" && (
         <View style={styles.center}>
-          <Ionicons name="link-outline" size={48} color={theme.colors.textTertiary} />
-          <Text style={[styles.title, { color: theme.colors.text, marginTop: 20 }]}>
-            Link not found
-          </Text>
-          <Text style={[styles.sub, { color: theme.colors.textSecondary }]}>
-            This friend link may no longer be valid.
-          </Text>
-          <TouchableOpacity
-            style={[styles.primaryBtn, { backgroundColor: theme.colors.accent }]}
-            onPress={handleClose}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.primaryBtnText}>Go Back</Text>
-          </TouchableOpacity>
+          <Ionicons name="link-outline" size={40} color={theme.colors.textSecondary} />
+          <Text style={[styles.title, styles.titleSpaced]}>Link not found</Text>
+          <Text style={styles.sub}>This friend link may no longer be valid.</Text>
+          <Button label="Go back" onPress={handleClose} />
         </View>
       )}
 
       {state === "already_self" && (
         <View style={styles.center}>
-          <Ionicons name="person-outline" size={48} color={theme.colors.textTertiary} />
-          <Text style={[styles.title, { color: theme.colors.text, marginTop: 20 }]}>
-            That's your link!
-          </Text>
-          <Text style={[styles.sub, { color: theme.colors.textSecondary }]}>
-            Share it with friends so they can connect with you.
-          </Text>
-          <TouchableOpacity
-            style={[styles.primaryBtn, { backgroundColor: theme.colors.accent }]}
-            onPress={handleClose}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.primaryBtnText}>Got it</Text>
-          </TouchableOpacity>
+          <Ionicons name="person-outline" size={40} color={theme.colors.textSecondary} />
+          <Text style={[styles.title, styles.titleSpaced]}>That&apos;s your link</Text>
+          <Text style={styles.sub}>Share it with friends so they can connect with you.</Text>
+          <Button label="Got it" onPress={handleClose} />
         </View>
       )}
 
       {state === "already_friends" && profile && (
         <View style={styles.center}>
-          <View style={[styles.avatarContainer, { backgroundColor: theme.colors.backgroundTertiary }]}>
-            {avatarUri ? (
-              <AppImage source={{ uri: avatarUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
-            ) : (
-              <Text style={[styles.initials, { color: theme.colors.textTertiary }]}>{initials}</Text>
-            )}
-          </View>
-          <Ionicons
-            name="checkmark-circle"
-            size={28}
-            color={theme.colors.accent}
-            style={{ marginTop: -14, marginBottom: 12 }}
-          />
-          <Text style={[styles.name, { color: theme.colors.text }]}>{displayName}</Text>
-          {profile.username && (
-            <Text style={[styles.username, { color: theme.colors.textSecondary }]}>
-              @{profile.username}
-            </Text>
-          )}
-          <Text style={[styles.title, { color: theme.colors.text, marginTop: 20 }]}>
-            You're already connected
-          </Text>
-          <Text style={[styles.sub, { color: theme.colors.textSecondary }]}>
-            You and {firstName} are already friends on Soundtracks.
-          </Text>
-          <TouchableOpacity
-            style={[styles.primaryBtn, { backgroundColor: theme.colors.accent }]}
-            onPress={handleClose}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.primaryBtnText}>Got it</Text>
-          </TouchableOpacity>
+          {avatar}
+          <Text style={styles.name}>{displayName}</Text>
+          {profile.username ? <Text style={styles.username}>@{profile.username}</Text> : null}
+          <Text style={[styles.title, styles.titleSpaced]}>You&apos;re already connected</Text>
+          <Text style={styles.sub}>You and {firstName} are already friends on Soundtracks.</Text>
+          <Button label="Got it" onPress={handleClose} />
         </View>
       )}
 
       {(state === "ready" || state === "sending" || state === "sent") && profile && (
         <View style={styles.content}>
-          <View style={[styles.avatarContainer, { backgroundColor: theme.colors.backgroundTertiary }]}>
-            {avatarUri ? (
-              <AppImage source={{ uri: avatarUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
-            ) : (
-              <Text style={[styles.initials, { color: theme.colors.textTertiary }]}>{initials}</Text>
-            )}
-          </View>
+          {avatar}
 
-          <Text style={[styles.name, { color: theme.colors.text }]}>{displayName}</Text>
-          {profile.username && (
-            <Text style={[styles.username, { color: theme.colors.textSecondary }]}>
-              @{profile.username}
-            </Text>
-          )}
+          <Text style={styles.name}>{displayName}</Text>
+          {profile.username ? <Text style={styles.username}>@{profile.username}</Text> : null}
 
-          <Text style={[styles.headline, { color: theme.colors.text }]}>
-            {firstName} invited you to connect on Soundtracks
-          </Text>
-          <Text style={[styles.sub, { color: theme.colors.textSecondary }]}>
-            Share music memories with friends. Once you're connected, you can send moments straight to each other.
+          <Text style={styles.headline}>{firstName} invited you to connect on Soundtracks</Text>
+          <Text style={styles.sub}>
+            Share music memories with friends. Once you&apos;re connected, you can send moments straight to each other.
           </Text>
 
-          {error ? (
-            <Text style={[styles.errorText, { color: theme.colors.destructive }]}>{error}</Text>
-          ) : null}
+          {error ? <Text style={styles.errorText} accessibilityRole="alert">{error}</Text> : null}
 
           {state === "sent" ? (
-            <View style={[styles.sentBadge, { backgroundColor: theme.colors.accentBg }]}>
-              <Text style={[styles.sentText, { color: theme.colors.accent }]}>
-                You're now friends! 🎉
-              </Text>
+            <View style={styles.sentRow} accessibilityLiveRegion="polite">
+              <Ionicons name="checkmark-circle" size={20} color={theme.colors.success} />
+              <Text style={styles.sentText}>You&apos;re now friends</Text>
             </View>
           ) : (
-            <TouchableOpacity
-              style={[
-                styles.primaryBtn,
-                { backgroundColor: theme.colors.accent },
-                state === "sending" && styles.btnDisabled,
-              ]}
+            <Button
+              label={`Connect with ${firstName}`}
               onPress={handleConnect}
-              disabled={state === "sending"}
-              activeOpacity={0.85}
-            >
-              {state === "sending" ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.primaryBtnText}>Connect with {firstName}</Text>
-              )}
-            </TouchableOpacity>
+              loading={state === "sending"}
+            />
           )}
 
-          <TouchableOpacity onPress={handleClose} style={styles.notNowBtn} activeOpacity={0.7}>
-            <Text style={[styles.notNowText, { color: theme.colors.textSecondary }]}>Not Now</Text>
-          </TouchableOpacity>
+          <Button
+            label="Not now"
+            variant="text"
+            tone="secondary"
+            fullWidth
+            onPress={handleClose}
+            style={styles.notNow}
+          />
         </View>
       )}
     </View>
@@ -275,15 +214,7 @@ export default function FriendInviteScreen() {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    container: { flex: 1 },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "flex-end",
-      paddingTop: 60,
-      paddingHorizontal: theme.spacing.xl,
-      paddingBottom: 8,
-    },
+    container: { flex: 1, backgroundColor: theme.colors.background },
     center: {
       flex: 1,
       alignItems: "center",
@@ -294,7 +225,7 @@ function createStyles(theme: Theme) {
       flex: 1,
       alignItems: "center",
       paddingHorizontal: theme.spacing.xl,
-      paddingTop: 24,
+      paddingTop: theme.spacing["2xl"],
     },
     avatarContainer: {
       width: 96,
@@ -303,78 +234,71 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       justifyContent: "center",
       overflow: "hidden",
-      marginBottom: 16,
+      marginBottom: theme.spacing.lg,
+      backgroundColor: theme.colors.backgroundTertiary,
     },
     initials: {
+      ...theme.typography.title,
       fontSize: 36,
-      fontFamily: theme.fonts.bodyBold,
+      lineHeight: 42,
+      color: theme.colors.textSecondary,
     },
     name: {
-      fontSize: theme.fontSize.xl,
-      fontFamily: theme.fonts.display,
+      ...theme.typography.title,
+      color: theme.colors.text,
       textAlign: "center",
     },
     username: {
-      fontSize: theme.fontSize.base,
-      marginTop: 4,
-      marginBottom: 24,
+      ...theme.typography.body,
+      color: theme.colors.textSecondary,
+      marginTop: theme.spacing.xs,
     },
     headline: {
+      ...theme.typography.bodyStrong,
       fontSize: theme.fontSize.lg,
-      fontFamily: theme.fonts.bodySemibold,
+      lineHeight: 24,
+      color: theme.colors.text,
       textAlign: "center",
-      marginBottom: 10,
+      marginTop: theme.spacing["2xl"],
+      marginBottom: theme.spacing.sm + 2,
     },
     title: {
-      fontSize: theme.fontSize.xl,
-      fontFamily: theme.fonts.bodySemibold,
+      ...theme.typography.title,
+      color: theme.colors.text,
       textAlign: "center",
-      marginBottom: 8,
+      marginBottom: theme.spacing.sm,
+    },
+    titleSpaced: {
+      marginTop: theme.spacing.xl,
     },
     sub: {
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
-      textAlign: "center",
       lineHeight: 20,
-      marginBottom: 32,
+      color: theme.colors.textSecondary,
+      textAlign: "center",
+      marginBottom: theme.spacing["3xl"],
     },
     errorText: {
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
+      color: theme.colors.destructive,
       textAlign: "center",
-      marginBottom: 12,
+      marginBottom: theme.spacing.md,
     },
-    primaryBtn: {
-      width: "100%",
-      height: 52,
-      borderRadius: theme.radii.button,
+    sentRow: {
+      flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 12,
-    },
-    primaryBtnText: {
-      color: "#fff",
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-    },
-    btnDisabled: {
-      opacity: 0.6,
-    },
-    sentBadge: {
-      width: "100%",
-      paddingHorizontal: 24,
-      paddingVertical: 14,
-      borderRadius: theme.radii.md,
-      alignItems: "center",
-      marginBottom: 12,
+      gap: theme.spacing.sm,
+      minHeight: 52,
     },
     sentText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+      ...theme.typography.bodyStrong,
+      color: theme.colors.text,
     },
-    notNowBtn: {
-      padding: 12,
-    },
-    notNowText: {
-      fontSize: theme.fontSize.sm,
+    notNow: {
+      marginTop: theme.spacing.xs,
     },
   });
 }

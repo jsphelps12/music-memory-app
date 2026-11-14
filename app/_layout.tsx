@@ -403,14 +403,31 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="artist"
+            // Full screen, not pushed: it opens from the moment overlay (a
+            // transparentModal), and iOS presents anything pushed over a
+            // modal as a page-sheet card, which CLAUDE.md bans. Back is the
+            // ScreenHeader chevron.
             options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="song"
+            // Full screen, not pushed: it opens from the moment overlay (a
+            // transparentModal), and iOS presents anything pushed over a
+            // modal as a page-sheet card, which CLAUDE.md bans. Back is the
+            // ScreenHeader chevron.
             options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="album"
+            // Full screen, not pushed: it opens from the moment overlay (a
+            // transparentModal), and iOS presents anything pushed over a
+            // modal as a page-sheet card, which CLAUDE.md bans. Back is the
+            // ScreenHeader chevron.
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
+          />
+          <Stack.Screen
+            name="share-card"
+            // fullScreenModal: it opens from the moment overlay (a transparentModal), where a card push renders as a page sheet.
             options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
@@ -419,7 +436,9 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="profile-edit"
-            options={{ headerShown: false, presentation: "fullScreenModal" }}
+            // Pushed, not presented (design sweep, 2026-11): you drill into it
+            // from You/Settings, so it gets the back chevron and edge swipe.
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="join"
@@ -427,7 +446,9 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="friends-list"
-            options={{ headerShown: false, presentation: "fullScreenModal" }}
+            // Pushed, not presented (design sweep, 2026-11): you drill into it
+            // from You/Settings, so it gets the back chevron and edge swipe.
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="friend/[token]"
@@ -463,7 +484,8 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="moments-map"
-            options={{ headerShown: false, gestureEnabled: false }}
+            // Edge swipe only (the native default), so map pans keep working.
+            options={{ headerShown: false }}
           />
         </Stack>
       </AuthGate>

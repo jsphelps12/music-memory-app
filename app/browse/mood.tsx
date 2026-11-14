@@ -40,9 +40,6 @@ export default function MoodScreen() {
     ?? [...MOODS, ...(profile?.customMoods ?? [])].find((m) => m.value === activeMood)?.label
     ?? activeMood;
 
-  // BrowseScreen has no error slot, and an empty list would claim there's
-  // nothing here.
-
   return (
     <BrowseScreen
       title={label}

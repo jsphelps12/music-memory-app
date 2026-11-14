@@ -16,10 +16,12 @@ import { usePlayer } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { MOODS } from "@/constants/Moods";
+import { moodWords } from "@/lib/moodLabels";
+import { Button } from "@/components/Button";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { AppImage } from "@/components/AppImage";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { ErrorState } from "@/components/ErrorState";
-import { IconButton } from "@/components/IconButton";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { getPublicPhotoUrl, momentCardImageUrls } from "@/lib/storage";
 import { friendlyError } from "@/lib/errors";
@@ -98,13 +100,12 @@ export default function SharedMomentLinkScreen() {
   const photoUrls = useMemo(() => (moment?.photoUrls ?? []).map(getPublicPhotoUrl), [moment?.photoUrls]);
   const stripUrls = useMemo(() => (moment ? momentCardImageUrls(moment) : []), [moment]);
 
-  const moodLabels = useMemo(() => {
-    if (!moment) return [];
-    // The sender's custom moods aren't readable here, so only built-in moods
-    // get a label; their custom ones are left out rather than shown as ids.
-    return moment.moods
-      .map((value) => MOODS.find((m) => m.value === value)?.label)
-      .filter((label): label is string => !!label);
+  // The sender's custom moods aren't readable here, so only built-in moods
+  // get a label; their custom ones are left out rather than shown as ids.
+  const moodLine = useMemo(() => {
+    if (!moment) return "";
+    const builtIn = moment.moods.filter((value) => MOODS.some((m) => m.value === value));
+    return moodWords(builtIn, MOODS, Infinity);
   }, [moment]);
 
   const senderName = moment?.senderName ?? "A friend";
@@ -150,11 +151,7 @@ export default function SharedMomentLinkScreen() {
     return parts.join(" · ");
   };
 
-  const header = (
-    <View style={[styles.header, { paddingTop: insets.top }]}>
-      <IconButton name="chevron-back" onPress={close} accessibilityLabel="Back" />
-    </View>
-  );
+  const header = <ScreenHeader onLeadingPress={close} style={styles.header} />;
 
   if (state === "loading") {
     return (
@@ -258,9 +255,7 @@ export default function SharedMomentLinkScreen() {
           </View>
         ) : null}
 
-        {moodLabels.length > 0 ? (
-          <Text style={styles.moodWords}>{moodLabels.join(" · ").toUpperCase()}</Text>
-        ) : null}
+        {moodLine ? <Text style={styles.moodWords}>{moodLine}</Text> : null}
 
         {stripUrls.length > 1 ? (
           <ScrollView
@@ -284,18 +279,14 @@ export default function SharedMomentLinkScreen() {
         ) : null}
 
         {moment.senderFriendToken ? (
-          <TouchableOpacity
+          <Button
+            label={`Add ${senderName} as a friend`}
+            icon="person-add-outline"
             style={styles.friendButton}
-            activeOpacity={0.8}
             onPress={() =>
               router.push({ pathname: "/friend/[token]" as any, params: { token: moment.senderFriendToken! } })
             }
-          >
-            <Ionicons name="person-add-outline" size={16} color={theme.colors.buttonText} />
-            <Text style={styles.friendButtonText} numberOfLines={1}>
-              Add {senderName} as a friend
-            </Text>
-          </TouchableOpacity>
+          />
         ) : null}
       </ScrollView>
 
@@ -316,9 +307,6 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.background,
     },
     header: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: theme.spacing.sm,
       paddingBottom: theme.spacing.xs,
     },
     center: {
@@ -361,8 +349,7 @@ function createStyles(theme: Theme) {
       borderRadius: theme.radii.md,
     },
     songTitle: {
-      fontFamily: theme.fonts.display,
-      fontSize: theme.fontSize["2xl"],
+      ...theme.typography.headline,
       color: theme.colors.text,
       marginTop: theme.spacing.xl,
     },
@@ -411,10 +398,9 @@ function createStyles(theme: Theme) {
       lineHeight: 28,
       color: theme.colors.text,
     },
+    // Moods are words: Meta, sentence case, Umber Gray.
     moodWords: {
-      fontSize: theme.fontSize.xs,
-      fontFamily: theme.fonts.bodySemibold,
-      letterSpacing: 1,
+      ...theme.typography.meta,
       color: theme.colors.textTertiary,
       marginTop: theme.spacing.xl,
     },
@@ -432,20 +418,7 @@ function createStyles(theme: Theme) {
       borderRadius: theme.radii.sm,
     },
     friendButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: theme.spacing.sm,
       marginTop: theme.spacing["3xl"],
-      paddingVertical: theme.spacing.md,
-      paddingHorizontal: theme.spacing.lg,
-      borderRadius: theme.radii.button,
-      backgroundColor: theme.colors.buttonBg,
-    },
-    friendButtonText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.buttonText,
     },
   });
 }

@@ -1,13 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePostHog } from "posthog-react-native";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Platform,
-} from "react-native";
+import { View, Text, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -19,12 +13,14 @@ import { registerForPushNotifications } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { Moment } from "@/types";
+import { Button } from "@/components/Button";
 
 export default function OnboardingCelebrationScreen() {
   const router = useRouter();
   const { completeOnboarding, profile, user } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
   const posthog = usePostHog();
   const { moment1Id, moment2Id } = useLocalSearchParams<{ moment1Id: string; moment2Id: string }>();
 
@@ -56,7 +52,7 @@ export default function OnboardingCelebrationScreen() {
 
   const subtitle =
     momentCount === 0
-      ? "Your timeline is ready. Start adding memories anytime."
+      ? "Your journal is ready. Start adding memories anytime."
       : momentCount === 1
       ? "One memory saved. Your soundtrack has begun."
       : "Two memories saved. Welcome.";
@@ -91,123 +87,101 @@ export default function OnboardingCelebrationScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.iconCircle}>
-          <Ionicons name="musical-note" size={36} color={theme.colors.accent} />
-        </View>
-        <Text style={styles.heading}>Your soundtrack starts here.</Text>
+      <View style={[styles.content, { paddingTop: insets.top + theme.spacing["3xl"] }]}>
+        <Ionicons name="musical-notes-outline" size={36} color={theme.colors.textSecondary} style={styles.icon} />
+        <Text style={styles.heading} accessibilityRole="header">Your soundtrack starts here.</Text>
         <Text style={styles.sub}>{subtitle}</Text>
 
         {celebrationMoments.length > 0 && (
           <View style={styles.moments}>
             {celebrationMoments.map((m) => (
-              <CelebrationMomentCard key={m.id} moment={m} theme={theme} />
+              <CelebrationEntryRow key={m.id} moment={m} theme={theme} />
             ))}
           </View>
         )}
       </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
 
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.primaryButton, { backgroundColor: theme.colors.buttonBg, opacity: saving ? 0.7 : 1 }]}
-          onPress={handleFinish}
-          activeOpacity={0.8}
-          disabled={saving}
-        >
-          {saving ? (
-            <ActivityIndicator color={theme.colors.buttonText} />
-          ) : (
-            <Text style={[styles.primaryButtonText, { color: theme.colors.buttonText }]}>Go to my timeline →</Text>
-          )}
-        </TouchableOpacity>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + theme.spacing.lg }]}>
+        <Button label="Go to my journal" onPress={handleFinish} loading={saving} />
       </View>
     </View>
   );
 }
 
-function CelebrationMomentCard({ moment, theme }: { moment: Moment; theme: Theme }) {
-  const cardStyles = useMemo(() => createCardStyles(theme), [theme]);
+// The saved entries as Journal rows: hairlines, the reflection in Newsreader,
+// people as words.
+function CelebrationEntryRow({ moment, theme }: { moment: Moment; theme: Theme }) {
+  const rowStyles = useMemo(() => createRowStyles(theme), [theme]);
   return (
-    <View style={cardStyles.card}>
-      <View style={cardStyles.row}>
-        {moment.songArtworkUrl ? (
-          <AppImage source={{ uri: moment.songArtworkUrl }} style={cardStyles.artwork} contentFit="cover" />
-        ) : (
-          <View style={cardStyles.artworkPlaceholder}>
-            <Ionicons name="musical-note" size={20} color={theme.colors.textTertiary} />
-          </View>
-        )}
-        <View style={cardStyles.info}>
-          <Text style={cardStyles.songName} numberOfLines={1}>
-            {moment.songTitle}
-          </Text>
-          <Text style={cardStyles.artist} numberOfLines={1}>
-            {moment.songArtist}
-          </Text>
+    <View style={rowStyles.row}>
+      {moment.songArtworkUrl ? (
+        <AppImage source={{ uri: moment.songArtworkUrl }} style={rowStyles.artwork} contentFit="cover" />
+      ) : (
+        <View style={rowStyles.artworkPlaceholder}>
+          <Ionicons name="musical-note" size={20} color={theme.colors.textSecondary} />
         </View>
-      </View>
-      {Boolean(moment.reflectionText) && (
-        <Text style={cardStyles.reflection} numberOfLines={2}>
-          {moment.reflectionText}
+      )}
+      <View style={rowStyles.info}>
+        <Text style={rowStyles.songName} numberOfLines={1}>
+          {moment.songTitle}
+          <Text style={rowStyles.artist}>{`  ${moment.songArtist}`}</Text>
         </Text>
-      )}
-      {moment.people.length > 0 && (
-        <View style={cardStyles.chips}>
-          {moment.people.slice(0, 3).map((p) => (
-            <View key={p} style={cardStyles.chip}>
-              <Text style={cardStyles.chipText}>@ {p}</Text>
-            </View>
-          ))}
-        </View>
-      )}
+        {Boolean(moment.reflectionText) && (
+          <Text style={rowStyles.reflection} numberOfLines={2}>
+            {moment.reflectionText}
+          </Text>
+        )}
+        {moment.people.length > 0 && (
+          <Text style={rowStyles.meta} numberOfLines={1}>
+            With {moment.people.slice(0, 3).join(", ")}
+          </Text>
+        )}
+      </View>
     </View>
   );
 }
 
-function createCardStyles(theme: Theme) {
+function createRowStyles(theme: Theme) {
   return StyleSheet.create({
-    card: {
-      borderWidth: 1,
-      borderRadius: theme.radii.md,
-      padding: 14,
-      gap: theme.spacing.sm,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.cardBg,
+    row: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: theme.spacing.md,
+      paddingVertical: theme.spacing.lg,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
     },
-    row: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-    artwork: { width: 44, height: 44, borderRadius: theme.radii.sm },
+    artwork: { width: 48, height: 48, borderRadius: theme.radii.sm },
     artworkPlaceholder: {
-      width: 44,
-      height: 44,
+      width: 48,
+      height: 48,
       borderRadius: theme.radii.sm,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.colors.chipBg,
+      backgroundColor: theme.colors.artworkPlaceholder,
     },
-    info: { flex: 1 },
+    info: { flex: 1, gap: 3 },
     songName: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+      ...theme.typography.bodyStrong,
+      fontSize: theme.fontSize.callout,
       color: theme.colors.text,
-      marginBottom: 2,
     },
-    artist: { fontSize: theme.fontSize.xs, color: theme.colors.textSecondary },
-    reflection: {
-      fontSize: theme.fontSize.xs,
-      lineHeight: 18,
-      fontStyle: "italic",
+    artist: {
+      fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
     },
-    chips: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.xs + 2 },
-    chip: {
-      paddingHorizontal: theme.spacing.sm,
-      paddingVertical: 3,
-      borderRadius: theme.radii.lg,
-      backgroundColor: theme.colors.chipBg,
+    reflection: {
+      ...theme.typography.reading,
+      fontSize: theme.fontSize.callout,
+      lineHeight: 21,
+      color: theme.colors.text,
     },
-    chipText: { fontSize: theme.fontSize.xs, color: theme.colors.textSecondary },
+    meta: {
+      ...theme.typography.meta,
+      color: theme.colors.textTertiary,
+    },
   });
 }
 
@@ -220,53 +194,38 @@ function createStyles(theme: Theme) {
     content: {
       flex: 1,
       paddingHorizontal: theme.spacing.xl,
-      paddingTop: 64,
     },
-    iconCircle: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      backgroundColor: theme.colors.accentBg,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: theme.spacing["2xl"],
+    icon: {
+      marginBottom: theme.spacing.xl,
     },
     heading: {
+      ...theme.typography.headline,
       fontSize: theme.fontSize["2xl"],
-      fontFamily: theme.fonts.display,
+      lineHeight: 34,
       color: theme.colors.text,
       marginBottom: theme.spacing.sm,
     },
     sub: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.textSecondary,
+      ...theme.typography.body,
       lineHeight: 24,
+      color: theme.colors.textSecondary,
     },
     moments: {
       marginTop: theme.spacing.xl,
-      gap: 10,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
     },
     error: {
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
       color: theme.colors.destructive,
       textAlign: "center",
       marginHorizontal: theme.spacing.xl,
-      marginBottom: 8,
+      marginBottom: theme.spacing.sm,
     },
     footer: {
       paddingHorizontal: theme.spacing.xl,
-      paddingBottom: Platform.OS === "ios" ? 44 : 24,
-      paddingTop: 12,
-    },
-    primaryButton: {
-      height: 52,
-      borderRadius: theme.radii.button,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    primaryButtonText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+      paddingTop: theme.spacing.md,
     },
   });
 }

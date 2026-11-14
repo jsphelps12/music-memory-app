@@ -4,7 +4,7 @@ import { CreateAlbumSheet } from "@/components/CreateAlbumSheet";
 import {
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
   ActivityIndicator,
   FlatList,
@@ -20,6 +20,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { IconButton } from "@/components/IconButton";
+import { ScreenHeader } from "@/components/ScreenHeader";
+import { SectionLabel } from "@/components/SectionLabel";
 import { AlbumMosaic } from "@/components/AlbumMosaic";
 import { fetchAlbumsOverview } from "@/lib/albums";
 import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
@@ -29,47 +31,54 @@ import { friendlyError } from "@/lib/errors";
 import { pluralMoments } from "@/lib/utils";
 
 const GRID_GAP = 12;
-const SCREEN_PAD = 16;
+// The page gutter (theme.spacing.xl), matching ScreenHeader's title.
+const SCREEN_PAD = 20;
 const CELL_SIZE = (Dimensions.get("window").width - SCREEN_PAD * 2 - GRID_GAP) / 2;
 
 const STALE_TIME = DEFAULT_SCREEN_STALE;
+
+type Styles = ReturnType<typeof createStyles>;
 
 // ── Album cell ────────────────────────────────────────────────────────────────
 
 function AlbumCell({
   collection,
-  newCount,
+  hasNew,
   artworks,
   onPress,
-  theme,
+  styles,
 }: {
   collection: Album;
-  newCount: number;
+  hasNew: boolean;
   artworks: string[];
   onPress: () => void;
-  theme: any;
+  styles: Styles;
 }) {
   return (
-    <TouchableOpacity style={styles.cell} onPress={onPress} activeOpacity={0.85}>
+    <Pressable
+      style={({ pressed }) => [styles.cell, pressed && styles.pressed]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={hasNew ? `${collection.name}, new moments` : collection.name}
+    >
       <View style={styles.cellArt}>
         <AlbumMosaic coverPhotoPath={collection.coverPhotoUrl} artworks={artworks} style={StyleSheet.absoluteFill} />
-        {newCount > 0 && (
-          <View style={[styles.newBadge, { backgroundColor: theme.colors.accent }]}>
-            <Text style={[styles.newBadgeText, { fontFamily: theme.fonts.bodyBold }]}>{newCount} new</Text>
-          </View>
-        )}
       </View>
-      <Text style={[styles.cellName, { color: theme.colors.text, fontFamily: theme.fonts.bodySemibold }]} numberOfLines={1}>
-        {collection.name}
-      </Text>
-      <Text style={[styles.cellSub, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+      <View style={styles.cellNameRow}>
+        <Text style={styles.cellName} numberOfLines={1}>
+          {collection.name}
+        </Text>
+        {/* New activity is a dot, never a count (DESIGN.md). */}
+        {hasNew ? <View style={styles.newDot} /> : null}
+      </View>
+      <Text style={styles.cellSub} numberOfLines={1}>
         {collection.role === "member" && collection.ownerName
           ? `by ${collection.ownerName} · ${pluralMoments(collection.momentCount)}`
           : collection.isPublic
           ? `Shared · ${pluralMoments(collection.momentCount)}`
           : pluralMoments(collection.momentCount)}
       </Text>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
@@ -83,7 +92,7 @@ export default function AlbumsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const theme = useTheme();
-  const dynamicStyles = useMemo(() => createStyles(theme), [theme]);
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const queryClient = useQueryClient();
 
   const [newAlbumVisible, setNewAlbumVisible] = useState(false);
@@ -131,13 +140,13 @@ export default function AlbumsScreen() {
   const listData = useMemo<SectionItem[]>(() => {
     const rows: SectionItem[] = [];
     if (personalAlbums.length > 0) {
-      rows.push({ type: "sectionHeader", label: "MY ALBUMS" });
+      rows.push({ type: "sectionHeader", label: "My albums" });
       for (let i = 0; i < personalAlbums.length; i += 2) {
         rows.push({ type: "row", items: personalAlbums.slice(i, i + 2) });
       }
     }
     if (sharedAlbums.length > 0) {
-      rows.push({ type: "sectionHeader", label: "SHARED" });
+      rows.push({ type: "sectionHeader", label: "Shared" });
       for (let i = 0; i < sharedAlbums.length; i += 2) {
         rows.push({ type: "row", items: sharedAlbums.slice(i, i + 2) });
       }
@@ -147,53 +156,59 @@ export default function AlbumsScreen() {
 
   const renderItem = useCallback(({ item }: { item: SectionItem }) => {
     if (item.type === "sectionHeader") {
-      return (
-        <Text style={[dynamicStyles.sectionLabel, { color: theme.colors.textTertiary }]}>
-          {item.label}
-        </Text>
-      );
+      return <SectionLabel style={styles.sectionLabel}>{item.label}</SectionLabel>;
     }
 
     return (
-      <View style={dynamicStyles.gridRow}>
+      <View style={styles.gridRow}>
         {item.items.map((col) => (
           <AlbumCell
             key={col.id}
             collection={col}
-            newCount={newCounts[col.id] ?? 0}
+            hasNew={(newCounts[col.id] ?? 0) > 0}
             artworks={artworkMap[col.id] ?? []}
             onPress={() => handleTapAlbum(col)}
-            theme={theme}
+            styles={styles}
           />
         ))}
         {item.items.length === 1 && <View style={styles.cell} />}
       </View>
     );
-  }, [newCounts, artworkMap, dynamicStyles, theme, handleTapAlbum]);
+  }, [newCounts, artworkMap, styles, handleTapAlbum]);
+
+  // A pushed screen since Phase 1 moved albums out of the tab bar and into
+  // You, so it gets a back chevron.
+  const header = (
+    <ScreenHeader
+      title="Albums"
+      leading="back"
+      right={
+        <IconButton
+          name="add"
+          onPress={() => setNewAlbumVisible(true)}
+          accessibilityLabel="New album"
+        />
+      }
+    />
+  );
 
   if (isLoading) {
     return (
-      <View style={[dynamicStyles.container, dynamicStyles.center]}>
-        <ActivityIndicator color={theme.colors.textSecondary} />
+      <View style={styles.container}>
+        {header}
+        <View style={styles.center}>
+          <ActivityIndicator color={theme.colors.textSecondary} />
+        </View>
       </View>
     );
   }
 
   return (
-    <View style={[dynamicStyles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      {/* A pushed screen since Phase 1 moved albums out of the tab bar and
-          into You, so it gets a back button. */}
-      <View style={[dynamicStyles.header, { borderBottomColor: theme.colors.divider }]}>
-        <View style={dynamicStyles.headerLeft}>
-          <IconButton name="chevron-back" onPress={() => router.back()} />
-          <Text style={[dynamicStyles.headerTitle, { color: theme.colors.text }]}>Albums</Text>
-        </View>
-        <IconButton name="add-outline" onPress={() => setNewAlbumVisible(true)} />
-      </View>
+    <View style={styles.container}>
+      {header}
 
       {showBanner ? (
-        <View style={dynamicStyles.bannerWrap}>
+        <View style={styles.bannerWrap}>
           <ErrorBanner
             message={friendlyError(error)}
             onRetry={() => refetch()}
@@ -215,7 +230,7 @@ export default function AlbumsScreen() {
         <FlatList
           data={listData}
           keyExtractor={(item, i) => `${item.type}-${i}`}
-          contentContainerStyle={dynamicStyles.listContent}
+          contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} tintColor={theme.colors.textSecondary} />
@@ -235,132 +250,61 @@ export default function AlbumsScreen() {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    container: { flex: 1 },
-    center: { alignItems: "center", justifyContent: "center" },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingTop: 56,
-      paddingBottom: 12,
-      paddingHorizontal: SCREEN_PAD,
-      borderBottomWidth: StyleSheet.hairlineWidth,
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
     },
-    headerLeft: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-    },
-    headerTitle: {
-      fontSize: 30,
-      fontFamily: theme.fonts.display,
-    },
+    center: { flex: 1, alignItems: "center", justifyContent: "center" },
     bannerWrap: {
       paddingHorizontal: SCREEN_PAD,
       paddingTop: theme.spacing.sm,
     },
     listContent: {
       paddingHorizontal: SCREEN_PAD,
-      paddingTop: 16,
-      paddingBottom: 40,
-      gap: 0,
+      paddingBottom: theme.spacing["4xl"],
     },
     sectionLabel: {
-      fontSize: 10,
-      fontFamily: theme.fonts.bodyBold,
-      textTransform: "uppercase",
-      letterSpacing: 1.2,
-      marginTop: 20,
-      marginBottom: 10,
+      marginTop: theme.spacing.md,
+      marginBottom: theme.spacing.sm,
     },
     gridRow: {
       flexDirection: "row",
       gap: GRID_GAP,
-      marginBottom: GRID_GAP,
+      marginBottom: theme.spacing.xl,
     },
-    // Invite card
-    inviteCard: {
-      borderRadius: theme.radii.md,
-      borderWidth: StyleSheet.hairlineWidth,
+    cell: {
+      width: CELL_SIZE,
+    },
+    pressed: { opacity: 0.8 },
+    cellArt: {
+      width: CELL_SIZE,
+      height: CELL_SIZE,
+      borderRadius: theme.radii.sm,
       overflow: "hidden",
-      marginBottom: 8,
+      backgroundColor: theme.colors.artworkPlaceholder,
     },
-    inviteRow: {
+    cellNameRow: {
       flexDirection: "row",
       alignItems: "center",
-      padding: 12,
-      gap: 10,
+      gap: 6,
+      marginTop: theme.spacing.sm,
     },
-    inviteIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: 8,
-      alignItems: "center",
-      justifyContent: "center",
+    cellName: {
+      ...theme.typography.bodyStrong,
+      fontSize: theme.fontSize.callout,
+      color: theme.colors.text,
+      flexShrink: 1,
     },
-    inviteName: {
-      fontSize: 14,
-      fontFamily: theme.fonts.bodySemibold,
+    newDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: theme.colors.accent, // design-lint-ignore: the 8px new-activity dot
     },
-    inviteSub: {
-      fontSize: 12,
-      marginTop: 1,
-    },
-    inviteActions: {
-      flexDirection: "row",
-      gap: 8,
-    },
-    inviteBtn: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 14,
-      borderWidth: 1,
-      alignItems: "center",
-    },
-    inviteBtnAccept: {
-      borderWidth: 0,
-    },
-    inviteBtnText: {
-      fontSize: 13,
-      fontFamily: theme.fonts.bodySemibold,
+    cellSub: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+      marginTop: 2,
     },
   });
 }
-
-const styles = StyleSheet.create({
-  cell: {
-    width: CELL_SIZE,
-  },
-  cellArt: {
-    width: CELL_SIZE,
-    height: CELL_SIZE,
-    borderRadius: 10,
-    overflow: "hidden",
-    backgroundColor: "#333",
-  },
-  cellPlaceholderInner: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  newBadge: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  newBadgeText: {
-    color: "#fff",
-    fontSize: 10,
-  },
-  cellName: {
-    fontSize: 13,
-    marginTop: 7,
-  },
-  cellSub: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-});

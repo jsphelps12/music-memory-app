@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
-  FlatList,
+  Pressable,
   ActivityIndicator,
   Share,
   StyleSheet,
@@ -13,24 +12,19 @@ import {
   LayoutAnimation,
   UIManager,
 } from "react-native";
-import ViewShot from "react-native-view-shot";
-import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { usePostHog } from "posthog-react-native";
 import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import * as Clipboard from "expo-clipboard";
 import { AppImage } from "@/components/AppImage";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ConfirmSheetHost, confirmSheet } from "@/components/ConfirmSheet";
-import {
-  ShareCard,
-  ShareCardVariant,
-  CARD_WIDTH,
-  CARD_HEIGHT_POST,
-  CARD_HEIGHT_STORY,
-} from "@/components/ShareCard";
+import { Button } from "@/components/Button";
+import { Chip } from "@/components/Chip";
+import { SectionLabel } from "@/components/SectionLabel";
 import { fetchFriends } from "@/lib/friends";
 import {
   ensureShareToken,
@@ -45,9 +39,11 @@ import { fetchAlbumIdsContainingMoment } from "@/lib/albums";
 import { fetchAlbums, removeMomentFromAlbum } from "@/lib/albums";
 import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { getPublicPhotoUrl } from "@/lib/storage";
+import { setShareCardData } from "@/lib/shareCardStore";
 import { friendlyError } from "@/lib/errors";
 import { Friendship, PartialMoment } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
+import { Theme } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -74,25 +70,41 @@ interface Props {
 // Sharing v2 Phase D (docs/SOCIAL-ARCHITECTURE.md "Surfaces"): the one social
 // surface — three verbs (Send to a person · Add to album · Share a link) plus
 // honest state: a "Shared with" chip per person/album/link grant, each
-// removable. The share card export lives inside the link flow.
+// removable.
+//
+// Design sweep (2026-11): one compact list instead of three stacked views.
+// The friend picker opens in place under "Send to a person", the link row
+// sends (or creates) the link directly with Copy beside it, and "Link is
+// live" is a removable chip like the other grants. The share card previews a
+// full-size image, so it is its own screen (app/share-card.tsx), not a view
+// in here.
+
+// BottomSheet closes in 220ms and then unmounts its Modal; iOS won't present
+// a new screen over a Modal that is still closing, so the card waits this long.
+const SHEET_CLOSE_MS = 300;
+
 export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToAlbum }: Props) {
   const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const { user, profile } = useAuth();
   const posthog = usePostHog();
   const queryClient = useQueryClient();
-  const viewShotRef = useRef<ViewShot>(null);
-  const [view, setView] = useState<"options" | "person" | "link" | "card">("options");
+  const router = useRouter();
+  const [personOpen, setPersonOpen] = useState(false);
 
   const isOwner = !!user && moment.userId === user.id;
 
   const handleClose = useCallback(() => {
-    setView("options");
+    setPersonOpen(false);
     onClose();
   }, [onClose]);
 
-  const goTo = (next: "options" | "person" | "link" | "card") => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setView(next);
+  // The card is a full screen: hand the moment over, close the sheet, then
+  // navigate once its Modal is gone.
+  const handleOpenCard = () => {
+    setShareCardData({ moment, photoUrls });
+    handleClose();
+    setTimeout(() => router.push("/share-card"), SHEET_CLOSE_MS);
   };
 
   // ── Link state ────────────────────────────────────────────────────────
@@ -111,11 +123,6 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   const [friendsError, setFriendsError] = useState("");
   const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
   const friendsLoadedRef = useRef(false);
-
-  // ── Card export ───────────────────────────────────────────────────────
-  const [cardVariant, setCardVariant] = useState<ShareCardVariant>("post");
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [sharing, setSharing] = useState(false);
 
   // Per-moment state resets when the sheet is reused for another moment.
   useEffect(() => {
@@ -230,9 +237,11 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     }
   };
 
-  const openPersonView = () => {
-    goTo("person");
-    if (friendsLoadedRef.current || !user) return;
+  const togglePerson = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    const opening = !personOpen;
+    setPersonOpen(opening);
+    if (!opening || friendsLoadedRef.current || !user) return;
     friendsLoadedRef.current = true;
     setFriendsLoading(true);
     setFriendsError("");
@@ -311,399 +320,241 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     }
   };
 
-  // ── Card export ───────────────────────────────────────────────────────
-  const handleShareCard = async () => {
-    if (sharing) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setSharing(true);
-    try {
-      const uri = await (viewShotRef.current as any).capture({
-        format: "png",
-        quality: 1.0,
-        result: "tmpfile",
-      });
-      await Sharing.shareAsync(uri, {
-        mimeType: "image/png",
-        dialogTitle: "Share Moment",
-        UTI: "public.png",
-      });
-    } catch {
-      // User cancelled or capture failed — silent
-    } finally {
-      setSharing(false);
-    }
-  };
-
   const songSubtitle = [moment.songTitle, moment.songArtist].filter(Boolean).join(" · ");
-  const cardHeight = cardVariant === "story" ? CARD_HEIGHT_STORY : CARD_HEIGHT_POST;
-
-  const sheetTitle =
-    view === "options"
-      ? "Share this moment"
-      : view === "person"
-        ? "Send to a person"
-        : view === "link"
-          ? "Share a link"
-          : "Share card";
 
   const hasChips = peopleGrants.length > 0 || albumGrants.length > 0 || !!shareToken;
 
-  const renderBack = (to: "options" | "link") => (
-    <TouchableOpacity onPress={() => goTo(to)} hitSlop={12} activeOpacity={0.7} style={styles.backButton}>
-      <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
-    </TouchableOpacity>
+  const optionRow = ({
+    icon,
+    title,
+    desc,
+    onPress,
+    trailing,
+    loading = false,
+    expanded,
+  }: {
+    icon: keyof typeof Ionicons.glyphMap;
+    title: string;
+    desc: string;
+    onPress: () => void;
+    trailing?: ReactNode;
+    loading?: boolean;
+    /** Set for a row that opens in place (chevron down/up, not forward). */
+    expanded?: boolean;
+  }) => (
+    <Pressable
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      onPress={onPress}
+      disabled={loading}
+      accessibilityRole="button"
+      accessibilityState={expanded === undefined ? undefined : { expanded }}
+    >
+      <View style={styles.rowIcon}>
+        {loading ? (
+          <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+        ) : (
+          <Ionicons name={icon} size={22} color={theme.colors.text} />
+        )}
+      </View>
+      <View style={styles.rowText}>
+        <Text style={styles.rowTitle}>{title}</Text>
+        <Text style={styles.rowDesc}>{desc}</Text>
+      </View>
+      {trailing ?? (
+        <Ionicons
+          name={expanded === undefined ? "chevron-forward" : expanded ? "chevron-up" : "chevron-down"}
+          size={16}
+          color={theme.colors.textSecondary}
+        />
+      )}
+    </Pressable>
   );
 
-  const optionRow = (
-    icon: keyof typeof Ionicons.glyphMap,
-    title: string,
-    desc: string,
-    onPress: () => void
-  ) => (
-    <TouchableOpacity style={styles.optionRow} activeOpacity={0.7} onPress={onPress}>
-      <View style={[styles.iconBox, { backgroundColor: theme.colors.accent + "20" }]}>
-        <Ionicons name={icon} size={20} color={theme.colors.accent} />
-      </View>
-      <View style={styles.optionText}>
-        <Text style={[styles.optionTitle, { color: theme.colors.text }]}>{title}</Text>
-        <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>{desc}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-    </TouchableOpacity>
+  const personList = friendsLoading ? (
+    <View style={styles.personState}>
+      <ActivityIndicator color={theme.colors.textSecondary} />
+    </View>
+  ) : friendsError ? (
+    <View style={styles.personState}>
+      <Text style={styles.personStateText}>{friendsError}</Text>
+    </View>
+  ) : friends.length === 0 ? (
+    // An empty picker is the moment someone actually *wants* a friend here —
+    // so offer the invite inline instead of describing an errand on another
+    // screen.
+    <View style={styles.personState}>
+      <Text style={styles.personStateText}>
+        Nobody here yet. Send someone your link — once they open it you can send
+        moments straight to each other.
+      </Text>
+      <Button
+        label="Share your friend link"
+        variant="secondary"
+        size="pill"
+        onPress={handleShareFriendLink}
+        style={styles.personInvite}
+      />
+    </View>
+  ) : (
+    friends.map((friendship) => {
+      const sent = sentIds.has(friendship.otherUserId);
+      const sending = sendingIds.has(friendship.otherUserId);
+      const initials = (friendship.otherUserDisplayName ?? "?")[0]?.toUpperCase() ?? "?";
+      return (
+        <Pressable
+          key={friendship.id}
+          style={({ pressed }) => [styles.personRow, pressed && styles.pressed]}
+          onPress={() => handleSendToFriend(friendship)}
+          disabled={sent || sending}
+          accessibilityRole="button"
+          accessibilityLabel={`Send to ${friendship.otherUserDisplayName ?? "this friend"}`}
+          accessibilityState={{ disabled: sent || sending }}
+        >
+          <View style={styles.personAvatar}>
+            {friendship.otherUserAvatarUrl ? (
+              <AppImage
+                source={{ uri: getPublicPhotoUrl(friendship.otherUserAvatarUrl) }}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+              />
+            ) : (
+              <Text style={styles.personInitial}>{initials}</Text>
+            )}
+          </View>
+          <Text style={styles.personName} numberOfLines={1}>
+            {friendship.otherUserDisplayName ?? "Unknown"}
+          </Text>
+          {sending ? (
+            <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+          ) : sent ? (
+            <View style={styles.sentState}>
+              <Ionicons name="checkmark" size={16} color={theme.colors.textSecondary} />
+              <Text style={styles.sentText}>Sent</Text>
+            </View>
+          ) : (
+            <Button
+              label="Send"
+              variant="secondary"
+              size="pill"
+              onPress={() => handleSendToFriend(friendship)}
+            />
+          )}
+        </Pressable>
+      );
+    })
   );
-
-  const divider = <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />;
 
   return (
     <BottomSheet
       visible={visible}
       onClose={handleClose}
-      title={sheetTitle}
-      keyboardAvoiding
-      maxHeight="92%"
+      title="Share this moment"
     >
-      {view === "options" ? (
-        <>
-          {!!songSubtitle && (
-            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-              {songSubtitle}
-            </Text>
-          )}
+      <ScrollView
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        {!!songSubtitle && (
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {songSubtitle}
+          </Text>
+        )}
 
-          {/* The three verbs */}
-          <View style={[styles.optionCard, { backgroundColor: theme.colors.cardBg, borderColor: theme.colors.border }]}>
-            {isOwner && (
-              <>
-                {optionRow("person-add-outline", "Send to a person", "It lands in their Shared with me", openPersonView)}
-                {divider}
-              </>
-            )}
-            {onAddToAlbum && (
-              <>
-                {optionRow("albums-outline", "Add to album", "Yours, or one you share", () => {
-                  handleClose();
-                  onAddToAlbum();
-                })}
-                {divider}
-              </>
-            )}
-            {optionRow(
-              "link-outline",
-              canSendLink ? "Share a link" : "Share card",
-              canSendLink ? "Anyone with it can view — card export too" : "A designed image for posts and Stories",
-              () => goTo("link")
-            )}
-          </View>
-
-          {/* Honest state: one chip per grant, each removable */}
-          {isOwner && hasChips && (
-            <View style={styles.sharedWithSection}>
-              <Text style={[styles.sharedWithLabel, { color: theme.colors.textTertiary }]}>
-                SHARED WITH
-              </Text>
-              <View style={styles.chipsWrap}>
-                {peopleGrants.map((g) => (
-                  <TouchableOpacity
-                    key={g.shareId}
-                    style={[styles.chip, { backgroundColor: theme.colors.chipBg }]}
-                    onPress={() => handleRemovePersonGrant(g)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="person" size={11} color={theme.colors.textSecondary} />
-                    <Text style={[styles.chipText, { color: theme.colors.text }]} numberOfLines={1}>
-                      {g.name ?? "Someone"}
-                    </Text>
-                    <Ionicons name="close" size={13} color={theme.colors.textTertiary} />
-                  </TouchableOpacity>
-                ))}
-                {albumGrants.map((g) => (
-                  <TouchableOpacity
-                    key={g.id}
-                    style={[styles.chip, { backgroundColor: theme.colors.chipBg }]}
-                    onPress={() => handleRemoveAlbumGrant(g)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="albums-outline" size={11} color={theme.colors.textSecondary} />
-                    <Text style={[styles.chipText, { color: theme.colors.text }]} numberOfLines={1}>
-                      {g.name}
-                    </Text>
-                    <Ionicons name="close" size={13} color={theme.colors.textTertiary} />
-                  </TouchableOpacity>
-                ))}
-                {!!shareToken && (
-                  <TouchableOpacity
-                    style={[styles.chip, { backgroundColor: theme.colors.chipBg }]}
-                    onPress={handleRevokeLink}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="link" size={11} color={theme.colors.success} />
-                    <Text style={[styles.chipText, { color: theme.colors.text }]}>Link is live</Text>
-                    <Ionicons name="close" size={13} color={theme.colors.textTertiary} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          )}
-
-          <TouchableOpacity style={styles.cancelButton} onPress={handleClose} activeOpacity={0.7}>
-            <Text style={[styles.cancelText, { color: theme.colors.textSecondary }]}>Cancel</Text>
-          </TouchableOpacity>
-        </>
-      ) : view === "person" ? (
-        <>
-          {renderBack("options")}
-          {friendsLoading ? (
-            <View style={styles.personLoading}>
-              <ActivityIndicator color={theme.colors.textSecondary} />
-            </View>
-          ) : friendsError ? (
-            <View style={styles.personEmpty}>
-              <Text style={[styles.personEmptyText, { color: theme.colors.textSecondary }]}>{friendsError}</Text>
-            </View>
-          ) : friends.length === 0 ? (
-            // An empty picker is the moment someone actually *wants* a friend
-            // here — so offer the invite inline instead of describing an errand
-            // on another screen.
-            <View style={styles.personEmpty}>
-              <Text style={[styles.personEmptyText, { color: theme.colors.textSecondary }]}>
-                Nobody here yet. Send someone your link — once they open it you can send
-                moments straight to each other.
-              </Text>
-              <TouchableOpacity
-                style={[styles.inviteButton, { backgroundColor: theme.colors.buttonBg }]}
-                onPress={handleShareFriendLink}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.inviteButtonText, { color: theme.colors.buttonText }]}>
-                  Share your friend link
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <ScrollView
-              style={styles.personList}
-              contentContainerStyle={styles.personListContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {friends.map((friendship) => {
-                const sent = sentIds.has(friendship.otherUserId);
-                const sending = sendingIds.has(friendship.otherUserId);
-                const initials = (friendship.otherUserDisplayName ?? "?")[0]?.toUpperCase() ?? "?";
-                return (
-                  <TouchableOpacity
-                    key={friendship.id}
-                    style={styles.personRow}
-                    activeOpacity={0.7}
-                    onPress={() => handleSendToFriend(friendship)}
-                    disabled={sent || sending}
-                  >
-                    <View style={[styles.personAvatar, { backgroundColor: theme.colors.backgroundTertiary }]}>
-                      {friendship.otherUserAvatarUrl ? (
-                        <AppImage
-                          source={{ uri: getPublicPhotoUrl(friendship.otherUserAvatarUrl) }}
-                          style={StyleSheet.absoluteFill}
-                          contentFit="cover"
-                        />
-                      ) : (
-                        <Text style={[styles.personInitial, { color: theme.colors.textTertiary }]}>{initials}</Text>
-                      )}
-                    </View>
-                    <Text style={[styles.personName, { color: theme.colors.text }]} numberOfLines={1}>
-                      {friendship.otherUserDisplayName ?? "Unknown"}
-                    </Text>
-                    {sending ? (
-                      <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                    ) : sent ? (
-                      <View style={styles.sentState}>
-                        <Ionicons name="checkmark" size={16} color={theme.colors.success} />
-                        <Text style={[styles.sentText, { color: theme.colors.success }]}>Sent</Text>
-                      </View>
-                    ) : (
-                      <View style={[styles.sendButton, { backgroundColor: theme.colors.buttonBg }]}>
-                        <Text style={[styles.sendButtonText, { color: theme.colors.buttonText }]}>Send</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
+        {/* The three verbs, as rows */}
+        <View style={styles.rows}>
+          {isOwner && (
+            <>
+              {optionRow({
+                icon: "person-add-outline",
+                title: "Send to a person",
+                desc: "It lands in their Shared with me",
+                onPress: togglePerson,
+                expanded: personOpen,
               })}
-            </ScrollView>
+              {personOpen ? <View style={styles.personList}>{personList}</View> : null}
+            </>
           )}
-        </>
-      ) : view === "link" ? (
-        <>
-          {renderBack("options")}
-          <View style={[styles.optionCard, { backgroundColor: theme.colors.cardBg, borderColor: theme.colors.border }]}>
-            {/* Send / create the link. Only the owner can create one, so a
-                viewer of a moment with no link doesn't get the row at all. */}
-            {canSendLink && (
-            <TouchableOpacity style={styles.optionRow} activeOpacity={0.7} onPress={handleSendLink} disabled={sendingLink}>
-              <View style={[styles.iconBox, { backgroundColor: theme.colors.accent + "20" }]}>
-                {sendingLink
-                  ? <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                  : <Ionicons name="paper-plane-outline" size={20} color={theme.colors.accent} />
-                }
-              </View>
-              <View style={styles.optionText}>
-                <Text style={[styles.optionTitle, { color: theme.colors.text }]}>
-                  {shareToken ? "Send link" : "Create link"}
-                </Text>
-                <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>
-                  Send via text, email or anywhere
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-            </TouchableOpacity>
-            )}
+          {onAddToAlbum &&
+            optionRow({
+              icon: "albums-outline",
+              title: "Add to album",
+              desc: "Yours, or one you share",
+              onPress: () => {
+                handleClose();
+                onAddToAlbum();
+              },
+            })}
+          {/* Only the owner can create a link, so a viewer of a moment with
+              no link doesn't get the row at all. */}
+          {canSendLink &&
+            optionRow({
+              icon: "link-outline",
+              title: shareToken ? "Send link" : "Create link",
+              desc: "Anyone with it can view this moment",
+              onPress: handleSendLink,
+              loading: sendingLink,
+              trailing:
+                shareToken && isOwner ? (
+                  <Button
+                    variant="text"
+                    size="pill"
+                    label={linkCopied ? "Copied" : "Copy"}
+                    onPress={handleCopyLink}
+                    accessibilityLabel="Copy link"
+                  />
+                ) : undefined,
+            })}
+          {optionRow({
+            icon: "image-outline",
+            title: "Share card",
+            desc: "A designed image for posts and Stories",
+            onPress: handleOpenCard,
+          })}
+        </View>
 
-            {/* Honest link state — owner can copy or turn it off */}
-            {!!shareToken && isOwner && (
-              <>
-                {divider}
-                <View style={styles.optionRow}>
-                  <View style={[styles.iconBox, { backgroundColor: theme.colors.success + "20" }]}>
-                    <Ionicons name="radio-button-on" size={20} color={theme.colors.success} />
-                  </View>
-                  <View style={styles.optionText}>
-                    <Text style={[styles.optionTitle, { color: theme.colors.text }]}>Link is live</Text>
-                    <Text style={[styles.optionDesc, { color: theme.colors.textSecondary }]}>
-                      Anyone with the link can view this moment
-                    </Text>
-                  </View>
-                  <TouchableOpacity onPress={handleCopyLink} hitSlop={8} activeOpacity={0.7} style={styles.linkAction}>
-                    {linkCopied
-                      ? <Ionicons name="checkmark" size={18} color={theme.colors.success} />
-                      : <Ionicons name="copy-outline" size={18} color={theme.colors.textSecondary} />
-                    }
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={handleRevokeLink} hitSlop={8} activeOpacity={0.7} style={styles.linkAction} disabled={revoking}>
-                    {revoking
-                      ? <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                      : <Ionicons name="close-circle-outline" size={18} color={theme.colors.destructive} />
-                    }
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-
-            {canSendLink && divider}
-
-            {/* Card export lives here (spec: "card export lives here too") */}
-            {optionRow("sparkles-outline", "Create share card", "A designed image for posts and Stories", () => goTo("card"))}
+        {/* Honest state: one chip per grant, each removable */}
+        {isOwner && hasChips && (
+          <View style={styles.sharedWith}>
+            <SectionLabel>Shared with</SectionLabel>
+            <View style={styles.chipsWrap}>
+              {peopleGrants.map((g) => (
+                <Chip
+                  key={g.shareId}
+                  variant="filled"
+                  icon="person-outline"
+                  label={g.name ?? "Someone"}
+                  onPress={() => handleRemovePersonGrant(g)}
+                  onRemove={() => handleRemovePersonGrant(g)}
+                  removeLabel={`Unsend from ${g.name ?? "this person"}`}
+                />
+              ))}
+              {albumGrants.map((g) => (
+                <Chip
+                  key={g.id}
+                  variant="filled"
+                  icon="albums-outline"
+                  label={g.name}
+                  onPress={() => handleRemoveAlbumGrant(g)}
+                  onRemove={() => handleRemoveAlbumGrant(g)}
+                  removeLabel={`Remove from ${g.name}`}
+                />
+              ))}
+              {!!shareToken && (
+                <Chip
+                  variant="filled"
+                  icon="link-outline"
+                  label={revoking ? "Turning off…" : "Link is live"}
+                  onPress={handleRevokeLink}
+                  onRemove={handleRevokeLink}
+                  removeLabel="Turn off link"
+                />
+              )}
+            </View>
           </View>
-        </>
-      ) : (
-        <>
-          {renderBack("link")}
+        )}
+      </ScrollView>
 
-          <ScrollView showsVerticalScrollIndicator={false} bounces={false} contentContainerStyle={styles.cardScrollContent}>
-            {/* Post / Story format toggle — same card, two prints */}
-            <View style={styles.variantToggle}>
-              {(["post", "story"] as const).map((v) => {
-                const active = cardVariant === v;
-                return (
-                  <TouchableOpacity
-                    key={v}
-                    style={[
-                      styles.variantPill,
-                      { borderColor: theme.colors.border },
-                      active && { backgroundColor: theme.colors.buttonBg, borderColor: theme.colors.buttonBg },
-                    ]}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                      setCardVariant(v);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.variantText,
-                        { color: active ? theme.colors.buttonText : theme.colors.textSecondary },
-                      ]}
-                    >
-                      {v === "post" ? "Post" : "Story"}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Card preview */}
-            <View style={styles.cardWrapper}>
-              <ViewShot
-                ref={viewShotRef}
-                options={{ format: "png", quality: 1.0 }}
-                style={{ width: CARD_WIDTH, height: cardHeight }}
-              >
-                <ShareCard
-                  moment={moment}
-                  photoUrl={photoUrls.length > 0 ? photoUrls[selectedIndex] : null}
-                  variant={cardVariant}
-                />
-              </ViewShot>
-            </View>
-
-            {/* Photo picker */}
-            {photoUrls.length > 1 && (
-              <View style={styles.pickerSection}>
-                <Text style={[styles.pickerLabel, { color: theme.colors.textTertiary }]}>Choose photo</Text>
-                <FlatList
-                  data={photoUrls}
-                  horizontal
-                  keyExtractor={(_, i) => String(i)}
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.pickerContent}
-                  renderItem={({ item, index }) => {
-                    const selected = index === selectedIndex;
-                    return (
-                      <TouchableOpacity
-                        onPress={() => { Haptics.selectionAsync(); setSelectedIndex(index); }}
-                        activeOpacity={0.8}
-                        style={[styles.thumb, selected && { borderColor: theme.colors.accent, borderWidth: 2.5 }]}
-                      >
-                        <AppImage source={{ uri: item }} style={styles.thumbImage} contentFit="cover" />
-                      </TouchableOpacity>
-                    );
-                  }}
-                />
-              </View>
-            )}
-
-            {/* Share button */}
-            <TouchableOpacity
-              style={[styles.shareButton, { backgroundColor: theme.colors.buttonBg, opacity: sharing ? 0.7 : 1 }]}
-              onPress={handleShareCard}
-              activeOpacity={0.8}
-              disabled={sharing}
-            >
-              {sharing
-                ? <ActivityIndicator color={theme.colors.buttonText} />
-                : <Text style={[styles.shareButtonText, { color: theme.colors.buttonText }]}>Share image</Text>
-              }
-            </TouchableOpacity>
-          </ScrollView>
-        </>
-      )}
       {/* Local confirm host: a root-level Modal can't present over this open
           sheet (iOS silently drops it), so confirms asked from in here need a
           host nested inside the sheet's own Modal hierarchy. */}
@@ -712,239 +563,110 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   );
 }
 
-const styles = StyleSheet.create({
-  subtitle: {
-    fontSize: 14,
-    paddingHorizontal: 20,
-    marginBottom: 10,
-  },
-  optionCard: {
-    marginHorizontal: 16,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: "hidden",
-    marginBottom: 10,
-  },
-  optionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 14,
-  },
-  linkAction: {
-    padding: 6,
-  },
-  iconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  optionText: {
-    flex: 1,
-    gap: 2,
-  },
-  optionTitle: {
-    fontSize: 16,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  optionDesc: {
-    fontSize: 13,
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    marginLeft: 74,
-  },
-  sharedWithSection: {
-    marginHorizontal: 16,
-    marginBottom: 10,
-  },
-  sharedWithLabel: {
-    fontSize: 11,
-    fontFamily: "DMSans_600SemiBold",
-    letterSpacing: 0.8,
-    marginBottom: 8,
-    paddingHorizontal: 4,
-  },
-  chipsWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    maxWidth: 200,
-  },
-  chipText: {
-    fontSize: 13,
-    fontFamily: "DMSans_500Medium",
-    flexShrink: 1,
-  },
-  cancelButton: {
-    alignItems: "center",
-    paddingVertical: 14,
-  },
-  cancelText: {
-    fontSize: 16,
-    fontFamily: "DMSans_500Medium",
-  },
-  backButton: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-  },
-  // Person picker
-  personLoading: {
-    paddingVertical: 40,
-    alignItems: "center",
-  },
-  personEmpty: {
-    paddingHorizontal: 20,
-    paddingVertical: 28,
-  },
-  personEmptyText: {
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: "center",
-  },
-  inviteButton: {
-    marginTop: 18,
-    alignSelf: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 14,
-  },
-  inviteButtonText: {
-    fontSize: 15,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  personList: {
-    maxHeight: 380,
-  },
-  personListContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-  },
-  personRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    gap: 12,
-  },
-  personAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  personInitial: {
-    fontSize: 16,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  personName: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: "DMSans_500Medium",
-  },
-  sendButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    borderRadius: 16,
-  },
-  sendButtonText: {
-    fontSize: 13,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  sentState: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-  },
-  sentText: {
-    fontSize: 13,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  // Card view
-  cardScrollContent: {
-    paddingBottom: 8,
-  },
-  variantToggle: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 6,
-    marginTop: 2,
-    marginBottom: 4,
-  },
-  variantPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  variantText: {
-    fontSize: 13,
-    fontFamily: "DMSans_600SemiBold",
-  },
-  cardWrapper: {
-    alignSelf: "center",
-    marginVertical: 12,
-    borderRadius: 20,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  pickerSection: {
-    marginBottom: 16,
-  },
-  pickerLabel: {
-    fontSize: 12,
-    fontFamily: "DMSans_600SemiBold",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    paddingHorizontal: 20,
-    marginBottom: 8,
-  },
-  pickerContent: {
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  thumb: {
-    width: 56,
-    height: 56,
-    borderRadius: 8,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  thumbImage: {
-    width: "100%",
-    height: "100%",
-  },
-  shareButton: {
-    marginHorizontal: 20,
-    maxWidth: CARD_WIDTH,
-    alignSelf: "center",
-    width: "100%",
-    height: 52,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  shareButtonText: {
-    fontSize: 16,
-    fontFamily: "DMSans_700Bold",
-  },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    body: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingBottom: theme.spacing.sm,
+    },
+    subtitle: {
+      ...theme.typography.meta,
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+      marginBottom: theme.spacing.md,
+    },
+    // Rows on the page, ruled by hairlines in the divider token.
+    rows: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
+    },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md,
+      minHeight: 64,
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
+    },
+    pressed: { opacity: 0.6 },
+    rowIcon: {
+      width: 24,
+      alignItems: "center",
+    },
+    rowText: {
+      flex: 1,
+      gap: 2,
+    },
+    rowTitle: {
+      ...theme.typography.bodyStrong,
+      color: theme.colors.text,
+    },
+    rowDesc: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+    },
+    // The friend picker, opened in place under its row.
+    personList: {
+      paddingLeft: 24 + theme.spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
+      paddingVertical: theme.spacing.xs,
+    },
+    personState: {
+      paddingVertical: theme.spacing.md,
+    },
+    personStateText: {
+      ...theme.typography.body,
+      fontSize: theme.fontSize.callout,
+      color: theme.colors.textSecondary,
+    },
+    personInvite: {
+      marginTop: theme.spacing.md,
+    },
+    personRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: theme.spacing.sm,
+      gap: theme.spacing.md,
+    },
+    personAvatar: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
+      backgroundColor: theme.colors.backgroundTertiary,
+    },
+    personInitial: {
+      fontFamily: theme.fonts.bodySemibold,
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+    },
+    personName: {
+      ...theme.typography.body,
+      color: theme.colors.text,
+      flex: 1,
+    },
+    sentState: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.sm,
+    },
+    sentText: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+    },
+    sharedWith: {
+      marginTop: theme.spacing.xl,
+    },
+    chipsWrap: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.xs,
+    },
+  });
+}

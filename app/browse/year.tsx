@@ -34,9 +34,6 @@ export default function YearScreen() {
     return [...years].sort((a, b) => b - a);
   }, [meta]);
 
-  // BrowseScreen has no error slot, and an empty list would claim there's
-  // nothing here.
-
   return (
     <BrowseScreen
       title={String(activeYear)}

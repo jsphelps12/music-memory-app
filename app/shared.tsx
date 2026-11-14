@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useMemo } from "react";
-import { View, Text, FlatList, RefreshControl, ActivityIndicator, StyleSheet } from "react-native";
-import { useRouter } from "expo-router";
+import { View, FlatList, RefreshControl, ActivityIndicator, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { MOODS } from "@/constants/Moods";
-import { IconButton } from "@/components/IconButton";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { MomentCard } from "@/components/MomentCard";
 import { ErrorState } from "@/components/ErrorState";
+import { EmptyState } from "@/components/EmptyState";
 import { fetchSharedWithMe, markSharesViewed, SharedMoment, unviewedShareIds } from "@/lib/momentShares";
 import { friendlyError } from "@/lib/errors";
 
@@ -23,11 +22,9 @@ const STALE_TIME = 2 * 60 * 1000;
  * row. Opening it marks everything it shows as seen.
  */
 export default function SharedScreen() {
-  const router = useRouter();
   const { user, profile } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
   const allMoods = useMemo(() => [...MOODS, ...(profile?.customMoods ?? [])], [profile?.customMoods]);
@@ -66,17 +63,21 @@ export default function SharedScreen() {
     [user, queryClient]
   );
 
+  // An unseen share gets an 8pt dot in the gutter beside its row, like the
+  // preview on You. It stays until the next fetch (see above).
   const renderItem = useCallback(
-    ({ item }: { item: SharedMoment }) => <MomentCard item={item.moment} allMoods={allMoods} />,
-    [allMoods]
+    ({ item }: { item: SharedMoment }) => (
+      <View>
+        {!item.viewedAt ? <View style={styles.unreadDot} accessibilityLabel="New" /> : null}
+        <MomentCard item={item.moment} allMoods={allMoods} />
+      </View>
+    ),
+    [allMoods, styles]
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <IconButton name="chevron-back" onPress={() => router.back()} accessibilityLabel="Back" />
-        <Text style={styles.title}>Shared with you</Text>
-      </View>
+    <View style={styles.container}>
+      <ScreenHeader title="Shared with you" leading="back" />
 
       {isLoading ? (
         <View style={styles.center}>
@@ -90,6 +91,7 @@ export default function SharedScreen() {
           keyExtractor={(item) => item.shareId}
           renderItem={renderItem}
           contentContainerStyle={[styles.list, items.length === 0 && styles.listEmpty]}
+          ListHeaderComponent={items.length > 0 ? <View style={styles.listRule} /> : null}
           refreshControl={
             <RefreshControl
               refreshing={isFetching && !isLoading}
@@ -98,12 +100,11 @@ export default function SharedScreen() {
             />
           }
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>Nothing shared yet</Text>
-              <Text style={styles.emptyBody}>
-                When a friend sends you a moment, it lands here.
-              </Text>
-            </View>
+            <EmptyState
+              icon="paper-plane-outline"
+              title="Nothing shared yet"
+              subtitle="When a friend sends you a moment, it lands here."
+            />
           }
         />
       )}
@@ -116,18 +117,6 @@ function createStyles(theme: Theme) {
     container: {
       flex: 1,
       backgroundColor: theme.colors.background,
-    },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: theme.spacing.sm,
-      paddingBottom: theme.spacing.sm,
-    },
-    title: {
-      fontSize: theme.fontSize["2xl"],
-      fontFamily: theme.fonts.display,
-      color: theme.colors.text,
-      marginLeft: theme.spacing.xs,
     },
     center: {
       flex: 1,
@@ -142,21 +131,20 @@ function createStyles(theme: Theme) {
       flexGrow: 1,
       justifyContent: "center",
     },
-    empty: {
-      alignItems: "center",
-      paddingHorizontal: theme.spacing["2xl"],
+    // Rows on the page: a hairline heads the list, each row rules its foot.
+    listRule: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: theme.colors.divider,
     },
-    emptyTitle: {
-      fontSize: theme.fontSize.xl,
-      fontFamily: theme.fonts.display,
-      color: theme.colors.text,
-      marginBottom: theme.spacing.sm,
-    },
-    emptyBody: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.body,
-      color: theme.colors.textSecondary,
-      textAlign: "center",
+    // In the 20pt gutter, level with the middle of the row's 56pt artwork.
+    unreadDot: {
+      position: "absolute",
+      left: -14,
+      top: theme.spacing.lg + 24,
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: theme.colors.accent, // design-lint-ignore: the 8px new-activity dot
     },
   });
 }

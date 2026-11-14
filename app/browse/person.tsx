@@ -34,9 +34,6 @@ export default function PersonScreen() {
       .map(([name]) => name);
   }, [meta]);
 
-  // BrowseScreen has no error slot, and an empty list would claim there's
-  // nothing here.
-
   return (
     <BrowseScreen
       title={`With ${activePerson}`}

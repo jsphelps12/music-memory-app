@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from "react-native";
+import { View, Text, ScrollView, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -12,6 +13,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import { ScreenHeader } from "@/components/ScreenHeader";
+import { Button } from "@/components/Button";
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const HERO_PHOTO = require("@/assets/images/onboarding/photo-hawaii-hero.jpg");
@@ -20,17 +23,20 @@ const EXTRA_PHOTO = require("@/assets/images/onboarding/photo-hawaii-2.jpg");
 const MAP_IMAGE = require("@/assets/images/onboarding/map-waikoloa.jpg");
 /* eslint-enable @typescript-eslint/no-require-imports */
 
+// Moods are words (DESIGN.md): place, mood and date read as one Meta line,
+// not emoji pills.
 const MOCK_DETAIL = {
   song: "Otro Atardecer",
   artist: "Bad Bunny & The Marías",
   reflection: "That week in Hawaii, watching the sunset with nowhere to be.",
-  chips: ["📍 Waikoloa, HI", "🌅 Joyful", "Aug 2018"],
+  meta: "Waikoloa, HI · Joyful · Aug 2018",
 } as const;
 
 export default function TimelinePreviewScreen() {
   const router = useRouter();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
 
   const cardOpacity = useSharedValue(0);
   const cardTranslateY = useSharedValue(18);
@@ -51,85 +57,64 @@ export default function TimelinePreviewScreen() {
         <View style={[styles.progressBarFill, { width: "50%" }]} />
       </View>
 
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => router.back()}
-        hitSlop={12}
-        activeOpacity={0.7}
-      >
-        <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-      </TouchableOpacity>
+      <ScreenHeader leading="back" />
 
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         scrollEnabled={false}
       >
-        <Text style={styles.heading}>Songs build your story.</Text>
-        <Text style={styles.sub}>
-          The more you capture, the richer it gets.
-        </Text>
+        <Text style={styles.heading} accessibilityRole="header">Songs build your story.</Text>
+        <Text style={styles.sub}>The more you capture, the richer it gets.</Text>
 
         <Animated.View style={cardAnimStyle}>
-          <RichMomentCard theme={theme} />
+          <RichEntryPreview theme={theme} />
         </Animated.View>
 
         <Text style={styles.headsUpText}>
-          To start, we'll save two moments together — one quick, one with a bit more depth.
+          To start, we&apos;ll save two moments together: one quick, one with a bit more depth.
         </Text>
       </ScrollView>
 
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.primaryButton, { backgroundColor: theme.colors.buttonBg }]}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + theme.spacing.sm }]}>
+        <Button
+          label="Save my first moment"
           onPress={() => router.push("/onboarding/capture-1" as any)}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.primaryButtonText, { color: theme.colors.buttonText }]}>
-            Save my first moment →
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => router.replace({ pathname: "/onboarding/celebration", params: { moment1Id: "", moment2Id: "" } } as any)}
-          activeOpacity={0.7}
-          style={styles.skipLink}
-        >
-          <Text style={[styles.skipText, { color: theme.colors.textSecondary }]}>Skip for now</Text>
-        </TouchableOpacity>
+        />
+        <Button
+          label="Skip for now"
+          variant="text"
+          tone="secondary"
+          fullWidth
+          onPress={() =>
+            router.replace({ pathname: "/onboarding/celebration", params: { moment1Id: "", moment2Id: "" } } as any)
+          }
+        />
       </View>
     </View>
   );
 }
 
-function RichMomentCard({ theme }: { theme: Theme }) {
+// An entry as its detail screen shows it: the photo leads, then the song,
+// the person's words in Newsreader, and the details as words. Flat on paper.
+function RichEntryPreview({ theme }: { theme: Theme }) {
   const s = useMemo(() => createCardStyles(theme), [theme]);
   return (
-    <View style={s.card}>
-      {/* Hero photo — full width */}
-      <AppImage
-        source={HERO_PHOTO}
-        style={s.heroImage}
-        contentFit="cover"
-      />
+    <View>
+      <AppImage source={HERO_PHOTO} style={s.heroImage} contentFit="cover" />
 
       <View style={s.body}>
-        {/* Song row: album art thumbnail + title + artist */}
         <View style={s.songRow}>
-          <AppImage
-            source={SONG_ARTWORK}
-            style={s.songArtwork}
-            contentFit="cover"
-          />
+          <AppImage source={SONG_ARTWORK} style={s.songArtwork} contentFit="cover" />
           <View style={s.songInfo}>
             <Text style={s.songTitle} numberOfLines={1}>{MOCK_DETAIL.song}</Text>
             <Text style={s.artist} numberOfLines={1}>{MOCK_DETAIL.artist}</Text>
           </View>
         </View>
 
-        {/* Play row — static visual scrubber */}
+        {/* Static visual scrubber */}
         <View style={s.playRow}>
-          <Ionicons name="play-circle" size={32} color={theme.colors.accent} />
+          <Ionicons name="play-circle" size={32} color={theme.colors.text} />
           <View style={s.scrubberTrack}>
             <View style={[s.scrubberFill, { width: "38%" }]} />
             <View style={s.scrubberThumb} />
@@ -137,33 +122,14 @@ function RichMomentCard({ theme }: { theme: Theme }) {
           <Text style={s.timeText}>1:23</Text>
         </View>
 
-        {/* Reflection */}
         <Text style={s.reflection} numberOfLines={3}>{MOCK_DETAIL.reflection}</Text>
 
-        {/* Extra photo strip */}
         <View style={s.photoStrip}>
-          <AppImage
-            source={EXTRA_PHOTO}
-            style={s.photo}
-            contentFit="cover"
-          />
+          <AppImage source={EXTRA_PHOTO} style={s.photo} contentFit="cover" />
+          <AppImage source={MAP_IMAGE} style={s.mapImage} contentFit="cover" />
         </View>
 
-        {/* Map */}
-        <AppImage
-          source={MAP_IMAGE}
-          style={s.mapImage}
-          contentFit="cover"
-        />
-
-        {/* Chips */}
-        <View style={s.chips}>
-          {MOCK_DETAIL.chips.map((chip) => (
-            <View key={chip} style={s.chip}>
-              <Text style={s.chipText}>{chip}</Text>
-            </View>
-          ))}
-        </View>
+        <Text style={s.meta} numberOfLines={1}>{MOCK_DETAIL.meta}</Text>
       </View>
     </View>
   );
@@ -171,19 +137,13 @@ function RichMomentCard({ theme }: { theme: Theme }) {
 
 function createCardStyles(theme: Theme) {
   return StyleSheet.create({
-    card: {
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.md,
-      overflow: "hidden",
-    },
     heroImage: {
       width: "100%",
       height: 200,
+      borderRadius: theme.radii.md,
     },
     body: {
-      backgroundColor: theme.colors.backgroundSecondary,
-      padding: 14,
+      paddingTop: theme.spacing.md,
       gap: theme.spacing.sm,
     },
     songRow: {
@@ -200,19 +160,18 @@ function createCardStyles(theme: Theme) {
       flex: 1,
     },
     songTitle: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+      ...theme.typography.bodyStrong,
       color: theme.colors.text,
       marginBottom: 2,
     },
     artist: {
-      fontSize: theme.fontSize.xs,
+      ...theme.typography.meta,
       color: theme.colors.textSecondary,
     },
     playRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
+      gap: theme.spacing.sm + 2,
     },
     scrubberTrack: {
       flex: 1,
@@ -224,31 +183,30 @@ function createCardStyles(theme: Theme) {
     },
     scrubberFill: {
       height: 3,
-      backgroundColor: theme.colors.accent,
+      backgroundColor: theme.colors.text,
       borderRadius: 2,
     },
     scrubberThumb: {
       width: 10,
       height: 10,
       borderRadius: 5,
-      backgroundColor: theme.colors.accent,
+      backgroundColor: theme.colors.text,
       marginLeft: -5,
-      marginTop: 0,
     },
     timeText: {
+      ...theme.typography.meta,
       fontSize: theme.fontSize.xs,
       color: theme.colors.textTertiary,
-      fontFamily: theme.fonts.mono,
     },
     reflection: {
-      fontSize: theme.fontSize.sm,
-      lineHeight: 20,
-      fontStyle: "italic",
-      color: theme.colors.textSecondary,
+      ...theme.typography.reading,
+      fontSize: theme.fontSize.callout,
+      lineHeight: 21,
+      color: theme.colors.text,
     },
     photoStrip: {
       flexDirection: "row",
-      gap: 6,
+      gap: theme.spacing.xs + 2,
     },
     photo: {
       width: 72,
@@ -256,24 +214,13 @@ function createCardStyles(theme: Theme) {
       borderRadius: theme.radii.sm,
     },
     mapImage: {
-      width: "100%",
-      height: 100,
+      flex: 1,
+      height: 72,
       borderRadius: theme.radii.sm,
     },
-    chips: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 6,
-    },
-    chip: {
-      paddingHorizontal: theme.spacing.sm,
-      paddingVertical: 3,
-      borderRadius: theme.radii.lg,
-      backgroundColor: theme.colors.chipBg,
-    },
-    chipText: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textSecondary,
+    meta: {
+      ...theme.typography.meta,
+      color: theme.colors.textTertiary,
     },
   });
 }
@@ -290,39 +237,34 @@ function createStyles(theme: Theme) {
     },
     progressBarFill: {
       height: 3,
-      backgroundColor: theme.colors.accent,
+      backgroundColor: theme.colors.accent, // design-lint-ignore: the onboarding progress indicator
       borderRadius: 2,
-    },
-    backButton: {
-      position: "absolute",
-      top: 56,
-      left: theme.spacing.xl,
-      zIndex: 10,
     },
     scrollView: {
       flex: 1,
     },
     scrollContent: {
       paddingHorizontal: theme.spacing.xl,
-      paddingTop: 88,
-      paddingBottom: 24,
+      paddingBottom: theme.spacing["2xl"],
     },
     heading: {
+      ...theme.typography.headline,
       fontSize: theme.fontSize["2xl"],
-      fontFamily: theme.fonts.display,
+      lineHeight: 34,
       color: theme.colors.text,
       marginBottom: theme.spacing.sm,
     },
     sub: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.textSecondary,
+      ...theme.typography.body,
       lineHeight: 24,
+      color: theme.colors.textSecondary,
       marginBottom: theme.spacing["2xl"],
     },
     headsUpText: {
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
       lineHeight: 20,
+      color: theme.colors.textSecondary,
       textAlign: "center",
       paddingHorizontal: theme.spacing.xl,
       paddingTop: theme.spacing["2xl"],
@@ -330,26 +272,8 @@ function createStyles(theme: Theme) {
     },
     footer: {
       paddingHorizontal: theme.spacing.xl,
-      paddingBottom: Platform.OS === "ios" ? 44 : 24,
-      paddingTop: 12,
-      gap: 8,
-    },
-    primaryButton: {
-      height: 52,
-      borderRadius: theme.radii.button,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    primaryButtonText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-    },
-    skipLink: {
-      alignItems: "center",
-      paddingVertical: 8,
-    },
-    skipText: {
-      fontSize: theme.fontSize.sm,
+      paddingTop: theme.spacing.md,
+      gap: theme.spacing.xs,
     },
   });
 }

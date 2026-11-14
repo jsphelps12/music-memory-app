@@ -131,9 +131,10 @@ const edit = (over: Partial<UpdateMomentInput> = {}): UpdateMomentInput => ({
   originalSong: song,
   originalPhotos: ["u1/old1.jpg", "u1/old2.jpg"],
   originalThumbnails: ["u1/thumb_old1.jpg", "u1/thumb_old2.jpg"],
-  keptPhotos: ["u1/old1.jpg"],
-  keptThumbnails: ["u1/thumb_old1.jpg"],
-  newPhotos: ["file:///a.jpg"],
+  photos: [
+    { kind: "kept", path: "u1/old1.jpg", thumb: "u1/thumb_old1.jpg" },
+    { kind: "new", uri: "file:///a.jpg" },
+  ],
   ...over,
 });
 
@@ -166,6 +167,33 @@ describe("updateMoment", () => {
       location_lng: null,
     });
     expect(mocks.deleteMomentPhotos).toHaveBeenCalledWith(["u1/old2.jpg"], ["u1/thumb_old2.jpg"]);
+  });
+
+  it("saves a new photo dragged ahead of a stored one in that order", async () => {
+    sb.queueData(row());
+    await updateMoment(
+      edit({
+        photos: [
+          { kind: "new", uri: "file:///a.jpg" },
+          { kind: "kept", path: "u1/old2.jpg", thumb: "u1/thumb_old2.jpg" },
+        ],
+      })
+    );
+
+    expect(mocks.uploadMomentPhotos).toHaveBeenCalledWith("u1", ["file:///a.jpg"]);
+    expect(writeOf("update")).toMatchObject({
+      photo_urls: ["u1/new.jpg", "u1/old2.jpg"],
+      photo_thumbnails: ["u1/thumb_new.jpg", "u1/thumb_old2.jpg"],
+    });
+    expect(mocks.deleteMomentPhotos).toHaveBeenCalledWith(["u1/old1.jpg"], ["u1/thumb_old1.jpg"]);
+  });
+
+  it("when a photo upload fails, fails the save without writing or deleting anything", async () => {
+    mocks.uploadMomentPhotos.mockRejectedValue(new Error("upload failed"));
+
+    await expect(updateMoment(edit())).rejects.toMatchObject({ message: "upload failed" });
+    expect(sb.queries).toHaveLength(0);
+    expect(mocks.deleteMomentPhotos).not.toHaveBeenCalled();
   });
 
   it("on a failed update, deletes the new uploads and keeps the removed originals", async () => {

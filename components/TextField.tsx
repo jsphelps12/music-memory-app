@@ -18,6 +18,12 @@ interface Props extends Omit<TextInputProps, "style"> {
   trailing?: ReactNode;
   /** Tall writing field (notes, prompts). */
   multiline?: boolean;
+  /**
+   * ui (default): DM Sans, for names, searches and settings.
+   * reading: Newsreader, for words a person writes about a moment (DESIGN.md
+   * "The Who's Speaking Rule"), e.g. editing a reflection.
+   */
+  variant?: "ui" | "reading";
   containerStyle?: StyleProp<ViewStyle>;
 }
 
@@ -28,7 +34,7 @@ interface Props extends Omit<TextInputProps, "style"> {
  * field chrome at all; it doesn't use this.
  */
 export const TextField = forwardRef<TextInput, Props>(function TextField(
-  { icon, trailing, multiline = false, containerStyle, onFocus, onBlur, ...rest },
+  { icon, trailing, multiline = false, variant = "ui", containerStyle, onFocus, onBlur, ...rest },
   ref
 ) {
   const theme = useTheme();
@@ -53,7 +59,11 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
         selectionColor={theme.colors.accent}
         multiline={multiline}
         textAlignVertical={multiline ? "top" : "center"}
-        style={[styles.input, multiline && styles.inputMultiline]}
+        style={[
+          styles.input,
+          variant === "reading" && styles.inputReading,
+          multiline && styles.inputMultiline,
+        ]}
         onFocus={(e) => {
           setFocused(true);
           onFocus?.(e);
@@ -99,6 +109,11 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.base,
       color: theme.colors.text,
       paddingVertical: 12,
+    },
+    inputReading: {
+      fontFamily: theme.fonts.reading,
+      fontSize: theme.fontSize.reading,
+      lineHeight: 25,
     },
     inputMultiline: {
       paddingVertical: 0,

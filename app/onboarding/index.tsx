@@ -1,16 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePostHog } from "posthog-react-native";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  StyleSheet,
-  ActivityIndicator,
-  Keyboard,
-  Platform,
-} from "react-native";
+import { View, Text, TouchableWithoutFeedback, StyleSheet, Keyboard } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useAuth, OnboardingData } from "@/contexts/AuthContext";
@@ -19,12 +10,15 @@ import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { registerForPushNotifications } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
+import { TextField } from "@/components/TextField";
+import { Button } from "@/components/Button";
 
 export default function QuestionnaireScreen() {
   const router = useRouter();
   const { completeOnboarding, saveOnboardingData, user, profile, profileReady } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
   const posthog = usePostHog();
 
   const [saving, setSaving] = useState(false);
@@ -84,21 +78,20 @@ export default function QuestionnaireScreen() {
   return (
     <View style={styles.container}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={{ flex: 1 }}>
+        <View style={styles.flex}>
           <View style={styles.progressBarTrack}>
             <View style={[styles.progressBarFill, { width: "16%" }]} />
           </View>
 
-          <View style={styles.topRow}>
-            <Text style={styles.heading}>Welcome to soundtracks.</Text>
+          {/* No back on the first step; the same top as the steps that have one. */}
+          <View style={[styles.topRow, { paddingTop: insets.top + 44 + theme.spacing.md }]}>
+            <Text style={styles.heading} accessibilityRole="header">Welcome to Soundtracks.</Text>
             <Text style={styles.sub}>What should we call you?</Text>
           </View>
 
           <View style={styles.body}>
-            <TextInput
-              style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundInput }]}
+            <TextField
               placeholder="Your name"
-              placeholderTextColor={theme.colors.placeholder}
               value={displayName}
               onChangeText={(t) => { setDisplayName(t); setError(""); }}
               autoFocus
@@ -110,23 +103,11 @@ export default function QuestionnaireScreen() {
               maxLength={40}
               onSubmitEditing={handleSubmit}
             />
+            {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
           </View>
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: theme.colors.buttonBg, opacity: saving ? 0.7 : 1 }]}
-              onPress={handleSubmit}
-              activeOpacity={0.8}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator color={theme.colors.buttonText} />
-              ) : (
-                <Text style={[styles.primaryButtonText, { color: theme.colors.buttonText }]}>Continue →</Text>
-              )}
-            </TouchableOpacity>
+          <View style={[styles.footer, { paddingBottom: insets.bottom + theme.spacing.lg }]}>
+            <Button label="Continue" onPress={handleSubmit} loading={saving} />
           </View>
         </View>
       </TouchableWithoutFeedback>
@@ -140,18 +121,18 @@ function createStyles(theme: Theme) {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
+    flex: { flex: 1 },
     progressBarTrack: {
       height: 3,
       backgroundColor: theme.colors.border,
     },
     progressBarFill: {
       height: 3,
-      backgroundColor: theme.colors.accent,
+      backgroundColor: theme.colors.accent, // design-lint-ignore: the onboarding progress indicator
       borderRadius: 2,
     },
     topRow: {
       paddingHorizontal: theme.spacing.xl,
-      paddingTop: 72,
       paddingBottom: theme.spacing.xl,
     },
     body: {
@@ -159,44 +140,26 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.xl,
     },
     heading: {
+      ...theme.typography.headline,
       fontSize: theme.fontSize["2xl"],
-      fontFamily: theme.fonts.display,
+      lineHeight: 34,
       color: theme.colors.text,
       marginBottom: theme.spacing.sm,
     },
     sub: {
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
-      lineHeight: 22,
-    },
-    input: {
-      height: 52,
-      borderWidth: 1,
-      borderRadius: 12,
-      paddingHorizontal: theme.spacing.lg,
-      fontSize: theme.fontSize.base,
     },
     error: {
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
+      lineHeight: 20,
       color: theme.colors.destructive,
-      textAlign: "center",
-      marginHorizontal: theme.spacing.xl,
-      marginBottom: 8,
+      marginTop: theme.spacing.sm,
     },
     footer: {
       paddingHorizontal: theme.spacing.xl,
-      paddingBottom: Platform.OS === "ios" ? 44 : 24,
-      paddingTop: 12,
-    },
-    primaryButton: {
-      height: 52,
-      borderRadius: theme.radii.button,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    primaryButtonText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+      paddingTop: theme.spacing.md,
     },
   });
 }

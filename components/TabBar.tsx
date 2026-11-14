@@ -148,7 +148,7 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.buttonBg,
       alignItems: "center",
       justifyContent: "center",
-      shadowColor: "#000",
+      shadowColor: "#0E0B0A",
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: theme.isDark ? 0.5 : 0.2,
       shadowRadius: 12,
@@ -180,7 +180,7 @@ function createStyles(theme: Theme) {
       width: 8,
       height: 8,
       borderRadius: 4,
-      backgroundColor: theme.colors.accent,
+      backgroundColor: theme.colors.accent, // design-lint-ignore: the 8px new-activity dot on a tab
     },
     label: {
       fontSize: 11,

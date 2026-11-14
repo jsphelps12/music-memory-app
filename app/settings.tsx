@@ -5,7 +5,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   Alert,
   ScrollView,
   Share,
@@ -14,6 +13,7 @@ import {
   Platform,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
 import * as Notifications from "expo-notifications";
 import * as Application from "expo-application";
 import * as Updates from "expo-updates";
@@ -24,7 +24,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/contexts/AuthContext";
 import { PromptsSection } from "@/components/PromptsSection";
 import { confirmSheet } from "@/components/ConfirmSheet";
-import { IconButton } from "@/components/IconButton";
+import { ScreenHeader } from "@/components/ScreenHeader";
+import { SectionLabel } from "@/components/SectionLabel";
+import { Button } from "@/components/Button";
+import { BottomSheet } from "@/components/BottomSheet";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
@@ -35,6 +38,9 @@ import { friendInviteUrl } from "@/lib/momentShares";
  * this is, so "I can't see the changes" can be answered from the phone.
  * The embedded bundle (no OTA applied yet) says so.
  */
+const FEEDBACK_EMAIL = "founder@soundtracks.app";
+const FEEDBACK_MAILTO = `mailto:${FEEDBACK_EMAIL}?subject=Soundtracks%20Feedback`;
+
 function versionLine(): string {
   const binary = `${Application.nativeApplicationVersion ?? "?"} (${Application.nativeBuildVersion ?? "?"})`;
   if (__DEV__) return `${binary} · development`;
@@ -94,6 +100,8 @@ export default function SettingsScreen() {
   // The profile in AuthContext is the source of truth for the toggles; this
   // only holds the value being saved, so the switch moves on tap.
   const [pendingNotif, setPendingNotif] = useState<{ field: NotifField; value: boolean } | null>(null);
+  const [feedbackSheetVisible, setFeedbackSheetVisible] = useState(false);
+  const [addressCopied, setAddressCopied] = useState(false);
 
   // Permission can change in iOS Settings while we're away, so read it on
   // every focus; it's a local call.
@@ -131,6 +139,32 @@ export default function SettingsScreen() {
     Share.share(Platform.OS === "ios" ? { url } : { message: url });
   };
 
+  // "Share feedback" used to call openURL bare: with no Mail app (the
+  // simulator, or a phone that deleted Mail) it rejected silently and the
+  // row did nothing. Try Mail; if it can't open, show the address to copy.
+  // No canOpenURL pre-check: "mailto" isn't in LSApplicationQueriesSchemes,
+  // so iOS would answer false even when Mail is there (adding it is a
+  // native change).
+  const handleFeedback = async () => {
+    Haptics.selectionAsync();
+    try {
+      await Linking.openURL(FEEDBACK_MAILTO);
+    } catch {
+      setAddressCopied(false);
+      setFeedbackSheetVisible(true);
+    }
+  };
+
+  const handleCopyAddress = async () => {
+    try {
+      await Clipboard.setStringAsync(FEEDBACK_EMAIL);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setAddressCopied(true);
+    } catch {
+      // The address is on screen and selectable; nothing else to do.
+    }
+  };
+
   const handleSignOut = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSigningOut(true);
@@ -148,7 +182,7 @@ export default function SettingsScreen() {
   const handleDeleteAccount = async () => {
     // Double-confirm on purpose: this is the app's only unrecoverable action.
     const first = await confirmSheet({
-      title: "Delete Account",
+      title: "Delete account",
       message:
         "This will permanently delete your account and all your moments, photos, and collections. This cannot be undone.",
       confirmLabel: "Delete",
@@ -158,7 +192,7 @@ export default function SettingsScreen() {
     const second = await confirmSheet({
       title: "Are you sure?",
       message: "Your data cannot be recovered after deletion.",
-      confirmLabel: "Delete My Account",
+      confirmLabel: "Delete my account",
       destructive: true,
     });
     if (!second) return;
@@ -172,6 +206,14 @@ export default function SettingsScreen() {
     }
   };
 
+  // Ink, not terracotta, for an "on" switch (the accent is a signal, not a
+  // fill). In dark mode ink inverts to paper, which would swallow the white
+  // thumb, so on night the track steps down to Graphite.
+  const switchTrack = {
+    false: theme.colors.border,
+    true: theme.isDark ? theme.colors.textSecondary : theme.colors.buttonBg,
+  };
+
   const notifRows = [
     { field: "notifOnThisDay", label: "On this day", sub: "When a song anniversary comes up" },
     { field: "notifResurfacing", label: "Random memories", sub: "A random moment from your past" },
@@ -181,112 +223,130 @@ export default function SettingsScreen() {
   ] as const;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <IconButton name="chevron-back" onPress={() => router.back()} accessibilityLabel="Back" />
-        <Text style={styles.title}>Settings</Text>
-      </View>
+    <View style={styles.container}>
+      <ScreenHeader leading="back" title="Settings" />
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}>
-        <Text style={styles.eyebrow}>Account</Text>
-        <Row label="Edit profile" onPress={() => router.push("/profile-edit")} styles={styles} theme={theme} />
-        <Row label="Invite a friend" onPress={handleInvite} styles={styles} theme={theme} last />
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + theme.spacing["4xl"] }]}>
+        <SectionLabel style={styles.groupLabel}>Account</SectionLabel>
+        <View style={styles.list}>
+          <Row label="Edit profile" onPress={() => router.push("/profile-edit")} styles={styles} theme={theme} />
+          <Row label="Invite a friend" onPress={handleInvite} styles={styles} theme={theme} />
+        </View>
 
-        <Text style={[styles.eyebrow, styles.eyebrowSpaced]}>Journal</Text>
-        <Row
-          label="Notifications"
-          detail={notifPermission !== "granted" ? "Off" : undefined}
-          expanded={showNotifications}
-          onPress={() => setShowNotifications((v) => !v)}
-          styles={styles}
-          theme={theme}
-        />
-        {showNotifications && (
-          <View style={styles.expandBody}>
-            {notifPermission !== "granted" ? (
-              <TouchableOpacity style={styles.notifSettingsRow} onPress={() => Linking.openSettings()} activeOpacity={0.7}>
-                <Ionicons name="notifications-off-outline" size={18} color={theme.colors.textSecondary} />
-                <Text style={styles.notifSettingsText}>Notifications are off for Soundtracks</Text>
-                <Text style={styles.notifSettingsLink}>Open Settings</Text>
-              </TouchableOpacity>
-            ) : (
-              notifRows.map(({ field, label, sub }, idx) => (
-                <View key={field} style={[styles.notifRow, idx > 0 && styles.notifRowBorder]}>
-                  <View style={styles.notifRowText}>
-                    <Text style={styles.notifRowLabel}>{label}</Text>
-                    <Text style={styles.notifRowSub}>{sub}</Text>
+        <SectionLabel style={[styles.groupLabel, styles.groupLabelSpaced]}>Journal</SectionLabel>
+        <View style={styles.list}>
+          <Row
+            label="Notifications"
+            detail={notifPermission !== "granted" ? "Off" : undefined}
+            expanded={showNotifications}
+            onPress={() => setShowNotifications((v) => !v)}
+            styles={styles}
+            theme={theme}
+            flush={showNotifications}
+          />
+          {showNotifications && (
+            <View style={styles.expandBody}>
+              {notifPermission !== "granted" ? (
+                <TouchableOpacity
+                  style={styles.notifSettingsRow}
+                  onPress={() => Linking.openSettings()}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="notifications-off-outline" size={18} color={theme.colors.textSecondary} />
+                  <Text style={styles.notifSettingsText}>Notifications are off for Soundtracks</Text>
+                  <Text style={styles.notifSettingsLink}>Open Settings</Text>
+                </TouchableOpacity>
+              ) : (
+                notifRows.map(({ field, label, sub }, idx) => (
+                  <View key={field} style={[styles.notifRow, idx > 0 && styles.notifRowBorder]}>
+                    <View style={styles.notifRowText}>
+                      <Text style={styles.notifRowLabel}>{label}</Text>
+                      <Text style={styles.notifRowSub}>{sub}</Text>
+                    </View>
+                    <Switch
+                      value={notifValue(field)}
+                      onValueChange={(v) => handleNotifToggle(field, v)}
+                      disabled={pendingNotif !== null || !profile}
+                      trackColor={switchTrack}
+                      ios_backgroundColor={theme.colors.border}
+                    />
                   </View>
-                  <Switch
-                    value={notifValue(field)}
-                    onValueChange={(v) => handleNotifToggle(field, v)}
-                    disabled={pendingNotif !== null || !profile}
-                    trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
-                    thumbColor="#fff"
-                  />
-                </View>
-              ))
-            )}
-          </View>
-        )}
-        <Row
-          label="Prompts"
-          expanded={showPrompts}
-          onPress={() => setShowPrompts((v) => !v)}
-          styles={styles}
-          theme={theme}
-          last={!showPrompts}
-        />
-        {showPrompts && (
-          <View style={styles.expandBody}>
-            <PromptsSection
-              customCategories={profile?.customPromptCategories ?? []}
-              onSave={saveCustomPromptCategory}
-              onDelete={deleteCustomPromptCategory}
-            />
-          </View>
-        )}
+                ))
+              )}
+            </View>
+          )}
+          <Row
+            label="Prompts"
+            expanded={showPrompts}
+            onPress={() => setShowPrompts((v) => !v)}
+            styles={styles}
+            theme={theme}
+            flush={showPrompts}
+          />
+          {showPrompts && (
+            <View style={styles.expandBody}>
+              <PromptsSection
+                customCategories={profile?.customPromptCategories ?? []}
+                onSave={saveCustomPromptCategory}
+                onDelete={deleteCustomPromptCategory}
+              />
+            </View>
+          )}
+        </View>
 
-        <Text style={[styles.eyebrow, styles.eyebrowSpaced]}>Support</Text>
-        <Row label="Help" onPress={() => router.push("/help")} styles={styles} theme={theme} />
-        <Row
-          label="Share feedback"
-          onPress={() => {
-            Haptics.selectionAsync();
-            Linking.openURL("mailto:founder@soundtracks.app?subject=Soundtracks%20Feedback");
-          }}
-          styles={styles}
-          theme={theme}
-          last
-        />
+        <SectionLabel style={[styles.groupLabel, styles.groupLabelSpaced]}>Support</SectionLabel>
+        <View style={styles.list}>
+          <Row label="Help" onPress={() => router.push("/help")} styles={styles} theme={theme} />
+          <Row label="Share feedback" onPress={handleFeedback} styles={styles} theme={theme} />
+        </View>
 
         {signOutError ? <Text style={styles.signOutErrorText}>{signOutError}</Text> : null}
-        <TouchableOpacity
-          style={[styles.signOutButton, signingOut && styles.buttonDisabled]}
+        <Button
+          label="Sign out"
+          variant="secondary"
           onPress={handleSignOut}
-          disabled={signingOut || deletingAccount}
-          activeOpacity={0.7}
-        >
-          {signingOut ? (
-            <ActivityIndicator color={theme.colors.textSecondary} />
-          ) : (
-            <Text style={styles.signOutText}>Sign out</Text>
-          )}
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.deleteAccountButton, deletingAccount && styles.buttonDisabled]}
+          loading={signingOut}
+          disabled={deletingAccount}
+          style={styles.signOutButton}
+        />
+        <Button
+          label="Delete account"
+          variant="text"
+          tone="destructive"
+          fullWidth
           onPress={handleDeleteAccount}
-          disabled={signingOut || deletingAccount}
-          activeOpacity={0.7}
-        >
-          {deletingAccount ? (
-            <ActivityIndicator color={theme.colors.textSecondary} />
-          ) : (
-            <Text style={styles.deleteAccountText}>Delete account</Text>
-          )}
-        </TouchableOpacity>
+          loading={deletingAccount}
+          disabled={signingOut}
+          style={styles.deleteAccountButton}
+        />
         {user?.email ? <Text style={styles.signedInAs}>Signed in as {user.email}</Text> : null}
         <Text style={styles.signedInAs}>{versionLine()}</Text>
       </ScrollView>
+
+      <BottomSheet
+        visible={feedbackSheetVisible}
+        onClose={() => setFeedbackSheetVisible(false)}
+        title="Share feedback"
+      >
+        <View style={styles.feedbackBody}>
+          <Text style={styles.feedbackText}>
+            Mail isn&apos;t set up on this phone. Send a note from any email app to:
+          </Text>
+          <Text style={styles.feedbackAddress} selectable>
+            {FEEDBACK_EMAIL}
+          </Text>
+          <Text style={styles.feedbackText}>
+            Bugs, ideas, a song that should be in here: it all gets read.
+          </Text>
+          <Button
+            label={addressCopied ? "Copied" : "Copy address"}
+            icon={addressCopied ? "checkmark" : "copy-outline"}
+            onPress={handleCopyAddress}
+            style={styles.copyButton}
+          />
+        </View>
+      </BottomSheet>
     </View>
   );
 }
@@ -296,7 +356,7 @@ function Row({
   detail,
   expanded,
   onPress,
-  last,
+  flush,
   styles,
   theme,
 }: {
@@ -304,22 +364,24 @@ function Row({
   detail?: string;
   expanded?: boolean;
   onPress: () => void;
-  last?: boolean;
+  /** No bottom rule: an expanded body follows and draws its own. */
+  flush?: boolean;
   styles: ReturnType<typeof createStyles>;
   theme: Theme;
 }) {
   const icon = expanded === undefined ? "chevron-forward" : expanded ? "chevron-up" : "chevron-down";
   return (
     <TouchableOpacity
-      style={[styles.row, !last && styles.rowDivider]}
+      style={[styles.row, !flush && styles.rowDivider]}
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
+      accessibilityState={expanded === undefined ? undefined : { expanded }}
     >
       <Text style={styles.rowLabel}>{label}</Text>
       <View style={styles.rowRight}>
         {detail ? <Text style={styles.rowDetail}>{detail}</Text> : null}
-        <Ionicons name={icon} size={16} color={theme.colors.textTertiary} />
+        <Ionicons name={icon} size={16} color={theme.colors.textSecondary} />
       </View>
     </TouchableOpacity>
   );
@@ -331,32 +393,19 @@ function createStyles(theme: Theme) {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: theme.spacing.sm,
-      paddingBottom: theme.spacing.sm,
-    },
-    title: {
-      fontSize: theme.fontSize["2xl"],
-      fontFamily: theme.fonts.display,
-      color: theme.colors.text,
-      marginLeft: theme.spacing.xs,
-    },
     content: {
       paddingHorizontal: theme.spacing.xl,
-      paddingTop: theme.spacing.md,
+      paddingTop: theme.spacing.sm,
     },
-    eyebrow: {
-      fontSize: 13,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.text,
-      textTransform: "uppercase",
-      letterSpacing: 1,
+    groupLabel: {
       marginBottom: theme.spacing.xs,
     },
-    eyebrowSpaced: {
-      marginTop: 28,
+    groupLabelSpaced: {
+      marginTop: theme.spacing["3xl"],
+    },
+    list: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
     },
     row: {
       height: 50,
@@ -369,14 +418,13 @@ function createStyles(theme: Theme) {
       borderBottomColor: theme.colors.divider,
     },
     rowLabel: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.body,
+      ...theme.typography.body,
       color: theme.colors.text,
     },
     rowRight: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 6,
+      gap: theme.spacing.xs + 2,
     },
     rowDetail: {
       fontSize: theme.fontSize.sm,
@@ -430,43 +478,44 @@ function createStyles(theme: Theme) {
       marginTop: 2,
     },
     signOutErrorText: {
-      color: theme.colors.destructive,
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
+      color: theme.colors.destructive,
       marginTop: theme.spacing.lg,
       textAlign: "center",
     },
     signOutButton: {
-      marginTop: 36,
-      height: 48,
-      borderRadius: theme.radii.full,
-      backgroundColor: theme.colors.chipBg,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    buttonDisabled: {
-      opacity: 0.6,
-    },
-    signOutText: {
-      color: theme.colors.text,
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+      marginTop: theme.spacing["3xl"],
     },
     deleteAccountButton: {
-      paddingVertical: 14,
-      alignItems: "center",
-      marginTop: theme.spacing.sm,
-    },
-    deleteAccountText: {
-      color: theme.colors.destructive,
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
+      marginTop: theme.spacing.xs,
     },
     signedInAs: {
+      ...theme.typography.meta,
+      fontSize: theme.fontSize.xs,
       marginTop: theme.spacing.sm,
       textAlign: "center",
-      fontSize: theme.fontSize.xs,
-      fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
+    },
+    feedbackBody: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingBottom: theme.spacing.xs,
+    },
+    feedbackText: {
+      ...theme.typography.body,
+      fontSize: theme.fontSize.callout,
+      lineHeight: 21,
+      color: theme.colors.textSecondary,
+    },
+    feedbackAddress: {
+      ...theme.typography.bodyStrong,
+      fontSize: theme.fontSize.lg,
+      color: theme.colors.text,
+      marginTop: theme.spacing.sm,
+      marginBottom: theme.spacing.lg,
+    },
+    copyButton: {
+      marginTop: theme.spacing.xl,
     },
   });
 }

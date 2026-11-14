@@ -24,6 +24,7 @@ import { friendlyError } from "@/lib/errors";
 import { MomentCard } from "@/components/MomentCard";
 import { fetchAlbumMoments } from "@/lib/browse";
 import { pluralMoments } from "@/lib/utils";
+import { ScreenHeader } from "@/components/ScreenHeader";
 
 const STALE_TIME = 2 * 60 * 1000;
 
@@ -72,31 +73,26 @@ export default function AlbumScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} activeOpacity={0.7}>
-          <Text style={styles.backText}>‹ Back</Text>
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader title={album} style={styles.header} />
 
-      <View style={styles.albumHeader}>
+      {/* The cover, then artist (opens its page) and the count. */}
+      <View style={styles.albumMeta}>
         {artworkUrl ? (
           <AppImage source={{ uri: artworkUrl }} style={styles.albumArtwork} />
         ) : (
           <ArtworkPlaceholder style={styles.albumArtwork} />
         )}
-        <View style={styles.albumMeta}>
-          <Text style={styles.albumName} numberOfLines={2}>{album}</Text>
+        <View style={styles.albumMetaText}>
           <TouchableOpacity
             activeOpacity={0.6}
             onPress={() => router.push({ pathname: "/artist", params: { name: artist } })}
+            accessibilityRole="link"
           >
             <Text style={styles.artistLink} numberOfLines={1}>{artist}</Text>
           </TouchableOpacity>
-          {!isLoading && (
-            <Text style={styles.momentCount}>
-              {pluralMoments(moments.length)}
-            </Text>
-          )}
+          <Text style={styles.momentCount}>
+            {isLoading ? " " : pluralMoments(moments.length)}
+          </Text>
         </View>
       </View>
 
@@ -147,43 +143,33 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.background,
     },
     header: {
-      paddingTop: 60,
-      paddingHorizontal: theme.spacing.xl,
-      paddingBottom: theme.spacing.sm,
-    },
-    backText: {
-      fontSize: theme.fontSize.lg,
-      color: theme.colors.accent,
-    },
-    albumHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: theme.spacing.xl,
-      paddingBottom: theme.spacing.xl,
-      gap: theme.spacing.md,
-    },
-    albumArtwork: {
-      width: 60,
-      height: 60,
-      borderRadius: theme.radii.sm,
+      paddingBottom: 0,
     },
     albumMeta: {
-      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md,
+      paddingHorizontal: theme.spacing.xl,
+      paddingTop: theme.spacing.sm,
+      paddingBottom: theme.spacing.lg,
     },
-    albumName: {
-      fontSize: theme.fontSize["2xl"],
-      fontFamily: theme.fonts.display,
-      color: theme.colors.text,
-      marginBottom: theme.spacing.xs,
+    albumArtwork: {
+      width: 48,
+      height: 48,
+      borderRadius: theme.radii.sm,
+    },
+    albumMetaText: {
+      flex: 1,
+      minWidth: 0,
     },
     artistLink: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.accent,
-      marginBottom: theme.spacing.xs,
+      ...theme.typography.callout,
+      color: theme.colors.text,
     },
     momentCount: {
-      fontSize: theme.fontSize.sm,
+      ...theme.typography.meta,
       color: theme.colors.textSecondary,
+      marginTop: 2,
     },
     bannerWrap: {
       paddingHorizontal: theme.spacing.xl,
@@ -202,7 +188,7 @@ function createStyles(theme: Theme) {
       padding: theme.spacing.xl,
     },
     emptyText: {
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
     },
   });

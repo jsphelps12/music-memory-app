@@ -1,116 +1,119 @@
 import { useMemo } from "react";
 import { View, Text, ScrollView, StyleSheet } from "react-native";
-import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
-import { CloseButton } from "@/components/CloseButton";
+import { ScreenHeader } from "@/components/ScreenHeader";
 
+// Every real way into capture (checked against app/create.tsx and
+// targets/widget, 2026-11). No count in the copy: it drifts.
 const CAPTURE_METHODS = [
-  { icon: "search-outline", label: "Search", desc: "Find any song by title or artist" },
-  { icon: "musical-note-outline", label: "Now Playing", desc: "Auto-fills when Apple Music is playing" },
-  { icon: "share-outline", label: "Share from Apple Music / Spotify", desc: "Tap Share → Soundtracks in any music app" },
-  { icon: "image-outline", label: "Share from Photos", desc: "Tap Share → Soundtracks from camera roll" },
-  { icon: "ear-outline", label: "ShazamKit", desc: "Hear a song anywhere — identify it in-app" },
+  {
+    icon: "add",
+    label: "The + button",
+    desc: "Search for any song by title or artist. If Apple Music is already playing, the song is filled in for you.",
+  },
+  {
+    icon: "ear-outline",
+    label: "Identify",
+    desc: "Hear something you love out in the world? Tap Identify on the capture screen and Soundtracks will name it.",
+  },
+  {
+    icon: "share-outline",
+    label: "Share from Apple Music or Spotify",
+    desc: "Tap Share on any song, then Soundtracks.",
+  },
+  {
+    icon: "image-outline",
+    label: "Share from Photos",
+    desc: "Share a photo to Soundtracks and start an entry around it.",
+  },
+  {
+    icon: "apps-outline",
+    label: "Home Screen and Lock Screen widgets",
+    desc: "One tap from anywhere on your phone to capture, or to identify what's playing.",
+  },
+  {
+    icon: "toggle-outline",
+    label: "Control Center and the Action button",
+    desc: "On iOS 18 and later, add a Soundtracks control to capture or identify without opening the app first.",
+  },
 ] as const;
 
 export default function HelpScreen() {
-  const router = useRouter();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
 
   return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.container}
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>How to Capture</Text>
-        <CloseButton onPress={() => router.back()} />
-      </View>
+    <View style={styles.screen}>
+      <ScreenHeader leading="back" title="How to capture" />
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + theme.spacing["3xl"] }]}
+      >
+        <Text style={styles.intro}>
+          However a song finds you, there's a way to save it before it slips away.
+        </Text>
 
-      <Text style={styles.subtitle}>
-        There are five ways to add a song to a moment.
-      </Text>
-
-      <View style={styles.card}>
-        {CAPTURE_METHODS.map(({ icon, label, desc }, idx) => (
-          <View key={label} style={[styles.row, idx > 0 && styles.rowBorder]}>
-            <View style={styles.iconWrap}>
-              <Ionicons name={icon} size={20} color={theme.colors.accent} />
+        <View style={styles.list}>
+          {CAPTURE_METHODS.map(({ icon, label, desc }) => (
+            <View key={label} style={styles.row}>
+              <Ionicons name={icon} size={20} color={theme.colors.textSecondary} style={styles.icon} />
+              <View style={styles.rowText}>
+                <Text style={styles.rowLabel}>{label}</Text>
+                <Text style={styles.rowDesc}>{desc}</Text>
+              </View>
             </View>
-            <View style={styles.rowText}>
-              <Text style={styles.rowLabel}>{label}</Text>
-              <Text style={styles.rowDesc}>{desc}</Text>
-            </View>
-          </View>
-        ))}
-      </View>
-    </ScrollView>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    scroll: {
+    screen: {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
-    container: {
-      paddingTop: 64,
-      paddingBottom: 48,
+    content: {
       paddingHorizontal: theme.spacing.xl,
     },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: theme.spacing.lg,
-    },
-    title: {
-      fontSize: 26,
-      fontFamily: theme.fonts.display,
-      color: theme.colors.text,
-    },
-    subtitle: {
-      fontSize: theme.fontSize.base,
+    intro: {
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
       marginBottom: theme.spacing["2xl"],
-      lineHeight: 22,
     },
-    card: {
-      backgroundColor: theme.colors.cardBg,
-      borderRadius: theme.radii.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      overflow: "hidden",
+    list: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
     },
     row: {
       flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: 14,
-      paddingHorizontal: theme.spacing.lg,
+      alignItems: "flex-start",
+      paddingVertical: theme.spacing.lg,
       gap: theme.spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
     },
-    rowBorder: {
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: theme.colors.border,
-    },
-    iconWrap: {
-      width: 32,
-      alignItems: "center",
+    icon: {
+      width: 24,
+      marginTop: 1,
     },
     rowText: {
       flex: 1,
     },
     rowLabel: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+      ...theme.typography.bodyStrong,
       color: theme.colors.text,
     },
     rowDesc: {
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
-      color: theme.colors.textTertiary,
+      lineHeight: 20,
+      color: theme.colors.textSecondary,
       marginTop: 2,
     },
   });
