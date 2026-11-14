@@ -1,4 +1,4 @@
-import { ReactNode, useMemo } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import {
   DimensionValue,
   Modal,
@@ -7,25 +7,36 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+  Easing,
+  ReduceMotion,
+  runOnJS,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withTiming,
-  runOnJS,
 } from "react-native-reanimated";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { CloseButton } from "@/components/CloseButton";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
 interface Props {
   visible: boolean;
   onClose: () => void;
-  /** Header title. The header row (and its CloseButton) renders regardless. */
+  /** Serif title at the top left. */
   title?: string;
   children: ReactNode;
+  /**
+   * done (default): a "Done" text button on the right. Quick picks apply as
+   * you tap, so Done just closes.
+   * none: no header action, for sheets that end in their own buttons
+   * (ConfirmSheet: Cancel + the action).
+   */
+  headerAction?: "done" | "none";
+  doneLabel?: string;
   /** Wrap in KeyboardAvoidingView — for sheets containing text inputs. */
   keyboardAvoiding?: boolean;
   /** Only set these for content that needs a guaranteed tall scroll area. */
@@ -34,22 +45,29 @@ interface Props {
   testID?: string;
 }
 
+const EASE_OUT = Easing.bezier(0.16, 1, 0.3, 1);
+const OPEN_MS = 320;
+const CLOSE_MS = 220;
+
 /**
  * The one bottom sheet. Quick picks only — sized to content per the
  * screen-vs-quick-pick rule (CLAUDE.md); anything substantial gets a
  * full-screen route instead.
  *
- * Baked in, so individual sheets can't drift: backdrop dim + tap-to-close,
- * drag handle with pan-to-dismiss, and a header row with CloseButton. The pan
- * gesture lives on the grab zone (handle + header) rather than the whole
- * sheet — whole-sheet pan fights inner ScrollViews, which is how the app
- * ended up with three pan variants before this existed.
+ * Baked in, so individual sheets can't drift (DESIGN.md, Navigation >
+ * Surfaces): a faint warm scrim that fades on its own while the sheet rises
+ * (it used to slide up with the sheet, which read as a grey panel), Deep
+ * Paper with a 20pt top radius, a grabber with pan-to-dismiss, a serif title,
+ * and "Done" in ink. Content is clipped to the sheet so nothing shows past
+ * its edge mid-keyboard.
  */
 export function BottomSheet({
   visible,
   onClose,
   title,
   children,
+  headerAction = "done",
+  doneLabel = "Done",
   keyboardAvoiding = false,
   minHeight,
   maxHeight = "75%",
@@ -57,53 +75,108 @@ export function BottomSheet({
 }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const translateY = useSharedValue(0);
+  const { height: screenHeight } = useWindowDimensions();
+  const reduceMotion = useReducedMotion();
+
+  // The Modal stays mounted through the closing animation, then unmounts.
+  const [mounted, setMounted] = useState(visible);
+  const scrim = useSharedValue(0);
+  const offset = useSharedValue(screenHeight);
+  const drag = useSharedValue(0);
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      drag.value = 0;
+      offset.value = reduceMotion ? 0 : screenHeight;
+      scrim.value = withTiming(1, { duration: 220, easing: Easing.out(Easing.quad) });
+      offset.value = withTiming(0, {
+        duration: reduceMotion ? 0 : OPEN_MS,
+        easing: EASE_OUT,
+        reduceMotion: ReduceMotion.System,
+      });
+    } else if (mounted) {
+      scrim.value = withTiming(0, { duration: CLOSE_MS });
+      offset.value = withTiming(
+        reduceMotion ? 0 : screenHeight,
+        { duration: CLOSE_MS, easing: Easing.in(Easing.quad) },
+        (finished) => {
+          if (finished) runOnJS(setMounted)(false);
+        }
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   const panGesture = useMemo(
     () =>
       Gesture.Pan()
         .onUpdate((e) => {
-          if (e.translationY > 0) translateY.value = e.translationY;
+          drag.value = Math.max(0, e.translationY);
         })
         .onEnd((e) => {
-          if (e.translationY > 80) {
+          if (e.translationY > 80 || e.velocityY > 900) {
             runOnJS(onClose)();
+          } else {
+            drag.value = withTiming(0, { duration: 180, easing: EASE_OUT });
           }
-          translateY.value = withTiming(0);
         }),
-    [onClose, translateY]
+    [onClose, drag]
   );
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: offset.value + drag.value }],
   }));
+  const scrimStyle = useAnimatedStyle(() => ({ opacity: scrim.value }));
+
+  if (!mounted) return null;
 
   const body = (
     <>
-      <Pressable style={styles.backdrop} onPress={onClose} />
+      <Animated.View style={[styles.scrim, scrimStyle]} pointerEvents="box-none">
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        />
+      </Animated.View>
       <Animated.View
         testID={testID}
-        style={[styles.sheet, { minHeight, maxHeight }, animatedStyle]}
+        accessibilityViewIsModal
+        style={[styles.sheet, { minHeight, maxHeight }, sheetStyle]}
       >
         <GestureDetector gesture={panGesture}>
           <View>
-            <View
-              style={styles.handle}
-              hitSlop={{ top: 12, bottom: 8, left: 120, right: 120 }}
-            />
+            <View style={styles.handle} />
             <View style={styles.header}>
-              {title ? <Text style={styles.title}>{title}</Text> : <View />}
-              <CloseButton onPress={onClose} />
+              {title ? (
+                <Text style={styles.title} accessibilityRole="header" numberOfLines={1}>
+                  {title}
+                </Text>
+              ) : (
+                <View />
+              )}
+              {headerAction === "done" ? (
+                <Pressable
+                  onPress={onClose}
+                  hitSlop={12}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.done, pressed && styles.pressed]}
+                >
+                  <Text style={styles.doneText}>{doneLabel}</Text>
+                </Pressable>
+              ) : null}
             </View>
           </View>
         </GestureDetector>
-        {children}
+        <View style={styles.content}>{children}</View>
       </Animated.View>
     </>
   );
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible transparent animationType="none" onRequestClose={onClose}>
       {keyboardAvoiding ? (
         <KeyboardAvoidingView style={styles.avoider} behavior="padding">
           {body}
@@ -121,15 +194,18 @@ function createStyles(theme: Theme) {
       flex: 1,
       justifyContent: "flex-end",
     },
-    backdrop: {
+    scrim: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: theme.isDark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.3)",
+      backgroundColor: theme.colors.scrim,
     },
     sheet: {
       backgroundColor: theme.colors.backgroundSecondary,
       borderTopLeftRadius: theme.radii.lg,
       borderTopRightRadius: theme.radii.lg,
-      paddingBottom: Platform.OS === "ios" ? 36 : 24,
+      paddingBottom: Platform.OS === "ios" ? 34 : 24,
+      // Clips content to the sheet (it used to spill past the edge while the
+      // keyboard moved). The scrim, not a shadow, separates it from the page.
+      overflow: "hidden",
     },
     handle: {
       width: 36,
@@ -137,21 +213,34 @@ function createStyles(theme: Theme) {
       borderRadius: 2,
       backgroundColor: theme.colors.border,
       alignSelf: "center",
-      marginTop: 10,
-      marginBottom: 4,
+      marginTop: 8,
+      marginBottom: 2,
     },
     header: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
+      minHeight: 48,
       paddingHorizontal: theme.spacing.xl,
-      paddingTop: theme.spacing.sm,
-      paddingBottom: theme.spacing.xs,
     },
     title: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+      ...theme.typography.title,
       color: theme.colors.text,
+      flexShrink: 1,
+    },
+    done: {
+      minHeight: 44,
+      justifyContent: "center",
+      paddingLeft: theme.spacing.lg,
+    },
+    doneText: {
+      fontFamily: theme.fonts.bodySemibold,
+      fontSize: theme.fontSize.base,
+      color: theme.colors.text,
+    },
+    pressed: { opacity: 0.6 },
+    content: {
+      flexShrink: 1,
     },
   });
 }

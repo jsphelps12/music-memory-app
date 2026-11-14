@@ -225,7 +225,7 @@ Warm paper and blue-black ink, with a single terracotta signal and a muted slate
 
 ## Elevation & Depth
 
-Flat by default, with depth by tonal step: paper, deep paper, raised white; night, night raised. Lists and headers carry no shadow, only hairlines. Shadow appears on objects that physically float or lift: the floating capture button, the hero artwork on an entry, the active segment of a segmented control, sheets over a dimmed scrim, and on the web the drawn iPhone.
+Flat by default, with depth by tonal step: paper, deep paper, raised white; night, night raised. Lists and headers carry no shadow, only hairlines. Shadow appears on objects that physically float or lift: the floating capture button, the hero artwork on an entry, the active segment of a segmented control, and on the web the drawn iPhone.
 
 ### Shadow Vocabulary
 - **Segment lift** (`0 1px 2px rgba(0,0,0,0.08)`, none in dark): the selected segment in a segmented control.
@@ -242,6 +242,20 @@ Flat by default, with depth by tonal step: paper, deep paper, raised white; nigh
 Gently rounded, never sharp and never bubbly. Artwork thumbnails and photo tiles use 6 to 10px corners (`sm` 8px typical); search fields and quiet panels 12px (`md`); full-width primary buttons 14px (`button`); bottom sheets round only their top corners at 20px (`lg`). Anything compact and tappable (chips, the save pill, the capture button, segmented controls, glass buttons over imagery) is a full pill or circle. Dots are 8px circles. Borders are hairlines; the only heavier rule is a 2px ink top border that heads a tracklist.
 
 ## Components
+
+Every element below has one shared implementation in `components/`. Screens compose these; they never hand-roll a button, chip, field, header or sheet (design sweep, 2026-11):
+
+| Element | Component |
+|---|---|
+| Buttons (primary, secondary, destructive, text; large or pill) | `Button` |
+| Chips (outline choice, filled value, dashed add, removable) | `Chip` |
+| Text fields (single line, search, multiline) | `TextField` |
+| Screen top (back or close, actions, serif Headline title) | `ScreenHeader` |
+| Section labels inside a screen or sheet | `SectionLabel` |
+| Bottom sheets | `BottomSheet`, and `confirmSheet()` for decisions |
+| Icon-only controls | `IconButton` (plain in headers; filled only over imagery) |
+
+Type roles come from `theme.typography` (headline, title, reading, body, bodyStrong, callout, label, meta); don't restate family and size by hand.
 
 ### Buttons
 Quiet, solid, ink.
@@ -272,6 +286,8 @@ A shared album shown as a record's tracklist: 2px ink top rule, serif title with
 - **Web nav:** the app icon tile (30px, 22.5% corners) beside the serif wordmark (24px DM Serif Display), on the night hero. Once the hero scrolls away, a frosted paper bar slides in with the same lockup and the App Store badge.
 - **Record mark (web):** the icon's record (ink disc, terracotta label, serif S) drawn without its tile. The hero shows it sliding out of a song's sleeve; keep the S label visible whenever it appears.
 - **Surfaces:** every surface is a full screen or a compact bottom sheet sized to content (Deep Paper, 20px top radius, grabber in Edge). No page-sheet cards that cover most of a screen.
+- **Sheets:** a serif Title on the left and "Done" in ink on the right; quick picks apply as you tap, so Done only closes. Behind it, a faint warm scrim (`scrim`: ink at 16% on paper, night at 55% in dark) that fades in on its own while the sheet rises; never a grey panel sliding up with the sheet. Content is clipped to the sheet. Confirmations end in their own buttons (the action, then Cancel) with no header action.
+- **Pushed vs presented:** screens you drill into (artist, song, album, friends, edit profile, help) push from the right with a back chevron and the edge swipe. Only tasks present full screen with an ✕ (capture, the writer, song search, joining from a link).
 
 ### Device (web)
 Real app screens shown in a CSS iPhone at true proportions (393:852, corner radius 16.5% of width), never mockup art. Its Lock Screen depicts iOS faithfully (system type for the clock, frosted widgets), with the Soundtracks widget title in DM Serif Display. Screens cross-fade with blur over 0.7s on `cubic-bezier(0.16, 1, 0.3, 1)`; with reduced motion they swap without transition.
