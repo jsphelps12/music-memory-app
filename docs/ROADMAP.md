@@ -75,11 +75,15 @@ the review waves (#58–#64) merged, so the store's 1.3.0 doesn't have them.
 Beta build 36 does. 1.3.1 is that beta, as a store build. No app code
 changed since build 36.
 - [x] Version bump to 1.3.1 (release PR).
-- [ ] Beta builds from the release commit (`preview`, `preview-simulator`);
+- [x] Beta builds from the release commit (`preview`, `preview-simulator`);
   the bump moves the preview fingerprint.
-- [ ] Production build, submitted to App Store Connect.
-- [ ] **Josh:** TestFlight pass, then the 1.3.1 version in App Store Connect
-  (attach the build, What's New), submit for review, release.
+- [x] Production build (build 10), submitted to App Store Connect.
+- [x] New 6.9" store screenshots of the new look (2026-11-14). Taken from a
+  demo account on prod (`demo@soundtracks.test`, notifications off), since
+  staging is paused. The widget frame is unchanged.
+- [ ] **Josh:** TestFlight pass (done), then the 1.3.1 version in App Store
+  Connect (attach build 10, What's New, upload the new screenshots and delete
+  any smaller-iPhone sets), submit for review, release.
 - [ ] After it's live: raise the min-build gate, which unblocks DB-2 (RLS
   hardening step 2).
 - [x] E2E green on `main` so the promote path works for JS fixes (PR #33:
