@@ -86,6 +86,15 @@ changed since build 36.
   search-input race fix, Maestro driver-death retry, seed no longer signs out
   testers).
 
+### Fixes (JS only, can ship OTA)
+- [x] **New users landed on an empty Journal after onboarding** (found
+  2026-11-13 on 1.3.1). The timeline prefetch runs at sign-up, before the two
+  onboarding moments exist. The Journal tab first mounts after onboarding and
+  painted that empty prefetch even though onboarding had marked it stale. Now
+  a stale flag on first load skips the prefetch (`planFocusFetch` in
+  `lib/timelineRefresh.ts`), and the empty state supports pull-to-refresh.
+  Not yet checked on a device.
+
 ### Phase 1 — Feel
 *Cleaner, more intuitive, professional-grade; capture in two taps.*
 Owner's read: "doesn't feel great" — colors, generic menu icons, borders,

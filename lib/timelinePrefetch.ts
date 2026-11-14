@@ -159,6 +159,17 @@ export function consumePrefetchNetworkPromise(userId: string): Promise<Moment[] 
   return p;
 }
 
+/**
+ * Drops the prefetch for this user without using it. Called when the timeline
+ * knows the data changed after the prefetch fired (see planFocusFetch), so a
+ * later consumer (e.g. the error-state retry) can't pick up the outdated
+ * result either.
+ */
+export function discardTimelinePrefetch(userId: string): void {
+  if (_prefetch?.userId === userId) _prefetch = null;
+  if (_network?.userId === userId) _network = null;
+}
+
 // ── Merging a refreshed first page into a paginated list ──────────────────
 // Pure, exported for tests. The timeline must not collapse to one page when it
 // refreshes in the background: that dropped every page the user had scrolled
