@@ -419,7 +419,9 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="profile-edit"
-            options={{ headerShown: false, presentation: "fullScreenModal" }}
+            // Pushed, not presented (design sweep, 2026-11): you drill into it
+            // from You/Settings, so it gets the back chevron and edge swipe.
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="join"
@@ -427,7 +429,9 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="friends-list"
-            options={{ headerShown: false, presentation: "fullScreenModal" }}
+            // Pushed, not presented (design sweep, 2026-11): you drill into it
+            // from You/Settings, so it gets the back chevron and edge swipe.
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="friend/[token]"
