@@ -51,7 +51,6 @@ export default function AlbumScreen() {
     staleTime: BROWSE_DRILLDOWN_STALE,
   });
 
-
   return (
     <BrowseScreen
       title={active.albumName}

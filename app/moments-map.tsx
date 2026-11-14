@@ -17,6 +17,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { supabase } from "@/lib/supabase";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
+import { IconButton } from "@/components/IconButton";
+import { Button } from "@/components/Button";
 import { friendlyError } from "@/lib/errors";
 import { artworkUrlAtSize } from "@/lib/itunes";
 
@@ -30,6 +32,8 @@ const DEFAULT_REGION = {
 // 40pt markers and 52pt preview artwork, at 3x.
 const MARKER_ARTWORK_PX = 120;
 const PREVIEW_ARTWORK_PX = 156;
+// Night, not pure black, for the shadows of things floating over the map.
+const SHADOW_INK = "#0E0B0A";
 
 interface MapMoment {
   id: string;
@@ -115,14 +119,19 @@ export default function MomentsMapScreen() {
         ))}
       </MapView>
 
-      {/* Back button */}
-      <TouchableOpacity
-        style={[styles.backButton, { top: insets.top + 12 }]}
-        onPress={() => router.back()}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="chevron-back" size={20} color="#fff" />
-      </TouchableOpacity>
+      {/* Back: a glass disc over the map (IconButton "filled"), the same
+          one the entry screen floats over artwork. */}
+      <View style={[styles.backWrap, { top: insets.top + 6 }]}>
+        <IconButton
+          variant="filled"
+          name="chevron-back"
+          size={20}
+          color={theme.colors.text}
+          style={styles.glassBtn}
+          onPress={() => router.back()}
+          accessibilityLabel="Back"
+        />
+      </View>
 
       {/* Load failure: not the same as having no located moments */}
       {isError && mapMoments.length === 0 ? (
@@ -130,9 +139,7 @@ export default function MomentsMapScreen() {
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>Couldn&apos;t load your map</Text>
             <Text style={styles.emptySubtitle}>{friendlyError(error)}</Text>
-            <TouchableOpacity onPress={() => refetch()} activeOpacity={0.7} accessibilityRole="button">
-              <Text style={styles.retryText}>Try Again</Text>
-            </TouchableOpacity>
+            <Button label="Try again" variant="text" fullWidth={false} onPress={() => refetch()} />
           </View>
         </View>
       ) : null}
@@ -141,7 +148,7 @@ export default function MomentsMapScreen() {
       {isSuccess && mapMoments.length === 0 ? (
         <View style={styles.emptyContainer}>
           <View style={styles.emptyCard}>
-            <Ionicons name="map-outline" size={28} color="rgba(0,0,0,0.3)" />
+            <Ionicons name="map-outline" size={28} color={theme.colors.textTertiary} />
             <Text style={styles.emptyTitle}>No located moments yet</Text>
             <Text style={styles.emptySubtitle}>
               Add a location when creating a moment and it'll appear here.
@@ -197,25 +204,27 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: {
       flex: 1,
+      backgroundColor: theme.colors.background,
     },
-    backButton: {
+    backWrap: {
       position: "absolute",
-      left: 16,
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: "rgba(0,0,0,0.5)",
-      alignItems: "center",
-      justifyContent: "center",
+      left: 12,
+    },
+    // Frosted paper on light, night glass on dark: the map is imagery.
+    glassBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: theme.radii.full,
+      backgroundColor: theme.isDark ? "rgba(28,23,22,0.8)" : "rgba(251,247,242,0.86)",
     },
     markerContainer: {
       width: 40,
       height: 40,
       borderRadius: 20,
-      backgroundColor: "#fff",
+      backgroundColor: theme.colors.elevated,
       alignItems: "center",
       justifyContent: "center",
-      shadowColor: "#000",
+      shadowColor: SHADOW_INK,
       shadowOpacity: 0.2,
       shadowRadius: 4,
       shadowOffset: { width: 0, height: 2 },
@@ -227,24 +236,27 @@ function createStyles(theme: Theme) {
       height: 40,
       borderRadius: 20,
     },
+    // No artwork: an ink dot. Terracotta is one signal per view, and a map
+    // can hold dozens of these.
     markerDot: {
       width: 14,
       height: 14,
       borderRadius: 7,
-      backgroundColor: "#E8825C",
+      backgroundColor: theme.colors.buttonBg,
     },
+    // Floats over the map, so it's a raised surface with a soft shadow.
     previewCard: {
       position: "absolute",
-      left: 16,
-      right: 16,
-      backgroundColor: theme.colors.cardBg,
-      borderRadius: 16,
+      left: theme.spacing.lg,
+      right: theme.spacing.lg,
+      backgroundColor: theme.colors.elevated,
+      borderRadius: theme.radii.button,
       flexDirection: "row",
       alignItems: "center",
-      padding: 12,
-      gap: 12,
-      shadowColor: "#000",
-      shadowOpacity: 0.15,
+      padding: theme.spacing.md,
+      gap: theme.spacing.md,
+      shadowColor: SHADOW_INK,
+      shadowOpacity: theme.isDark ? 0.45 : 0.15,
       shadowRadius: 12,
       shadowOffset: { width: 0, height: 4 },
       elevation: 8,
@@ -252,25 +264,24 @@ function createStyles(theme: Theme) {
     previewArtwork: {
       width: 52,
       height: 52,
-      borderRadius: 8,
+      borderRadius: theme.radii.sm,
     },
     previewInfo: {
       flex: 1,
       gap: 2,
     },
     previewTitle: {
-      fontSize: 15,
-      fontFamily: "DMSans_600SemiBold",
+      ...theme.typography.bodyStrong,
+      fontSize: theme.fontSize.callout,
       color: theme.colors.text,
     },
     previewArtist: {
-      fontSize: 13,
-      fontFamily: "DMSans_400Regular",
+      ...theme.typography.meta,
       color: theme.colors.textSecondary,
     },
     previewDate: {
-      fontSize: 12,
-      fontFamily: "DMSans_400Regular",
+      ...theme.typography.meta,
+      fontSize: theme.fontSize.xs,
       color: theme.colors.textSecondary,
       marginTop: 2,
     },
@@ -278,34 +289,27 @@ function createStyles(theme: Theme) {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      padding: 32,
+      padding: theme.spacing["3xl"],
     },
     emptyCard: {
-      backgroundColor: theme.colors.cardBg,
-      borderRadius: 16,
-      padding: 24,
+      backgroundColor: theme.colors.elevated,
+      borderRadius: theme.radii.button,
+      padding: theme.spacing["2xl"],
       alignItems: "center",
-      gap: 8,
+      gap: theme.spacing.sm,
       maxWidth: 280,
     },
     emptyTitle: {
-      fontSize: 16,
-      fontFamily: "DMSans_600SemiBold",
+      ...theme.typography.bodyStrong,
       color: theme.colors.text,
       textAlign: "center",
     },
     emptySubtitle: {
-      fontSize: 14,
-      fontFamily: "DMSans_400Regular",
+      ...theme.typography.body,
+      fontSize: theme.fontSize.sm,
+      lineHeight: 20,
       color: theme.colors.textSecondary,
       textAlign: "center",
-      lineHeight: 20,
-    },
-    retryText: {
-      marginTop: theme.spacing.xs,
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.text,
     },
   });
 }

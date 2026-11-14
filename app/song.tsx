@@ -22,6 +22,7 @@ import { friendlyError } from "@/lib/errors";
 import { MomentCard } from "@/components/MomentCard";
 import { fetchSongMoments } from "@/lib/browse";
 import { pluralMoments } from "@/lib/utils";
+import { ScreenHeader } from "@/components/ScreenHeader";
 
 const STALE_TIME = 2 * 60 * 1000;
 
@@ -68,25 +69,20 @@ export default function SongScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} activeOpacity={0.7}>
-          <Text style={styles.backText}>‹ Back</Text>
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader title={title} style={styles.header} />
 
-      <View style={styles.songHeader}>
-        <Text style={styles.songTitle} numberOfLines={2}>{title}</Text>
+      {/* Song then artist: the artist opens its own page. */}
+      <View style={styles.songMeta}>
         <TouchableOpacity
           activeOpacity={0.6}
           onPress={() => router.push({ pathname: "/artist", params: { name: artist } })}
+          accessibilityRole="link"
         >
           <Text style={styles.artistLink} numberOfLines={1}>{artist}</Text>
         </TouchableOpacity>
-        {!isLoading && (
-          <Text style={styles.momentCount}>
-            {pluralMoments(moments.length)}
-          </Text>
-        )}
+        <Text style={styles.momentCount}>
+          {isLoading ? " " : pluralMoments(moments.length)}
+        </Text>
       </View>
 
       {showBanner ? (
@@ -136,32 +132,21 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.background,
     },
     header: {
-      paddingTop: 60,
+      paddingBottom: 0,
+    },
+    songMeta: {
       paddingHorizontal: theme.spacing.xl,
-      paddingBottom: theme.spacing.sm,
-    },
-    backText: {
-      fontSize: theme.fontSize.lg,
-      color: theme.colors.accent,
-    },
-    songHeader: {
-      paddingHorizontal: theme.spacing.xl,
-      paddingBottom: theme.spacing.xl,
-    },
-    songTitle: {
-      fontSize: theme.fontSize["2xl"],
-      fontFamily: theme.fonts.display,
-      color: theme.colors.text,
-      marginBottom: theme.spacing.xs,
+      paddingTop: theme.spacing.xs,
+      paddingBottom: theme.spacing.lg,
     },
     artistLink: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.accent,
-      marginBottom: theme.spacing.xs,
+      ...theme.typography.callout,
+      color: theme.colors.text,
     },
     momentCount: {
-      fontSize: theme.fontSize.sm,
+      ...theme.typography.meta,
       color: theme.colors.textSecondary,
+      marginTop: theme.spacing.xs,
     },
     bannerWrap: {
       paddingHorizontal: theme.spacing.xl,
@@ -180,7 +165,7 @@ function createStyles(theme: Theme) {
       padding: theme.spacing.xl,
     },
     emptyText: {
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
     },
   });

@@ -15,6 +15,12 @@ import { MomentCardData } from "@/types";
 import { pad } from "@/lib/dateUtils";
 
 const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
+// Warm ink over artwork (DESIGN.md allows it over imagery) so the day number
+// holds contrast; paper for the number itself.
+const INK_VEIL = "rgba(35,34,43,0.22)";
+const INK_GLASS = "rgba(35,34,43,0.6)";
+const INK_SHADOW = "rgba(35,34,43,0.5)";
+const PAPER_ON_ART = "#FBF7F2";
 const { width: SW } = Dimensions.get("window");
 const H_PAD = 16;
 const CELL = Math.floor((SW - H_PAD * 2) / 7);
@@ -146,8 +152,9 @@ function CalendarViewComponent({ moments, onDayPress, theme, loading }: Props) {
                       </>
                     ) : hasMoment ? (
                       <>
-                        <View style={[StyleSheet.absoluteFill, styles.cellAccent]} />
-                        <Text style={[styles.dayNum, styles.dayNumOnArt]}>{day}</Text>
+                        {/* No artwork: an ink tile, not a terracotta one. */}
+                        <View style={[StyleSheet.absoluteFill, styles.cellInk]} />
+                        <Text style={[styles.dayNum, styles.dayNumOnInk]}>{day}</Text>
                         {count > 1 && (
                           <View style={styles.badge}>
                             <Text style={styles.badgeText}>{count}</Text>
@@ -167,7 +174,7 @@ function CalendarViewComponent({ moments, onDayPress, theme, loading }: Props) {
 
       {undated.length > 0 && (
         <View style={styles.undatedBlock}>
-          <Text style={styles.monthLabel}>No Date</Text>
+          <Text style={styles.monthLabel}>No date</Text>
           {undated.map((m) => (
             <TouchableOpacity
               key={m.id}
@@ -209,8 +216,7 @@ function createStyles(theme: Theme) {
       marginBottom: theme.spacing["3xl"],
     },
     monthLabel: {
-      fontSize: theme.fontSize.base,
-      fontWeight: theme.fontWeight.semibold,
+      ...theme.typography.label,
       color: theme.colors.textSecondary,
       marginBottom: theme.spacing.sm,
     },
@@ -224,9 +230,9 @@ function createStyles(theme: Theme) {
       paddingVertical: 4,
     },
     dowText: {
+      fontFamily: theme.fonts.bodyMedium,
       fontSize: 11,
       color: theme.colors.textTertiary,
-      fontWeight: theme.fontWeight.medium,
     },
     grid: {
       flexDirection: "row",
@@ -243,38 +249,44 @@ function createStyles(theme: Theme) {
       justifyContent: "center",
       overflow: "hidden",
     },
+    // Today is the view's one terracotta signal: a ring, never a fill.
     cellToday: {
       borderWidth: 1.5,
       borderColor: theme.colors.accent,
     },
     cellArtwork: {},
     cellScrim: {
-      backgroundColor: "rgba(0,0,0,0.18)",
+      backgroundColor: INK_VEIL,
     },
-    cellAccent: {
-      backgroundColor: theme.colors.accent,
+    cellInk: {
+      backgroundColor: theme.colors.buttonBg,
     },
     dayNum: {
-      fontSize: 12,
+      ...theme.typography.meta,
+      fontSize: theme.fontSize.xs,
+      fontFamily: theme.fonts.bodyMedium,
       color: theme.colors.textTertiary,
-      fontWeight: theme.fontWeight.medium,
     },
     dayNumOnArt: {
-      color: "#fff",
-      fontWeight: theme.fontWeight.semibold,
-      textShadowColor: "rgba(0,0,0,0.5)",
+      color: PAPER_ON_ART,
+      fontFamily: theme.fonts.bodySemibold,
+      textShadowColor: INK_SHADOW,
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 2,
     },
+    dayNumOnInk: {
+      color: theme.colors.buttonText,
+      fontFamily: theme.fonts.bodySemibold,
+    },
     dayNumToday: {
-      color: theme.colors.accent,
-      fontWeight: theme.fontWeight.bold,
+      color: theme.colors.text,
+      fontFamily: theme.fonts.bodyBold,
     },
     badge: {
       position: "absolute",
       bottom: 2,
       right: 2,
-      backgroundColor: "rgba(0,0,0,0.55)",
+      backgroundColor: INK_GLASS,
       borderRadius: 6,
       minWidth: 14,
       height: 14,
@@ -283,9 +295,9 @@ function createStyles(theme: Theme) {
       paddingHorizontal: 3,
     },
     badgeText: {
+      fontFamily: theme.fonts.bodyBold,
       fontSize: 9,
-      color: "#fff",
-      fontWeight: theme.fontWeight.bold,
+      color: PAPER_ON_ART,
     },
     undatedBlock: {
       marginTop: theme.spacing.sm,
@@ -295,7 +307,7 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       paddingVertical: theme.spacing.sm,
       borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.border,
+      borderBottomColor: theme.colors.divider,
     },
     undatedArt: {
       width: 40,
@@ -307,12 +319,12 @@ function createStyles(theme: Theme) {
       marginLeft: theme.spacing.md,
     },
     undatedTitle: {
+      fontFamily: theme.fonts.bodySemibold,
       fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
       color: theme.colors.text,
     },
     undatedArtist: {
-      fontSize: theme.fontSize.xs,
+      ...theme.typography.meta,
       color: theme.colors.textSecondary,
       marginTop: 2,
     },

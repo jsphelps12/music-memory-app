@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Alert, View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions } from "react-native";
 import * as Haptics from "expo-haptics";
 import { usePostHog } from "posthog-react-native";
@@ -27,7 +27,7 @@ import { moodWords as moodWordsFor } from "@/lib/moodLabels";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { PlayingIndicator } from "@/components/PlayingIndicator";
-import { MomentActionMenu, MenuAnchor } from "@/components/MomentActionMenu";
+import { MomentActionMenu, MenuAnchor, MomentMenuItem } from "@/components/MomentActionMenu";
 import { confirmSheet } from "@/components/ConfirmSheet";
 import { MomentCardData, Song } from "@/types";
 
@@ -91,20 +91,6 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
     })();
   }, [canModify, animatedRef]);
 
-  const handleMenuEdit = useCallback(() => {
-    setMenuAnchor(null);
-    router.push(`/moment/edit/${item.id}`);
-  }, [item.id, router]);
-
-  // Delete was tapped: the confirm opens once the menu has finished closing
-  // (handleMenuDismissed), since iOS drops a Modal presentation that starts
-  // while another Modal is still dismissing.
-  const deletePendingRef = useRef(false);
-  const handleMenuDelete = useCallback(() => {
-    deletePendingRef.current = true;
-    setMenuAnchor(null);
-  }, []);
-
   const confirmAndDelete = useCallback(async () => {
     const confirmed = await confirmSheet({
       title: "Delete Moment",
@@ -128,11 +114,26 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
     onDeleted?.(item.id);
   }, [item, posthog, queryClient, currentUserId, onDeleted, momentSongId, playingSongId, player]);
 
-  const handleMenuDismissed = useCallback(() => {
-    if (!deletePendingRef.current) return;
-    deletePendingRef.current = false;
-    void confirmAndDelete();
-  }, [confirmAndDelete]);
+  // The menu runs a row's action once it has finished closing, so the delete
+  // confirm can present (iOS drops a Modal that starts mid-dismiss).
+  const menuItems = useMemo<MomentMenuItem[]>(
+    () => [
+      {
+        key: "edit",
+        label: "Edit",
+        icon: "pencil-outline",
+        onPress: () => router.push(`/moment/edit/${item.id}`),
+      },
+      {
+        key: "delete",
+        label: "Delete",
+        icon: "trash-outline",
+        destructive: true,
+        onPress: () => void confirmAndDelete(),
+      },
+    ],
+    [item.id, router, confirmAndDelete]
+  );
 
   const handlePlayPress = useCallback(() => {
     if (isThisPlaying) {
@@ -288,10 +289,8 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
       </TouchableOpacity>
       <MomentActionMenu
         anchor={menuAnchor}
-        onEdit={handleMenuEdit}
-        onDelete={handleMenuDelete}
+        items={menuItems}
         onClose={() => setMenuAnchor(null)}
-        onDismissed={handleMenuDismissed}
       />
     </Animated.View>
   );
@@ -322,9 +321,10 @@ function createStyles(theme: Theme) {
       height: 56,
       borderRadius: theme.radii.sm,
     },
+    // Warm ink over the artwork so the playing bars hold contrast.
     playingScrim: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: "rgba(20,18,24,0.45)",
+      backgroundColor: "rgba(35,34,43,0.45)",
       alignItems: "center",
       justifyContent: "center",
     },
@@ -334,8 +334,7 @@ function createStyles(theme: Theme) {
       marginRight: theme.spacing.sm,
     },
     songTitle: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+      ...theme.typography.bodyStrong,
       color: theme.colors.text,
     },
     songArtist: {
@@ -345,17 +344,14 @@ function createStyles(theme: Theme) {
       marginTop: 1,
     },
     date: {
+      ...theme.typography.meta,
       alignSelf: "flex-start",
       paddingTop: 2,
-      fontSize: 13,
-      fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
     },
     reflection: {
+      ...theme.typography.reading,
       marginTop: theme.spacing.md - 2,
-      fontSize: 17,
-      lineHeight: 25,
-      fontFamily: theme.fonts.reading,
       color: theme.colors.text,
     },
     photoStrip: {
@@ -377,15 +373,14 @@ function createStyles(theme: Theme) {
       gap: theme.spacing.md,
     },
     contributor: {
-      fontSize: 13,
+      ...theme.typography.meta,
       fontFamily: theme.fonts.bodyMedium,
       color: theme.colors.textSecondary,
       flexShrink: 1,
     },
+    // Moods are words in Meta, sentence case, Umber Gray (DESIGN.md, Entry Row).
     moods: {
-      fontSize: 11,
-      fontFamily: theme.fonts.bodySemibold,
-      letterSpacing: 1,
+      ...theme.typography.meta,
       color: theme.colors.textTertiary,
       flexShrink: 1,
     },

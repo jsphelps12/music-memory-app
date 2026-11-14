@@ -27,14 +27,22 @@ describe("moodLabel", () => {
 });
 
 describe("moodWords", () => {
-  it("joins up to three labels in stored order, uppercased", () => {
+  it("joins up to three labels in stored order, in sentence case", () => {
     expect(moodWords(["joyful", "custom_1729012345678", "dreamy", "x"], ALL)).toBe(
-      "JOYFUL · HOMESICK · DREAMY"
+      "Joyful · Homesick · dreamy"
     );
   });
 
+  it("lower-cases built-in moods after the first, capitalizes the line", () => {
+    expect(moodWords(["dreamy", "joyful"], ALL)).toBe("Dreamy · joyful");
+  });
+
+  it("takes every mood when max is Infinity", () => {
+    expect(moodWords(["joyful", "dreamy", "x", "y"], ALL, Infinity)).toBe("Joyful · dreamy · x · y");
+  });
+
   it("skips deleted custom moods instead of printing their ids", () => {
-    expect(moodWords(["custom_1700000000000", "joyful"], ALL)).toBe("JOYFUL");
+    expect(moodWords(["custom_1700000000000", "joyful"], ALL)).toBe("Joyful");
     expect(moodWords(["custom_1700000000000"], ALL)).toBe("");
   });
 });

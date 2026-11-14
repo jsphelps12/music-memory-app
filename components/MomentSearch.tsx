@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, FlatList } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { View, Text, TouchableOpacity, FlatList, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { AppImage } from "@/components/AppImage";
+import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { friendlyError } from "@/lib/errors";
 import { momentSearchOrFilter } from "@/lib/browse";
 import { artworkUrlAtSize } from "@/lib/itunes";
 import { useTheme } from "@/hooks/useTheme";
+import { Theme } from "@/constants/theme";
 import { setCachedMoment } from "@/lib/momentCache";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
@@ -17,8 +19,11 @@ import { BROWSE_SEARCH_STALE, SEARCH_DEBOUNCE_MS } from "@/lib/queryConfig";
 
 // Full-library moment search results. Lived inside the Browse tab until the
 // reflections reorg folded the archive into Reflections; extracted so the
-// screen file stays readable. The host owns the TextInput; this renders the
-// result list for whatever it's given.
+// screen file stays readable. The host owns the TextInput (and what shows
+// before anything is typed); this renders the result list for a query.
+
+// 44pt artwork at 3x.
+const ROW_ARTWORK_PX = 132;
 
 /**
  * Trailing-edge debounce. Local to this component on purpose — the only
@@ -36,6 +41,7 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 export function MomentSearch({ query, userId }: { query: string; userId: string }) {
   const router = useRouter();
   const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   // The query key is built from the debounced text: typing "beatles" is one
   // request at the end, not one per keystroke.
@@ -66,13 +72,9 @@ export function MomentSearch({ query, userId }: { query: string; userId: string 
     placeholderData: keepPreviousData,
   });
 
-  if (!query.trim()) return (
-    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ color: theme.colors.textTertiary, fontFamily: "DMSans_400Regular", fontSize: 14 }}>
-        Search songs, reflections, artists…
-      </Text>
-    </View>
-  );
+  // Nothing typed: the host decides what to offer (it used to repeat the
+  // field's placeholder here).
+  if (!query.trim()) return null;
 
   // keepPreviousData would otherwise keep the last query's results on screen
   // as if they matched this one.
@@ -88,7 +90,11 @@ export function MomentSearch({ query, userId }: { query: string; userId: string 
       <EmptyState icon="search-outline" title="Searching…" />
     );
     return (
-      <EmptyState icon="search-outline" title="No results" subtitle="Try a different song, artist, or reflection." />
+      <EmptyState
+        icon="search-outline"
+        title="No results"
+        subtitle={`Nothing in your journal matches “${query.trim()}”. Try a song, an artist, or a word you wrote.`}
+      />
     );
   }
 
@@ -96,41 +102,38 @@ export function MomentSearch({ query, userId }: { query: string; userId: string 
     <FlatList
       data={results}
       keyExtractor={(m) => m.id}
-      contentContainerStyle={{ padding: 20, gap: 8 }}
+      contentContainerStyle={styles.list}
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
       renderItem={({ item }) => (
+        // A row on paper, ruled by a hairline (DESIGN.md, Rows Not Boxes).
         <TouchableOpacity
-          style={{
-            flexDirection: "row", alignItems: "center", gap: 12,
-            backgroundColor: theme.colors.cardBg, borderRadius: theme.radii.md, padding: 10,
-          }}
+          style={styles.row}
           onPress={() => {
             setCachedMoment(item);
             router.push({ pathname: "/moment/[id]", params: { id: item.id } });
           }}
-          activeOpacity={0.8}
+          activeOpacity={0.7}
+          accessibilityRole="button"
         >
           {item.songArtworkUrl ? (
-            <AppImage source={{ uri: artworkUrlAtSize(item.songArtworkUrl, 132) }} style={{ width: 44, height: 44, borderRadius: 6 }} />
+            <AppImage source={{ uri: artworkUrlAtSize(item.songArtworkUrl, ROW_ARTWORK_PX) }} style={styles.artwork} />
           ) : (
-            <View style={{ width: 44, height: 44, borderRadius: 6, backgroundColor: theme.colors.backgroundSecondary }} />
+            <ArtworkPlaceholder style={styles.artwork} />
           )}
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 14, fontFamily: "DMSans_600SemiBold", color: theme.colors.text }} numberOfLines={1}>
+          <View style={styles.text}>
+            <Text style={styles.song} numberOfLines={1}>
               {item.songTitle}
-            </Text>
-            <Text style={{ fontSize: 12, color: theme.colors.textSecondary, marginTop: 1 }} numberOfLines={1}>
-              {item.songArtist}
+              <Text style={styles.artist}>{`  ${item.songArtist}`}</Text>
             </Text>
             {item.reflectionText ? (
-              <Text style={{ fontSize: 12, color: theme.colors.textTertiary, fontStyle: "italic", marginTop: 3 }} numberOfLines={1}>
-                {item.reflectionText}
+              <Text style={styles.reflection} numberOfLines={1}>
+                {item.reflectionText.replace(/\s+/g, " ").trim()}
               </Text>
             ) : null}
           </View>
           {item.momentDate ? (
-            <Text style={{ fontSize: 11, color: theme.colors.textTertiary, flexShrink: 0 }}>
+            <Text style={styles.date}>
               {new Date(item.momentDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             </Text>
           ) : null}
@@ -138,4 +141,54 @@ export function MomentSearch({ query, userId }: { query: string; userId: string 
       )}
     />
   );
+}
+
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    list: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingBottom: 120,
+    },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md,
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
+    },
+    artwork: {
+      width: 44,
+      height: 44,
+      borderRadius: theme.radii.sm,
+    },
+    text: {
+      flex: 1,
+      minWidth: 0,
+    },
+    // Song then artist on one line (DESIGN.md, Song Then Artist).
+    song: {
+      ...theme.typography.bodyStrong,
+      fontSize: theme.fontSize.callout,
+      color: theme.colors.text,
+    },
+    artist: {
+      fontFamily: theme.fonts.body,
+      color: theme.colors.textSecondary,
+    },
+    // What the person wrote: Newsreader, upright.
+    reflection: {
+      fontFamily: theme.fonts.reading,
+      fontSize: theme.fontSize.callout,
+      lineHeight: 21,
+      color: theme.colors.textSecondary,
+      marginTop: 2,
+    },
+    date: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+      alignSelf: "flex-start",
+      paddingTop: 2,
+    },
+  });
 }
