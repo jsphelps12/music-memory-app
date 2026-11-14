@@ -38,6 +38,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # The design system's guardrail (DESIGN.md, Components): no uppercase
+      # labels, pure colors, literal fonts, terracotta fills or glyph icons.
+      # Not an npm script, for the same fingerprint reason as above.
+      - name: Design lint
+        run: node scripts/design-lint.mjs
+
       - name: Test
         run: npm test
 

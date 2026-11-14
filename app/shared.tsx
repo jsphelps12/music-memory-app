@@ -144,7 +144,7 @@ function createStyles(theme: Theme) {
       width: 8,
       height: 8,
       borderRadius: 4,
-      backgroundColor: theme.colors.accent,
+      backgroundColor: theme.colors.accent, // design-lint-ignore: the 8px new-activity dot
     },
   });
 }
