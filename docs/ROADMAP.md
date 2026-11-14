@@ -80,7 +80,10 @@ changed since build 36.
 - [x] Production build (build 10), submitted to App Store Connect.
 - [x] New 6.9" store screenshots of the new look (2026-11-14). Taken from a
   demo account on prod (`demo@soundtracks.test`, notifications off), since
-  staging is paused. The widget frame is unchanged.
+  staging is paused. The widget frame is unchanged. App Store Connect now
+  requires the medium iPhone size (1206 × 2622, "6.3-inch"); 6.9" is
+  optional. Both sets are in `docs/app-store/screenshots/`. The new Header
+  and Search Results creative assets (Oct 2026) are optional; none yet.
 - [ ] **Josh:** TestFlight pass (done), then the 1.3.1 version in App Store
   Connect (attach build 10, What's New, upload the new screenshots and delete
   any smaller-iPhone sets), submit for review, release.
