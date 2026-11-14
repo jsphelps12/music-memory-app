@@ -352,6 +352,7 @@ export default function EditMomentScreen() {
         </SectionLabel>
         <TextField
           multiline
+          variant="reading"
           placeholder="What does this song remind you of? (optional)"
           autoCapitalize="sentences"
           autoCorrect

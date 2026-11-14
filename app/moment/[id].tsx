@@ -673,32 +673,26 @@ export default function MomentDetailScreen() {
       <View style={[styles.glassNav, { top: insets.top + 6 }]} pointerEvents="box-none">
         {/* Glass discs: the filled-over-imagery case, one size for all three. */}
         <IconButton
-          variant="filled"
+          variant="glass"
           name="chevron-back"
           size={20}
-          color={theme.colors.text}
-          style={styles.glassBtn}
           onPress={() => animateOut(goBack)}
           accessibilityLabel="Back"
         />
         {screenState === "ready" && moment && (
           <View style={styles.glassBtnRow}>
             <IconButton
-              variant="filled"
+              variant="glass"
               name="share-outline"
               size={20}
-              color={theme.colors.text}
-              style={styles.glassBtn}
               onPress={openShare}
               accessibilityLabel="Share"
             />
             <View ref={menuButtonRef} collapsable={false}>
               <IconButton
-                variant="filled"
+                variant="glass"
                 name="ellipsis-horizontal"
                 size={20}
-                color={theme.colors.text}
-                style={styles.glassBtn}
                 onPress={openMenu}
                 accessibilityLabel="More"
               />
@@ -1168,15 +1162,6 @@ function createStyles(theme: Theme) {
       justifyContent: "space-between",
       alignItems: "center",
       zIndex: 10,
-    },
-    // IconButton "filled", sized up and frosted: these float over artwork
-    // and photos, so the disc carries the contrast. Paper glass on light,
-    // night glass on dark.
-    glassBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: theme.radii.full,
-      backgroundColor: theme.isDark ? "rgba(28,23,22,0.8)" : "rgba(251,247,242,0.86)",
     },
     glassBtnRow: {
       flexDirection: "row",

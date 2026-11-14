@@ -114,6 +114,12 @@ export interface ThemeColors {
   elevated: string;
   /** The warm dim behind a bottom sheet or menu. Never pure black. */
   scrim: string;
+  /** Frosted paper (night in dark) disc behind controls over artwork, photos or a map. */
+  glass: string;
+  /** Icon/text color on `glass` and on warm-ink overlays over imagery. */
+  onGlass: string;
+  /** Shadow color for things that lift (night, never pure black). */
+  shadow: string;
   placeholder: string;
   destructive: string;
   success: string;
@@ -157,6 +163,9 @@ const lightColors: ThemeColors = {
   divider: "#E9E2D9",
   elevated: "#FFFFFF",
   scrim: "rgba(35,34,43,0.16)",
+  glass: "rgba(251,247,242,0.86)",
+  onGlass: "#23222B",
+  shadow: "#0E0B0A",
   placeholder: "#7A716A",
   destructive: "#d32f2f",
   success: "#2e7d32",
@@ -195,6 +204,9 @@ const darkColors: ThemeColors = {
   divider: "#2A2422",
   elevated: "#1C1716",
   scrim: "rgba(14,11,10,0.55)",
+  glass: "rgba(28,23,22,0.8)",
+  onGlass: "#F5F0EB",
+  shadow: "#0E0B0A",
   placeholder: "#857B75",
   destructive: "#ff453a",
   success: "#30d158",

@@ -403,15 +403,18 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="artist"
-            options={{ headerShown: false, presentation: "fullScreenModal" }}
+            // Pushed with the edge swipe (design sweep, 2026-11).
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="song"
-            options={{ headerShown: false, presentation: "fullScreenModal" }}
+            // Pushed with the edge swipe (design sweep, 2026-11).
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="album"
-            options={{ headerShown: false, presentation: "fullScreenModal" }}
+            // Pushed with the edge swipe (design sweep, 2026-11).
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="help"
@@ -467,7 +470,8 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="moments-map"
-            options={{ headerShown: false, gestureEnabled: false }}
+            // Edge swipe only (the native default), so map pans keep working.
+            options={{ headerShown: false }}
           />
         </Stack>
       </AuthGate>

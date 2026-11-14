@@ -123,11 +123,9 @@ export default function MomentsMapScreen() {
           one the entry screen floats over artwork. */}
       <View style={[styles.backWrap, { top: insets.top + 6 }]}>
         <IconButton
-          variant="filled"
+          variant="glass"
           name="chevron-back"
           size={20}
-          color={theme.colors.text}
-          style={styles.glassBtn}
           onPress={() => router.back()}
           accessibilityLabel="Back"
         />
@@ -211,12 +209,6 @@ function createStyles(theme: Theme) {
       left: 12,
     },
     // Frosted paper on light, night glass on dark: the map is imagery.
-    glassBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: theme.radii.full,
-      backgroundColor: theme.isDark ? "rgba(28,23,22,0.8)" : "rgba(251,247,242,0.86)",
-    },
     markerContainer: {
       width: 40,
       height: 40,

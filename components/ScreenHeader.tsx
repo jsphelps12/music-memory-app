@@ -42,6 +42,26 @@ export function ScreenHeader({
   const router = useRouter();
   const showBar = leading !== "none" || !!right;
 
+  // Top-level (tab) screens: the title and its actions share one row, so
+  // every tab's title lands at the same height whether or not it has actions.
+  if (leading === "none") {
+    return (
+      <View style={[styles.wrap, { paddingTop: insets.top + theme.spacing.sm }, style]}>
+        <View style={styles.inlineRow}>
+          {title ? (
+            <Text style={[styles.title, styles.inlineTitle]} accessibilityRole="header" numberOfLines={1}>
+              {title}
+            </Text>
+          ) : (
+            <View />
+          )}
+          {right ? <View style={styles.right}>{right}</View> : null}
+        </View>
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + (showBar ? 0 : theme.spacing.lg) }, style]}>
       {showBar ? (
@@ -90,6 +110,17 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       gap: theme.spacing.xs,
       marginRight: -8,
+    },
+    inlineRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      minHeight: 48,
+      gap: theme.spacing.md,
+    },
+    inlineTitle: {
+      marginTop: 0,
+      flexShrink: 1,
     },
     title: {
       ...theme.typography.headline,
