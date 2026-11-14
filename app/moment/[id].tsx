@@ -33,6 +33,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayerControls, usePlayerProgress } from "@/contexts/PlayerContext";
+import { playAction } from "@/lib/playerAction";
 import { supabase } from "@/lib/supabase";
 import { getPublicPhotoUrl, momentCardImageUrls } from "@/lib/storage";
 import { deleteGuestMoment, deleteMomentWithCleanup } from "@/lib/deleteMoment";
@@ -96,7 +97,7 @@ export default function MomentDetailScreen() {
   }>();
   const router = useRouter();
   const { user, profile } = useAuth();
-  const { currentSong, isPlaying, playError, playFull, pause, seekTo, stop } = usePlayerControls();
+  const { currentSong, isPlaying, playError, playFull, pause, resume, seekTo, stop } = usePlayerControls();
   const theme = useTheme();
   const posthog = usePostHog();
   const queryClient = useQueryClient();
@@ -653,8 +654,11 @@ export default function MomentDetailScreen() {
 
   const momentSongId = moment?.songSpotifyId ?? moment?.songAppleMusicId;
   const playingSongId = currentSong?.spotifyId ?? currentSong?.appleMusicId;
-  const isCurrentSong = isPlaying && !!momentSongId && momentSongId === playingSongId;
-  const playLabel = isCurrentSong ? "Pause" : playError ? "Unavailable" : "Play";
+  // Loaded (playing or paused) is what keeps the progress bar and resume; a
+  // pause from the background used to drop both and restart the song.
+  const action = playAction(momentSongId, playingSongId, isPlaying);
+  const isCurrentSong = action !== "play";
+  const playLabel = action === "pause" ? "Pause" : action === "resume" ? "Resume" : playError ? "Unavailable" : "Play";
 
   return (
     <GestureDetector gesture={swipeGesture}>
@@ -832,8 +836,10 @@ export default function MomentDetailScreen() {
                   accessibilityLabel={playLabel}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    if (isCurrentSong) {
+                    if (action === "pause") {
                       pause();
+                    } else if (action === "resume") {
+                      resume();
                     } else {
                       playFull(
                         {
@@ -853,7 +859,7 @@ export default function MomentDetailScreen() {
                   }}
                 >
                   <Ionicons
-                    name={isCurrentSong ? "pause" : "play"}
+                    name={action === "pause" ? "pause" : "play"}
                     size={18}
                     color={playError ? theme.colors.textTertiary : theme.colors.buttonText}
                   />

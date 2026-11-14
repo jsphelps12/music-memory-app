@@ -403,18 +403,27 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="artist"
-            // Pushed with the edge swipe (design sweep, 2026-11).
-            options={{ headerShown: false }}
+            // Full screen, not pushed: it opens from the moment overlay (a
+            // transparentModal), and iOS presents anything pushed over a
+            // modal as a page-sheet card, which CLAUDE.md bans. Back is the
+            // ScreenHeader chevron.
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="song"
-            // Pushed with the edge swipe (design sweep, 2026-11).
-            options={{ headerShown: false }}
+            // Full screen, not pushed: it opens from the moment overlay (a
+            // transparentModal), and iOS presents anything pushed over a
+            // modal as a page-sheet card, which CLAUDE.md bans. Back is the
+            // ScreenHeader chevron.
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="album"
-            // Pushed with the edge swipe (design sweep, 2026-11).
-            options={{ headerShown: false }}
+            // Full screen, not pushed: it opens from the moment overlay (a
+            // transparentModal), and iOS presents anything pushed over a
+            // modal as a page-sheet card, which CLAUDE.md bans. Back is the
+            // ScreenHeader chevron.
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="help"

@@ -112,8 +112,9 @@ them, OTA-only (no native changes).
   autofocus), Share (one list, no 92% sheet), album settings, one context
   menu (`MomentActionMenu`), moods as sentence-case words, calendar and map
   off the retired accent, ShareCard on paper/ink.
-- [x] Wave 3: artist, song, album, friends and profile-edit push with the
-  edge swipe; the map allows the edge swipe; capture and edit-moment photo
+- [x] Wave 3: friends and profile-edit push with the edge swipe (song,
+  artist and album stay full screen: pushed over the moment overlay, iOS
+  shows them as a page-sheet card); the map allows the edge swipe; capture and edit-moment photo
   strip: tap to view, hold and drag to reorder (`lib/reorder.ts`); Share
   feedback falls back to a copy-the-address sheet when Mail can't open.
 - [x] Guardrail: `scripts/design-lint.mjs` in PR checks (uppercase labels,
