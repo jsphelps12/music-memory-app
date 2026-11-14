@@ -1,22 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePostHog } from "posthog-react-native";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useQueryClient } from "@tanstack/react-query";
-import { CloseButton } from "@/components/CloseButton";
+import { Button } from "@/components/Button";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { AlbumUnavailableError, fetchAlbumByInviteCode, joinAlbum } from "@/lib/albums";
 import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/hooks/useTheme";
+import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { pluralMoments } from "@/lib/utils";
 import { AlbumPreview } from "@/types";
@@ -28,6 +24,7 @@ export default function JoinScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const posthog = usePostHog();
   const queryClient = useQueryClient();
 
@@ -80,6 +77,10 @@ export default function JoinScreen() {
     router.replace({ pathname: "/album/[id]", params: { id: albumId } });
   }
 
+  function leave() {
+    router.replace("/(tabs)");
+  }
+
   async function handleJoin() {
     if (!inviteCode || !user) return;
     setState("joining");
@@ -104,9 +105,13 @@ export default function JoinScreen() {
     }
   }
 
+  const byLine = (c: AlbumPreview) =>
+    [c.ownerName ? `by ${c.ownerName}` : null, pluralMoments(c.momentCount)].filter(Boolean).join(" · ");
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <CloseButton style={styles.closeButton} onPress={() => router.replace("/(tabs)")} />
+    <View style={styles.container}>
+      {/* A presented task (joining from a link), so it closes with an ✕. */}
+      <ScreenHeader leading="close" onLeadingPress={leave} />
 
       {state === "loading" && (
         <View style={styles.centered}>
@@ -116,244 +121,120 @@ export default function JoinScreen() {
 
       {state === "not_found" && (
         <View style={styles.centered}>
-          <Ionicons name="link-outline" size={48} color={theme.colors.textTertiary} />
-          <Text style={[styles.title, { color: theme.colors.text, marginTop: 20 }]}>
-            Link not found
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+          <Ionicons name="link-outline" size={44} color={theme.colors.textSecondary} />
+          <Text style={styles.stateTitle}>Link not found</Text>
+          <Text style={styles.body}>
             This invite link may have expired or the album was made private.
           </Text>
-          <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: theme.colors.accent }]}
-            onPress={() => router.replace("/(tabs)")}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.primaryButtonText}>Go Back</Text>
-          </TouchableOpacity>
+          <Button label="Go back" onPress={leave} style={styles.primary} />
         </View>
       )}
 
       {state === "error" && (
         <View style={styles.centered}>
-          <Ionicons name="cloud-offline-outline" size={48} color={theme.colors.textTertiary} />
-          <Text style={[styles.title, { color: theme.colors.text, marginTop: 20 }]}>
-            Couldn't open this invite
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>{error}</Text>
-          <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: theme.colors.accent }]}
-            onPress={loadPreview}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.primaryButtonText}>Try Again</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.replace("/(tabs)")} activeOpacity={0.7} style={styles.cancelButton}>
-            <Text style={[styles.cancelText, { color: theme.colors.textSecondary }]}>
-              Not now
-            </Text>
-          </TouchableOpacity>
+          <Ionicons name="cloud-offline-outline" size={44} color={theme.colors.textSecondary} />
+          <Text style={styles.stateTitle}>Couldn't open this invite</Text>
+          <Text style={styles.body}>{error}</Text>
+          <Button label="Try again" onPress={loadPreview} style={styles.primary} />
+          <Button label="Not now" variant="text" tone="secondary" fullWidth onPress={leave} />
         </View>
       )}
 
       {state === "already_owner" && collection && (
         <View style={styles.centered}>
-          <Ionicons name="star" size={48} color={theme.colors.accent} />
-          <Text style={[styles.title, { color: theme.colors.text, marginTop: 20 }]}>
-            This is your album
+          <Text style={styles.albumName}>{collection.name}</Text>
+          <Text style={styles.meta}>{pluralMoments(collection.momentCount)}</Text>
+          <Text style={styles.body}>
+            This is your album. Share the invite link with friends so they can join.
           </Text>
-          <Text style={[styles.collectionName, { color: theme.colors.text }]}>
-            {collection.name}
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-            Share the invite link with friends so they can join.
-          </Text>
-          <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: theme.colors.accent }]}
-            onPress={() => openAlbum(collection.id)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.primaryButtonText}>Open Album</Text>
-          </TouchableOpacity>
+          <Button label="Open album" onPress={() => openAlbum(collection.id)} style={styles.primary} />
         </View>
       )}
 
       {state === "already_member" && collection && (
         <View style={styles.centered}>
-          <Ionicons name="checkmark-circle" size={48} color={theme.colors.accent} />
-          <Text style={[styles.title, { color: theme.colors.text, marginTop: 20 }]}>
-            You're already in this album
-          </Text>
-          <Text style={[styles.collectionName, { color: theme.colors.text }]}>
-            {collection.name}
-          </Text>
-          {collection.ownerName ? (
-            <Text style={[styles.ownerName, { color: theme.colors.textSecondary }]}>
-              by {collection.ownerName}
-            </Text>
-          ) : null}
-          <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: theme.colors.accent }]}
-            onPress={() => openAlbum(collection.id)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.primaryButtonText}>Open Album</Text>
-          </TouchableOpacity>
+          <Text style={styles.albumName}>{collection.name}</Text>
+          <Text style={styles.meta}>{byLine(collection)}</Text>
+          <Text style={styles.body}>You're already in this album.</Text>
+          <Button label="Open album" onPress={() => openAlbum(collection.id)} style={styles.primary} />
         </View>
       )}
 
       {(state === "ready" || state === "joining") && collection && (
-        <View style={styles.content}>
-          <View style={[styles.collectionIcon, { backgroundColor: theme.colors.accentBg }]}>
-            <Ionicons name="people-outline" size={36} color={theme.colors.accent} />
-          </View>
+        <View style={styles.centered}>
+          <Text style={styles.lead}>You've been invited to</Text>
+          <Text style={styles.albumName}>{collection.name}</Text>
+          <Text style={styles.meta}>{byLine(collection)}</Text>
 
-          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
-            You've been invited to
-          </Text>
-          <Text style={[styles.title, { color: theme.colors.text }]}>
-            {collection.name}
-          </Text>
-          {collection.ownerName ? (
-            <Text style={[styles.ownerName, { color: theme.colors.textSecondary }]}>
-              by {collection.ownerName}
-            </Text>
-          ) : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <View style={[styles.statsRow, { borderColor: theme.colors.border }]}>
-            <Ionicons name="musical-notes" size={16} color={theme.colors.textSecondary} />
-            <Text style={[styles.statsText, { color: theme.colors.textSecondary }]}>
-              {pluralMoments(collection.momentCount)}
-            </Text>
-          </View>
-
-          {error ? (
-            <Text style={[styles.errorText, { color: theme.colors.destructive }]}>{error}</Text>
-          ) : null}
-
-          <TouchableOpacity
-            style={[
-              styles.primaryButton,
-              { backgroundColor: theme.colors.accent },
-              state === "joining" && styles.buttonDisabled,
-            ]}
+          <Button
+            label="Join album"
             onPress={handleJoin}
-            disabled={state === "joining"}
-            activeOpacity={0.8}
-          >
-            {state === "joining" ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.primaryButtonText}>Join Album</Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => router.replace("/(tabs)")} activeOpacity={0.7} style={styles.cancelButton}>
-            <Text style={[styles.cancelText, { color: theme.colors.textSecondary }]}>
-              Not now
-            </Text>
-          </TouchableOpacity>
+            loading={state === "joining"}
+            style={styles.primary}
+          />
+          <Button label="Not now" variant="text" tone="secondary" fullWidth onPress={leave} />
         </View>
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  closeButton: {
-    position: "absolute",
-    // Full-screen presentation: clear the status bar (matches the other
-    // fullScreenModal screens' 60pt header clearance).
-    top: 60,
-    right: 20,
-    zIndex: 1,
-  },
-  centered: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 32,
-  },
-  content: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 32,
-  },
-  collectionIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    // backgroundColor applied inline via theme.colors.accentBg
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 14,
-    marginBottom: 6,
-  },
-  title: {
-    fontSize: 26,
-    fontFamily: "DMSans_700Bold",
-    textAlign: "center",
-    marginBottom: 6,
-  },
-  collectionName: {
-    fontSize: 22,
-    fontFamily: "DMSans_700Bold",
-    textAlign: "center",
-    marginBottom: 6,
-  },
-  ownerName: {
-    fontSize: 15,
-    marginBottom: 24,
-  },
-  statsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    marginBottom: 32,
-  },
-  statsText: {
-    fontSize: 14,
-  },
-  errorText: {
-    fontSize: 13,
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  primaryButton: {
-    width: "100%",
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  primaryButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontFamily: "DMSans_700Bold",
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  subtitle: {
-    fontSize: 15,
-    textAlign: "center",
-    lineHeight: 22,
-    marginVertical: 12,
-  },
-  cancelButton: {
-    padding: 8,
-  },
-  cancelText: {
-    fontSize: 15,
-  },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    centered: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing["3xl"],
+      // Optically centre against the header above.
+      paddingBottom: theme.spacing["4xl"] * 2,
+    },
+    stateTitle: {
+      ...theme.typography.title,
+      color: theme.colors.text,
+      textAlign: "center",
+      marginTop: theme.spacing.xl,
+    },
+    lead: {
+      ...theme.typography.body,
+      color: theme.colors.textSecondary,
+      textAlign: "center",
+      marginBottom: theme.spacing.sm,
+    },
+    albumName: {
+      ...theme.typography.headline,
+      color: theme.colors.text,
+      textAlign: "center",
+    },
+    meta: {
+      ...theme.typography.meta,
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+      textAlign: "center",
+      marginTop: theme.spacing.sm,
+    },
+    body: {
+      ...theme.typography.body,
+      fontSize: theme.fontSize.callout,
+      color: theme.colors.textSecondary,
+      textAlign: "center",
+      marginTop: theme.spacing.md,
+    },
+    error: {
+      ...theme.typography.meta,
+      color: theme.colors.destructive,
+      textAlign: "center",
+      marginTop: theme.spacing.lg,
+    },
+    primary: {
+      marginTop: theme.spacing["3xl"],
+      marginBottom: theme.spacing.xs,
+    },
+  });
+}

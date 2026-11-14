@@ -5,24 +5,21 @@ import {
   Text,
   SectionList,
   StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
   Dimensions,
 } from "react-native";
-import { AppImage } from "@/components/AppImage";
-import { LinearGradient } from "expo-linear-gradient";
-
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
-import { getPublicPhotoUrl } from "@/lib/storage";
 import { MomentCard } from "@/components/MomentCard";
 import { AlbumShareSheet } from "@/components/AlbumShareSheet";
 import { IconButton } from "@/components/IconButton";
+import { SectionLabel } from "@/components/SectionLabel";
+import { AlbumMosaic } from "@/components/AlbumMosaic";
 import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { EmptyState } from "@/components/EmptyState";
@@ -39,7 +36,7 @@ function groupByMonth(moments: Moment[]): { title: string; data: Moment[] }[] {
   for (const m of moments) {
     const key = m.momentDate
       ? new Date(m.momentDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })
-      : "No Date";
+      : "No date";
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(m);
   }
@@ -49,6 +46,8 @@ function groupByMonth(moments: Moment[]): { title: string; data: Moment[] }[] {
 const STALE_TIME = DEFAULT_SCREEN_STALE;
 
 const ART_SIZE = Math.round(Dimensions.get("window").width * 0.72);
+// Room above the cover for the floating controls (a 32pt disc plus air).
+const HEADER_CLEARANCE = 52;
 
 export default function AlbumDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -56,6 +55,7 @@ export default function AlbumDetailScreen() {
   const { user, profile } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
 
   const [shareSheetVisible, setShareSheetVisible] = useState(false);
   const queryClient = useQueryClient();
@@ -103,6 +103,17 @@ export default function AlbumDetailScreen() {
 
   const sections = useMemo(() => groupByMonth(moments), [moments]);
 
+  // The album's face when it has no cover photo: its songs' artwork, the same
+  // mosaic the Albums grid shows (it used to be the retired brand gradient).
+  const artworks = useMemo(() => {
+    const list: string[] = [];
+    for (const m of moments) {
+      if (m.songArtworkUrl && !list.includes(m.songArtworkUrl)) list.push(m.songArtworkUrl);
+      if (list.length === 4) break;
+    }
+    return list;
+  }, [moments]);
+
   const renderMoment = useCallback(({ item }: { item: Moment }) => (
     <MomentCard
       item={item}
@@ -139,10 +150,6 @@ export default function AlbumDetailScreen() {
   const isShared = collection?.isPublic;
   const isOwner = collection?.role === "owner";
 
-  const coverUrl = collection?.coverPhotoUrl
-    ? getPublicPhotoUrl(collection.coverPhotoUrl)
-    : null;
-
   const subLine = collection?.role === "member" && collection?.ownerName
     ? `by ${collection.ownerName} · ${pluralMoments(moments.length)}`
     : isShared
@@ -150,7 +157,7 @@ export default function AlbumDetailScreen() {
     : pluralMoments(moments.length);
 
   const listHeader = (
-    <View style={styles.listHeader}>
+    <View style={[styles.listHeader, { paddingTop: insets.top + HEADER_CLEARANCE }]}>
       {showBanner ? (
         <View style={styles.bannerWrap}>
           <ErrorBanner
@@ -161,45 +168,32 @@ export default function AlbumDetailScreen() {
         </View>
       ) : null}
 
-      {/* Square artwork */}
-      <View style={[styles.artContainer, {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.2,
-        shadowRadius: 16,
-        elevation: 8,
-      }]}>
-        {coverUrl ? (
-          <AppImage source={{ uri: coverUrl }} style={styles.art} contentFit="cover" />
-        ) : (
-          <LinearGradient colors={["#E8825C", "#6B5F8C"]} style={styles.art}>
-            <Ionicons name="albums-outline" size={48} color="rgba(255,255,255,0.8)" />
-          </LinearGradient>
-        )}
+      {/* Square artwork, lifted (the shadow sits on a wrapper so the
+          mosaic's clipping doesn't cut it off) */}
+      <View style={styles.artLift}>
+        <AlbumMosaic
+          coverPhotoPath={collection?.coverPhotoUrl}
+          artworks={artworks}
+          style={styles.art}
+        />
       </View>
 
-      {/* Title */}
-      <Text style={[styles.collectionTitle, { color: theme.colors.text }]}>
+      <Text style={styles.collectionTitle} accessibilityRole="header" numberOfLines={3}>
         {collection?.name ?? "Album"}
       </Text>
 
-      {/* Sub-line */}
-      <Text style={[styles.collectionSub, { color: theme.colors.textSecondary }]}>
-        {subLine}
-      </Text>
+      <Text style={styles.collectionSub}>{subLine}</Text>
     </View>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={styles.container}>
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
         renderItem={renderMoment}
         renderSectionHeader={({ section: { title } }) => (
-          <Text style={[styles.sectionHeader, { color: theme.colors.textSecondary, backgroundColor: theme.colors.background }]}>
-            {title}
-          </Text>
+          <SectionLabel style={styles.sectionHeader}>{title}</SectionLabel>
         )}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={
@@ -212,20 +206,22 @@ export default function AlbumDetailScreen() {
         contentContainerStyle={styles.listContent}
         stickySectionHeadersEnabled={false}
         refreshControl={
-          <RefreshControl refreshing={isFetching && !isLoading} onRefresh={handleRefresh} tintColor={theme.colors.accent} />
+          <RefreshControl refreshing={isFetching && !isLoading} onRefresh={handleRefresh} tintColor={theme.colors.textSecondary} />
         }
       />
 
-      {/* Floating controls — always visible above scroll */}
-      <View style={styles.floatingControls} pointerEvents="box-none">
-        <TouchableOpacity
+      {/* Floating controls, always visible over the scroll: one disc size
+          for all three (they float over the cover and the list). */}
+      <View
+        style={[styles.floatingControls, { top: insets.top + theme.spacing.sm }]}
+        pointerEvents="box-none"
+      >
+        <IconButton
+          variant="filled"
+          name="chevron-back"
+          accessibilityLabel="Back"
           onPress={() => router.back()}
-          style={[styles.floatingBtn, { backgroundColor: theme.colors.cardBg, borderColor: theme.colors.border }]}
-          activeOpacity={0.7}
-          hitSlop={8}
-        >
-          <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
-        </TouchableOpacity>
+        />
         <View style={styles.floatingRight}>
           {/* Everyone who can open this screen is the owner or a member, and
               members can already contribute to shared albums — so no role gate. */}
@@ -266,45 +262,50 @@ export default function AlbumDetailScreen() {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    container: { flex: 1 },
+    container: { flex: 1, backgroundColor: theme.colors.background },
     center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40 },
     listHeader: {
       alignItems: "center",
-      paddingTop: 88,
-      paddingHorizontal: 24,
-      paddingBottom: 8,
+      paddingHorizontal: theme.spacing["2xl"],
+      paddingBottom: theme.spacing.sm,
     },
     bannerWrap: {
       alignSelf: "stretch",
     },
-    artContainer: {
+    // DESIGN.md "Artwork lift": album artwork shown large.
+    artLift: {
       width: ART_SIZE,
       height: ART_SIZE,
-      borderRadius: 12,
-      overflow: "hidden",
+      borderRadius: theme.radii.md,
+      backgroundColor: theme.colors.artworkPlaceholder,
+      shadowColor: theme.shadows.card.shadowColor,
+      shadowOffset: { width: 0, height: 18 },
+      shadowOpacity: theme.isDark ? 0.5 : 0.25,
+      shadowRadius: 24,
+      elevation: 8,
     },
     art: {
       width: ART_SIZE,
       height: ART_SIZE,
-      alignItems: "center",
-      justifyContent: "center",
+      borderRadius: theme.radii.md,
     },
     collectionTitle: {
-      fontSize: 22,
-      fontFamily: theme.fonts.bodySemibold,
+      ...theme.typography.headline,
+      color: theme.colors.text,
       textAlign: "center",
-      marginTop: 20,
+      marginTop: theme.spacing["2xl"],
     },
     collectionSub: {
-      fontSize: 14,
-      marginTop: 4,
+      ...theme.typography.meta,
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+      marginTop: theme.spacing.xs,
       textAlign: "center",
     },
     floatingControls: {
       position: "absolute",
-      top: 52,
-      left: theme.spacing.md,
-      right: theme.spacing.md,
+      left: theme.spacing.lg,
+      right: theme.spacing.lg,
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
@@ -312,27 +313,15 @@ function createStyles(theme: Theme) {
     floatingRight: {
       flexDirection: "row",
       alignItems: "center",
-      gap: theme.spacing.sm,
-    },
-    floatingBtn: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
-      borderWidth: StyleSheet.hairlineWidth,
-      alignItems: "center",
-      justifyContent: "center",
+      gap: theme.spacing.md,
     },
     sectionHeader: {
-      fontSize: theme.fontSize.xs,
-      fontFamily: theme.fonts.bodySemibold,
-      textTransform: "uppercase",
-      letterSpacing: 0.8,
       paddingTop: theme.spacing.xl,
-      paddingBottom: theme.spacing.sm,
+      paddingBottom: theme.spacing.xs,
     },
     listContent: {
       paddingHorizontal: theme.spacing.xl,
-      paddingBottom: 40,
+      paddingBottom: theme.spacing["4xl"],
     },
   });
 }
