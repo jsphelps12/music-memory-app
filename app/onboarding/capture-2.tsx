@@ -16,7 +16,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { SongPickerSection } from "@/components/SongPickerSection";
 import { Button } from "@/components/Button";
-import { IconButton } from "@/components/IconButton";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
 import { PhotoPickerSection } from "@/components/PhotoPickerSection";
 import { LocationField } from "@/components/LocationField";
@@ -112,12 +112,9 @@ export default function OnboardingCapture2Screen() {
         <View style={[styles.progressBarFill, { width: "100%" }]} />
       </View>
 
-      <IconButton
-        name="chevron-back"
-        onPress={() => router.back()}
-        accessibilityLabel="Back"
-        style={styles.backButton}
-      />
+      {/* In the layout flow (not absolute), so scrolled content passes under
+          a header with the page behind it instead of under a bare chevron. */}
+      <ScreenHeader leading="back" style={styles.header} />
 
       <ScrollView
         style={styles.scrollView}
@@ -236,19 +233,15 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.accent, // design-lint-ignore: the onboarding progress indicator
       borderRadius: 2,
     },
-    // The chevron's glyph sits at the gutter, not its 44pt box.
-    backButton: {
-      position: "absolute",
-      top: 46,
-      left: theme.spacing.sm,
-      zIndex: 10,
+    header: {
+      paddingBottom: 0,
     },
     scrollView: {
       flex: 1,
     },
     scrollContent: {
       paddingHorizontal: theme.spacing.xl,
-      paddingTop: 100,
+      paddingTop: theme.spacing.sm,
       paddingBottom: 48,
     },
     title: {
