@@ -120,9 +120,13 @@ them, OTA-only (no native changes).
 - [x] Guardrail: `scripts/design-lint.mjs` in PR checks (uppercase labels,
   pure colors, literal fonts, system font weights, terracotta fills, glyph
   icons, page sheets, the retired accent); escape hatch needs a reason.
-- [ ] Follow-ups: the Share card preview becomes its own pushed screen; an
-  ordered photo list in `updateMoment` so new photos can sit before stored
-  ones in edit; a `ListRow` primitive (settings/You/sheets repeat it); a
+- [x] Edit moment saves photos in strip order (2026-11-14): `updateMoment`
+  takes one ordered list of kept and new photos (`lib/photoOrder.ts`), so a
+  new photo dragged ahead of a stored one stays there and can be the cover.
+  Thumbnails stay index-paired; a legacy moment that gains a photo uses each
+  old photo as its own thumbnail so the strip shows every photo.
+- [ ] Follow-ups: the Share card preview becomes its own pushed screen; a
+  `ListRow` primitive (settings/You/sheets repeat it); a
   switch color token; `Chip` onLongPress and image slot; Button hug
   alignment in rows; add `mailto` to `LSApplicationQueriesSchemes` in the
   next binary.

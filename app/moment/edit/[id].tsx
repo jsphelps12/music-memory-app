@@ -21,6 +21,7 @@ import { supabase } from "@/lib/supabase";
 import type { MusicProviderType } from "@/types";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { updateMoment } from "@/lib/saveMoment";
+import { pairStoredPhotos, type EditedPhoto } from "@/lib/photoOrder";
 import { mapRowToMoment } from "@/lib/moments";
 import { LocationField } from "@/components/LocationField";
 import type { GeoResult } from "@/lib/geocoding";
@@ -70,15 +71,16 @@ export default function EditMomentScreen() {
   const [reflection, setReflection] = useState("");
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [people, setPeople] = useState<string[]>([]);
-  const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
-  const [existingThumbnails, setExistingThumbnails] = useState<string[]>([]);
-  // Snapshot of what was on the row when we loaded it, so photos the user
-  // removed can be deleted from storage after a successful save.
+  // Every photo in the strip, stored and new, in the order the user arranged.
+  const [photos, setPhotos] = useState<EditedPhoto[]>([]);
+  // What was on the row when we loaded it: the stored photos (paired with
+  // their thumbnails) the strip can show, and the raw arrays, so photos the
+  // user removed can be deleted from storage after a successful save.
+  const [storedPhotos, setStoredPhotos] = useState<{ path: string; thumb: string | null }[]>([]);
   const originalPhotosRef = useRef<{ photos: string[]; thumbnails: string[] }>({
     photos: [],
     thumbnails: [],
   });
-  const [newPhotos, setNewPhotos] = useState<string[]>([]);
   const [momentDate, setMomentDate] = useState<Date | null>(new Date());
   const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
   const [loadingMoment, setLoadingMoment] = useState(true);
@@ -121,8 +123,9 @@ export default function EditMomentScreen() {
     setReflection(moment.reflectionText ?? "");
     setSelectedMoods(moment.moods);
     setPeople(moment.people);
-    setExistingPhotos(moment.photoUrls);
-    setExistingThumbnails(moment.photoThumbnails);
+    const stored = pairStoredPhotos(moment.photoUrls, moment.photoThumbnails);
+    setStoredPhotos(stored);
+    setPhotos(stored.map((p) => ({ kind: "kept", ...p })));
     originalPhotosRef.current = {
       photos: moment.photoUrls,
       thumbnails: moment.photoThumbnails,
@@ -172,27 +175,24 @@ export default function EditMomentScreen() {
   // PhotoPickerSection takes one ordered list of strings. Stored photos go in
   // as their public URLs, photos picked this session as local file URIs; the
   // map turns a URL back into its stored path and thumbnail on the way out.
-  const storedByUrl = useMemo(() => {
-    const map = new Map<string, { path: string; thumb?: string }>();
-    existingPhotos.forEach((path, i) => {
-      map.set(getPublicPhotoUrl(path), { path, thumb: existingThumbnails[i] });
-    });
-    return map;
-  }, [existingPhotos, existingThumbnails]);
+  // Whatever order the user drags them into is the order updateMoment saves.
+  const storedByUrl = useMemo(
+    () => new Map(storedPhotos.map((p) => [getPublicPhotoUrl(p.path), p])),
+    [storedPhotos]
+  );
 
-  // Stored photos first: updateMoment saves kept photos ahead of new uploads,
-  // so that's the order the strip shows. Reordering within each group sticks.
   const pickerPhotos = useMemo(
-    () => [...storedByUrl.keys(), ...newPhotos],
-    [storedByUrl, newPhotos]
+    () => photos.map((p) => (p.kind === "kept" ? getPublicPhotoUrl(p.path) : p.uri)),
+    [photos]
   );
 
   const handlePhotosChange = (next: string[]) => {
-    const kept = next.filter((uri) => storedByUrl.has(uri)).map((uri) => storedByUrl.get(uri)!);
-    setExistingPhotos(kept.map((k) => k.path));
-    // Moments from before thumbnails have none; keep that list empty then.
-    setExistingThumbnails(kept.map((k) => k.thumb).filter((t): t is string => !!t));
-    setNewPhotos(next.filter((uri) => !storedByUrl.has(uri)));
+    setPhotos(
+      next.map((uri): EditedPhoto => {
+        const stored = storedByUrl.get(uri);
+        return stored ? { kind: "kept", ...stored } : { kind: "new", uri };
+      })
+    );
   };
 
   const hasSong = !!song;
@@ -234,9 +234,7 @@ export default function EditMomentScreen() {
         momentDate,
         originalPhotos: originalPhotosRef.current.photos,
         originalThumbnails: originalPhotosRef.current.thumbnails,
-        keptPhotos: existingPhotos,
-        keptThumbnails: existingThumbnails,
-        newPhotos,
+        photos,
       });
 
       posthog.capture("moment_edited", {
@@ -244,7 +242,7 @@ export default function EditMomentScreen() {
         has_mood: selectedMoods.length > 0,
         mood_count: selectedMoods.length,
         has_people: people.length > 0,
-        photo_count: existingPhotos.length + newPhotos.length,
+        photo_count: photos.length,
         has_location: Boolean(locationResult),
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
