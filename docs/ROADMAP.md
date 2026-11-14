@@ -124,8 +124,14 @@ them, OTA-only (no native changes).
   fullScreenModal over the moment overlay): Post/Story, photo picker and
   "Share image" moved out of the sheet, which closes and then opens it; the
   moment is handed over through `lib/shareCardStore.ts` (consume-once).
-- [ ] Follow-ups: an ordered photo list in `updateMoment` so new photos can sit before stored
-  ones in edit; a `ListRow` primitive (settings/You/sheets repeat it); a
+- [x] Edit moment saves photos in strip order (2026-11-14): `updateMoment`
+  takes one ordered list of kept and new photos (`lib/photoOrder.ts`), so a
+  new photo dragged ahead of a stored one stays there and can be the cover.
+  Thumbnails stay index-paired; a legacy moment that gains a photo uses each
+  old photo as its own thumbnail so the strip shows every photo.
+- [x] Moment screen resumes a paused song (back from the background) instead
+  of restarting it, and keeps the progress bar (`lib/playerAction.ts`).
+- [ ] Follow-ups: a `ListRow` primitive (settings/You/sheets repeat it); a
   switch color token; `Chip` onLongPress and image slot; Button hug
   alignment in rows; add `mailto` to `LSApplicationQueriesSchemes` in the
   next binary.
