@@ -43,6 +43,8 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
 import { MomentCard } from "@/components/MomentCard";
 import { IconButton } from "@/components/IconButton";
+import { ScreenHeader } from "@/components/ScreenHeader";
+import { SectionLabel } from "@/components/SectionLabel";
 import { Ionicons } from "@expo/vector-icons";
 import { CalendarView, type CalendarMoment } from "@/components/CalendarView";
 import { EmptyState } from "@/components/EmptyState";
@@ -479,11 +481,11 @@ export default function TimelineScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        {/* Title row */}
-        <View style={styles.headerTop}>
-          <Text style={styles.title}>Journal</Text>
-          <View style={styles.headerRight}>
+      <ScreenHeader
+        leading="none"
+        title="Journal"
+        right={
+          <>
             {/* The archive lives in Rediscover — land there with search up */}
             <IconButton
               name="search-outline"
@@ -525,9 +527,10 @@ export default function TimelineScreen() {
                 );
               })}
             </View>
-          </View>
-        </View>
-      </View>
+          </>
+        }
+        style={styles.header}
+      />
 
       <View style={{ flex: 1 }}>
         <GestureDetector gesture={pinchGesture}>
@@ -557,18 +560,10 @@ export default function TimelineScreen() {
                   sections={sections}
                   keyExtractor={(item) => item.id}
                   renderItem={renderMoment}
-                  renderSectionHeader={({ section: { title } }) => {
-                    // "October 2026" -> small caps month, muted year.
-                    const split = title.lastIndexOf(" ");
-                    const month = split > 0 ? title.slice(0, split) : title;
-                    const year = split > 0 ? title.slice(split + 1) : "";
-                    return (
-                      <View style={styles.sectionHeader} accessibilityRole="header">
-                        <Text style={styles.sectionMonth}>{month.toUpperCase()}</Text>
-                        {year ? <Text style={styles.sectionYear}>{year}</Text> : null}
-                      </View>
-                    );
-                  }}
+                  renderSectionHeader={({ section: { title } }) => (
+                    // "November 2026", in Label and its own case (DESIGN.md).
+                    <SectionLabel style={styles.sectionHeader}>{title}</SectionLabel>
+                  )}
                   ListHeaderComponent={listHeader}
                   onEndReached={handleLoadMore}
                   removeClippedSubviews
@@ -616,27 +611,7 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.background,
     },
     header: {
-      paddingHorizontal: theme.spacing.xl,
-      paddingTop: 58,
       paddingBottom: theme.spacing.xs,
-    },
-    headerTop: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: theme.spacing.sm,
-    },
-    title: {
-      fontSize: 34,
-      fontFamily: theme.fonts.display,
-      color: theme.colors.text,
-      lineHeight: 40,
-      letterSpacing: -0.3,
-    },
-    headerRight: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs,
     },
     segmented: {
       flexDirection: "row",
@@ -653,9 +628,11 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       justifyContent: "center",
     },
+    // Segment lift (DESIGN.md, Shadow Vocabulary): a faint ink shadow on
+    // paper, none on night, where the darker fill carries the step.
     segmentActive: {
       backgroundColor: theme.colors.background,
-      shadowColor: "#000",
+      shadowColor: theme.colors.text,
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: theme.isDark ? 0 : 0.08,
       shadowRadius: 2,
@@ -676,9 +653,8 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.accent,
     },
     sharedRowText: {
+      ...theme.typography.callout,
       flex: 1,
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
       color: theme.colors.text,
     },
     viewsContainer: {
@@ -688,32 +664,13 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.xl,
     },
     sectionHeader: {
-      flexDirection: "row",
-      alignItems: "baseline",
-      gap: theme.spacing.sm,
       paddingTop: theme.spacing["2xl"],
       paddingBottom: theme.spacing.xs,
-      backgroundColor: theme.colors.background,
-    },
-    sectionMonth: {
-      fontSize: 13,
-      fontFamily: theme.fonts.bodySemibold,
-      letterSpacing: 1,
-      color: theme.colors.text,
-    },
-    sectionYear: {
-      fontSize: 13,
-      fontFamily: theme.fonts.body,
-      color: theme.colors.textSecondary,
     },
     listContent: {
       paddingHorizontal: theme.spacing.xl,
       // Clears the floating capture button so the last entry is never under it.
       paddingBottom: 110,
-    },
-    separator: {
-      height: StyleSheet.hairlineWidth,
-      marginLeft: 14 + 46 + 12,
     },
   });
 }

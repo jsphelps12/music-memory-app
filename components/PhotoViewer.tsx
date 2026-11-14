@@ -2,14 +2,14 @@ import { useRef, useState, useMemo } from "react";
 import {
   FlatList,
   Modal,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
   useWindowDimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { AppImage } from "@/components/AppImage";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -21,10 +21,16 @@ interface Props {
   onClose: () => void;
 }
 
+// The close floats over the photo, so it's a warm-ink glass disc with a paper
+// glyph (DESIGN.md allows warm ink over imagery), the same in both themes.
+const INK_GLASS = "rgba(35,34,43,0.55)";
+const PAPER_ON_GLASS = "#FBF7F2";
+
 export function PhotoViewer({ photos, initialIndex, visible, onClose }: Props) {
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const listRef = useRef<FlatList>(null);
 
@@ -91,18 +97,21 @@ export function PhotoViewer({ photos, initialIndex, visible, onClose }: Props) {
           )}
         />
 
-        <SafeAreaView style={styles.overlay} pointerEvents="box-none">
+        <View style={[styles.overlay, { paddingTop: insets.top }]} pointerEvents="box-none">
           <TouchableOpacity
             style={styles.closeButton}
             onPress={onClose}
             activeOpacity={0.7}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Close photos"
           >
-            <Text style={styles.closeButtonText}>✕</Text>
+            <Ionicons name="close" size={20} color={PAPER_ON_GLASS} />
           </TouchableOpacity>
-        </SafeAreaView>
+        </View>
 
         {photos.length > 1 && (
-          <View style={styles.dotsContainer} pointerEvents="none">
+          <View style={[styles.dotsContainer, { bottom: insets.bottom + 24 }]} pointerEvents="none">
             {photos.map((_, i) => (
               <View
                 key={i}
@@ -130,22 +139,16 @@ function createStyles(theme: Theme) {
     },
     closeButton: {
       alignSelf: "flex-end",
-      margin: 16,
+      margin: theme.spacing.lg,
       width: 36,
       height: 36,
-      borderRadius: 18,
-      backgroundColor: theme.colors.closeButtonBg,
+      borderRadius: theme.radii.full,
+      backgroundColor: INK_GLASS,
       alignItems: "center",
       justifyContent: "center",
     },
-    closeButtonText: {
-      color: theme.colors.text,
-      fontSize: 16,
-      fontFamily: "DMSans_600SemiBold",
-    },
     dotsContainer: {
       position: "absolute",
-      bottom: 48,
       left: 0,
       right: 0,
       flexDirection: "row",

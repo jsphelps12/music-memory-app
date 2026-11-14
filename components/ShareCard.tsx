@@ -3,17 +3,22 @@
 //
 // Design (Sharing v2 Phase D, owner-decided): the card is a kept artifact —
 // the photo prints clean and edge-to-edge with NO overlay or gradient, and
-// everything written lives below it on brand-cream chrome, like the mat of an
-// instant photo. Serif title, italic serif reflection, one quiet meta line,
-// wordmark. When the moment has no photo, the album art becomes the hero.
+// everything written lives below it on paper chrome, like the mat of an
+// instant photo. Serif title, the reflection in Newsreader (upright: it's
+// what the person wrote), one quiet meta line, the serif wordmark. When the
+// moment has no photo, the album art becomes the hero.
 //
 // Colors are deliberately fixed, not theme tokens: the export is a PNG that
-// must look identical from a dark-mode phone.
+// must look identical from a dark-mode phone. They are the light theme's
+// paper and ink values (DESIGN.md, design sweep 2026-11), copied here so the
+// card stays self-contained when it renders off-screen.
 
 import { View, Text, StyleSheet, Dimensions } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { AppImage } from "@/components/AppImage";
 import { PartialMoment } from "@/types";
 import { MOODS } from "@/constants/Moods";
+import { fonts } from "@/constants/theme";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 export const CARD_WIDTH = SCREEN_WIDTH - 48;
@@ -29,13 +34,12 @@ interface Props {
   variant?: ShareCardVariant;
 }
 
-const CREAM = "#FBF6F1";
-const INK = "#2C2C3A";
-const INK_SOFT = "rgba(44,44,58,0.62)";
-const INK_FAINT = "rgba(44,44,58,0.40)";
-const HAIRLINE = "#E5E0D8";
-const ACCENT = "#E8825C";
-const CREAM_DEEP = "#F0E8DF";
+const PAPER = "#FBF7F2";
+const PAPER_DEEP = "#F3EDE6";
+const INK = "#23222B";
+const GRAPHITE = "#5E5C66";
+const UMBER_GRAY = "#736A63";
+const HAIRLINE = "#E9E2D9";
 
 export function ShareCard({ moment, photoUrl, variant = "post" }: Props) {
   const cardHeight = variant === "story" ? CARD_HEIGHT_STORY : CARD_HEIGHT_POST;
@@ -47,7 +51,7 @@ export function ShareCard({ moment, photoUrl, variant = "post" }: Props) {
         month: "short",
         day: "numeric",
         year: "numeric",
-      }).toUpperCase()
+      })
     : null;
 
   const reflection =
@@ -63,10 +67,11 @@ export function ShareCard({ moment, photoUrl, variant = "post" }: Props) {
   const heroSource = photoUrl ?? moment.songArtworkUrl ?? null;
 
   // First mood only — compact layout, and the first mood is the primary one
-  // (selection order, mirrored in the legacy mood column).
+  // (selection order, mirrored in the legacy mood column). As a word: moods
+  // are words, not emoji.
   const moodDef = moment.moods[0] ? MOODS.find((m) => m.value === moment.moods[0]) : null;
 
-  const metaParts = [date, moment.location].filter(Boolean) as string[];
+  const metaParts = [moodDef?.label, date, moment.location].filter(Boolean) as string[];
 
   return (
     <View style={[styles.card, { width: CARD_WIDTH, height: cardHeight }]}>
@@ -76,7 +81,7 @@ export function ShareCard({ moment, photoUrl, variant = "post" }: Props) {
           <AppImage source={{ uri: heroSource }} style={StyleSheet.absoluteFill} contentFit="cover" />
         ) : (
           <View style={styles.heroEmpty}>
-            <Text style={styles.heroEmptyGlyph}>♪</Text>
+            <Ionicons name="musical-notes" size={56} color={UMBER_GRAY} />
           </View>
         )}
       </View>
@@ -107,10 +112,9 @@ export function ShareCard({ moment, photoUrl, variant = "post" }: Props) {
 
         <View style={styles.footer}>
           <Text style={styles.meta} numberOfLines={1}>
-            {moodDef ? `${moodDef.emoji}  ` : ""}
-            {metaParts.join("  ·  ")}
+            {metaParts.join(" · ")}
           </Text>
-          <Text style={styles.wordmark}>SOUNDTRACKS</Text>
+          <Text style={styles.wordmark}>Soundtracks</Text>
         </View>
       </View>
     </View>
@@ -119,24 +123,19 @@ export function ShareCard({ moment, photoUrl, variant = "post" }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: CREAM,
+    backgroundColor: PAPER,
     borderRadius: 20,
     overflow: "hidden",
   },
   hero: {
     width: "100%",
-    backgroundColor: CREAM_DEEP,
+    backgroundColor: PAPER_DEEP,
   },
   heroEmpty: {
     flex: 1,
-    backgroundColor: CREAM_DEEP,
+    backgroundColor: PAPER_DEEP,
     alignItems: "center",
     justifyContent: "center",
-  },
-  heroEmptyGlyph: {
-    fontSize: 64,
-    fontFamily: "DMSerifDisplay_400Regular",
-    color: INK_FAINT,
   },
   chrome: {
     flex: 1,
@@ -160,18 +159,18 @@ const styles = StyleSheet.create({
   },
   songTitle: {
     fontSize: 24,
-    fontFamily: "DMSerifDisplay_400Regular",
+    fontFamily: fonts.display,
     color: INK,
     lineHeight: 28,
   },
   songArtist: {
     fontSize: 13,
-    fontFamily: "DMSans_500Medium",
-    color: INK_SOFT,
+    fontFamily: fonts.body,
+    color: GRAPHITE,
     marginTop: 1,
   },
   reflection: {
-    fontFamily: "DMSerifDisplay_400Regular_Italic",
+    fontFamily: fonts.reading,
     fontSize: 15,
     lineHeight: 22,
     color: INK,
@@ -192,15 +191,14 @@ const styles = StyleSheet.create({
   },
   meta: {
     flex: 1,
-    fontSize: 10.5,
-    fontFamily: "DMSans_500Medium",
-    letterSpacing: 1.2,
-    color: INK_SOFT,
+    fontSize: 12,
+    fontFamily: fonts.body,
+    fontVariant: ["tabular-nums"],
+    color: GRAPHITE,
   },
   wordmark: {
-    fontSize: 11,
-    fontFamily: "DMSans_700Bold",
-    color: ACCENT,
-    letterSpacing: 1.4,
+    fontSize: 16,
+    fontFamily: fonts.display,
+    color: INK,
   },
 });

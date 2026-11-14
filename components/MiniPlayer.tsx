@@ -7,6 +7,9 @@ import { useTheme } from "@/hooks/useTheme";
 import { formatTime } from "@/lib/formatTime";
 import { Theme } from "@/constants/theme";
 
+// Night, not pure black, for the float shadow in both themes.
+const SHADOW_INK = "#0E0B0A";
+
 export function MiniPlayer() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -74,7 +77,7 @@ export function MiniPlayer() {
             <Text style={styles.artist} numberOfLines={1}>
               {currentSong.artistName}
             </Text>
-            {isPreview && <Text style={styles.previewBadge}>PREVIEW</Text>}
+            {isPreview && <Text style={styles.previewBadge}>Preview</Text>}
           </View>
         </View>
         <TouchableOpacity
@@ -115,12 +118,14 @@ export function MiniPlayer() {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
+    // A raised surface that floats over the page, so it keeps a soft shadow
+    // (DESIGN.md: shadow is for things that float).
     card: {
       marginHorizontal: 10,
-      marginBottom: 8,
-      borderRadius: 14,
+      marginBottom: theme.spacing.sm,
+      borderRadius: theme.radii.button,
       backgroundColor: theme.colors.elevated,
-      shadowColor: "#000",
+      shadowColor: SHADOW_INK,
       shadowOffset: { width: 0, height: 6 },
       shadowOpacity: theme.isDark ? 0.45 : 0.12,
       shadowRadius: 14,
@@ -147,8 +152,9 @@ function createStyles(theme: Theme) {
       minWidth: 0,
     },
     title: {
+      ...theme.typography.bodyStrong,
       fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodySemibold,
+      lineHeight: 19,
       color: theme.colors.text,
     },
     artistRow: {
@@ -157,16 +163,14 @@ function createStyles(theme: Theme) {
       gap: 6,
     },
     artist: {
+      ...theme.typography.meta,
       flexShrink: 1,
-      fontSize: 13,
-      fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
       marginTop: 1,
     },
+    // A quiet Meta word, not an upper-case tracked badge.
     previewBadge: {
-      fontSize: 10,
-      fontFamily: theme.fonts.bodySemibold,
-      letterSpacing: 0.8,
+      ...theme.typography.meta,
       color: theme.colors.textTertiary,
       marginTop: 1,
     },
@@ -201,9 +205,9 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.text,
     },
     time: {
+      ...theme.typography.meta,
       fontSize: 11,
-      fontFamily: theme.fonts.body,
-      fontVariant: ["tabular-nums"],
+      lineHeight: 14,
       color: theme.colors.textSecondary,
       minWidth: 30,
     },

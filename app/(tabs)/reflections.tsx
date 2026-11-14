@@ -30,6 +30,13 @@ import { BottomSheet } from "@/components/BottomSheet";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { setCachedMoment } from "@/lib/momentCache";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { ErrorState } from "@/components/ErrorState";
+import { ScreenHeader } from "@/components/ScreenHeader";
+import { TextField } from "@/components/TextField";
+import { Button } from "@/components/Button";
+import { Chip } from "@/components/Chip";
+import { IconButton } from "@/components/IconButton";
+import { SectionLabel } from "@/components/SectionLabel";
 import { friendlyError } from "@/lib/errors";
 import { pad, dateToStr } from "@/lib/dateUtils";
 import { artworkUrlAtSize } from "@/lib/itunes";
@@ -112,7 +119,7 @@ function isoWeekSeed(d: Date): number {
 
 // ── derived strip data (from the shared browseMeta cache) ──────────────
 
-function deriveMoodCounts(meta: BrowseMeta[], allMoods: { value: string; emoji: string; label: string }[]) {
+function deriveMoodCounts(meta: BrowseMeta[], allMoods: { value: string; label: string }[]) {
   const counts: Record<string, number> = {};
   for (const m of meta) {
     for (const mood of m.moods) counts[mood] = (counts[mood] ?? 0) + 1;
@@ -123,9 +130,20 @@ function deriveMoodCounts(meta: BrowseMeta[], allMoods: { value: string; emoji: 
       // A deleted custom mood has only its generated id left: leave it out.
       const label = moodLabel(mood, allMoods);
       if (!label) return [];
-      const def = allMoods.find((m) => m.value === mood);
-      return [{ mood, count, emoji: def?.emoji ?? "🎵", label }];
+      return [{ mood, count, label }];
     });
+}
+
+/** The artists you've written about most, for the empty search's suggestions. */
+function deriveTopArtists(meta: BrowseMeta[], max = 8) {
+  const counts = new Map<string, number>();
+  for (const m of meta) {
+    if (m.songArtist) counts.set(m.songArtist, (counts.get(m.songArtist) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, max)
+    .map(([artist]) => artist);
 }
 
 // Artwork is stored at 600px; rows ask for what they draw (at 3x).
@@ -371,6 +389,7 @@ export default function ReflectionsScreen() {
   const peopleCounts = useMemo(() => derivePeopleCounts(meta), [meta]);
   const yearCounts = useMemo(() => deriveYearCounts(meta), [meta]);
   const albumCounts = useMemo(() => deriveAlbumCounts(meta), [meta]);
+  const topArtists = useMemo(() => deriveTopArtists(meta), [meta]);
 
   // Weekly Rewind: the ISO-week seed picks one past month from the library.
   const rewindMonthKey = useMemo(() => {
@@ -469,11 +488,9 @@ export default function ReflectionsScreen() {
 
   if (isError && onThisDay.length === 0 && meta.length === 0) {
     return (
-      <View style={[styles.container, styles.centered]}>
-        <Text style={styles.errorText}>Something went wrong loading your memories.</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => refetch()} activeOpacity={0.7}>
-          <Text style={styles.retryText}>Try Again</Text>
-        </TouchableOpacity>
+      <View style={styles.container}>
+        <ScreenHeader leading="none" title="Rediscover" />
+        <ErrorState message={friendlyError(error)} onRetry={() => refetch()} />
       </View>
     );
   }
@@ -482,57 +499,65 @@ export default function ReflectionsScreen() {
   if (randomMoment === null && onThisDay.length === 0 && meta.length === 0) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Rediscover</Text>
-        </View>
+        <ScreenHeader leading="none" title="Rediscover" />
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>Your memories resurface here</Text>
           <Text style={styles.emptyBody}>
             On this day, a weekly rewind, your moods and years: the songs that
             marked your life, brought back to you.
           </Text>
-          <TouchableOpacity
-            style={styles.emptyButton}
-            onPress={() => router.push("/create")}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.emptyButtonText}>Capture a song</Text>
-          </TouchableOpacity>
+          <Button label="Capture a song" fullWidth={false} style={styles.emptyButton} onPress={() => router.push("/create")} />
         </View>
       </View>
     );
   }
 
+  const showSuggestions = searchActive && !searchText.trim();
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Rediscover</Text>
-      </View>
+      <ScreenHeader leading="none" title="Rediscover" />
 
       {/* Search — the archive's front door, always visible */}
-      <View style={styles.searchBarWrapper}>
-        <Ionicons name="search-outline" size={16} color={theme.colors.textTertiary} style={{ marginLeft: 12 }} />
-        <TextInput
-          ref={searchInputRef}
-          style={styles.searchBarInput}
-          placeholder="Search songs, artists, reflections…"
-          placeholderTextColor={theme.colors.placeholder}
-          cursorColor={theme.colors.accent}
-          value={searchText}
-          onChangeText={(t) => { setSearchText(t); if (!searchActive) setSearchActive(true); }}
-          onFocus={() => setSearchActive(true)}
-          autoCorrect={false}
-          autoCapitalize="none"
-          returnKeyType="search"
-        />
-        {searchActive ? (
-          <TouchableOpacity onPress={handleSearchClose} hitSlop={8} style={{ marginRight: 12 }}>
-            <Text style={{ fontSize: 14, fontFamily: "DMSans_500Medium", color: theme.colors.accent }}>Cancel</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
+      <TextField
+        ref={searchInputRef}
+        icon="search"
+        placeholder="Search songs, artists, reflections"
+        value={searchText}
+        onChangeText={(t) => { setSearchText(t); if (!searchActive) setSearchActive(true); }}
+        onFocus={() => setSearchActive(true)}
+        autoCorrect={false}
+        autoCapitalize="none"
+        returnKeyType="search"
+        containerStyle={styles.searchField}
+        trailing={
+          searchActive ? (
+            <Button label="Cancel" variant="text" size="pill" onPress={handleSearchClose} />
+          ) : null
+        }
+      />
 
-      {searchActive ? (
+      {showSuggestions ? (
+        // Nothing typed yet: offer the artists you write about most instead
+        // of repeating the placeholder. One tap searches.
+        topArtists.length > 0 ? (
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.suggestions}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
+            <SectionLabel>Your artists</SectionLabel>
+            <View style={styles.suggestionChips}>
+              {topArtists.map((artist) => (
+                <Chip key={artist} label={artist} onPress={() => setSearchText(artist)} />
+              ))}
+            </View>
+          </ScrollView>
+        ) : (
+          <View style={styles.scroll} />
+        )
+      ) : searchActive ? (
         <MomentSearch query={searchText} userId={user?.id ?? ""} />
       ) : (
         <ScrollView
@@ -611,21 +636,15 @@ export default function ReflectionsScreen() {
           {/* ── Surprise Me ── */}
           {randomMoment && (
             <View style={styles.sectionSpaced}>
-              <View style={styles.sectionHeader}>
+              <View style={[styles.sectionHeader, styles.sectionHeaderCentered]}>
                 <Text style={styles.sectionTitle}>Surprise me</Text>
-                <TouchableOpacity
-                  onPress={handleShuffle}
-                  disabled={shuffling}
-                  hitSlop={12}
-                  accessibilityRole="button"
-                  accessibilityLabel="Shuffle"
-                >
-                  {shuffling ? (
+                {shuffling ? (
+                  <View style={styles.shuffleSlot}>
                     <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                  ) : (
-                    <Ionicons name="shuffle" size={20} color={theme.colors.text} />
-                  )}
-                </TouchableOpacity>
+                  </View>
+                ) : (
+                  <IconButton name="shuffle" onPress={handleShuffle} accessibilityLabel="Shuffle" style={styles.shuffleSlot} />
+                )}
               </View>
               <MomentCard item={randomMoment} allMoods={allMoods} />
             </View>
@@ -700,31 +719,21 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       justifyContent: "center",
     },
-    header: {
-      paddingHorizontal: theme.spacing.xl,
-      paddingTop: 80,
-      paddingBottom: theme.spacing.md,
-    },
-    title: {
-      fontSize: 30,
-      fontFamily: theme.fonts.display,
-      color: theme.colors.text,
-    },
-    searchBarWrapper: {
-      flexDirection: "row",
-      alignItems: "center",
+    searchField: {
       marginHorizontal: theme.spacing.xl,
       marginBottom: theme.spacing.sm,
-      backgroundColor: theme.colors.chipBg,
-      borderRadius: theme.radii.md,
-      gap: 8,
+      paddingRight: theme.spacing.sm,
     },
-    searchBarInput: {
-      flex: 1,
-      fontSize: 15,
-      fontFamily: "DMSans_400Regular",
-      color: theme.colors.text,
-      paddingVertical: 10,
+    suggestions: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingTop: theme.spacing.lg,
+      paddingBottom: 120,
+    },
+    suggestionChips: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.sm,
     },
     scroll: { flex: 1 },
     scrollContent: {
@@ -742,15 +751,25 @@ function createStyles(theme: Theme) {
       justifyContent: "space-between",
       marginBottom: theme.spacing.md,
     },
+    sectionHeaderCentered: {
+      alignItems: "center",
+    },
+    // The shuffle's 44pt target, pulled to the gutter so the glyph lines up.
+    shuffleSlot: {
+      width: 44,
+      height: 44,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: -12,
+      marginVertical: -12,
+    },
     sectionTitle: {
-      fontSize: theme.fontSize.xl,
-      lineHeight: 26,
-      fontFamily: theme.fonts.display,
+      ...theme.typography.title,
       color: theme.colors.text,
     },
     sectionDetail: {
+      ...theme.typography.meta,
       fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
     },
     heroRow: {
@@ -766,9 +785,7 @@ function createStyles(theme: Theme) {
       flex: 1,
     },
     heroAgo: {
-      fontSize: theme.fontSize.xl,
-      lineHeight: 26,
-      fontFamily: theme.fonts.display,
+      ...theme.typography.title,
       color: theme.colors.text,
     },
     heroSong: {
@@ -884,48 +901,19 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing["2xl"],
     },
     emptyTitle: {
-      fontSize: theme.fontSize.xl,
-      fontFamily: theme.fonts.display,
+      ...theme.typography.title,
       color: theme.colors.text,
       textAlign: "center",
       marginBottom: theme.spacing.md,
     },
     emptyBody: {
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
       textAlign: "center",
-      lineHeight: 22,
       marginBottom: theme.spacing["2xl"],
     },
     emptyButton: {
-      height: 44,
-      paddingHorizontal: theme.spacing.xl,
-      borderRadius: theme.radii.full,
-      backgroundColor: theme.colors.buttonBg,
-      justifyContent: "center",
-    },
-    emptyButtonText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.buttonText,
-    },
-    errorText: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.textSecondary,
-      textAlign: "center",
-      marginBottom: theme.spacing.lg,
-      paddingHorizontal: theme.spacing.xl,
-    },
-    retryButton: {
-      paddingVertical: 10,
-      paddingHorizontal: theme.spacing.xl,
-      borderRadius: theme.radii.md,
-      backgroundColor: theme.colors.chipBg,
-    },
-    retryText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.text,
+      alignSelf: "center",
     },
   });
 }

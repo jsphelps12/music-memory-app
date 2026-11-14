@@ -3,7 +3,6 @@ import {
   View,
   Text,
   FlatList,
-  TouchableOpacity,
   StyleSheet,
   RefreshControl,
 } from "react-native";
@@ -22,6 +21,7 @@ import { friendlyError } from "@/lib/errors";
 import { MomentCard } from "@/components/MomentCard";
 import { fetchArtistMoments } from "@/lib/browse";
 import { pluralMoments } from "@/lib/utils";
+import { ScreenHeader } from "@/components/ScreenHeader";
 
 const STALE_TIME = 2 * 60 * 1000;
 
@@ -68,20 +68,11 @@ export default function ArtistScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} activeOpacity={0.7}>
-          <Text style={styles.backText}>‹ Back</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.artistHeader}>
-        <Text style={styles.artistName} numberOfLines={2}>{name}</Text>
-        {!isLoading && (
-          <Text style={styles.momentCount}>
-            {pluralMoments(moments.length)}
-          </Text>
-        )}
-      </View>
+      <ScreenHeader
+        title={name}
+        subtitle={isLoading ? " " : pluralMoments(moments.length)}
+        style={styles.header}
+      />
 
       {showBanner ? (
         <View style={styles.bannerWrap}>
@@ -130,27 +121,7 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.background,
     },
     header: {
-      paddingTop: 60,
-      paddingHorizontal: theme.spacing.xl,
-      paddingBottom: theme.spacing.sm,
-    },
-    backText: {
-      fontSize: theme.fontSize.lg,
-      color: theme.colors.accent,
-    },
-    artistHeader: {
-      paddingHorizontal: theme.spacing.xl,
-      paddingBottom: theme.spacing.xl,
-    },
-    artistName: {
-      fontSize: theme.fontSize["2xl"],
-      fontFamily: theme.fonts.display,
-      color: theme.colors.text,
-      marginBottom: theme.spacing.xs,
-    },
-    momentCount: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
+      paddingBottom: theme.spacing.lg,
     },
     bannerWrap: {
       paddingHorizontal: theme.spacing.xl,
@@ -169,7 +140,7 @@ function createStyles(theme: Theme) {
       padding: theme.spacing.xl,
     },
     emptyText: {
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
     },
   });

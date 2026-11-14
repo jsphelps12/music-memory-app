@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Dimensions,
   Modal,
   Platform,
   Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
-/** Screen-space frame of the long-pressed card, from a Reanimated measure(). */
+/** Screen-space frame of what the menu belongs to (a card, a "…" button). */
 export interface MenuAnchor {
   x: number;
   y: number;
@@ -21,42 +21,61 @@ export interface MenuAnchor {
   height: number;
 }
 
-interface Props {
-  anchor: MenuAnchor | null;
-  onEdit: () => void;
-  onDelete: () => void;
-  onClose: () => void;
+export interface MomentMenuItem {
+  key: string;
+  label: string;
+  icon?: React.ComponentProps<typeof Ionicons>["name"];
+  /** Delete, remove, report: set in the destructive color. */
+  destructive?: boolean;
   /**
-   * Fires once the menu has finished closing (after the fade-out on iOS).
-   * Anything that presents another Modal, like a confirm sheet, belongs here:
-   * iOS drops a presentation that starts while this Modal is still dismissing.
+   * Runs once the menu has finished closing, never while it is still on
+   * screen: iOS drops a Modal presentation (a confirm sheet, a bottom sheet)
+   * that starts while this Modal is dismissing.
    */
-  onDismissed?: () => void;
+  onPress: () => void;
 }
 
-const MENU_WIDTH = 190;
-const ROW_HEIGHT = 46;
+interface Props {
+  /** Non-null opens the menu beside this frame; null closes it. */
+  anchor: MenuAnchor | null;
+  items: MomentMenuItem[];
+  /** The scrim was tapped or a row chosen: set the anchor back to null. */
+  onClose: () => void;
+}
+
+const MENU_WIDTH = 220;
+const ROW_HEIGHT = 48;
 const MENU_GAP = 8;
-// Keep the menu clear of the status bar / notch when a card sits at the top.
-const TOP_SAFE = 70;
 const DISMISS_BACKSTOP_MS = 1000;
 
 /**
- * Floating context menu anchored to a long-pressed moment card — hovers just
- * above the card (below it when the card is at the top of the screen), instead
- * of a detached system action sheet at the bottom.
+ * The one context menu for a moment, from a long-pressed row in a list or the
+ * "…" on the entry (design sweep, 2026-11; those used to be two different
+ * menus). A raised surface over the warm scrim, rows in Body with hairlines,
+ * destructive rows in the destructive color. It sits just above its anchor,
+ * or below it when there isn't room under the status bar, and always inside
+ * the safe area.
  */
-export function MomentActionMenu({ anchor, onEdit, onDelete, onClose, onDismissed }: Props) {
+export function MomentActionMenu({ anchor, items, onClose }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   // The last anchor shown. It outlives `anchor` so the Modal stays mounted with
   // visible={false} through its fade-out; unmounting it instead would skip
   // onDismiss and leave nothing to tell when the dismissal is over.
   const [shown, setShown] = useState<MenuAnchor | null>(anchor);
-  if (anchor && anchor !== shown) setShown(anchor);
+  // The items too, so rows don't change under the fade-out.
+  const [shownItems, setShownItems] = useState(items);
+  if (anchor && anchor !== shown) {
+    setShown(anchor);
+    setShownItems(items);
+  }
   const closing = !anchor && !!shown;
 
+  // The row chosen, run after the menu is gone.
+  const pendingRef = useRef<(() => void) | null>(null);
   // True when no close is in flight, so onDismiss and the backstop below can't
   // both report the same close.
   const settledRef = useRef(true);
@@ -64,8 +83,10 @@ export function MomentActionMenu({ anchor, onEdit, onDelete, onClose, onDismisse
     if (settledRef.current) return;
     settledRef.current = true;
     setShown(null);
-    onDismissed?.();
-  }, [onDismissed]);
+    const pending = pendingRef.current;
+    pendingRef.current = null;
+    pending?.();
+  }, []);
 
   useEffect(() => {
     if (!closing) {
@@ -86,15 +107,24 @@ export function MomentActionMenu({ anchor, onEdit, onDelete, onClose, onDismisse
 
   if (!shown) return null;
 
-  const { width: screenWidth } = Dimensions.get("window");
-  const menuHeight = ROW_HEIGHT * 2 + StyleSheet.hairlineWidth;
+  const gutter = theme.spacing.lg;
+  const menuHeight = ROW_HEIGHT * shownItems.length + StyleSheet.hairlineWidth * (shownItems.length - 1);
+  const minTop = insets.top + theme.spacing.sm;
+  const maxTop = screenHeight - insets.bottom - theme.spacing.sm - menuHeight;
 
+  // Centered on the anchor, kept inside the side gutters.
   const left = Math.min(
-    Math.max(shown.x + shown.width / 2 - MENU_WIDTH / 2, theme.spacing.lg),
-    screenWidth - MENU_WIDTH - theme.spacing.lg
+    Math.max(shown.x + shown.width / 2 - MENU_WIDTH / 2, gutter),
+    screenWidth - MENU_WIDTH - gutter
   );
-  const aboveTop = shown.y - menuHeight - MENU_GAP;
-  const top = aboveTop >= TOP_SAFE ? aboveTop : shown.y + shown.height + MENU_GAP;
+  const above = shown.y - menuHeight - MENU_GAP;
+  const below = shown.y + shown.height + MENU_GAP;
+  const top = Math.max(minTop, Math.min(above >= minTop ? above : below, maxTop));
+
+  const choose = (item: MomentMenuItem) => {
+    pendingRef.current = item.onPress;
+    onClose();
+  };
 
   return (
     <Modal
@@ -105,34 +135,49 @@ export function MomentActionMenu({ anchor, onEdit, onDelete, onClose, onDismisse
       onRequestClose={onClose}
       onDismiss={Platform.OS === "ios" ? finishDismiss : undefined}
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <View style={[styles.menu, { top, left }, theme.shadows.card]}>
-          <TouchableOpacity style={styles.row} onPress={onEdit} activeOpacity={0.7}>
-            <Text style={styles.rowText}>Edit</Text>
-            <Ionicons name="pencil-outline" size={17} color={theme.colors.text} />
-          </TouchableOpacity>
-          <View style={styles.separator} />
-          <TouchableOpacity style={styles.row} onPress={onDelete} activeOpacity={0.7}>
-            <Text style={[styles.rowText, styles.destructiveText]}>Delete</Text>
-            <Ionicons name="trash-outline" size={17} color={theme.colors.destructive} />
-          </TouchableOpacity>
-        </View>
-      </Pressable>
+      <Pressable
+        style={styles.scrim}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Close menu"
+      />
+      <View style={[styles.menu, { top, left }]} accessibilityViewIsModal>
+        {shownItems.map((item, i) => {
+          const color = item.destructive ? theme.colors.destructive : theme.colors.text;
+          return (
+            <View key={item.key}>
+              {i > 0 ? <View style={styles.hairline} /> : null}
+              <Pressable
+                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                onPress={() => choose(item)}
+                accessibilityRole="menuitem"
+              >
+                <Text style={[styles.rowText, { color }]} numberOfLines={1}>
+                  {item.label}
+                </Text>
+                {item.icon ? <Ionicons name={item.icon} size={18} color={color} /> : null}
+              </Pressable>
+            </View>
+          );
+        })}
+      </View>
     </Modal>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    backdrop: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.25)",
+    scrim: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: theme.colors.scrim,
     },
+    // A raised surface: elevated paper with a hairline edge. The scrim, not a
+    // heavy shadow, separates it from the page.
     menu: {
       position: "absolute",
       width: MENU_WIDTH,
       borderRadius: theme.radii.md,
-      backgroundColor: theme.colors.cardBg,
+      backgroundColor: theme.colors.elevated,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: theme.colors.border,
       overflow: "hidden",
@@ -142,19 +187,19 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
+      gap: theme.spacing.md,
       paddingHorizontal: theme.spacing.lg,
     },
+    rowPressed: {
+      backgroundColor: theme.colors.backgroundSecondary,
+    },
     rowText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.text,
+      ...theme.typography.body,
+      flexShrink: 1,
     },
-    destructiveText: {
-      color: theme.colors.destructive,
-    },
-    separator: {
+    hairline: {
       height: StyleSheet.hairlineWidth,
-      backgroundColor: theme.colors.border,
+      backgroundColor: theme.colors.divider,
     },
   });
 }
