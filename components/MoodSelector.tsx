@@ -1,12 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  StyleSheet,
-} from "react-native";
+import { View, Text, Pressable, Alert, StyleSheet } from "react-native";
 import * as Haptics from "expo-haptics";
 import { MOODS } from "@/constants/Moods";
 import { CustomMoodDefinition } from "@/types";
@@ -14,6 +7,14 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { ConfirmSheetHost, confirmSheet } from "@/components/ConfirmSheet";
+import { Chip } from "@/components/Chip";
+import { Button } from "@/components/Button";
+import { TextField } from "@/components/TextField";
+
+// Moods are words (DESIGN.md), so a custom mood is only a label. The data
+// model still carries an emoji (only the share card shows it now); new custom
+// moods get the note the app already falls back to for an unknown mood.
+const CUSTOM_MOOD_EMOJI = "🎵";
 
 interface Props {
   // Selection order is meaningful: the first mood is written to the legacy
@@ -35,22 +36,23 @@ export function MoodSelector({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newEmoji, setNewEmoji] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [formError, setFormError] = useState("");
 
+  const closeForm = () => {
+    setShowAddForm(false);
+    setNewLabel("");
+    setFormError("");
+  };
+
   const handleSave = async () => {
-    const emoji = newEmoji.trim();
     const label = newLabel.trim();
-    if (!emoji || !label) return;
+    if (!label) return;
     try {
       const value = `custom_${Date.now()}`;
-      await saveCustomMood({ value, label, emoji });
+      await saveCustomMood({ value, label, emoji: CUSTOM_MOOD_EMOJI });
       onChangeMoods([...selectedMoods, value]);
-      setShowAddForm(false);
-      setNewEmoji("");
-      setNewLabel("");
-      setFormError("");
+      closeForm();
       Haptics.selectionAsync();
     } catch (e) {
       setFormError(friendlyError(e));
@@ -86,87 +88,63 @@ export function MoodSelector({
       <View style={styles.wrap}>
         {[...MOODS, ...customMoods].map((mood) => {
           const isSelected = selectedMoods.includes(mood.value);
-          const isCustom = mood.value.startsWith("custom_");
+          const toggle = () => {
+            Haptics.selectionAsync();
+            onChangeMoods(
+              isSelected
+                ? selectedMoods.filter((v) => v !== mood.value)
+                : [...selectedMoods, mood.value]
+            );
+          };
+          if (!mood.value.startsWith("custom_")) {
+            return <Chip key={mood.value} label={mood.label} selected={isSelected} onPress={toggle} />;
+          }
+          // Chip has no long-press, so a custom mood wraps a static Chip in
+          // its own Pressable: tap toggles, hold offers to delete it.
           return (
-            <TouchableOpacity
+            <Pressable
               key={mood.value}
-              style={[styles.chip, isSelected && styles.chipSelected]}
-              activeOpacity={0.7}
-              onPress={() => {
-                Haptics.selectionAsync();
-                onChangeMoods(
-                  isSelected
-                    ? selectedMoods.filter((v) => v !== mood.value)
-                    : [...selectedMoods, mood.value]
-                );
-              }}
-              onLongPress={
-                isCustom
-                  ? () => handleDelete(mood as CustomMoodDefinition)
-                  : undefined
-              }
+              onPress={toggle}
+              onLongPress={() => handleDelete(mood as CustomMoodDefinition)}
+              accessibilityRole="button"
+              accessibilityLabel={mood.label}
+              accessibilityState={{ selected: isSelected }}
+              accessibilityHint="Hold to delete this mood"
+              style={({ pressed }) => pressed && styles.pressed}
             >
-              <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                {mood.label}
-              </Text>
-            </TouchableOpacity>
+              <Chip label={mood.label} selected={isSelected} />
+            </Pressable>
           );
         })}
-        <TouchableOpacity
-          style={styles.chipAdd}
-          activeOpacity={0.7}
+        <Chip
+          label="Add"
+          icon="add"
+          variant="add"
           onPress={() => {
             Haptics.selectionAsync();
-            setShowAddForm((v) => !v);
+            if (showAddForm) closeForm();
+            else setShowAddForm(true);
           }}
-        >
-          <Text style={styles.chipAddText}>+ Add</Text>
-        </TouchableOpacity>
+        />
       </View>
 
       {showAddForm && (
         <View style={styles.addForm}>
-          <TextInput
-            style={styles.emojiInput}
-            placeholder="😊"
-            placeholderTextColor={theme.colors.placeholder}
-            value={newEmoji}
-            onChangeText={setNewEmoji}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="next"
-            maxLength={4}
-          />
-          <TextInput
-            style={styles.labelInput}
-            placeholder="Label"
-            placeholderTextColor={theme.colors.placeholder}
-            cursorColor={theme.colors.accent}
+          <TextField
+            placeholder="A mood of your own"
+            accessibilityLabel="New mood"
             value={newLabel}
             onChangeText={setNewLabel}
             autoCapitalize="words"
             autoCorrect={false}
+            autoFocus
             returnKeyType="done"
             onSubmitEditing={handleSave}
+            maxLength={24}
+            containerStyle={styles.addField}
           />
-          <TouchableOpacity
-            style={styles.saveButton}
-            activeOpacity={0.7}
-            onPress={handleSave}
-          >
-            <Text style={styles.saveButtonText}>Add</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => {
-              setShowAddForm(false);
-              setNewEmoji("");
-              setNewLabel("");
-              setFormError("");
-            }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={styles.cancelText}>✕</Text>
-          </TouchableOpacity>
+          <Button label="Save" size="pill" onPress={handleSave} disabled={!newLabel.trim()} style={styles.inRow} />
+          <Button label="Cancel" variant="text" tone="secondary" size="pill" onPress={closeForm} style={styles.inRow} />
         </View>
       )}
 
@@ -185,88 +163,23 @@ function createStyles(theme: Theme) {
       flexWrap: "wrap",
       gap: theme.spacing.sm,
     },
-    chip: {
-      paddingHorizontal: 12,
-      paddingVertical: theme.spacing.sm,
-      borderRadius: theme.radii.full,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: "transparent",
-    },
-    chipSelected: {
-      backgroundColor: theme.colors.chipSelectedBg,
-      borderColor: theme.colors.chipSelectedBg,
-    },
-    chipText: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.chipText,
-    },
-    chipTextSelected: {
-      color: theme.colors.chipSelectedText,
-    },
-    chipAdd: {
-      paddingHorizontal: 14,
-      paddingVertical: theme.spacing.sm,
-      borderRadius: theme.radii.full,
-      backgroundColor: theme.colors.chipBg,
-      borderWidth: 1,
-      borderStyle: "dashed",
-      borderColor: theme.colors.border,
-    },
-    chipAddText: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.textSecondary,
-    },
+    pressed: { opacity: 0.7 },
     addForm: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm,
-      marginTop: theme.spacing.sm,
+      marginTop: theme.spacing.md,
     },
-    emojiInput: {
-      width: 52,
-      height: 44,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.md,
-      fontSize: 22,
-      textAlign: "center",
-      color: theme.colors.text,
-      backgroundColor: theme.colors.backgroundInput,
+    inRow: {
+      alignSelf: "center",
     },
-    labelInput: {
+    addField: {
       flex: 1,
-      height: 44,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.md,
-      paddingHorizontal: theme.spacing.lg,
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      backgroundColor: theme.colors.backgroundInput,
-    },
-    saveButton: {
-      backgroundColor: theme.colors.accent,
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: 10,
-      borderRadius: theme.radii.sm,
-    },
-    saveButtonText: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodySemibold,
-      color: "#fff",
-    },
-    cancelText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textTertiary,
-      paddingHorizontal: theme.spacing.xs,
     },
     error: {
-      fontSize: theme.fontSize.xs,
+      ...theme.typography.meta,
       color: theme.colors.destructive,
-      marginTop: theme.spacing.xs,
+      marginTop: theme.spacing.sm,
     },
   });
 }

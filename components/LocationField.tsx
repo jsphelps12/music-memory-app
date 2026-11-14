@@ -1,16 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  StyleSheet,
-} from "react-native";
+import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { searchPlaces, GeoResult } from "@/lib/geocoding";
+import { Button } from "@/components/Button";
+import { Chip } from "@/components/Chip";
+import { IconButton } from "@/components/IconButton";
+import { TextField } from "@/components/TextField";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
@@ -31,7 +28,6 @@ export function LocationField({ value, onChange, detectCurrentLocation = false }
   const [suggestion, setSuggestion] = useState("");
   const [suggestionCoords, setSuggestionCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [dismissedSuggestion, setDismissedSuggestion] = useState(false);
-  const [focusedField, setFocusedField] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Bumped on every keystroke, select and clear: a search whose id is no
   // longer current answers an old query and is dropped.
@@ -114,89 +110,80 @@ export function LocationField({ value, onChange, detectCurrentLocation = false }
     setLocationResults([]);
   };
 
+  const applySuggestion = () => {
+    onChange({
+      name: suggestion,
+      lat: suggestionCoords?.lat ?? null,
+      lng: suggestionCoords?.lng ?? null,
+    });
+    setDismissedSuggestion(true);
+    Haptics.selectionAsync();
+  };
+
+  if (value) {
+    return (
+      <View style={styles.chipRow}>
+        <Chip
+          label={value.name}
+          variant="filled"
+          icon="location-outline"
+          onRemove={clearLocation}
+          removeLabel="Clear place"
+        />
+      </View>
+    );
+  }
+
   return (
     <>
-      {/* GPS suggestion banner */}
-      {suggestion && !dismissedSuggestion && !value && (
-        <View style={styles.suggestionBanner}>
-          <View style={styles.suggestionRow}>
-            <Text style={styles.suggestionLabel} numberOfLines={1}>
-              Currently in {suggestion}
-            </Text>
-            <TouchableOpacity
-              onPress={() => setDismissedSuggestion(true)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.suggestionDismissText}>✕</Text>
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity
-            style={styles.suggestionUseButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              onChange({
-                name: suggestion,
-                lat: suggestionCoords?.lat ?? null,
-                lng: suggestionCoords?.lng ?? null,
-              });
-              setDismissedSuggestion(true);
-              Haptics.selectionAsync();
-            }}
-          >
-            <Text style={styles.suggestionUseText}>Use as location</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {value ? (
-        <View style={styles.chipRow}>
-          <View style={styles.chip}>
-            <Ionicons name="location-outline" size={14} color={theme.colors.accentText} />
-            <Text style={styles.chipText} numberOfLines={1}>{value.name}</Text>
-          </View>
-          <TouchableOpacity onPress={clearLocation} hitSlop={8}>
-            <Ionicons name="close-circle" size={18} color={theme.colors.placeholder} />
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
-          <TextInput
-            style={[styles.input, focusedField && { borderColor: theme.colors.accent }]}
-            placeholder="Search for a place..."
-            placeholderTextColor={theme.colors.placeholder}
-            cursorColor={theme.colors.accent}
-            value={locationQuery}
-            onChangeText={handleQueryChange}
-            onFocus={() => setFocusedField(true)}
-            onBlur={() => setFocusedField(false)}
-            autoCorrect={false}
-            autoCapitalize="words"
-            returnKeyType="search"
+      {/* Where you are now, offered as one row above the search. */}
+      {suggestion && !dismissedSuggestion ? (
+        <View style={styles.suggestionRow}>
+          <Ionicons name="navigate-outline" size={18} color={theme.colors.textSecondary} />
+          <Text style={styles.suggestionText} numberOfLines={1}>
+            Currently in {suggestion}
+          </Text>
+          <Button label="Use" size="pill" variant="secondary" onPress={applySuggestion} style={styles.inRow} />
+          <IconButton
+            name="close"
+            size={18}
+            color={theme.colors.textSecondary}
+            onPress={() => setDismissedSuggestion(true)}
+            accessibilityLabel="Dismiss"
+            style={styles.dismiss}
           />
-          {locationSearching && (
-            <ActivityIndicator size="small" color={theme.colors.textSecondary} style={{ marginTop: 8 }} />
-          )}
-          {locationResults.length > 0 && (
-            <View style={[styles.resultsList, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
-              {locationResults.map((result, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={[
-                    styles.resultItem,
-                    i < locationResults.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border },
-                  ]}
-                  onPress={() => selectLocation(result)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="location-outline" size={14} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
-                  <Text style={[styles.resultText, { color: theme.colors.text }]} numberOfLines={1}>
-                    {result.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </>
+        </View>
+      ) : null}
+
+      <TextField
+        icon="search"
+        placeholder="Search for a place"
+        accessibilityLabel="Search for a place"
+        value={locationQuery}
+        onChangeText={handleQueryChange}
+        autoCorrect={false}
+        autoCapitalize="words"
+        returnKeyType="search"
+        trailing={
+          locationSearching ? <ActivityIndicator size="small" color={theme.colors.textSecondary} /> : null
+        }
+      />
+      {locationResults.length > 0 && (
+        <View style={styles.results}>
+          {locationResults.map((result, i) => (
+            <Pressable
+              key={`${result.name}-${i}`}
+              style={({ pressed }) => [styles.resultRow, pressed && styles.pressed]}
+              onPress={() => selectLocation(result)}
+              accessibilityRole="button"
+            >
+              <Ionicons name="location-outline" size={16} color={theme.colors.textSecondary} />
+              <Text style={styles.resultText} numberOfLines={1}>
+                {result.name}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       )}
     </>
   );
@@ -204,88 +191,48 @@ export function LocationField({ value, onChange, detectCurrentLocation = false }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    suggestionBanner: {
-      backgroundColor: theme.colors.backgroundSecondary,
-      borderRadius: theme.radii.md,
-      padding: theme.spacing.md,
-      marginTop: theme.spacing.xl,
-      marginBottom: theme.spacing.sm,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
     suggestionRow: {
       flexDirection: "row",
-      justifyContent: "space-between",
       alignItems: "center",
+      gap: theme.spacing.md,
+      minHeight: 52,
       marginBottom: theme.spacing.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
     },
-    suggestionLabel: {
-      fontSize: theme.fontSize.sm,
+    suggestionText: {
+      ...theme.typography.body,
       color: theme.colors.text,
-      fontWeight: theme.fontWeight.medium,
       flex: 1,
     },
-    suggestionDismissText: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textTertiary,
+    inRow: {
+      alignSelf: "center",
     },
-    suggestionUseButton: {
-      backgroundColor: theme.colors.buttonBg,
-      borderRadius: theme.radii.sm,
-      paddingVertical: theme.spacing.sm,
-      alignItems: "center",
-    },
-    suggestionUseText: {
-      fontSize: theme.fontSize.sm,
-      fontWeight: theme.fontWeight.semibold,
-      color: theme.colors.buttonText,
+    dismiss: {
+      marginLeft: -theme.spacing.sm,
+      marginRight: -theme.spacing.md,
     },
     chipRow: {
       flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
       marginBottom: theme.spacing.md,
     },
-    chip: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs,
-      flex: 1,
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: 8,
-      borderRadius: theme.radii.md,
-      backgroundColor: theme.colors.accentBg,
-    },
-    chipText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.accentText,
-      fontWeight: theme.fontWeight.medium,
-      flex: 1,
-    },
-    input: {
-      height: 52,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.md,
-      paddingHorizontal: theme.spacing.lg,
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      backgroundColor: theme.colors.backgroundInput,
-    },
-    resultsList: {
+    // Rows ruled by hairlines, straight on the surface (DESIGN.md).
+    results: {
       marginTop: theme.spacing.xs,
-      borderRadius: theme.radii.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      overflow: "hidden",
     },
-    resultItem: {
+    resultRow: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: 12,
+      gap: theme.spacing.md,
+      minHeight: 48,
+      paddingHorizontal: theme.spacing.xs,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
     },
+    pressed: { opacity: 0.6 },
     resultText: {
-      fontSize: theme.fontSize.sm,
+      ...theme.typography.body,
+      color: theme.colors.text,
       flex: 1,
     },
   });

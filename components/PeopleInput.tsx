@@ -1,13 +1,9 @@
 import { useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-} from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { Chip } from "@/components/Chip";
+import { TextField } from "@/components/TextField";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
@@ -26,6 +22,8 @@ export function PeopleInput({ people, onChangePeople }: Props) {
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
+  // Return, blur and the "Add" row all commit what's typed, so a name is
+  // never lost by closing the sheet.
   const addTextChip = () => {
     const trimmed = query.trim();
     if (!trimmed) return;
@@ -43,43 +41,45 @@ export function PeopleInput({ people, onChangePeople }: Props) {
       {people.length > 0 && (
         <View style={styles.chips}>
           {people.map((name) => (
-            <View key={name} style={[styles.chip, { backgroundColor: theme.colors.chipBg }]}>
-              <Text style={[styles.chipText, { color: theme.colors.chipText }]} numberOfLines={1}>
-                {name}
-              </Text>
-              <TouchableOpacity onPress={() => onChangePeople(people.filter((p) => p !== name))} hitSlop={6}>
-                <Ionicons name="close" size={13} color={theme.colors.textTertiary} />
-              </TouchableOpacity>
-            </View>
+            <Chip
+              key={name}
+              label={name}
+              variant="filled"
+              onRemove={() => onChangePeople(people.filter((p) => p !== name))}
+            />
           ))}
         </View>
       )}
 
-      <TextInput
+      <TextField
         ref={inputRef}
-        style={[styles.input, focused && { borderColor: theme.colors.accent }]}
-        placeholder="Add people…"
-        placeholderTextColor={theme.colors.placeholder}
-        cursorColor={theme.colors.accent}
+        icon="person-add-outline"
+        placeholder="Add people"
+        accessibilityLabel="Add a person"
         value={query}
         onChangeText={setQuery}
         autoCapitalize="words"
         autoCorrect={false}
         returnKeyType="done"
         onFocus={() => setFocused(true)}
-        onBlur={() => { setFocused(false); addTextChip(); }}
+        onBlur={() => {
+          setFocused(false);
+          addTextChip();
+        }}
         onSubmitEditing={addTextChip}
       />
 
       {showDropdown && (
-        <View style={[styles.dropdown, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
-          <TouchableOpacity style={styles.dropdownRow} onPress={addTextChip} activeOpacity={0.7}>
-            <Ionicons name="add-circle-outline" size={18} color={theme.colors.textSecondary} />
-            <Text style={[styles.dropdownAdd, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-              Add "{query.trim()}"
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <Pressable
+          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+          onPress={addTextChip}
+          accessibilityRole="button"
+        >
+          <Ionicons name="add" size={18} color={theme.colors.textSecondary} />
+          <Text style={styles.rowText} numberOfLines={1}>
+            Add &ldquo;{query.trim()}&rdquo;
+          </Text>
+        </Pressable>
       )}
     </View>
   );
@@ -91,47 +91,23 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: theme.spacing.sm,
-      marginBottom: theme.spacing.sm,
+      marginBottom: theme.spacing.md,
     },
-    chip: {
+    // A row on the sheet with a hairline under it, not a floating box.
+    row: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: 6,
-      borderRadius: theme.radii.lg,
-      gap: 5,
-      maxWidth: 200,
-    },
-    chipText: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
-      flexShrink: 1,
-    },
-    input: {
-      height: 48,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.md,
-      paddingHorizontal: theme.spacing.lg,
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      backgroundColor: theme.colors.backgroundInput,
-    },
-    dropdown: {
+      gap: theme.spacing.md,
+      minHeight: 48,
       marginTop: theme.spacing.xs,
-      borderRadius: theme.radii.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      overflow: "hidden",
+      paddingHorizontal: theme.spacing.xs,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
     },
-    dropdownRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: 11,
-    },
-    dropdownAdd: {
-      fontSize: theme.fontSize.sm,
+    pressed: { opacity: 0.6 },
+    rowText: {
+      ...theme.typography.body,
+      color: theme.colors.text,
       flexShrink: 1,
     },
   });
