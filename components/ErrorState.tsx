@@ -1,7 +1,9 @@
 import { useMemo } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import { Button } from "@/components/Button";
 
 interface ErrorStateProps {
   message: string;
@@ -9,23 +11,22 @@ interface ErrorStateProps {
   onBack?: () => void;
 }
 
+// A full-screen load failure. Quiet on purpose: the message in Graphite, one
+// ink "Try again", and "Go back" as a text button (never terracotta).
 export function ErrorState({ message, onRetry, onBack }: ErrorStateProps) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   return (
     <View style={styles.container}>
+      <Ionicons name="cloud-offline-outline" size={32} color={theme.colors.textSecondary} />
       <Text style={styles.message}>{message}</Text>
-      {onRetry && (
-        <TouchableOpacity style={styles.retryButton} onPress={onRetry} activeOpacity={0.7}>
-          <Text style={styles.retryButtonText}>Try Again</Text>
-        </TouchableOpacity>
-      )}
-      {onBack && (
-        <TouchableOpacity style={styles.backLink} onPress={onBack} activeOpacity={0.7}>
-          <Text style={styles.backLinkText}>Go back</Text>
-        </TouchableOpacity>
-      )}
+      {onRetry ? (
+        <Button label="Try again" onPress={onRetry} fullWidth={false} style={styles.retry} />
+      ) : null}
+      {onBack ? (
+        <Button label="Go back" variant="text" tone="secondary" onPress={onBack} style={styles.back} />
+      ) : null}
     </View>
   );
 }
@@ -40,29 +41,19 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.background,
     },
     message: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.destructive,
+      ...theme.typography.body,
+      color: theme.colors.textSecondary,
       textAlign: "center",
-      marginBottom: theme.spacing.lg,
+      marginTop: theme.spacing.md,
+      marginBottom: theme.spacing.xl,
+      maxWidth: 320,
     },
-    retryButton: {
-      backgroundColor: theme.colors.buttonBg,
-      paddingVertical: theme.spacing.md,
-      paddingHorizontal: theme.spacing["2xl"],
-      borderRadius: theme.radii.md,
-      marginBottom: theme.spacing.sm,
+    retry: {
+      alignSelf: "center",
     },
-    retryButtonText: {
-      color: theme.colors.buttonText,
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-    },
-    backLink: {
-      paddingVertical: theme.spacing.sm,
-    },
-    backLinkText: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.accent,
+    back: {
+      alignSelf: "center",
+      marginTop: theme.spacing.xs,
     },
   });
 }

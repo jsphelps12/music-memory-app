@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePostHog } from "posthog-react-native";
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -8,23 +9,21 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { registerForPushNotifications } from "@/lib/notifications";
 import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/Button";
 
 const NEXT_STEPS = [
   {
-    icon: "musical-notes" as const,
-    accent: "primary" as const,
+    icon: "musical-notes-outline" as const,
     title: "Keep capturing",
-    body: "Log moments as they happen — the songs you keep coming back to.",
+    body: "Save moments as they happen, and the songs you keep coming back to.",
   },
   {
     icon: "people-outline" as const,
-    accent: "secondary" as const,
-    title: "Start a shared collection",
+    title: "Start a shared album",
     body: "Invite friends or family to build a playlist of memories together.",
   },
   {
     icon: "time-outline" as const,
-    accent: "primary" as const,
     title: "Your memories resurface",
     body: "On This Day and A Month Ago will bring moments back when you least expect it.",
   },
@@ -35,6 +34,7 @@ export default function CelebrationScreen() {
   const { user, profile, completeOnboarding } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
   const posthog = usePostHog();
 
   const [continuing, setContinuing] = useState(false);
@@ -72,28 +72,18 @@ export default function CelebrationScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.iconCircle}>
-          <Ionicons name="musical-notes" size={40} color={theme.colors.accent} />
-        </View>
+      <View style={[styles.content, { paddingTop: insets.top + theme.spacing["3xl"] }]}>
+        <Ionicons name="musical-notes-outline" size={36} color={theme.colors.textSecondary} style={styles.icon} />
 
-        <Text style={styles.heading}>Your story has begun.</Text>
+        <Text style={styles.heading} accessibilityRole="header">Your story has begun.</Text>
         <Text style={styles.sub}>
-          Every song you log becomes a piece of your story. Here's what to explore next.
+          Every song you save becomes a piece of your story. Here&apos;s what to explore next.
         </Text>
 
         <View style={styles.steps}>
           {NEXT_STEPS.map((step) => (
             <View key={step.title} style={styles.step}>
-              <View style={[styles.stepIcon, {
-                backgroundColor: step.accent === "secondary" ? theme.colors.accentSecondaryBg : theme.colors.accentBg,
-              }]}>
-                <Ionicons
-                  name={step.icon}
-                  size={20}
-                  color={step.accent === "secondary" ? theme.colors.accentSecondary : theme.colors.accent}
-                />
-              </View>
+              <Ionicons name={step.icon} size={20} color={theme.colors.textSecondary} style={styles.stepIcon} />
               <View style={styles.stepText}>
                 <Text style={styles.stepTitle}>{step.title}</Text>
                 <Text style={styles.stepBody}>{step.body}</Text>
@@ -103,20 +93,15 @@ export default function CelebrationScreen() {
         </View>
       </View>
 
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.continueButton, { backgroundColor: theme.colors.buttonBg }]}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + theme.spacing.lg }]}>
+        <Button
+          label="Turn on notifications"
+          icon="notifications-outline"
           onPress={handleContinue}
-          activeOpacity={0.8}
-          disabled={continuing}
-        >
-          <Ionicons name="notifications-outline" size={18} color={theme.colors.buttonText} style={{ marginRight: 8 }} />
-          <Text style={[styles.continueButtonText, { color: theme.colors.buttonText }]}>
-            Turn on notifications
-          </Text>
-        </TouchableOpacity>
-        <Text style={[styles.notifHint, { color: theme.colors.textTertiary }]}>
-          We'll resurface old memories, nudge you to capture new ones, and celebrate milestones along the way.
+          loading={continuing}
+        />
+        <Text style={styles.notifHint}>
+          We&apos;ll resurface old memories, nudge you to capture new ones, and celebrate milestones along the way.
         </Text>
       </View>
     </View>
@@ -132,79 +117,62 @@ function createStyles(theme: Theme) {
     content: {
       flex: 1,
       paddingHorizontal: theme.spacing.xl,
-      paddingTop: 80,
     },
-    iconCircle: {
-      width: 80,
-      height: 80,
-      borderRadius: 40,
-      backgroundColor: theme.colors.chipBg,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: theme.spacing["2xl"],
+    icon: {
+      marginBottom: theme.spacing.xl,
     },
     heading: {
+      ...theme.typography.headline,
       fontSize: theme.fontSize["2xl"],
-      fontFamily: theme.fonts.display,
+      lineHeight: 34,
       color: theme.colors.text,
       marginBottom: theme.spacing.sm,
     },
     sub: {
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
-      lineHeight: 22,
-      marginBottom: theme.spacing["3xl"],
+      marginBottom: theme.spacing["2xl"],
     },
     steps: {
-      gap: theme.spacing.xl,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
     },
     step: {
       flexDirection: "row",
       alignItems: "flex-start",
-      gap: 14,
+      gap: theme.spacing.md,
+      paddingVertical: theme.spacing.lg,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
     },
     stepIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 10,
-      alignItems: "center",
-      justifyContent: "center",
-      flexShrink: 0,
+      width: 24,
+      marginTop: 1,
     },
     stepText: {
       flex: 1,
     },
     stepTitle: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+      ...theme.typography.bodyStrong,
       color: theme.colors.text,
       marginBottom: 2,
     },
     stepBody: {
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
       lineHeight: 20,
+      color: theme.colors.textSecondary,
     },
     footer: {
       paddingHorizontal: theme.spacing.xl,
-      paddingBottom: Platform.OS === "ios" ? 44 : 24,
-      gap: 12,
+      gap: theme.spacing.md,
     },
     notifHint: {
+      ...theme.typography.meta,
       fontSize: theme.fontSize.xs,
-      textAlign: "center",
       lineHeight: 18,
-    },
-    continueButton: {
-      height: 52,
-      borderRadius: theme.radii.button,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    continueButtonText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+      textAlign: "center",
+      color: theme.colors.textSecondary,
     },
   });
 }

@@ -1,14 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Share,
-  StyleSheet,
-  Platform,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
+import { View, Text, Share, StyleSheet, ActivityIndicator, Alert } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -19,6 +11,8 @@ import { getPublicPhotoUrl } from "@/lib/storage";
 import { ensureShareToken, momentShareUrl } from "@/lib/momentShares";
 import { friendlyError } from "@/lib/errors";
 import { ErrorState } from "@/components/ErrorState";
+import { Button } from "@/components/Button";
+import { IconButton } from "@/components/IconButton";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { Moment } from "@/types";
@@ -29,6 +23,8 @@ export default function OnboardingMomentPreviewScreen() {
   const router = useRouter();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
+  const footerInset = { paddingBottom: insets.bottom + theme.spacing.lg };
   const { moment1Id, moment2Id } = useLocalSearchParams<{ moment1Id?: string; moment2Id?: string }>();
 
   const momentIdToShow = moment2Id || moment1Id || "";
@@ -141,16 +137,8 @@ export default function OnboardingMomentPreviewScreen() {
     return (
       <View style={styles.container}>
         <ErrorState message={error} onRetry={loadMoment} />
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.continueButton, { backgroundColor: theme.colors.buttonBg }]}
-            onPress={handleContinue}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.continueButtonText, { color: theme.colors.buttonText }]}>
-              Continue →
-            </Text>
-          </TouchableOpacity>
+        <View style={[styles.footer, footerInset]}>
+          <Button label="Continue" variant="secondary" onPress={handleContinue} />
         </View>
       </View>
     );
@@ -164,17 +152,36 @@ export default function OnboardingMomentPreviewScreen() {
     );
   }
 
+  // Moods are words (DESIGN.md): date, moods, place and people as one Meta
+  // line instead of a row of pills.
+  const metaLine = [
+    moment.momentDate
+      ? new Date(moment.momentDate).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+      : null,
+    ...moment.moods,
+    moment.location || null,
+    moment.people.length ? `With ${moment.people.slice(0, 2).join(", ")}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <View style={styles.container}>
       {/* Volume nudge */}
-      {volumeBannerVisible && (
-        <View style={styles.volumeBanner}>
-          <Ionicons name="volume-high-outline" size={16} color={theme.colors.accent} />
+      {volumeBannerVisible ? (
+        <View style={[styles.volumeBanner, { paddingTop: insets.top + theme.spacing.xs }]}>
+          <Ionicons name="volume-high-outline" size={16} color={theme.colors.textSecondary} />
           <Text style={styles.volumeText}>Turn up your volume</Text>
-          <TouchableOpacity onPress={() => setVolumeBannerVisible(false)} hitSlop={10}>
-            <Text style={styles.volumeDismiss}>✕</Text>
-          </TouchableOpacity>
+          <IconButton
+            name="close"
+            size={18}
+            color={theme.colors.textSecondary}
+            onPress={() => setVolumeBannerVisible(false)}
+            accessibilityLabel="Dismiss"
+          />
         </View>
+      ) : (
+        <View style={{ height: insets.top + theme.spacing.md }} />
       )}
 
       {/* Moment card */}
@@ -184,8 +191,8 @@ export default function OnboardingMomentPreviewScreen() {
         ) : moment.songArtworkUrl ? (
           <AppImage source={{ uri: moment.songArtworkUrl }} style={styles.artwork} contentFit="cover" />
         ) : (
-          <View style={[styles.artworkPlaceholder, { backgroundColor: theme.colors.accentBg }]}>
-            <Ionicons name="musical-note" size={48} color={theme.colors.accent} />
+          <View style={styles.artworkPlaceholder}>
+            <Ionicons name="musical-note" size={48} color={theme.colors.textSecondary} />
           </View>
         )}
 
@@ -198,8 +205,9 @@ export default function OnboardingMomentPreviewScreen() {
             <Text style={styles.songArtist} numberOfLines={1}>{moment.songArtist}</Text>
           </View>
           {moment.songPreviewUrl ? (
+            // Playing state is the view's one terracotta signal.
             <View style={styles.playingBadge}>
-              <Ionicons name="musical-notes" size={12} color={theme.colors.accent} />
+              <Ionicons name="musical-notes" size={14} color={theme.colors.accent} />
               <Text style={styles.playingText}>Playing</Text>
             </View>
           ) : null}
@@ -211,51 +219,12 @@ export default function OnboardingMomentPreviewScreen() {
           </Text>
         )}
 
-        <View style={styles.chips}>
-          {moment.momentDate && (
-            <View style={[styles.chip, { backgroundColor: theme.colors.chipBg }]}>
-              <Text style={[styles.chipText, { color: theme.colors.textSecondary }]}>
-                {new Date(moment.momentDate).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
-              </Text>
-            </View>
-          )}
-          {moment.moods.map((mood) => (
-            <View key={mood} style={[styles.chip, { backgroundColor: theme.colors.chipBg }]}>
-              <Text style={[styles.chipText, { color: theme.colors.textSecondary }]}>{mood}</Text>
-            </View>
-          ))}
-          {moment.location && (
-            <View style={[styles.chip, { backgroundColor: theme.colors.chipBg }]}>
-              <Ionicons name="location-outline" size={11} color={theme.colors.textSecondary} />
-              <Text style={[styles.chipText, { color: theme.colors.textSecondary }]}>{moment.location}</Text>
-            </View>
-          )}
-          {moment.people.slice(0, 2).map((p) => (
-            <View key={p} style={[styles.chip, { backgroundColor: theme.colors.chipBg }]}>
-              <Text style={[styles.chipText, { color: theme.colors.textSecondary }]}>@ {p}</Text>
-            </View>
-          ))}
-        </View>
+        {metaLine ? <Text style={styles.meta}>{metaLine}</Text> : null}
       </View>
 
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.shareButton, { backgroundColor: theme.colors.accentBg }]}
-          onPress={handleShare}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="share-outline" size={18} color={theme.colors.accent} />
-          <Text style={[styles.shareButtonText, { color: theme.colors.accent }]}>Share this moment</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.continueButton, { backgroundColor: theme.colors.buttonBg }]}
-          onPress={handleContinue}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.continueButtonText, { color: theme.colors.buttonText }]}>
-            Continue →
-          </Text>
-        </TouchableOpacity>
+      <View style={[styles.footer, footerInset]}>
+        <Button label="Share this moment" icon="share-outline" variant="secondary" onPress={handleShare} />
+        <Button label="Continue" onPress={handleContinue} />
       </View>
     </View>
   );
@@ -274,25 +243,19 @@ function createStyles(theme: Theme) {
     volumeBanner: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
-      paddingHorizontal: theme.spacing.xl,
-      paddingTop: Platform.OS === "ios" ? 60 : 20,
-      paddingBottom: 12,
+      gap: theme.spacing.sm,
+      paddingLeft: theme.spacing.xl,
+      paddingRight: theme.spacing.sm,
     },
     volumeText: {
-      flex: 1,
+      ...theme.typography.callout,
       fontSize: theme.fontSize.sm,
-      color: theme.colors.accent,
-      fontFamily: theme.fonts.bodyMedium,
-    },
-    volumeDismiss: {
-      fontSize: 12,
-      color: theme.colors.textTertiary,
+      flex: 1,
+      color: theme.colors.textSecondary,
     },
     card: {
       flex: 1,
       paddingHorizontal: theme.spacing.xl,
-      paddingTop: theme.spacing.lg,
       gap: theme.spacing.lg,
     },
     artwork: {
@@ -306,6 +269,7 @@ function createStyles(theme: Theme) {
       borderRadius: theme.radii.md,
       alignItems: "center",
       justifyContent: "center",
+      backgroundColor: theme.colors.artworkPlaceholder,
     },
     songRow: {
       flexDirection: "row",
@@ -315,84 +279,41 @@ function createStyles(theme: Theme) {
     songArtwork: {
       width: 44,
       height: 44,
-      borderRadius: 6,
+      borderRadius: theme.radii.sm,
     },
     songInfo: {
       flex: 1,
     },
     songTitle: {
-      fontSize: theme.fontSize.xl,
-      fontFamily: theme.fonts.display,
+      ...theme.typography.title,
       color: theme.colors.text,
       marginBottom: 2,
     },
     songArtist: {
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
     },
     playingBadge: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 4,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 20,
-      backgroundColor: theme.colors.accentBg,
+      gap: theme.spacing.xs,
     },
     playingText: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.accent,
-      fontFamily: theme.fonts.bodySemibold,
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
     },
     reflection: {
-      fontSize: theme.fontSize.base,
+      ...theme.typography.reading,
       color: theme.colors.text,
-      lineHeight: 24,
-      fontStyle: "italic",
     },
-    chips: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 8,
-    },
-    chip: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 20,
-    },
-    chipText: {
-      fontSize: theme.fontSize.sm,
+    meta: {
+      ...theme.typography.meta,
+      color: theme.colors.textTertiary,
     },
     footer: {
       paddingHorizontal: theme.spacing.xl,
-      paddingBottom: Platform.OS === "ios" ? 44 : 24,
-      paddingTop: 12,
-      gap: 10,
-    },
-    shareButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-      height: 52,
-      borderRadius: theme.radii.button,
-    },
-    shareButtonText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-    },
-    continueButton: {
-      height: 52,
-      borderRadius: theme.radii.button,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    continueButtonText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+      paddingTop: theme.spacing.md,
+      gap: theme.spacing.sm + 2,
     },
   });
 }

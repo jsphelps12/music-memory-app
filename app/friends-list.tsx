@@ -12,12 +12,14 @@ import {
   Platform,
   Share,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppImage } from "@/components/AppImage";
-import { useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
-import { CloseButton } from "@/components/CloseButton";
+import { ScreenHeader } from "@/components/ScreenHeader";
+import { SectionLabel } from "@/components/SectionLabel";
+import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { IconButton } from "@/components/IconButton";
@@ -29,18 +31,24 @@ import { fetchFriends, removeFriend } from "@/lib/friends";
 import { friendInviteUrl } from "@/lib/momentShares";
 import type { Friendship } from "@/types";
 
-const AVATAR_SIZE = 40;
 const STALE_TIME = 2 * 60 * 1000;
 
-function Avatar({ avatarUrl, displayName }: { avatarUrl: string | null; displayName: string | null }) {
-  const theme = useTheme();
+function Avatar({
+  avatarUrl,
+  displayName,
+  styles,
+}: {
+  avatarUrl: string | null;
+  displayName: string | null;
+  styles: ReturnType<typeof createStyles>;
+}) {
   const initials = (displayName ?? "?")[0]?.toUpperCase() ?? "?";
   return (
-    <View style={[styles.avatar, { backgroundColor: theme.colors.backgroundTertiary }]}>
+    <View style={styles.avatar}>
       {avatarUrl ? (
         <AppImage source={{ uri: getPublicPhotoUrl(avatarUrl) }} style={StyleSheet.absoluteFill} contentFit="cover" />
       ) : (
-        <Text style={[styles.avatarInitial, { color: theme.colors.textTertiary }]}>{initials}</Text>
+        <Text style={styles.avatarInitial}>{initials}</Text>
       )}
     </View>
   );
@@ -48,11 +56,12 @@ function Avatar({ avatarUrl, displayName }: { avatarUrl: string | null; displayN
 
 // Mutual-by-link friends (Social Architecture v2): there are no pending or
 // sent requests — a friendship exists the moment someone opens your link.
+// A pushed screen (back chevron + edge swipe), reached from You.
 export default function FriendsListScreen() {
-  const router = useRouter();
   const { user, profile } = useAuth();
   const theme = useTheme();
   const s = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
   // Add-by-link is the only door (Sharing v2): opening this link makes the
@@ -77,7 +86,7 @@ export default function FriendsListScreen() {
   const handleRemoveFriend = async (friendship: Friendship) => {
     const name = friendship.otherUserDisplayName ?? "this person";
     const confirmed = await confirmSheet({
-      title: "Remove Friend",
+      title: "Remove friend",
       message: `Remove ${name} from your friends?`,
       confirmLabel: "Remove",
       destructive: true,
@@ -97,15 +106,18 @@ export default function FriendsListScreen() {
   };
 
   return (
-    <View style={[s.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      <View style={[s.header, { borderBottomColor: theme.colors.border }]}>
-        <Text style={[s.headerTitle, { color: theme.colors.text }]}>Friends</Text>
-        <View style={s.headerActions}>
-          <IconButton name="person-add-outline" onPress={handleShareLink} />
-          <CloseButton onPress={() => router.back()} />
-        </View>
-      </View>
+    <View style={s.container}>
+      <ScreenHeader
+        leading="back"
+        title="Friends"
+        right={
+          <IconButton
+            name="person-add-outline"
+            onPress={handleShareLink}
+            accessibilityLabel="Share your friend link"
+          />
+        }
+      />
 
       {isLoading ? (
         <View style={s.center}>
@@ -116,13 +128,13 @@ export default function FriendsListScreen() {
         <ErrorState message={friendlyError(error)} onRetry={() => refetch()} />
       ) : (
         <ScrollView
-          contentContainerStyle={s.scrollContent}
+          contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + theme.spacing["4xl"] }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={isFetching && !isLoading}
               onRefresh={refetch}
-              tintColor={theme.colors.accent}
+              tintColor={theme.colors.textSecondary}
             />
           }
         >
@@ -133,139 +145,126 @@ export default function FriendsListScreen() {
               onDismiss={() => setDismissedErrorAt(errorUpdatedAt)}
             />
           ) : null}
-          <View style={s.section}>
-            <Text style={[s.sectionLabel, { color: theme.colors.textTertiary }]}>
-              My Friends ({friends.length})
-            </Text>
-            {friends.length === 0 ? (
-              <>
-                <Text style={[s.emptyText, { color: theme.colors.textSecondary }]}>
-                  Anyone who opens your friend link becomes a friend instantly —
-                  then you can send moments straight to them.
-                </Text>
-                <TouchableOpacity
-                  style={[s.shareLinkButton, { backgroundColor: theme.colors.buttonBg }]}
-                  onPress={handleShareLink}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[s.shareLinkButtonText, { color: theme.colors.buttonText }]}>
-                    Share your friend link
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              friends.map((friendship) => (
-                <TouchableOpacity
-                  key={friendship.id}
-                  style={[s.row, { borderBottomColor: theme.colors.border }]}
-                  onLongPress={() => handleRemoveFriend(friendship)}
-                  activeOpacity={0.85}
-                  delayLongPress={400}
-                >
-                  <Avatar avatarUrl={friendship.otherUserAvatarUrl} displayName={friendship.otherUserDisplayName} />
-                  <View style={s.rowInfo}>
-                    <Text style={[s.rowName, { color: theme.colors.text }]}>{friendship.otherUserDisplayName ?? "Unknown"}</Text>
-                    {friendship.otherUserUsername && (
-                      <Text style={[s.rowUsername, { color: theme.colors.textSecondary }]}>@{friendship.otherUserUsername}</Text>
-                    )}
-                  </View>
-                  <Text style={[s.longPressHint, { color: theme.colors.textTertiary }]}>hold to remove</Text>
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
+          {friends.length === 0 ? (
+            <View style={s.empty}>
+              <Text style={s.emptyText}>
+                Anyone who opens your friend link becomes a friend right away.
+                Then you can send moments straight to them.
+              </Text>
+              <Button
+                label="Share your friend link"
+                icon="link-outline"
+                onPress={handleShareLink}
+                style={s.shareButton}
+              />
+            </View>
+          ) : (
+            <>
+              <SectionLabel meta={String(friends.length)} style={s.sectionLabel}>
+                Your friends
+              </SectionLabel>
+              <View style={s.list}>
+                {friends.map((friendship) => (
+                  <TouchableOpacity
+                    key={friendship.id}
+                    style={s.row}
+                    onLongPress={() => handleRemoveFriend(friendship)}
+                    activeOpacity={0.85}
+                    delayLongPress={400}
+                    accessibilityHint="Hold to remove this friend"
+                  >
+                    <Avatar
+                      avatarUrl={friendship.otherUserAvatarUrl}
+                      displayName={friendship.otherUserDisplayName}
+                      styles={s}
+                    />
+                    <View style={s.rowInfo}>
+                      <Text style={s.rowName} numberOfLines={1}>
+                        {friendship.otherUserDisplayName ?? "Unknown"}
+                      </Text>
+                      {friendship.otherUserUsername ? (
+                        <Text style={s.rowUsername} numberOfLines={1}>
+                          @{friendship.otherUserUsername}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={s.footnote}>Hold a name to remove a friend.</Text>
+            </>
+          )}
         </ScrollView>
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  avatar: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  avatarInitial: {
-    fontSize: 16,
-    fontFamily: "DMSans_600SemiBold",
-  },
-});
+const AVATAR_SIZE = 40;
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    container: { flex: 1 },
+    container: { flex: 1, backgroundColor: theme.colors.background },
     center: { flex: 1, alignItems: "center", justifyContent: "center" },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingTop: 60,
-      paddingBottom: 12,
-      paddingHorizontal: theme.spacing.xl,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-    },
-    headerTitle: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-    },
     scrollContent: {
       paddingHorizontal: theme.spacing.xl,
-      paddingBottom: 40,
-    },
-    section: {
-      marginTop: 28,
+      paddingTop: theme.spacing.sm,
     },
     sectionLabel: {
-      fontSize: theme.fontSize.xs,
-      fontFamily: theme.fonts.bodySemibold,
-      textTransform: "uppercase",
-      letterSpacing: 0.5,
-      marginBottom: 12,
+      marginBottom: theme.spacing.xs,
+    },
+    list: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
     },
     row: {
       flexDirection: "row",
       alignItems: "center",
-      paddingVertical: 10,
+      paddingVertical: theme.spacing.md,
       borderBottomWidth: StyleSheet.hairlineWidth,
-      gap: 12,
+      borderBottomColor: theme.colors.divider,
+      gap: theme.spacing.md,
+    },
+    avatar: {
+      width: AVATAR_SIZE,
+      height: AVATAR_SIZE,
+      borderRadius: AVATAR_SIZE / 2,
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
+      backgroundColor: theme.colors.backgroundTertiary,
+    },
+    avatarInitial: {
+      ...theme.typography.bodyStrong,
+      color: theme.colors.textSecondary,
     },
     rowInfo: {
       flex: 1,
     },
     rowName: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodyMedium,
+      ...theme.typography.bodyStrong,
+      color: theme.colors.text,
     },
     rowUsername: {
+      ...theme.typography.meta,
       fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
       marginTop: 1,
     },
-    longPressHint: {
-      fontSize: theme.fontSize.xs,
+    footnote: {
+      ...theme.typography.meta,
+      color: theme.colors.textTertiary,
+      marginTop: theme.spacing.md,
+    },
+    empty: {
+      paddingTop: theme.spacing.sm,
     },
     emptyText: {
-      fontSize: theme.fontSize.sm,
-      lineHeight: 20,
+      ...theme.typography.body,
+      color: theme.colors.textSecondary,
     },
-    headerActions: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.md,
-    },
-    shareLinkButton: {
-      marginTop: 16,
-      alignSelf: "flex-start",
-      paddingHorizontal: 18,
-      paddingVertical: 10,
-      borderRadius: theme.radii.full,
-    },
-    shareLinkButtonText: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodySemibold,
+    shareButton: {
+      marginTop: theme.spacing.xl,
     },
   });
 }

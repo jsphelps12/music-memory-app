@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import { Button } from "@/components/Button";
 
 export default function ConfirmScreen() {
   const { code } = useLocalSearchParams<{ code?: string }>();
@@ -18,7 +19,7 @@ export default function ConfirmScreen() {
     }
     supabase.auth.exchangeCodeForSession(code).then(({ error: err }) => {
       if (err) {
-        setError("Confirmation failed. The link may have expired — try signing up again.");
+        setError("Confirmation failed. The link may have expired, so try signing up again.");
       }
       // On success: AuthGate detects the new session and navigates to /(tabs) automatically.
     });
@@ -27,7 +28,16 @@ export default function ConfirmScreen() {
   return (
     <View style={styles.container}>
       {error ? (
-        <Text style={styles.error}>{error}</Text>
+        <>
+          <Text style={styles.error}>{error}</Text>
+          {/* The failed state used to be a dead end with no way out. */}
+          <Button
+            label="Back to sign in"
+            variant="text"
+            onPress={() => router.replace("/(auth)/sign-in")}
+            style={styles.back}
+          />
+        </>
       ) : (
         <ActivityIndicator color={theme.colors.textSecondary} />
       )}
@@ -37,14 +47,22 @@ export default function ConfirmScreen() {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    container: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.background },
+    container: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.background,
+      paddingHorizontal: theme.spacing["3xl"],
+    },
     error: {
-      fontFamily: theme.fonts.body,
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
+      lineHeight: 24,
       color: theme.colors.textSecondary,
       textAlign: "center",
-      paddingHorizontal: theme.spacing["3xl"],
-      lineHeight: 24,
+    },
+    back: {
+      alignSelf: "center",
+      marginTop: theme.spacing.lg,
     },
   });
 }

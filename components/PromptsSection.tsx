@@ -1,16 +1,14 @@
 import { useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-  StyleSheet,
-} from "react-native";
+import { View, Text, Pressable, Alert, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Crypto from "expo-crypto";
 import { useTheme } from "@/hooks/useTheme";
 import { confirmSheet } from "@/components/ConfirmSheet";
+import { Button } from "@/components/Button";
+import { TextField } from "@/components/TextField";
+import { SectionLabel } from "@/components/SectionLabel";
+import { IconButton } from "@/components/IconButton";
 import { Theme } from "@/constants/theme";
 import { PROMPT_CATEGORIES } from "@/constants/Prompts";
 import { CustomPromptCategory } from "@/types";
@@ -25,25 +23,30 @@ interface Props {
   onDelete: (id: string) => Promise<void>;
 }
 
+// Prompt categories inside Settings: preset and custom categories as
+// hairline rows that expand to show their starters, and an inline editor
+// for the custom ones.
 export function PromptsSection({ customCategories, onSave, onDelete }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [expandedPreset, setExpandedPreset] = useState<string | null>(null);
   const [expandedCustom, setExpandedCustom] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState<CustomPromptCategory | null>(null);
+  const [formError, setFormError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const startEditing = (cat: CustomPromptCategory | null) => {
+    setFormError("");
+    setEditingCategory(cat);
+  };
 
   const handleAddCategory = () => {
     if (customCategories.length >= MAX_CUSTOM_CATEGORIES) return;
-    const blank: CustomPromptCategory = {
-      id: Crypto.randomUUID(),
-      label: "",
-      starters: [""],
-    };
-    setEditingCategory(blank);
+    startEditing({ id: Crypto.randomUUID(), label: "", starters: [""] });
   };
 
   const handleEdit = (cat: CustomPromptCategory) => {
-    setEditingCategory({ ...cat, starters: [...cat.starters] });
+    startEditing({ ...cat, starters: [...cat.starters] });
   };
 
   const handleDelete = async (cat: CustomPromptCategory) => {
@@ -63,31 +66,42 @@ export function PromptsSection({ customCategories, onSave, onDelete }: Props) {
   };
 
   const handleSaveEdit = async () => {
-    if (!editingCategory) return;
+    if (!editingCategory || saving) return;
     const label = editingCategory.label.trim();
     if (!label) {
-      Alert.alert("Category name required");
+      setFormError("Give the category a name.");
       return;
     }
     const starters = editingCategory.starters.map((s) => s.trim()).filter(Boolean);
     if (starters.length === 0) {
-      Alert.alert("Add at least one starter");
+      setFormError("Add at least one starter.");
       return;
     }
+    setFormError("");
+    setSaving(true);
     try {
       await onSave({ ...editingCategory, label, starters });
     } catch (e) {
       // Keep the editor open so nothing typed is lost.
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Couldn't save category", friendlyError(e));
+      setFormError(friendlyError(e));
       return;
+    } finally {
+      setSaving(false);
     }
     setEditingCategory(null);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
+  const updateLabel = (label: string) => {
+    if (!editingCategory) return;
+    if (formError) setFormError("");
+    setEditingCategory({ ...editingCategory, label });
+  };
+
   const updateStarter = (index: number, text: string) => {
     if (!editingCategory) return;
+    if (formError) setFormError("");
     const starters = [...editingCategory.starters];
     starters[index] = text;
     setEditingCategory({ ...editingCategory, starters });
@@ -106,56 +120,61 @@ export function PromptsSection({ customCategories, onSave, onDelete }: Props) {
 
   // ── Edit form ──────────────────────────────────────────────
   if (editingCategory) {
+    const isExisting = !!customCategories.find((c) => c.id === editingCategory.id);
     return (
-      <View>
+      <View style={styles.editor}>
         <View style={styles.editHeader}>
-          <TouchableOpacity onPress={() => setEditingCategory(null)} activeOpacity={0.7}>
-            <Text style={[styles.editAction, { color: theme.colors.textSecondary }]}>Cancel</Text>
-          </TouchableOpacity>
-          <Text style={styles.editTitle}>
-            {customCategories.find((c) => c.id === editingCategory.id) ? "Edit Category" : "New Category"}
-          </Text>
-          <TouchableOpacity onPress={handleSaveEdit} activeOpacity={0.7}>
-            <Text style={[styles.editAction, { color: theme.colors.accent }]}>Save</Text>
-          </TouchableOpacity>
+          <Button
+            label="Cancel"
+            variant="text"
+            tone="secondary"
+            onPress={() => startEditing(null)}
+          />
+          <Text style={styles.editTitle}>{isExisting ? "Edit category" : "New category"}</Text>
+          <Button label="Save" size="pill" onPress={handleSaveEdit} loading={saving} />
         </View>
 
-        <TextInput
-          style={styles.categoryNameInput}
-          placeholder="Category name (e.g. Travel)"
-          placeholderTextColor={theme.colors.placeholder}
+        <TextField
+          placeholder="Category name, like Travel"
           value={editingCategory.label}
-          onChangeText={(t) => setEditingCategory({ ...editingCategory, label: t })}
+          onChangeText={updateLabel}
           autoCapitalize="words"
           autoCorrect={false}
           returnKeyType="done"
           maxLength={30}
         />
 
-        <Text style={styles.startersLabel}>Starters</Text>
+        <SectionLabel style={styles.startersLabel}>Starters</SectionLabel>
         {editingCategory.starters.map((s, i) => (
           <View key={i} style={styles.starterRow}>
-            <TextInput
-              style={styles.starterInput}
-              placeholder={`Starter ${i + 1}...`}
-              placeholderTextColor={theme.colors.placeholder}
+            <TextField
+              placeholder={`Starter ${i + 1}`}
               value={s}
               onChangeText={(t) => updateStarter(i, t)}
               autoCapitalize="sentences"
               autoCorrect
               returnKeyType="done"
+              containerStyle={styles.starterField}
             />
-            <TouchableOpacity onPress={() => removeStarter(i)} activeOpacity={0.7}>
-              <Text style={styles.removeBtn}>✕</Text>
-            </TouchableOpacity>
+            <IconButton
+              name="close"
+              size={18}
+              color={theme.colors.textSecondary}
+              onPress={() => removeStarter(i)}
+              accessibilityLabel={`Remove starter ${i + 1}`}
+            />
           </View>
         ))}
 
         {editingCategory.starters.length < MAX_STARTERS && (
-          <TouchableOpacity style={styles.addStarterBtn} onPress={addStarterField} activeOpacity={0.7}>
-            <Text style={styles.addStarterText}>+ Add starter</Text>
-          </TouchableOpacity>
+          <Button label="Add starter" icon="add" variant="text" onPress={addStarterField} />
         )}
+
+        {formError ? (
+          <Text style={styles.formError} accessibilityRole="alert">
+            {formError}
+          </Text>
+        ) : null}
       </View>
     );
   }
@@ -163,217 +182,177 @@ export function PromptsSection({ customCategories, onSave, onDelete }: Props) {
   // ── Main view ──────────────────────────────────────────────
   return (
     <View>
-      {/* Preset categories */}
-      <Text style={styles.groupLabel}>Preset</Text>
-      {PROMPT_CATEGORIES.map((cat) => {
-        const isExpanded = expandedPreset === cat.label;
-        return (
-          <View key={cat.label} style={styles.categoryBlock}>
-            <TouchableOpacity
-              style={styles.categoryRow}
-              activeOpacity={0.7}
-              onPress={() => setExpandedPreset(isExpanded ? null : cat.label)}
-            >
-              <Text style={styles.categoryLabel}>{cat.label}</Text>
-              <Text style={styles.chevron}>{isExpanded ? "▲" : "▼"}</Text>
-            </TouchableOpacity>
-            {isExpanded && (
-              <View style={styles.startersList}>
-                {cat.prompts.map((p) => (
-                  <Text key={p.starter} style={styles.starterPreview}>{p.starter}</Text>
-                ))}
-              </View>
-            )}
-          </View>
-        );
-      })}
-
-      {/* Custom categories */}
-      <View style={styles.customHeader}>
-        <Text style={styles.groupLabel}>Your Categories</Text>
-        {customCategories.length < MAX_CUSTOM_CATEGORIES && (
-          <TouchableOpacity onPress={handleAddCategory} activeOpacity={0.7}>
-            <Text style={styles.addCategoryBtn}>+ Add</Text>
-          </TouchableOpacity>
-        )}
+      <SectionLabel style={styles.groupLabel}>Preset</SectionLabel>
+      <View style={styles.list}>
+        {PROMPT_CATEGORIES.map((cat) => {
+          const isExpanded = expandedPreset === cat.label;
+          return (
+            <View key={cat.label} style={styles.categoryBlock}>
+              <Pressable
+                style={({ pressed }) => [styles.categoryRow, pressed && styles.pressed]}
+                onPress={() => setExpandedPreset(isExpanded ? null : cat.label)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: isExpanded }}
+              >
+                <Text style={styles.categoryLabel}>{cat.label}</Text>
+                <Ionicons
+                  name={isExpanded ? "chevron-up" : "chevron-down"}
+                  size={16}
+                  color={theme.colors.textSecondary}
+                />
+              </Pressable>
+              {isExpanded && (
+                <View style={styles.startersList}>
+                  {cat.prompts.map((p) => (
+                    <Text key={p.starter} style={styles.starterPreview}>{p.starter}</Text>
+                  ))}
+                </View>
+              )}
+            </View>
+          );
+        })}
       </View>
 
-      {customCategories.length === 0 && (
-        <Text style={styles.emptyText}>
-          Add up to 3 categories with your own starters.
-        </Text>
-      )}
+      <SectionLabel
+        style={styles.groupLabel}
+        meta={`${customCategories.length} of ${MAX_CUSTOM_CATEGORIES}`}
+        right={
+          customCategories.length < MAX_CUSTOM_CATEGORIES ? (
+            <Button label="Add" icon="add" variant="text" onPress={handleAddCategory} />
+          ) : undefined
+        }
+      >
+        Your categories
+      </SectionLabel>
 
-      {customCategories.map((cat) => {
-        const isExpanded = expandedCustom === cat.id;
-        return (
-          <View key={cat.id} style={styles.categoryBlock}>
-            <TouchableOpacity
-              style={styles.categoryRow}
-              activeOpacity={0.7}
-              onPress={() => setExpandedCustom(isExpanded ? null : cat.id)}
-            >
-              <Text style={styles.categoryLabel}>{cat.label}</Text>
-              <View style={styles.customActions}>
-                <TouchableOpacity onPress={() => handleEdit(cat)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={styles.editBtn}>Edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleDelete(cat)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={styles.deleteBtn}>Delete</Text>
-                </TouchableOpacity>
-                <Text style={styles.chevron}>{isExpanded ? "▲" : "▼"}</Text>
+      {customCategories.length === 0 ? (
+        <Text style={styles.emptyText}>
+          Add up to {MAX_CUSTOM_CATEGORIES} categories with your own starters.
+        </Text>
+      ) : (
+        <View style={styles.list}>
+          {customCategories.map((cat) => {
+            const isExpanded = expandedCustom === cat.id;
+            return (
+              <View key={cat.id} style={styles.categoryBlock}>
+                <Pressable
+                  style={({ pressed }) => [styles.categoryRow, pressed && styles.pressed]}
+                  onPress={() => setExpandedCustom(isExpanded ? null : cat.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: isExpanded }}
+                >
+                  <Text style={styles.categoryLabel}>{cat.label}</Text>
+                  <Ionicons
+                    name={isExpanded ? "chevron-up" : "chevron-down"}
+                    size={16}
+                    color={theme.colors.textSecondary}
+                  />
+                </Pressable>
+                {isExpanded && (
+                  <View style={styles.startersList}>
+                    {cat.starters.map((s, i) => (
+                      <Text key={i} style={styles.starterPreview}>{s}</Text>
+                    ))}
+                    <View style={styles.customActions}>
+                      <Button label="Edit" variant="text" size="pill" onPress={() => handleEdit(cat)} />
+                      <Button
+                        label="Delete"
+                        variant="text"
+                        size="pill"
+                        tone="destructive"
+                        onPress={() => handleDelete(cat)}
+                      />
+                    </View>
+                  </View>
+                )}
               </View>
-            </TouchableOpacity>
-            {isExpanded && (
-              <View style={styles.startersList}>
-                {cat.starters.map((s, i) => (
-                  <Text key={i} style={styles.starterPreview}>{s}</Text>
-                ))}
-              </View>
-            )}
-          </View>
-        );
-      })}
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
+    pressed: { opacity: 0.6 },
     groupLabel: {
-      fontSize: theme.fontSize.xs,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.textTertiary,
-      textTransform: "uppercase",
-      letterSpacing: 0.6,
-      marginBottom: theme.spacing.sm,
       marginTop: theme.spacing.lg,
+      marginBottom: theme.spacing.xs,
+    },
+    list: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
     },
     categoryBlock: {
-      marginBottom: theme.spacing.xs,
-      borderRadius: 10,
-      backgroundColor: theme.colors.backgroundInput,
-      overflow: "hidden",
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
     },
     categoryRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: 12,
+      minHeight: 48,
+      gap: theme.spacing.sm,
     },
     categoryLabel: {
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.text,
-      fontFamily: theme.fonts.bodyMedium,
       flex: 1,
-    },
-    chevron: {
-      fontSize: 11,
-      color: theme.colors.textTertiary,
-      marginLeft: theme.spacing.sm,
     },
     customActions: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.md,
-    },
-    editBtn: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.accent,
-    },
-    deleteBtn: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.destructive,
+      marginLeft: -theme.spacing.xs,
     },
     startersList: {
-      paddingHorizontal: theme.spacing.md,
-      paddingBottom: 12,
-      gap: 8,
+      paddingBottom: theme.spacing.md,
+      gap: theme.spacing.sm,
     },
     starterPreview: {
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
       lineHeight: 20,
-    },
-    customHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    addCategoryBtn: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.accent,
-      fontFamily: theme.fonts.bodyMedium,
-      marginTop: theme.spacing.lg,
+      color: theme.colors.textSecondary,
     },
     emptyText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textTertiary,
-      marginTop: theme.spacing.xs,
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
     },
     // Edit form
+    editor: {
+      paddingTop: theme.spacing.sm,
+    },
     editHeader: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      marginBottom: theme.spacing.lg,
+      marginBottom: theme.spacing.md,
     },
     editTitle: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+      ...theme.typography.bodyStrong,
       color: theme.colors.text,
-    },
-    editAction: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodyMedium,
-    },
-    categoryNameInput: {
-      height: 48,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: 10,
-      paddingHorizontal: theme.spacing.md,
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      backgroundColor: theme.colors.backgroundInput,
-      marginBottom: theme.spacing.lg,
     },
     startersLabel: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.textSecondary,
-      marginBottom: theme.spacing.sm,
+      marginTop: theme.spacing.lg,
+      marginBottom: theme.spacing.xs,
     },
     starterRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: theme.spacing.sm,
+      gap: theme.spacing.xs,
       marginBottom: theme.spacing.sm,
     },
-    starterInput: {
+    starterField: {
       flex: 1,
-      height: 44,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: 10,
-      paddingHorizontal: theme.spacing.md,
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.text,
-      backgroundColor: theme.colors.backgroundInput,
     },
-    removeBtn: {
+    formError: {
+      ...theme.typography.meta,
       fontSize: theme.fontSize.sm,
-      color: theme.colors.textTertiary,
-      paddingHorizontal: 4,
-    },
-    addStarterBtn: {
-      marginTop: theme.spacing.xs,
-      paddingVertical: theme.spacing.sm,
-    },
-    addStarterText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.accent,
+      color: theme.colors.destructive,
+      marginTop: theme.spacing.sm,
     },
   });
 }

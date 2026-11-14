@@ -4,9 +4,9 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   ActivityIndicator,
-  TextInput,
   ActionSheetIOS,
   Alert,
   ScrollView,
@@ -14,10 +14,18 @@ import {
   Linking,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { usePreventRemove } from "@react-navigation/native";
 import { AppImage } from "@/components/AppImage";
 import { BottomSheet } from "@/components/BottomSheet";
+import { Button } from "@/components/Button";
+import { Chip } from "@/components/Chip";
+import { TextField } from "@/components/TextField";
+import { ScreenHeader } from "@/components/ScreenHeader";
+import { SectionLabel } from "@/components/SectionLabel";
+import { confirmSheet } from "@/components/ConfirmSheet";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
+import { useNavigation, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,7 +38,7 @@ import { checkUsernameAvailable } from "@/lib/friends";
 import { profileEditChanges } from "@/lib/profile";
 import { FavoriteArtist, FavoriteSong } from "@/types";
 
-const AVATAR_SIZE = 100;
+const AVATAR_SIZE = 72;
 
 const BIRTH_YEARS = Array.from({ length: 86 }, (_, i) => 2015 - i); // 2015 → 1930
 
@@ -81,12 +89,16 @@ const COUNTRIES = [
   "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe",
 ];
 
+const PICKER_ROW_HEIGHT = 52;
+
 export default function ProfileEditScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { user, profile, updateProfile, refreshProfile } = useAuth();
   const posthog = usePostHog();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
 
   // ── Basic info ──────────────────────────────────────────────────────────
@@ -98,6 +110,8 @@ export default function ProfileEditScreen() {
   const [birthYear, setBirthYear] = useState<number | null>(profile?.birthYear ?? null);
   const [country, setCountry] = useState(profile?.country ?? "");
   const [saving, setSaving] = useState(false);
+  // Set after a successful save so the unsaved-changes guard lets us leave.
+  const [saved, setSaved] = useState(false);
 
   // ── Username check ──────────────────────────────────────────────────────
   const handleUsernameChange = useCallback((text: string) => {
@@ -122,7 +136,7 @@ export default function ProfileEditScreen() {
     }, 400);
   }, [user, profile?.username]);
 
-  // ── Picker modals ───────────────────────────────────────────────────────
+  // ── Picker sheets ───────────────────────────────────────────────────────
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
   const [countryPickerVisible, setCountryPickerVisible] = useState(false);
   const [countrySearch, setCountrySearch] = useState("");
@@ -184,6 +198,38 @@ export default function ProfileEditScreen() {
   // refreshProfile is recreated every render; this only reacts to the profile.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
+
+  // ── Unsaved changes ─────────────────────────────────────────────────────
+  // The old Cancel discarded edits silently. Now that this is a pushed
+  // screen, back (chevron or edge swipe) asks first when anything changed.
+  // The photo isn't part of this: it uploads the moment it's picked.
+  const form = {
+    displayName: nameInput,
+    username: usernameInput,
+    birthYear,
+    country,
+    favoriteArtists: selectedArtists,
+    favoriteSongs: selectedSongs,
+    genrePreferences: selectedGenres,
+  };
+  const dirty = !!profile && Object.keys(profileEditChanges(profile, form)).length > 0;
+
+  usePreventRemove(dirty && !saved, ({ data }) => {
+    void confirmSheet({
+      title: "Discard changes?",
+      message: "Your edits to your profile won't be saved.",
+      confirmLabel: "Discard",
+      cancelLabel: "Keep editing",
+      destructive: true,
+    }).then((discard) => {
+      if (discard) navigation.dispatch(data.action);
+    });
+  });
+
+  // Leave only after the render that lifted the guard.
+  useEffect(() => {
+    if (saved) router.back();
+  }, [saved, router]);
 
   // Each search gets an id; only the newest one may write results, so a slow
   // response can't overwrite newer results or refill a cleared list.
@@ -341,15 +387,7 @@ export default function ProfileEditScreen() {
     setSaving(true);
     try {
       // Only what changed, so one edit can't overwrite another field.
-      const changes = profileEditChanges(profile, {
-        displayName: nameInput,
-        username: usernameInput,
-        birthYear,
-        country,
-        favoriteArtists: selectedArtists,
-        favoriteSongs: selectedSongs,
-        genrePreferences: selectedGenres,
-      });
+      const changes = profileEditChanges(profile, form);
       await updateProfile(changes);
       posthog.capture("profile_updated", {
         has_username: !!(usernameInput.trim()),
@@ -360,7 +398,8 @@ export default function ProfileEditScreen() {
         genre_preferences_count: selectedGenres.length,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.back();
+      // The effect above navigates back once the guard is lifted.
+      setSaved(true);
     } catch (e) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert("Error", friendlyError(e));
@@ -369,303 +408,278 @@ export default function ProfileEditScreen() {
     }
   };
 
+  const clearArtistSearch = () => {
+    artistRequestRef.current++;
+    setArtistQuery("");
+    setArtistResults([]);
+    setArtistSearching(false);
+  };
+  const clearSongSearch = () => {
+    songRequestRef.current++;
+    setSongQuery("");
+    setSongResults([]);
+    setSongSearching(false);
+  };
+
+  const searchTrailing = (searching: boolean, query: string, onClear: () => void) =>
+    searching ? (
+      <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+    ) : query.length > 0 ? (
+      <TouchableOpacity onPress={onClear} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search">
+        <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />
+      </TouchableOpacity>
+    ) : null;
+
+  const usernameTrailing =
+    usernameStatus === "checking" ? (
+      <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+    ) : usernameStatus === "available" ? (
+      <Ionicons name="checkmark-circle" size={18} color={theme.colors.success} />
+    ) : usernameStatus === "taken" || usernameStatus === "error" ? (
+      <Ionicons name="close-circle" size={18} color={theme.colors.destructive} />
+    ) : null;
+
   return (
-    <KeyboardAvoidingView
-      style={[styles.flex, { backgroundColor: theme.colors.background }]}
-      behavior="padding"
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} activeOpacity={0.7}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Edit Profile</Text>
-        <TouchableOpacity onPress={handleSave} disabled={saving} hitSlop={8} activeOpacity={0.7}>
-          {saving ? (
-            <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-          ) : (
-            <Text style={styles.saveText}>Save</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+    <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      <ScreenHeader
+        leading="back"
+        title="Edit profile"
+        right={<Button label="Save" size="pill" onPress={handleSave} loading={saving} />}
+      />
 
       <ScrollView
         ref={scrollRef}
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + theme.spacing["4xl"] }]}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
       >
         {/* Avatar */}
-        <TouchableOpacity onPress={handleAvatarPress} disabled={uploadingAvatar} activeOpacity={0.7}>
-          <View style={styles.avatarContainer}>
+        <View style={styles.avatarRow}>
+          <Pressable
+            onPress={handleAvatarPress}
+            disabled={uploadingAvatar}
+            accessibilityRole="button"
+            accessibilityLabel="Change photo"
+            style={styles.avatarContainer}
+          >
             {uploadingAvatar ? (
-              <ActivityIndicator size="large" color={theme.colors.textSecondary} />
+              <ActivityIndicator color={theme.colors.textSecondary} />
             ) : avatarUri ? (
               <AppImage source={{ uri: avatarUri }} style={styles.avatar} />
             ) : (
               <Text style={styles.initials}>{initials}</Text>
             )}
-          </View>
-          <Text style={styles.changePhotoText}>Change Photo</Text>
-        </TouchableOpacity>
-
-        {/* ── Profile section ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>PROFILE</Text>
-
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Display Name</Text>
-            <TextInput
-              style={styles.fieldInput}
-              value={nameInput}
-              onChangeText={setNameInput}
-              placeholder="Display name"
-              placeholderTextColor={theme.colors.placeholder}
-              cursorColor={theme.colors.accent}
-              autoCapitalize="words"
-              autoCorrect={false}
-              textContentType="name"
-              returnKeyType="done"
-            />
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Username</Text>
-            <View style={[styles.usernameRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundInput }]}>
-              <Text style={[styles.usernameAt, { color: theme.colors.textSecondary }]}>@</Text>
-              <TextInput
-                style={[styles.fieldInput, { flex: 1, borderWidth: 0, paddingVertical: 0, paddingHorizontal: 4, backgroundColor: "transparent" }]}
-                value={usernameInput}
-                onChangeText={handleUsernameChange}
-                placeholder="username"
-                placeholderTextColor={theme.colors.placeholder}
-                autoCapitalize="none"
-                autoCorrect={false}
-                textContentType="username"
-                autoComplete="username"
-                returnKeyType="done"
-                maxLength={30}
-              />
-              {usernameStatus === "checking" && (
-                <ActivityIndicator size="small" color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
-              )}
-              {usernameStatus === "available" && (
-                <Ionicons name="checkmark-circle" size={18} color={theme.colors.success} style={{ marginRight: 8 }} />
-              )}
-              {(usernameStatus === "taken" || usernameStatus === "error") && (
-                <Ionicons name="close-circle" size={18} color={theme.colors.destructive} style={{ marginRight: 8 }} />
-              )}
-            </View>
-            {usernameStatus === "available" && (
-              <Text style={[styles.usernameHint, { color: theme.colors.success }]}>✓ Available</Text>
-            )}
-            {usernameStatus === "taken" && usernameInput.length >= 3 && (
-              <Text style={[styles.usernameHint, { color: theme.colors.destructive }]}>✗ Taken — try another</Text>
-            )}
-            {usernameStatus === "error" && (
-              <Text style={[styles.usernameHint, { color: theme.colors.destructive }]}>Couldn't check — try again</Text>
-            )}
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Email</Text>
-            <Text style={styles.fieldReadOnly}>{user?.email}</Text>
-          </View>
+          </Pressable>
+          <Button
+            label="Change photo"
+            variant="text"
+            onPress={handleAvatarPress}
+            disabled={uploadingAvatar}
+          />
         </View>
 
-        {/* ── Music preferences section ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>MUSIC PREFERENCES</Text>
-          <Text style={styles.sectionSub}>
-            Helps us surface songs that match your era and background.
-          </Text>
+        {/* ── Profile ── */}
+        <SectionLabel style={styles.sectionLabel}>Profile</SectionLabel>
 
-          {/* Birth year picker */}
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Birth Year</Text>
-            <TouchableOpacity
-              style={styles.pickerRow}
-              onPress={() => setYearPickerVisible(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.pickerRowText, !birthYear && { color: theme.colors.placeholder }]}>
-                {birthYear ? String(birthYear) : "Select year"}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Display name</Text>
+          <TextField
+            value={nameInput}
+            onChangeText={setNameInput}
+            placeholder="Display name"
+            autoCapitalize="words"
+            autoCorrect={false}
+            textContentType="name"
+            returnKeyType="done"
+          />
+        </View>
 
-          {/* Country picker */}
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Country You Grew Up In</Text>
-            <TouchableOpacity
-              style={styles.pickerRow}
-              onPress={() => { setCountrySearch(""); setCountryPickerVisible(true); }}
-              activeOpacity={0.7}
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Username</Text>
+          <TextField
+            icon="at"
+            value={usernameInput}
+            onChangeText={handleUsernameChange}
+            placeholder="username"
+            autoCapitalize="none"
+            autoCorrect={false}
+            textContentType="username"
+            autoComplete="username"
+            returnKeyType="done"
+            maxLength={30}
+            trailing={usernameTrailing}
+          />
+          {usernameStatus === "available" && (
+            <Text style={[styles.hint, styles.hintSuccess]}>Available</Text>
+          )}
+          {usernameStatus === "taken" && usernameInput.length >= 3 && (
+            <Text style={[styles.hint, styles.hintError]}>Taken. Try another.</Text>
+          )}
+          {usernameStatus === "error" && (
+            <Text style={[styles.hint, styles.hintError]}>Couldn&apos;t check. Try again.</Text>
+          )}
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Email</Text>
+          <Text style={styles.readOnly} selectable>{user?.email}</Text>
+        </View>
+
+        {/* ── Music preferences ── */}
+        <SectionLabel style={styles.sectionLabel}>Music preferences</SectionLabel>
+        <Text style={styles.sectionSub}>
+          Helps us surface songs that match your era and background.
+        </Text>
+
+        <View style={styles.pickerList}>
+          <Pressable
+            style={({ pressed }) => [styles.pickerRow, pressed && styles.pressed]}
+            onPress={() => setYearPickerVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Birth year, ${birthYear ?? "not set"}`}
+          >
+            <Text style={styles.pickerLabel}>Birth year</Text>
+            <Text style={[styles.pickerValue, !birthYear && styles.pickerPlaceholder]}>
+              {birthYear ? String(birthYear) : "Select"}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.pickerRow, pressed && styles.pressed]}
+            onPress={() => { setCountrySearch(""); setCountryPickerVisible(true); }}
+            accessibilityRole="button"
+            accessibilityLabel={`Country you grew up in, ${country || "not set"}`}
+          >
+            <Text style={styles.pickerLabel}>Country you grew up in</Text>
+            <Text
+              style={[styles.pickerValue, !country && styles.pickerPlaceholder]}
+              numberOfLines={1}
             >
-              <Text style={[styles.pickerRowText, !country && { color: theme.colors.placeholder }]}>
-                {country || "Select country"}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
+              {country || "Select"}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
+          </Pressable>
         </View>
 
         {/* ── Favorite artists ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>FAVORITE ARTISTS</Text>
-          <Text style={styles.sectionSub}>Up to 5. Tap to remove.</Text>
+        <SectionLabel meta={`${selectedArtists.length} of 5`} style={styles.sectionLabel}>
+          Favorite artists
+        </SectionLabel>
 
-          {selectedArtists.length > 0 && (
-            <View style={styles.chips}>
-              {selectedArtists.map((a) => (
-                <TouchableOpacity
-                  key={a.id}
-                  style={[styles.chip, { backgroundColor: theme.colors.accent }]}
-                  onPress={() => toggleArtist(a)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.chipText}>{a.name}</Text>
-                  <Ionicons name="close" size={13} color={theme.colors.chipSelectedText} style={{ marginLeft: 4 }} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+        {selectedArtists.length > 0 && (
+          <View style={styles.chips}>
+            {selectedArtists.map((a) => (
+              <Chip key={a.id} label={a.name} variant="filled" onRemove={() => toggleArtist(a)} />
+            ))}
+          </View>
+        )}
 
-          {selectedArtists.length < 5 && (
-            <View ref={artistSectionRef}>
-              <View style={[styles.searchRow, { borderColor: theme.colors.border }]}>
-                <Ionicons name="search-outline" size={15} color={theme.colors.textSecondary} style={styles.searchIcon} />
-                <TextInput
-                  style={[styles.searchInput, { color: theme.colors.text }]}
-                  placeholder="Search artists…"
-                  placeholderTextColor={theme.colors.placeholder}
-                  value={artistQuery}
-                  onChangeText={handleArtistQuery}
-                  autoCorrect={false}
-                  autoCapitalize="words"
-                  returnKeyType="search"
-                />
-                {artistSearching ? (
-                  <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                ) : artistQuery.length > 0 ? (
-                  <TouchableOpacity onPress={() => { setArtistQuery(""); setArtistResults([]); }} hitSlop={8}>
-                    <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />
-                  </TouchableOpacity>
-                ) : null}
+        {selectedArtists.length < 5 && (
+          <View ref={artistSectionRef}>
+            <TextField
+              icon="search"
+              placeholder="Search artists"
+              value={artistQuery}
+              onChangeText={handleArtistQuery}
+              autoCorrect={false}
+              autoCapitalize="words"
+              returnKeyType="search"
+              trailing={searchTrailing(artistSearching, artistQuery, clearArtistSearch)}
+            />
+
+            {artistResults.length > 0 && (
+              <View style={styles.results}>
+                {artistResults.map((item) => {
+                  const selected = !!selectedArtists.find((a) => a.id === item.id);
+                  return (
+                    <Pressable
+                      key={item.id}
+                      style={({ pressed }) => [styles.resultRow, pressed && styles.pressed]}
+                      onPress={() => toggleArtist(item)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                    >
+                      <Text style={[styles.resultTitle, styles.resultText]} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      {selected && <Ionicons name="checkmark" size={18} color={theme.colors.text} />}
+                    </Pressable>
+                  );
+                })}
               </View>
-
-              {artistResults.map((item) => {
-                const selected = !!selectedArtists.find((a) => a.id === item.id);
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[styles.resultRow, selected && { backgroundColor: theme.colors.chipBg }]}
-                    onPress={() => toggleArtist(item)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.resultTitle, selected && { color: theme.colors.accent }]}>
-                      {item.name}
-                    </Text>
-                    {selected && <Ionicons name="checkmark" size={17} color={theme.colors.accent} />}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-        </View>
+            )}
+          </View>
+        )}
 
         {/* ── Favorite songs ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>FAVORITE SONGS</Text>
-          <Text style={styles.sectionSub}>Up to 5 songs you have strong memories of. Tap to remove.</Text>
+        <SectionLabel meta={`${selectedSongs.length} of 5`} style={styles.sectionLabel}>
+          Favorite songs
+        </SectionLabel>
+        <Text style={styles.sectionSub}>Songs you have strong memories of.</Text>
 
-          {selectedSongs.length > 0 && (
-            <View style={styles.chips}>
-              {selectedSongs.map((s) => (
-                <TouchableOpacity
-                  key={s.id}
-                  style={[styles.chip, { backgroundColor: theme.colors.accent }]}
-                  onPress={() => toggleSong(s)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.chipText} numberOfLines={1}>{s.title}</Text>
-                  <Ionicons name="close" size={13} color={theme.colors.chipSelectedText} style={{ marginLeft: 4 }} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          {selectedSongs.length < 5 && (
-            <View ref={songSectionRef}>
-              <View style={[styles.searchRow, { borderColor: theme.colors.border }]}>
-                <Ionicons name="search-outline" size={15} color={theme.colors.textSecondary} style={styles.searchIcon} />
-                <TextInput
-                  style={[styles.searchInput, { color: theme.colors.text }]}
-                  placeholder="Search songs…"
-                  placeholderTextColor={theme.colors.placeholder}
-                  value={songQuery}
-                  onChangeText={handleSongQuery}
-                  autoCorrect={false}
-                  autoCapitalize="words"
-                  returnKeyType="search"
-                />
-                {songSearching ? (
-                  <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                ) : songQuery.length > 0 ? (
-                  <TouchableOpacity onPress={() => { setSongQuery(""); setSongResults([]); }} hitSlop={8}>
-                    <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-
-              {songResults.map((item) => {
-                const selected = !!selectedSongs.find((s) => s.id === item.id);
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[styles.resultRow, selected && { backgroundColor: theme.colors.chipBg }]}
-                    onPress={() => toggleSong(item)}
-                    activeOpacity={0.7}
-                  >
-                    {item.artworkUrl && (
-                      <AppImage source={{ uri: item.artworkUrl }} style={styles.songArtwork} contentFit="cover" />
-                    )}
-                    <View style={styles.resultText}>
-                      <Text style={[styles.resultTitle, selected && { color: theme.colors.accent }]} numberOfLines={1}>
-                        {item.title}
-                      </Text>
-                      <Text style={styles.resultSub} numberOfLines={1}>{item.artist}</Text>
-                    </View>
-                    {selected && <Ionicons name="checkmark" size={17} color={theme.colors.accent} />}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-        </View>
-        {/* ── Genre preferences ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>GENRE PREFERENCES</Text>
-          <Text style={styles.sectionSub}>Select any that resonate with you.</Text>
-          <View style={styles.genreGrid}>
-            {GENRES.map((genre) => {
-              const selected = selectedGenres.includes(genre);
-              return (
-                <TouchableOpacity
-                  key={genre}
-                  style={[styles.genreChip, selected && styles.genreChipSelected]}
-                  onPress={() => toggleGenre(genre)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.genreChipText, selected && styles.genreChipTextSelected]}>
-                    {genre}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+        {selectedSongs.length > 0 && (
+          <View style={styles.chips}>
+            {selectedSongs.map((s) => (
+              <Chip key={s.id} label={s.title} variant="filled" onRemove={() => toggleSong(s)} />
+            ))}
           </View>
+        )}
+
+        {selectedSongs.length < 5 && (
+          <View ref={songSectionRef}>
+            <TextField
+              icon="search"
+              placeholder="Search songs"
+              value={songQuery}
+              onChangeText={handleSongQuery}
+              autoCorrect={false}
+              autoCapitalize="words"
+              returnKeyType="search"
+              trailing={searchTrailing(songSearching, songQuery, clearSongSearch)}
+            />
+
+            {songResults.length > 0 && (
+              <View style={styles.results}>
+                {songResults.map((item) => {
+                  const selected = !!selectedSongs.find((s) => s.id === item.id);
+                  return (
+                    <Pressable
+                      key={item.id}
+                      style={({ pressed }) => [styles.resultRow, pressed && styles.pressed]}
+                      onPress={() => toggleSong(item)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                    >
+                      {item.artworkUrl ? (
+                        <AppImage source={{ uri: item.artworkUrl }} style={styles.songArtwork} contentFit="cover" />
+                      ) : null}
+                      <View style={styles.resultText}>
+                        <Text style={styles.resultTitle} numberOfLines={1}>{item.title}</Text>
+                        <Text style={styles.resultSub} numberOfLines={1}>{item.artist}</Text>
+                      </View>
+                      {selected && <Ionicons name="checkmark" size={18} color={theme.colors.text} />}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ── Genres ── */}
+        <SectionLabel style={styles.sectionLabel}>Genres</SectionLabel>
+        <Text style={styles.sectionSub}>Pick any that feel like you.</Text>
+        <View style={styles.chips}>
+          {GENRES.map((genre) => (
+            <Chip
+              key={genre}
+              label={genre}
+              variant="outline"
+              selected={selectedGenres.includes(genre)}
+              onPress={() => toggleGenre(genre)}
+            />
+          ))}
         </View>
       </ScrollView>
 
@@ -673,28 +687,27 @@ export default function ProfileEditScreen() {
       <BottomSheet
         visible={yearPickerVisible}
         onClose={() => setYearPickerVisible(false)}
-        title="Birth Year"
+        title="Birth year"
         maxHeight="60%"
       >
         <FlatList
           data={BIRTH_YEARS}
           keyExtractor={(y) => String(y)}
           showsVerticalScrollIndicator={false}
-          initialScrollIndex={birthYear ? BIRTH_YEARS.indexOf(birthYear) : 0}
-          getItemLayout={(_, index) => ({ length: 52, offset: 52 * index, index })}
+          initialScrollIndex={birthYear ? Math.max(0, BIRTH_YEARS.indexOf(birthYear)) : 0}
+          getItemLayout={(_, index) => ({ length: PICKER_ROW_HEIGHT, offset: PICKER_ROW_HEIGHT * index, index })}
           renderItem={({ item }) => {
             const selected = item === birthYear;
             return (
-              <TouchableOpacity
-                style={[styles.pickerItem, selected && { backgroundColor: theme.colors.chipBg }]}
+              <Pressable
+                style={({ pressed }) => [styles.sheetRow, pressed && styles.pressed]}
                 onPress={() => { Haptics.selectionAsync(); setBirthYear(item); setYearPickerVisible(false); }}
-                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
               >
-                <Text style={[styles.pickerItemText, { color: selected ? theme.colors.accent : theme.colors.text }, selected && { fontFamily: theme.fonts.bodyBold }]}>
-                  {item}
-                </Text>
-                {selected && <Ionicons name="checkmark" size={18} color={theme.colors.accent} />}
-              </TouchableOpacity>
+                <Text style={styles.sheetRowText}>{item}</Text>
+                {selected && <Ionicons name="checkmark" size={20} color={theme.colors.text} />}
+              </Pressable>
             );
           }}
         />
@@ -708,25 +721,29 @@ export default function ProfileEditScreen() {
         keyboardAvoiding
         maxHeight="60%"
       >
-        <View style={[styles.countrySearch, { borderColor: theme.colors.border }]}>
-          <Ionicons name="search-outline" size={15} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
-          <TextInput
-            style={[styles.countrySearchInput, { color: theme.colors.text }]}
-            placeholder="Search…"
-            placeholderTextColor={theme.colors.placeholder}
-            value={countrySearch}
-            onChangeText={setCountrySearch}
-            autoFocus
-            autoCorrect={false}
-            autoCapitalize="words"
-            returnKeyType="search"
-          />
-          {countrySearch.length > 0 && (
-            <TouchableOpacity onPress={() => setCountrySearch("")} hitSlop={8}>
-              <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-          )}
-        </View>
+        <TextField
+          icon="search"
+          placeholder="Search"
+          value={countrySearch}
+          onChangeText={setCountrySearch}
+          autoFocus
+          autoCorrect={false}
+          autoCapitalize="words"
+          returnKeyType="search"
+          containerStyle={styles.countrySearch}
+          trailing={
+            countrySearch.length > 0 ? (
+              <TouchableOpacity
+                onPress={() => setCountrySearch("")}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Clear search"
+              >
+                <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            ) : null
+          }
+        />
         <FlatList
           data={filteredCountries}
           keyExtractor={(c) => c}
@@ -735,16 +752,15 @@ export default function ProfileEditScreen() {
           renderItem={({ item }) => {
             const selected = item === country;
             return (
-              <TouchableOpacity
-                style={[styles.pickerItem, selected && { backgroundColor: theme.colors.chipBg }]}
+              <Pressable
+                style={({ pressed }) => [styles.sheetRow, pressed && styles.pressed]}
                 onPress={() => { Haptics.selectionAsync(); setCountry(item); setCountryPickerVisible(false); }}
-                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
               >
-                <Text style={[styles.pickerItemText, { color: selected ? theme.colors.accent : theme.colors.text }, selected && { fontFamily: theme.fonts.bodyBold }]}>
-                  {item}
-                </Text>
-                {selected && <Ionicons name="checkmark" size={18} color={theme.colors.accent} />}
-              </TouchableOpacity>
+                <Text style={styles.sheetRowText}>{item}</Text>
+                {selected && <Ionicons name="checkmark" size={20} color={theme.colors.text} />}
+              </Pressable>
             );
           }}
         />
@@ -755,36 +771,16 @@ export default function ProfileEditScreen() {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    flex: { flex: 1 },
-    header: {
+    flex: { flex: 1, backgroundColor: theme.colors.background },
+    container: {
+      paddingTop: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.xl,
+    },
+    pressed: { opacity: 0.6 },
+    avatarRow: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
-      paddingTop: 60,
-      paddingBottom: theme.spacing.lg,
-      paddingHorizontal: theme.spacing.xl,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.border,
-    },
-    headerTitle: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.text,
-    },
-    cancelText: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.textSecondary,
-    },
-    saveText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.accent,
-    },
-    container: {
-      alignItems: "center",
-      paddingTop: theme.spacing["3xl"],
-      paddingBottom: theme.spacing["4xl"],
-      paddingHorizontal: theme.spacing.xl,
+      gap: theme.spacing.lg,
     },
     avatarContainer: {
       width: AVATAR_SIZE,
@@ -797,201 +793,114 @@ function createStyles(theme: Theme) {
     },
     avatar: { width: AVATAR_SIZE, height: AVATAR_SIZE },
     initials: {
-      fontSize: 36,
-      fontFamily: theme.fonts.bodyBold,
-      color: theme.colors.textTertiary,
-    },
-    changePhotoText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.accent,
-      marginTop: theme.spacing.sm,
-      textAlign: "center",
-    },
-    section: {
-      width: "100%",
-      marginTop: theme.spacing["3xl"],
+      ...theme.typography.title,
+      fontSize: theme.fontSize["2xl"],
+      lineHeight: 34,
+      color: theme.colors.textSecondary,
     },
     sectionLabel: {
-      fontSize: theme.fontSize.xs,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.textTertiary,
-      textTransform: "uppercase",
-      letterSpacing: 0.5,
-      marginBottom: 4,
+      marginTop: theme.spacing["3xl"],
+      marginBottom: theme.spacing.xs,
     },
     sectionSub: {
-      fontSize: theme.fontSize.xs,
-      color: theme.colors.textTertiary,
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
       marginBottom: theme.spacing.md,
     },
     field: {
-      width: "100%",
-      marginTop: theme.spacing.lg,
+      marginTop: theme.spacing.md,
     },
     fieldLabel: {
-      fontSize: theme.fontSize.xs,
-      fontFamily: theme.fonts.bodyMedium,
+      ...theme.typography.meta,
       color: theme.colors.textSecondary,
       marginBottom: 6,
     },
-    fieldInput: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      backgroundColor: theme.colors.backgroundInput,
-      borderRadius: theme.radii.sm,
-      paddingVertical: 12,
-      paddingHorizontal: theme.spacing.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
+    hint: {
+      ...theme.typography.meta,
+      marginTop: theme.spacing.xs,
     },
-    usernameRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      borderRadius: theme.radii.sm,
-      borderWidth: StyleSheet.hairlineWidth,
-      paddingHorizontal: theme.spacing.md,
-      height: 48,
-    },
-    usernameAt: {
-      fontSize: theme.fontSize.base,
-    },
-    usernameHint: {
-      fontSize: theme.fontSize.xs,
-      marginTop: 4,
-    },
-    fieldReadOnly: {
-      fontSize: theme.fontSize.base,
+    hintSuccess: { color: theme.colors.success },
+    hintError: { color: theme.colors.destructive },
+    readOnly: {
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
-      backgroundColor: theme.colors.backgroundInput,
-      borderRadius: theme.radii.sm,
-      paddingVertical: 12,
-      paddingHorizontal: theme.spacing.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      overflow: "hidden",
+    },
+    pickerList: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
     },
     pickerRow: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
-      backgroundColor: theme.colors.backgroundInput,
-      borderRadius: theme.radii.sm,
-      paddingVertical: 12,
-      paddingHorizontal: theme.spacing.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
+      minHeight: PICKER_ROW_HEIGHT,
+      gap: theme.spacing.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
     },
-    pickerRowText: {
-      fontSize: theme.fontSize.base,
+    pickerLabel: {
+      ...theme.typography.body,
       color: theme.colors.text,
+      flex: 1,
+    },
+    pickerValue: {
+      ...theme.typography.body,
+      color: theme.colors.textSecondary,
+      maxWidth: "50%",
+    },
+    pickerPlaceholder: {
+      color: theme.colors.placeholder,
     },
     chips: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 8,
-      marginBottom: 12,
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing.md,
     },
-    chip: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: theme.radii.lg,
+    results: {
+      marginTop: theme.spacing.xs,
     },
-    chipText: {
-      color: theme.colors.chipSelectedText,
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
-      maxWidth: 140,
-    },
-    searchRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: theme.colors.backgroundInput,
-      borderRadius: theme.radii.sm,
-      borderWidth: StyleSheet.hairlineWidth,
-      paddingHorizontal: 10,
-      height: 40,
-      marginBottom: 4,
-    },
-    searchIcon: { marginRight: 6 },
-    searchInput: { flex: 1, fontSize: theme.fontSize.base },
     resultRow: {
       flexDirection: "row",
       alignItems: "center",
-      paddingVertical: 9,
-      paddingHorizontal: 10,
-      borderRadius: theme.radii.sm,
-      marginBottom: 2,
+      paddingVertical: theme.spacing.sm + 2,
+      gap: theme.spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
     },
     songArtwork: {
       width: 36,
       height: 36,
       borderRadius: theme.radii.sm,
-      marginRight: 10,
     },
     resultText: { flex: 1 },
     resultTitle: {
-      fontSize: theme.fontSize.base,
+      ...theme.typography.bodyStrong,
+      fontSize: theme.fontSize.callout,
       color: theme.colors.text,
-      fontFamily: theme.fonts.bodyMedium,
     },
     resultSub: {
+      ...theme.typography.meta,
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
       marginTop: 1,
     },
     // Picker sheets
-    pickerItem: {
+    sheetRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      height: 52,
-      paddingHorizontal: 20,
+      height: PICKER_ROW_HEIGHT,
+      marginHorizontal: theme.spacing.xl,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
     },
-    pickerItemText: {
-      fontSize: theme.fontSize.base,
+    sheetRowText: {
+      ...theme.typography.body,
+      color: theme.colors.text,
     },
     countrySearch: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginHorizontal: 16,
-      marginBottom: 8,
-      paddingHorizontal: 12,
-      height: 40,
-      borderRadius: theme.radii.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      backgroundColor: "transparent",
-    },
-    countrySearchInput: {
-      flex: 1,
-      fontSize: theme.fontSize.base,
-    },
-    genreGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 8,
-      marginTop: 4,
-    },
-    genreChip: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: theme.radii.lg,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.backgroundInput,
-    },
-    genreChipSelected: {
-      backgroundColor: theme.colors.accent,
-      borderColor: theme.colors.accent,
-    },
-    genreChipText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.text,
-      fontFamily: theme.fonts.bodyMedium,
-    },
-    genreChipTextSelected: {
-      color: theme.colors.chipSelectedText,
+      marginHorizontal: theme.spacing.xl,
+      marginBottom: theme.spacing.sm,
     },
   });
 }
