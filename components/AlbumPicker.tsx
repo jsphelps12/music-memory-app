@@ -1,16 +1,11 @@
 import { useMemo } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-} from "react-native";
+import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { BottomSheet } from "@/components/BottomSheet";
+import { SectionLabel } from "@/components/SectionLabel";
 import { Album } from "@/types";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { pluralMoments } from "@/lib/utils";
@@ -45,113 +40,86 @@ export function AlbumPicker({
   };
 
   const renderRow = (item: Album) => {
-    const thumbUrl = item.coverPhotoUrl
-      ? getPublicPhotoUrl(item.coverPhotoUrl)
-      : null;
+    const thumbUrl = item.coverPhotoUrl ? getPublicPhotoUrl(item.coverPhotoUrl) : null;
+    const sub =
+      item.role === "member" && item.ownerName
+        ? `by ${item.ownerName}`
+        : item.momentCount !== undefined
+          ? pluralMoments(item.momentCount)
+          : null;
     return (
-    <TouchableOpacity
-      key={item.id}
-      style={styles.row}
-      onPress={() => handleSelect(item)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.rowLeft}>
+      <Pressable
+        key={item.id}
+        style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+        onPress={() => handleSelect(item)}
+        accessibilityRole="button"
+        accessibilityState={{ selected: selectedId === item.id }}
+      >
         {thumbUrl ? (
-          <AppImage source={{ uri: thumbUrl }} style={styles.rowThumb} contentFit="cover" />
+          <AppImage source={{ uri: thumbUrl }} style={styles.thumb} contentFit="cover" />
         ) : (
-        <Ionicons
-          name={item.isPublic ? "people-outline" : "folder-outline"}
-          size={20}
-          color={theme.colors.textSecondary}
-          style={styles.rowIcon}
-        />
+          <View style={styles.thumb}>
+            <Ionicons
+              name={item.isPublic ? "people-outline" : "albums-outline"}
+              size={18}
+              color={theme.colors.textSecondary}
+            />
+          </View>
         )}
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.rowName, { color: theme.colors.text }]} numberOfLines={1}>
+        <View style={styles.rowText}>
+          <Text style={styles.rowName} numberOfLines={1}>
             {item.name}
           </Text>
-          {item.role === "member" && item.ownerName ? (
-            <Text style={[styles.rowSub, { color: theme.colors.textTertiary }]}>
-              by {item.ownerName}
-            </Text>
-          ) : item.momentCount !== undefined ? (
-            <Text style={[styles.rowSub, { color: theme.colors.textTertiary }]}>
-              {pluralMoments(item.momentCount)}
-            </Text>
-          ) : null}
+          {sub ? <Text style={styles.rowSub}>{sub}</Text> : null}
         </View>
-      </View>
-      {selectedId === item.id ? (
-        <Ionicons name="checkmark" size={20} color={theme.colors.accent} />
-      ) : null}
-    </TouchableOpacity>
-  );
+        {selectedId === item.id ? (
+          <Ionicons name="checkmark" size={20} color={theme.colors.text} />
+        ) : null}
+      </Pressable>
+    );
   };
+
+  const section = (label: string, items: Album[]) =>
+    items.length > 0 ? (
+      <>
+        <SectionLabel style={styles.sectionLabel}>{label}</SectionLabel>
+        {items.map(renderRow)}
+      </>
+    ) : null;
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Albums" maxHeight="70%">
-      {/* New Album — pinned above the scroll list */}
-      <TouchableOpacity
-        style={[styles.newAlbumBtn, { borderBottomColor: theme.colors.border }]}
+      {/* New album, pinned above the scroll list */}
+      <Pressable
+        style={({ pressed }) => [styles.row, styles.newRow, pressed && styles.pressed]}
         onPress={onRequestCreate}
-        activeOpacity={0.7}
+        accessibilityRole="button"
       >
-        <Ionicons name="add-circle-outline" size={20} color={theme.colors.textSecondary} style={styles.rowIcon} />
-        <Text style={[styles.rowName, { color: theme.colors.text }]}>New Album</Text>
-      </TouchableOpacity>
+        <View style={styles.thumb}>
+          <Ionicons name="add" size={20} color={theme.colors.text} />
+        </View>
+        <Text style={[styles.rowName, styles.rowText]}>New album</Text>
+      </Pressable>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* All Moments */}
-        <TouchableOpacity style={styles.row} onPress={() => handleSelect(null)} activeOpacity={0.7}>
-          <View style={styles.rowLeft}>
-            <Ionicons
-              name="albums-outline"
-              size={20}
-              color={theme.colors.textSecondary}
-              style={styles.rowIcon}
-            />
-            <Text style={[styles.rowName, { color: theme.colors.text }]}>All Moments</Text>
+        <Pressable
+          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+          onPress={() => handleSelect(null)}
+          accessibilityRole="button"
+          accessibilityState={{ selected: selectedId === null }}
+        >
+          <View style={styles.thumb}>
+            <Ionicons name="musical-notes-outline" size={18} color={theme.colors.textSecondary} />
           </View>
+          <Text style={[styles.rowName, styles.rowText]}>No album</Text>
           {selectedId === null ? (
-            <Ionicons name="checkmark" size={20} color={theme.colors.accent} />
+            <Ionicons name="checkmark" size={20} color={theme.colors.text} />
           ) : null}
-        </TouchableOpacity>
+        </Pressable>
 
-        {/* My Collections (personal/private) */}
-        {ownedPersonal.length > 0 ? (
-          <>
-            <View style={[styles.sectionDivider, { borderTopColor: theme.colors.border }]}>
-              <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>
-                MY ALBUMS
-              </Text>
-            </View>
-            {ownedPersonal.map(renderRow)}
-          </>
-        ) : null}
-
-        {/* My Shared Collections */}
-        {ownedShared.length > 0 ? (
-          <>
-            <View style={[styles.sectionDivider, { borderTopColor: theme.colors.border }]}>
-              <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>
-                MY SHARED ALBUMS
-              </Text>
-            </View>
-            {ownedShared.map(renderRow)}
-          </>
-        ) : null}
-
-        {/* Shared With Me */}
-        {shared.length > 0 ? (
-          <>
-            <View style={[styles.sectionDivider, { borderTopColor: theme.colors.border }]}>
-              <Text style={[styles.sectionLabel, { color: theme.colors.textTertiary }]}>
-                SHARED WITH ME
-              </Text>
-            </View>
-            {shared.map(renderRow)}
-          </>
-        ) : null}
+        {section("My albums", ownedPersonal)}
+        {section("My shared albums", ownedShared)}
+        {section("Shared with me", shared)}
       </ScrollView>
     </BottomSheet>
   );
@@ -159,54 +127,48 @@ export function AlbumPicker({
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    newAlbumBtn: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: theme.spacing.xl,
-      paddingVertical: theme.spacing.md,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-    },
     scroll: {
       flexGrow: 0,
     },
-    sectionDivider: {
-      borderTopWidth: StyleSheet.hairlineWidth,
+    sectionLabel: {
       paddingHorizontal: theme.spacing.xl,
-      paddingTop: 14,
+      paddingTop: theme.spacing.lg,
       paddingBottom: theme.spacing.xs,
     },
-    sectionLabel: {
-      fontSize: theme.fontSize.xs,
-      fontFamily: theme.fonts.bodySemibold,
-      letterSpacing: 0.6,
-    },
+    // Rows on the page, ruled by hairlines in the divider token.
     row: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: theme.spacing.xl,
-      paddingVertical: 14,
+      gap: theme.spacing.md,
+      minHeight: 60,
+      paddingVertical: theme.spacing.md,
+      marginHorizontal: theme.spacing.xl,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
     },
-    rowLeft: {
-      flexDirection: "row",
-      alignItems: "center",
-      flex: 1,
+    newRow: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
     },
-    rowIcon: {
-      marginRight: theme.spacing.md,
-    },
-    rowThumb: {
+    pressed: { opacity: 0.6 },
+    thumb: {
       width: 36,
       height: 36,
       borderRadius: theme.radii.sm,
-      marginRight: theme.spacing.md,
+      backgroundColor: theme.colors.artworkPlaceholder,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    rowText: {
+      flex: 1,
     },
     rowName: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodyMedium,
+      ...theme.typography.bodyStrong,
+      color: theme.colors.text,
     },
     rowSub: {
-      fontSize: theme.fontSize.xs,
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
       marginTop: 1,
     },
   });

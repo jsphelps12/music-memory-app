@@ -49,7 +49,7 @@ export function AlbumMosaic({ coverPhotoPath, artworks = [], style }: Props) {
   } else {
     content = (
       <View style={styles.empty}>
-        <Ionicons name="albums-outline" size={28} color={theme.colors.textTertiary} />
+        <Ionicons name="albums-outline" size={28} color={theme.colors.textSecondary} />
       </View>
     );
   }
@@ -61,9 +61,9 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     frame: {
       aspectRatio: 1,
-      borderRadius: 10,
+      borderRadius: theme.radii.sm,
       overflow: "hidden",
-      backgroundColor: theme.colors.chipBg,
+      backgroundColor: theme.colors.artworkPlaceholder,
     },
     grid: {
       flex: 1,

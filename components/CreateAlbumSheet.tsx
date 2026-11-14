@@ -1,13 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
+import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,11 +8,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { BottomSheet } from "@/components/BottomSheet";
+import { Button } from "@/components/Button";
+import { Chip } from "@/components/Chip";
+import { TextField } from "@/components/TextField";
 import { friendlyError } from "@/lib/errors";
 import { albumCoverKey, createAlbum, ensureAlbumGuestUser, updateAlbumCover } from "@/lib/albums";
 import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { uploadAlbumCover } from "@/lib/storage";
 import type { Album } from "@/types";
+
+const COVER_SIZE = 88;
 
 interface Props {
   visible: boolean;
@@ -124,74 +121,76 @@ export function CreateAlbumSheet({ visible, onClose, userId, onCreated, defaultS
     }
   };
 
-  return (
-    <BottomSheet visible={visible} onClose={handleClose} title="New Album" keyboardAvoiding>
-      <View style={styles.content}>
-        {/* Cover photo picker */}
-        <TouchableOpacity onPress={handlePickCover} style={styles.coverPicker} activeOpacity={0.8}>
-          {coverUri ? (
-            <AppImage source={{ uri: coverUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
-          ) : (
-            <View style={styles.coverPlaceholder}>
-              <Ionicons name="camera-outline" size={28} color={theme.colors.textTertiary} />
-              <Text style={styles.coverPlaceholderText}>Add Cover Photo</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+  const canCreate = !!name.trim() && !loading;
 
-        {/* Personal / Shared toggle */}
-        <View style={styles.typeToggle}>
-          <TouchableOpacity
-            style={[styles.typePill, !isShared && { backgroundColor: theme.colors.buttonBg }]}
-            onPress={() => setIsShared(false)}
-            activeOpacity={0.7}
+  // Compact by design (design sweep, 2026-11): a small cover tile beside the
+  // name, so the field and Create both stay above the keyboard. The keyboard
+  // opens when the name is tapped, not on present, so the sheet rises first.
+  return (
+    <BottomSheet
+      visible={visible}
+      onClose={handleClose}
+      title="New album"
+      headerAction="none"
+      keyboardAvoiding
+    >
+      <View style={styles.content}>
+        <View style={styles.topRow}>
+          <Pressable
+            onPress={handlePickCover}
+            style={({ pressed }) => [styles.cover, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel={coverUri ? "Change cover photo" : "Add a cover photo"}
           >
-            <Text style={[styles.typePillText, { color: !isShared ? theme.colors.buttonText : theme.colors.textSecondary }]}>
-              Personal
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.typePill, isShared && { backgroundColor: theme.colors.buttonBg }]}
-            onPress={() => setIsShared(true)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.typePillText, { color: isShared ? theme.colors.buttonText : theme.colors.textSecondary }]}>
-              Shared
-            </Text>
-          </TouchableOpacity>
+            {coverUri ? (
+              <AppImage source={{ uri: coverUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+            ) : (
+              <>
+                <Ionicons name="image-outline" size={24} color={theme.colors.textSecondary} />
+                <Text style={styles.coverLabel}>Cover</Text>
+              </>
+            )}
+          </Pressable>
+          <View style={styles.nameCol}>
+            <TextField
+              placeholder="Album name"
+              value={name}
+              onChangeText={setName}
+              returnKeyType="done"
+              onSubmitEditing={handleCreate}
+              maxLength={60}
+              accessibilityLabel="Album name"
+            />
+          </View>
         </View>
 
-        <Text style={styles.label}>Name</Text>
-        <View style={styles.inputRow}>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Road Trip Mix"
-            placeholderTextColor={theme.colors.placeholder}
-            value={name}
-            onChangeText={setName}
-            autoFocus
-            returnKeyType="done"
-            onSubmitEditing={handleCreate}
+        <View style={styles.choiceRow}>
+          <Chip
+            label="Personal"
+            icon="lock-closed-outline"
+            selected={!isShared}
+            onPress={() => setIsShared(false)}
+          />
+          <Chip
+            label="Shared"
+            icon="people-outline"
+            selected={isShared}
+            onPress={() => setIsShared(true)}
           />
         </View>
-        <TouchableOpacity
-          style={[
-            styles.createBtn,
-            { backgroundColor: name.trim() ? theme.colors.accent : theme.colors.border },
-          ]}
+        <Text style={styles.hint}>
+          {isShared
+            ? "People you invite can add their own moments."
+            : "Only you can see it."}
+        </Text>
+
+        <Button
+          label="Create"
           onPress={handleCreate}
-          disabled={!name.trim() || loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color={theme.colors.buttonText} />
-          ) : (
-            <Text style={styles.createBtnText}>Create</Text>
-          )}
-        </TouchableOpacity>
-        {isShared && (
-          <Text style={styles.hint}>You'll be taken to the album to invite members.</Text>
-        )}
+          disabled={!canCreate}
+          loading={loading}
+          style={styles.create}
+        />
       </View>
     </BottomSheet>
   );
@@ -201,82 +200,43 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     content: {
       paddingHorizontal: theme.spacing.xl,
+      paddingTop: theme.spacing.xs,
     },
-    coverPicker: {
-      width: "100%",
-      aspectRatio: 1,
-      borderRadius: theme.radii.md,
-      overflow: "hidden",
-      marginBottom: theme.spacing.lg,
-      backgroundColor: theme.colors.backgroundTertiary,
-    },
-    coverPlaceholder: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      gap: theme.spacing.sm,
-    },
-    coverPlaceholderText: {
-      fontSize: theme.fontSize.xs,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.textTertiary,
-    },
-    typeToggle: {
+    topRow: {
       flexDirection: "row",
-      borderRadius: theme.radii.full,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.backgroundTertiary,
-      padding: 3,
-      marginBottom: theme.spacing.xl,
-    },
-    typePill: {
-      flex: 1,
-      paddingVertical: 7,
-      borderRadius: theme.radii.full,
       alignItems: "center",
+      gap: theme.spacing.md,
     },
-    typePillText: {
-      fontSize: theme.fontSize.xs,
-      fontFamily: theme.fonts.bodySemibold,
-    },
-    label: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.textSecondary,
-      marginBottom: 6,
-    },
-    inputRow: {
+    cover: {
+      width: COVER_SIZE,
+      height: COVER_SIZE,
       borderRadius: theme.radii.sm,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.backgroundInput,
-      paddingHorizontal: 14,
-      height: 48,
-      justifyContent: "center",
-      marginBottom: theme.spacing.lg,
-    },
-    input: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.body,
-      color: theme.colors.text,
-    },
-    createBtn: {
-      height: 50,
-      borderRadius: theme.radii.button,
+      overflow: "hidden",
+      backgroundColor: theme.colors.artworkPlaceholder,
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: theme.spacing.md,
+      gap: 2,
     },
-    createBtnText: {
-      color: "#fff",
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+    coverLabel: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+    },
+    pressed: { opacity: 0.75 },
+    nameCol: {
+      flex: 1,
+    },
+    choiceRow: {
+      flexDirection: "row",
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.lg,
     },
     hint: {
-      fontSize: theme.fontSize.xs,
-      textAlign: "center",
-      color: theme.colors.textTertiary,
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+      marginTop: theme.spacing.sm,
+    },
+    create: {
+      marginTop: theme.spacing.xl,
     },
   });
 }
