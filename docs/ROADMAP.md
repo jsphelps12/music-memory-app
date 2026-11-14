@@ -120,7 +120,8 @@ them, OTA-only (no native changes).
   painted that empty prefetch even though onboarding had marked it stale. Now
   a stale flag on first load skips the prefetch (`planFocusFetch` in
   `lib/timelineRefresh.ts`), and the empty state supports pull-to-refresh.
-  Not yet checked on a device.
+  Checked on a simulator against prod (2026-11-14): both onboarding moments
+  show on the first Journal load.
 
 ### Phase 1 — Feel
 *Cleaner, more intuitive, professional-grade; capture in two taps.*
