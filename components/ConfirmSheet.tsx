@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import * as Haptics from "expo-haptics";
 import { BottomSheet } from "@/components/BottomSheet";
+import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
@@ -78,35 +79,39 @@ export function ConfirmSheetHost() {
 
   const settle = (confirmed: boolean) => {
     pending?.resolve(confirmed);
-    setPending(null);
     setVisible(false);
+    // Keep `pending` (the text) until the sheet has animated away; the next
+    // present() replaces it.
   };
 
   const opts = pending?.opts;
 
   return (
-    <BottomSheet visible={visible} onClose={() => settle(false)} title={opts?.title ?? ""}>
+    <BottomSheet
+      visible={visible}
+      onClose={() => settle(false)}
+      title={opts?.title ?? ""}
+      headerAction="none"
+    >
       {opts ? (
         <View style={styles.body}>
           {opts.message ? <Text style={styles.message}>{opts.message}</Text> : null}
-          <TouchableOpacity
-            style={[
-              styles.confirmButton,
-              { backgroundColor: opts.destructive ? theme.colors.destructive : theme.colors.buttonBg },
-            ]}
+          <Button
+            label={opts.confirmLabel}
+            variant={opts.destructive ? "destructive" : "primary"}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               settle(true);
             }}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.confirmText, { color: opts.destructive ? "#fff" : theme.colors.buttonText }]}>
-              {opts.confirmLabel}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.cancelButton} onPress={() => settle(false)} activeOpacity={0.7}>
-            <Text style={styles.cancelText}>{opts.cancelLabel ?? "Cancel"}</Text>
-          </TouchableOpacity>
+          />
+          <Button
+            label={opts.cancelLabel ?? "Cancel"}
+            variant="text"
+            tone="secondary"
+            fullWidth
+            onPress={() => settle(false)}
+            style={styles.cancel}
+          />
         </View>
       ) : (
         <View />
@@ -119,34 +124,16 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     body: {
       paddingHorizontal: theme.spacing.xl,
-      paddingBottom: theme.spacing.sm,
+      paddingBottom: theme.spacing.xs,
     },
     message: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
+      ...theme.typography.body,
+      fontSize: theme.fontSize.callout,
       color: theme.colors.textSecondary,
-      lineHeight: 20,
-      marginBottom: theme.spacing.lg,
+      marginBottom: theme.spacing.xl,
     },
-    confirmButton: {
-      height: 50,
-      borderRadius: theme.radii.button,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    confirmText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-    },
-    cancelButton: {
-      alignItems: "center",
-      paddingVertical: theme.spacing.md,
+    cancel: {
       marginTop: theme.spacing.xs,
-    },
-    cancelText: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.textSecondary,
     },
   });
 }
