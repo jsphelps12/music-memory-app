@@ -1,13 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePostHog } from "posthog-react-native";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ActivityIndicator,
-  StyleSheet,
-} from "react-native";
+import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { AppImage } from "@/components/AppImage";
+import { Button } from "@/components/Button";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -189,20 +184,12 @@ export function SongPickerSection({ song, onChange, photos = [], suggestNowPlayi
 
   return (
     <View>
-      {isPlayingNow ? (
-        <View style={styles.eyebrowRow}>
-          <View style={styles.liveDot} />
-          <Text style={styles.eyebrow}>Playing now</Text>
-        </View>
-      ) : null}
-
       {song ? (
-        <TouchableOpacity
-          style={[styles.songRow, isPlayingNow && styles.songRowBelowEyebrow]}
-          activeOpacity={0.7}
+        <Pressable
+          style={({ pressed }) => [styles.songRow, pressed && styles.pressed]}
           onPress={goToSongSearch}
           accessibilityRole="button"
-          accessibilityLabel={`${song.title} by ${song.artistName}. Change song`}
+          accessibilityLabel={`${song.title} by ${song.artistName}${isPlayingNow ? ", playing now" : ""}. Change song`}
         >
           {song.artworkUrl ? (
             <AppImage source={{ uri: song.artworkUrl }} style={styles.artwork} />
@@ -212,12 +199,19 @@ export function SongPickerSection({ song, onChange, photos = [], suggestNowPlayi
           <View style={styles.songInfo}>
             <Text style={styles.songTitle} numberOfLines={2}>{song.title}</Text>
             {subtitle ? <Text style={styles.songArtist} numberOfLines={1}>{subtitle}</Text> : null}
+            {/* A quiet meta line, not an eyebrow: the dot is the view's one
+                terracotta signal. */}
+            {isPlayingNow ? (
+              <View style={styles.playingRow}>
+                <View style={styles.liveDot} />
+                <Text style={styles.playingText}>Playing now</Text>
+              </View>
+            ) : null}
           </View>
-        </TouchableOpacity>
+        </Pressable>
       ) : (
-        <TouchableOpacity
-          style={styles.songRow}
-          activeOpacity={0.7}
+        <Pressable
+          style={({ pressed }) => [styles.songRow, pressed && styles.pressed]}
           onPress={goToSongSearch}
           accessibilityRole="button"
           accessibilityLabel="Choose a song"
@@ -227,34 +221,31 @@ export function SongPickerSection({ song, onChange, photos = [], suggestNowPlayi
           </View>
           <View style={styles.songInfo}>
             <Text style={styles.songTitle}>Choose a song</Text>
-            <Text style={styles.songArtist}>Search, or identify what's playing nearby</Text>
+            <Text style={styles.songArtist}>Search, or identify what&apos;s playing nearby</Text>
           </View>
-        </TouchableOpacity>
+        </Pressable>
       )}
 
       <View style={styles.actions}>
-        <TouchableOpacity
+        <Button
           testID={song ? "create-change-song" : "create-select-song"}
-          style={styles.pill}
-          activeOpacity={0.7}
+          label={song ? "Different song" : "Search"}
+          icon="search"
+          variant="secondary"
+          size="pill"
           onPress={goToSongSearch}
-        >
-          <Ionicons name="search" size={15} color={theme.colors.text} />
-          <Text style={styles.pillText}>{song ? "Different song" : "Search"}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.pill}
-          activeOpacity={0.7}
+        />
+        <Button
+          label={isShazaming ? "Listening… tap to stop" : "Identify"}
+          icon={isShazaming ? undefined : "pulse"}
+          variant="secondary"
+          size="pill"
           onPress={handleIdentify}
           accessibilityLabel={isShazaming ? "Listening. Tap to stop" : "Identify the song playing nearby"}
-        >
-          {isShazaming ? (
-            <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-          ) : (
-            <Ionicons name="pulse" size={15} color={theme.colors.text} />
-          )}
-          <Text style={styles.pillText}>{isShazaming ? "Listening… tap to stop" : "Identify"}</Text>
-        </TouchableOpacity>
+          trailing={
+            isShazaming ? <ActivityIndicator size="small" color={theme.colors.textSecondary} /> : undefined
+          }
+        />
       </View>
 
       {shazamError ? <Text style={styles.shazamError}>{shazamError}</Text> : null}
@@ -264,36 +255,16 @@ export function SongPickerSection({ song, onChange, photos = [], suggestNowPlayi
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    eyebrowRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-    },
-    liveDot: {
-      width: 7,
-      height: 7,
-      borderRadius: 4,
-      backgroundColor: theme.colors.accent,
-    },
-    eyebrow: {
-      fontSize: theme.fontSize.xs,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.textSecondary,
-      textTransform: "uppercase",
-      letterSpacing: 1,
-    },
     songRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 14,
+      gap: theme.spacing.md,
     },
-    songRowBelowEyebrow: {
-      marginTop: theme.spacing.md,
-    },
+    pressed: { opacity: 0.7 },
     artwork: {
       width: 72,
       height: 72,
-      borderRadius: 10,
+      borderRadius: theme.radii.sm,
     },
     emptyArtwork: {
       backgroundColor: theme.colors.chipBg,
@@ -304,16 +275,30 @@ function createStyles(theme: Theme) {
       flex: 1,
     },
     songTitle: {
-      fontSize: 24,
-      lineHeight: 28,
-      fontFamily: theme.fonts.display,
+      ...theme.typography.title,
       color: theme.colors.text,
     },
     songArtist: {
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
-      marginTop: 3,
+      marginTop: 2,
+    },
+    playingRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginTop: theme.spacing.xs,
+    },
+    liveDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: theme.colors.accent,
+    },
+    playingText: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
     },
     actions: {
       flexDirection: "row",
@@ -321,25 +306,11 @@ function createStyles(theme: Theme) {
       gap: theme.spacing.sm,
       marginTop: theme.spacing.md,
     },
-    pill: {
-      height: 36,
-      paddingHorizontal: 14,
-      borderRadius: theme.radii.full,
-      backgroundColor: theme.colors.chipBg,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 7,
-    },
-    pillText: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.text,
-    },
     shazamError: {
-      marginTop: theme.spacing.sm,
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
       color: theme.colors.destructive,
+      marginTop: theme.spacing.sm,
     },
   });
 }

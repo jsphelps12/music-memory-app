@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TextInput, StyleSheet } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { AppImage } from "@/components/AppImage";
+import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { consumeWritingSession, WritingSession } from "@/lib/writingSession";
@@ -56,15 +57,7 @@ export default function WriteScreen() {
               : "Writing"}
           </Text>
         </View>
-        <TouchableOpacity
-          testID="write-done"
-          style={styles.doneButton}
-          onPress={handleDone}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-        >
-          <Text style={styles.doneText}>Done</Text>
-        </TouchableOpacity>
+        <Button testID="write-done" label="Done" size="pill" onPress={handleDone} style={styles.doneButton} />
       </View>
 
       <TextInput
@@ -117,27 +110,17 @@ function createStyles(theme: Theme) {
     songArt: {
       width: 28,
       height: 28,
-      borderRadius: 5,
+      borderRadius: theme.radii.sm,
     },
     songText: {
-      flexShrink: 1,
+      ...theme.typography.callout,
       fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
+      flexShrink: 1,
       color: theme.colors.textSecondary,
     },
     doneButton: {
-      height: 36,
       minWidth: 72,
-      paddingHorizontal: 18,
-      borderRadius: theme.radii.full,
-      backgroundColor: theme.colors.buttonBg,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    doneText: {
-      fontSize: 15,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.buttonText,
+      alignSelf: "center",
     },
     // The page: a little bigger than capture's writing area, and it scrolls
     // itself, so pages of text stay comfortable.
@@ -146,9 +129,9 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.xl,
       paddingTop: theme.spacing.lg,
       paddingBottom: theme.spacing.lg,
-      fontSize: theme.fontSize.xl,
-      lineHeight: 34,
       fontFamily: theme.fonts.reading,
+      fontSize: theme.fontSize.xl,
+      lineHeight: theme.fontSize.xl * 1.5,
       color: theme.colors.text,
     },
     footer: {
@@ -158,8 +141,7 @@ function createStyles(theme: Theme) {
       borderTopColor: theme.colors.divider,
     },
     footerText: {
-      fontSize: theme.fontSize.xs,
-      fontFamily: theme.fonts.body,
+      ...theme.typography.meta,
       color: theme.colors.textSecondary,
     },
   });

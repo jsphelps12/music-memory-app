@@ -3,7 +3,6 @@ import { usePostHog } from "posthog-react-native";
 import {
   View,
   Text,
-  TextInput,
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
@@ -12,6 +11,8 @@ import {
 } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import { CloseButton } from "@/components/CloseButton";
+import { Button } from "@/components/Button";
+import { TextField } from "@/components/TextField";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -36,6 +37,8 @@ export default function SongSearchScreen() {
   // Full-screen presentation puts the header under the status bar; the inset
   // is device state, not theme, so it stays out of createStyles.
   const headerStyle = [styles.header, { paddingTop: insets.top + theme.spacing.sm }];
+  // Paper on the warm-ink preview badge, in either theme.
+  const overArtworkInk = theme.isDark ? theme.colors.text : theme.colors.background;
   const posthog = usePostHog();
   const { photos } = useLocalSearchParams<{ photos?: string }>();
   const { preferredProvider } = useAuth();
@@ -186,13 +189,12 @@ export default function SongSearchScreen() {
           <Text style={styles.emptySubtext}>
             Please enable Music access in Settings.
           </Text>
-          <TouchableOpacity
-            style={styles.settingsButton}
+          <Button
+            label="Open Settings"
             onPress={() => Linking.openSettings()}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.settingsButtonText}>Open Settings</Text>
-          </TouchableOpacity>
+            fullWidth={false}
+            style={styles.centeredButton}
+          />
         </View>
       </View>
     );
@@ -204,12 +206,12 @@ export default function SongSearchScreen() {
         <CloseButton onPress={() => router.back()} />
       </View>
 
-      <TextInput
+      <TextField
         testID="song-search-input"
-        style={styles.searchInput}
-        placeholder="Search for a song..."
-        placeholderTextColor={theme.colors.placeholder}
-        cursorColor={theme.colors.accent}
+        icon="search"
+        containerStyle={styles.searchField}
+        placeholder="Search for a song"
+        accessibilityLabel="Search for a song"
         // Uncontrolled on purpose: no `value` prop. Nothing ever sets this
         // text except typing, and a controlled input lets a stale value from a
         // busy JS thread (re-rendering results mid-word) overwrite keystrokes
@@ -228,18 +230,17 @@ export default function SongSearchScreen() {
 
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={theme.colors.text} />
+          <ActivityIndicator size="large" color={theme.colors.textSecondary} />
         </View>
       ) : error ? (
         <View style={styles.centered}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
+          <Button
+            label="Try again"
             onPress={() => setRetryKey((k) => k + 1)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.retryButtonText}>Try Again</Text>
-          </TouchableOpacity>
+            fullWidth={false}
+            style={styles.centeredButton}
+          />
         </View>
       ) : results.length === 0 && query.trim().length >= 2 ? (
         <View style={styles.centered}>
@@ -281,7 +282,7 @@ export default function SongSearchScreen() {
                 {previewUnavailable[item.id] ? null : (
                   <View style={styles.previewBadge}>
                     {previewLoadingId === item.id ? (
-                      <ActivityIndicator size={10} color="#fff" />
+                      <ActivityIndicator size={10} color={overArtworkInk} />
                     ) : (
                       <Ionicons
                         name={
@@ -292,7 +293,7 @@ export default function SongSearchScreen() {
                             : "play"
                         }
                         size={11}
-                        color="#fff"
+                        color={overArtworkInk}
                       />
                     )}
                   </View>
@@ -324,18 +325,11 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       justifyContent: "flex-end",
       paddingHorizontal: theme.spacing.lg,
-      paddingTop: theme.spacing.lg,
       paddingBottom: theme.spacing.sm,
     },
-    searchInput: {
+    searchField: {
       marginHorizontal: theme.spacing.lg,
       marginBottom: theme.spacing.md,
-      paddingHorizontal: theme.spacing.lg,
-      paddingVertical: theme.spacing.md,
-      borderRadius: theme.radii.md,
-      backgroundColor: theme.colors.backgroundTertiary,
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
     },
     centered: {
       flex: 1,
@@ -344,46 +338,28 @@ function createStyles(theme: Theme) {
       padding: theme.spacing.xl,
     },
     emptyText: {
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
       textAlign: "center",
     },
     errorText: {
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.destructive,
       textAlign: "center",
     },
-    retryButton: {
-      backgroundColor: theme.colors.buttonBg,
-      paddingVertical: theme.spacing.md,
-      paddingHorizontal: theme.spacing["2xl"],
-      borderRadius: theme.radii.md,
+    centeredButton: {
+      alignSelf: "center",
       marginTop: theme.spacing.lg,
-    },
-    retryButtonText: {
-      color: theme.colors.buttonText,
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-    },
-    settingsButton: {
-      backgroundColor: theme.colors.buttonBg,
-      paddingVertical: theme.spacing.md,
-      paddingHorizontal: theme.spacing["2xl"],
-      borderRadius: theme.radii.md,
-      marginTop: theme.spacing.lg,
-    },
-    settingsButtonText: {
-      color: theme.colors.buttonText,
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
     },
     emptySubtext: {
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
       color: theme.colors.textTertiary,
+      textAlign: "center",
       marginTop: theme.spacing.sm,
     },
     hintText: {
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.textTertiary,
     },
     row: {
@@ -395,8 +371,9 @@ function createStyles(theme: Theme) {
     artwork: {
       width: 48,
       height: 48,
-      borderRadius: 6,
+      borderRadius: theme.radii.sm,
     },
+    // Over artwork, so warm ink rather than a theme surface.
     previewBadge: {
       position: "absolute",
       bottom: 2,
@@ -404,7 +381,7 @@ function createStyles(theme: Theme) {
       width: 18,
       height: 18,
       borderRadius: 9,
-      backgroundColor: "rgba(0,0,0,0.6)",
+      backgroundColor: "rgba(35,34,43,0.6)",
       alignItems: "center",
       justifyContent: "center",
     },
@@ -413,11 +390,11 @@ function createStyles(theme: Theme) {
       marginLeft: theme.spacing.md,
     },
     songTitle: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
+      ...theme.typography.bodyStrong,
       color: theme.colors.text,
     },
     songArtist: {
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
       marginTop: 2,

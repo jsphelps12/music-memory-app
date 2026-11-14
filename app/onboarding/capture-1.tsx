@@ -5,18 +5,18 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   StyleSheet,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { SongPickerSection } from "@/components/SongPickerSection";
+import { Button } from "@/components/Button";
+import { IconButton } from "@/components/IconButton";
+import { SectionLabel } from "@/components/SectionLabel";
 import { saveMoment } from "@/lib/saveMoment";
 import { friendlyError } from "@/lib/errors";
 import { markTimelineStale } from "@/lib/timelineRefresh";
@@ -30,7 +30,6 @@ export default function OnboardingCapture1Screen() {
 
   const [song, setSong] = useState<Song | null>(null);
   const [reflection, setReflection] = useState("");
-  const [focusedField, setFocusedField] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -75,9 +74,12 @@ export default function OnboardingCapture1Screen() {
         <View style={[styles.progressBarFill, { width: "66%" }]} />
       </View>
 
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()} hitSlop={12} activeOpacity={0.7}>
-        <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-      </TouchableOpacity>
+      <IconButton
+        name="chevron-back"
+        onPress={() => router.back()}
+        accessibilityLabel="Back"
+        style={styles.backButton}
+      />
 
       <ScrollView
         style={styles.scrollView}
@@ -86,45 +88,46 @@ export default function OnboardingCapture1Screen() {
       >
         <Text style={styles.title}>What song is in your head right now?</Text>
         <Text style={styles.subtitle}>
-          A song from this week, or one you just heard. Doesn't have to be meaningful yet.
+          A song from this week, or one you just heard. Doesn&apos;t have to be meaningful yet.
         </Text>
 
         <SongPickerSection song={song} onChange={setSong} />
 
-        <Text style={styles.sectionLabel}>Reflection</Text>
+        <SectionLabel style={styles.sectionLabel}>Reflection</SectionLabel>
+        {/* The writer, not a form field: what a person writes is set in the
+            reading face with no chrome, ruled off by a hairline. */}
         <TextInput
-          style={[styles.reflectionInput, focusedField && { borderColor: theme.colors.accent }]}
+          style={styles.reflectionInput}
           placeholder="What does this song remind you of? (optional)"
           placeholderTextColor={theme.colors.placeholder}
           cursorColor={theme.colors.accent}
+          selectionColor={theme.colors.accent}
+          accessibilityLabel="Reflection"
           multiline
+          scrollEnabled={false}
           textAlignVertical="top"
           autoCapitalize="sentences"
           autoCorrect
           value={reflection}
           onChangeText={setReflection}
-          onFocus={() => setFocusedField(true)}
-          onBlur={() => setFocusedField(false)}
         />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <TouchableOpacity
-          style={[styles.saveButton, { opacity: !song || loading ? 0.5 : 1 }]}
+        <Button
+          label="Save moment"
           onPress={handleSave}
-          disabled={!song || loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color={theme.colors.buttonText} />
-          ) : (
-            <Text style={styles.saveButtonText}>Save moment →</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.skipLink} onPress={handleSkip} activeOpacity={0.7}>
-          <Text style={styles.skipText}>Skip for now</Text>
-        </TouchableOpacity>
+          disabled={!song}
+          loading={loading}
+          style={styles.saveButton}
+        />
+        <Button
+          label="Skip for now"
+          variant="text"
+          tone="secondary"
+          onPress={handleSkip}
+          style={styles.skipButton}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -145,10 +148,11 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.accent,
       borderRadius: 2,
     },
+    // The chevron's glyph sits at the gutter, not its 44pt box.
     backButton: {
       position: "absolute",
-      top: 56,
-      left: theme.spacing.xl,
+      top: 46,
+      left: theme.spacing.sm,
       zIndex: 10,
     },
     scrollView: {
@@ -160,62 +164,43 @@ function createStyles(theme: Theme) {
       paddingBottom: 48,
     },
     title: {
-      fontSize: theme.fontSize["2xl"],
       fontFamily: theme.fonts.display,
+      fontSize: theme.fontSize["2xl"],
+      lineHeight: theme.fontSize["2xl"] * 1.2,
       color: theme.colors.text,
       marginBottom: theme.spacing.sm,
     },
     subtitle: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.textSecondary,
+      ...theme.typography.body,
       lineHeight: 24,
+      color: theme.colors.textSecondary,
       marginBottom: theme.spacing["2xl"],
     },
     sectionLabel: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-      color: theme.colors.text,
       marginTop: theme.spacing["2xl"],
-      marginBottom: theme.spacing.sm,
+      marginBottom: theme.spacing.xs,
     },
     reflectionInput: {
-      height: 120,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.md,
-      paddingHorizontal: theme.spacing.lg,
-      paddingTop: theme.spacing.md,
+      ...theme.typography.reading,
+      minHeight: 120,
+      padding: 0,
       paddingBottom: theme.spacing.md,
-      fontSize: theme.fontSize.base,
       color: theme.colors.text,
-      backgroundColor: theme.colors.backgroundInput,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
     },
     error: {
-      color: theme.colors.destructive,
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
+      color: theme.colors.destructive,
       marginTop: theme.spacing.lg,
     },
     saveButton: {
-      height: 52,
-      backgroundColor: theme.colors.buttonBg,
-      borderRadius: theme.radii.button,
-      alignItems: "center",
-      justifyContent: "center",
       marginTop: theme.spacing["2xl"],
     },
-    saveButtonText: {
-      color: theme.colors.buttonText,
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
-    },
-    skipLink: {
-      alignItems: "center",
-      paddingVertical: 12,
-      marginTop: 8,
-    },
-    skipText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
+    skipButton: {
+      alignSelf: "center",
+      marginTop: theme.spacing.sm,
     },
   });
 }
