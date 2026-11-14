@@ -38,6 +38,7 @@ Copy `.env.example` to `.env` and fill in:
 ## Key Conventions
 
 - **Every surface is either a screen or a quick pick** — screens get a full-screen route (card push or `fullScreenModal`); quick picks get a compact bottom sheet sized to content. Never use `presentation: "modal"`/pageSheet-style cards that cover most of the parent screen (owner rule; all former offenders were converted in Wave 2, 2026-07)
+- **One design system**: build UI from the shared `components/Button`, `Chip`, `TextField`, `ScreenHeader`, `SectionLabel`, `BottomSheet`/`confirmSheet()`, `IconButton`, and `theme.typography` roles (DESIGN.md, Components). Never hand-roll a button, chip, field, header or sheet; never fill with terracotta (it's a signal, not a button color)
 - Path aliases use `@/` (mapped to project root in tsconfig)
 - DB rows are snake_case; map to camelCase `Moment` type in fetch logic (see timeline or moment detail for pattern)
 - Auth gate in root layout redirects unauthenticated users to `(auth)/sign-in`

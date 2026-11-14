@@ -75,16 +75,43 @@ the review waves (#58–#64) merged, so the store's 1.3.0 doesn't have them.
 Beta build 36 does. 1.3.1 is that beta, as a store build. No app code
 changed since build 36.
 - [x] Version bump to 1.3.1 (release PR).
-- [ ] Beta builds from the release commit (`preview`, `preview-simulator`);
+- [x] Beta builds from the release commit (`preview`, `preview-simulator`);
   the bump moves the preview fingerprint.
-- [ ] Production build, submitted to App Store Connect.
-- [ ] **Josh:** TestFlight pass, then the 1.3.1 version in App Store Connect
-  (attach the build, What's New), submit for review, release.
+- [x] Production build (build 10), submitted to App Store Connect.
+- [x] New 6.9" store screenshots of the new look (2026-11-14). Taken from a
+  demo account on prod (`demo@soundtracks.test`, notifications off), since
+  staging is paused. The widget frame is unchanged. App Store Connect now
+  requires the medium iPhone size (1206 × 2622, "6.3-inch"); 6.9" is
+  optional. Both sets are in `docs/app-store/screenshots/`. The new Header
+  and Search Results creative assets (Oct 2026) are optional; none yet.
+- [ ] **Josh:** TestFlight pass (done), then the 1.3.1 version in App Store
+  Connect (attach build 10, What's New, upload the new screenshots and delete
+  any smaller-iPhone sets), submit for review, release.
 - [ ] After it's live: raise the min-build gate, which unblocks DB-2 (RLS
   hardening step 2).
 - [x] E2E green on `main` so the promote path works for JS fixes (PR #33:
   search-input race fix, Maestro driver-death retry, seed no longer signs out
   testers).
+
+### Design sweep (2026-11): one system, everywhere
+Josh found screens still on the old look (the Mood and people sheets, Friends,
+Edit Profile, Help, Rediscover search's orange Cancel). An inventory found
+~60 hand-rolled buttons, 22 chip styles, 14 text-field styles, 9 sans titles
+and 26 uppercase labels. Plan: shared primitives first, then every screen on
+them, OTA-only (no native changes).
+- [x] Wave 1: tokens (`typography` roles, `scrim`, paper button text) and the
+  shared `Button`, `Chip`, `TextField`, `ScreenHeader`, `SectionLabel`; the
+  sheet rebuilt (warm scrim that fades, serif title, Done, clipped content);
+  ConfirmSheet on `Button`.
+- [ ] Wave 2: every screen and sheet on the primitives (no terracotta fills
+  or back links, no system-font fields, no uppercase labels, hairline color
+  unified). Includes Friends, Edit Profile, Help (graphite icons, rows, the
+  real capture list), Rediscover search, New Album (compact, no autofocus),
+  Share and Album sheets back to sized-to-content, one context menu.
+- [ ] Wave 3: drill-in routes push with swipe-back (artist, song, album,
+  friends, profile-edit, help); capture photo strip: tap to view, hold and
+  drag to reorder; Share feedback falls back to copy-the-address when Mail
+  can't open.
 
 ### Fixes (JS only, can ship OTA)
 - [x] **New users landed on an empty Journal after onboarding** (found

@@ -27,12 +27,35 @@ export const spacing = {
 
 export const fontSize = {
   xs: 12,
+  /** Meta and labels: dates, counts, section labels (DESIGN.md "Meta"/"Label"). */
+  meta: 13,
   sm: 14,
+  /** Compact buttons and secondary UI copy. */
+  callout: 15,
   base: 16,
+  /** Reading size for what a person wrote, in lists (Newsreader). */
+  reading: 17,
   lg: 18,
   xl: 22,
   "2xl": 28,
   "3xl": 32,
+  /** Screen titles and the hero song title (DESIGN.md "Headline"). */
+  headline: 34,
+} as const;
+
+/**
+ * The type roles from DESIGN.md, so a screen picks a role instead of
+ * re-deriving family + size + leading. Colors stay with the caller.
+ */
+export const typography = {
+  headline: { fontFamily: fonts.display, fontSize: 34, lineHeight: 40, letterSpacing: -0.3 },
+  title: { fontFamily: fonts.display, fontSize: 22, lineHeight: 27 },
+  reading: { fontFamily: fonts.reading, fontSize: 17, lineHeight: 25 },
+  body: { fontFamily: fonts.body, fontSize: 16, lineHeight: 22 },
+  bodyStrong: { fontFamily: fonts.bodySemibold, fontSize: 16, lineHeight: 21 },
+  callout: { fontFamily: fonts.bodyMedium, fontSize: 15, lineHeight: 20 },
+  label: { fontFamily: fonts.bodySemibold, fontSize: 13, lineHeight: 17, letterSpacing: 0.2 },
+  meta: { fontFamily: fonts.body, fontSize: 13, lineHeight: 17, fontVariant: ["tabular-nums"] as ["tabular-nums"] },
 } as const;
 
 export const fontWeight = {
@@ -50,8 +73,8 @@ export const radii = {
   full: 9999,
 } as const;
 
-// App icon gradient: warm orange (#E8825C) → muted slate-purple
-// Use with expo-linear-gradient for brand moments
+// Retired with the old app icon (2026-10). Only ArtworkPlaceholder still
+// reads it; don't add new uses (DESIGN.md: "The Artwork Is the Color").
 export const gradients = {
   brand: ["#E8825C", "#6B5F8C"] as const,
   brandDark: ["#E8825C", "#9888C8"] as const,
@@ -89,6 +112,8 @@ export interface ThemeColors {
   divider: string;
   /** Raised surfaces that float over content (mini player, sheets). */
   elevated: string;
+  /** The warm dim behind a bottom sheet or menu. Never pure black. */
+  scrim: string;
   placeholder: string;
   destructive: string;
   success: string;
@@ -127,23 +152,24 @@ const lightColors: ThemeColors = {
   accentSecondaryBg: "#F0EDF7",
   accentSecondaryText: "#4A3E6A",
   buttonBg: "#23222B",
-  buttonText: "#fff",
+  buttonText: "#FBF7F2",
   border: "#E0D8CF",
   divider: "#E9E2D9",
   elevated: "#FFFFFF",
+  scrim: "rgba(35,34,43,0.16)",
   placeholder: "#7A716A",
   destructive: "#d32f2f",
   success: "#2e7d32",
   chipBg: "#F0EAE3",
   chipText: "#3D3C48",
   chipSelectedBg: "#23222B",
-  chipSelectedText: "#fff",
+  chipSelectedText: "#FBF7F2",
   cardBg: "#F3EDE6",
   tabBar: "#FBF7F2",
   tabBarBorder: "#E9E2D9",
   tabBarActive: "#23222B",
   tabBarInactive: "#6E655E",
-  closeButtonBg: "rgba(44,44,58,0.06)",
+  closeButtonBg: "rgba(35,34,43,0.06)",
   skeletonBase: "#EAE3DB",
   skeletonHighlight: "#F5EFE9",
   artworkPlaceholder: "#E5DDD4",
@@ -168,11 +194,12 @@ const darkColors: ThemeColors = {
   border: "#362F2C",
   divider: "#2A2422",
   elevated: "#1C1716",
+  scrim: "rgba(14,11,10,0.55)",
   placeholder: "#857B75",
   destructive: "#ff453a",
   success: "#30d158",
   chipBg: "#2A2422",
-  chipText: "#e0e0e0",
+  chipText: "#E8E1DA",
   chipSelectedBg: "#F5EEE8",
   chipSelectedText: "#1A0F0A",
   cardBg: "#1E1A1A",
@@ -180,7 +207,7 @@ const darkColors: ThemeColors = {
   tabBarBorder: "#2A2422",
   tabBarActive: "#F5F0EB",
   tabBarInactive: "#A99E95",
-  closeButtonBg: "rgba(255,255,255,0.1)",
+  closeButtonBg: "rgba(245,240,235,0.1)",
   skeletonBase: "#2A2422",
   skeletonHighlight: "#38302E",
   artworkPlaceholder: "#2A2422",
@@ -195,6 +222,7 @@ export interface Theme {
   fontWeight: typeof fontWeight;
   radii: typeof radii;
   shadows: typeof shadows;
+  typography: typeof typography;
 }
 
 export function getTheme(colorScheme: "light" | "dark" | null | undefined): Theme {
@@ -208,5 +236,6 @@ export function getTheme(colorScheme: "light" | "dark" | null | undefined): Them
     fontWeight,
     radii,
     shadows,
+    typography,
   };
 }
