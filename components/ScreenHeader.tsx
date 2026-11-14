@@ -101,7 +101,6 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.xs,
-      marginRight: -8,
     },
     inlineRow: {
       flexDirection: "row",

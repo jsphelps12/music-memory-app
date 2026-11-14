@@ -476,6 +476,7 @@ export default function ProfileEditScreen() {
             variant="text"
             onPress={handleAvatarPress}
             disabled={uploadingAvatar}
+            style={styles.changePhoto}
           />
         </View>
 
@@ -777,6 +778,9 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.xl,
     },
     pressed: { opacity: 0.6 },
+    changePhoto: {
+      alignSelf: "center",
+    },
     avatarRow: {
       flexDirection: "row",
       alignItems: "center",

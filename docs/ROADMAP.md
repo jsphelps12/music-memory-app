@@ -103,15 +103,28 @@ them, OTA-only (no native changes).
   shared `Button`, `Chip`, `TextField`, `ScreenHeader`, `SectionLabel`; the
   sheet rebuilt (warm scrim that fades, serif title, Done, clipped content);
   ConfirmSheet on `Button`.
-- [ ] Wave 2: every screen and sheet on the primitives (no terracotta fills
-  or back links, no system-font fields, no uppercase labels, hairline color
-  unified). Includes Friends, Edit Profile, Help (graphite icons, rows, the
-  real capture list), Rediscover search, New Album (compact, no autofocus),
-  Share and Album sheets back to sized-to-content, one context menu.
-- [ ] Wave 3: drill-in routes push with swipe-back (artist, song, album,
-  friends, profile-edit, help); capture photo strip: tap to view, hold and
-  drag to reorder; Share feedback falls back to copy-the-address when Mail
-  can't open.
+- [x] Wave 2 (four parallel workstreams): every screen and sheet on the
+  primitives. No terracotta fills or back links, every Text has a DM Sans /
+  Newsreader / serif family, no uppercase labels, hairlines in `divider`.
+  Friends, Edit Profile (discard guard on back/swipe), Help (rewritten for
+  every real capture path), Settings, You, auth, onboarding, Rediscover
+  (ink Cancel, "Your artists" on empty search), New album (compact, no
+  autofocus), Share (one list, no 92% sheet), album settings, one context
+  menu (`MomentActionMenu`), moods as sentence-case words, calendar and map
+  off the retired accent, ShareCard on paper/ink.
+- [x] Wave 3: artist, song, album, friends and profile-edit push with the
+  edge swipe; the map allows the edge swipe; capture and edit-moment photo
+  strip: tap to view, hold and drag to reorder (`lib/reorder.ts`); Share
+  feedback falls back to a copy-the-address sheet when Mail can't open.
+- [x] Guardrail: `scripts/design-lint.mjs` in PR checks (uppercase labels,
+  pure colors, literal fonts, system font weights, terracotta fills, glyph
+  icons, page sheets, the retired accent); escape hatch needs a reason.
+- [ ] Follow-ups: the Share card preview becomes its own pushed screen; an
+  ordered photo list in `updateMoment` so new photos can sit before stored
+  ones in edit; a `ListRow` primitive (settings/You/sheets repeat it); a
+  switch color token; `Chip` onLongPress and image slot; Button hug
+  alignment in rows; add `mailto` to `LSApplicationQueriesSchemes` in the
+  next binary.
 
 ### Phase 1 — Feel
 *Cleaner, more intuitive, professional-grade; capture in two taps.*
