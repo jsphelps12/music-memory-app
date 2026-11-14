@@ -5,6 +5,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   Alert,
   ScrollView,
@@ -22,6 +23,8 @@ import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { AlbumMosaic } from "@/components/AlbumMosaic";
 import { CreateAlbumSheet } from "@/components/CreateAlbumSheet";
 import { IconButton } from "@/components/IconButton";
+import { Button } from "@/components/Button";
+import { BottomSheet } from "@/components/BottomSheet";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,7 +41,7 @@ import { friendlyError } from "@/lib/errors";
 import { pluralMoments } from "@/lib/utils";
 import { PROFILE_STATS_STALE, DEFAULT_SCREEN_STALE } from "@/lib/queryConfig";
 import { useTheme } from "@/hooks/useTheme";
-import { Theme } from "@/constants/theme";
+import { Theme, spacing } from "@/constants/theme";
 import { Album, Moment } from "@/types";
 
 // Phase 1 (2026-10): You is about your stuff, not a stats dashboard. A quiet
@@ -48,11 +51,20 @@ import { Album, Moment } from "@/types";
 const STALE_TIME = PROFILE_STATS_STALE;
 const SHARED_PREVIEW = 3;
 const ALBUM_PREVIEW = 4;
-const ALBUM_GAP = 14;
-// Two columns inside the 20pt gutters.
-const ALBUM_CELL = (Dimensions.get("window").width - 40 - ALBUM_GAP) / 2;
+// The album-art grid is deliberate: albums are shown as their covers, two
+// across inside the page gutters.
+const ALBUM_GAP = spacing.lg;
+const ALBUM_CELL = (Dimensions.get("window").width - spacing.xl * 2 - ALBUM_GAP) / 2;
 // A mosaic tile (or a single artwork filling the cell) at 3x, rounded up.
 const ALBUM_ARTWORK_PX = Math.ceil((ALBUM_CELL * 3) / 100) * 100;
+
+// BottomSheet's close animation is 220ms; wait a beat past it.
+const SHEET_CLOSE_MS = 280;
+
+const MUSIC_SERVICES = [
+  { type: "apple_music", label: "Apple Music" },
+  { type: "spotify", label: "Spotify" },
+] as const;
 
 async function fetchYouSummary(userId: string) {
   const [{ count: entryCount, error }, { count: friendCount }] = await Promise.all([
@@ -86,6 +98,7 @@ export default function YouScreen() {
   // Connecting to Spotify is a sign-in sheet plus an account check; show it's
   // working and ignore repeat taps until it settles.
   const [switchingProvider, setSwitchingProvider] = useState(false);
+  const [musicSheetVisible, setMusicSheetVisible] = useState(false);
 
   const summary = useQuery({
     queryKey: ["youSummary", user?.id],
@@ -201,25 +214,18 @@ export default function YouScreen() {
   const handleMusicService = () => {
     if (switchingProvider) return;
     Haptics.selectionAsync();
-    Alert.alert(
-      "Music Service",
-      `Currently using ${preferredProvider === "spotify" ? "Spotify" : "Apple Music"}.`,
-      [
-        {
-          text: "Apple Music",
-          onPress: () => {
-            if (preferredProvider !== "apple_music") void switchProvider("apple_music");
-          },
-        },
-        {
-          text: "Spotify",
-          onPress: () => {
-            if (preferredProvider !== "spotify") void switchProvider("spotify");
-          },
-        },
-        { text: "Cancel", style: "cancel" },
-      ]
-    );
+    setMusicSheetVisible(true);
+  };
+
+  // A quick pick: tapping a service applies it and closes the sheet. The
+  // Spotify sign-in (and any failure alert) follows once the sheet is away.
+  const chooseProvider = (type: "apple_music" | "spotify") => {
+    setMusicSheetVisible(false);
+    if (preferredProvider === type) return;
+    Haptics.selectionAsync();
+    // Let the sheet's Modal finish closing first: iOS won't present the
+    // Spotify sign-in or an alert over a Modal that's mid-dismiss.
+    setTimeout(() => void switchProvider(type), SHEET_CLOSE_MS);
   };
 
   const openSharedMoment = (moment: Moment) => {
@@ -307,10 +313,14 @@ export default function YouScreen() {
         {sharedItems.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Shared with you</Text>
-              <TouchableOpacity onPress={() => router.push("/shared")} hitSlop={10} accessibilityRole="button">
-                <Text style={styles.sectionAction}>See all</Text>
-              </TouchableOpacity>
+              <Text style={styles.sectionTitle} accessibilityRole="header">Shared with you</Text>
+              <Button
+                label="See all"
+                variant="text"
+                size="pill"
+                tone="secondary"
+                onPress={() => router.push("/shared")}
+              />
             </View>
             {sharedItems.slice(0, SHARED_PREVIEW).map((item, i, arr) => (
               <TouchableOpacity
@@ -341,10 +351,14 @@ export default function YouScreen() {
         {/* Albums */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Albums</Text>
-            <TouchableOpacity onPress={() => setNewAlbumVisible(true)} hitSlop={10} accessibilityRole="button">
-              <Text style={styles.sectionAction}>New album</Text>
-            </TouchableOpacity>
+            <Text style={styles.sectionTitle} accessibilityRole="header">Albums</Text>
+            <Button
+              label="New album"
+              variant="text"
+              size="pill"
+              tone="secondary"
+              onPress={() => setNewAlbumVisible(true)}
+            />
           </View>
           {albumData && albumData.preview.length > 0 ? (
             <>
@@ -376,9 +390,13 @@ export default function YouScreen() {
                 })}
               </View>
               {albumData.total > ALBUM_PREVIEW && (
-                <TouchableOpacity style={styles.seeAllAlbums} onPress={() => router.push("/albums")} activeOpacity={0.7}>
-                  <Text style={styles.sectionAction}>See all {albumData.total} albums</Text>
-                </TouchableOpacity>
+                <Button
+                  label={`See all ${albumData.total} albums`}
+                  variant="text"
+                  tone="secondary"
+                  onPress={() => router.push("/albums")}
+                  style={styles.seeAllAlbums}
+                />
               )}
             </>
           ) : albumData ? (
@@ -397,20 +415,54 @@ export default function YouScreen() {
             <Text style={styles.rowLabel}>Friends</Text>
             <View style={styles.rowRight}>
               {summary.data ? <Text style={styles.rowDetail}>{summary.data.friendCount}</Text> : null}
-              <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+              <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
             </View>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.row} onPress={handleMusicService} activeOpacity={0.7} accessibilityRole="button">
+          <TouchableOpacity
+            style={[styles.row, styles.rowDivider]}
+            onPress={handleMusicService}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+          >
             <Text style={styles.rowLabel}>Music service</Text>
             <View style={styles.rowRight}>
               <Text style={styles.rowDetail}>
                 {switchingProvider ? "Connecting…" : preferredProvider === "spotify" ? "Spotify" : "Apple Music"}
               </Text>
-              <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+              <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
             </View>
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <BottomSheet
+        visible={musicSheetVisible}
+        onClose={() => setMusicSheetVisible(false)}
+        title="Music service"
+      >
+        <View style={styles.sheetBody}>
+          <Text style={styles.sheetNote}>
+            Where your songs open and play.
+          </Text>
+          <View style={styles.sheetList}>
+            {MUSIC_SERVICES.map(({ type, label }) => {
+              const selected = preferredProvider === type;
+              return (
+                <Pressable
+                  key={type}
+                  style={({ pressed }) => [styles.sheetRow, pressed && styles.pressed]}
+                  onPress={() => chooseProvider(type)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                >
+                  <Text style={styles.sheetRowLabel}>{label}</Text>
+                  {selected ? <Ionicons name="checkmark" size={20} color={theme.colors.text} /> : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </BottomSheet>
 
       {user ? (
         <CreateAlbumSheet
@@ -445,7 +497,7 @@ function createStyles(theme: Theme) {
     header: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 14,
+      gap: theme.spacing.md + 2,
       paddingTop: theme.spacing.lg,
       paddingLeft: theme.spacing.xl,
       paddingRight: theme.spacing.md,
@@ -461,23 +513,24 @@ function createStyles(theme: Theme) {
       justifyContent: "center",
     },
     avatarInitial: {
+      ...theme.typography.title,
       fontSize: 24,
-      fontFamily: theme.fonts.display,
+      lineHeight: 30,
       color: theme.colors.text,
     },
     headerText: {
       flex: 1,
     },
     name: {
+      ...theme.typography.headline,
       fontSize: theme.fontSize["2xl"],
       lineHeight: 32,
-      fontFamily: theme.fonts.display,
       color: theme.colors.text,
     },
     subtitle: {
-      marginTop: 2,
+      ...theme.typography.meta,
       fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
+      marginTop: 2,
       color: theme.colors.textSecondary,
     },
     banner: {
@@ -486,24 +539,17 @@ function createStyles(theme: Theme) {
     },
     section: {
       paddingHorizontal: theme.spacing.xl,
-      marginTop: 26,
+      marginTop: theme.spacing["2xl"],
     },
     sectionHeader: {
       flexDirection: "row",
-      alignItems: "baseline",
+      alignItems: "center",
       justifyContent: "space-between",
-      marginBottom: theme.spacing.sm,
+      marginBottom: theme.spacing.xs,
     },
     sectionTitle: {
-      fontSize: theme.fontSize.xl,
-      lineHeight: 26,
-      fontFamily: theme.fonts.display,
+      ...theme.typography.title,
       color: theme.colors.text,
-    },
-    sectionAction: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.textSecondary,
     },
     sharedRow: {
       flexDirection: "row",
@@ -518,20 +564,19 @@ function createStyles(theme: Theme) {
     sharedArtwork: {
       width: 44,
       height: 44,
-      borderRadius: 7,
+      borderRadius: theme.radii.sm,
     },
     sharedText: {
       flex: 1,
     },
     sharedTitle: {
-      fontSize: 15,
-      fontFamily: theme.fonts.bodySemibold,
+      ...theme.typography.bodyStrong,
+      fontSize: theme.fontSize.callout,
       color: theme.colors.text,
     },
     sharedSub: {
+      ...theme.typography.meta,
       marginTop: 1,
-      fontSize: 13,
-      fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
     },
     unreadDot: {
@@ -552,32 +597,33 @@ function createStyles(theme: Theme) {
     albumNameRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 6,
+      gap: theme.spacing.xs + 2,
       marginTop: theme.spacing.sm,
     },
     albumName: {
+      ...theme.typography.bodyStrong,
+      fontSize: theme.fontSize.callout,
       flexShrink: 1,
-      fontSize: 15,
-      fontFamily: theme.fonts.bodySemibold,
       color: theme.colors.text,
     },
     albumSub: {
-      fontSize: 13,
-      fontFamily: theme.fonts.body,
+      ...theme.typography.meta,
       color: theme.colors.textSecondary,
     },
     seeAllAlbums: {
-      marginTop: theme.spacing.md,
-      paddingVertical: theme.spacing.xs,
+      marginTop: theme.spacing.sm,
     },
     emptyNote: {
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
+      lineHeight: 20,
       color: theme.colors.textSecondary,
     },
     rows: {
-      paddingHorizontal: theme.spacing.xl,
-      marginTop: 18,
+      marginHorizontal: theme.spacing.xl,
+      marginTop: theme.spacing["2xl"],
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
     },
     row: {
       height: 50,
@@ -586,19 +632,45 @@ function createStyles(theme: Theme) {
       justifyContent: "space-between",
     },
     rowLabel: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.body,
+      ...theme.typography.body,
       color: theme.colors.text,
     },
     rowRight: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 6,
+      gap: theme.spacing.xs + 2,
     },
     rowDetail: {
+      ...theme.typography.meta,
       fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
       color: theme.colors.textSecondary,
+    },
+    pressed: { opacity: 0.6 },
+    sheetBody: {
+      paddingHorizontal: theme.spacing.xl,
+    },
+    sheetNote: {
+      ...theme.typography.body,
+      fontSize: theme.fontSize.callout,
+      lineHeight: 21,
+      color: theme.colors.textSecondary,
+      marginBottom: theme.spacing.md,
+    },
+    sheetList: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
+    },
+    sheetRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      minHeight: 52,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
+    },
+    sheetRowLabel: {
+      ...theme.typography.body,
+      color: theme.colors.text,
     },
   });
 }

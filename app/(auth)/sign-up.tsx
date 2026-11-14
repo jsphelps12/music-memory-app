@@ -1,14 +1,7 @@
 import { useMemo, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { usePostHog } from "posthog-react-native";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
@@ -17,6 +10,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
+import { TextField } from "@/components/TextField";
+import { Button } from "@/components/Button";
 
 export default function SignUpScreen() {
   const { signUp } = useAuth();
@@ -27,7 +22,6 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [focusedField, setFocusedField] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSignUp = async () => {
@@ -52,19 +46,14 @@ export default function SignUpScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior="padding"
-    >
+    <KeyboardAvoidingView style={styles.container} behavior="padding">
       <View style={styles.inner}>
-        <Text style={styles.title}>Sign Up</Text>
+        <Text style={styles.title} accessibilityRole="header">Sign up</Text>
         <Text style={styles.subtitle}>Create your Soundtracks account</Text>
 
-        <TextInput
-          style={[styles.input, focusedField === "email" && { borderColor: theme.colors.accent }]}
+        <TextField
+          containerStyle={styles.field}
           placeholder="Email"
-          placeholderTextColor={theme.colors.placeholder}
-          cursorColor={theme.colors.accent}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
@@ -73,52 +62,44 @@ export default function SignUpScreen() {
           returnKeyType="next"
           value={email}
           onChangeText={setEmail}
-          onFocus={() => setFocusedField("email")}
-          onBlur={() => setFocusedField("")}
         />
 
-        <View style={[styles.inputRow, focusedField === "password" && { borderColor: theme.colors.accent }]}>
-          <TextInput
-            style={styles.inputInner}
-            placeholder="Password"
-            placeholderTextColor={theme.colors.placeholder}
-            cursorColor={theme.colors.accent}
-            secureTextEntry={!showPassword}
-            autoCapitalize="none"
-            autoCorrect={false}
-            textContentType="newPassword"
-            autoComplete="new-password"
-            returnKeyType="go"
-            onSubmitEditing={handleSignUp}
-            value={password}
-            onChangeText={setPassword}
-            onFocus={() => setFocusedField("password")}
-            onBlur={() => setFocusedField("")}
-          />
-          <TouchableOpacity onPress={() => setShowPassword(v => !v)} hitSlop={8}>
-            <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={theme.colors.textTertiary} />
-          </TouchableOpacity>
-        </View>
+        <TextField
+          containerStyle={styles.field}
+          placeholder="Password"
+          secureTextEntry={!showPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="newPassword"
+          autoComplete="new-password"
+          returnKeyType="go"
+          onSubmitEditing={handleSignUp}
+          value={password}
+          onChangeText={setPassword}
+          trailing={
+            <TouchableOpacity
+              onPress={() => setShowPassword((v) => !v)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+            >
+              <Ionicons
+                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color={theme.colors.textSecondary}
+              />
+            </TouchableOpacity>
+          }
+        />
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleSignUp}
-          disabled={loading}
-          activeOpacity={0.7}
-        >
-          {loading ? (
-            <ActivityIndicator color={theme.colors.buttonText} />
-          ) : (
-            <Text style={styles.buttonText}>Create Account</Text>
-          )}
-        </TouchableOpacity>
+        <Button label="Create account" onPress={handleSignUp} loading={loading} style={styles.button} />
 
         <Link href="/(auth)/sign-in" replace asChild>
-          <TouchableOpacity style={styles.linkContainer}>
+          <TouchableOpacity style={styles.linkContainer} accessibilityRole="link">
             <Text style={styles.linkText}>
-              Already have an account? <Text style={styles.linkBold}>Sign In</Text>
+              Already have an account? <Text style={styles.linkBold}>Sign in</Text>
             </Text>
           </TouchableOpacity>
         </Link>
@@ -139,74 +120,36 @@ function createStyles(theme: Theme) {
       padding: theme.spacing["2xl"],
     },
     title: {
-      fontSize: theme.fontSize["3xl"],
-      fontFamily: theme.fonts.display,
+      ...theme.typography.headline,
       color: theme.colors.text,
       marginBottom: theme.spacing.xs,
     },
     subtitle: {
-      fontFamily: theme.fonts.body,
-      fontSize: theme.fontSize.base,
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
       marginBottom: theme.spacing["3xl"],
     },
-    input: {
-      height: 52,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.md,
-      paddingHorizontal: theme.spacing.lg,
-      fontFamily: theme.fonts.body,
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
-      marginBottom: 14,
-      backgroundColor: theme.colors.backgroundInput,
-    },
-    inputRow: {
-      height: 52,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.md,
-      paddingHorizontal: theme.spacing.lg,
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 14,
-      backgroundColor: theme.colors.backgroundInput,
-    },
-    inputInner: {
-      flex: 1,
-      fontFamily: theme.fonts.body,
-      fontSize: theme.fontSize.base,
-      color: theme.colors.text,
+    field: {
+      marginBottom: theme.spacing.md,
     },
     error: {
-      color: theme.colors.destructive,
-      fontFamily: theme.fonts.body,
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
-      marginBottom: 14,
+      lineHeight: 20,
+      color: theme.colors.destructive,
+      marginBottom: theme.spacing.md,
     },
     button: {
-      height: 52,
-      backgroundColor: theme.colors.buttonBg,
-      borderRadius: theme.radii.button,
-      alignItems: "center",
-      justifyContent: "center",
       marginTop: theme.spacing.xs,
-    },
-    buttonDisabled: {
-      opacity: 0.6,
-    },
-    buttonText: {
-      color: theme.colors.buttonText,
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.bodySemibold,
     },
     linkContainer: {
       marginTop: theme.spacing["2xl"],
       alignItems: "center",
+      minHeight: 44,
+      justifyContent: "center",
     },
     linkText: {
-      fontFamily: theme.fonts.body,
+      ...theme.typography.body,
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
     },

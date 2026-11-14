@@ -1,21 +1,27 @@
 import { useMemo } from "react";
-import { Link, Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import { Button } from "@/components/Button";
 
 export default function NotFoundScreen() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const router = useRouter();
 
   return (
     <>
-      <Stack.Screen options={{ title: "Oops!" }} />
+      <Stack.Screen options={{ title: "Not found" }} />
       <View style={styles.container}>
-        <Text style={styles.title}>This screen doesn't exist.</Text>
-        <Link href="/" style={styles.link}>
-          <Text style={styles.linkText}>Go to home screen</Text>
-        </Link>
+        <Text style={styles.title}>This page doesn&apos;t exist</Text>
+        <Text style={styles.body}>The link may be old, or the page has moved.</Text>
+        <Button
+          label="Go to your journal"
+          onPress={() => router.replace("/")}
+          fullWidth={false}
+          style={styles.button}
+        />
       </View>
     </>
   );
@@ -27,21 +33,23 @@ function createStyles(theme: Theme) {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      padding: 20,
+      padding: theme.spacing.xl,
       backgroundColor: theme.colors.background,
     },
     title: {
-      fontSize: theme.fontSize.xl,
-      fontWeight: theme.fontWeight.bold,
+      ...theme.typography.title,
       color: theme.colors.text,
+      textAlign: "center",
     },
-    link: {
-      marginTop: 15,
-      paddingVertical: 15,
+    body: {
+      ...theme.typography.body,
+      color: theme.colors.textSecondary,
+      textAlign: "center",
+      marginTop: theme.spacing.sm,
     },
-    linkText: {
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.accent,
+    button: {
+      alignSelf: "center",
+      marginTop: theme.spacing.xl,
     },
   });
 }
