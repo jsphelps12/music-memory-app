@@ -1,5 +1,5 @@
-// Snapshot-friendly share card — rendered inside a ViewShot ref in
-// ShareMomentSheet's card view; keep this pure RN with no animations.
+// Snapshot-friendly share card — rendered inside a ViewShot ref on the
+// share-card screen (app/share-card.tsx); keep this pure RN with no animations.
 //
 // Design (Sharing v2 Phase D, owner-decided): the card is a kept artifact —
 // the photo prints clean and edge-to-edge with NO overlay or gradient, and

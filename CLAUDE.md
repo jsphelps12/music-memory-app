@@ -84,6 +84,7 @@ Several libs use a module-level variable with a setter and a `consume*()` that r
 
 - `lib/momentCache.ts` — `setCachedMoment` / `consumeCachedMoment`: pass full Moment data from card tap into detail screen to avoid re-fetch on entry
 - `lib/cardTransition.ts` — `setCardOrigin` / `consumeCardOrigin`: measured card position for entry animation in detail screen
+- `lib/shareCardStore.ts` — `setShareCardData` / `consumeShareCardData`: hand the moment and its resolved photo URLs from ShareMomentSheet to the `/share-card` screen
 - `lib/timelineRefresh.ts` — `markTimelineStale` / `markTimelineDeleted` / `consumeTimelineStale`: signal from create/edit/delete that timeline needs refresh on next focus; optionally carries a newly created Moment for instant prepend
 
 All follow the same shape: module-level `let x = null`, setter, and `consume()` that returns the value and resets it.

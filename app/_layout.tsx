@@ -426,6 +426,11 @@ function RootLayoutNav() {
             options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
+            name="share-card"
+            // fullScreenModal: it opens from the moment overlay (a transparentModal), where a card push renders as a page sheet.
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
+          />
+          <Stack.Screen
             name="help"
             options={{ headerShown: false }}
           />

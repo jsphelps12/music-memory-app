@@ -3,7 +3,6 @@ import {
   View,
   Text,
   Pressable,
-  FlatList,
   ActivityIndicator,
   Share,
   StyleSheet,
@@ -13,12 +12,11 @@ import {
   LayoutAnimation,
   UIManager,
 } from "react-native";
-import ViewShot from "react-native-view-shot";
-import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { usePostHog } from "posthog-react-native";
 import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import * as Clipboard from "expo-clipboard";
 import { AppImage } from "@/components/AppImage";
@@ -26,15 +24,7 @@ import { BottomSheet } from "@/components/BottomSheet";
 import { ConfirmSheetHost, confirmSheet } from "@/components/ConfirmSheet";
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
-import { IconButton } from "@/components/IconButton";
 import { SectionLabel } from "@/components/SectionLabel";
-import {
-  ShareCard,
-  ShareCardVariant,
-  CARD_WIDTH,
-  CARD_HEIGHT_POST,
-  CARD_HEIGHT_STORY,
-} from "@/components/ShareCard";
 import { fetchFriends } from "@/lib/friends";
 import {
   ensureShareToken,
@@ -49,6 +39,7 @@ import { fetchAlbumIdsContainingMoment } from "@/lib/albums";
 import { fetchAlbums, removeMomentFromAlbum } from "@/lib/albums";
 import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { getPublicPhotoUrl } from "@/lib/storage";
+import { setShareCardData } from "@/lib/shareCardStore";
 import { friendlyError } from "@/lib/errors";
 import { Friendship, PartialMoment } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -84,9 +75,13 @@ interface Props {
 // Design sweep (2026-11): one compact list instead of three stacked views.
 // The friend picker opens in place under "Send to a person", the link row
 // sends (or creates) the link directly with Copy beside it, and "Link is
-// live" is a removable chip like the other grants. Only the share card is a
-// second view, because it previews a full-size image.
-type SheetView = "options" | "card";
+// live" is a removable chip like the other grants. The share card previews a
+// full-size image, so it is its own screen (app/share-card.tsx), not a view
+// in here.
+
+// BottomSheet closes in 220ms and then unmounts its Modal; iOS won't present
+// a new screen over a Modal that is still closing, so the card waits this long.
+const SHEET_CLOSE_MS = 300;
 
 export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToAlbum }: Props) {
   const theme = useTheme();
@@ -94,21 +89,22 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   const { user, profile } = useAuth();
   const posthog = usePostHog();
   const queryClient = useQueryClient();
-  const viewShotRef = useRef<ViewShot>(null);
-  const [view, setView] = useState<SheetView>("options");
+  const router = useRouter();
   const [personOpen, setPersonOpen] = useState(false);
 
   const isOwner = !!user && moment.userId === user.id;
 
   const handleClose = useCallback(() => {
-    setView("options");
     setPersonOpen(false);
     onClose();
   }, [onClose]);
 
-  const goTo = (next: SheetView) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setView(next);
+  // The card is a full screen: hand the moment over, close the sheet, then
+  // navigate once its Modal is gone.
+  const handleOpenCard = () => {
+    setShareCardData({ moment, photoUrls });
+    handleClose();
+    setTimeout(() => router.push("/share-card"), SHEET_CLOSE_MS);
   };
 
   // ── Link state ────────────────────────────────────────────────────────
@@ -127,11 +123,6 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   const [friendsError, setFriendsError] = useState("");
   const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
   const friendsLoadedRef = useRef(false);
-
-  // ── Card export ───────────────────────────────────────────────────────
-  const [cardVariant, setCardVariant] = useState<ShareCardVariant>("post");
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [sharing, setSharing] = useState(false);
 
   // Per-moment state resets when the sheet is reused for another moment.
   useEffect(() => {
@@ -329,33 +320,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     }
   };
 
-  // ── Card export ───────────────────────────────────────────────────────
-  const handleShareCard = async () => {
-    if (sharing) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setSharing(true);
-    try {
-      const uri = await (viewShotRef.current as any).capture({
-        format: "png",
-        quality: 1.0,
-        result: "tmpfile",
-      });
-      await Sharing.shareAsync(uri, {
-        mimeType: "image/png",
-        dialogTitle: "Share Moment",
-        UTI: "public.png",
-      });
-    } catch {
-      // User cancelled or capture failed — silent
-    } finally {
-      setSharing(false);
-    }
-  };
-
   const songSubtitle = [moment.songTitle, moment.songArtist].filter(Boolean).join(" · ");
-  const cardHeight = cardVariant === "story" ? CARD_HEIGHT_STORY : CARD_HEIGHT_POST;
-
-  const sheetTitle = view === "options" ? "Share this moment" : "Share card";
 
   const hasChips = peopleGrants.length > 0 || albumGrants.length > 0 || !!shareToken;
 
@@ -483,201 +448,113 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     <BottomSheet
       visible={visible}
       onClose={handleClose}
-      title={sheetTitle}
-      // The card view previews a full-size image (up to 16:9), so it needs the
-      // height; the list is a compact quick pick under the default cap.
-      maxHeight={view === "card" ? "92%" : undefined}
+      title="Share this moment"
     >
-      {view === "options" ? (
-        <ScrollView
-          contentContainerStyle={styles.body}
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-        >
-          {!!songSubtitle && (
-            <Text style={styles.subtitle} numberOfLines={1}>
-              {songSubtitle}
-            </Text>
-          )}
+      <ScrollView
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        {!!songSubtitle && (
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {songSubtitle}
+          </Text>
+        )}
 
-          {/* The three verbs, as rows */}
-          <View style={styles.rows}>
-            {isOwner && (
-              <>
-                {optionRow({
-                  icon: "person-add-outline",
-                  title: "Send to a person",
-                  desc: "It lands in their Shared with me",
-                  onPress: togglePerson,
-                  expanded: personOpen,
-                })}
-                {personOpen ? <View style={styles.personList}>{personList}</View> : null}
-              </>
-            )}
-            {onAddToAlbum &&
-              optionRow({
-                icon: "albums-outline",
-                title: "Add to album",
-                desc: "Yours, or one you share",
-                onPress: () => {
-                  handleClose();
-                  onAddToAlbum();
-                },
+        {/* The three verbs, as rows */}
+        <View style={styles.rows}>
+          {isOwner && (
+            <>
+              {optionRow({
+                icon: "person-add-outline",
+                title: "Send to a person",
+                desc: "It lands in their Shared with me",
+                onPress: togglePerson,
+                expanded: personOpen,
               })}
-            {/* Only the owner can create a link, so a viewer of a moment with
-                no link doesn't get the row at all. */}
-            {canSendLink &&
-              optionRow({
-                icon: "link-outline",
-                title: shareToken ? "Send link" : "Create link",
-                desc: "Anyone with it can view this moment",
-                onPress: handleSendLink,
-                loading: sendingLink,
-                trailing:
-                  shareToken && isOwner ? (
-                    <Button
-                      variant="text"
-                      size="pill"
-                      label={linkCopied ? "Copied" : "Copy"}
-                      onPress={handleCopyLink}
-                      accessibilityLabel="Copy link"
-                    />
-                  ) : undefined,
-              })}
-            {optionRow({
-              icon: "image-outline",
-              title: "Share card",
-              desc: "A designed image for posts and Stories",
-              onPress: () => goTo("card"),
+              {personOpen ? <View style={styles.personList}>{personList}</View> : null}
+            </>
+          )}
+          {onAddToAlbum &&
+            optionRow({
+              icon: "albums-outline",
+              title: "Add to album",
+              desc: "Yours, or one you share",
+              onPress: () => {
+                handleClose();
+                onAddToAlbum();
+              },
             })}
-          </View>
+          {/* Only the owner can create a link, so a viewer of a moment with
+              no link doesn't get the row at all. */}
+          {canSendLink &&
+            optionRow({
+              icon: "link-outline",
+              title: shareToken ? "Send link" : "Create link",
+              desc: "Anyone with it can view this moment",
+              onPress: handleSendLink,
+              loading: sendingLink,
+              trailing:
+                shareToken && isOwner ? (
+                  <Button
+                    variant="text"
+                    size="pill"
+                    label={linkCopied ? "Copied" : "Copy"}
+                    onPress={handleCopyLink}
+                    accessibilityLabel="Copy link"
+                  />
+                ) : undefined,
+            })}
+          {optionRow({
+            icon: "image-outline",
+            title: "Share card",
+            desc: "A designed image for posts and Stories",
+            onPress: handleOpenCard,
+          })}
+        </View>
 
-          {/* Honest state: one chip per grant, each removable */}
-          {isOwner && hasChips && (
-            <View style={styles.sharedWith}>
-              <SectionLabel>Shared with</SectionLabel>
-              <View style={styles.chipsWrap}>
-                {peopleGrants.map((g) => (
-                  <Chip
-                    key={g.shareId}
-                    variant="filled"
-                    icon="person-outline"
-                    label={g.name ?? "Someone"}
-                    onPress={() => handleRemovePersonGrant(g)}
-                    onRemove={() => handleRemovePersonGrant(g)}
-                    removeLabel={`Unsend from ${g.name ?? "this person"}`}
-                  />
-                ))}
-                {albumGrants.map((g) => (
-                  <Chip
-                    key={g.id}
-                    variant="filled"
-                    icon="albums-outline"
-                    label={g.name}
-                    onPress={() => handleRemoveAlbumGrant(g)}
-                    onRemove={() => handleRemoveAlbumGrant(g)}
-                    removeLabel={`Remove from ${g.name}`}
-                  />
-                ))}
-                {!!shareToken && (
-                  <Chip
-                    variant="filled"
-                    icon="link-outline"
-                    label={revoking ? "Turning off…" : "Link is live"}
-                    onPress={handleRevokeLink}
-                    onRemove={handleRevokeLink}
-                    removeLabel="Turn off link"
-                  />
-                )}
-              </View>
-            </View>
-          )}
-        </ScrollView>
-      ) : (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-          contentContainerStyle={styles.cardScrollContent}
-        >
-          {/* Back + Post / Story format: same card, two prints */}
-          <View style={styles.variantRow}>
-            <IconButton
-              name="chevron-back"
-              onPress={() => goTo("options")}
-              accessibilityLabel="Back to share options"
-            />
-            <View style={styles.variantChips}>
-              {(["post", "story"] as const).map((v) => (
+        {/* Honest state: one chip per grant, each removable */}
+        {isOwner && hasChips && (
+          <View style={styles.sharedWith}>
+            <SectionLabel>Shared with</SectionLabel>
+            <View style={styles.chipsWrap}>
+              {peopleGrants.map((g) => (
                 <Chip
-                  key={v}
-                  label={v === "post" ? "Post" : "Story"}
-                  selected={cardVariant === v}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                    setCardVariant(v);
-                  }}
+                  key={g.shareId}
+                  variant="filled"
+                  icon="person-outline"
+                  label={g.name ?? "Someone"}
+                  onPress={() => handleRemovePersonGrant(g)}
+                  onRemove={() => handleRemovePersonGrant(g)}
+                  removeLabel={`Unsend from ${g.name ?? "this person"}`}
                 />
               ))}
+              {albumGrants.map((g) => (
+                <Chip
+                  key={g.id}
+                  variant="filled"
+                  icon="albums-outline"
+                  label={g.name}
+                  onPress={() => handleRemoveAlbumGrant(g)}
+                  onRemove={() => handleRemoveAlbumGrant(g)}
+                  removeLabel={`Remove from ${g.name}`}
+                />
+              ))}
+              {!!shareToken && (
+                <Chip
+                  variant="filled"
+                  icon="link-outline"
+                  label={revoking ? "Turning off…" : "Link is live"}
+                  onPress={handleRevokeLink}
+                  onRemove={handleRevokeLink}
+                  removeLabel="Turn off link"
+                />
+              )}
             </View>
-            {/* Balances the back button so the chips sit centred. */}
-            <View style={styles.variantSpacer} />
           </View>
+        )}
+      </ScrollView>
 
-          {/* Card preview */}
-          <View style={styles.cardWrapper}>
-            <ViewShot
-              ref={viewShotRef}
-              options={{ format: "png", quality: 1.0 }}
-              style={{ width: CARD_WIDTH, height: cardHeight }}
-            >
-              <ShareCard
-                moment={moment}
-                photoUrl={photoUrls.length > 0 ? photoUrls[selectedIndex] : null}
-                variant={cardVariant}
-              />
-            </ViewShot>
-          </View>
-
-          {/* Photo picker */}
-          {photoUrls.length > 1 && (
-            <View style={styles.pickerSection}>
-              <SectionLabel style={styles.pickerLabel}>Choose photo</SectionLabel>
-              <FlatList
-                data={photoUrls}
-                horizontal
-                keyExtractor={(_, i) => String(i)}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.pickerContent}
-                renderItem={({ item, index }) => {
-                  const selected = index === selectedIndex;
-                  return (
-                    <Pressable
-                      onPress={() => {
-                        Haptics.selectionAsync();
-                        setSelectedIndex(index);
-                      }}
-                      style={[styles.thumb, selected && styles.thumbSelected]}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Photo ${index + 1}`}
-                      accessibilityState={{ selected }}
-                    >
-                      <AppImage source={{ uri: item }} style={styles.thumbImage} contentFit="cover" />
-                    </Pressable>
-                  );
-                }}
-              />
-            </View>
-          )}
-
-          <Button
-            label="Share image"
-            onPress={handleShareCard}
-            loading={sharing}
-            style={styles.shareButton}
-          />
-        </ScrollView>
-      )}
       {/* Local confirm host: a root-level Modal can't present over this open
           sheet (iOS silently drops it), so confirms asked from in here need a
           host nested inside the sheet's own Modal hierarchy. */}
@@ -790,67 +667,6 @@ function createStyles(theme: Theme) {
       flexWrap: "wrap",
       gap: theme.spacing.sm,
       marginTop: theme.spacing.xs,
-    },
-    // Card view
-    cardScrollContent: {
-      paddingBottom: theme.spacing.sm,
-    },
-    variantRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: theme.spacing.sm,
-    },
-    variantChips: {
-      flexDirection: "row",
-      gap: theme.spacing.sm,
-    },
-    variantSpacer: {
-      width: 44,
-    },
-    // Lifted artwork (DESIGN.md "Artwork lift"): the card sits above the page.
-    cardWrapper: {
-      alignSelf: "center",
-      marginVertical: theme.spacing.md,
-      borderRadius: theme.radii.lg,
-      overflow: "hidden",
-      shadowColor: theme.shadows.card.shadowColor,
-      shadowOffset: { width: 0, height: 18 },
-      shadowOpacity: 0.25,
-      shadowRadius: 24,
-      elevation: 8,
-    },
-    pickerSection: {
-      marginBottom: theme.spacing.lg,
-    },
-    pickerLabel: {
-      paddingHorizontal: theme.spacing.xl,
-      marginBottom: theme.spacing.xs,
-    },
-    pickerContent: {
-      paddingHorizontal: theme.spacing.xl,
-      gap: theme.spacing.sm,
-    },
-    thumb: {
-      width: 56,
-      height: 56,
-      borderRadius: theme.radii.sm,
-      overflow: "hidden",
-      borderWidth: 2,
-      borderColor: "transparent",
-    },
-    thumbSelected: {
-      borderColor: theme.colors.text,
-    },
-    thumbImage: {
-      width: "100%",
-      height: "100%",
-    },
-    shareButton: {
-      marginHorizontal: theme.spacing.xl,
-      maxWidth: CARD_WIDTH,
-      alignSelf: "center",
-      width: CARD_WIDTH,
     },
   });
 }

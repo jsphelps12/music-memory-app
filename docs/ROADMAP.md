@@ -120,8 +120,11 @@ them, OTA-only (no native changes).
 - [x] Guardrail: `scripts/design-lint.mjs` in PR checks (uppercase labels,
   pure colors, literal fonts, system font weights, terracotta fills, glyph
   icons, page sheets, the retired accent); escape hatch needs a reason.
-- [ ] Follow-ups: the Share card preview becomes its own pushed screen; an
-  ordered photo list in `updateMoment` so new photos can sit before stored
+- [x] Share card is its own full screen (`app/share-card.tsx`, a
+  fullScreenModal over the moment overlay): Post/Story, photo picker and
+  "Share image" moved out of the sheet, which closes and then opens it; the
+  moment is handed over through `lib/shareCardStore.ts` (consume-once).
+- [ ] Follow-ups: an ordered photo list in `updateMoment` so new photos can sit before stored
   ones in edit; a `ListRow` primitive (settings/You/sheets repeat it); a
   switch color token; `Chip` onLongPress and image slot; Button hug
   alignment in rows; add `mailto` to `LSApplicationQueriesSchemes` in the
