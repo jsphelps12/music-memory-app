@@ -40,8 +40,6 @@ export function ScreenHeader({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const showBar = leading !== "none" || !!right;
-
   // Top-level (tab) screens: the title and its actions share one row, so
   // every tab's title lands at the same height whether or not it has actions.
   if (leading === "none") {
@@ -63,22 +61,16 @@ export function ScreenHeader({
   }
 
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top + (showBar ? 0 : theme.spacing.lg) }, style]}>
-      {showBar ? (
-        <View style={styles.bar}>
-          {leading === "none" ? (
-            <View />
-          ) : (
-            <IconButton
-              name={leading === "back" ? "chevron-back" : "close"}
-              onPress={onLeadingPress ?? (() => router.back())}
-              accessibilityLabel={leading === "back" ? "Back" : "Close"}
-              style={styles.leading}
-            />
-          )}
-          <View style={styles.right}>{right}</View>
-        </View>
-      ) : null}
+    <View style={[styles.wrap, { paddingTop: insets.top }, style]}>
+      <View style={styles.bar}>
+        <IconButton
+          name={leading === "back" ? "chevron-back" : "close"}
+          onPress={onLeadingPress ?? (() => router.back())}
+          accessibilityLabel={leading === "back" ? "Back" : "Close"}
+          style={styles.leading}
+        />
+        <View style={styles.right}>{right}</View>
+      </View>
       {title ? (
         <Text style={styles.title} accessibilityRole="header" numberOfLines={2}>
           {title}
