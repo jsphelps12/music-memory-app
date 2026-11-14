@@ -102,7 +102,7 @@ function createStyles(theme: Theme) {
     },
     progressBarFill: {
       height: 3,
-      backgroundColor: theme.colors.accent,
+      backgroundColor: theme.colors.accent, // design-lint-ignore: the onboarding progress indicator
       borderRadius: 2,
     },
     content: {
