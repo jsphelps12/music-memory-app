@@ -294,7 +294,7 @@ function createStyles(theme: Theme) {
       width: 6,
       height: 6,
       borderRadius: 3,
-      backgroundColor: theme.colors.accent,
+      backgroundColor: theme.colors.accent, // design-lint-ignore: the playing-now dot, this view's one signal
     },
     playingText: {
       ...theme.typography.meta,

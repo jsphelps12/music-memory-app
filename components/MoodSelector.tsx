@@ -14,7 +14,7 @@ import { TextField } from "@/components/TextField";
 // Moods are words (DESIGN.md), so a custom mood is only a label. The data
 // model still carries an emoji (only the share card shows it now); new custom
 // moods get the note the app already falls back to for an unknown mood.
-const CUSTOM_MOOD_EMOJI = "🎵";
+const CUSTOM_MOOD_EMOJI = "🎵"; // design-lint-ignore: stored data value for legacy emoji field, never rendered as an icon
 
 interface Props {
   // Selection order is meaningful: the first mood is written to the legacy

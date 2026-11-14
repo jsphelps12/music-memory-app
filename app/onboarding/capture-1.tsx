@@ -145,7 +145,7 @@ function createStyles(theme: Theme) {
     },
     progressBarFill: {
       height: 3,
-      backgroundColor: theme.colors.accent,
+      backgroundColor: theme.colors.accent, // design-lint-ignore: the onboarding progress indicator
       borderRadius: 2,
     },
     // The chevron's glyph sits at the gutter, not its 44pt box.
