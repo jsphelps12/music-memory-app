@@ -21,7 +21,7 @@ export function EmptyState({ icon, title, subtitle, action }: Props) {
       <Text style={styles.title}>{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       {action ? (
-        <Button label={action.label} onPress={action.onPress} fullWidth={false} style={styles.action} />
+        <Button label={action.label} onPress={action.onPress} fullWidth={false} align="center" style={styles.action} />
       ) : null}
     </View>
   );
@@ -51,7 +51,6 @@ function createStyles(theme: Theme) {
       maxWidth: 320,
     },
     action: {
-      alignSelf: "center",
       marginTop: theme.spacing.xl,
     },
   });

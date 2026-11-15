@@ -22,10 +22,10 @@ export function ErrorState({ message, onRetry, onBack }: ErrorStateProps) {
       <Ionicons name="cloud-offline-outline" size={32} color={theme.colors.textSecondary} />
       <Text style={styles.message}>{message}</Text>
       {onRetry ? (
-        <Button label="Try again" onPress={onRetry} fullWidth={false} style={styles.retry} />
+        <Button label="Try again" onPress={onRetry} fullWidth={false} align="center" />
       ) : null}
       {onBack ? (
-        <Button label="Go back" variant="text" tone="secondary" onPress={onBack} style={styles.back} />
+        <Button label="Go back" variant="text" tone="secondary" onPress={onBack} align="center" style={styles.back} />
       ) : null}
     </View>
   );
@@ -48,11 +48,7 @@ function createStyles(theme: Theme) {
       marginBottom: theme.spacing.xl,
       maxWidth: 320,
     },
-    retry: {
-      alignSelf: "center",
-    },
     back: {
-      alignSelf: "center",
       marginTop: theme.spacing.xs,
     },
   });

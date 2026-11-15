@@ -272,7 +272,7 @@ export function PhotoPickerSection({
                 .join(" ")}
             </Text>
           </View>
-          <Button label="Use" size="pill" variant="secondary" onPress={handleApplyMeta} style={styles.inRow} />
+          <Button label="Use" size="pill" variant="secondary" onPress={handleApplyMeta} align="center" />
           <IconButton
             name="close"
             size={18}
@@ -541,9 +541,6 @@ function createStyles(theme: Theme, horizontalPadding: number, compact: boolean)
       fontSize: theme.fontSize.sm,
       color: theme.colors.text,
       marginTop: 2,
-    },
-    inRow: {
-      alignSelf: "center",
     },
     metaDismiss: {
       marginLeft: -theme.spacing.sm,

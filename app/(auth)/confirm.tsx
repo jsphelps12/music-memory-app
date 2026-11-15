@@ -35,6 +35,7 @@ export default function ConfirmScreen() {
             label="Back to sign in"
             variant="text"
             onPress={() => router.replace("/(auth)/sign-in")}
+            align="center"
             style={styles.back}
           />
         </>
@@ -61,7 +62,6 @@ function createStyles(theme: Theme) {
       textAlign: "center",
     },
     back: {
-      alignSelf: "center",
       marginTop: theme.spacing.lg,
     },
   });

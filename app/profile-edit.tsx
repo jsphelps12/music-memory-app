@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePreventRemove } from "@react-navigation/native";
 import { AppImage } from "@/components/AppImage";
 import { BottomSheet } from "@/components/BottomSheet";
+import { ListRow } from "@/components/ListRow";
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
 import { TextField } from "@/components/TextField";
@@ -476,7 +477,7 @@ export default function ProfileEditScreen() {
             variant="text"
             onPress={handleAvatarPress}
             disabled={uploadingAvatar}
-            style={styles.changePhoto}
+            align="center"
           />
         </View>
 
@@ -534,33 +535,16 @@ export default function ProfileEditScreen() {
         </Text>
 
         <View style={styles.pickerList}>
-          <Pressable
-            style={({ pressed }) => [styles.pickerRow, pressed && styles.pressed]}
+          <ListRow
+            label="Birth year"
+            detail={birthYear ? String(birthYear) : "Select"}
             onPress={() => setYearPickerVisible(true)}
-            accessibilityRole="button"
-            accessibilityLabel={`Birth year, ${birthYear ?? "not set"}`}
-          >
-            <Text style={styles.pickerLabel}>Birth year</Text>
-            <Text style={[styles.pickerValue, !birthYear && styles.pickerPlaceholder]}>
-              {birthYear ? String(birthYear) : "Select"}
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.pickerRow, pressed && styles.pressed]}
+          />
+          <ListRow
+            label="Country you grew up in"
+            detail={country || "Select"}
             onPress={() => { setCountrySearch(""); setCountryPickerVisible(true); }}
-            accessibilityRole="button"
-            accessibilityLabel={`Country you grew up in, ${country || "not set"}`}
-          >
-            <Text style={styles.pickerLabel}>Country you grew up in</Text>
-            <Text
-              style={[styles.pickerValue, !country && styles.pickerPlaceholder]}
-              numberOfLines={1}
-            >
-              {country || "Select"}
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
-          </Pressable>
+          />
         </View>
 
         {/* ── Favorite artists ── */}
@@ -592,20 +576,14 @@ export default function ProfileEditScreen() {
             {artistResults.length > 0 && (
               <View style={styles.results}>
                 {artistResults.map((item) => {
-                  const selected = !!selectedArtists.find((a) => a.id === item.id);
                   return (
-                    <Pressable
+                    <ListRow
                       key={item.id}
-                      style={({ pressed }) => [styles.resultRow, pressed && styles.pressed]}
+                      label={item.name}
+                      accessory="check"
+                      selected={!!selectedArtists.find((a) => a.id === item.id)}
                       onPress={() => toggleArtist(item)}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                    >
-                      <Text style={[styles.resultTitle, styles.resultText]} numberOfLines={1}>
-                        {item.name}
-                      </Text>
-                      {selected && <Ionicons name="checkmark" size={18} color={theme.colors.text} />}
-                    </Pressable>
+                    />
                   );
                 })}
               </View>
@@ -698,17 +676,14 @@ export default function ProfileEditScreen() {
           initialScrollIndex={birthYear ? Math.max(0, BIRTH_YEARS.indexOf(birthYear)) : 0}
           getItemLayout={(_, index) => ({ length: PICKER_ROW_HEIGHT, offset: PICKER_ROW_HEIGHT * index, index })}
           renderItem={({ item }) => {
-            const selected = item === birthYear;
             return (
-              <Pressable
-                style={({ pressed }) => [styles.sheetRow, pressed && styles.pressed]}
+              <ListRow
+                label={String(item)}
+                accessory="check"
+                selected={item === birthYear}
                 onPress={() => { Haptics.selectionAsync(); setBirthYear(item); setYearPickerVisible(false); }}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-              >
-                <Text style={styles.sheetRowText}>{item}</Text>
-                {selected && <Ionicons name="checkmark" size={20} color={theme.colors.text} />}
-              </Pressable>
+                style={styles.sheetRow}
+              />
             );
           }}
         />
@@ -751,17 +726,14 @@ export default function ProfileEditScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
-            const selected = item === country;
             return (
-              <Pressable
-                style={({ pressed }) => [styles.sheetRow, pressed && styles.pressed]}
+              <ListRow
+                label={item}
+                accessory="check"
+                selected={item === country}
                 onPress={() => { Haptics.selectionAsync(); setCountry(item); setCountryPickerVisible(false); }}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-              >
-                <Text style={styles.sheetRowText}>{item}</Text>
-                {selected && <Ionicons name="checkmark" size={20} color={theme.colors.text} />}
-              </Pressable>
+                style={styles.sheetRow}
+              />
             );
           }}
         />
@@ -778,9 +750,6 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.xl,
     },
     pressed: { opacity: 0.6 },
-    changePhoto: {
-      alignSelf: "center",
-    },
     avatarRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -833,27 +802,6 @@ function createStyles(theme: Theme) {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: theme.colors.divider,
     },
-    pickerRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      minHeight: PICKER_ROW_HEIGHT,
-      gap: theme.spacing.sm,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.divider,
-    },
-    pickerLabel: {
-      ...theme.typography.body,
-      color: theme.colors.text,
-      flex: 1,
-    },
-    pickerValue: {
-      ...theme.typography.body,
-      color: theme.colors.textSecondary,
-      maxWidth: "50%",
-    },
-    pickerPlaceholder: {
-      color: theme.colors.placeholder,
-    },
     chips: {
       flexDirection: "row",
       flexWrap: "wrap",
@@ -889,18 +837,10 @@ function createStyles(theme: Theme) {
       marginTop: 1,
     },
     // Picker sheets
+    // Fixed height so the year list's getItemLayout stays exact.
     sheetRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
       height: PICKER_ROW_HEIGHT,
       marginHorizontal: theme.spacing.xl,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.divider,
-    },
-    sheetRowText: {
-      ...theme.typography.body,
-      color: theme.colors.text,
     },
     countrySearch: {
       marginHorizontal: theme.spacing.xl,

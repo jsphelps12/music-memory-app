@@ -20,6 +20,7 @@ export default function NotFoundScreen() {
           label="Go to your journal"
           onPress={() => router.replace("/")}
           fullWidth={false}
+          align="center"
           style={styles.button}
         />
       </View>
@@ -48,7 +49,6 @@ function createStyles(theme: Theme) {
       marginTop: theme.spacing.sm,
     },
     button: {
-      alignSelf: "center",
       marginTop: theme.spacing.xl,
     },
   });

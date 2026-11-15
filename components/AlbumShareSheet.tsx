@@ -19,6 +19,7 @@ import { ConfirmSheetHost, confirmSheet } from "@/components/ConfirmSheet";
 import { Button } from "@/components/Button";
 import { IconButton } from "@/components/IconButton";
 import { SectionLabel } from "@/components/SectionLabel";
+import { ListRow } from "@/components/ListRow";
 import { TextField } from "@/components/TextField";
 import * as Haptics from "expo-haptics";
 import { Album } from "@/types";
@@ -390,42 +391,43 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
               )}
 
               {/* Cover photo: tap to change; Remove (or long-press the thumb) clears it */}
-              <Pressable
-                style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+              <ListRow
+                label="Cover photo"
                 onPress={handlePickCover}
                 disabled={uploadingCover}
-                accessibilityRole="button"
-                accessibilityLabel={collection.coverPhotoUrl ? "Change cover photo" : "Add a cover photo"}
-              >
-                <Text style={styles.rowLabel}>Cover photo</Text>
-                <View style={styles.rowTrailing}>
-                  {uploadingCover ? (
-                    <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                  ) : collection.coverPhotoUrl ? (
-                    <>
-                      <Button
-                        variant="text"
-                        size="pill"
-                        tone="secondary"
-                        label="Remove"
-                        onPress={handleRemoveCover}
-                        accessibilityLabel="Remove cover photo"
-                      />
-                      <Pressable onPress={handlePickCover} onLongPress={handleRemoveCover}>
-                        <AppImage
-                          source={{ uri: getPublicPhotoUrl(collection.coverPhotoUrl) }}
-                          style={styles.coverThumb}
-                          contentFit="cover"
+                accessibilityHint={collection.coverPhotoUrl ? "Change cover photo" : "Add a cover photo"}
+                style={styles.rowTight}
+                trailing={
+                  <View style={styles.rowTrailing}>
+                    {uploadingCover ? (
+                      <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                    ) : collection.coverPhotoUrl ? (
+                      <>
+                        <Button
+                          variant="text"
+                          size="pill"
+                          tone="secondary"
+                          label="Remove"
+                          align="center"
+                          onPress={handleRemoveCover}
+                          accessibilityLabel="Remove cover photo"
                         />
-                      </Pressable>
-                    </>
-                  ) : (
-                    <View style={[styles.coverThumb, styles.coverEmpty]}>
-                      <Ionicons name="image-outline" size={18} color={theme.colors.textSecondary} />
-                    </View>
-                  )}
-                </View>
-              </Pressable>
+                        <Pressable onPress={handlePickCover} onLongPress={handleRemoveCover}>
+                          <AppImage
+                            source={{ uri: getPublicPhotoUrl(collection.coverPhotoUrl) }}
+                            style={styles.coverThumb}
+                            contentFit="cover"
+                          />
+                        </Pressable>
+                      </>
+                    ) : (
+                      <View style={[styles.coverThumb, styles.coverEmpty]}>
+                        <Ionicons name="image-outline" size={18} color={theme.colors.textSecondary} />
+                      </View>
+                    )}
+                  </View>
+                }
+              />
             </View>
 
             {/* Members: only a shared album can have any */}
@@ -435,10 +437,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                   Members
                 </SectionLabel>
                 <View style={[styles.rows, styles.rowsTight]}>
-                  <View style={styles.row}>
-                    <Text style={styles.memberName}>You</Text>
-                    <Text style={styles.memberRole}>Owner</Text>
-                  </View>
+                  <ListRow label="You" detail="Owner" style={styles.rowTight} />
                   {loadingMembers ? (
                     <View style={styles.row}>
                       <ActivityIndicator size="small" color={theme.colors.textSecondary} />
@@ -449,23 +448,25 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                     </View>
                   ) : (
                     members.map((member) => (
-                      <View key={member.userId} style={styles.row}>
-                        <Text style={styles.memberName} numberOfLines={1}>
-                          {member.displayName ?? "Unknown"}
-                        </Text>
-                        {removingMemberId === member.userId ? (
-                          <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                        ) : (
-                          <IconButton
-                            name="person-remove-outline"
-                            size={18}
-                            color={theme.colors.textSecondary}
-                            onPress={() => handleRemoveMember(member)}
-                            accessibilityLabel={`Remove ${member.displayName ?? "member"}`}
-                            style={styles.memberAction}
-                          />
-                        )}
-                      </View>
+                      <ListRow
+                        key={member.userId}
+                        label={member.displayName ?? "Unknown"}
+                        style={styles.rowTight}
+                        trailing={
+                          removingMemberId === member.userId ? (
+                            <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                          ) : (
+                            <IconButton
+                              name="person-remove-outline"
+                              size={18}
+                              color={theme.colors.textSecondary}
+                              onPress={() => handleRemoveMember(member)}
+                              accessibilityLabel={`Remove ${member.displayName ?? "member"}`}
+                              style={styles.memberAction}
+                            />
+                          )
+                        }
+                      />
                     ))
                   )}
                 </View>
@@ -556,6 +557,10 @@ function createStyles(theme: Theme) {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.colors.divider,
     },
+    // ListRow in this sheet keeps the old 52pt rhythm with a 36pt thumb.
+    rowTight: {
+      paddingVertical: theme.spacing.xs,
+    },
     pressed: { opacity: 0.6 },
     rowLabel: {
       ...theme.typography.body,
@@ -568,7 +573,6 @@ function createStyles(theme: Theme) {
       textAlign: "right",
     },
     rowTrailing: {
-      flex: 1,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "flex-end",
@@ -595,15 +599,6 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.artworkPlaceholder,
       alignItems: "center",
       justifyContent: "center",
-    },
-    memberName: {
-      ...theme.typography.body,
-      color: theme.colors.text,
-      flex: 1,
-    },
-    memberRole: {
-      ...theme.typography.meta,
-      color: theme.colors.textSecondary,
     },
     memberAction: {
       marginRight: -12,

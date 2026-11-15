@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
 import { AppImage } from "@/components/AppImage";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -27,6 +26,7 @@ import { Theme } from "@/constants/theme";
 import { MomentCard } from "@/components/MomentCard";
 import { MomentSearch } from "@/components/MomentSearch";
 import { BottomSheet } from "@/components/BottomSheet";
+import { ListRow } from "@/components/ListRow";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { setCachedMoment } from "@/lib/momentCache";
 import { ErrorBanner } from "@/components/ErrorBanner";
@@ -253,47 +253,18 @@ function OnThisDayRow({ moment, yearsAgo, onPress }: { moment: Moment; yearsAgo:
   );
 }
 
-function BrowseRow({ label, detail, onPress, last }: { label: string; detail: string; onPress: () => void; last?: boolean }) {
-  const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
-  return (
-    <TouchableOpacity
-      style={[styles.browseRow, !last && styles.browseRowDivider]}
-      activeOpacity={0.7}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`Browse by ${label.toLowerCase()}, ${detail}`}
-    >
-      <Text style={styles.browseLabel}>{label}</Text>
-      <View style={styles.browseRight}>
-        <Text style={styles.browseDetail}>{detail}</Text>
-        <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-      </View>
-    </TouchableOpacity>
-  );
-}
-
 function SheetRow({ label, sublabel, count, artworkUrl, onPress }: {
   label: string; sublabel?: string; count: number; artworkUrl?: string; onPress: () => void;
 }) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  return (
-    <TouchableOpacity style={styles.sheetRow} activeOpacity={0.7} onPress={onPress} accessibilityRole="button">
-      {artworkUrl !== undefined ? (
-        artworkUrl ? (
-          <AppImage source={{ uri: artworkUrlAtSize(artworkUrl, SHEET_ARTWORK_PX) }} style={styles.sheetArtwork} />
-        ) : (
-          <ArtworkPlaceholder style={styles.sheetArtwork} />
-        )
-      ) : null}
-      <View style={styles.sheetRowText}>
-        <Text style={styles.sheetRowLabel} numberOfLines={1}>{label}</Text>
-        {sublabel ? <Text style={styles.sheetRowSublabel} numberOfLines={1}>{sublabel}</Text> : null}
-      </View>
-      <Text style={styles.sheetRowCount}>{count}</Text>
-    </TouchableOpacity>
-  );
+  const leading =
+    artworkUrl === undefined ? undefined : artworkUrl ? (
+      <AppImage source={{ uri: artworkUrlAtSize(artworkUrl, SHEET_ARTWORK_PX) }} style={styles.sheetArtwork} />
+    ) : (
+      <ArtworkPlaceholder style={styles.sheetArtwork} />
+    );
+  return <ListRow label={label} subtitle={sublabel} detail={String(count)} leading={leading} onPress={onPress} />;
 }
 
 // ── screen ─────────────────────────────────────────────────────────────
@@ -506,7 +477,7 @@ export default function ReflectionsScreen() {
             On this day, a weekly rewind, your moods and years: the songs that
             marked your life, brought back to you.
           </Text>
-          <Button label="Capture a song" fullWidth={false} style={styles.emptyButton} onPress={() => router.push("/create")} />
+          <Button label="Capture a song" fullWidth={false} align="center" onPress={() => router.push("/create")} />
         </View>
       </View>
     );
@@ -621,7 +592,7 @@ export default function ReflectionsScreen() {
               <Text style={styles.sectionTitle}>Browse by</Text>
               <View style={styles.browseList}>
                 {browseRows.map((row, i) => (
-                  <BrowseRow
+                  <ListRow
                     key={row.kind}
                     label={row.label}
                     detail={row.detail}
@@ -832,67 +803,14 @@ function createStyles(theme: Theme) {
     browseList: {
       marginTop: theme.spacing.sm,
     },
-    browseRow: {
-      height: 48,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    browseRowDivider: {
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.divider,
-    },
-    browseLabel: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.body,
-      color: theme.colors.text,
-    },
-    browseRight: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-    },
-    browseDetail: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
-      color: theme.colors.textSecondary,
-    },
     sheetList: {
       paddingHorizontal: theme.spacing.xl,
       paddingBottom: theme.spacing.md,
-    },
-    sheetRow: {
-      minHeight: 48,
-      paddingVertical: theme.spacing.sm,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.md,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.divider,
     },
     sheetArtwork: {
       width: 40,
       height: 40,
       borderRadius: 6,
-    },
-    sheetRowText: {
-      flex: 1,
-    },
-    sheetRowLabel: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.body,
-      color: theme.colors.text,
-    },
-    sheetRowSublabel: {
-      marginTop: 1,
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
-      color: theme.colors.textSecondary,
-    },
-    sheetRowCount: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
-      color: theme.colors.textSecondary,
     },
     emptyState: {
       flex: 1,
@@ -911,9 +829,6 @@ function createStyles(theme: Theme) {
       color: theme.colors.textSecondary,
       textAlign: "center",
       marginBottom: theme.spacing["2xl"],
-    },
-    emptyButton: {
-      alignSelf: "center",
     },
   });
 }

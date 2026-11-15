@@ -139,8 +139,8 @@ export function MoodSelector({
             maxLength={24}
             containerStyle={styles.addField}
           />
-          <Button label="Save" size="pill" onPress={handleSave} disabled={!newLabel.trim()} style={styles.inRow} />
-          <Button label="Cancel" variant="text" tone="secondary" size="pill" onPress={closeForm} style={styles.inRow} />
+          <Button label="Save" size="pill" onPress={handleSave} disabled={!newLabel.trim()} align="center" />
+          <Button label="Cancel" variant="text" tone="secondary" size="pill" onPress={closeForm} align="center" />
         </View>
       )}
 
@@ -164,9 +164,6 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       gap: theme.spacing.sm,
       marginTop: theme.spacing.md,
-    },
-    inRow: {
-      alignSelf: "center",
     },
     addField: {
       flex: 1,

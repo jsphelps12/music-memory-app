@@ -1,11 +1,12 @@
 import { useMemo } from "react";
-import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
+import { View, StyleSheet, ScrollView } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { BottomSheet } from "@/components/BottomSheet";
 import { SectionLabel } from "@/components/SectionLabel";
+import { ListRow } from "@/components/ListRow";
 import { Album } from "@/types";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { pluralMoments } from "@/lib/utils";
@@ -48,34 +49,28 @@ export function AlbumPicker({
           ? pluralMoments(item.momentCount)
           : null;
     return (
-      <Pressable
+      <ListRow
         key={item.id}
-        style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+        label={item.name}
+        subtitle={sub ?? undefined}
+        leading={
+          thumbUrl ? (
+            <AppImage source={{ uri: thumbUrl }} style={styles.thumb} contentFit="cover" />
+          ) : (
+            <View style={styles.thumb}>
+              <Ionicons
+                name={item.isPublic ? "people-outline" : "albums-outline"}
+                size={18}
+                color={theme.colors.textSecondary}
+              />
+            </View>
+          )
+        }
+        accessory="check"
+        selected={selectedId === item.id}
         onPress={() => handleSelect(item)}
-        accessibilityRole="button"
-        accessibilityState={{ selected: selectedId === item.id }}
-      >
-        {thumbUrl ? (
-          <AppImage source={{ uri: thumbUrl }} style={styles.thumb} contentFit="cover" />
-        ) : (
-          <View style={styles.thumb}>
-            <Ionicons
-              name={item.isPublic ? "people-outline" : "albums-outline"}
-              size={18}
-              color={theme.colors.textSecondary}
-            />
-          </View>
-        )}
-        <View style={styles.rowText}>
-          <Text style={styles.rowName} numberOfLines={1}>
-            {item.name}
-          </Text>
-          {sub ? <Text style={styles.rowSub}>{sub}</Text> : null}
-        </View>
-        {selectedId === item.id ? (
-          <Ionicons name="checkmark" size={20} color={theme.colors.text} />
-        ) : null}
-      </Pressable>
+        style={styles.row}
+      />
     );
   };
 
@@ -90,32 +85,31 @@ export function AlbumPicker({
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Albums" maxHeight="70%">
       {/* New album, pinned above the scroll list */}
-      <Pressable
-        style={({ pressed }) => [styles.row, styles.newRow, pressed && styles.pressed]}
+      <ListRow
+        label="New album"
+        leading={
+          <View style={styles.thumb}>
+            <Ionicons name="add" size={20} color={theme.colors.text} />
+          </View>
+        }
+        accessory="none"
         onPress={onRequestCreate}
-        accessibilityRole="button"
-      >
-        <View style={styles.thumb}>
-          <Ionicons name="add" size={20} color={theme.colors.text} />
-        </View>
-        <Text style={[styles.rowName, styles.rowText]}>New album</Text>
-      </Pressable>
+        style={[styles.row, styles.newRow]}
+      />
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Pressable
-          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+        <ListRow
+          label="No album"
+          leading={
+            <View style={styles.thumb}>
+              <Ionicons name="musical-notes-outline" size={18} color={theme.colors.textSecondary} />
+            </View>
+          }
+          accessory="check"
+          selected={selectedId === null}
           onPress={() => handleSelect(null)}
-          accessibilityRole="button"
-          accessibilityState={{ selected: selectedId === null }}
-        >
-          <View style={styles.thumb}>
-            <Ionicons name="musical-notes-outline" size={18} color={theme.colors.textSecondary} />
-          </View>
-          <Text style={[styles.rowName, styles.rowText]}>No album</Text>
-          {selectedId === null ? (
-            <Ionicons name="checkmark" size={20} color={theme.colors.text} />
-          ) : null}
-        </Pressable>
+          style={styles.row}
+        />
 
         {section("My albums", ownedPersonal)}
         {section("My shared albums", ownedShared)}
@@ -135,22 +129,15 @@ function createStyles(theme: Theme) {
       paddingTop: theme.spacing.lg,
       paddingBottom: theme.spacing.xs,
     },
-    // Rows on the page, ruled by hairlines in the divider token.
+    // ListRow inside the sheet's gutters; a touch taller for the thumbnails.
     row: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.md,
       minHeight: 60,
-      paddingVertical: theme.spacing.md,
       marginHorizontal: theme.spacing.xl,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.divider,
     },
     newRow: {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: theme.colors.divider,
     },
-    pressed: { opacity: 0.6 },
     thumb: {
       width: 36,
       height: 36,
@@ -158,18 +145,6 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.artworkPlaceholder,
       alignItems: "center",
       justifyContent: "center",
-    },
-    rowText: {
-      flex: 1,
-    },
-    rowName: {
-      ...theme.typography.bodyStrong,
-      color: theme.colors.text,
-    },
-    rowSub: {
-      ...theme.typography.meta,
-      color: theme.colors.textSecondary,
-      marginTop: 1,
     },
   });
 }

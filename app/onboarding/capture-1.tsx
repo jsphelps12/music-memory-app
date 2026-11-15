@@ -123,6 +123,7 @@ export default function OnboardingCapture1Screen() {
           variant="text"
           tone="secondary"
           onPress={handleSkip}
+          align="center"
           style={styles.skipButton}
         />
       </ScrollView>
@@ -192,7 +193,6 @@ function createStyles(theme: Theme) {
       marginTop: theme.spacing["2xl"],
     },
     skipButton: {
-      alignSelf: "center",
       marginTop: theme.spacing.sm,
     },
   });

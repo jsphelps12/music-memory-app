@@ -2,7 +2,6 @@ import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "re
 import {
   View,
   Text,
-  Pressable,
   ActivityIndicator,
   Share,
   StyleSheet,
@@ -25,6 +24,7 @@ import { ConfirmSheetHost, confirmSheet } from "@/components/ConfirmSheet";
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
 import { SectionLabel } from "@/components/SectionLabel";
+import { ListRow } from "@/components/ListRow";
 import { fetchFriends } from "@/lib/friends";
 import {
   ensureShareToken,
@@ -342,32 +342,25 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     /** Set for a row that opens in place (chevron down/up, not forward). */
     expanded?: boolean;
   }) => (
-    <Pressable
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+    <ListRow
+      label={title}
+      subtitle={desc}
+      leading={
+        <View style={styles.rowIcon}>
+          {loading ? (
+            <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+          ) : (
+            <Ionicons name={icon} size={22} color={theme.colors.text} />
+          )}
+        </View>
+      }
+      accessory={expanded === undefined ? "chevron" : "expand"}
+      expanded={expanded}
+      trailing={trailing}
       onPress={onPress}
       disabled={loading}
-      accessibilityRole="button"
-      accessibilityState={expanded === undefined ? undefined : { expanded }}
-    >
-      <View style={styles.rowIcon}>
-        {loading ? (
-          <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-        ) : (
-          <Ionicons name={icon} size={22} color={theme.colors.text} />
-        )}
-      </View>
-      <View style={styles.rowText}>
-        <Text style={styles.rowTitle}>{title}</Text>
-        <Text style={styles.rowDesc}>{desc}</Text>
-      </View>
-      {trailing ?? (
-        <Ionicons
-          name={expanded === undefined ? "chevron-forward" : expanded ? "chevron-up" : "chevron-down"}
-          size={16}
-          color={theme.colors.textSecondary}
-        />
-      )}
-    </Pressable>
+      style={styles.row}
+    />
   );
 
   const personList = friendsLoading ? (
@@ -400,46 +393,47 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
       const sent = sentIds.has(friendship.otherUserId);
       const sending = sendingIds.has(friendship.otherUserId);
       const initials = (friendship.otherUserDisplayName ?? "?")[0]?.toUpperCase() ?? "?";
+      // A sent (or sending) row isn't a button any more: no onPress, so
+      // ListRow renders it as plain content rather than a dimmed control.
       return (
-        <Pressable
+        <ListRow
           key={friendship.id}
-          style={({ pressed }) => [styles.personRow, pressed && styles.pressed]}
-          onPress={() => handleSendToFriend(friendship)}
-          disabled={sent || sending}
-          accessibilityRole="button"
-          accessibilityLabel={`Send to ${friendship.otherUserDisplayName ?? "this friend"}`}
-          accessibilityState={{ disabled: sent || sending }}
-        >
-          <View style={styles.personAvatar}>
-            {friendship.otherUserAvatarUrl ? (
-              <AppImage
-                source={{ uri: getPublicPhotoUrl(friendship.otherUserAvatarUrl) }}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-              />
-            ) : (
-              <Text style={styles.personInitial}>{initials}</Text>
-            )}
-          </View>
-          <Text style={styles.personName} numberOfLines={1}>
-            {friendship.otherUserDisplayName ?? "Unknown"}
-          </Text>
-          {sending ? (
-            <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-          ) : sent ? (
-            <View style={styles.sentState}>
-              <Ionicons name="checkmark" size={16} color={theme.colors.textSecondary} />
-              <Text style={styles.sentText}>Sent</Text>
+          label={friendship.otherUserDisplayName ?? "Unknown"}
+          leading={
+            <View style={styles.personAvatar}>
+              {friendship.otherUserAvatarUrl ? (
+                <AppImage
+                  source={{ uri: getPublicPhotoUrl(friendship.otherUserAvatarUrl) }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                />
+              ) : (
+                <Text style={styles.personInitial}>{initials}</Text>
+              )}
             </View>
-          ) : (
-            <Button
-              label="Send"
-              variant="secondary"
-              size="pill"
-              onPress={() => handleSendToFriend(friendship)}
-            />
-          )}
-        </Pressable>
+          }
+          trailing={
+            sending ? (
+              <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+            ) : sent ? (
+              <View style={styles.sentState}>
+                <Ionicons name="checkmark" size={16} color={theme.colors.textSecondary} />
+                <Text style={styles.sentText}>Sent</Text>
+              </View>
+            ) : (
+              <Button
+                label="Send"
+                variant="secondary"
+                size="pill"
+                align="center"
+                onPress={() => handleSendToFriend(friendship)}
+              />
+            )
+          }
+          onPress={sent || sending ? undefined : () => handleSendToFriend(friendship)}
+          last
+          style={styles.personRow}
+        />
       );
     })
   );
@@ -500,6 +494,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
                     variant="text"
                     size="pill"
                     label={linkCopied ? "Copied" : "Copy"}
+                    align="center"
                     onPress={handleCopyLink}
                     accessibilityLabel="Copy link"
                   />
@@ -581,30 +576,11 @@ function createStyles(theme: Theme) {
       borderTopColor: theme.colors.divider,
     },
     row: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.md,
       minHeight: 64,
-      paddingVertical: theme.spacing.md,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.divider,
     },
-    pressed: { opacity: 0.6 },
     rowIcon: {
       width: 24,
       alignItems: "center",
-    },
-    rowText: {
-      flex: 1,
-      gap: 2,
-    },
-    rowTitle: {
-      ...theme.typography.bodyStrong,
-      color: theme.colors.text,
-    },
-    rowDesc: {
-      ...theme.typography.meta,
-      color: theme.colors.textSecondary,
     },
     // The friend picker, opened in place under its row.
     personList: {
@@ -625,10 +601,8 @@ function createStyles(theme: Theme) {
       marginTop: theme.spacing.md,
     },
     personRow: {
-      flexDirection: "row",
-      alignItems: "center",
+      minHeight: 0,
       paddingVertical: theme.spacing.sm,
-      gap: theme.spacing.md,
     },
     personAvatar: {
       width: 32,
@@ -643,11 +617,6 @@ function createStyles(theme: Theme) {
       fontFamily: theme.fonts.bodySemibold,
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
-    },
-    personName: {
-      ...theme.typography.body,
-      color: theme.colors.text,
-      flex: 1,
     },
     sentState: {
       flexDirection: "row",
