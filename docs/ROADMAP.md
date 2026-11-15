@@ -136,6 +136,11 @@ them, OTA-only (no native changes).
   alignment in rows; add `mailto` to `LSApplicationQueriesSchemes` in the
   next binary.
 
+- [x] E2E Smoke runs against production while staging is paused (2026-11-15):
+  this commit's JS swapped into the simulator build, `e2e@soundtracks.test`
+  reset as itself under RLS (`scripts/reset-e2e-prod.mjs`); the promote gate
+  is unchanged. `backend=staging` returns to the old path.
+
 ### Phase 1 — Feel
 *Cleaner, more intuitive, professional-grade; capture in two taps.*
 Owner's read: "doesn't feel great" — colors, generic menu icons, borders,

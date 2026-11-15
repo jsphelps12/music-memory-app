@@ -8,12 +8,26 @@ on:
         type: string
         required: false
         default: ""
+      backend:
+        description: Which Supabase the flow runs against
+        type: string
+        required: false
+        default: production
   workflow_dispatch:
     inputs:
       sha:
         description: Commit to test (defaults to the head of the selected branch)
         required: false
         default: ""
+      # Staging (the original target) is paused on Supabase's free plan, so
+      # the default is production (2026-11-15). On production the flow runs
+      # as the dedicated e2e@soundtracks.test account and resets it AS that
+      # user (scripts/reset-e2e-prod.mjs): no service-role key, RLS-bounded.
+      backend:
+        description: Which Supabase the flow runs against
+        type: choice
+        options: [production, staging]
+        default: production
   schedule:
     # Weekly, Monday 09:00 UTC. Catches rot in the staging account, the Apple
     # Music catalog search, and Supabase auth without waiting for a promote.
@@ -23,7 +37,7 @@ permissions:
   contents: read
 
 concurrency:
-  # Serialized: every run resets the same staging account, so two at once would
+  # Serialized: every run resets the same E2E account, so two at once would
   # delete each other's moment mid-flow.
   group: e2e-smoke
   cancel-in-progress: false
@@ -120,6 +134,9 @@ jobs:
     needs: resolve-build
     runs-on: macos-latest
     timeout-minutes: 45
+    env:
+      # Scheduled runs have no inputs: they follow the dispatch default.
+      E2E_BACKEND: ${{ inputs.backend || 'production' }}
     # statuses: write is for the commit status promote-to-production checks.
     # A workflow that calls this one (workflow_call) must grant it too.
     permissions:
@@ -148,6 +165,32 @@ jobs:
           curl -fsSL -o build.tar.gz "$BUILD_URL"
           mkdir -p build && tar -xzf build.tar.gz -C build
           echo "APP_PATH=$(find build -name '*.app' -maxdepth 2 | head -1)" >> "$GITHUB_ENV"
+
+      # The binary is the preview-simulator build, whose embedded JS talks to
+      # staging. For a production run, replace that bundle with this commit's
+      # JS exported against the EAS production environment, the same source
+      # the production OTA uses. Native code is untouched (no fingerprint
+      # change), so this is still "the embedded JS of this commit". The scheme
+      # and bundle id stay the beta's (APP_ENV=preview), and analytics and
+      # Sentry are off so test runs don't land in production dashboards.
+      - name: Point the app's JS at production
+        if: env.E2E_BACKEND == 'production'
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p prod-js
+          npx eas-cli@25.2.0 env:exec production \
+            "EXPO_PUBLIC_APP_ENV=preview EXPO_PUBLIC_POSTHOG_API_KEY= EXPO_PUBLIC_SENTRY_DSN= NODE_ENV=production npx expo export:embed --platform ios --dev false --minify true --entry-file node_modules/expo-router/entry.js --bundle-output prod-js/main.jsbundle --assets-dest prod-js/assets" \
+            --non-interactive
+          # Refuse to test the wrong backend silently.
+          if ! grep -q "izfhbtipzuvinyacttin" prod-js/main.jsbundle; then
+            echo "::error::The exported bundle doesn't point at the production project."
+            exit 1
+          fi
+          cp prod-js/main.jsbundle "$APP_PATH/main.jsbundle"
+          cp -R prod-js/assets/. "$APP_PATH/assets/"
+          echo "Embedded JS replaced with a production-pointed export of $(git rev-parse --short HEAD)."
 
       # The flow must run the JS embedded in this binary (built from the
       # tested commit), not whatever preview OTA is newest. clearState wipes a
@@ -205,12 +248,24 @@ jobs:
 
       # Must run after install and before the flow: the flow's final assertion
       # is only meaningful against an account with no pre-existing moments.
-      - name: Reset the staging E2E account
+      # The reset command lives in one place (reset-e2e.sh is written here) so
+      # the retry below resets the same way.
+      - name: Reset the E2E account
         env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           E2E_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
-        run: node scripts/seed-e2e.mjs
+        run: |
+          set -euo pipefail
+          if [ "$E2E_BACKEND" = "production" ]; then
+            cat > reset-e2e.sh <<'SH'
+          npx eas-cli@25.2.0 env:exec production "node scripts/reset-e2e-prod.mjs" --non-interactive
+          SH
+          else
+            echo 'node scripts/seed-e2e.mjs' > reset-e2e.sh
+          fi
+          bash reset-e2e.sh
 
       - name: Install Maestro
         env:
@@ -238,6 +293,7 @@ jobs:
       # resetting the staging account the first attempt may have written to.
       - name: Run smoke flow
         env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
           E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           E2E_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
@@ -257,7 +313,7 @@ jobs:
           # startup/teardown), and retrying those would hide real regressions.
           if [ "$code" -ne 0 ] && grep -rq "Transport unreachable" maestro-run.log "$HOME/.maestro/tests" 2>/dev/null; then
             echo "::warning::Maestro's XCTest driver died mid-flow (test infrastructure, not the app). Resetting the account and retrying once."
-            node scripts/seed-e2e.mjs
+            bash reset-e2e.sh
             run_flow
             code=$?
           fi
@@ -282,7 +338,7 @@ jobs:
           gh api --method POST "repos/$REPO/statuses/$SHA" \
             -f state="$STATE" \
             -f context="e2e-smoke/embedded-js" \
-            -f description="Maestro smoke flow on a simulator build of this commit" \
+            -f description="Maestro smoke flow on this commit's JS ($E2E_BACKEND)" \
             -f target_url="$RUN_URL" >/dev/null
           echo "Posted $STATE for $SHA"
 
