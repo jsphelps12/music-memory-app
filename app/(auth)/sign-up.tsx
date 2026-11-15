@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { usePostHog } from "posthog-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import * as Haptics from "expo-haptics";
@@ -16,6 +17,7 @@ import { Button } from "@/components/Button";
 export default function SignUpScreen() {
   const { signUp } = useAuth();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const posthog = usePostHog();
   const [email, setEmail] = useState("");
@@ -47,7 +49,9 @@ export default function SignUpScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior="padding">
-      <View style={styles.inner}>
+      {/* Centered, but never under the status bar: with the keyboard up the
+          form rises, and without a top inset it slid under the clock. */}
+      <View style={[styles.inner, { paddingTop: insets.top + theme.spacing.xl }]}>
         <Text style={styles.title} accessibilityRole="header">Sign up</Text>
         <Text style={styles.subtitle}>Create your Soundtracks account</Text>
 
