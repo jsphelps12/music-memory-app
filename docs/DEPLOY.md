@@ -210,6 +210,17 @@ in that build (not the newest preview OTA), and it posts the commit status
 run's head SHA, and the newest one wins: a later red run on the same commit
 blocks the promote again. Scheduled runs post no status.
 
+**Backend (2026-11-15):** E2E Smoke now runs against **production** by
+default, because staging is paused on Supabase's free plan. The binary is
+still the `preview-simulator` build; the workflow swaps in this commit's JS
+exported against the EAS production environment (no native change, analytics
+and Sentry off) and checks the bundle really points at production. The
+account is `e2e@soundtracks.test` on production, reset by
+`scripts/reset-e2e-prod.mjs` signed in *as that user* (anon key + RLS, no
+service-role key), so a bug in it can only touch that account. It creates the
+account on its first run with the `E2E_PASSWORD` secret. To test against
+staging again once it's restored, dispatch with `backend=staging`.
+
 ---
 
 ## Manual Regression Checklist
