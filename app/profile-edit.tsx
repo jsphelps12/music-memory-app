@@ -538,11 +538,13 @@ export default function ProfileEditScreen() {
           <ListRow
             label="Birth year"
             detail={birthYear ? String(birthYear) : "Select"}
+            accessibilityLabel={`Birth year, ${birthYear ? birthYear : "not set"}`}
             onPress={() => setYearPickerVisible(true)}
           />
           <ListRow
             label="Country you grew up in"
             detail={country || "Select"}
+            accessibilityLabel={`Country you grew up in, ${country || "not set"}`}
             onPress={() => { setCountrySearch(""); setCountryPickerVisible(true); }}
           />
         </View>

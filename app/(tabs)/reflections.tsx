@@ -596,6 +596,7 @@ export default function ReflectionsScreen() {
                     key={row.kind}
                     label={row.label}
                     detail={row.detail}
+                    accessibilityLabel={`Browse by ${row.label.toLowerCase()}${row.detail ? `, ${row.detail}` : ""}`}
                     last={i === browseRows.length - 1}
                     onPress={() => setBrowseSheet(row.kind)}
                   />

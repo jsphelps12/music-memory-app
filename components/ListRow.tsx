@@ -10,6 +10,10 @@ interface Props {
   label: string;
   /** A second line under the label, in Graphite. */
   subtitle?: string;
+  /** Lines the subtitle may wrap to (default 2). */
+  subtitleLines?: number;
+  /** Body Strong label, for a song title (DESIGN.md "Song Then Artist"). */
+  strong?: boolean;
   /** A short value on the right, before the accessory (e.g. "Off", "0"). */
   detail?: string;
   /** Leading icon, in Graphite. */
@@ -34,6 +38,7 @@ interface Props {
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  accessibilityLabel?: string;
   accessibilityHint?: string;
 }
 
@@ -46,6 +51,8 @@ interface Props {
 export function ListRow({
   label,
   subtitle,
+  subtitleLines = 2,
+  strong = false,
   detail,
   icon,
   leading,
@@ -60,6 +67,7 @@ export function ListRow({
   disabled = false,
   style,
   testID,
+  accessibilityLabel,
   accessibilityHint,
 }: Props) {
   const theme = useTheme();
@@ -89,11 +97,11 @@ export function ListRow({
         />
       ) : null)}
       <View style={styles.text}>
-        <Text style={[styles.label, { color: labelColor }]} numberOfLines={2}>
+        <Text style={[styles.label, strong && styles.labelStrong, { color: labelColor }]} numberOfLines={2}>
           {label}
         </Text>
         {subtitle ? (
-          <Text style={styles.subtitle} numberOfLines={2}>
+          <Text style={styles.subtitle} numberOfLines={subtitleLines}>
             {subtitle}
           </Text>
         ) : null}
@@ -121,7 +129,7 @@ export function ListRow({
 
   if (!onPress && !onLongPress) {
     return (
-      <View style={rowStyle} testID={testID}>
+      <View style={rowStyle} testID={testID} accessibilityLabel={accessibilityLabel}>
         {body}
       </View>
     );
@@ -134,6 +142,7 @@ export function ListRow({
       disabled={disabled}
       testID={testID}
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
       accessibilityState={{
         disabled,
@@ -166,6 +175,9 @@ function createStyles(theme: Theme) {
     text: { flex: 1, gap: 2 },
     label: {
       ...theme.typography.body,
+    },
+    labelStrong: {
+      ...theme.typography.bodyStrong,
     },
     subtitle: {
       ...theme.typography.meta,

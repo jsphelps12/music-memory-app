@@ -399,6 +399,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
         <ListRow
           key={friendship.id}
           label={friendship.otherUserDisplayName ?? "Unknown"}
+          accessibilityLabel={`${sent ? "Sent to" : "Send to"} ${friendship.otherUserDisplayName ?? "Unknown"}`}
           leading={
             <View style={styles.personAvatar}>
               {friendship.otherUserAvatarUrl ? (
