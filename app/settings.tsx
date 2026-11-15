@@ -206,13 +206,8 @@ export default function SettingsScreen() {
     }
   };
 
-  // Ink, not terracotta, for an "on" switch (the accent is a signal, not a
-  // fill). In dark mode ink inverts to paper, which would swallow the white
-  // thumb, so on night the track steps down to Graphite.
-  const switchTrack = {
-    false: theme.colors.border,
-    true: theme.isDark ? theme.colors.textSecondary : theme.colors.buttonBg,
-  };
+  // Ink, not terracotta, for an "on" switch (theme.colors.switchOn).
+  const switchTrack = { false: theme.colors.border, true: theme.colors.switchOn };
 
   const notifRows = [
     { field: "notifOnThisDay", label: "On this day", sub: "When a song anniversary comes up" },

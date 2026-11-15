@@ -120,6 +120,8 @@ export interface ThemeColors {
   onGlass: string;
   /** Shadow color for things that lift (night, never pure black). */
   shadow: string;
+  /** A Switch's "on" track: ink on paper, Graphite on night (ink-as-paper would hide the white thumb). */
+  switchOn: string;
   placeholder: string;
   destructive: string;
   success: string;
@@ -166,6 +168,7 @@ const lightColors: ThemeColors = {
   glass: "rgba(251,247,242,0.86)",
   onGlass: "#23222B",
   shadow: "#0E0B0A",
+  switchOn: "#23222B",
   placeholder: "#7A716A",
   destructive: "#d32f2f",
   success: "#2e7d32",
@@ -207,6 +210,7 @@ const darkColors: ThemeColors = {
   glass: "rgba(28,23,22,0.8)",
   onGlass: "#F5F0EB",
   shadow: "#0E0B0A",
+  switchOn: "#ABA39E",
   placeholder: "#857B75",
   destructive: "#ff453a",
   success: "#30d158",
