@@ -57,7 +57,7 @@ export default function WriteScreen() {
               : "Writing"}
           </Text>
         </View>
-        <Button testID="write-done" label="Done" size="pill" onPress={handleDone} style={styles.doneButton} />
+        <Button testID="write-done" label="Done" size="pill" onPress={handleDone} align="center" style={styles.doneButton} />
       </View>
 
       <TextInput
@@ -120,7 +120,6 @@ function createStyles(theme: Theme) {
     },
     doneButton: {
       minWidth: 72,
-      alignSelf: "center",
     },
     // The page: a little bigger than capture's writing area, and it scrolls
     // itself, so pages of text stay comfortable.

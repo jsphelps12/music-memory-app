@@ -562,13 +562,14 @@ export default function CreateMomentScreen() {
       behavior="padding"
     >
       <View style={[styles.topBar, { paddingTop: insets.top }]}>
-        <Button label="Cancel" variant="text" tone="secondary" onPress={close} style={styles.inRow} />
+        <Button label="Cancel" variant="text" tone="secondary" onPress={close} align="center" />
         <Button
           testID="create-save"
           label="Save"
           size="pill"
           onPress={handleSave}
           loading={loading}
+          align="center"
           style={styles.saveButton}
         />
       </View>
@@ -599,14 +600,14 @@ export default function CreateMomentScreen() {
             size="pill"
             onPress={openFullPage}
             accessibilityLabel="Write on a full page"
-            style={styles.inRow}
+            align="center"
           />
         </View>
 
         {restoredDraft ? (
           <View style={styles.draftRow}>
             <Text style={styles.draftText}>Picked up where you left off</Text>
-            <Button label="Start fresh" variant="text" size="pill" onPress={startFresh} style={styles.inRow} />
+            <Button label="Start fresh" variant="text" size="pill" onPress={startFresh} align="center" />
           </View>
         ) : null}
 
@@ -826,11 +827,6 @@ function createStyles(theme: Theme) {
     // Holds its width while the spinner replaces the label.
     saveButton: {
       minWidth: 72,
-      alignSelf: "center",
-    },
-    // Button hugs with alignSelf flex-start; in a row it should center.
-    inRow: {
-      alignSelf: "center",
     },
     scrollView: {
       flex: 1,

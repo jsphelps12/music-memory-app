@@ -143,7 +143,7 @@ export function LocationField({ value, onChange, detectCurrentLocation = false }
           <Text style={styles.suggestionText} numberOfLines={1}>
             Currently in {suggestion}
           </Text>
-          <Button label="Use" size="pill" variant="secondary" onPress={applySuggestion} style={styles.inRow} />
+          <Button label="Use" size="pill" variant="secondary" onPress={applySuggestion} align="center" />
           <IconButton
             name="close"
             size={18}
@@ -204,9 +204,6 @@ function createStyles(theme: Theme) {
       ...theme.typography.body,
       color: theme.colors.text,
       flex: 1,
-    },
-    inRow: {
-      alignSelf: "center",
     },
     dismiss: {
       marginLeft: -theme.spacing.sm,

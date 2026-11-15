@@ -34,6 +34,12 @@ interface Props {
   disabled?: boolean;
   /** large buttons stretch by default; set false for a hugging width. */
   fullWidth?: boolean;
+  /**
+   * Where a hugging button sits on its parent's cross axis. "start" (default)
+   * is left in a column; in a row, pass "center" so it lines up with the
+   * row's other content instead of sitting at the top.
+   */
+  align?: "start" | "center" | "end";
   style?: StyleProp<ViewStyle>;
   testID?: string;
   accessibilityLabel?: string;
@@ -56,6 +62,7 @@ export function Button({
   loading = false,
   disabled = false,
   fullWidth,
+  align = "start",
   style,
   testID,
   accessibilityLabel,
@@ -94,7 +101,7 @@ export function Button({
         variant === "primary" && { backgroundColor: theme.colors.buttonBg },
         variant === "secondary" && { backgroundColor: theme.colors.chipBg },
         variant === "destructive" && { backgroundColor: theme.colors.destructive },
-        stretch ? styles.stretch : styles.hug,
+        stretch ? styles.stretch : align === "center" ? styles.hugCenter : align === "end" ? styles.hugEnd : styles.hug,
         inactive && styles.inactive,
         pressed && !inactive && styles.pressed,
         style,
@@ -141,6 +148,8 @@ function createStyles(theme: Theme) {
     },
     stretch: { alignSelf: "stretch" },
     hug: { alignSelf: "flex-start" },
+    hugCenter: { alignSelf: "center" },
+    hugEnd: { alignSelf: "flex-end" },
     inactive: { opacity: 0.6 },
     pressed: { opacity: 0.75 },
     row: {

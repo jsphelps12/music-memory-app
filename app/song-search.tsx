@@ -193,6 +193,7 @@ export default function SongSearchScreen() {
             label="Open Settings"
             onPress={() => Linking.openSettings()}
             fullWidth={false}
+            align="center"
             style={styles.centeredButton}
           />
         </View>
@@ -239,6 +240,7 @@ export default function SongSearchScreen() {
             label="Try again"
             onPress={() => setRetryKey((k) => k + 1)}
             fullWidth={false}
+            align="center"
             style={styles.centeredButton}
           />
         </View>
@@ -348,7 +350,6 @@ function createStyles(theme: Theme) {
       textAlign: "center",
     },
     centeredButton: {
-      alignSelf: "center",
       marginTop: theme.spacing.lg,
     },
     emptySubtext: {

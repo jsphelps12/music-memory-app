@@ -171,9 +171,9 @@ export default function OnboardingCapture2Screen() {
           style={styles.sectionLabel}
           right={
             momentDate ? (
-              <Button label="Clear" variant="text" tone="secondary" size="pill" onPress={() => setMomentDate(null)} style={styles.inRow} />
+              <Button label="Clear" variant="text" tone="secondary" size="pill" onPress={() => setMomentDate(null)} align="center" />
             ) : (
-              <Button label="Set date" variant="text" size="pill" onPress={() => setMomentDate(new Date())} style={styles.inRow} />
+              <Button label="Set date" variant="text" size="pill" onPress={() => setMomentDate(new Date())} align="center" />
             )
           }
         >
@@ -211,6 +211,7 @@ export default function OnboardingCapture2Screen() {
           variant="text"
           tone="secondary"
           onPress={handleSkip}
+          align="center"
           style={styles.skipButton}
         />
       </ScrollView>
@@ -261,9 +262,6 @@ function createStyles(theme: Theme) {
       marginTop: theme.spacing["2xl"],
       marginBottom: theme.spacing.xs,
     },
-    inRow: {
-      alignSelf: "center",
-    },
     reflectionInput: {
       ...theme.typography.reading,
       minHeight: 120,
@@ -291,7 +289,6 @@ function createStyles(theme: Theme) {
       marginTop: theme.spacing["2xl"],
     },
     skipButton: {
-      alignSelf: "center",
       marginTop: theme.spacing.sm,
     },
   });

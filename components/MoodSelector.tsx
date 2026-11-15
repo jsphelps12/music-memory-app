@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { View, Text, Pressable, Alert, StyleSheet } from "react-native";
+import { View, Text, Alert, StyleSheet } from "react-native";
 import * as Haptics from "expo-haptics";
 import { MOODS } from "@/constants/Moods";
 import { CustomMoodDefinition } from "@/types";
@@ -102,18 +102,14 @@ export function MoodSelector({
           // Chip has no long-press, so a custom mood wraps a static Chip in
           // its own Pressable: tap toggles, hold offers to delete it.
           return (
-            <Pressable
+            <Chip
               key={mood.value}
+              label={mood.label}
+              selected={isSelected}
               onPress={toggle}
               onLongPress={() => handleDelete(mood as CustomMoodDefinition)}
-              accessibilityRole="button"
-              accessibilityLabel={mood.label}
-              accessibilityState={{ selected: isSelected }}
               accessibilityHint="Hold to delete this mood"
-              style={({ pressed }) => pressed && styles.pressed}
-            >
-              <Chip label={mood.label} selected={isSelected} />
-            </Pressable>
+            />
           );
         })}
         <Chip
@@ -143,8 +139,8 @@ export function MoodSelector({
             maxLength={24}
             containerStyle={styles.addField}
           />
-          <Button label="Save" size="pill" onPress={handleSave} disabled={!newLabel.trim()} style={styles.inRow} />
-          <Button label="Cancel" variant="text" tone="secondary" size="pill" onPress={closeForm} style={styles.inRow} />
+          <Button label="Save" size="pill" onPress={handleSave} disabled={!newLabel.trim()} align="center" />
+          <Button label="Cancel" variant="text" tone="secondary" size="pill" onPress={closeForm} align="center" />
         </View>
       )}
 
@@ -163,15 +159,11 @@ function createStyles(theme: Theme) {
       flexWrap: "wrap",
       gap: theme.spacing.sm,
     },
-    pressed: { opacity: 0.7 },
     addForm: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm,
       marginTop: theme.spacing.md,
-    },
-    inRow: {
-      alignSelf: "center",
     },
     addField: {
       flex: 1,

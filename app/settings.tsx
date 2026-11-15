@@ -27,6 +27,7 @@ import { confirmSheet } from "@/components/ConfirmSheet";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
 import { Button } from "@/components/Button";
+import { ListRow } from "@/components/ListRow";
 import { BottomSheet } from "@/components/BottomSheet";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -206,13 +207,8 @@ export default function SettingsScreen() {
     }
   };
 
-  // Ink, not terracotta, for an "on" switch (the accent is a signal, not a
-  // fill). In dark mode ink inverts to paper, which would swallow the white
-  // thumb, so on night the track steps down to Graphite.
-  const switchTrack = {
-    false: theme.colors.border,
-    true: theme.isDark ? theme.colors.textSecondary : theme.colors.buttonBg,
-  };
+  // Ink, not terracotta, for an "on" switch (theme.colors.switchOn).
+  const switchTrack = { false: theme.colors.border, true: theme.colors.switchOn };
 
   const notifRows = [
     { field: "notifOnThisDay", label: "On this day", sub: "When a song anniversary comes up" },
@@ -229,20 +225,19 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + theme.spacing["4xl"] }]}>
         <SectionLabel style={styles.groupLabel}>Account</SectionLabel>
         <View style={styles.list}>
-          <Row label="Edit profile" onPress={() => router.push("/profile-edit")} styles={styles} theme={theme} />
-          <Row label="Invite a friend" onPress={handleInvite} styles={styles} theme={theme} />
+          <ListRow label="Edit profile" onPress={() => router.push("/profile-edit")} />
+          <ListRow label="Invite a friend" onPress={handleInvite} />
         </View>
 
         <SectionLabel style={[styles.groupLabel, styles.groupLabelSpaced]}>Journal</SectionLabel>
         <View style={styles.list}>
-          <Row
+          <ListRow
             label="Notifications"
             detail={notifPermission !== "granted" ? "Off" : undefined}
+            accessory="expand"
             expanded={showNotifications}
             onPress={() => setShowNotifications((v) => !v)}
-            styles={styles}
-            theme={theme}
-            flush={showNotifications}
+            last={showNotifications}
           />
           {showNotifications && (
             <View style={styles.expandBody}>
@@ -259,30 +254,31 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
               ) : (
                 notifRows.map(({ field, label, sub }, idx) => (
-                  <View key={field} style={[styles.notifRow, idx > 0 && styles.notifRowBorder]}>
-                    <View style={styles.notifRowText}>
-                      <Text style={styles.notifRowLabel}>{label}</Text>
-                      <Text style={styles.notifRowSub}>{sub}</Text>
-                    </View>
-                    <Switch
-                      value={notifValue(field)}
-                      onValueChange={(v) => handleNotifToggle(field, v)}
-                      disabled={pendingNotif !== null || !profile}
-                      trackColor={switchTrack}
-                      ios_backgroundColor={theme.colors.border}
-                    />
-                  </View>
+                  <ListRow
+                    key={field}
+                    label={label}
+                    subtitle={sub}
+                    last={idx === notifRows.length - 1}
+                    trailing={
+                      <Switch
+                        value={notifValue(field)}
+                        onValueChange={(v) => handleNotifToggle(field, v)}
+                        disabled={pendingNotif !== null || !profile}
+                        trackColor={switchTrack}
+                        ios_backgroundColor={theme.colors.border}
+                      />
+                    }
+                  />
                 ))
               )}
             </View>
           )}
-          <Row
+          <ListRow
             label="Prompts"
+            accessory="expand"
             expanded={showPrompts}
             onPress={() => setShowPrompts((v) => !v)}
-            styles={styles}
-            theme={theme}
-            flush={showPrompts}
+            last={showPrompts}
           />
           {showPrompts && (
             <View style={styles.expandBody}>
@@ -297,8 +293,8 @@ export default function SettingsScreen() {
 
         <SectionLabel style={[styles.groupLabel, styles.groupLabelSpaced]}>Support</SectionLabel>
         <View style={styles.list}>
-          <Row label="Help" onPress={() => router.push("/help")} styles={styles} theme={theme} />
-          <Row label="Share feedback" onPress={handleFeedback} styles={styles} theme={theme} />
+          <ListRow label="Help" onPress={() => router.push("/help")} />
+          <ListRow label="Share feedback" onPress={handleFeedback} />
         </View>
 
         {signOutError ? <Text style={styles.signOutErrorText}>{signOutError}</Text> : null}
@@ -351,42 +347,6 @@ export default function SettingsScreen() {
   );
 }
 
-function Row({
-  label,
-  detail,
-  expanded,
-  onPress,
-  flush,
-  styles,
-  theme,
-}: {
-  label: string;
-  detail?: string;
-  expanded?: boolean;
-  onPress: () => void;
-  /** No bottom rule: an expanded body follows and draws its own. */
-  flush?: boolean;
-  styles: ReturnType<typeof createStyles>;
-  theme: Theme;
-}) {
-  const icon = expanded === undefined ? "chevron-forward" : expanded ? "chevron-up" : "chevron-down";
-  return (
-    <TouchableOpacity
-      style={[styles.row, !flush && styles.rowDivider]}
-      onPress={onPress}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityState={expanded === undefined ? undefined : { expanded }}
-    >
-      <Text style={styles.rowLabel}>{label}</Text>
-      <View style={styles.rowRight}>
-        {detail ? <Text style={styles.rowDetail}>{detail}</Text> : null}
-        <Ionicons name={icon} size={16} color={theme.colors.textSecondary} />
-      </View>
-    </TouchableOpacity>
-  );
-}
-
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: {
@@ -406,30 +366,6 @@ function createStyles(theme: Theme) {
     list: {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: theme.colors.divider,
-    },
-    row: {
-      height: 50,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    rowDivider: {
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.divider,
-    },
-    rowLabel: {
-      ...theme.typography.body,
-      color: theme.colors.text,
-    },
-    rowRight: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs + 2,
-    },
-    rowDetail: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
-      color: theme.colors.textSecondary,
     },
     expandBody: {
       paddingBottom: theme.spacing.md,
@@ -452,30 +388,6 @@ function createStyles(theme: Theme) {
       fontSize: theme.fontSize.sm,
       fontFamily: theme.fonts.bodyMedium,
       color: theme.colors.text,
-    },
-    notifRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: 10,
-      gap: theme.spacing.md,
-    },
-    notifRowBorder: {
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: theme.colors.divider,
-    },
-    notifRowText: {
-      flex: 1,
-    },
-    notifRowLabel: {
-      fontSize: theme.fontSize.base,
-      fontFamily: theme.fonts.body,
-      color: theme.colors.text,
-    },
-    notifRowSub: {
-      fontSize: theme.fontSize.xs,
-      fontFamily: theme.fonts.body,
-      color: theme.colors.textSecondary,
-      marginTop: 2,
     },
     signOutErrorText: {
       ...theme.typography.body,

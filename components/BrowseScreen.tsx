@@ -9,18 +9,18 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { MOODS } from "@/constants/Moods";
 import { pluralMoments } from "@/lib/utils";
+import { artworkUrlAtSize } from "@/lib/itunes";
 import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import type { Moment } from "@/types";
 
+// The Chip draws its image at 20pt; ask for 3x.
+const CHIP_ARTWORK_PX = 60;
+
 export interface BrowseSwitcherItem {
   key: string;
   label: string;
-  /**
-   * Album drill-down only: the album's cover. The switcher is the shared
-   * Chip now, which has no image slot, so it isn't drawn (design sweep,
-   * 2026-11); kept so the album route doesn't need to change if it returns.
-   */
+  /** Album drill-down only: the album's cover, drawn small in its chip. */
   artworkUrl?: string;
 }
 
@@ -92,6 +92,7 @@ export function BrowseScreen({ title, subtitle, items, activeKey, onSelect, mome
             <Chip
               label={item.label}
               variant="filled"
+              imageUri={item.artworkUrl ? artworkUrlAtSize(item.artworkUrl, CHIP_ARTWORK_PX) : undefined}
               selected={item.key === activeKey}
               onPress={() => onSelect(item.key)}
             />

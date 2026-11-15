@@ -5,7 +5,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Pressable,
   StyleSheet,
   Alert,
   ScrollView,
@@ -17,7 +16,6 @@ import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import { AppImage } from "@/components/AppImage";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { AlbumMosaic } from "@/components/AlbumMosaic";
@@ -25,6 +23,7 @@ import { CreateAlbumSheet } from "@/components/CreateAlbumSheet";
 import { IconButton } from "@/components/IconButton";
 import { Button } from "@/components/Button";
 import { BottomSheet } from "@/components/BottomSheet";
+import { ListRow } from "@/components/ListRow";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -406,32 +405,16 @@ export default function YouScreen() {
 
         {/* Friends · Music service */}
         <View style={styles.rows}>
-          <TouchableOpacity
-            style={[styles.row, styles.rowDivider]}
+          <ListRow
+            label="Friends"
+            detail={summary.data ? String(summary.data.friendCount) : undefined}
             onPress={() => router.push("/friends-list")}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-          >
-            <Text style={styles.rowLabel}>Friends</Text>
-            <View style={styles.rowRight}>
-              {summary.data ? <Text style={styles.rowDetail}>{summary.data.friendCount}</Text> : null}
-              <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.row, styles.rowDivider]}
+          />
+          <ListRow
+            label="Music service"
+            detail={switchingProvider ? "Connecting…" : preferredProvider === "spotify" ? "Spotify" : "Apple Music"}
             onPress={handleMusicService}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-          >
-            <Text style={styles.rowLabel}>Music service</Text>
-            <View style={styles.rowRight}>
-              <Text style={styles.rowDetail}>
-                {switchingProvider ? "Connecting…" : preferredProvider === "spotify" ? "Spotify" : "Apple Music"}
-              </Text>
-              <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
-            </View>
-          </TouchableOpacity>
+          />
         </View>
       </ScrollView>
 
@@ -445,21 +428,15 @@ export default function YouScreen() {
             Where your songs open and play.
           </Text>
           <View style={styles.sheetList}>
-            {MUSIC_SERVICES.map(({ type, label }) => {
-              const selected = preferredProvider === type;
-              return (
-                <Pressable
-                  key={type}
-                  style={({ pressed }) => [styles.sheetRow, pressed && styles.pressed]}
-                  onPress={() => chooseProvider(type)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                >
-                  <Text style={styles.sheetRowLabel}>{label}</Text>
-                  {selected ? <Ionicons name="checkmark" size={20} color={theme.colors.text} /> : null}
-                </Pressable>
-              );
-            })}
+            {MUSIC_SERVICES.map(({ type, label }) => (
+              <ListRow
+                key={type}
+                label={label}
+                accessory="check"
+                selected={preferredProvider === type}
+                onPress={() => chooseProvider(type)}
+              />
+            ))}
           </View>
         </View>
       </BottomSheet>
@@ -625,27 +602,6 @@ function createStyles(theme: Theme) {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: theme.colors.divider,
     },
-    row: {
-      height: 50,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    rowLabel: {
-      ...theme.typography.body,
-      color: theme.colors.text,
-    },
-    rowRight: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs + 2,
-    },
-    rowDetail: {
-      ...theme.typography.meta,
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
-    },
-    pressed: { opacity: 0.6 },
     sheetBody: {
       paddingHorizontal: theme.spacing.xl,
     },
@@ -659,18 +615,6 @@ function createStyles(theme: Theme) {
     sheetList: {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: theme.colors.divider,
-    },
-    sheetRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      minHeight: 52,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.divider,
-    },
-    sheetRowLabel: {
-      ...theme.typography.body,
-      color: theme.colors.text,
     },
   });
 }

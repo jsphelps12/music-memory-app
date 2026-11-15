@@ -131,10 +131,15 @@ them, OTA-only (no native changes).
   old photo as its own thumbnail so the strip shows every photo.
 - [x] Moment screen resumes a paused song (back from the background) instead
   of restarting it, and keeps the progress bar (`lib/playerAction.ts`).
-- [ ] Follow-ups: a `ListRow` primitive (settings/You/sheets repeat it); a
-  switch color token; `Chip` onLongPress and image slot; Button hug
-  alignment in rows; add `mailto` to `LSApplicationQueriesSchemes` in the
-  next binary.
+- [x] Follow-ups (2026-11-15): a `ListRow` primitive, now under Settings
+  (Notifications switches as `trailing`), You (Friends, Music service and
+  its picker), Edit profile (Birth year, Country, both pickers, artist
+  results), Rediscover's "Browse by" rows and sheets, the album picker, the
+  Share sheet (verbs and friend rows) and album settings (cover, members);
+  `switchOn` token; `Chip` onLongPress and `imageUri` (Browse's album
+  switcher has its covers back); `Button align="center"` replaces the
+  per-screen `alignSelf` overrides.
+- [ ] Add `mailto` to `LSApplicationQueriesSchemes` in the next binary.
 
 - [x] E2E Smoke runs against production while staging is paused (2026-11-15):
   this commit's JS swapped into the simulator build, `e2e@soundtracks.test`

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { AppImage } from "@/components/AppImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -17,6 +18,11 @@ interface Props {
    */
   variant?: "outline" | "filled" | "add";
   icon?: React.ComponentProps<typeof Ionicons>["name"];
+  /** A small leading image (album art, a cover) in place of an icon. */
+  imageUri?: string | null;
+  /** e.g. long-press to delete a custom mood. */
+  onLongPress?: () => void;
+  accessibilityHint?: string;
   /** Shows a small remove control after the label. */
   onRemove?: () => void;
   removeLabel?: string;
@@ -31,6 +37,9 @@ export function Chip({
   selected = false,
   variant = "outline",
   icon,
+  imageUri,
+  onLongPress,
+  accessibilityHint,
   onRemove,
   removeLabel,
   style,
@@ -47,7 +56,11 @@ export function Chip({
 
   const body = (
     <View style={styles.row}>
-      {icon ? <Ionicons name={icon} size={14} color={fg} /> : null}
+      {imageUri ? (
+        <AppImage source={{ uri: imageUri }} style={styles.image} />
+      ) : icon ? (
+        <Ionicons name={icon} size={14} color={fg} />
+      ) : null}
       <Text style={[styles.label, { color: fg }]} numberOfLines={1}>
         {label}
       </Text>
@@ -73,7 +86,7 @@ export function Chip({
     style,
   ];
 
-  if (!onPress) {
+  if (!onPress && !onLongPress) {
     return (
       <View style={chipStyle} testID={testID}>
         {body}
@@ -84,8 +97,10 @@ export function Chip({
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
       testID={testID}
       accessibilityRole="button"
+      accessibilityHint={accessibilityHint}
       accessibilityState={{ selected }}
       style={({ pressed }) => [chipStyle, pressed && styles.pressed]}
     >
@@ -126,6 +141,12 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
+    },
+    image: {
+      width: 20,
+      height: 20,
+      borderRadius: 4,
+      marginLeft: -4,
     },
     label: {
       fontFamily: theme.fonts.bodyMedium,
