@@ -30,7 +30,10 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned: CLI 3.x started asking for confirmation before a deploy,
+          # which a CI run can't answer (2026-11-16, nothing was deployed).
+          # Bump deliberately.
+          version: 3.2.0
 
       # verify_jwt per function comes from supabase/config.toml — the manifest
       # is the single source of truth for both projects.
@@ -40,10 +43,10 @@ jobs:
         run: |
           set -euo pipefail
           echo "── deploying to production (izfhbtipzuvinyacttin) ──"
-          supabase functions deploy --project-ref izfhbtipzuvinyacttin
+          supabase functions deploy --project-ref izfhbtipzuvinyacttin --yes
           # Staging is paused on Supabase's free plan (2026-11). Production
           # is what matters; a staging failure is a warning, not a red run.
           echo "── deploying to staging (bqyrpahvdukllasafdpv) ──"
-          if ! supabase functions deploy --project-ref bqyrpahvdukllasafdpv; then
+          if ! supabase functions deploy --project-ref bqyrpahvdukllasafdpv --yes; then
             echo "::warning::Staging deploy failed (the project may be paused). Production is deployed."
           fi
