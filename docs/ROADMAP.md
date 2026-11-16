@@ -45,6 +45,9 @@ below should move that, or it doesn't belong on this page.
   resume fix, the Share card screen, ordered photos, and the data
   freshness fixes (screens refresh when the app returns from the
   background).
+- **On `main`, not promoted yet:** Edit moment opens full screen. It was
+  pushed over the moment overlay, so iOS showed it as a page-sheet card
+  (found in the 1.4 dark-mode pass).
 - **Usage (prod, test accounts excluded):** 82 users; 3 created a moment in
   the last 30 days, 6 in the last 90. 0 occasions. Retention, not
   activation, is still the bottleneck; Phase 2 ("Pull") is aimed at it.
