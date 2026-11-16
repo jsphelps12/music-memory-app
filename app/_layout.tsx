@@ -39,6 +39,7 @@ import { UpdateRequiredScreen } from "@/components/UpdateRequiredScreen";
 import { checkUpdateRequired } from "@/lib/minBuildGate";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PlayerProvider } from "@/contexts/PlayerContext";
+import { AppLockProvider } from "@/contexts/AppLockContext";
 import { useDeepLinkHandler, PENDING_INVITE_CODE_KEY } from "@/hooks/useDeepLinkHandler";
 import { useShareIntentHandler } from "@/hooks/useShareIntentHandler";
 import { useOtaUpdate } from "@/hooks/useOtaUpdate";
@@ -260,7 +261,9 @@ function RootLayout() {
         <ShareIntentProvider>
           <AuthProvider>
             <PlayerProvider>
-              {loaded ? <RootLayoutNav /> : null}
+              <AppLockProvider fontsLoaded={loaded}>
+                {loaded ? <RootLayoutNav /> : null}
+              </AppLockProvider>
             </PlayerProvider>
           </AuthProvider>
         </ShareIntentProvider>

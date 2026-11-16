@@ -37,6 +37,45 @@ public class NowPlayingModule: Module {
     AsyncFunction("getNowPlaying") { () -> [String: Any]? in
       return self.buildNowPlayingInfo()
     }.runOnQueue(.main)
+
+    // Photos ↔ music prototype (1.4): the user's own library with when each
+    // song was added and how often it's been played. On device only; nothing
+    // here leaves the phone.
+    AsyncFunction("requestLibraryAccess") { (promise: Promise) in
+      MPMediaLibrary.requestAuthorization { status in
+        promise.resolve(NowPlayingModule.statusName(status))
+      }
+    }
+
+    AsyncFunction("getLibrarySongs") { (limit: Int) -> [[String: Any]] in
+      guard MPMediaLibrary.authorizationStatus() == .authorized else { return [] }
+      let items = MPMediaQuery.songs().items ?? []
+      let newestFirst = items.sorted { $0.dateAdded > $1.dateAdded }
+      return newestFirst.prefix(max(0, limit)).map { item in
+        var song: [String: Any] = [
+          "persistentId": String(item.persistentID),
+          "storeId": (item.value(forProperty: MPMediaItemPropertyPlaybackStoreID) as? String) ?? "",
+          "title": item.title ?? "",
+          "artistName": item.artist ?? "",
+          "dateAdded": item.dateAdded.timeIntervalSince1970 * 1000,
+          "playCount": item.playCount,
+        ]
+        if let last = item.lastPlayedDate {
+          song["lastPlayed"] = last.timeIntervalSince1970 * 1000
+        }
+        return song
+      }
+    }
+  }
+
+  private static func statusName(_ status: MPMediaLibraryAuthorizationStatus) -> String {
+    switch status {
+    case .authorized: return "authorized"
+    case .denied: return "denied"
+    case .restricted: return "restricted"
+    case .notDetermined: return "notDetermined"
+    @unknown default: return "unknown"
+    }
   }
 
   @objc private func nowPlayingItemDidChange() {

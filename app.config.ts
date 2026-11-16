@@ -6,7 +6,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: isPreview ? "Soundtracks β" : "Soundtracks",
   slug: "music-memory",
-  version: "1.3.1",
+  version: "1.4.0",
   orientation: "portrait",
   icon: isPreview ? "./assets/images/app-icon-beta.png" : "./assets/images/app-icon.png",
   // Per-variant scheme: with both apps installed, iOS routes a shared custom
@@ -84,7 +84,23 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     "expo-router",
+    // Local Xcode 27 builds: lift pods below iOS 15 (see the plugin).
+    "./plugins/withPodsMinDeploymentTarget",
     "expo-apple-authentication",
+    [
+      // App lock (1.4): Settings → Privacy → Lock with Face ID.
+      "expo-local-authentication",
+      { faceIDPermission: "Soundtracks uses Face ID to keep your journal private." },
+    ],
+    [
+      // Photos ↔ music prototype (1.4): reads photo dates near when a song
+      // was added to the library. Read-only, so no save-to-Photos permission.
+      "expo-media-library",
+      {
+        photosPermission: "Soundtracks uses your photo library to attach photos to your moments.",
+        savePhotosPermission: false,
+      },
+    ],
     [
       "expo-image-picker",
       {

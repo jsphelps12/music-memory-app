@@ -86,7 +86,32 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   and screens read correctly; Place moved to `mappin.and.ellipse` (the bare
   `mappin` was lighter than its neighbours). Mood's face draws filled on
   iOS 26 whichever face symbol is used; left as is.
-- [ ] Face ID app lock, the photos ↔ music native query.
+- [x] Face ID app lock (2026-11-16): Settings → Privacy → Lock with Face ID
+  (`expo-local-authentication`; Touch ID or the passcode where there's no
+  Face ID). Off by default, per device; turning it on or off asks first.
+  Locks on launch and after a minute in the background (a quick trip to
+  the music app doesn't count), and covers the app switcher snapshot. The
+  cover is a react-native-screens `FullWindowOverlay`, kept mounted and
+  remounted on foreground and route changes so it sits above native modals
+  (`contexts/AppLockContext.tsx`, rules in `lib/appLock.ts`, tested).
+  Verified on a local simulator build: on/off, cold-start lock, failed
+  face, cancel then retry, the grace period, and the lock over an open
+  moment.
+- [ ] Photos ↔ music prototype (built 2026-11-16, needs Josh's phone):
+  `getLibrarySongs` in the NowPlaying module (`dateAdded`, play count,
+  last played) + `expo-media-library` photo counts for ±3 days. Hidden
+  screen: long-press the version line in Settings. It shows how many songs
+  were added on bulk days (syncs/imports, which would make `dateAdded`
+  useless) and the top pairings ("You added Holocene June 3, 2019, the week
+  of these 14 photos."). `lib/libraryMoments.ts` (tested),
+  `app/dev/library.tsx`. Runs on the simulator (0 songs there); the real
+  answer needs a real library.
+- [x] Local builds on Xcode 27 (2026-11-16): `plugins/withPodsMinDeploymentTarget`
+  lifts pods below iOS 15 (Xcode 27 refuses them) in the Podfile, so
+  `eas build --local` and local simulator builds work while EAS's free
+  builds are used up. Prebuild with `--clean` (apple-targets fails to
+  update an existing project) and run CocoaPods with a UTF-8 locale.
+- [x] Version 1.4.0 in `app.config.ts`.
 - [x] Refetch on reconnect (2026-11-16): `@react-native-community/netinfo`
   feeds React Query's `onlineManager` (`wireQueryFocus` in
   `lib/appFocus.ts`, `isOnline` tested), and the Journal refetches page 0

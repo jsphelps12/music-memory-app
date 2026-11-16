@@ -30,6 +30,7 @@ import { SectionLabel } from "@/components/SectionLabel";
 import { Button } from "@/components/Button";
 import { ListRow } from "@/components/ListRow";
 import { DailyCheckInRow } from "@/components/DailyCheckInRow";
+import { AppLockRow } from "@/components/AppLockRow";
 import { exportJournalPdf } from "@/lib/journalExportDevice";
 import { moodLabel } from "@/lib/moodLabels";
 import { MOODS } from "@/constants/Moods";
@@ -337,6 +338,11 @@ export default function SettingsScreen() {
           />
         </View>
 
+        <SectionLabel style={[styles.groupLabel, styles.groupLabelSpaced]}>Privacy</SectionLabel>
+        <View style={styles.list}>
+          <AppLockRow last />
+        </View>
+
         <SectionLabel style={[styles.groupLabel, styles.groupLabelSpaced]}>Support</SectionLabel>
         <View style={styles.list}>
           <ListRow label="Help" onPress={() => router.push("/help")} />
@@ -363,7 +369,10 @@ export default function SettingsScreen() {
           style={styles.deleteAccountButton}
         />
         {user?.email ? <Text style={styles.signedInAs}>Signed in as {user.email}</Text> : null}
-        <Text style={styles.signedInAs}>{versionLine()}</Text>
+        {/* Long-press: the photos ↔ music prototype (1.4), hidden on purpose. */}
+        <Text style={styles.signedInAs} onLongPress={() => router.push("/dev/library" as any)} suppressHighlighting>
+          {versionLine()}
+        </Text>
       </ScrollView>
 
       <BottomSheet
