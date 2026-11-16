@@ -77,10 +77,11 @@ export function ListRow({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const kind: Accessory = accessory ?? (onPress ? "chevron" : "none");
   // At accessibility text sizes a label and a detail can't share one line
-  // ("Your 2026 i…  6 moments"), so the detail moves under the label, as in
-  // the iOS Settings app.
+  // ("Your 2026 i…  6 moments"), so the detail moves under the label and no
+  // line is cut short, as in the iOS Settings app.
   const { fontScale } = useWindowDimensions();
-  const stackDetail = !!detail && !trailing && fontScale >= ACCESSIBILITY_FONT_SCALE;
+  const accessibilitySize = fontScale >= ACCESSIBILITY_FONT_SCALE;
+  const stackDetail = !!detail && !trailing && accessibilitySize;
   const labelColor = destructive ? theme.colors.destructive : theme.colors.text;
 
   const accessoryIcon =
@@ -105,11 +106,11 @@ export function ListRow({
         />
       ) : null)}
       <View style={styles.text}>
-        <Text style={[styles.label, strong && styles.labelStrong, { color: labelColor }]} numberOfLines={2}>
+        <Text style={[styles.label, strong && styles.labelStrong, { color: labelColor }]} numberOfLines={accessibilitySize ? undefined : 2}>
           {label}
         </Text>
         {subtitle ? (
-          <Text style={styles.subtitle} numberOfLines={subtitleLines}>
+          <Text style={styles.subtitle} numberOfLines={accessibilitySize ? undefined : subtitleLines}>
             {subtitle}
           </Text>
         ) : null}
