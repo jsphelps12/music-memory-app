@@ -59,6 +59,14 @@ below should move that, or it doesn't belong on this page.
 ### Next native build (1.4)
 - [ ] SF Symbols, React Compiler, Face ID app lock, the photos ↔ music
   native query. Batch them; each one moves the fingerprint.
+- [ ] Refetch on reconnect: add `@react-native-community/netinfo` (via
+  `npx expo install`) and wire React Query's `onlineManager` to it next to
+  `wireQueryFocus` in `lib/appFocus.ts`; the Journal refetches page 0 on
+  reconnect too. Today a screen left open through a dead zone only catches up
+  on the next focus, foreground or pull (Josh OK'd, 2026-11-15).
+- [ ] `mailto` in `LSApplicationQueriesSchemes` (app.config.ts), so Settings >
+  Share feedback can check `canOpenURL` before trying Mail (the copy-the-
+  address fallback stays for phones with no mail app).
 
 ### Ship 1.3.0
 - [x] Version bump + beta build 33 (PR #45).
