@@ -307,7 +307,7 @@ export default function YouScreen() {
             accessibilityHint="Edit profile"
           >
             <Text style={styles.name} numberOfLines={1}>{displayName ?? "Add your name"}</Text>
-            <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>
+            <Text style={styles.subtitle} numberOfLines={2}>{subtitle}</Text>
           </TouchableOpacity>
           <IconButton
             name="settings-outline"
