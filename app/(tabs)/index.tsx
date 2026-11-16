@@ -8,6 +8,7 @@ import {
   RefreshControl,
   StyleSheet,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -22,11 +23,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
-import { consumeTimelineStale } from "@/lib/timelineRefresh";
+import { consumeTimelineStale, planFocusFetch } from "@/lib/timelineRefresh";
 import { shouldRefreshOnResume, useOnForeground } from "@/lib/appFocus";
 import {
   consumePrefetchPromise,
   consumePrefetchNetworkPromise,
+  discardTimelinePrefetch,
   mergeFirstPage,
   appendPage,
   lastLoadedPage,
@@ -272,7 +274,7 @@ export default function TimelineScreen() {
   }, [applyList]);
 
   const fetchMomentsInner = useCallback(
-    async (showLoading: boolean, append = false) => {
+    async (showLoading: boolean, append = false, skipPrefetch = false) => {
       if (!userId) return;
       if (!append) {
         pageRef.current = 0;
@@ -281,7 +283,8 @@ export default function TimelineScreen() {
       if (showLoading) setLoading(true);
       const t0 = Date.now();
 
-      if (showLoading && !append) {
+      if (skipPrefetch) discardTimelinePrefetch(userId);
+      if (showLoading && !append && !skipPrefetch) {
         const prefetchPromise = consumePrefetchPromise(userId);
         if (prefetchPromise) {
           const prefetched = await prefetchPromise.catch(() => null);
@@ -374,9 +377,9 @@ export default function TimelineScreen() {
   );
 
   const fetchMoments = useCallback(
-    async (showLoading: boolean, append = false) => {
+    async (showLoading: boolean, append = false, skipPrefetch = false) => {
       try {
-        await fetchMomentsInner(showLoading, append);
+        await fetchMomentsInner(showLoading, append, skipPrefetch);
       } finally {
         if (!append) refreshInFlightRef.current = false;
       }
@@ -429,11 +432,15 @@ export default function TimelineScreen() {
 
       if (stale) calendarFetchedRef.current = null;
       if (viewModeRef.current === "calendar" && calendarFetchedRef.current !== true) fetchCalendarMoments();
-      if (lastFetchTime.current === 0) {
-        fetchMoments(true);
-      } else if (stale || elapsed >= REFETCH_COOLDOWN_MS) {
-        fetchMoments(false);
-      }
+      const plan = planFocusFetch({
+        hasFetched: lastFetchTime.current !== 0,
+        stale,
+        elapsedMs: elapsed,
+        cooldownMs: REFETCH_COOLDOWN_MS,
+      });
+      if (plan === "initial") fetchMoments(true);
+      else if (plan === "initial_fresh") fetchMoments(true, false, true);
+      else if (plan === "refresh") fetchMoments(false);
 
       // The "new from friends" row's count, on the badge cooldown.
       if (userId && Date.now() - unviewedUpdatedAt >= SHARED_BADGE_STALE_MS) refetchUnviewed();
@@ -562,12 +569,27 @@ export default function TimelineScreen() {
                   onRetry={() => fetchMoments(true)}
                 />
               ) : moments.length === 0 && !loading ? (
-                <EmptyState
-                  icon="musical-notes-outline"
-                  title="No moments yet"
-                  subtitle={"A moment is a song paired with a memory —\nwhat you felt, who you were with, and why it mattered."}
-                  action={{ label: "Create Your First Moment", onPress: () => router.push("/create") }}
-                />
+                // Scrollable so pull-to-refresh works here too: an empty list
+                // that turned out to be wrong had no way to recover.
+                <ScrollView
+                  contentContainerStyle={styles.emptyScroll}
+                  showsVerticalScrollIndicator={false}
+                  refreshControl={
+                    <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={handleRefresh}
+                      tintColor={theme.colors.text}
+                    />
+                  }
+                >
+                  <View style={styles.emptyHeader}>{listHeader}</View>
+                  <EmptyState
+                    icon="musical-notes-outline"
+                    title="No moments yet"
+                    subtitle={"A moment is a song paired with a memory —\nwhat you felt, who you were with, and why it mattered."}
+                    action={{ label: "Create Your First Moment", onPress: () => router.push("/create") }}
+                  />
+                </ScrollView>
               ) : (
                 <SectionList
                   ref={sectionListRef}
@@ -680,6 +702,13 @@ function createStyles(theme: Theme) {
     sectionHeader: {
       paddingTop: theme.spacing["2xl"],
       paddingBottom: theme.spacing.xs,
+    },
+    emptyScroll: {
+      flexGrow: 1,
+      paddingBottom: 110,
+    },
+    emptyHeader: {
+      paddingHorizontal: theme.spacing.xl,
     },
     listContent: {
       paddingHorizontal: theme.spacing.xl,

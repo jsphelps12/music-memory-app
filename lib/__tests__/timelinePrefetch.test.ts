@@ -451,3 +451,28 @@ describe("mergeFirstPage (background refresh keeps loaded pages)", () => {
     expect(mod.lastLoadedPage(89, 30)).toBe(1);
   });
 });
+
+describe("discardTimelinePrefetch — data changed after the prefetch fired", () => {
+  it("drops both legs so no later consumer can use the outdated result", async () => {
+    // New-user onboarding: the prefetch ran at sign-up, before any moments.
+    sb.queueData([]);
+
+    const mod = await loadModule();
+    mod.prefetchTimeline(USER);
+    mod.discardTimelinePrefetch(USER);
+
+    expect(mod.consumePrefetchPromise(USER)).toBeNull();
+    expect(mod.consumePrefetchNetworkPromise(USER)).toBeNull();
+  });
+
+  it("leaves another user's prefetch alone", async () => {
+    sb.queueData([row("a", "A")]);
+
+    const mod = await loadModule();
+    mod.prefetchTimeline(USER);
+    mod.discardTimelinePrefetch(OTHER_USER);
+
+    expect(mod.consumePrefetchPromise(USER)).not.toBeNull();
+    expect(mod.consumePrefetchNetworkPromise(USER)).not.toBeNull();
+  });
+});

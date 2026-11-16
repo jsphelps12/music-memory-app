@@ -146,6 +146,16 @@ them, OTA-only (no native changes).
   reset as itself under RLS (`scripts/reset-e2e-prod.mjs`); the promote gate
   is unchanged. `backend=staging` returns to the old path.
 
+### Fixes (JS only, can ship OTA)
+- [x] **New users landed on an empty Journal after onboarding** (found
+  2026-11-13 on 1.3.1). The timeline prefetch runs at sign-up, before the two
+  onboarding moments exist. The Journal tab first mounts after onboarding and
+  painted that empty prefetch even though onboarding had marked it stale. Now
+  a stale flag on first load skips the prefetch (`planFocusFetch` in
+  `lib/timelineRefresh.ts`), and the empty state supports pull-to-refresh.
+  Checked on a simulator against prod (2026-11-14): both onboarding moments
+  show on the first Journal load.
+
 ### Phase 1 — Feel
 *Cleaner, more intuitive, professional-grade; capture in two taps.*
 Owner's read: "doesn't feel great" — colors, generic menu icons, borders,
