@@ -41,6 +41,7 @@ import { Song, Album } from "@/types";
 import { GeoResult } from "@/lib/geocoding";
 import { friendlyError } from "@/lib/errors";
 import { checkAndNotifyMilestone } from "@/lib/notifications";
+import { cancelTodaysCheckIn } from "@/lib/dailyCheckIn";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches, invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { getProvider } from "@/lib/providers";
@@ -466,6 +467,8 @@ export default function CreateMomentScreen() {
       setError("");
 
       markTimelineStale(savedMoment);
+      // Today is logged: its check-in reminder has nothing left to ask.
+      void cancelTodaysCheckIn();
       invalidateMomentCaches(queryClient, user.id);
       // saveMoment adds the moment to the album for us, so the album caches are
       // stale too — invalidate here rather than widening saveMoment's signature.
