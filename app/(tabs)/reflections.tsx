@@ -27,6 +27,8 @@ import { MomentCard } from "@/components/MomentCard";
 import { MomentSearch } from "@/components/MomentSearch";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ListRow } from "@/components/ListRow";
+import { YearReviewEntry } from "@/components/YearReviewEntry";
+import { eligibleReviewYears, featuredReviewYear } from "@/lib/yearInReview";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { setCachedMoment } from "@/lib/momentCache";
 import { ErrorBanner } from "@/components/ErrorBanner";
@@ -359,6 +361,16 @@ export default function ReflectionsScreen() {
   const moodCounts = useMemo(() => deriveMoodCounts(meta, allMoods), [meta, allMoods]);
   const peopleCounts = useMemo(() => derivePeopleCounts(meta), [meta]);
   const yearCounts = useMemo(() => deriveYearCounts(meta), [meta]);
+
+  // Year in review, featured December 1 – January 31 for a year with enough
+  // moments (lib/yearInReview.ts). todayKey keeps it in step with the date.
+  const featuredReview = useMemo(() => {
+    const year = featuredReviewYear(new Date(todayKey + "T00:00:00"));
+    if (year === null || !eligibleReviewYears(meta).includes(year)) return null;
+    const inYear = meta.filter((m) => m.momentDate?.startsWith(String(year)));
+    const artwork = [...new Set(inYear.map((m) => m.songArtworkUrl).filter(Boolean))];
+    return { year, count: inYear.length, artwork };
+  }, [meta, todayKey]);
   const albumCounts = useMemo(() => deriveAlbumCounts(meta), [meta]);
   const topArtists = useMemo(() => deriveTopArtists(meta), [meta]);
 
@@ -558,6 +570,15 @@ export default function ReflectionsScreen() {
               message={friendlyError(error)}
               onRetry={() => refetch()}
               onDismiss={() => setBannerDismissedAt(errorUpdatedAt)}
+            />
+          ) : null}
+
+          {featuredReview ? (
+            <YearReviewEntry
+              year={featuredReview.year}
+              count={featuredReview.count}
+              artwork={featuredReview.artwork}
+              onPress={() => router.push(`/year/${featuredReview.year}`)}
             />
           ) : null}
 

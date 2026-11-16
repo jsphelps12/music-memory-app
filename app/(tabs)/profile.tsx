@@ -24,6 +24,7 @@ import { IconButton } from "@/components/IconButton";
 import { Button } from "@/components/Button";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ListRow } from "@/components/ListRow";
+import { SectionLabel } from "@/components/SectionLabel";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,7 +39,9 @@ import { setCachedMoment } from "@/lib/momentCache";
 import { spotifyFailureMessage, SPOTIFY_FREE_NOTICE } from "@/lib/providers/spotifyErrors";
 import { friendlyError } from "@/lib/errors";
 import { pluralMoments } from "@/lib/utils";
-import { PROFILE_STATS_STALE, DEFAULT_SCREEN_STALE } from "@/lib/queryConfig";
+import { PROFILE_STATS_STALE, DEFAULT_SCREEN_STALE, BROWSE_META_STALE } from "@/lib/queryConfig";
+import { fetchBrowseMetadata } from "@/lib/browse";
+import { eligibleReviewYears } from "@/lib/yearInReview";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme, spacing } from "@/constants/theme";
 import { Album, Moment } from "@/types";
@@ -98,6 +101,21 @@ export default function YouScreen() {
   // working and ignore repeat taps until it settles.
   const [switchingProvider, setSwitchingProvider] = useState(false);
   const [musicSheetVisible, setMusicSheetVisible] = useState(false);
+
+  // Shared with Rediscover's archive (same key): which years have a review.
+  const browseMeta = useQuery({
+    queryKey: ["browseMeta", user?.id],
+    queryFn: () => fetchBrowseMetadata(user!.id),
+    enabled: !!user,
+    staleTime: BROWSE_META_STALE,
+  });
+  const reviewYears = useMemo(() => {
+    const meta = browseMeta.data ?? [];
+    return eligibleReviewYears(meta).map((year) => ({
+      year,
+      count: meta.filter((m) => m.momentDate?.startsWith(String(year))).length,
+    }));
+  }, [browseMeta.data]);
 
   const summary = useQuery({
     queryKey: ["youSummary", user?.id],
@@ -402,6 +420,21 @@ export default function YouScreen() {
             <Text style={styles.emptyNote}>Group entries into albums: a trip, a person, a year.</Text>
           ) : null}
         </View>
+
+        {/* Year in review, any year with enough moments */}
+        {reviewYears.length > 0 ? (
+          <View style={styles.rows}>
+            <SectionLabel>Your years</SectionLabel>
+            {reviewYears.map(({ year, count }) => (
+              <ListRow
+                key={year}
+                label={`Your ${year} in songs`}
+                detail={`${count} moments`}
+                onPress={() => router.push(`/year/${year}`)}
+              />
+            ))}
+          </View>
+        ) : null}
 
         {/* Friends · Music service */}
         <View style={styles.rows}>
