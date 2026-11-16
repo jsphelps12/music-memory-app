@@ -328,6 +328,9 @@ function RootLayoutNav() {
       if (data.type === "people") {
         // friend_added (Sharing v2): someone opened your friend link
         router.push("/friends-list" as any);
+      } else if (data.type === "memory" && data.momentId) {
+        // On this day that plays: the memory card, song already going
+        router.push(`/memory/${data.momentId}?source=push`);
       } else if (data.type === "shared_moment" && data.momentId) {
         // share_received (Sharing v2): straight to the moment
         router.push(`/moment/${data.momentId}`);
@@ -499,6 +502,12 @@ function RootLayoutNav() {
           <Stack.Screen
             name="browse"
             options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="memory/[id]"
+            // On this day that plays: an experience you enter and leave, full
+            // screen and always night, like Year in review.
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="year/[year]"

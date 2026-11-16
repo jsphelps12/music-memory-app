@@ -39,7 +39,11 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
-          for ref in izfhbtipzuvinyacttin bqyrpahvdukllasafdpv; do
-            echo "── deploying to $ref ──"
-            supabase functions deploy --project-ref "$ref"
-          done
+          echo "── deploying to production (izfhbtipzuvinyacttin) ──"
+          supabase functions deploy --project-ref izfhbtipzuvinyacttin
+          # Staging is paused on Supabase's free plan (2026-11). Production
+          # is what matters; a staging failure is a warning, not a red run.
+          echo "── deploying to staging (bqyrpahvdukllasafdpv) ──"
+          if ! supabase functions deploy --project-ref bqyrpahvdukllasafdpv; then
+            echo "::warning::Staging deploy failed (the project may be paused). Production is deployed."
+          fi

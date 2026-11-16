@@ -368,8 +368,16 @@ clutter, navigation.
   Review risk — don't).
 - [ ] **Something new to explore:** MusicKit personal recommendations (Apple
   Music subscribers).
-- [ ] **On This Day that plays:** notification → tap → the song starts → your
-  words from years ago.
+- [x] **On This Day that plays** (2026-11-16): the On this day push reads
+  "5 years ago today" / "Rivers and Roads, The Head and the Heart" (never the
+  user's words, since it can show on the Lock Screen) and opens the memory
+  card (`app/memory/[id].tsx`, push `data.type "memory"`): full screen on
+  night, the artwork, the anniversary, your words, and the song already
+  playing; "Open the moment" carries on into the entry with the song still
+  going, closing stops it. Rediscover's On this day opens the same card.
+  Older binaries fall back to opening the moment (`momentId`). Edge
+  Functions deploy now treats a failed staging deploy (paused) as a
+  warning, after production.
 
 Feasibility notes (what APIs can and can't see) are in the archive under
 "Product ideas + feasibility findings — 2026-08-02". Key fact: dated play

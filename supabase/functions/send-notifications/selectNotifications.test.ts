@@ -193,6 +193,15 @@ describe("selectNotifications priority cascade", () => {
   });
 
   describe("priority 3 — on this day", () => {
+    it("says one year in the singular and never includes the user's words", () => {
+      const moments = [
+        moment("u1", { id: "m", moment_date: "2025-07-15", song_title: "Song", created_at: ago(365) }),
+      ];
+      const { messages } = selectNotifications(buildInput([user("u1")], moments));
+      expect(messages[0].title).toBe("1 year ago today");
+      expect(messages[0].body).toMatch(/^Song, /);
+    });
+
     it("picks the most recent prior year that matches today's month/day", () => {
       const moments = [
         moment("u1", { id: "old", moment_date: "2022-07-15", song_title: "Old", created_at: ago(900) }),
@@ -200,9 +209,9 @@ describe("selectNotifications priority cascade", () => {
       ];
       const { messages } = selectNotifications(buildInput([user("u1")], moments));
       expect(messages).toHaveLength(1);
-      expect(messages[0].title).toBe("On This Day 🎵");
-      expect(messages[0].data).toEqual({ momentId: "new" });
-      expect(messages[0].body).toContain("2 years ago");
+      expect(messages[0].title).toBe("2 years ago today");
+      expect(messages[0].data).toEqual({ momentId: "new", type: "memory" });
+      expect(messages[0].body).toContain("New");
     });
 
     it("ignores a moment dated today this year", () => {
@@ -397,13 +406,11 @@ describe("selectNotifications priority cascade", () => {
   });
 
   it("rotates copy variants deterministically off daySeed", () => {
+    // The streak reminder rotates its copy; On This Day has one plain line
+    // (the anniversary and the song) since the memory card (2026-11-16).
     const bodies = [3, 4, 5].map((seed) => {
-      const now = new Date("2026-07-15T10:00:00.000Z");
       const { messages } = selectNotifications(
-        buildInput([user("u1")], [moment("u1", { moment_date: "2025-07-15", created_at: ago(360) })], {
-          now,
-          daySeed: seed,
-        })
+        buildInput([user("u1")], [moment("u1", { song_title: "Debaser", created_at: ago(1) })], { daySeed: seed })
       );
       return messages[0].body;
     });
@@ -470,8 +477,8 @@ describe("local-day inputs (users' own calendar, not UTC)", () => {
     expect(byUser.west.allMoments?.every((m) => m.user_id === "west")).toBe(true);
 
     // East's Jul 14 anniversary is today for them; for West it's tomorrow.
-    expect(selectNotifications(byUser.east).messages[0]?.title).toBe("On This Day 🎵");
-    expect(selectNotifications(byUser.west).messages[0]?.title).not.toBe("On This Day 🎵");
+    expect(selectNotifications(byUser.east).messages[0]?.title).toMatch(/ago today$/);
+    expect(selectNotifications(byUser.west).messages[0]?.title ?? "").not.toMatch(/ago today$/);
   });
 
   it("streak milestones count local logging days", () => {
