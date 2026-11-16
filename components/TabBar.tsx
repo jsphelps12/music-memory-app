@@ -124,7 +124,11 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
                 />
                 {badgeCount > 0 && <View style={styles.badge} />}
               </View>
-              <Text style={[styles.label, { color }, isActive && styles.labelActive]}>{tab.label}</Text>
+              {/* Capped like the system tab bar, whose labels barely scale:
+                  three labels must fit one row ("Rediscover" clipped at AX3). */}
+              <Text style={[styles.label, { color }, isActive && styles.labelActive]} maxFontSizeMultiplier={1.2}>
+                {tab.label}
+              </Text>
             </TouchableOpacity>
           );
         })}
