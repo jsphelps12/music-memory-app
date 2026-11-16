@@ -48,6 +48,11 @@ below should move that, or it doesn't belong on this page.
 - **On `main`, not promoted yet:** Edit moment opens full screen. It was
   pushed over the moment overlay, so iOS showed it as a page-sheet card
   (found in the 1.4 dark-mode pass).
+- **Large text (2026-11-16):** checked at XXXL and AX3. Fixed: the inline
+  screen title (cap 1.5x) and tab labels (cap 1.2x) no longer truncate;
+  list rows stack their detail under the label and drop line limits at
+  accessibility sizes; avatar initials stay inside their circles; the You
+  Albums header wraps instead of colliding.
 - **Usage (prod, test accounts excluded):** 82 users; 3 created a moment in
   the last 30 days, 6 in the last 90. 0 occasions. Retention, not
   activation, is still the bottleneck; Phase 2 ("Pull") is aimed at it.
