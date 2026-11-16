@@ -327,11 +327,19 @@ clutter, navigation.
   wordmark, held until routing resolves and faded into the first screen, so
   a cold launch from a widget reads as the app opening onto Capture. It
   used to hide at font load and show a blank spinner screen in between.
-- [ ] **Daily "what song did you listen to today?"** A one-question
-  check-in at a time you choose (notification first; voice entry with
-  on-device transcription next; a real AI phone call later, as a paid
-  feature, opening with a song you saved: "You saved Space Song a year ago
-  today. What's different now?").
+- [x] **Daily check-in, v1** (2026-11-16): "What song did you listen to
+  today?" at a time you choose (default 9:00 PM), as local notifications
+  (no server). Skips any day you've already saved a moment: two weeks are
+  scheduled ahead, saving cancels today's, and each app open re-plans them,
+  so they run out after two weeks away instead of nagging someone who left.
+  Opt in from Settings → Journal → Daily check-in (switch + time) or the
+  Journal's one-time offer; a denied notification permission says so and
+  links to iOS Settings. Tapping opens Capture with what's playing filled
+  in. Settings are per device. `lib/dailyCheckIn.ts` (tested),
+  `components/DailyCheckInRow.tsx`, `components/DailyCheckInOffer.tsx`.
+- [ ] Daily check-in, next: voice entry with on-device transcription; later
+  a real AI phone call as a paid feature, opening with a song you saved
+  ("You saved Space Song a year ago today. What's different now?").
 - [ ] **Photos ↔ music: three moments a week.** On device only: Apple Music
   library `dateAdded` / play count / last played (+ Replay playlists) matched
   to photos from ±3 days (date, place, favorites; iOS 18 on-device aesthetic

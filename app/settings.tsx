@@ -28,6 +28,8 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
 import { Button } from "@/components/Button";
 import { ListRow } from "@/components/ListRow";
+import { DailyCheckInRow } from "@/components/DailyCheckInRow";
+import { useOnForeground } from "@/lib/appFocus";
 import { BottomSheet } from "@/components/BottomSheet";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -105,16 +107,17 @@ export default function SettingsScreen() {
   const [addressCopied, setAddressCopied] = useState(false);
 
   // Permission can change in iOS Settings while we're away, so read it on
-  // every focus; it's a local call.
-  useFocusEffect(
-    useCallback(() => {
-      Notifications.getPermissionsAsync()
-        .then(({ status }) =>
-          setNotifPermission(status === "granted" ? "granted" : status === "denied" ? "denied" : "undetermined")
-        )
-        .catch(() => {});
-    }, [])
-  );
+  // every focus and every return to the app (coming back from iOS Settings
+  // isn't a focus change); it's a local call.
+  const readPermission = useCallback(() => {
+    Notifications.getPermissionsAsync()
+      .then(({ status }) =>
+        setNotifPermission(status === "granted" ? "granted" : status === "denied" ? "denied" : "undetermined")
+      )
+      .catch(() => {});
+  }, []);
+  useFocusEffect(readPermission);
+  useOnForeground(readPermission);
 
   const notifValue = (field: NotifField): boolean =>
     pendingNotif?.field === field ? pendingNotif.value : profile?.[field] ?? true;
@@ -231,6 +234,7 @@ export default function SettingsScreen() {
 
         <SectionLabel style={[styles.groupLabel, styles.groupLabelSpaced]}>Journal</SectionLabel>
         <View style={styles.list}>
+          {user ? <DailyCheckInRow userId={user.id} /> : null}
           <ListRow
             label="Notifications"
             detail={notifPermission !== "granted" ? "Off" : undefined}

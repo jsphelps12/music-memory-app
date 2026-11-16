@@ -20,6 +20,7 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
 import { saveMoment } from "@/lib/saveMoment";
 import { friendlyError } from "@/lib/errors";
+import { cancelTodaysCheckIn } from "@/lib/dailyCheckIn";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches } from "@/lib/cacheInvalidation";
 import { Song } from "@/types";
@@ -53,6 +54,8 @@ export default function OnboardingCapture1Screen() {
         momentDate: new Date(),
       });
       markTimelineStale();
+      // Today is logged: its check-in reminder has nothing left to ask.
+      void cancelTodaysCheckIn();
       // Rediscover, You and the map read React Query caches, not the timeline
       // flag; without this they kept their pre-onboarding (empty) snapshot.
       invalidateMomentCaches(queryClient, user.id);

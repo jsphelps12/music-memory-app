@@ -21,7 +21,8 @@ import { resolveAuthRoute, ROUTE_TABS } from "@/lib/authRouting";
 import { markStartup, reportStartup } from "@/lib/perf";
 import { useEffect, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { wireQueryFocus } from "@/lib/appFocus";
+import { useOnForeground, wireQueryFocus } from "@/lib/appFocus";
+import { refreshCheckIns } from "@/lib/dailyCheckIn";
 import { PostHogProvider } from "posthog-react-native";
 import { posthog } from "@/lib/posthog";
 import { View, ActivityIndicator } from "react-native";
@@ -280,6 +281,16 @@ function RootLayoutNav() {
   useShareIntentHandler();
   useOtaUpdate();
 
+  // Daily check-in: re-plan the next two weeks of reminders on sign-in and
+  // every return to the app, so a day you already logged gets none, and a
+  // long absence lets them run out (lib/dailyCheckIn.ts).
+  useEffect(() => {
+    if (user?.id) void refreshCheckIns(user.id);
+  }, [user?.id]);
+  useOnForeground(() => {
+    if (user?.id) void refreshCheckIns(user.id);
+  });
+
   // Min-build gate (build 23): one launch check; fail-open, so the app renders
   // normally unless the server positively says this binary is below the floor.
   const [updateRequired, setUpdateRequired] = useState(false);
@@ -327,7 +338,9 @@ function RootLayoutNav() {
       } else if (data.momentId) {
         router.push(`/moment/${data.momentId}`);
       } else if (data.type === "create") {
-        router.push("/create");
+        // The source rides along for the capture_opened event (e.g. the
+        // daily check-in); capture fills in what's playing as usual.
+        router.push(typeof data.source === "string" ? `/create?source=${data.source}` : "/create");
       } else if (data.type === "tabs") {
         router.replace("/(tabs)");
       }
