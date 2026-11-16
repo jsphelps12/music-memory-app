@@ -349,7 +349,7 @@ export default function ReflectionsScreen() {
 
   // Browse metadata — the archive strips and the rewind's month list all
   // derive from this one shared cache.
-  const { data: meta = [] } = useQuery({
+  const { data: meta = [], refetch: refetchMeta } = useQuery({
     queryKey: ["browseMeta", user?.id],
     queryFn: () => fetchBrowseMetadata(user!.id),
     enabled: !!user,
@@ -388,7 +388,7 @@ export default function ReflectionsScreen() {
     [rewindMonthKey]
   );
 
-  const { data: rewindMoments = [] } = useQuery({
+  const { data: rewindMoments = [], refetch: refetchRewind } = useQuery({
     queryKey: ["weeklyRewind", user?.id, rewindMonthKey],
     queryFn: () => fetchRewindMoments(user!.id, rewindMonthKey!),
     enabled: !!user && !!rewindMonthKey,
@@ -408,6 +408,16 @@ export default function ReflectionsScreen() {
       }
     }, [refetch, dataUpdatedAt, refreshToday])
   );
+
+  // A pull refreshes the whole screen, not just On This Day: the archive
+  // strips, the rewind and the hero kept their old snapshot otherwise.
+  const handleRefresh = useCallback(() => {
+    refetch();
+    refetchMeta();
+    refetchRandom();
+    // refetch() ignores `enabled`; with no month there is nothing to fetch.
+    if (rewindMonthKey) refetchRewind();
+  }, [refetch, refetchMeta, refetchRandom, refetchRewind, rewindMonthKey]);
 
   const handleShuffle = useCallback(() => {
     refetchRandom();
@@ -538,7 +548,7 @@ export default function ReflectionsScreen() {
           refreshControl={
             <RefreshControl
               refreshing={isFetching && !isLoading}
-              onRefresh={refetch}
+              onRefresh={handleRefresh}
               tintColor={theme.colors.textSecondary}
             />
           }

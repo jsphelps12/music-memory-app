@@ -12,6 +12,8 @@ import {
   markTimelineStale,
   consumeTimelineStale,
   resetTimelineRefresh,
+  markTimelineDeleted,
+  lastTimelineMarkAt,
 } from "../timelineRefresh";
 
 const COOLDOWN = 30_000;
@@ -55,5 +57,31 @@ describe("timeline stale flag", () => {
     markTimelineStale();
     expect(consumeTimelineStale().stale).toBe(true);
     expect(consumeTimelineStale().stale).toBe(false);
+  });
+});
+
+describe("lastTimelineMarkAt (prefetch age check)", () => {
+  beforeEach(() => resetTimelineRefresh());
+
+  it("is 0 until something is marked", () => {
+    expect(lastTimelineMarkAt()).toBe(0);
+  });
+
+  it("records the time of the last mark or delete, and survives consuming", () => {
+    const before = Date.now();
+    markTimelineStale();
+    expect(lastTimelineMarkAt()).toBeGreaterThanOrEqual(before);
+    consumeTimelineStale();
+    expect(lastTimelineMarkAt()).toBeGreaterThanOrEqual(before);
+
+    resetTimelineRefresh();
+    markTimelineDeleted("x");
+    expect(lastTimelineMarkAt()).toBeGreaterThanOrEqual(before);
+  });
+
+  it("is cleared on sign-out", () => {
+    markTimelineStale();
+    resetTimelineRefresh();
+    expect(lastTimelineMarkAt()).toBe(0);
   });
 });

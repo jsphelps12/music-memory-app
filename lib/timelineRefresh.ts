@@ -9,15 +9,26 @@ import { Moment } from "@/types";
 let _stale = false;
 let _pendingMoment: Moment | null = null;
 let _deletedMomentId: string | null = null;
+// When moments last changed on this device. Unlike the flag, consuming doesn't
+// reset it: a timeline prefetch started before this time predates the change
+// and must not be painted (see isPrefetchFresh in timelinePrefetch.ts).
+let _lastMarkedAt = 0;
 
 export function markTimelineStale(moment?: Moment): void {
   _stale = true;
+  _lastMarkedAt = Date.now();
   if (moment) _pendingMoment = moment;
 }
 
 export function markTimelineDeleted(momentId: string): void {
   _stale = true;
+  _lastMarkedAt = Date.now();
   _deletedMomentId = momentId;
+}
+
+/** Epoch ms of the last markTimelineStale / markTimelineDeleted, 0 if none. */
+export function lastTimelineMarkAt(): number {
+  return _lastMarkedAt;
 }
 
 /**
@@ -29,6 +40,7 @@ export function resetTimelineRefresh(): void {
   _stale = false;
   _pendingMoment = null;
   _deletedMomentId = null;
+  _lastMarkedAt = 0;
 }
 
 export function consumeTimelineStale(): { stale: boolean; pendingMoment: Moment | null; deletedMomentId: string | null } {

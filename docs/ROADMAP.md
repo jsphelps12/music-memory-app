@@ -155,6 +155,30 @@ them, OTA-only (no native changes).
   `lib/timelineRefresh.ts`), and the empty state supports pull-to-refresh.
   Checked on a simulator against prod (2026-11-14): both onboarding moments
   show on the first Journal load.
+- [ ] **Data freshness fixes (2026-11-15)**, from an audit of stale data.
+  Branch `fix/refresh-on-foreground`; device check pending.
+  - Refresh on return from the background: React Query's `focusManager`
+    follows AppState (`lib/appFocus.ts`), and the Journal refetches on
+    foreground after the 30s cooldown.
+  - The timeline prefetch has an age limit (`isPrefetchFresh`): one older
+    than 30s, or older than the last `markTimelineStale`, is discarded, and
+    no new prefetch fires for a user whose timeline is already loaded. An
+    old prefetch from a re-run hydration was painting over newer rows.
+  - A failed launch network fetch after a cache paint shows the inline
+    banner, retries once after 5s, and makes the next focus or foreground
+    refresh regardless of the cooldown.
+  - The timeline disk cache (first page) is written after every page-0 fetch
+    and every local create/edit/delete, not only at launch
+    (`writeTimelineCache`, generation-guarded against sign-out).
+  - The calendar refetches whenever the list changes, not just on a pull.
+  - Onboarding saves invalidate the React Query caches too.
+  - A saved or edited moment is placed in its timeline position and deduped
+    by id (`insertPendingMoment`), so a backdated moment lands in its month.
+  - The profile disk cache is shape-checked (`parseCachedProfile`).
+  - The Journal's focus effect no longer re-runs on badge updates (it fired a
+    duplicate first fetch during cold start).
+  - Rediscover's pull refreshes the archive, rewind and hero as well as On
+    This Day; the map uses the standard 2-minute staleTime.
 
 ### Phase 1 — Feel
 *Cleaner, more intuitive, professional-grade; capture in two taps.*

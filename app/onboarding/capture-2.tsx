@@ -11,6 +11,7 @@ import {
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -25,12 +26,14 @@ import { PeopleInput } from "@/components/PeopleInput";
 import { saveMoment } from "@/lib/saveMoment";
 import { friendlyError } from "@/lib/errors";
 import { markTimelineStale } from "@/lib/timelineRefresh";
+import { invalidateMomentCaches } from "@/lib/cacheInvalidation";
 import { GeoResult } from "@/lib/geocoding";
 import { Song } from "@/types";
 
 export default function OnboardingCapture2Screen() {
   const router = useRouter();
   const { user, profile, saveCustomMood, deleteCustomMood } = useAuth();
+  const queryClient = useQueryClient();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { moment1Id } = useLocalSearchParams<{ moment1Id?: string }>();
@@ -70,6 +73,9 @@ export default function OnboardingCapture2Screen() {
         momentDate,
       });
       markTimelineStale();
+      // Rediscover, You and the map read React Query caches, not the timeline
+      // flag; without this they kept their pre-onboarding (empty) snapshot.
+      invalidateMomentCaches(queryClient, user.id);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace({
         pathname: "/onboarding/moment-preview",
