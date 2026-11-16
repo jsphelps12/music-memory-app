@@ -23,6 +23,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { consumeTimelineStale } from "@/lib/timelineRefresh";
+import { shouldRefreshOnResume, useOnForeground } from "@/lib/appFocus";
 import {
   consumePrefetchPromise,
   consumePrefetchNetworkPromise,
@@ -392,6 +393,19 @@ export default function TimelineScreen() {
     await fetchMoments(false, true);
     setLoadingMore(false);
   }, [hasMore, loadingMore, fetchMoments]);
+
+  // Back from the background: the tab never lost focus, so the effect below
+  // doesn't run. Without this the Journal showed whatever it had when the app
+  // was backgrounded, hours old, until a pull-to-refresh.
+  useOnForeground(() => {
+    if (!userId) return;
+    if (shouldRefreshOnResume(lastFetchTime.current, Date.now(), REFETCH_COOLDOWN_MS)) {
+      fetchMoments(false);
+      calendarFetchedRef.current = null;
+      if (viewModeRef.current === "calendar") fetchCalendarMoments();
+    }
+    if (Date.now() - unviewedUpdatedAt >= SHARED_BADGE_STALE_MS) refetchUnviewed();
+  });
 
   useFocusEffect(
     useCallback(() => {
