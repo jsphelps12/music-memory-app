@@ -61,7 +61,9 @@ below should move that, or it doesn't belong on this page.
 
 ### Next native build (1.4)
 Each item below changes the native build (the fingerprint), so they ship
-together in one App Store version, not over the air.
+together in one App Store version, not over the air. They're built on the
+long-lived branch `native/1.4` and merged to `main` only when the 1.4 build
+is cut: merging earlier would stop every OTA from reaching 1.3.1.
 - [ ] SF Symbols (Apple's own icon set, replacing Ionicons: native shapes and
   weights, and icons scale with the reader's text size), the React Compiler
   (automatic render optimization at build time: smoother lists, simpler
@@ -71,6 +73,13 @@ together in one App Store version, not over the air.
   `wireQueryFocus` in `lib/appFocus.ts`; the Journal refetches page 0 on
   reconnect too. Today a screen left open through a dead zone only catches up
   on the next focus, foreground or pull (Josh OK'd, 2026-11-15).
+- [ ] **Export your journal as a PDF** (`expo-print`; Josh chose native PDF
+  over an interim text export, 2026-11-16): Settings → Journal → Export your
+  journal builds a typeset book (title page, year and month heads, every
+  moment oldest first with artwork, when/where/who, moods as words, up to
+  four photos, and the words in Newsreader) and opens the share sheet.
+  `lib/journalExport.ts` (pure, tested) + `lib/journalExportDevice.ts`.
+  On branch `native/1.4`.
 - [ ] `mailto` in `LSApplicationQueriesSchemes` (app.config.ts), so Settings >
   Share feedback can check `canOpenURL` before trying Mail (the copy-the-
   address fallback stays for phones with no mail app).
@@ -354,7 +363,7 @@ clutter, navigation.
   opens the app instead.
 - [ ] **Face ID lock** (journaling-app standard; makes private writing feel
   safe).
-- [ ] **Export** your journal (PDF / plain text): trust that the words are
+- [ ] **Export** your journal (PDF, in 1.4: see "Next native build"): trust that the words are
   yours.
 
 - [ ] **"Songs you used to love."** Prototype on device: Apple Music library

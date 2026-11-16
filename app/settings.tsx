@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { usePostHog } from "posthog-react-native";
 import {
+  ActivityIndicator,
   View,
   Text,
   TouchableOpacity,
@@ -29,6 +30,9 @@ import { SectionLabel } from "@/components/SectionLabel";
 import { Button } from "@/components/Button";
 import { ListRow } from "@/components/ListRow";
 import { DailyCheckInRow } from "@/components/DailyCheckInRow";
+import { exportJournalPdf } from "@/lib/journalExportDevice";
+import { moodLabel } from "@/lib/moodLabels";
+import { MOODS } from "@/constants/Moods";
 import { useOnForeground } from "@/lib/appFocus";
 import { BottomSheet } from "@/components/BottomSheet";
 import { useTheme } from "@/hooks/useTheme";
@@ -104,6 +108,29 @@ export default function SettingsScreen() {
   // only holds the value being saved, so the switch moves on tap.
   const [pendingNotif, setPendingNotif] = useState<{ field: NotifField; value: boolean } | null>(null);
   const [feedbackSheetVisible, setFeedbackSheetVisible] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
+
+  // Export your journal (1.4): the whole journal as a PDF, then the share
+  // sheet (Save to Files, Mail, AirDrop). Your words are yours.
+  const handleExport = useCallback(async () => {
+    if (!user || exporting) return;
+    Haptics.selectionAsync();
+    setExporting(true);
+    setExportStatus("Making your PDF…");
+    try {
+      const count = await exportJournalPdf(user.id, {
+        ownerName: profile?.displayName,
+        moodLabel: (v) => moodLabel(v, [...MOODS, ...(profile?.customMoods ?? [])]),
+      });
+      posthog.capture("journal_exported", { format: "pdf", moments: count });
+      setExportStatus(null);
+    } catch (e) {
+      setExportStatus(friendlyError(e));
+    } finally {
+      setExporting(false);
+    }
+  }, [user, exporting, profile?.displayName, profile?.customMoods, posthog]);
   const [addressCopied, setAddressCopied] = useState(false);
 
   // Permission can change in iOS Settings while we're away, so read it on
@@ -293,6 +320,14 @@ export default function SettingsScreen() {
               />
             </View>
           )}
+          <ListRow
+            label="Export your journal"
+            subtitle={exportStatus ?? "Every moment and your words, as a PDF"}
+            onPress={handleExport}
+            disabled={exporting}
+            trailing={exporting ? <ActivityIndicator color={theme.colors.textSecondary} /> : undefined}
+            last
+          />
         </View>
 
         <SectionLabel style={[styles.groupLabel, styles.groupLabelSpaced]}>Support</SectionLabel>
