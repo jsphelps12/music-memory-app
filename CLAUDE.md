@@ -11,7 +11,7 @@ Soundtracks — an iOS app for capturing and revisiting music-linked memories ("
 - **Backend**: Supabase (auth, Postgres database, storage)
 - **Music**: Apple MusicKit via `@lomray/react-native-apple-music`, custom NowPlaying Expo module for system player, custom SpotifyRemote Expo module in `modules/spotify-remote` (lazy-loaded; see `lib/providers/`)
 - **Share Extension**: `expo-share-intent` for receiving shared songs from Apple Music & Spotify
-- **Audio**: `expo-av` for preview playback
+- **Audio**: `expo-audio` for preview playback (`contexts/PlayerContext.tsx`)
 - **Auth**: Supabase Auth (email/password with PKCE flow, Apple Sign-In via native `expo-apple-authentication`)
 - **State**: React Context (AuthContext with profile state, PlayerContext)
 - **Builds**: EAS Build + Submit for TestFlight distribution; OTA via EAS Update (preview + production channels — see `docs/DEPLOY.md`)
@@ -122,4 +122,4 @@ This avoids impossible state combinations (e.g. `loading && error` both true).
 
 ## Current Status
 
-Soundtracks is a personal music journal built for the owner first ("for fun, super slick"). v1.2.0 submitted to App Review 2026-10-16. `docs/ROADMAP.md` (rewritten 2026-10-17) is the plan: north star, principles, phases. The old roadmap, with shipped history and feasibility research, is at `docs/archive/ROADMAP-2026-10.md`. Update the roadmap in the same change as the work.
+Soundtracks is a personal music journal built for the owner first ("for fun, super slick"). 1.3.1 (build 10) is live on the App Store, with the design sweep and data-freshness fixes delivered over the air (2026-11-16). `docs/ROADMAP.md` is the plan: north star, principles, phases, and "Where things stand". The old roadmap, with shipped history and feasibility research, is at `docs/archive/ROADMAP-2026-10.md`. Update the roadmap in the same change as the work.
