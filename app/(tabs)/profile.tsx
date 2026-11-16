@@ -295,7 +295,7 @@ export default function YouScreen() {
               <AppImage source={{ uri: avatarUri }} style={styles.avatar} />
             ) : (
               <View style={[styles.avatar, styles.avatarEmpty]}>
-                <Text style={styles.avatarInitial}>{initial}</Text>
+                <Text style={styles.avatarInitial} allowFontScaling={false}>{initial}</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -307,7 +307,7 @@ export default function YouScreen() {
             accessibilityHint="Edit profile"
           >
             <Text style={styles.name} numberOfLines={1}>{displayName ?? "Add your name"}</Text>
-            <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>
+            <Text style={styles.subtitle} numberOfLines={2}>{subtitle}</Text>
           </TouchableOpacity>
           <IconButton
             name="settings-outline"
@@ -553,8 +553,10 @@ function createStyles(theme: Theme) {
     },
     sectionHeader: {
       flexDirection: "row",
+      flexWrap: "wrap", // at the largest text sizes the action drops below
       alignItems: "center",
       justifyContent: "space-between",
+      columnGap: theme.spacing.md,
       marginBottom: theme.spacing.xs,
     },
     sectionTitle: {

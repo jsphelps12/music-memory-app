@@ -47,7 +47,14 @@ export function ScreenHeader({
       <View style={[styles.wrap, { paddingTop: insets.top + theme.spacing.sm }, style]}>
         <View style={styles.inlineRow}>
           {title ? (
-            <Text style={[styles.title, styles.inlineTitle]} accessibilityRole="header" numberOfLines={1}>
+            // Capped: an inline title shares its row with the actions, so at
+            // the largest accessibility sizes it truncated to "Jou…".
+            <Text
+              style={[styles.title, styles.inlineTitle]}
+              accessibilityRole="header"
+              numberOfLines={1}
+              maxFontSizeMultiplier={1.5}
+            >
               {title}
             </Text>
           ) : (

@@ -48,7 +48,7 @@ function Avatar({
       {avatarUrl ? (
         <AppImage source={{ uri: getPublicPhotoUrl(avatarUrl) }} style={StyleSheet.absoluteFill} contentFit="cover" />
       ) : (
-        <Text style={styles.avatarInitial}>{initials}</Text>
+        <Text style={styles.avatarInitial} allowFontScaling={false}>{initials}</Text>
       )}
     </View>
   );

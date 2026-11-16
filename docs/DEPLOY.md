@@ -179,11 +179,20 @@ version: "1.2.0",
 
 **2. Cut the beta builds** via the "Binary Build" workflow
 - `preview`: the device build for testers (internal install link, **not** TestFlight)
-- `preview-simulator`: what E2E Smoke installs. A commit run uses only a
-  simulator build of that exact commit (EAS records its git hash) and builds
-  one from the commit if none exists (~15 min with an empty queue), so cutting
-  it now from the release commit saves the wait. The scheduled weekly run just
-  reuses the newest build.
+- `preview-simulator`: what E2E Smoke installs. A production-backend run
+  swaps the commit's own JS into the binary, so the binary only has to match
+  natively. A run reuses, newest first, a simulator build of that exact
+  commit (EAS records its git hash), or (production runs only; a staging run
+  tests the binary's embedded JS) a build of an **ancestor** commit when every
+  file changed since is JS or docs (`app/`, `components/`, `lib/`,
+  `contexts/`, `hooks/`, `constants/`, `types/`, `docs/`, `web/`,
+  `supabase/`, `scripts/`, `.github/`, `.maestro/`, top-level `*.md`).
+  Anything else (packages, `app.config.ts`, `eas.json`, `ios/`, `modules/`,
+  `targets/`, `assets/`, `patches/`) means a fresh build from the commit
+  (~15 min with an empty queue, and it spends EAS free-plan quota: the
+  monthly iOS builds ran out on 2026-11-16 and blocked a JS-only promote
+  until this rule). A `native/1.4` build is never an ancestor of `main`, so
+  it can't stand in for a `main` commit.
 
 You can dispatch these against the release branch *before* merging
 (`gh workflow run production-build.yml --ref <branch> -f profile=preview`) to
