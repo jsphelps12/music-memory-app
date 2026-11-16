@@ -9,11 +9,17 @@
 
 import { useEffect, useRef } from "react";
 import { AppState, AppStateStatus } from "react-native";
-import { focusManager } from "@tanstack/react-query";
+import { focusManager, onlineManager } from "@tanstack/react-query";
+import NetInfo from "@react-native-community/netinfo";
 
 let wired = false;
 
-/** Call once at startup. Idempotent. */
+/**
+ * Call once at startup. Idempotent. Two signals React Query can't see on its
+ * own in React Native: returning to the app counts as focus, and the
+ * connection coming back counts as online (1.4, NetInfo), so stale queries
+ * on mounted screens refetch on both.
+ */
 export function wireQueryFocus(): void {
   if (wired) return;
   wired = true;
@@ -23,6 +29,40 @@ export function wireQueryFocus(): void {
     });
     return () => sub.remove();
   });
+  onlineManager.setEventListener((setOnline) =>
+    NetInfo.addEventListener((state) => {
+      setOnline(isOnline(state.isConnected, state.isInternetReachable));
+    })
+  );
+}
+
+/**
+ * Online unless NetInfo says otherwise. isInternetReachable is null while
+ * it's still checking, which must not count as offline. Pure; tested.
+ */
+export function isOnline(isConnected: boolean | null, isInternetReachable: boolean | null | undefined): boolean {
+  if (isConnected === false) return false;
+  return isInternetReachable !== false;
+}
+
+/**
+ * Runs `onReconnect` when the connection comes back after being lost (not on
+ * the first reading). For screens that manage their own state (the Journal).
+ */
+export function useOnReconnect(onReconnect: () => void): void {
+  const cb = useRef(onReconnect);
+  cb.current = onReconnect;
+  useEffect(() => {
+    let wasOffline = false;
+    return NetInfo.addEventListener((state) => {
+      const online = isOnline(state.isConnected, state.isInternetReachable);
+      if (!online) wasOffline = true;
+      else if (wasOffline) {
+        wasOffline = false;
+        cb.current();
+      }
+    });
+  }, []);
 }
 
 /**

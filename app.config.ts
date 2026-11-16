@@ -48,7 +48,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       ITSAppUsesNonExemptEncryption: false,
       // Required by react-native-spotify-remote so iOS allows querying
       // whether the Spotify app is installed and opening it for OAuth.
-      LSApplicationQueriesSchemes: ["spotify"],
+      LSApplicationQueriesSchemes: ["spotify", "mailto"],
     },
     entitlements: {
       "com.apple.developer.applesignin": ["Default"],

@@ -176,13 +176,20 @@ export default function SettingsScreen() {
   // No canOpenURL pre-check: "mailto" isn't in LSApplicationQueriesSchemes,
   // so iOS would answer false even when Mail is there (adding it is a
   // native change).
+  // Mail if there's a mail app (mailto is declared in
+  // LSApplicationQueriesSchemes since 1.4, so canOpenURL can answer);
+  // otherwise, or if opening still fails, the copy-the-address sheet.
   const handleFeedback = async () => {
     Haptics.selectionAsync();
-    try {
-      await Linking.openURL(FEEDBACK_MAILTO);
-    } catch {
+    const showAddress = () => {
       setAddressCopied(false);
       setFeedbackSheetVisible(true);
+    };
+    try {
+      if (!(await Linking.canOpenURL(FEEDBACK_MAILTO))) return showAddress();
+      await Linking.openURL(FEEDBACK_MAILTO);
+    } catch {
+      showAddress();
     }
   };
 

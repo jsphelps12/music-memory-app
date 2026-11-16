@@ -75,11 +75,10 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   sized to the old glyphs and scaling with text size up to 1.3x; every direct
   Ionicons use replaced, and design-lint now rejects new ones.
 - [ ] Face ID app lock, the photos ↔ music native query.
-- [ ] Refetch on reconnect: add `@react-native-community/netinfo` (via
-  `npx expo install`) and wire React Query's `onlineManager` to it next to
-  `wireQueryFocus` in `lib/appFocus.ts`; the Journal refetches page 0 on
-  reconnect too. Today a screen left open through a dead zone only catches up
-  on the next focus, foreground or pull (Josh OK'd, 2026-11-15).
+- [x] Refetch on reconnect (2026-11-16): `@react-native-community/netinfo`
+  feeds React Query's `onlineManager` (`wireQueryFocus` in
+  `lib/appFocus.ts`, `isOnline` tested), and the Journal refetches page 0
+  when the connection comes back (10s cooldown for flapping signals).
 - [ ] **Export your journal as a PDF** (`expo-print`; Josh chose native PDF
   over an interim text export, 2026-11-16): Settings → Journal → Export your
   journal builds a typeset book (title page, year and month heads, every
@@ -87,11 +86,9 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   four photos, and the words in Newsreader) and opens the share sheet.
   `lib/journalExport.ts` (pure, tested) + `lib/journalExportDevice.ts`.
   On branch `native/1.4`.
-- [ ] `mailto` in `LSApplicationQueriesSchemes` (app.config.ts), so Settings >
-  Share feedback can check `canOpenURL` before trying Mail (the copy-the-
-  address fallback stays for phones with no mail app).
-
-### Ship 1.3.0
+- [x] `mailto` in `LSApplicationQueriesSchemes` (2026-11-16): Settings >
+  Share feedback checks `canOpenURL` first and goes straight to the
+  copy-the-address sheet when there's no mail app.
 - [x] Version bump + beta build 33 (PR #45).
 - [x] Production build 9 (owner ran it interactively to create the App Store
   widget profile) → submitted to App Store Connect 2026-10-19.

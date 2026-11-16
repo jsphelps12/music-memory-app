@@ -24,7 +24,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { consumeTimelineStale, planFocusFetch } from "@/lib/timelineRefresh";
-import { shouldRefreshOnResume, useOnForeground } from "@/lib/appFocus";
+import { shouldRefreshOnResume, useOnForeground, useOnReconnect } from "@/lib/appFocus";
 import {
   consumePrefetchPromise,
   consumePrefetchNetworkPromise,
@@ -58,6 +58,8 @@ import { DailyCheckInOffer } from "@/components/DailyCheckInOffer";
 import { Moment } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 30_000;
+// Reconnects can flap in a weak signal; a refresh within this window is enough.
+const RECONNECT_COOLDOWN_MS = 10_000;
 // One automatic retry when the launch network fetch fails after a cache paint.
 const NETWORK_RETRY_MS = 5_000;
 // Unread-shares count is a badge-style query — 60s staleTime per the convention.
@@ -470,6 +472,14 @@ export default function TimelineScreen() {
       fetchMoments(false);
     }
     if (Date.now() - unviewedUpdatedAtRef.current >= SHARED_BADGE_STALE_MS) refetchUnviewed();
+  });
+
+  // Back online after a dead zone: catch up, unless a refresh just ran.
+  useOnReconnect(() => {
+    if (!userId || lastFetchTime.current === 0) return;
+    if (needsRefreshRef.current || Date.now() - lastFetchTime.current >= RECONNECT_COOLDOWN_MS) {
+      fetchMoments(false);
+    }
   });
 
   useFocusEffect(
