@@ -295,7 +295,7 @@ export default function YouScreen() {
               <AppImage source={{ uri: avatarUri }} style={styles.avatar} />
             ) : (
               <View style={[styles.avatar, styles.avatarEmpty]}>
-                <Text style={styles.avatarInitial}>{initial}</Text>
+                <Text style={styles.avatarInitial} allowFontScaling={false}>{initial}</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -553,8 +553,10 @@ function createStyles(theme: Theme) {
     },
     sectionHeader: {
       flexDirection: "row",
+      flexWrap: "wrap", // at the largest text sizes the action drops below
       alignItems: "center",
       justifyContent: "space-between",
+      columnGap: theme.spacing.md,
       marginBottom: theme.spacing.xs,
     },
     sectionTitle: {

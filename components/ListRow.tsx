@@ -1,10 +1,13 @@
 import { ReactNode, useMemo } from "react";
-import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
 type Accessory = "chevron" | "check" | "expand" | "none";
+
+/** fontScale at the first accessibility text size (AX1 is about 1.6). */
+const ACCESSIBILITY_FONT_SCALE = 1.6;
 
 interface Props {
   label: string;
@@ -73,6 +76,11 @@ export function ListRow({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const kind: Accessory = accessory ?? (onPress ? "chevron" : "none");
+  // At accessibility text sizes a label and a detail can't share one line
+  // ("Your 2026 i…  6 moments"), so the detail moves under the label, as in
+  // the iOS Settings app.
+  const { fontScale } = useWindowDimensions();
+  const stackDetail = !!detail && !trailing && fontScale >= ACCESSIBILITY_FONT_SCALE;
   const labelColor = destructive ? theme.colors.destructive : theme.colors.text;
 
   const accessoryIcon =
@@ -105,10 +113,11 @@ export function ListRow({
             {subtitle}
           </Text>
         ) : null}
+        {stackDetail ? <Text style={styles.detail}>{detail}</Text> : null}
       </View>
       {trailing ?? (
         <View style={styles.right}>
-          {detail ? (
+          {detail && !stackDetail ? (
             <Text style={styles.detail} numberOfLines={1}>
               {detail}
             </Text>
