@@ -121,6 +121,32 @@ env:
     commands:
       - tapOn: "Close"
 
+# A fresh CI simulator's first connection can outlast the app's 10s auth
+# timeout (lib/fetchWithRetry.ts), which shows "No connection" on the sign-in
+# screen (2 of 4 production runs on 2026-11-16, same commit-independent
+# step). Press Sign in once more, as a person would. One retry only: a
+# second failure is a real failure.
+- extendedWaitUntil:
+    visible:
+      id: "tab-create"
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible: "No connection. Check your internet and try again."
+    commands:
+      - tapOn:
+          id: "signin-submit"
+      - extendedWaitUntil:
+          visible: "Save Password?"
+          timeout: 15000
+          optional: true
+      - runFlow:
+          when:
+            visible: "Save Password?"
+          commands:
+            - tapOn: "Not Now"
+
 # Landing on the timeline is what proves auth resolved and the auth gate in
 # app/_layout.tsx routed correctly.
 - extendedWaitUntil:
