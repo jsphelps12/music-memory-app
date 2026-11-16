@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import { Image as RNImage } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
@@ -147,7 +147,7 @@ export default function MomentsMapScreen() {
       {isSuccess && mapMoments.length === 0 ? (
         <View style={styles.emptyContainer}>
           <View style={styles.emptyCard}>
-            <Ionicons name="map-outline" size={28} color={theme.colors.textTertiary} />
+            <Icon name="map-outline" size={28} color={theme.colors.textTertiary} />
             <Text style={styles.emptyTitle}>No located moments yet</Text>
             <Text style={styles.emptySubtitle}>
               Add a location when creating a moment and it'll appear here.
@@ -192,7 +192,7 @@ export default function MomentsMapScreen() {
               </Text>
             ) : null}
           </View>
-          <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
+          <Icon name="chevron-forward" size={18} color={theme.colors.textSecondary} />
         </TouchableOpacity>
       ) : null}
     </View>

@@ -8,7 +8,7 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon, type IconName } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
@@ -29,7 +29,7 @@ interface Props {
   size?: Size;
   /** Text buttons only: secondary dims a Cancel; destructive reads red. */
   tone?: "default" | "secondary" | "destructive";
-  icon?: React.ComponentProps<typeof Ionicons>["name"];
+  icon?: IconName;
   loading?: boolean;
   disabled?: boolean;
   /** large buttons stretch by default; set false for a hugging width. */
@@ -112,7 +112,7 @@ export function Button({
         <ActivityIndicator size="small" color={fg} />
       ) : (
         <View style={styles.row}>
-          {icon ? <Ionicons name={icon} size={size === "large" ? 18 : 16} color={fg} /> : null}
+          {icon ? <Icon name={icon} size={size === "large" ? 18 : 16} color={fg} /> : null}
           <Text
             style={[size === "large" ? styles.labelLarge : styles.labelPill, { color: fg }]}
             numberOfLines={1}

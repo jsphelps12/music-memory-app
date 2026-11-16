@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import * as Haptics from "expo-haptics";
 import { Chip } from "@/components/Chip";
 import { TextField } from "@/components/TextField";
@@ -75,7 +75,7 @@ export function PeopleInput({ people, onChangePeople }: Props) {
           onPress={addTextChip}
           accessibilityRole="button"
         >
-          <Ionicons name="add" size={18} color={theme.colors.textSecondary} />
+          <Icon name="add" size={18} color={theme.colors.textSecondary} />
           <Text style={styles.rowText} numberOfLines={1}>
             Add &ldquo;{query.trim()}&rdquo;
           </Text>

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { View, StyleSheet, ScrollView } from "react-native";
 import { AppImage } from "@/components/AppImage";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { BottomSheet } from "@/components/BottomSheet";
@@ -58,7 +58,7 @@ export function AlbumPicker({
             <AppImage source={{ uri: thumbUrl }} style={styles.thumb} contentFit="cover" />
           ) : (
             <View style={styles.thumb}>
-              <Ionicons
+              <Icon
                 name={item.isPublic ? "people-outline" : "albums-outline"}
                 size={18}
                 color={theme.colors.textSecondary}
@@ -89,7 +89,7 @@ export function AlbumPicker({
         label="New album"
         leading={
           <View style={styles.thumb}>
-            <Ionicons name="add" size={20} color={theme.colors.text} />
+            <Icon name="add" size={20} color={theme.colors.text} />
           </View>
         }
         accessory="none"
@@ -102,7 +102,7 @@ export function AlbumPicker({
           label="No album"
           leading={
             <View style={styles.thumb}>
-              <Ionicons name="musical-notes-outline" size={18} color={theme.colors.textSecondary} />
+              <Icon name="musical-notes-outline" size={18} color={theme.colors.textSecondary} />
             </View>
           }
           accessory="check"

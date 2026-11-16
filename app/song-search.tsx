@@ -13,7 +13,7 @@ import { AppImage } from "@/components/AppImage";
 import { CloseButton } from "@/components/CloseButton";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -286,7 +286,7 @@ export default function SongSearchScreen() {
                     {previewLoadingId === item.id ? (
                       <ActivityIndicator size={10} color={overArtworkInk} />
                     ) : (
-                      <Ionicons
+                      <Icon
                         name={
                           player.isPreview &&
                           player.currentSong?.id === item.id &&

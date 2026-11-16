@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, PanResponder } from "react-native";
 import { AppImage } from "@/components/AppImage";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { formatTime } from "@/lib/formatTime";
@@ -86,7 +86,7 @@ export function MiniPlayer() {
           accessibilityRole="button"
           accessibilityLabel={isPlaying ? "Pause" : "Play"}
         >
-          <Ionicons name={isPlaying ? "pause" : "play"} size={22} color={theme.colors.text} />
+          <Icon name={isPlaying ? "pause" : "play"} size={22} color={theme.colors.text} />
         </TouchableOpacity>
         <TouchableOpacity
           onPress={stop}
@@ -94,7 +94,7 @@ export function MiniPlayer() {
           accessibilityRole="button"
           accessibilityLabel="Stop"
         >
-          <Ionicons name="close" size={20} color={theme.colors.textSecondary} />
+          <Icon name="close" size={20} color={theme.colors.textSecondary} />
         </TouchableOpacity>
       </View>
       {playbackDuration > 0 && (

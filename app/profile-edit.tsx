@@ -28,7 +28,7 @@ import { confirmSheet } from "@/components/ConfirmSheet";
 import * as Haptics from "expo-haptics";
 import { useNavigation, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useAuth } from "@/contexts/AuthContext";
 import { uploadAvatar, getPublicPhotoUrl } from "@/lib/storage";
 import { useTheme } from "@/hooks/useTheme";
@@ -427,7 +427,7 @@ export default function ProfileEditScreen() {
       <ActivityIndicator size="small" color={theme.colors.textSecondary} />
     ) : query.length > 0 ? (
       <TouchableOpacity onPress={onClear} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search">
-        <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />
+        <Icon name="close-circle" size={17} color={theme.colors.textSecondary} />
       </TouchableOpacity>
     ) : null;
 
@@ -435,9 +435,9 @@ export default function ProfileEditScreen() {
     usernameStatus === "checking" ? (
       <ActivityIndicator size="small" color={theme.colors.textSecondary} />
     ) : usernameStatus === "available" ? (
-      <Ionicons name="checkmark-circle" size={18} color={theme.colors.success} />
+      <Icon name="checkmark-circle" size={18} color={theme.colors.success} />
     ) : usernameStatus === "taken" || usernameStatus === "error" ? (
-      <Ionicons name="close-circle" size={18} color={theme.colors.destructive} />
+      <Icon name="close-circle" size={18} color={theme.colors.destructive} />
     ) : null;
 
   return (
@@ -639,7 +639,7 @@ export default function ProfileEditScreen() {
                         <Text style={styles.resultTitle} numberOfLines={1}>{item.title}</Text>
                         <Text style={styles.resultSub} numberOfLines={1}>{item.artist}</Text>
                       </View>
-                      {selected && <Ionicons name="checkmark" size={18} color={theme.colors.text} />}
+                      {selected && <Icon name="checkmark" size={18} color={theme.colors.text} />}
                     </Pressable>
                   );
                 })}
@@ -717,7 +717,7 @@ export default function ProfileEditScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Clear search"
               >
-                <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />
+                <Icon name="close-circle" size={17} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             ) : null
           }

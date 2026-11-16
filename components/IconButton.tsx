@@ -1,9 +1,9 @@
 import { TouchableOpacity, StyleSheet, ViewStyle } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon, type IconName } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 
 interface Props {
-  name: React.ComponentProps<typeof Ionicons>["name"];
+  name: IconName;
   onPress: () => void;
   size?: number;
   color?: string;
@@ -47,7 +47,7 @@ export function IconButton({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
     >
-      <Ionicons
+      <Icon
         name={name}
         size={size ?? (filled || glass ? 20 : 22)}
         color={

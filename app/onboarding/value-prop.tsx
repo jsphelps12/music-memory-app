@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppImage } from "@/components/AppImage";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -53,7 +53,7 @@ export default function ValuePropScreen() {
         <View style={styles.steps}>
           {STEPS.map(({ icon, label, detail }) => (
             <View key={label} style={styles.stepRow}>
-              <Ionicons name={icon} size={20} color={theme.colors.textSecondary} />
+              <Icon name={icon} size={20} color={theme.colors.textSecondary} />
               <View style={styles.stepText}>
                 <Text style={styles.stepLabel}>{label}</Text>
                 <Text style={styles.stepDetail}>{detail}</Text>

@@ -2,7 +2,7 @@ import { View, Text, TouchableOpacity, StyleSheet, InteractionManager } from "re
 import { useEffect, useMemo, useRef } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useQuery } from "@tanstack/react-query";
 import type { MaterialTopTabBarProps } from "@react-navigation/material-top-tabs";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,10 +23,12 @@ async function fetchAlbumsBadgeCount(userId: string): Promise<number> {
 // and first timeline page shortly after).
 const TAB_PRELOAD_DELAY_MS = 2500;
 
+// Outline when inactive, filled when active (book / book.fill, person /
+// person.fill). Rediscover's clock.arrow.circlepath has no filled form.
 const TABS = [
-  { label: "Journal",    icon: "book" },
-  { label: "Rediscover", icon: "time" },
-  { label: "You",        icon: "person" },
+  { label: "Journal",    icon: "book-outline",   activeIcon: "book" },
+  { label: "Rediscover", icon: "time-outline",   activeIcon: "time" },
+  { label: "You",        icon: "person-outline", activeIcon: "person" },
 ] as const;
 
 export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
@@ -85,7 +87,7 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
         activeOpacity={0.85}
         style={styles.capture}
       >
-        <Ionicons name="add" size={28} color={theme.colors.buttonText} />
+        <Icon name="add" size={28} color={theme.colors.buttonText} fixedSize />
       </TouchableOpacity>
 
       <MiniPlayer />
@@ -117,10 +119,12 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
               activeOpacity={0.7}
             >
               <View style={styles.iconWrapper}>
-                <Ionicons
-                  name={(isActive ? tab.icon : `${tab.icon}-outline`) as keyof typeof Ionicons.glyphMap}
+                {/* Fixed like iOS's own tab bars: the slot doesn't grow. */}
+                <Icon
+                  name={isActive ? tab.activeIcon : tab.icon}
                   size={23}
                   color={color}
+                  fixedSize
                 />
                 {badgeCount > 0 && <View style={styles.badge} />}
               </View>

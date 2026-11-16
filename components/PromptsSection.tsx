@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { View, Text, Pressable, Alert, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import * as Haptics from "expo-haptics";
 import * as Crypto from "expo-crypto";
 import { useTheme } from "@/hooks/useTheme";
@@ -195,7 +195,7 @@ export function PromptsSection({ customCategories, onSave, onDelete }: Props) {
                 accessibilityState={{ expanded: isExpanded }}
               >
                 <Text style={styles.categoryLabel}>{cat.label}</Text>
-                <Ionicons
+                <Icon
                   name={isExpanded ? "chevron-up" : "chevron-down"}
                   size={16}
                   color={theme.colors.textSecondary}
@@ -242,7 +242,7 @@ export function PromptsSection({ customCategories, onSave, onDelete }: Props) {
                   accessibilityState={{ expanded: isExpanded }}
                 >
                   <Text style={styles.categoryLabel}>{cat.label}</Text>
-                  <Ionicons
+                  <Icon
                     name={isExpanded ? "chevron-up" : "chevron-down"}
                     size={16}
                     color={theme.colors.textSecondary}

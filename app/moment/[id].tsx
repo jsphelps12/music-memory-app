@@ -66,7 +66,7 @@ import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
 import { IconButton } from "@/components/IconButton";
 import { MomentActionMenu, MenuAnchor, MomentMenuItem } from "@/components/MomentActionMenu";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { formatTime } from "@/lib/formatTime";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 
@@ -858,7 +858,7 @@ export default function MomentDetailScreen() {
                     }
                   }}
                 >
-                  <Ionicons
+                  <Icon
                     name={action === "pause" ? "pause" : "play"}
                     size={18}
                     color={playError ? theme.colors.textTertiary : theme.colors.buttonText}
@@ -963,7 +963,7 @@ export default function MomentDetailScreen() {
                   />
                 </MapView>
                 <View style={styles.miniMapHint}>
-                  <Ionicons name="map-outline" size={12} color={theme.colors.text} />
+                  <Icon name="map-outline" size={12} color={theme.colors.text} />
                   <Text style={styles.miniMapHintText}>Open in Maps</Text>
                 </View>
               </TouchableOpacity>
@@ -1023,7 +1023,7 @@ export default function MomentDetailScreen() {
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: isMember }}
                 >
-                  <Ionicons
+                  <Icon
                     name={item.isPublic ? "people-outline" : "albums-outline"}
                     size={18}
                     color={theme.colors.textSecondary}
@@ -1035,7 +1035,7 @@ export default function MomentDetailScreen() {
                   {/* Ink, never terracotta: a tick is a choice, not a signal. */}
                   {isMember ? (
                     <View style={styles.tickOn}>
-                      <Ionicons name="checkmark" size={15} color={theme.colors.buttonText} />
+                      <Icon name="checkmark" size={15} color={theme.colors.buttonText} />
                     </View>
                   ) : (
                     <View style={styles.tickOff} />

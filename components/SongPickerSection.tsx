@@ -4,7 +4,7 @@ import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-nati
 import { AppImage } from "@/components/AppImage";
 import { Button } from "@/components/Button";
 import * as Haptics from "expo-haptics";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useRouter } from "expo-router";
 import { getNowPlaying, onNowPlayingChange } from "@/lib/now-playing";
 import { getProvider } from "@/lib/providers";
@@ -217,7 +217,7 @@ export function SongPickerSection({ song, onChange, photos = [], suggestNowPlayi
           accessibilityLabel="Choose a song"
         >
           <View style={[styles.artwork, styles.emptyArtwork]}>
-            <Ionicons name="musical-notes-outline" size={26} color={theme.colors.textTertiary} />
+            <Icon name="musical-notes-outline" size={26} color={theme.colors.textTertiary} />
           </View>
           <View style={styles.songInfo}>
             <Text style={styles.songTitle}>Choose a song</Text>

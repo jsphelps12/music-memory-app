@@ -1,12 +1,12 @@
 import { useMemo } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon, type IconName } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { Button } from "@/components/Button";
 
 interface Props {
-  icon: React.ComponentProps<typeof Ionicons>["name"];
+  icon: IconName;
   title: string;
   subtitle?: string;
   action?: { label: string; onPress: () => void };
@@ -17,7 +17,7 @@ export function EmptyState({ icon, title, subtitle, action }: Props) {
   const styles = useMemo(() => createStyles(theme), [theme]);
   return (
     <View style={styles.container}>
-      <Ionicons name={icon} size={40} color={theme.colors.textSecondary} />
+      <Icon name={icon} size={40} color={theme.colors.textSecondary} />
       <Text style={styles.title}>{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       {action ? (
