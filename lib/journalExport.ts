@@ -149,8 +149,8 @@ export function buildJournalHtml(moments: ExportMoment[], opts: ExportOptions = 
 <style>
   @page { size: letter; margin: 0.75in 0.8in; }
   * { box-sizing: border-box; }
-  body { margin: 0; color: #23222B; background: #FBF7F2; font-family: "DM Sans", -apple-system, Helvetica, sans-serif; font-size: 10.5pt; line-height: 1.45; }
-  .cover { height: 9in; display: flex; flex-direction: column; justify-content: flex-end; page-break-after: always; }
+  body { margin: 0; color: #23222B; background: #FFFFFF; font-family: "DM Sans", -apple-system, Helvetica, sans-serif; font-size: 10.5pt; line-height: 1.45; }
+  .cover { height: 8in; display: flex; flex-direction: column; justify-content: flex-end; page-break-after: always; }
   .cover h1 { font-family: "DM Serif Display", Georgia, serif; font-weight: 400; font-size: 44pt; line-height: 1.02; letter-spacing: -0.5pt; margin: 0 0 14pt; }
   .cover .sub { color: #5E5C66; font-size: 11pt; }
   .cover .mark { margin-top: 36pt; font-family: "DM Serif Display", Georgia, serif; font-size: 13pt; color: #736A63; }
