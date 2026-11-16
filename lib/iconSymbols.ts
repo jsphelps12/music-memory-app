@@ -51,7 +51,7 @@ export const ICON_SYMBOLS = {
   "journal-outline": { symbol: "book.closed", box: 1.02 },
   "link-outline": { symbol: "link", box: 1.08 },
   "list-outline": { symbol: "list.bullet", box: 1.01 },
-  "location-outline": { symbol: "mappin", box: 1.03 },
+  "location-outline": { symbol: "mappin.and.ellipse", box: 1.05 },
   "lock-closed-outline": { symbol: "lock", box: 1.11 },
   "mail-outline": { symbol: "envelope", box: 1.05 },
   "map-outline": { symbol: "map", box: 1.08 },

@@ -77,11 +77,17 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   (Ionicons names kept, mapped in `lib/iconSymbols.ts`, Ionicons on Android),
   sized to the old glyphs and scaling with text size up to 1.3x; every direct
   Ionicons use replaced, and design-lint now rejects new ones.
+  Dark-mode pass on the 1.4 simulator build (2026-11-16): icons, sheets
+  and screens read correctly; Place moved to `mappin.and.ellipse` (the bare
+  `mappin` was lighter than its neighbours). Mood's face draws filled on
+  iOS 26 whichever face symbol is used; left as is.
 - [ ] Face ID app lock, the photos ↔ music native query.
 - [x] Refetch on reconnect (2026-11-16): `@react-native-community/netinfo`
   feeds React Query's `onlineManager` (`wireQueryFocus` in
   `lib/appFocus.ts`, `isOnline` tested), and the Journal refetches page 0
   when the connection comes back (10s cooldown for flapping signals).
+  Verified on the 1.4 simulator build: launches with NetInfo linked. The
+  offline → online cycle itself still needs a device (airplane mode).
 - [ ] **Export your journal as a PDF** (`expo-print`; Josh chose native PDF
   over an interim text export, 2026-11-16): Settings → Journal → Export your
   journal builds a typeset book (title page, year and month heads, every
