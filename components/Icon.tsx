@@ -1,4 +1,4 @@
-import { Platform, StyleProp, StyleSheet, TextStyle, View, useWindowDimensions } from "react-native";
+import { Platform, StyleProp, StyleSheet, TextStyle, View, ViewStyle, useWindowDimensions } from "react-native";
 import { SymbolView } from "expo-symbols";
 // design-lint-ignore: the one place Ionicons is drawn (the Android fallback).
 import { Ionicons } from "@expo/vector-icons";
@@ -78,7 +78,10 @@ export function Icon({
   );
   if (Platform.OS !== "ios" || !spec) return fallback;
 
-  const { textAlign, ...slot } = StyleSheet.flatten(style) ?? {};
+  // The caller's style was written for an Ionicons text glyph; here it sizes
+  // and places a View, so only its layout properties apply.
+  const { textAlign, ...rest } = StyleSheet.flatten(style) ?? {};
+  const slot = rest as ViewStyle;
   return (
     <View
       style={[
