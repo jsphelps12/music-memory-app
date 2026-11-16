@@ -169,5 +169,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   experiments: {
     typedRoutes: true,
+    // React Compiler (1.4): memoizes components and hooks at build time, so
+    // lists and screens re-render less without hand-written useMemo/useCallback.
+    // Components that break the Rules of React are skipped, not miscompiled.
+    reactCompiler: true,
   },
 });

@@ -64,10 +64,15 @@ Each item below changes the native build (the fingerprint), so they ship
 together in one App Store version, not over the air. They're built on the
 long-lived branch `native/1.4` and merged to `main` only when the 1.4 build
 is cut: merging earlier would stop every OTA from reaching 1.3.1.
+- [x] React Compiler (2026-11-16): `experiments.reactCompiler` +
+  `babel-plugin-react-compiler`. 77 components/hooks compile; 65 are skipped
+  and run as before (`node scripts/react-compiler-check.js` lists why:
+  try/finally and throw-in-try the compiler can't lower yet, Reanimated
+  `.value` writes, refs read in render). Follow-up: move shared values to
+  `.get()/.set()` and fix the ref reads so those compile too.
 - [ ] SF Symbols (Apple's own icon set, replacing Ionicons: native shapes and
-  weights, and icons scale with the reader's text size), the React Compiler
-  (automatic render optimization at build time: smoother lists, simpler
-  code), Face ID app lock, the photos ↔ music native query.
+  weights, and icons scale with the reader's text size).
+- [ ] Face ID app lock, the photos ↔ music native query.
 - [ ] Refetch on reconnect: add `@react-native-community/netinfo` (via
   `npx expo install`) and wire React Query's `onlineManager` to it next to
   `wireQueryFocus` in `lib/appFocus.ts`; the Journal refetches page 0 on
