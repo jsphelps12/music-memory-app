@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as LocalAuthentication from "expo-local-authentication";
 import { FullWindowOverlay } from "react-native-screens";
 import { usePathname } from "expo-router";
+import { monotonicMs } from "@/modules/now-playing";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { Icon } from "@/components/Icon";
@@ -142,11 +143,11 @@ export function AppLockProvider({ children, fontsLoaded }: { children: ReactNode
     const sub = AppState.addEventListener("change", (next) => {
       if (!enabledRef.current) return;
       if (next === "background") {
-        backgroundedAt.current = Date.now();
+        backgroundedAt.current = monotonicMs();
         setCovered(true);
       } else if (next === "active") {
         setOverlayKey((k) => k + 1);
-        const lockNow = shouldLockOnReturn(true, backgroundedAt.current, Date.now());
+        const lockNow = shouldLockOnReturn(true, backgroundedAt.current, monotonicMs());
         backgroundedAt.current = null;
         if (lockNow) {
           setLocked(true);

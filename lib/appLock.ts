@@ -7,14 +7,19 @@
 // trip to Apple Music or Spotify and back, and that shouldn't ask for Face ID.
 //
 // The decisions here are pure and tested (lib/__tests__/appLock.test.ts);
-// components/AppLock.tsx does the AppState, storage and Face ID wiring.
+// contexts/AppLockContext.tsx does the AppState, storage and Face ID wiring.
 
 /** How long the app may sit in the background before it locks again. */
 export const LOCK_GRACE_MS = 60_000;
 
 export const APP_LOCK_STORAGE_KEY = "app_lock_enabled";
 
-/** Whether returning to the app should lock it. */
+/**
+ * Whether returning to the app should lock it. Times come from a monotonic
+ * clock (monotonicMs in modules/now-playing), not the wall clock, so setting
+ * the date back can't shorten the time away. An impossible elapsed time
+ * (negative, or not a number) locks: when in doubt, fail closed.
+ */
 export function shouldLockOnReturn(
   enabled: boolean,
   backgroundedAt: number | null,
@@ -22,7 +27,9 @@ export function shouldLockOnReturn(
   graceMs: number = LOCK_GRACE_MS
 ): boolean {
   if (!enabled || backgroundedAt === null) return false;
-  return now - backgroundedAt >= graceMs;
+  const elapsed = now - backgroundedAt;
+  if (!Number.isFinite(elapsed) || elapsed < 0) return true;
+  return elapsed >= graceMs;
 }
 
 /** Stored setting → boolean; anything but "1" is off. */

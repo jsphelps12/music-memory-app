@@ -50,3 +50,15 @@ export async function requestLibraryAccess(): Promise<LibraryAccess> {
 export async function getLibrarySongs(limit: number): Promise<LibrarySong[]> {
   return NowPlayingNative.getLibrarySongs(limit);
 }
+
+/**
+ * App lock (1.4): a clock that can't be set back and counts through sleep.
+ * Falls back to Date.now() where the native function is missing.
+ */
+export function monotonicMs(): number {
+  try {
+    return NowPlayingNative.monotonicMs();
+  } catch {
+    return Date.now();
+  }
+}

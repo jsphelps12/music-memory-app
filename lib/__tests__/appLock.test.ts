@@ -21,6 +21,11 @@ describe("shouldLockOnReturn", () => {
     expect(shouldLockOnReturn(true, t0, t0 + 60 * 60_000)).toBe(true);
   });
 
+  it("fails closed on an impossible elapsed time", () => {
+    expect(shouldLockOnReturn(true, t0, t0 - 5_000)).toBe(true);
+    expect(shouldLockOnReturn(true, t0, Number.NaN)).toBe(true);
+  });
+
   it("takes a custom grace period", () => {
     expect(shouldLockOnReturn(true, t0, t0 + 1, 0)).toBe(true);
   });

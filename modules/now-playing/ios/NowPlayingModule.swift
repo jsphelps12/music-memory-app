@@ -38,6 +38,15 @@ public class NowPlayingModule: Module {
       return self.buildNowPlayingInfo()
     }.runOnQueue(.main)
 
+    // App lock (1.4): milliseconds on a clock the user can't change and that
+    // keeps counting while the phone sleeps (CLOCK_MONOTONIC on Darwin
+    // includes sleep). Date.now() would let someone holding the phone set the
+    // date back to skip the lock. Lives here because this is the app's own
+    // native module, not because it's about music.
+    Function("monotonicMs") { () -> Double in
+      return Double(clock_gettime_nsec_np(CLOCK_MONOTONIC)) / 1_000_000
+    }
+
     // Photos ↔ music prototype (1.4): the user's own library with when each
     // song was added and how often it's been played. On device only; nothing
     // here leaves the phone.
