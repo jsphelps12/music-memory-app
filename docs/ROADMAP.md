@@ -36,29 +36,36 @@ below should move that, or it doesn't belong on this page.
 - **Never paywall capture or your own history.**
 - **Every surface is a screen or a quick pick** (no pageSheet cards).
 
-## Where things stand (2026-10-19)
+## Where things stand (2026-11-16)
 
-- **1.2.0 (build 8) is live** on the App Store (auto-released after review):
-  Sharing v2, the Reflections reorg, expo-audio, the min-build gate, the
-  push-registration fix and Spotify hardening.
-- **1.3.0 is being cut:** the Phase 1 redesign, the full-page writer and
-  drafts, the capture widget and controls, the new launch screen. Release
-  manually after approval; later JS polish goes out via Promote to
-  Production.
-- **Usage:** 77 users; 10 created a moment in the last 90 days. Josh's own
-  last moment: 2026-08-05. Friends tried it and drifted.
-- **Beta:** Soundtracks β build 33 (staging) gets every merge to `main` OTA.
-  Weekly Health and E2E crons run Mondays; see `DEPLOY.md`.
+- **1.3.1 (build 10) is live** on the App Store: the "Pressed S" icon and
+  the Phase 1 look as a store build. 1.3.0 (build 9) went out 2026-11-13.
+- **Live over the air on 1.3.1** (Promote to Production, `956aa3e`): the
+  design sweep (one set of shared components everywhere), the moment
+  resume fix, the Share card screen, ordered photos, and the data
+  freshness fixes (screens refresh when the app returns from the
+  background).
+- **Usage (prod, test accounts excluded):** 82 users; 3 created a moment in
+  the last 30 days, 6 in the last 90. 0 occasions. Retention, not
+  activation, is still the bottleneck; Phase 2 ("Pull") is aimed at it.
+- **Staging is paused** (Supabase free plan), so the beta (Soundtracks β)
+  can't run and E2E Smoke runs against production with
+  `e2e@soundtracks.test` (see `DEPLOY.md`). Restore staging and dispatch
+  with `backend=staging` to go back.
 
 ## Now
 
 ### Ship 1.2.0
 - [x] App Review approval → released (automatic release, 2026-10).
-- [ ] Watch Sentry and PostHog for a week.
+- [x] Watched through 1.3.0/1.3.1; superseded by the 1.3.x releases.
 
 ### Next native build (1.4)
-- [ ] SF Symbols, React Compiler, Face ID app lock, the photos ↔ music
-  native query. Batch them; each one moves the fingerprint.
+Each item below changes the native build (the fingerprint), so they ship
+together in one App Store version, not over the air.
+- [ ] SF Symbols (Apple's own icon set, replacing Ionicons: native shapes and
+  weights, and icons scale with the reader's text size), the React Compiler
+  (automatic render optimization at build time: smoother lists, simpler
+  code), Face ID app lock, the photos ↔ music native query.
 - [ ] Refetch on reconnect: add `@react-native-community/netinfo` (via
   `npx expo install`) and wire React Query's `onlineManager` to it next to
   `wireQueryFocus` in `lib/appFocus.ts`; the Journal refetches page 0 on
@@ -92,11 +99,11 @@ changed since build 36.
   requires the medium iPhone size (1206 × 2622, "6.3-inch"); 6.9" is
   optional. Both sets are in `docs/app-store/screenshots/`. The new Header
   and Search Results creative assets (Oct 2026) are optional; none yet.
-- [ ] **Josh:** TestFlight pass (done), then the 1.3.1 version in App Store
-  Connect (attach build 10, What's New, upload the new screenshots and delete
-  any smaller-iPhone sets), submit for review, release.
-- [ ] After it's live: raise the min-build gate, which unblocks DB-2 (RLS
-  hardening step 2).
+- [x] **Josh:** TestFlight pass, 1.3.1 in App Store Connect with the new
+  screenshots, submitted and released (live by 2026-11-15).
+- [ ] Raise the min-build gate to 10, which unblocks DB-2 (RLS hardening
+  step 2). Josh, 2026-11-16: wait a few days so people on 1.3.0 auto-update
+  first instead of hitting the update-required screen.
 - [x] E2E green on `main` so the promote path works for JS fixes (PR #33:
   search-input race fix, Maestro driver-death retry, seed no longer signs out
   testers).
@@ -147,7 +154,8 @@ them, OTA-only (no native changes).
   `switchOn` token; `Chip` onLongPress and `imageUri` (Browse's album
   switcher has its covers back); `Button align="center"` replaces the
   per-screen `alignSelf` overrides.
-- [ ] Add `mailto` to `LSApplicationQueriesSchemes` in the next binary.
+- [x] Live in production over the air (2026-11-15, `ba196ea`). The `mailto`
+  query scheme moved to "Next native build (1.4)".
 
 - [x] E2E Smoke runs against production while staging is paused (2026-11-15):
   this commit's JS swapped into the simulator build, `e2e@soundtracks.test`
@@ -163,8 +171,12 @@ them, OTA-only (no native changes).
   `lib/timelineRefresh.ts`), and the empty state supports pull-to-refresh.
   Checked on a simulator against prod (2026-11-14): both onboarding moments
   show on the first Journal load.
-- [ ] **Data freshness fixes (2026-11-15)**, from an audit of stale data.
-  Branch `fix/refresh-on-foreground`; device check pending.
+- [x] **Data freshness fixes (2026-11-15)**, from an audit of stale data
+  (#96, includes #88). Live in production over the air 2026-11-16
+  (`956aa3e`). Checked on a simulator against prod: a moment added or moved
+  server-side while backgrounded shows on resume without a pull, in the
+  right month on the list and the calendar; a cold relaunch after a delete
+  shows no stale row.
   - Refresh on return from the background: React Query's `focusManager`
     follows AppState (`lib/appFocus.ts`), and the Journal refetches on
     foreground after the 30s cooldown.
