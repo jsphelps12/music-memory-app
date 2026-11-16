@@ -58,6 +58,8 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.sha || github.sha }}
+          # Full history: a build is reused only from an ancestor commit.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v5
         with:
@@ -91,28 +93,54 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EXACT: ${{ github.event_name != 'schedule' }}
+          # Must match the smoke job's E2E_BACKEND: only a production run
+          # swaps this commit's JS in, so only it may reuse an ancestor.
+          E2E_BACKEND: ${{ inputs.backend || 'production' }}
         run: |
           set -euo pipefail
           SHA=$(git rev-parse HEAD)
-          # First build in the list (optionally the first whose commit is
-          # $1) that has an archive URL.
-          pick_url() {
-            node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const want=process.argv[1]||'';const b=JSON.parse(s).find(b=>b&&b.artifacts&&b.artifacts.buildUrl&&(!want||b.gitCommitHash===want));console.log(b?b.artifacts.buildUrl:'')})" "${1:-}"
+          # A production run swaps this commit's JS into the binary, so the
+          # binary only has to match natively. Reuse, newest first: a build of
+          # this exact commit, else (production only) a build of an ancestor
+          # when everything changed since is JS or docs (no package, config,
+          # native or asset change).
+          # A native/1.4 build is never an ancestor of main, so it can't be
+          # picked for main by accident. Building costs EAS quota (the free
+          # plan ran out on 2026-11-16 and blocked a JS-only promote).
+          JS_ONLY='^(app|components|lib|contexts|hooks|constants|types|docs|web|supabase|scripts|\.github|\.maestro)/|^[^/]+\.md$'
+          list_builds() {
+            npx eas-cli@25.2.0 build:list --platform ios --profile preview-simulator \
+              --status finished --limit 50 --json --non-interactive \
+              | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{for(const b of JSON.parse(s)){if(b&&b.gitCommitHash&&b.artifacts&&b.artifacts.buildUrl)console.log(b.gitCommitHash+' '+b.artifacts.buildUrl)}})"
           }
-          if [ "$EXACT" = "true" ]; then
-            URL=$(npx eas-cli@25.2.0 build:list --platform ios --profile preview-simulator \
-              --status finished --limit 50 --json --non-interactive | pick_url "$SHA")
-          else
-            URL=$(npx eas-cli@25.2.0 build:list --platform ios --profile preview-simulator \
-              --status finished --limit 1 --json --non-interactive | pick_url)
-          fi
+          # The archive URL from an `eas build --json` run.
+          pick_url() {
+            node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s).find(b=>b&&b.artifacts&&b.artifacts.buildUrl);console.log(b?b.artifacts.buildUrl:'')})"
+          }
+          URL=""
+          while read -r COMMIT CANDIDATE; do
+            [ -n "$COMMIT" ] || continue
+            if [ "$COMMIT" = "$SHA" ]; then
+              URL=$CANDIDATE; echo "Build of this commit: $CANDIDATE"; break
+            fi
+            # A staging run tests the binary's embedded JS, so it needs the
+            # exact commit.
+            [ "$E2E_BACKEND" = "production" ] || continue
+            git cat-file -e "$COMMIT^{commit}" 2>/dev/null || continue
+            git merge-base --is-ancestor "$COMMIT" "$SHA" || continue
+            # Captured, not piped into grep -q: under pipefail an early exit
+            # would SIGPIPE git diff and read as "nothing native changed".
+            NATIVE=$(git diff --name-only "$COMMIT" "$SHA" | grep -Ev "$JS_ONLY" || true)
+            [ -z "$NATIVE" ] || continue
+            URL=$CANDIDATE; echo "Build of ancestor $COMMIT (only JS/docs changed since): $CANDIDATE"; break
+          done < <(list_builds)
           # A one-byte range read, not HEAD: it follows the same redirect a
           # real download does, and some storage backends reject HEAD.
           if [ -n "$URL" ] && curl -fsSL --max-time 60 -r 0-0 -o /dev/null "$URL"; then
             echo "Reusing $URL"
           else
             if [ "$EXACT" = "true" ]; then
-              echo "::notice::No downloadable preview-simulator build of $SHA. Building one from this commit."
+              echo "::notice::No downloadable preview-simulator build matches $SHA natively. Building one from this commit."
             else
               echo "::notice::No downloadable preview-simulator build (archive missing or expired). Building one."
             fi
