@@ -254,6 +254,7 @@ Every element below has one shared implementation in `components/`. Screens comp
 | Section labels inside a screen or sheet | `SectionLabel` |
 | Bottom sheets | `BottomSheet`, and `confirmSheet()` for decisions |
 | Icon-only controls | `IconButton` (plain in headers; filled only over imagery) |
+| Icons | `Icon`: SF Symbols on iOS (Ionicons on Android), named with the Ionicons names; each name maps to its symbol in `lib/iconSymbols.ts` |
 
 Type roles come from `theme.typography` (headline, title, reading, body, bodyStrong, callout, label, meta); don't restate family and size by hand.
 

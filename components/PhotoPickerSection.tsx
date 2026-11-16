@@ -15,7 +15,7 @@ import { Button } from "@/components/Button";
 import { IconButton } from "@/components/IconButton";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import * as Haptics from "expo-haptics";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import * as ImagePicker from "expo-image-picker";
 import { extractPhotoMetadata } from "@/lib/photoMetadata";
 import { moveItem, slotForDrag } from "@/lib/reorder";
@@ -247,7 +247,7 @@ export function PhotoPickerSection({
               accessibilityRole="button"
               accessibilityLabel="Add more photos"
             >
-              <Ionicons name="add" size={24} color={theme.colors.textSecondary} />
+              <Icon name="add" size={24} color={theme.colors.textSecondary} />
             </Pressable>
           )}
         </ScrollView>
@@ -255,7 +255,7 @@ export function PhotoPickerSection({
 
       {metaSuggestion && !dismissed && onApplyMeta && (
         <View style={styles.metaRow}>
-          <Ionicons name="image-outline" size={18} color={theme.colors.textSecondary} />
+          <Icon name="image-outline" size={18} color={theme.colors.textSecondary} />
           <View style={styles.metaText}>
             <Text style={styles.metaLabel}>From the photo</Text>
             <Text style={styles.metaBody} numberOfLines={2}>
@@ -438,7 +438,7 @@ function PhotoTile({
         accessibilityRole="button"
         accessibilityLabel={`Remove photo ${index + 1}`}
       >
-        <Ionicons name="close" size={14} color={overPhotoInk(theme)} />
+        <Icon name="close" size={14} color={overPhotoInk(theme)} />
       </Pressable>
     </Animated.View>
   );

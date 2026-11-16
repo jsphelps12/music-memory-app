@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { View, Text, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { ScreenHeader } from "@/components/ScreenHeader";
@@ -59,7 +59,7 @@ export default function HelpScreen() {
         <View style={styles.list}>
           {CAPTURE_METHODS.map(({ icon, label, desc }) => (
             <View key={label} style={styles.row}>
-              <Ionicons name={icon} size={20} color={theme.colors.textSecondary} style={styles.icon} />
+              <Icon name={icon} size={20} color={theme.colors.textSecondary} style={styles.icon} />
               <View style={styles.rowText}>
                 <Text style={styles.rowLabel}>{label}</Text>
                 <Text style={styles.rowDesc}>{desc}</Text>

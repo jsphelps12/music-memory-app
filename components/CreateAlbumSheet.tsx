@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import * as ImagePicker from "expo-image-picker";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "@/hooks/useTheme";
@@ -146,7 +146,7 @@ export function CreateAlbumSheet({ visible, onClose, userId, onCreated, defaultS
               <AppImage source={{ uri: coverUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
             ) : (
               <>
-                <Ionicons name="image-outline" size={24} color={theme.colors.textSecondary} />
+                <Icon name="image-outline" size={24} color={theme.colors.textSecondary} />
                 <Text style={styles.coverLabel}>Cover</Text>
               </>
             )}

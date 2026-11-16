@@ -70,8 +70,10 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   try/finally and throw-in-try the compiler can't lower yet, Reanimated
   `.value` writes, refs read in render). Follow-up: move shared values to
   `.get()/.set()` and fix the ref reads so those compile too.
-- [ ] SF Symbols (Apple's own icon set, replacing Ionicons: native shapes and
-  weights, and icons scale with the reader's text size).
+- [x] SF Symbols (2026-11-16): `expo-symbols` behind one `components/Icon`
+  (Ionicons names kept, mapped in `lib/iconSymbols.ts`, Ionicons on Android),
+  sized to the old glyphs and scaling with text size up to 1.3x; every direct
+  Ionicons use replaced, and design-lint now rejects new ones.
 - [ ] Face ID app lock, the photos ↔ music native query.
 - [ ] Refetch on reconnect: add `@react-native-community/netinfo` (via
   `npx expo install`) and wire React Query's `onlineManager` to it next to

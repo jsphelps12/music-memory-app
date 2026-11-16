@@ -1,6 +1,6 @@
 import { ReactNode, useMemo } from "react";
 import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon, type IconName } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
@@ -17,7 +17,7 @@ interface Props {
   /** A short value on the right, before the accessory (e.g. "Off", "0"). */
   detail?: string;
   /** Leading icon, in Graphite. */
-  icon?: React.ComponentProps<typeof Ionicons>["name"];
+  icon?: IconName;
   /** Leading content in place of an icon (an artwork thumbnail, an avatar). */
   leading?: ReactNode;
   /**
@@ -89,7 +89,7 @@ export function ListRow({
   const body = (
     <>
       {leading ?? (icon ? (
-        <Ionicons
+        <Icon
           name={icon}
           size={20}
           color={destructive ? theme.colors.destructive : theme.colors.textSecondary}
@@ -114,7 +114,7 @@ export function ListRow({
             </Text>
           ) : null}
           {accessoryIcon ? (
-            <Ionicons
+            <Icon
               name={accessoryIcon}
               size={kind === "check" ? 18 : 16}
               color={kind === "check" ? theme.colors.text : theme.colors.textSecondary}

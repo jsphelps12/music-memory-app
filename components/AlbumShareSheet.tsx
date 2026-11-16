@@ -11,7 +11,7 @@ import {
 import { AppImage } from "@/components/AppImage";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useState, useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { BottomSheet } from "@/components/BottomSheet";
@@ -315,7 +315,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
             {collection.isPublic && inviteUrl ? (
               <View style={styles.inviteBlock}>
                 <View style={styles.linkRow}>
-                  <Ionicons name="link-outline" size={16} color={theme.colors.textSecondary} />
+                  <Icon name="link-outline" size={16} color={theme.colors.textSecondary} />
                   <Text style={styles.linkText} numberOfLines={1} ellipsizeMode="middle">
                     {inviteUrl.replace(/^https?:\/\//, "")}
                   </Text>
@@ -386,7 +386,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                   <Text style={styles.rowValue} numberOfLines={1}>
                     {collection.name}
                   </Text>
-                  <Ionicons name="pencil-outline" size={16} color={theme.colors.textSecondary} />
+                  <Icon name="pencil-outline" size={16} color={theme.colors.textSecondary} />
                 </Pressable>
               )}
 
@@ -422,7 +422,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                       </>
                     ) : (
                       <View style={[styles.coverThumb, styles.coverEmpty]}>
-                        <Ionicons name="image-outline" size={18} color={theme.colors.textSecondary} />
+                        <Icon name="image-outline" size={18} color={theme.colors.textSecondary} />
                       </View>
                     )}
                   </View>

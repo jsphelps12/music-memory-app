@@ -5,7 +5,7 @@ import * as Haptics from "expo-haptics";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -70,7 +70,7 @@ export default function WelcomeScreen() {
         <View style={styles.features}>
           {FEATURES.map((feature) => (
             <View key={feature.icon} style={styles.featureRow}>
-              <Ionicons
+              <Icon
                 name={feature.icon}
                 size={22}
                 color={theme.colors.textSecondary}

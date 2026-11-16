@@ -9,7 +9,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon, type IconName } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
@@ -24,7 +24,7 @@ export interface MenuAnchor {
 export interface MomentMenuItem {
   key: string;
   label: string;
-  icon?: React.ComponentProps<typeof Ionicons>["name"];
+  icon?: IconName;
   /** Delete, remove, report: set in the destructive color. */
   destructive?: boolean;
   /**
@@ -155,7 +155,7 @@ export function MomentActionMenu({ anchor, items, onClose }: Props) {
                 <Text style={[styles.rowText, { color }]} numberOfLines={1}>
                   {item.label}
                 </Text>
-                {item.icon ? <Ionicons name={item.icon} size={18} color={color} /> : null}
+                {item.icon ? <Icon name={item.icon} size={18} color={color} /> : null}
               </Pressable>
             </View>
           );

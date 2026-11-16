@@ -21,7 +21,7 @@ import * as Updates from "expo-updates";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useAuth } from "@/contexts/AuthContext";
 import { PromptsSection } from "@/components/PromptsSection";
 import { confirmSheet } from "@/components/ConfirmSheet";
@@ -279,7 +279,7 @@ export default function SettingsScreen() {
                   activeOpacity={0.7}
                   accessibilityRole="button"
                 >
-                  <Ionicons name="notifications-off-outline" size={18} color={theme.colors.textSecondary} />
+                  <Icon name="notifications-off-outline" size={18} color={theme.colors.textSecondary} />
                   <Text style={styles.notifSettingsText}>Notifications are off for Soundtracks</Text>
                   <Text style={styles.notifSettingsLink}>Open Settings</Text>
                 </TouchableOpacity>

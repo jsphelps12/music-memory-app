@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, Alert } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import * as Haptics from "expo-haptics";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -144,7 +144,7 @@ export default function FriendInviteScreen() {
 
       {state === "not_found" && (
         <View style={styles.center}>
-          <Ionicons name="link-outline" size={40} color={theme.colors.textSecondary} />
+          <Icon name="link-outline" size={40} color={theme.colors.textSecondary} />
           <Text style={[styles.title, styles.titleSpaced]}>Link not found</Text>
           <Text style={styles.sub}>This friend link may no longer be valid.</Text>
           <Button label="Go back" onPress={handleClose} />
@@ -153,7 +153,7 @@ export default function FriendInviteScreen() {
 
       {state === "already_self" && (
         <View style={styles.center}>
-          <Ionicons name="person-outline" size={40} color={theme.colors.textSecondary} />
+          <Icon name="person-outline" size={40} color={theme.colors.textSecondary} />
           <Text style={[styles.title, styles.titleSpaced]}>That&apos;s your link</Text>
           <Text style={styles.sub}>Share it with friends so they can connect with you.</Text>
           <Button label="Got it" onPress={handleClose} />
@@ -187,7 +187,7 @@ export default function FriendInviteScreen() {
 
           {state === "sent" ? (
             <View style={styles.sentRow} accessibilityLiveRegion="polite">
-              <Ionicons name="checkmark-circle" size={20} color={theme.colors.success} />
+              <Icon name="checkmark-circle" size={20} color={theme.colors.success} />
               <Text style={styles.sentText}>You&apos;re now friends</Text>
             </View>
           ) : (

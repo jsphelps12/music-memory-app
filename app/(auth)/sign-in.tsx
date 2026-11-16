@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import * as Haptics from "expo-haptics";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { Link, useLocalSearchParams } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
@@ -84,7 +84,7 @@ export default function SignInScreen() {
 
         {registered ? (
           <View style={styles.successBox}>
-            <Ionicons name="mail-outline" size={20} color={theme.colors.textSecondary} />
+            <Icon name="mail-outline" size={20} color={theme.colors.textSecondary} />
             <View style={styles.successText}>
               <Text style={styles.successTitle}>Check your email</Text>
               <Text style={styles.successMessage}>
@@ -130,7 +130,7 @@ export default function SignInScreen() {
               accessibilityRole="button"
               accessibilityLabel={showPassword ? "Hide password" : "Show password"}
             >
-              <Ionicons
+              <Icon
                 name={showPassword ? "eye-off-outline" : "eye-outline"}
                 size={20}
                 color={theme.colors.textSecondary}

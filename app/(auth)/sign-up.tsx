@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { usePostHog } from "posthog-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
@@ -87,7 +87,7 @@ export default function SignUpScreen() {
               accessibilityRole="button"
               accessibilityLabel={showPassword ? "Hide password" : "Show password"}
             >
-              <Ionicons
+              <Icon
                 name={showPassword ? "eye-off-outline" : "eye-outline"}
                 size={20}
                 color={theme.colors.textSecondary}

@@ -9,7 +9,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { AppImage } from "@/components/AppImage";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -106,7 +106,7 @@ export function PhotoViewer({ photos, initialIndex, visible, onClose }: Props) {
             accessibilityRole="button"
             accessibilityLabel="Close photos"
           >
-            <Ionicons name="close" size={20} color={PAPER_ON_GLASS} />
+            <Icon name="close" size={20} color={PAPER_ON_GLASS} />
           </TouchableOpacity>
         </View>
 

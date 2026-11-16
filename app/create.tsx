@@ -17,7 +17,7 @@ import { AppImage } from "@/components/AppImage";
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
 import * as Haptics from "expo-haptics";
-import { Ionicons } from "@expo/vector-icons";
+import type { IconName } from "@/components/Icon";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
@@ -507,7 +507,7 @@ export default function CreateMomentScreen() {
 
   // Each chip names its value once set, so the bar doubles as a summary of
   // what's attached. A default date of today isn't a choice, so it stays plain.
-  const chips: { key: string; icon: keyof typeof Ionicons.glyphMap; label: string; set: boolean; onPress: () => void }[] = [
+  const chips: { key: string; icon: IconName; label: string; set: boolean; onPress: () => void }[] = [
     {
       key: "photo",
       icon: "image-outline",

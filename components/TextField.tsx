@@ -7,13 +7,13 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon, type IconName } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
 interface Props extends Omit<TextInputProps, "style"> {
   /** A leading icon, e.g. "search". */
-  icon?: React.ComponentProps<typeof Ionicons>["name"];
+  icon?: IconName;
   /** Content after the input, e.g. a clear button or "Cancel". */
   trailing?: ReactNode;
   /** Tall writing field (notes, prompts). */
@@ -51,7 +51,7 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
       ]}
     >
       {icon ? (
-        <Ionicons name={icon} size={17} color={theme.colors.textSecondary} style={styles.icon} />
+        <Icon name={icon} size={17} color={theme.colors.textSecondary} style={styles.icon} />
       ) : null}
       <TextInput
         ref={ref}

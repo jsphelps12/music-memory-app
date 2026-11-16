@@ -51,7 +51,7 @@ import { MomentCard } from "@/components/MomentCard";
 import { IconButton } from "@/components/IconButton";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { CalendarView, type CalendarMoment } from "@/components/CalendarView";
 import { EmptyState } from "@/components/EmptyState";
 import { DailyCheckInOffer } from "@/components/DailyCheckInOffer";
@@ -552,7 +552,7 @@ export default function TimelineScreen() {
           <Text style={styles.sharedRowText}>
             {unviewedCount === 1 ? "1 new from friends" : `${unviewedCount} new from friends`}
           </Text>
-          <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+          <Icon name="chevron-forward" size={16} color={theme.colors.textTertiary} />
         </TouchableOpacity>
       ) : null}
       {bannerError ? (
@@ -605,7 +605,7 @@ export default function TimelineScreen() {
                       else if (viewMode !== seg.key) toggleView();
                     }}
                   >
-                    <Ionicons
+                    <Icon
                       name={seg.icon}
                       size={17}
                       color={active ? theme.colors.text : theme.colors.textSecondary}

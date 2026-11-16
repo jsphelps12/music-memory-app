@@ -12,7 +12,7 @@ import {
   UIManager,
 } from "react-native";
 import * as Haptics from "expo-haptics";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon, type IconName } from "@/components/Icon";
 import { usePostHog } from "posthog-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
@@ -333,7 +333,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     loading = false,
     expanded,
   }: {
-    icon: keyof typeof Ionicons.glyphMap;
+    icon: IconName;
     title: string;
     desc: string;
     onPress: () => void;
@@ -350,7 +350,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
           {loading ? (
             <ActivityIndicator size="small" color={theme.colors.textSecondary} />
           ) : (
-            <Ionicons name={icon} size={22} color={theme.colors.text} />
+            <Icon name={icon} size={22} color={theme.colors.text} />
           )}
         </View>
       }
@@ -418,7 +418,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
               <ActivityIndicator size="small" color={theme.colors.textSecondary} />
             ) : sent ? (
               <View style={styles.sentState}>
-                <Ionicons name="checkmark" size={16} color={theme.colors.textSecondary} />
+                <Icon name="checkmark" size={16} color={theme.colors.textSecondary} />
                 <Text style={styles.sentText}>Sent</Text>
               </View>
             ) : (
