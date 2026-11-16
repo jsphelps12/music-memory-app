@@ -451,3 +451,236 @@ describe("mergeFirstPage (background refresh keeps loaded pages)", () => {
     expect(mod.lastLoadedPage(89, 30)).toBe(1);
   });
 });
+
+describe("discardTimelinePrefetch — data changed after the prefetch fired", () => {
+  it("drops both legs so no later consumer can use the outdated result", async () => {
+    // New-user onboarding: the prefetch ran at sign-up, before any moments.
+    sb.queueData([]);
+
+    const mod = await loadModule();
+    mod.prefetchTimeline(USER);
+    mod.discardTimelinePrefetch(USER);
+
+    expect(mod.consumePrefetchPromise(USER)).toBeNull();
+    expect(mod.consumePrefetchNetworkPromise(USER)).toBeNull();
+  });
+
+  it("leaves another user's prefetch alone", async () => {
+    sb.queueData([row("a", "A")]);
+
+    const mod = await loadModule();
+    mod.prefetchTimeline(USER);
+    mod.discardTimelinePrefetch(OTHER_USER);
+
+    expect(mod.consumePrefetchPromise(USER)).not.toBeNull();
+    expect(mod.consumePrefetchNetworkPromise(USER)).not.toBeNull();
+  });
+});
+
+describe("prefetch age (B2: an old prefetch painted over newer rows)", () => {
+  // hydrateUser re-runs on auth events while the profile load is failing and
+  // fired a prefetch nobody consumed. A later Journal remount (share intent:
+  // replace("/create") then replace("/(tabs)")) painted that old first page.
+
+  it("isPrefetchFresh: young and not older than the last local change", async () => {
+    const mod = await loadModule();
+    const max = mod.PREFETCH_MAX_AGE_MS;
+    expect(mod.isPrefetchFresh(1_000, 1_000 + max, 0)).toBe(true);
+    expect(mod.isPrefetchFresh(1_000, 1_000 + max + 1, 0)).toBe(false);
+    expect(mod.isPrefetchFresh(1_000, 2_000, 1_000)).toBe(true);
+    expect(mod.isPrefetchFresh(1_000, 2_000, 1_500)).toBe(false);
+  });
+
+  it("discards a prefetch older than the max age instead of handing it over", async () => {
+    storage.seed(CACHE_KEY, JSON.stringify([cachedMoment("cached", "C")]));
+    sb.queueData([row("a", "A")]);
+
+    const mod = await loadModule();
+    const start = Date.now();
+    mod.prefetchTimeline(USER, start);
+    const later = start + mod.PREFETCH_MAX_AGE_MS + 1;
+
+    expect(mod.consumePrefetchPromise(USER, later)).toBeNull();
+    // Both legs went, so no later consumer can pick either up.
+    expect(mod.consumePrefetchNetworkPromise(USER, start)).toBeNull();
+    expect(mod.consumePrefetchPromise(USER, start)).toBeNull();
+  });
+
+  it("hands over a prefetch inside the max age", async () => {
+    sb.queueData([row("a", "A")]);
+    const mod = await loadModule();
+    const start = Date.now();
+    mod.prefetchTimeline(USER, start);
+    expect(mod.consumePrefetchPromise(USER, start + mod.PREFETCH_MAX_AGE_MS)).not.toBeNull();
+  });
+
+  it("discards a prefetch that started before the last markTimelineStale", async () => {
+    sb.queueData([row("a", "A")]);
+    const mod = await loadModule();
+    // Same module registry as timelinePrefetch's own import.
+    const refresh = await import("../timelineRefresh");
+    mod.prefetchTimeline(USER, Date.now() - 1_000);
+    refresh.markTimelineStale();
+
+    expect(mod.consumePrefetchPromise(USER)).toBeNull();
+    expect(mod.consumePrefetchNetworkPromise(USER)).toBeNull();
+  });
+
+  it("discards a prefetch that started before the last markTimelineDeleted", async () => {
+    sb.queueData([row("a", "A")]);
+    const mod = await loadModule();
+    const refresh = await import("../timelineRefresh");
+    mod.prefetchTimeline(USER, Date.now() - 1_000);
+    refresh.markTimelineDeleted("a");
+
+    expect(mod.consumePrefetchPromise(USER)).toBeNull();
+  });
+
+  it("does not prefetch again for a user whose timeline already took the prefetch", async () => {
+    sb.queueData([row("a", "A")]);
+    const mod = await loadModule();
+    mod.prefetchTimeline(USER);
+    await mod.consumePrefetchPromise(USER);
+
+    mod.prefetchTimeline(USER); // hydrateUser re-run on a later auth event
+    expect(sb.queries).toHaveLength(1);
+    expect(mod.consumePrefetchPromise(USER)).toBeNull();
+  });
+
+  it("does not prefetch again once the timeline has written the cache", async () => {
+    const mod = await loadModule();
+    mod.writeTimelineCache(USER, []);
+    mod.prefetchTimeline(USER);
+    expect(sb.queries).toHaveLength(0);
+  });
+
+  it("prefetches again after sign-out cleared the timeline", async () => {
+    sb.queueData([row("a", "A")]);
+    sb.queueData([row("b", "B")]);
+    const mod = await loadModule();
+    mod.prefetchTimeline(USER);
+    await mod.consumePrefetchPromise(USER);
+    await mod.clearTimelineCache(USER);
+
+    mod.prefetchTimeline(USER);
+    expect(sb.queries).toHaveLength(2);
+  });
+
+  it("replaces an outdated in-flight prefetch instead of keeping it", async () => {
+    sb.queueData([row("old", "Old")]);
+    sb.queueData([row("new", "New")]);
+    const mod = await loadModule();
+    const start = Date.now() - mod.PREFETCH_MAX_AGE_MS - 1;
+    mod.prefetchTimeline(USER, start);
+    mod.prefetchTimeline(USER);
+
+    expect(sb.queries).toHaveLength(2);
+    const result = await mod.consumePrefetchPromise(USER);
+    expect(result!.map((m) => m.id)).toEqual(["new"]);
+  });
+
+  it("a discarded prefetch does not write its page to the cache", async () => {
+    sb.queueData([row("old", "Old")]);
+    const mod = await loadModule();
+    mod.prefetchTimeline(USER);
+    mod.discardTimelinePrefetch(USER); // still in flight
+    await settle();
+    expect(storage.map.has(CACHE_KEY)).toBe(false);
+  });
+});
+
+describe("writeTimelineCache (B4: the disk cache was only written at launch)", () => {
+  function moment(id: string) {
+    return {
+      ...cachedMoment(id, id),
+      momentDate: "2026-01-01",
+      createdAt: "2026-01-01T00:00:00Z",
+    } as unknown as Moment;
+  }
+
+  it("writes the first page only", async () => {
+    const mod = await loadModule();
+    const list = Array.from({ length: mod.TIMELINE_PAGE_SIZE + 5 }, (_, i) => moment(`m${i}`));
+    mod.writeTimelineCache(USER, list, mod.getTimelineCacheGeneration());
+    await settle();
+    const written = JSON.parse(storage.map.get(CACHE_KEY)!);
+    expect(written).toHaveLength(mod.TIMELINE_PAGE_SIZE);
+    expect(written[0].id).toBe("m0");
+    // What was written reads back as a valid cache.
+    expect(mod.parseCachedTimeline(storage.map.get(CACHE_KEY)!)).not.toBeNull();
+  });
+
+  it("does not resurrect the cache when sign-out cleared it after the fetch started", async () => {
+    const mod = await loadModule();
+    const generation = mod.getTimelineCacheGeneration(); // fetch starts
+    await mod.clearTimelineCache(USER); // sign-out while it's in flight
+    mod.writeTimelineCache(USER, [moment("a")], generation); // fetch lands
+    await settle();
+    expect(storage.map.has(CACHE_KEY)).toBe(false);
+  });
+
+  it("writes when nothing superseded the fetch", async () => {
+    const mod = await loadModule();
+    await mod.clearTimelineCache(USER);
+    const generation = mod.getTimelineCacheGeneration();
+    mod.writeTimelineCache(USER, [moment("a")], generation);
+    await settle();
+    expect(JSON.parse(storage.map.get(CACHE_KEY)!)[0].id).toBe("a");
+  });
+});
+
+describe("insertPendingMoment (B7: a saved moment was always prepended)", () => {
+  function m(id: string, momentDate: string | null, createdAt = "2026-01-01T00:00:00Z") {
+    return { id, momentDate, createdAt } as Moment;
+  }
+  const list = [m("a", "2026-10-09"), m("b", "2026-08-15"), m("c", "2026-06-01")];
+
+  it("puts a new moment for today at the top", async () => {
+    const mod = await loadModule();
+    const out = mod.insertPendingMoment(list, m("new", "2026-11-15"), false);
+    expect(out.map((x) => x.id)).toEqual(["new", "a", "b", "c"]);
+  });
+
+  it("puts a backdated moment in its month, not at the top", async () => {
+    const mod = await loadModule();
+    const out = mod.insertPendingMoment(list, m("new", "2026-08-20"), false);
+    expect(out.map((x) => x.id)).toEqual(["a", "new", "b", "c"]);
+  });
+
+  it("orders same-day moments by created_at", async () => {
+    const mod = await loadModule();
+    const out = mod.insertPendingMoment(list, m("new", "2026-08-15", "2025-12-31T00:00:00Z"), false);
+    expect(out.map((x) => x.id)).toEqual(["a", "b", "new", "c"]);
+  });
+
+  it("does not duplicate a moment the refresh already brought in", async () => {
+    const mod = await loadModule();
+    const out = mod.insertPendingMoment(list, m("b", "2026-08-15"), false);
+    expect(out.map((x) => x.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("moves an edited moment whose date changed", async () => {
+    const mod = await loadModule();
+    const out = mod.insertPendingMoment(list, m("a", "2026-07-01"), false);
+    expect(out.map((x) => x.id)).toEqual(["b", "a", "c"]);
+  });
+
+  it("appends an older moment when the whole timeline is loaded", async () => {
+    const mod = await loadModule();
+    const out = mod.insertPendingMoment(list, m("old", "2019-01-01"), false);
+    expect(out.map((x) => x.id)).toEqual(["a", "b", "c", "old"]);
+  });
+
+  it("leaves an older moment to load-more when more pages exist", async () => {
+    const mod = await loadModule();
+    const out = mod.insertPendingMoment(list, m("old", "2019-01-01"), true);
+    expect(out.map((x) => x.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("handles an empty list and undated moments", async () => {
+    const mod = await loadModule();
+    expect(mod.insertPendingMoment([], m("x", null), false).map((x) => x.id)).toEqual(["x"]);
+    const out = mod.insertPendingMoment(list, m("undated", null), false);
+    expect(out.map((x) => x.id)).toEqual(["a", "b", "c", "undated"]);
+  });
+});

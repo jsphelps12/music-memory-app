@@ -11,9 +11,17 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
+import { lastTimelineMarkAt } from "@/lib/timelineRefresh";
 import { Moment } from "@/types";
 
 export const TIMELINE_PAGE_SIZE = 30;
+
+/**
+ * A prefetch older than this is not handed to the timeline. The prefetch only
+ * exists to cover the gap between auth resolving and the Journal mounting,
+ * normally a second or two.
+ */
+export const PREFETCH_MAX_AGE_MS = 30_000;
 
 // Bump the version whenever the cached Moment shape changes. v1 predates the
 // multi-mood change (`mood` -> `moods: string[]`); a v1 cache would hand the
@@ -21,15 +29,42 @@ export const TIMELINE_PAGE_SIZE = 30;
 const CACHE_KEY_PREFIX = "timeline_cache_v2_";
 const LEGACY_CACHE_KEY_PREFIXES = ["timeline_cache_v1_"];
 
+type Pending = { promise: Promise<Moment[] | null>; userId: string; startedAt: number };
+
 // null means "network failed with no cache" — distinct from [] which means "user has 0 moments"
-let _prefetch: { promise: Promise<Moment[] | null>; userId: string } | null = null;
+let _prefetch: Pending | null = null;
 // The network leg, tracked separately so it survives consumePrefetchPromise()
 // and the timeline can still apply the authoritative result after rendering
 // from cache.
-let _network: { promise: Promise<Moment[] | null>; userId: string } | null = null;
-// Incremented by each prefetch and by clearTimelineCache; an in-flight fetch
-// whose generation is stale must not write to disk. See prefetchTimeline.
+let _network: Pending | null = null;
+// Incremented by each prefetch, by dropping one unused, and by
+// clearTimelineCache; an in-flight fetch whose generation is stale must not
+// write to disk. See prefetchTimeline.
 let _generation = 0;
+// The user whose timeline is already on screen (it took the prefetch or
+// wrote the cache). Auth events re-run hydration while the profile load is
+// failing, and a prefetch fired then was never consumed by the mounted
+// Journal; a later remount painted it over newer rows. Skip it instead.
+let _loadedUserId: string | null = null;
+
+/**
+ * Whether a prefetch started at `startedAt` may still be painted: younger than
+ * maxAgeMs and not older than the last local change to moments. Pure; tested.
+ */
+export function isPrefetchFresh(
+  startedAt: number,
+  now: number,
+  lastMarkedAt: number,
+  maxAgeMs = PREFETCH_MAX_AGE_MS
+): boolean {
+  return now - startedAt <= maxAgeMs && startedAt >= lastMarkedAt;
+}
+
+function isUsable(entry: Pending | null, userId: string, now: number): entry is Pending {
+  return (
+    entry?.userId === userId && isPrefetchFresh(entry.startedAt, now, lastTimelineMarkAt())
+  );
+}
 
 function cacheKey(userId: string) {
   return `${CACHE_KEY_PREFIX}${userId}`;
@@ -84,8 +119,11 @@ async function writeCache(userId: string, moments: Moment[]): Promise<void> {
   } catch {}
 }
 
-export function prefetchTimeline(userId: string): void {
-  if (_prefetch?.userId === userId) return; // already in flight for this user
+export function prefetchTimeline(userId: string, now = Date.now()): void {
+  // Already on screen: the Journal refreshes itself from here on.
+  if (_loadedUserId === userId) return;
+  // Already in flight for this user. An outdated one is replaced, not kept.
+  if (isUsable(_prefetch, userId, now)) return;
 
   // Generation counter, checked before the cache write below. Clearing the cache
   // (on sign-out or account deletion) can't cancel a fetch that's already in
@@ -122,6 +160,7 @@ export function prefetchTimeline(userId: string): void {
   // Race: return cache immediately if available, else wait for network
   _prefetch = {
     userId,
+    startedAt: now,
     promise: readCache(userId).then((cached) => {
       if (cached && cached.length > 0) {
         // Return cached data instantly; network fetch updates cache in background
@@ -135,13 +174,23 @@ export function prefetchTimeline(userId: string): void {
   // the *previous* launch — a moment created last session was simply missing,
   // and the 30s focus cooldown suppressed the refetch that would have corrected
   // it. A deterministic "doesn't load right the first time", even on fast wifi.
-  _network = { userId, promise: networkFetch };
+  _network = { userId, startedAt: now, promise: networkFetch };
 }
 
-export function consumePrefetchPromise(userId: string): Promise<Moment[] | null> | null {
+/**
+ * The prefetched first page, once. Null for another user's prefetch, and for
+ * one that is too old or predates a local change (it is discarded, so it can't
+ * be painted over newer rows later either).
+ */
+export function consumePrefetchPromise(userId: string, now = Date.now()): Promise<Moment[] | null> | null {
   if (_prefetch?.userId !== userId) return null; // wrong user — discard
+  if (!isUsable(_prefetch, userId, now)) {
+    discardTimelinePrefetch(userId);
+    return null;
+  }
   const p = _prefetch.promise;
   _prefetch = null;
+  _loadedUserId = userId;
   return p;
 }
 
@@ -152,11 +201,60 @@ export function consumePrefetchPromise(userId: string): Promise<Moment[] | null>
  * authoritative first page so the UI can be corrected. Returns null when there
  * is nothing in flight for this user.
  */
-export function consumePrefetchNetworkPromise(userId: string): Promise<Moment[] | null> | null {
+export function consumePrefetchNetworkPromise(userId: string, now = Date.now()): Promise<Moment[] | null> | null {
   if (_network?.userId !== userId) return null;
+  if (!isUsable(_network, userId, now)) {
+    discardTimelinePrefetch(userId);
+    return null;
+  }
   const p = _network.promise;
   _network = null;
   return p;
+}
+
+/**
+ * Drops the prefetch for this user without using it. Called when the timeline
+ * knows the data changed after the prefetch fired (see planFocusFetch), so a
+ * later consumer (e.g. the error-state retry) can't pick up the outdated
+ * result either.
+ */
+export function discardTimelinePrefetch(userId: string): void {
+  let dropped = false;
+  if (_prefetch?.userId === userId) {
+    _prefetch = null;
+    dropped = true;
+  }
+  if (_network?.userId === userId) {
+    _network = null;
+    dropped = true;
+  }
+  // Its network leg may still be in flight; it must not write its outdated
+  // page over what the timeline writes (writeTimelineCache).
+  if (dropped) _generation++;
+}
+
+/** Pass to writeTimelineCache: capture it when a fetch starts. */
+export function getTimelineCacheGeneration(): number {
+  return _generation;
+}
+
+/**
+ * Writes the timeline's first page to the disk cache, so the next launch paints
+ * what the user last saw rather than the state as of the previous launch.
+ * Call after a page-0 fetch or merge and after applying a local change.
+ *
+ * `generation` is getTimelineCacheGeneration() from when the data was fetched;
+ * if the cache was cleared since (sign-out, account deletion) or a newer fetch
+ * superseded it, nothing is written.
+ */
+export function writeTimelineCache(
+  userId: string,
+  moments: Moment[],
+  generation = _generation
+): void {
+  if (generation !== _generation) return;
+  _loadedUserId = userId;
+  void writeCache(userId, moments.slice(0, TIMELINE_PAGE_SIZE));
 }
 
 // ── Merging a refreshed first page into a paginated list ──────────────────
@@ -203,6 +301,19 @@ export function mergeFirstPage(
   return { moments: [...fresh, ...tail], hasMore: tail.length > 0 ? currentHasMore : true };
 }
 
+/**
+ * Places a moment saved or edited elsewhere into the list on screen: in its
+ * timeline position (a backdated moment lands in its month), replacing any row
+ * with the same id (the merge may already have it). When more pages exist and
+ * it sorts past the last loaded row, it's left for load-more to bring in.
+ */
+export function insertPendingMoment(current: Moment[], moment: Moment, hasMore: boolean): Moment[] {
+  const rest = current.filter((m) => m.id !== moment.id);
+  const index = rest.findIndex((m) => compareTimelineOrder(moment, m) <= 0);
+  if (index === -1) return hasMore ? rest : [...rest, moment];
+  return [...rest.slice(0, index), moment, ...rest.slice(index)];
+}
+
 /** Appends a page, skipping ids already shown (offsets shift when rows are added). */
 export function appendPage(current: Moment[], page: Moment[]): Moment[] {
   const seen = new Set(current.map((m) => m.id));
@@ -221,6 +332,7 @@ export function lastLoadedPage(loadedCount: number, pageSize = TIMELINE_PAGE_SIZ
 export async function clearTimelineCache(userId: string): Promise<void> {
   if (_prefetch?.userId === userId) _prefetch = null;
   if (_network?.userId === userId) _network = null;
+  if (_loadedUserId === userId) _loadedUserId = null;
   // Supersede any in-flight fetch so it can't write this user's rows back to
   // disk after we've removed them — the fetch can't be aborted, but it checks
   // this before writing. Sign-out mid-prefetch used to restore the cache.

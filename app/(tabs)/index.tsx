@@ -8,6 +8,7 @@ import {
   RefreshControl,
   StyleSheet,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -22,10 +23,15 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
-import { consumeTimelineStale } from "@/lib/timelineRefresh";
+import { consumeTimelineStale, planFocusFetch } from "@/lib/timelineRefresh";
+import { shouldRefreshOnResume, useOnForeground } from "@/lib/appFocus";
 import {
   consumePrefetchPromise,
   consumePrefetchNetworkPromise,
+  discardTimelinePrefetch,
+  getTimelineCacheGeneration,
+  writeTimelineCache,
+  insertPendingMoment,
   mergeFirstPage,
   appendPage,
   lastLoadedPage,
@@ -51,6 +57,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { Moment } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 30_000;
+// One automatic retry when the launch network fetch fails after a cache paint.
+const NETWORK_RETRY_MS = 5_000;
 // Unread-shares count is a badge-style query — 60s staleTime per the convention.
 const SHARED_BADGE_STALE_MS = 60_000;
 
@@ -74,6 +82,11 @@ export default function TimelineScreen() {
   const [error, setError] = useState("");
   const [bannerError, setBannerError] = useState("");
   const lastFetchTime = useRef(0);
+  // Set when the list on screen came from the disk cache and the network leg
+  // failed. lastFetchTime is set by then (it also means "first load done"), so
+  // without this the cooldown blocked the next focus/foreground refresh.
+  const needsRefreshRef = useRef(false);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pageRef = useRef(0);
   // Blocks load-more while a refresh is resetting pageRef, so the two can't
   // interleave and leave pageRef describing something other than what's rendered.
@@ -103,6 +116,11 @@ export default function TimelineScreen() {
     staleTime: SHARED_BADGE_STALE_MS,
     enabled: !!user,
   });
+  // Read through a ref: as a focus-effect dependency it re-ran the effect on
+  // every badge update, which during a cold start fired a second
+  // fetchMoments(true) before the first had finished.
+  const unviewedUpdatedAtRef = useRef(unviewedUpdatedAt);
+  unviewedUpdatedAtRef.current = unviewedUpdatedAt;
 
   // Clear data on user change (sign out / sign in as different user)
   useEffect(() => {
@@ -112,7 +130,12 @@ export default function TimelineScreen() {
     setCalendarMoments([]);
     calendarFetchedRef.current = null;
     lastFetchTime.current = 0;
+    needsRefreshRef.current = false;
     timelineSnapshotRef.current = null;
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    };
   }, [userId]);
 
   const sectionListRef = useRef<SectionList>(null);
@@ -125,9 +148,10 @@ export default function TimelineScreen() {
   const viewModeRef = useRef(viewMode);
   viewModeRef.current = viewMode;
 
-  const fetchCalendarMoments = useCallback(async () => {
+  // `silent`: a refresh of a calendar already on screen, without the spinner.
+  const fetchCalendarMoments = useCallback(async (silent = false) => {
     if (!userId) return;
-    setCalendarLoading(true);
+    if (!silent) setCalendarLoading(true);
 
     const snapshot = timelineSnapshotRef.current;
     if (snapshot && !snapshot.hasMore) {
@@ -257,12 +281,27 @@ export default function TimelineScreen() {
 
   // Sets the rendered list and keeps the snapshot (used by the calendar and
   // the focus-time prepend/delete) in step with it, every page included.
+  // The calendar derives from that snapshot (or its own query), so any change
+  // here makes it out of date: it refetches on its next open, or now if it's
+  // the visible view. It used to keep its first snapshot until a pull.
   const applyList = useCallback((list: Moment[], nextHasMore: boolean) => {
     momentsRef.current = list;
     timelineSnapshotRef.current = { moments: list, hasMore: nextHasMore };
     setMoments(list);
     setHasMore(nextHasMore);
-  }, []);
+    calendarFetchedRef.current = null;
+    if (viewModeRef.current === "calendar") fetchCalendarMoments(true);
+  }, [fetchCalendarMoments]);
+
+  // The first page to disk, so the next launch paints what's on screen now.
+  // `generation` is from when the data was fetched; see writeTimelineCache.
+  const persistFirstPage = useCallback(
+    (list: Moment[], generation?: number) => {
+      if (!userId || userIdRef.current !== userId) return;
+      writeTimelineCache(userId, list, generation);
+    },
+    [userId]
+  );
 
   const mergeFresh = useCallback((fresh: Moment[]) => {
     const merged = mergeFirstPage(momentsRef.current, fresh, hasMoreRef.current);
@@ -271,7 +310,7 @@ export default function TimelineScreen() {
   }, [applyList]);
 
   const fetchMomentsInner = useCallback(
-    async (showLoading: boolean, append = false) => {
+    async (showLoading: boolean, append = false, skipPrefetch = false) => {
       if (!userId) return;
       if (!append) {
         pageRef.current = 0;
@@ -280,7 +319,8 @@ export default function TimelineScreen() {
       if (showLoading) setLoading(true);
       const t0 = Date.now();
 
-      if (showLoading && !append) {
+      if (skipPrefetch) discardTimelinePrefetch(userId);
+      if (showLoading && !append && !skipPrefetch) {
         const prefetchPromise = consumePrefetchPromise(userId);
         if (prefetchPromise) {
           const prefetched = await prefetchPromise.catch(() => null);
@@ -305,9 +345,23 @@ export default function TimelineScreen() {
             if (networkPromise) {
               networkPromise
                 .then((fresh) => {
-                  if (fresh === null) return; // offline — keep showing cache
                   if (userIdRef.current !== userId) return; // signed out meanwhile
-                  mergeFresh(fresh);
+                  if (fresh === null) {
+                    // Offline or failed: the list is last launch's cache. Say
+                    // so, retry once shortly, and let the next focus or
+                    // foreground refresh regardless of the cooldown.
+                    needsRefreshRef.current = true;
+                    setBannerError("Couldn't refresh. Showing your saved moments.");
+                    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+                    retryTimerRef.current = setTimeout(() => {
+                      retryTimerRef.current = null;
+                      if (needsRefreshRef.current && userIdRef.current === userId) {
+                        fetchMomentsRef.current(false);
+                      }
+                    }, NETWORK_RETRY_MS);
+                    return;
+                  }
+                  mergeFresh(fresh); // the prefetch wrote this page to disk itself
                 })
                 .catch(() => {});
             }
@@ -318,6 +372,9 @@ export default function TimelineScreen() {
       setBannerError("");
       if (showLoading) setError("");
 
+      // After the prefetch was consumed or discarded, so its own cache write
+      // doesn't count as superseding this one.
+      const cacheGeneration = getTimelineCacheGeneration();
       const from = pageRef.current * TIMELINE_PAGE_SIZE;
       const { data, error: fetchError } = await supabase
         .from("moments")
@@ -357,6 +414,10 @@ export default function TimelineScreen() {
         // and merge it, keeping the pages the user has scrolled through.
         mergeFresh(mapped);
       }
+      if (!append) {
+        persistFirstPage(momentsRef.current, cacheGeneration);
+        needsRefreshRef.current = false;
+      }
       setLoading(false);
       lastFetchTime.current = Date.now();
 
@@ -369,19 +430,22 @@ export default function TimelineScreen() {
         });
       }
     },
-    [userId, posthog, applyList, mergeFresh]
+    // The retry calls fetchMoments through a ref: it wraps this function.
+    [userId, posthog, applyList, mergeFresh, persistFirstPage]
   );
 
   const fetchMoments = useCallback(
-    async (showLoading: boolean, append = false) => {
+    async (showLoading: boolean, append = false, skipPrefetch = false) => {
       try {
-        await fetchMomentsInner(showLoading, append);
+        await fetchMomentsInner(showLoading, append, skipPrefetch);
       } finally {
         if (!append) refreshInFlightRef.current = false;
       }
     },
     [fetchMomentsInner]
   );
+  const fetchMomentsRef = useRef(fetchMoments);
+  fetchMomentsRef.current = fetchMoments;
 
   const handleLoadMore = useCallback(async () => {
     // Don't append while a refresh is resetting pageRef — the two racing would
@@ -393,45 +457,64 @@ export default function TimelineScreen() {
     setLoadingMore(false);
   }, [hasMore, loadingMore, fetchMoments]);
 
+  // Back from the background: the tab never lost focus, so the effect below
+  // doesn't run. Without this the Journal showed whatever it had when the app
+  // was backgrounded, hours old, until a pull-to-refresh. The calendar follows
+  // via applyList when the refresh lands.
+  useOnForeground(() => {
+    if (!userId) return;
+    if (
+      shouldRefreshOnResume(lastFetchTime.current, Date.now(), REFETCH_COOLDOWN_MS, needsRefreshRef.current)
+    ) {
+      fetchMoments(false);
+    }
+    if (Date.now() - unviewedUpdatedAtRef.current >= SHARED_BADGE_STALE_MS) refetchUnviewed();
+  });
+
   useFocusEffect(
     useCallback(() => {
       const { stale, pendingMoment, deletedMomentId } = consumeTimelineStale();
       const elapsed = Date.now() - lastFetchTime.current;
 
-      if (pendingMoment && timelineSnapshotRef.current) {
-        const updated = [pendingMoment, ...timelineSnapshotRef.current.moments];
-        timelineSnapshotRef.current = { ...timelineSnapshotRef.current, moments: updated };
-        setMoments(updated);
-      }
-
-      if (deletedMomentId) {
-        const filter = (list: Moment[]) => list.filter((m) => m.id !== deletedMomentId);
-        if (timelineSnapshotRef.current) {
-          const updated = filter(timelineSnapshotRef.current.moments);
-          timelineSnapshotRef.current = { ...timelineSnapshotRef.current, moments: updated };
-        }
-        setMoments((prev) => prev.filter((m) => m.id !== deletedMomentId));
+      // Applied before the refresh below lands, so the change shows at once.
+      // Only once something is loaded; otherwise the first fetch brings it.
+      const applyNow = !!timelineSnapshotRef.current && !!(pendingMoment || deletedMomentId);
+      if (applyNow) {
+        let list = momentsRef.current;
+        // In its timeline position, deduped by id (insertPendingMoment).
+        if (pendingMoment) list = insertPendingMoment(list, pendingMoment, hasMoreRef.current);
+        if (deletedMomentId) list = list.filter((m) => m.id !== deletedMomentId);
+        applyList(list, hasMoreRef.current);
+        persistFirstPage(list);
       }
 
       if (stale) calendarFetchedRef.current = null;
-      if (viewModeRef.current === "calendar" && calendarFetchedRef.current !== true) fetchCalendarMoments();
-      if (lastFetchTime.current === 0) {
-        fetchMoments(true);
-      } else if (stale || elapsed >= REFETCH_COOLDOWN_MS) {
-        fetchMoments(false);
+      // applyList above already refreshed a visible calendar.
+      if (!applyNow && viewModeRef.current === "calendar" && calendarFetchedRef.current !== true) {
+        fetchCalendarMoments();
       }
+      const plan = planFocusFetch({
+        hasFetched: lastFetchTime.current !== 0,
+        stale: stale || needsRefreshRef.current,
+        elapsedMs: elapsed,
+        cooldownMs: REFETCH_COOLDOWN_MS,
+      });
+      if (plan === "initial") fetchMoments(true);
+      else if (plan === "initial_fresh") fetchMoments(true, false, true);
+      else if (plan === "refresh") fetchMoments(false);
 
       // The "new from friends" row's count, on the badge cooldown.
-      if (userId && Date.now() - unviewedUpdatedAt >= SHARED_BADGE_STALE_MS) refetchUnviewed();
-    }, [fetchMoments, fetchCalendarMoments, userId, unviewedUpdatedAt, refetchUnviewed])
+      if (userId && Date.now() - unviewedUpdatedAtRef.current >= SHARED_BADGE_STALE_MS) refetchUnviewed();
+    }, [fetchMoments, fetchCalendarMoments, userId, refetchUnviewed, applyList, persistFirstPage])
   );
 
+  // The calendar is refreshed by applyList once the new list lands: fetching
+  // it alongside used the snapshot from before the refresh.
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    calendarFetchedRef.current = null;
-    await Promise.all([fetchMoments(false), fetchCalendarMoments(), refetchUnviewed()]);
+    await Promise.all([fetchMoments(false), refetchUnviewed()]);
     setRefreshing(false);
-  }, [fetchMoments, fetchCalendarMoments, refetchUnviewed]);
+  }, [fetchMoments, refetchUnviewed]);
 
   const allMoods = useMemo(
     () => [...MOODS, ...(profile?.customMoods ?? [])],
@@ -442,9 +525,11 @@ export default function TimelineScreen() {
   // deleteMomentWithCleanup only takes effect on the next focus, and deleting
   // from the card never leaves the screen.
   const handleCardDeleted = useCallback((deletedId: string) => {
-    setMoments((prev) => prev.filter((m) => m.id !== deletedId));
+    const list = momentsRef.current.filter((m) => m.id !== deletedId);
+    applyList(list, hasMoreRef.current);
+    persistFirstPage(list);
     setCalendarMoments((prev) => prev.filter((m) => m.id !== deletedId));
-  }, []);
+  }, [applyList, persistFirstPage]);
 
   const renderMoment = useCallback(({ item }: { item: Moment }) => (
     <MomentCard item={item} allMoods={allMoods} onDeleted={handleCardDeleted} currentUserId={userId} />
@@ -548,12 +633,27 @@ export default function TimelineScreen() {
                   onRetry={() => fetchMoments(true)}
                 />
               ) : moments.length === 0 && !loading ? (
-                <EmptyState
-                  icon="musical-notes-outline"
-                  title="No moments yet"
-                  subtitle={"A moment is a song paired with a memory —\nwhat you felt, who you were with, and why it mattered."}
-                  action={{ label: "Create Your First Moment", onPress: () => router.push("/create") }}
-                />
+                // Scrollable so pull-to-refresh works here too: an empty list
+                // that turned out to be wrong had no way to recover.
+                <ScrollView
+                  contentContainerStyle={styles.emptyScroll}
+                  showsVerticalScrollIndicator={false}
+                  refreshControl={
+                    <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={handleRefresh}
+                      tintColor={theme.colors.text}
+                    />
+                  }
+                >
+                  <View style={styles.emptyHeader}>{listHeader}</View>
+                  <EmptyState
+                    icon="musical-notes-outline"
+                    title="No moments yet"
+                    subtitle={"A moment is a song paired with a memory —\nwhat you felt, who you were with, and why it mattered."}
+                    action={{ label: "Create Your First Moment", onPress: () => router.push("/create") }}
+                  />
+                </ScrollView>
               ) : (
                 <SectionList
                   ref={sectionListRef}
@@ -666,6 +766,13 @@ function createStyles(theme: Theme) {
     sectionHeader: {
       paddingTop: theme.spacing["2xl"],
       paddingBottom: theme.spacing.xs,
+    },
+    emptyScroll: {
+      flexGrow: 1,
+      paddingBottom: 110,
+    },
+    emptyHeader: {
+      paddingHorizontal: theme.spacing.xl,
     },
     listContent: {
       paddingHorizontal: theme.spacing.xl,

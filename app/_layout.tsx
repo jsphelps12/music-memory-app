@@ -21,6 +21,7 @@ import { resolveAuthRoute, ROUTE_TABS } from "@/lib/authRouting";
 import { markStartup, reportStartup } from "@/lib/perf";
 import { useEffect, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { wireQueryFocus } from "@/lib/appFocus";
 import { PostHogProvider } from "posthog-react-native";
 import { posthog } from "@/lib/posthog";
 import { View, ActivityIndicator } from "react-native";
@@ -71,6 +72,10 @@ SplashScreen.preventAutoHideAsync();
 // Fade out of the launch screen instead of cutting, so a cold launch (from a
 // widget, a push, a share) eases into wherever the app lands.
 SplashScreen.setOptions({ duration: 250, fade: true });
+
+// Returning from the background counts as focus, so stale queries on mounted
+// screens refetch (lib/appFocus.ts). Must run before the client is used.
+wireQueryFocus();
 
 const queryClient = new QueryClient({
   defaultOptions: {

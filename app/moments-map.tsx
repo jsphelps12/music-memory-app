@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { supabase } from "@/lib/supabase";
+import { DEFAULT_SCREEN_STALE } from "@/lib/queryConfig";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { IconButton } from "@/components/IconButton";
 import { Button } from "@/components/Button";
@@ -68,7 +69,7 @@ export default function MomentsMapScreen() {
       return (data ?? []) as MapMoment[];
     },
     enabled: !!user,
-    staleTime: 5 * 60 * 1000,
+    staleTime: DEFAULT_SCREEN_STALE,
   });
 
   // initialRegion is only read at mount, and with a cold cache the data
