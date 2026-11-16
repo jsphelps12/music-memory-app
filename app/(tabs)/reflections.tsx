@@ -203,9 +203,10 @@ function excerpt(text: string) {
   return text.replace(/\s+/g, " ").trim();
 }
 
-function openMoment(router: ReturnType<typeof useRouter>, moment: Moment) {
+/** On this day opens the memory card, with the song already playing. */
+function openMemory(router: ReturnType<typeof useRouter>, moment: Moment) {
   setCachedMoment(moment);
-  router.push({ pathname: "/moment/[id]", params: { id: moment.id } });
+  router.push({ pathname: "/memory/[id]", params: { id: moment.id, source: "rediscover" } });
 }
 
 function OnThisDayHero({ moment, yearsAgo, onPress }: { moment: Moment; yearsAgo: number; onPress: () => void }) {
@@ -592,14 +593,14 @@ export default function ReflectionsScreen() {
               <OnThisDayHero
                 moment={onThisDaySorted[0].moment}
                 yearsAgo={onThisDaySorted[0].yearsAgo}
-                onPress={() => openMoment(router, onThisDaySorted[0].moment)}
+                onPress={() => openMemory(router, onThisDaySorted[0].moment)}
               />
               {onThisDaySorted.slice(1).map(({ moment, yearsAgo }) => (
                 <OnThisDayRow
                   key={moment.id}
                   moment={moment}
                   yearsAgo={yearsAgo}
-                  onPress={() => openMoment(router, moment)}
+                  onPress={() => openMemory(router, moment)}
                 />
               ))}
             </View>

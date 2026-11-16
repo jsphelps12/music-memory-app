@@ -212,11 +212,10 @@ export function selectNotifications(input: SelectNotificationsInput): SelectNoti
   }
 
   // ── Priority 3: ON THIS DAY ────────────────────────────────────────────────
-  const onThisDayCopies: Array<(n: number, song: string, artist: string) => string> = [
-    (n, song, artist) => `${n} year${n !== 1 ? "s" : ""} ago: ${song} by ${artist}`,
-    (n, song, _artist) => `This memory found you ${n} year${n !== 1 ? "s" : ""} ago → ${song}`,
-    (n, song, _artist) => `${n} year${n !== 1 ? "s" : ""} back, you saved ${song}. Does it still sound the same?`,
-  ];
+  // "On this day that plays" (2026-11-16): the title is the anniversary, the
+  // body is the song, and a tap opens the memory card (type "memory"), where
+  // the song is already playing. Never the user's words: a push can show on
+  // the Lock Screen. Binaries without the card fall back to momentId.
 
   const byUserOnThisDay = new Map<
     string,
@@ -244,12 +243,11 @@ export function selectNotifications(input: SelectNotificationsInput): SelectNoti
   for (const [userId, { momentId, songTitle, songArtist, momentYear }] of byUserOnThisDay) {
     if (prefsByUserId[userId]?.notif_on_this_day === false) continue;
     const yearsAgo = todayYear - momentYear;
-    const copyFn = onThisDayCopies[daySeed % onThisDayCopies.length];
     messages.push({
       to: tokenByUserId[userId],
-      title: "On This Day 🎵",
-      body: copyFn(yearsAgo, songTitle, songArtist),
-      data: { momentId },
+      title: `${yearsAgo === 1 ? "1 year" : `${yearsAgo} years`} ago today`,
+      body: `${songTitle}, ${songArtist}`,
+      data: { momentId, type: "memory" },
     });
     assignedUserIds.add(userId);
   }
