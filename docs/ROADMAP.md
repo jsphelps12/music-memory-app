@@ -40,19 +40,18 @@ below should move that, or it doesn't belong on this page.
 
 - **1.3.1 (build 10) is live** on the App Store: the "Pressed S" icon and
   the Phase 1 look as a store build. 1.3.0 (build 9) went out 2026-11-13.
-- **Live over the air on 1.3.1** (Promote to Production, `956aa3e`): the
-  design sweep (one set of shared components everywhere), the moment
-  resume fix, the Share card screen, ordered photos, and the data
-  freshness fixes (screens refresh when the app returns from the
-  background).
-- **On `main`, not promoted yet:** Edit moment opens full screen. It was
-  pushed over the moment overlay, so iOS showed it as a page-sheet card
-  (found in the 1.4 dark-mode pass).
-- **Large text (2026-11-16):** checked at XXXL and AX3. Fixed: the inline
-  screen title (cap 1.5x) and tab labels (cap 1.2x) no longer truncate;
-  list rows stack their detail under the label and drop line limits at
-  accessibility sizes; avatar initials stay inside their circles; the You
-  Albums header wraps instead of colliding.
+- **Live over the air on 1.3.1** (Promote to Production, `df74f37`,
+  2026-11-16): the design sweep, the moment resume fix, the Share card
+  screen, ordered photos, the data freshness fixes, Year in review, the
+  daily check-in, On this day that plays, Edit moment opening full screen
+  (it showed as a page-sheet card over the moment), and the large-text
+  fixes (checked at XXXL and AX3: inline titles cap at 1.5x and tab labels
+  at 1.2x; list rows stack their detail and drop line limits at
+  accessibility sizes; avatar initials and the You Albums header hold).
+- **EAS free plan:** the month's iOS builds ran out on 2026-11-16 (two 1.4
+  simulator builds) and reset 2026-12-01. E2E now reuses an ancestor's
+  simulator build for JS-only commits, so OTA promotes aren't blocked. A
+  1.4 App Store build before Dec 1 means `eas build --local` or a paid plan.
 - **Usage (prod, test accounts excluded):** 82 users; 3 created a moment in
   the last 30 days, 6 in the last 90. 0 occasions. Retention, not
   activation, is still the bottleneck; Phase 2 ("Pull") is aimed at it.
