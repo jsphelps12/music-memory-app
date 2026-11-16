@@ -372,8 +372,18 @@ are.
 *Reading your journal back is the reward for writing it.*
 
 - [ ] **Your month in songs:** a monthly view of what you logged and played.
-- [ ] **Year in review**, December being the natural moment. AI narration is
-  allowed here (delight over accuracy, once a year).
+- [x] **Year in review** (2026-11-16): a tap-through story of a year, each
+  card playing its song on a night screen lit by its artwork: the cover
+  (the year as a mosaic, first song), the loudest month, the top mood, the
+  person and place that recur, the entry written about most (quoted, never
+  rewritten), and a closing card with "Share my year" (the card as an
+  image). Free; featured at the top of Rediscover Dec 1 – Jan 31 and under
+  You → "Your years" any time, for a year with 5+ moments. Cards with
+  nothing true to say are left out. `lib/yearInReview.ts` (pure, tested),
+  `app/year/[year].tsx`, `components/YearReviewEntry.tsx`.
+- [ ] Year in review v2: AI chapter titles and a name for the year (allowed
+  once a year, never rewriting the user's words), and a recap push on
+  December 1.
 - [ ] **Reading experience:** browsing and search that make the archive a
   pleasure, not a list.
 - [ ] **Thin-archive states:** Reflections strips show a teaser instead of

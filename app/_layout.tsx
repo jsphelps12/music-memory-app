@@ -488,6 +488,12 @@ function RootLayoutNav() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
+            name="year/[year]"
+            // An experience you enter and leave (Year in review): full screen
+            // with its own close, always night.
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
+          />
+          <Stack.Screen
             name="moments-map"
             // Edge swipe only (the native default), so map pans keep working.
             options={{ headerShown: false }}
