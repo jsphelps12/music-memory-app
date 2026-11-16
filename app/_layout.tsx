@@ -420,7 +420,9 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="moment/edit/[id]"
-            options={{ headerShown: false, animation: "slide_from_right" }}
+            // Full screen, not pushed: it opens from the moment overlay (a
+            // transparentModal), where a push renders as a page-sheet card.
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="artist"
