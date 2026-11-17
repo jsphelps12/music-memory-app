@@ -16,13 +16,18 @@ Soundtracks is a **React Native iOS app** built with Expo (managed workflow + cu
 │  │  ├── Expo Router (file-based routing)      │   │
 │  │  ├── React Context (auth + player state)   │   │
 │  │  ├── expo-share-intent (share extension)   │   │
-│  │  └── expo-av (audio playback)              │   │
+│  │  └── expo-audio (audio playback)           │   │
 │  ├───────────────────────────────────────────┤   │
 │  │  Custom Native Modules (Swift)             │   │
 │  │  ├── NowPlaying                            │   │
 │  │  │   (MPMusicPlayerController)             │   │
-│  │  └── ShazamKit                             │   │
-│  │      (AVAudioEngine + SHSession)           │   │
+│  │  ├── ShazamKit                             │   │
+│  │  │   (AVAudioEngine + SHSession)           │   │
+│  │  ├── SpotifyRemote (lazy-loaded)           │   │
+│  │  ├── OnDeviceAI (1.4)                      │   │
+│  │  │   (Vision + Foundation Models)          │   │
+│  │  └── PhotosVideo (1.4)                     │   │
+│  │      (PHImageManager → AVPlayerLayer)      │   │
 │  ├───────────────────────────────────────────┤   │
 │  │  Third-Party Native                        │   │
 │  │  └── @lomray/react-native-apple-music      │   │
@@ -654,6 +659,19 @@ Same UUID for both — deterministic relationship between full and thumbnail pat
 
 ---
 
+## On-Device Intelligence (1.4)
+
+Everything derived from the Photos and music libraries stays on the phone: no cloud AI, no upload of listening history or photo locations.
+
+- **Last week / From before**: Apple Music library dates and play counts (`now-playing` module, plus a weekly on-device snapshot of play counts) paired with camera photos from the same days (`lib/lastWeek.ts`, `lib/pastPairings.ts`, pure and tested; the `*Data.ts` files do the device I/O).
+- **Photo interest** (`modules/on-device-ai`, `lib/photoInterest.ts`): Vision scene labels, face count and text coverage on any iOS, Apple's aesthetics score on iOS 18+. Receipts and documents never get suggested; the best photo leads each row. Results are cached per photo and lists never wait on analysis.
+- **Nudge questions** (`lib/nudgeQuestion.ts`): on iOS 26 with Apple Intelligence, Foundation Models writes one short question per pairing from facts only, validated (must be a question, under 90 chars, no invented names); templates elsewhere. AI asks; it never writes the reflection.
+- **Linked media** (`lib/linkedMedia.ts`, `lib/ensureFullMedia.ts`): moments reference Photos by iCloud id and upload only a thumbnail until shared, when the full file uploads so a no-app recipient still gets everything.
+
+**Be ready to explain**: why on-device (privacy and zero marginal cost), how the module degrades (`requireOptionalNativeModule` returns null on older builds), and why the AI output is validated instead of trusted.
+
+---
+
 ## Observability: Sentry + PostHog
 
 ### Sentry (Crash Reporting)
@@ -701,7 +719,7 @@ posthog.identify(userId, {
 
 ### What Can Be OTA Updated
 
-Any JS/TS code change. What can't:
+Any JS/TS code change, as long as the native fingerprint (`runtimeVersion.policy: "fingerprint"`) is unchanged. What can't:
 - Native module changes (Swift/Kotlin)
 - New native dependencies (anything with a podspec)
 - `app.config.ts` changes that affect native config

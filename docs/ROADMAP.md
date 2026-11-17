@@ -36,10 +36,19 @@ below should move that, or it doesn't belong on this page.
 - **Never paywall capture or your own history.**
 - **Every surface is a screen or a quick pick** (no pageSheet cards).
 
-## Where things stand (2026-11-16)
+## Where things stand (2026-11-17)
 
 - **1.3.1 (build 10) is live** on the App Store: the "Pressed S" icon and
   the Phase 1 look as a store build. 1.3.0 (build 9) went out 2026-11-13.
+- **1.4.0 is on `native/1.4`**, not cut yet: Expo SDK 58 (device-verified
+  on Josh's iOS 27.2 phone), Face ID lock, PDF export, SF Symbols, React
+  Compiler, working Control Center controls, Last week, From before in
+  Rediscover, on-device AI, linked photos and video, and the moment film.
+  The newest pieces (on-device AI, linked media, the film) still need
+  Josh's phone. Left before the cut: What's New and screenshots, the
+  build itself (`eas build --local`, or EAS after its free quota resets
+  2026-12-01), and moving Josh's real moments to his personal account
+  (awaiting his go).
 - **Live over the air on 1.3.1** (Promote to Production, `956aa3e`): the
   design sweep (one set of shared components everywhere), the moment
   resume fix, the Share card screen, ordered photos, and the data
@@ -216,13 +225,14 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   when the connection comes back (10s cooldown for flapping signals).
   Verified on the 1.4 simulator build: launches with NetInfo linked. The
   offline → online cycle itself still needs a device (airplane mode).
-- [ ] **Export your journal as a PDF** (`expo-print`; Josh chose native PDF
+- [x] **Export your journal as a PDF** (`expo-print`; Josh chose native PDF
   over an interim text export, 2026-11-16): Settings → Journal → Export your
   journal builds a typeset book (title page, year and month heads, every
   moment oldest first with artwork, when/where/who, moods as words, up to
   four photos, and the words in Newsreader) and opens the share sheet.
   `lib/journalExport.ts` (pure, tested) + `lib/journalExportDevice.ts`.
-  On branch `native/1.4`.
+  On branch `native/1.4`; export worked in the SDK 58 device pass
+  (2026-11-17).
 - [x] `mailto` in `LSApplicationQueriesSchemes` (2026-11-16): Settings >
   Share feedback checks `canOpenURL` first and goes straight to the
   copy-the-address sheet when there's no mail app.

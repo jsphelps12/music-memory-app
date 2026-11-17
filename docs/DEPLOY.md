@@ -232,6 +232,29 @@ staging again once it's restored, dispatch with `backend=staging`.
 
 ---
 
+### Local builds (Xcode 27, Expo SDK 58)
+
+EAS's free iOS builds are used up until 2026-12-01, so 1.4 builds run locally
+(`eas build --local`, or Xcode directly). Notes:
+
+- Prebuild with `--clean` (apple-targets fails to update an existing project)
+  and run CocoaPods with a UTF-8 locale. `plugins/withPodsMinDeploymentTarget`
+  lifts pods below iOS 15, which Xcode 27 refuses.
+- The preview prebuild names the project `Soundtracksb` (SDK 58 turns the β
+  into a "b"): `ios/Soundtracksb.xcworkspace`, scheme `Soundtracksb`. Bundle
+  ids are unchanged.
+- Staging is paused, so a local build that needs to sign in uses the
+  production env (`scripts/.env.prod.local`). Apple Sign-In fails on a β
+  build pointed at production (its provider only accepts the store bundle
+  id); use email there.
+- Device build without the phone attached: `xcodebuild … -destination
+  'generic/platform=iOS' -allowProvisioningUpdates`, then
+  `xcrun devicectl device install app` once it's connected.
+- `ios/ShareExtension` is generated and untracked. After a branch switch
+  across that change, re-run the preview prebuild before building, and never
+  restore old copies between a prebuild and its build (stale files carry
+  production values and break the β share extension).
+
 ## Manual Regression Checklist
 
 Run this on a physical device before every App Store submission: once on the
