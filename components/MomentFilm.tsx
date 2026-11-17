@@ -10,7 +10,6 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import * as MediaLibrary from "expo-media-library/legacy";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -21,6 +20,7 @@ import Animated, {
   useReducedMotion,
   useSharedValue,
   withTiming,
+  type SharedValue,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
@@ -30,9 +30,12 @@ import { usePlayerControls } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import type { MediaSource } from "@/lib/linkedMedia";
+import { videoFile } from "@/modules/now-playing";
 
-/** In film mode, how long a photo holds before the next. */
+/** In the film, how long a photo holds before the next fades in. */
 const PHOTO_MS = 4000;
+/** The cross-fade between one photo or video and the next. */
+const FADE_MS = 700;
 /** The slow drift on a photo while the film plays. */
 const DRIFT_SCALE = 1.06;
 /** Drag down this far to close. */
@@ -45,13 +48,16 @@ const PAPER_ON_GLASS = "#FBF7F2";
 // Night, the second material (DESIGN.md): media sits on it in both themes.
 const NIGHT = "#0E0B0A";
 
+type Styles = ReturnType<typeof createStyles>;
+
 /**
- * A moment's photos and videos as a little film (1.4, Josh's call). Swipe
- * through them in order; pinch a photo to zoom; videos play muted, and the
- * speaker brings their sound up while the song ducks (lib/audioMix.ts).
- * Play turns it into a film: the song plays, photos drift for a few seconds
- * each, videos play through, then the next. Story-style segments across the
- * top show where you are. Drag down or ✕ to close. Nothing is exported.
+ * A moment's photos and videos as a little film (1.4, Josh's call). It
+ * plays as soon as it opens: the song starts, photos drift for a few seconds
+ * each, videos play through, and each fades into the next, looping. Tap the
+ * right side for the next, the left for the previous; Pause stops it and
+ * gives a swipeable, zoomable pager. Videos play muted; the speaker brings
+ * their sound up while the song ducks (lib/audioMix.ts). Story-style
+ * segments show where you are. Drag down or ✕ to close. Nothing is exported.
  */
 export function MomentFilm({
   items,
@@ -74,7 +80,6 @@ export function MomentFilm({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
-  const reduceMotion = useReducedMotion();
   const { duck } = usePlayerControls();
   const [index, setIndex] = useState(initialIndex);
   const [film, setFilm] = useState(false);
@@ -82,10 +87,9 @@ export function MomentFilm({
   const listRef = useRef<FlatList<MediaSource>>(null);
   const progress = useSharedValue(0);
   const dragY = useSharedValue(0);
-
+  const count = items.length;
   const current = items[index];
 
-  // Leaving a clip with its sound on brings the song back.
   const setClipSound = useCallback(
     (on: boolean) => {
       setSoundOn(on);
@@ -94,27 +98,19 @@ export function MomentFilm({
     [duck]
   );
 
-  const close = useCallback(() => {
-    if (soundOn) setClipSound(false);
-    setFilm(false);
-    onClose();
-  }, [onClose, setClipSound, soundOn]);
-
-  const goTo = useCallback(
-    (i: number, animated = true) => {
-      if (i < 0 || i >= items.length) return;
-      listRef.current?.scrollToIndex({ index: i, animated });
-      setIndex(i);
+  const show = useCallback(
+    (i: number) => {
+      if (count === 0) return;
+      const target = ((i % count) + count) % count;
+      setIndex(target);
+      if (!film) listRef.current?.scrollToIndex({ index: target, animated: true });
     },
-    [items.length]
+    [count, film]
   );
+  const next = useCallback(() => show(index + 1), [index, show]);
+  const prev = useCallback(() => show(index - 1), [index, show]);
 
-  const advance = useCallback(() => {
-    if (index + 1 < items.length) goTo(index + 1);
-    else setFilm(false); // the end: stay on the last
-  }, [goTo, index, items.length]);
-
-  // A new page: sound off, progress from zero.
+  // A new item: the clip's sound goes off, its segment starts from zero.
   useEffect(() => {
     if (soundOn) setClipSound(false);
     cancelAnimation(progress);
@@ -122,35 +118,53 @@ export function MomentFilm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
-  // Film mode on a photo: fill its segment over PHOTO_MS, then advance.
+  // The film: a photo holds PHOTO_MS, then the next fades in; videos move on
+  // when they end (VideoPage). A plain timer, cleared on any change.
   useEffect(() => {
-    if (!visible || !film || !current || current.kind !== "photo") return;
-    progress.value = withTiming(1, { duration: PHOTO_MS * (1 - progress.value), easing: Easing.linear }, (done) => {
-      if (done) runOnJS(advance)();
-    });
-    return () => cancelAnimation(progress);
-  }, [visible, film, current, advance, progress]);
+    if (!visible || !film || !current || current.kind !== "photo" || count < 2) return;
+    progress.value = 0;
+    progress.value = withTiming(1, { duration: PHOTO_MS, easing: Easing.linear });
+    const timer = setTimeout(next, PHOTO_MS);
+    return () => {
+      clearTimeout(timer);
+      cancelAnimation(progress);
+    };
+  }, [visible, film, current, count, next, progress]);
 
-  const toggleFilm = () => {
-    Haptics.selectionAsync();
-    if (film) {
-      // A film pauses as one: the song with it.
-      setFilm(false);
-      if (songPlaying) pauseSong();
-      return;
-    }
+  const close = useCallback(() => {
+    if (soundOn) setClipSound(false);
+    setFilm(false);
+    onClose();
+  }, [onClose, setClipSound, soundOn]);
+
+  const playFilm = useCallback(() => {
     if (!songPlaying) startSong();
     setFilm(true);
-  };
+  }, [songPlaying, startSong]);
 
+  const pauseFilm = useCallback(() => {
+    setFilm(false);
+    if (songPlaying) pauseSong();
+    // Hand over to the pager at the same item.
+    setTimeout(() => listRef.current?.scrollToIndex({ index, animated: false }), 0);
+  }, [index, pauseSong, songPlaying]);
+
+  // Opening starts the film (more than one item) with the song.
   const onOpen = () => {
     setIndex(initialIndex);
-    setFilm(false);
     dragY.value = 0;
+    if (count > 1) playFilm();
+    else setFilm(false);
     setTimeout(() => listRef.current?.scrollToIndex({ index: initialIndex, animated: false }), 50);
   };
 
-  // Drag down to close; sideways stays with the pager.
+  const tap = (x: number) => {
+    Haptics.selectionAsync();
+    if (x < width / 3) prev();
+    else next();
+  };
+
+  // Drag down to close; a tap moves on (right) or back (left).
   const closeGesture = Gesture.Pan()
     .activeOffsetY([-15, 15])
     .failOffsetX([-15, 15])
@@ -161,6 +175,12 @@ export function MomentFilm({
       if (e.translationY > CLOSE_DRAG) runOnJS(close)();
       else dragY.value = withTiming(0, { duration: 200 });
     });
+  const tapGesture = Gesture.Tap()
+    .maxDuration(250)
+    .onEnd((e, success) => {
+      if (success) runOnJS(tap)(e.x);
+    });
+  const gestures = Gesture.Race(closeGesture, tapGesture);
 
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: dragY.value }],
@@ -169,99 +189,181 @@ export function MomentFilm({
 
   return (
     <Modal visible={visible} animationType="fade" transparent statusBarTranslucent onShow={onOpen} onRequestClose={close}>
-      <GestureDetector gesture={closeGesture}>
+      <GestureDetector gesture={gestures}>
         <Animated.View style={[styles.screen, sheetStyle]}>
-          <FlatList
-            ref={listRef}
-            data={items}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(item, i) => `${i}:${item.uri}`}
-            getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
-            initialScrollIndex={initialIndex < items.length ? initialIndex : 0}
-            onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
-            renderItem={({ item, index: i }) =>
-              item.kind === "video" ? (
-                <VideoPage
-                  item={item}
-                  width={width}
-                  height={height}
-                  active={visible && i === index}
-                  film={film}
-                  muted={!soundOn}
-                  progress={progress}
-                  onEnded={advance}
-                  styles={styles}
-                />
-              ) : (
-                <PhotoPage
-                  uri={item.uri}
-                  width={width}
-                  height={height}
-                  drifting={visible && film && i === index && !reduceMotion}
-                />
-              )
-            }
-          />
-
-          {/* Where you are: one segment per photo or video. */}
-          <View style={[styles.segments, { top: insets.top + 10 }]} pointerEvents="none">
-            {items.map((_, i) => (
-              <Segment key={i} state={i < index ? "done" : i === index ? "now" : "next"} progress={progress} styles={styles} />
-            ))}
+          {/* Paused: a pager to swipe and zoom. Kept mounted under the film. */}
+          <View style={StyleSheet.absoluteFill} pointerEvents={film ? "none" : "auto"}>
+            <FlatList
+              ref={listRef}
+              data={items}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item, i) => `${i}:${item.uri}`}
+              getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
+              initialScrollIndex={initialIndex < count ? initialIndex : 0}
+              onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
+              renderItem={({ item, index: i }) =>
+                item.kind === "video" ? (
+                  <VideoPage
+                    item={item}
+                    width={width}
+                    height={height}
+                    active={visible && !film && i === index}
+                    looping
+                    muted={!soundOn}
+                    progress={progress}
+                    onEnded={() => {}}
+                    styles={styles}
+                  />
+                ) : (
+                  <PhotoPage uri={item.uri} width={width} height={height} drifting={false} zoomable />
+                )
+              }
+            />
           </View>
 
-          <TouchableOpacity
-            onPress={close}
-            style={[styles.glassButton, styles.close, { top: insets.top + 24 }]}
-            accessibilityRole="button"
-            accessibilityLabel="Close"
-          >
-            <Icon name="close" size={22} color={PAPER_ON_GLASS} />
-          </TouchableOpacity>
+          {/* Playing: each item fades in over the last. */}
+          {film && current ? (
+            <FilmStage
+              items={items}
+              index={index}
+              width={width}
+              height={height}
+              muted={!soundOn}
+              progress={progress}
+              onVideoEnded={next}
+              styles={styles}
+            />
+          ) : null}
 
-          <View style={[styles.bottom, { bottom: insets.bottom + 24 }]}>
-            {items.length > 1 ? (
-              <TouchableOpacity
-                onPress={toggleFilm}
-                style={[styles.glassButton, styles.pill]}
-                accessibilityRole="button"
-                accessibilityLabel={film ? "Pause the film" : "Play as a film with the song"}
-              >
-                <Icon name={film ? "pause" : "play"} size={18} color={PAPER_ON_GLASS} />
-                <Text style={styles.pillText}>{film ? "Pause" : "Play"}</Text>
-              </TouchableOpacity>
-            ) : null}
-            {current?.kind === "video" && current.fromLibrary ? (
-              <TouchableOpacity
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setClipSound(!soundOn);
-                }}
-                style={[styles.glassButton, styles.round]}
-                accessibilityRole="button"
-                accessibilityLabel={soundOn ? "Mute the clip" : "Hear the clip"}
-              >
-                <Icon name={soundOn ? "volume-high-outline" : "volume-mute-outline"} size={20} color={PAPER_ON_GLASS} />
-              </TouchableOpacity>
-            ) : null}
-          </View>
         </Animated.View>
       </GestureDetector>
+
+      {/* Controls sit outside the gesture area, so a tap on them is only theirs. */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          {/* Where you are: one segment per photo or video. */}
+        <View style={[styles.segments, { top: insets.top + 10 }]} pointerEvents="none">
+          {items.map((_, i) => (
+            <Segment key={i} state={i < index ? "done" : i === index ? "now" : "next"} progress={progress} styles={styles} />
+          ))}
+        </View>
+
+        <TouchableOpacity
+          onPress={close}
+          style={[styles.glassButton, styles.close, { top: insets.top + 24 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        >
+          <Icon name="close" size={22} color={PAPER_ON_GLASS} />
+        </TouchableOpacity>
+
+        <View style={[styles.bottom, { bottom: insets.bottom + 24 }]}>
+          {count > 1 ? (
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.selectionAsync();
+                if (film) pauseFilm();
+                else playFilm();
+              }}
+              style={[styles.glassButton, styles.pill]}
+              accessibilityRole="button"
+              accessibilityLabel={film ? "Pause" : "Play as a film with the song"}
+            >
+              <Icon name={film ? "pause" : "play"} size={18} color={PAPER_ON_GLASS} />
+              <Text style={styles.pillText}>{film ? "Pause" : "Play"}</Text>
+            </TouchableOpacity>
+          ) : null}
+          {current?.kind === "video" && current.fromLibrary ? (
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.selectionAsync();
+                setClipSound(!soundOn);
+              }}
+              style={[styles.glassButton, styles.round]}
+              accessibilityRole="button"
+              accessibilityLabel={soundOn ? "Mute the clip" : "Hear the clip"}
+            >
+              <Icon name={soundOn ? "volume-high-outline" : "volume-mute-outline"} size={20} color={PAPER_ON_GLASS} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </View>
     </Modal>
   );
 }
 
-function Segment({
-  state,
+/**
+ * The film: the current item on top of the one before, fading in over
+ * FADE_MS. Only the current item plays; the one beneath is a still.
+ */
+function FilmStage({
+  items,
+  index,
+  width,
+  height,
+  muted,
   progress,
+  onVideoEnded,
   styles,
 }: {
-  state: "done" | "now" | "next";
-  progress: { value: number };
-  styles: ReturnType<typeof createStyles>;
+  items: MediaSource[];
+  index: number;
+  width: number;
+  height: number;
+  muted: boolean;
+  progress: SharedValue<number>;
+  onVideoEnded: () => void;
+  styles: Styles;
 }) {
+  const reduceMotion = useReducedMotion();
+  const [under, setUnder] = useState<number | null>(null);
+  const shown = useRef(index);
+  const fade = useSharedValue(1);
+
+  useEffect(() => {
+    if (shown.current === index) return;
+    setUnder(shown.current);
+    shown.current = index;
+    fade.value = 0;
+    fade.value = withTiming(1, { duration: reduceMotion ? 0 : FADE_MS, easing: Easing.out(Easing.quad) }, (done) => {
+      if (done) runOnJS(setUnder)(null);
+    });
+  }, [index, fade, reduceMotion]);
+
+  const topStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
+  const item = items[index];
+  const below = under !== null ? items[under] : null;
+
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {below ? (
+        <View style={StyleSheet.absoluteFill}>
+          <AppImage source={{ uri: below.uri }} style={{ width, height }} contentFit="contain" />
+        </View>
+      ) : null}
+      <Animated.View key={index} style={[StyleSheet.absoluteFill, styles.night, topStyle]}>
+        {item.kind === "video" ? (
+          <VideoPage
+            item={item}
+            width={width}
+            height={height}
+            active
+            looping={false}
+            muted={muted}
+            progress={progress}
+            onEnded={onVideoEnded}
+            styles={styles}
+          />
+        ) : (
+          <PhotoPage uri={item.uri} width={width} height={height} drifting={!reduceMotion} zoomable={false} />
+        )}
+      </Animated.View>
+    </View>
+  );
+}
+
+function Segment({ state, progress, styles }: { state: "done" | "now" | "next"; progress: SharedValue<number>; styles: Styles }) {
   const fill = useAnimatedStyle(() => ({
     width: `${(state === "done" ? 1 : state === "now" ? progress.value : 0) * 100}%`,
   }));
@@ -272,17 +374,35 @@ function Segment({
   );
 }
 
-function PhotoPage({ uri, width, height, drifting }: { uri: string; width: number; height: number; drifting: boolean }) {
+function PhotoPage({
+  uri,
+  width,
+  height,
+  drifting,
+  zoomable,
+}: {
+  uri: string;
+  width: number;
+  height: number;
+  drifting: boolean;
+  zoomable: boolean;
+}) {
   const scale = useSharedValue(1);
   useEffect(() => {
     if (drifting) {
       scale.value = 1;
-      scale.value = withTiming(DRIFT_SCALE, { duration: PHOTO_MS + 600, easing: Easing.out(Easing.quad) });
+      scale.value = withTiming(DRIFT_SCALE, { duration: PHOTO_MS + FADE_MS, easing: Easing.out(Easing.quad) });
     } else {
-      scale.value = withTiming(1, { duration: 300 });
+      scale.value = 1;
     }
   }, [drifting, scale]);
   const drift = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const image = (
+    <Animated.View style={[{ width, height }, drift]}>
+      <AppImage source={{ uri }} style={{ width, height }} contentFit="contain" transition={200} />
+    </Animated.View>
+  );
+  if (!zoomable) return image;
   return (
     <ScrollView
       style={{ width, height }}
@@ -293,9 +413,7 @@ function PhotoPage({ uri, width, height, drifting }: { uri: string; width: numbe
       showsVerticalScrollIndicator={false}
       centerContent
     >
-      <Animated.View style={[{ width, height }, drift]}>
-        <AppImage source={{ uri }} style={{ width, height }} contentFit="contain" transition={200} />
-      </Animated.View>
+      {image}
     </ScrollView>
   );
 }
@@ -305,7 +423,7 @@ function VideoPage({
   width,
   height,
   active,
-  film,
+  looping,
   muted,
   progress,
   onEnded,
@@ -315,14 +433,15 @@ function VideoPage({
   width: number;
   height: number;
   active: boolean;
-  film: boolean;
+  looping: boolean;
   muted: boolean;
-  progress: { value: number };
+  progress: SharedValue<number>;
   onEnded: () => void;
-  styles: ReturnType<typeof createStyles>;
+  styles: Styles;
 }) {
-  // A linked video plays from Photos (downloading from iCloud if needed).
-  // Elsewhere only its poster exists.
+  // A linked video plays from a copy inside the app (the library's own file
+  // is outside the sandbox), made on demand and downloaded from iCloud if
+  // needed. Elsewhere only its poster exists.
   const localId = item.fromLibrary && item.uri.startsWith("ph://") ? item.uri.slice(5) : null;
   const [file, setFile] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -330,15 +449,11 @@ function VideoPage({
   useEffect(() => {
     if (!active || !localId || file) return;
     let cancelled = false;
-    void MediaLibrary.getAssetInfoAsync(localId)
-      .then((info) => {
-        if (cancelled) return;
-        if (info.localUri) setFile(info.localUri);
-        else setFailed(true);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
+    void videoFile(localId).then((uri) => {
+      if (cancelled) return;
+      if (uri) setFile(uri);
+      else setFailed(true);
+    });
     return () => {
       cancelled = true;
     };
@@ -365,10 +480,11 @@ function VideoPage({
 
   useEffect(() => {
     const ended = player.addListener("playToEnd", () => {
-      if (film) onEnded();
-      else {
+      if (looping) {
         player.currentTime = 0;
         player.play();
+      } else {
+        onEnded();
       }
     });
     const tick = player.addListener("timeUpdate", ({ currentTime }) => {
@@ -378,7 +494,7 @@ function VideoPage({
       ended.remove();
       tick.remove();
     };
-  }, [player, film, onEnded, active, progress]);
+  }, [player, looping, onEnded, active, progress]);
 
   return (
     <View style={{ width, height, justifyContent: "center" }}>
@@ -389,10 +505,10 @@ function VideoPage({
           <AppImage source={{ uri: item.uri }} style={{ width, height }} contentFit="contain" />
           <View style={styles.videoNote} pointerEvents="none">
             {localId && !failed ? (
-              <ActivityIndicator color={PAPER_ON_GLASS} />
+              active ? <ActivityIndicator color={PAPER_ON_GLASS} /> : null
             ) : (
               <Text style={styles.videoNoteText}>
-                {failed ? "This video isn't in your library anymore" : "Plays on the phone it came from"}
+                {failed ? "This video couldn't be loaded from Photos" : "Plays on the phone it came from"}
               </Text>
             )}
           </View>
@@ -405,6 +521,7 @@ function VideoPage({
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: NIGHT },
+    night: { backgroundColor: NIGHT },
     segments: {
       position: "absolute",
       left: theme.spacing.lg,
