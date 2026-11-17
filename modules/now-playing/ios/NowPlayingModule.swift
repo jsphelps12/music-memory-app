@@ -1,5 +1,6 @@
 import ExpoModulesCore
 import MediaPlayer
+import MusicKit
 
 public class NowPlayingModule: Module {
   private var isObserving = false
@@ -66,6 +67,8 @@ public class NowPlayingModule: Module {
           "storeId": (item.value(forProperty: MPMediaItemPropertyPlaybackStoreID) as? String) ?? "",
           "title": item.title ?? "",
           "artistName": item.artist ?? "",
+          "albumTitle": item.albumTitle ?? "",
+          "albumId": String(item.albumPersistentID),
           "dateAdded": item.dateAdded.timeIntervalSince1970 * 1000,
           "playCount": item.playCount,
         ]
@@ -73,6 +76,38 @@ public class NowPlayingModule: Module {
           song["lastPlayed"] = last.timeIntervalSince1970 * 1000
         }
         return song
+      }
+    }
+
+    // "Last week" (1.4): whether the library may be read, without asking.
+    Function("libraryAccessStatus") { () -> String in
+      NowPlayingModule.statusName(MPMediaLibrary.authorizationStatus())
+    }
+
+    // "Last week" (1.4): Apple Music's recently played songs, streamed ones
+    // included (the library API only sees songs added to the library). The
+    // list is short and undated, so JS records when each song first appears.
+    // Needs MusicKit access already granted and a subscription; otherwise [].
+    AsyncFunction("getRecentlyPlayed") { (limit: Int) async -> [[String: Any]] in
+      guard MusicAuthorization.currentStatus == .authorized else { return [] }
+      do {
+        var request = MusicRecentlyPlayedRequest<Song>()
+        request.limit = max(1, min(limit, 100))
+        let response = try await request.response()
+        return response.items.map { song in
+          var item: [String: Any] = [
+            "storeId": song.id.rawValue,
+            "title": song.title,
+            "artistName": song.artistName,
+            "albumTitle": song.albumTitle ?? "",
+          ]
+          if let url = song.artwork?.url(width: 600, height: 600) {
+            item["artworkUrl"] = url.absoluteString
+          }
+          return item
+        }
+      } catch {
+        return []
       }
     }
   }

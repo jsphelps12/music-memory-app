@@ -501,6 +501,11 @@ function RootLayoutNav() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
+            // Pushed, not presented: capture stacks on top and comes back here.
+            name="last-week"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
             name="write"
             options={{ headerShown: false, presentation: "fullScreenModal" }}
           />

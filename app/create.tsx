@@ -33,6 +33,7 @@ import { AlbumPicker } from "@/components/AlbumPicker";
 import { CreateAlbumSheet } from "@/components/CreateAlbumSheet";
 import { SongPickerSection } from "@/components/SongPickerSection";
 import { PhotoPickerSection, type PhotoPickerHandle } from "@/components/PhotoPickerSection";
+import { DayPhotosSuggestion } from "@/components/DayPhotosSuggestion";
 import { LocationField } from "@/components/LocationField";
 import { fetchAlbums } from "@/lib/albums";
 import { useTheme } from "@/hooks/useTheme";
@@ -121,6 +122,10 @@ export default function CreateMomentScreen() {
     identify?: string;
     /** Where capture was opened from ("widget"), for analytics. */
     source?: string;
+    /** From Last week: offer that day's photos ("2026-11-15"). */
+    photosDay?: string;
+    /** From Last week: when the song or photo happened (epoch ms), the moment's date. */
+    momentAt?: string;
   }>();
 
   // Opened from a widget or control: worth knowing whether capture-from-
@@ -255,7 +260,7 @@ export default function CreateMomentScreen() {
     if (!user) return;
     const prefilled =
       !!params.songTitle || !!params.promptStarter || !!params.shareCandidates ||
-      !!params.shareFailedUrl || !!params.sharedPhotoPaths || params.identify === "1";
+      !!params.shareFailedUrl || !!params.sharedPhotoPaths || params.identify === "1" || !!params.photosDay;
     if (prefilled) {
       draftReady.current = true;
       return;
@@ -314,7 +319,11 @@ export default function CreateMomentScreen() {
 
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [people, setPeople] = useState<string[]>([]);
-  const [momentDate, setMomentDate] = useState<Date | null>(new Date());
+  // Dated when it happened when it came from Last week, else now.
+  const [momentDate, setMomentDate] = useState<Date | null>(() => {
+    const at = Number(params.momentAt);
+    return Number.isFinite(at) && at > 0 ? new Date(at) : new Date();
+  });
   const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
   const [weatherResult, setWeatherResult] = useState<WeatherResult | null>(null);
   const [metaSuggestion, setMetaSuggestion] = useState<{ date?: Date; location?: string; lat?: number; lng?: number } | null>(null);
@@ -650,6 +659,10 @@ export default function CreateMomentScreen() {
             />
           </View>
         )}
+
+        {params.photosDay ? (
+          <DayPhotosSuggestion day={params.photosDay} photos={photos} onChange={setPhotos} />
+        ) : null}
 
         <View style={styles.photos}>
           <PhotoPickerSection

@@ -55,6 +55,7 @@ import { Icon } from "@/components/Icon";
 import { CalendarView, type CalendarMoment } from "@/components/CalendarView";
 import { EmptyState } from "@/components/EmptyState";
 import { DailyCheckInOffer } from "@/components/DailyCheckInOffer";
+import { LastWeekRow } from "@/components/LastWeekRow";
 import { Moment } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 30_000;
@@ -572,6 +573,7 @@ export default function TimelineScreen() {
           onDismiss={() => setBannerError("")}
         />
       ) : null}
+      {userId ? <LastWeekRow /> : null}
       {userId ? <DailyCheckInOffer userId={userId} hasMoments={moments.length > 0} /> : null}
     </>
   );

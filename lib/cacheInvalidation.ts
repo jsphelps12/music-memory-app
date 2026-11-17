@@ -39,6 +39,7 @@ const MOMENT_SCREEN_KEYS = [
   "reflections-random",
   "youSummary",
   "momentsMap",
+  "lastWeek",
 ] as const;
 
 /**

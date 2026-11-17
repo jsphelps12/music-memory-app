@@ -97,6 +97,31 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   Verified on a local simulator build: on/off, cold-start lock, failed
   face, cancel then retry, the grace period, and the lock over an open
   moment.
+- [x] **Last week** (1.4, built 2026-11-17, works on Josh's phone): the
+  week just ended, handed back as material for moments. Josh's calls: no
+  modal on open; a ruled row at the top of the Journal from Sunday 6pm,
+  staying all week (using it doesn't clear it, only the next week or its
+  ✕); named "Last week". The screen (pushed, so capture stacks on top and
+  returns there) lists each day newest first: songs added (an album add is
+  one row), played a lot (weekly counts from an on-device snapshot of play
+  counts taken the first time the app opens each week; lifetime counts the
+  first week), streamed (Apple Music's recently played via MusicKit, new
+  `getRecentlyPlayed`, logged with when each song first appeared since iOS
+  gives no dates), and that day's camera photos (no screenshots). A song
+  opens capture filled in; a saved one shows "Saved" and opens its moment;
+  a photo starts a moment with it, and either is dated when it happened
+  (added, last played, first seen, or taken). Capture offers "Photos from Saturday",
+  nothing attached until tapped, behind a switch on the Photos and music
+  screen while Josh decides. Asks for library + photos access once, never
+  again after a no. All on device; only the "Saved" check reads moments.
+  `lib/lastWeek.ts` (tested), `lib/lastWeekData.ts`, `hooks/useLastWeek.ts`,
+  `components/LastWeekRow.tsx`, `app/last-week.tsx`,
+  `components/DayPhotosSuggestion.tsx`. Native: `getRecentlyPlayed`,
+  `libraryAccessStatus`, album fields on library songs.
+- [ ] Notification choices (Josh, 2026-11-17: a 9pm nudge every day may be
+  too much for most, but some want a streak): pick days (every day,
+  weekdays, a few times a week), time, and keep "skip if I already saved
+  one today". Leave the daily check-in as is until then.
 - [ ] Photos ↔ music prototype (built 2026-11-16, needs Josh's phone):
   `getLibrarySongs` in the NowPlaying module (`dateAdded`, play count,
   last played) + `expo-media-library` photo counts for ±3 days. Hidden

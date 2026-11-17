@@ -33,6 +33,9 @@ export interface LibrarySong {
   storeId: string;
   title: string;
   artistName: string;
+  albumTitle?: string;
+  /** Same for every song on one album in the library. */
+  albumId?: string;
   /** Epoch ms. */
   dateAdded: number;
   playCount: number;
@@ -49,6 +52,37 @@ export async function requestLibraryAccess(): Promise<LibraryAccess> {
 /** Library songs, most recently added first. */
 export async function getLibrarySongs(limit: number): Promise<LibrarySong[]> {
   return NowPlayingNative.getLibrarySongs(limit);
+}
+
+/** Whether the library may be read, without asking ("Last week", 1.4). */
+export function libraryAccessStatus(): LibraryAccess {
+  try {
+    return NowPlayingNative.libraryAccessStatus();
+  } catch {
+    return "unknown";
+  }
+}
+
+/** A song from Apple Music's recently played list (streamed ones too). */
+export interface RecentlyPlayedSong {
+  storeId: string;
+  title: string;
+  artistName: string;
+  albumTitle?: string;
+  artworkUrl?: string;
+}
+
+/**
+ * Apple Music's recently played songs, newest first ("Last week", 1.4).
+ * Short and undated; empty without MusicKit access or a subscription, or on
+ * a build that predates the native function.
+ */
+export async function getRecentlyPlayed(limit = 50): Promise<RecentlyPlayedSong[]> {
+  try {
+    return (await NowPlayingNative.getRecentlyPlayed(limit)) ?? [];
+  } catch {
+    return [];
+  }
 }
 
 /**

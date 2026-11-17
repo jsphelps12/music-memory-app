@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, FlatList, StyleSheet, Switch, Text, View } from "react-native";
 import { Stack } from "expo-router";
 import * as MediaLibrary from "expo-media-library/legacy";
 import { AppImage } from "@/components/AppImage";
@@ -16,6 +16,7 @@ import {
   pairingScore,
   photoWindow,
 } from "@/lib/libraryMoments";
+import { setSuggestDayPhotos, suggestDayPhotos } from "@/lib/lastWeekData";
 
 // Photos ↔ music prototype (1.4). Hidden: long-press the version line at the
 // bottom of Settings. It runs only on this phone and saves nothing. Its job
@@ -63,6 +64,11 @@ export default function LibraryPrototype() {
   const [message, setMessage] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [pairings, setPairings] = useState<Pairing[]>([]);
+  // Last week's "Photos from that day" in capture: Josh's call whether it stays.
+  const [dayPhotos, setDayPhotos] = useState(true);
+  useEffect(() => {
+    void suggestDayPhotos().then(setDayPhotos);
+  }, []);
 
   const run = useCallback(async () => {
     setState("loading");
@@ -119,6 +125,17 @@ export default function LibraryPrototype() {
 
   const header = (
     <View style={styles.intro}>
+      <View style={styles.toggle}>
+        <Text style={[styles.body, styles.toggleLabel]}>Last week: suggest that day&apos;s photos in capture</Text>
+        <Switch
+          value={dayPhotos}
+          onValueChange={(on) => {
+            setDayPhotos(on);
+            void setSuggestDayPhotos(on);
+          }}
+          trackColor={{ true: theme.colors.switchOn }}
+        />
+      </View>
       <Text style={styles.body}>
         Pairs songs from your Apple Music library with the photos you took the week you added them. Runs on this
         phone only and saves nothing.
@@ -198,6 +215,15 @@ function createStyles(theme: Theme) {
     screen: { flex: 1, backgroundColor: theme.colors.background },
     list: { paddingHorizontal: theme.spacing.xl, paddingBottom: theme.spacing["3xl"] },
     intro: { gap: theme.spacing.md, paddingBottom: theme.spacing.lg },
+    toggle: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md,
+      paddingBottom: theme.spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
+    },
+    toggleLabel: { flex: 1 },
     body: { ...theme.typography.body, color: theme.colors.text },
     loading: { flexDirection: "row", alignItems: "center", gap: theme.spacing.sm },
     stats: { gap: theme.spacing.xs },
