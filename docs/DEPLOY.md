@@ -234,6 +234,14 @@ staging again once it's restored, dispatch with `backend=staging`.
 
 ### Local builds (Xcode 27, Expo SDK 58)
 
+Production for the App Store (1.4.0 build 12 went this way, 2026-11-17):
+`npx eas-cli build --platform ios --profile production --local --non-interactive --output <path>.ipa`
+then `npx eas-cli submit --platform ios --profile production --path <path>.ipa --non-interactive`
+(the App Store Connect API key is stored on EAS, so no Apple sign-in). Needs
+fastlane and CocoaPods on the Mac, and a UTF-8 locale. Trap: a Homebrew
+upgrade of Ruby (e.g. installing fastlane) breaks CocoaPods ("Could not
+find 'ffi'"); `brew reinstall cocoapods` fixes it.
+
 EAS's free iOS builds are used up until 2026-12-01, so 1.4 builds run locally
 (`eas build --local`, or Xcode directly). Notes:
 

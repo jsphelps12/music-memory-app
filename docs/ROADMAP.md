@@ -146,15 +146,20 @@ The starred ones bring the app to you, which serves the north star:
 
 - **1.3.1 (build 10) is live** on the App Store: the "Pressed S" icon and
   the Phase 1 look as a store build. 1.3.0 (build 9) went out 2026-11-13.
-- **1.4.0 is on `native/1.4`**, not cut yet: Expo SDK 58 (device-verified
-  on Josh's iOS 27.2 phone), Face ID lock, PDF export, SF Symbols, React
-  Compiler, working Control Center controls, Last week, From before in
-  Rediscover, on-device AI, linked photos and video, and the moment film.
-  The newest pieces (on-device AI, linked media, the film) still need
-  Josh's phone. Left before the cut: What's New and screenshots, the
-  build itself (`eas build --local`, or EAS after its free quota resets
-  2026-12-01), and moving Josh's real moments to his personal account
-  (awaiting his go).
+- **1.4.0 (build 12) is cut and in TestFlight** (2026-11-17, from
+  `native/1.4` at `1f0c3c0`; built locally with `eas build --local`, uploaded
+  with `eas submit` using the stored API key): Expo SDK 58, Face ID lock,
+  PDF export, SF Symbols, React Compiler, working Control Center controls,
+  Last week, From before, on-device AI, linked photos and video, the moment
+  film, the iOS context menu, notification choices. Device-verified on
+  Josh's iOS 27.2 phone; an iPhone SE / iOS 18.3 simulator pass is done.
+  Next: Josh on the TestFlight build over his App Store app (the
+  production variant: Apple Sign-In, `soundtracks://`, widgets), internal
+  testers (invited 2026-11-17), then screenshots and App Review with the
+  What's New in `docs/app-store/whats-new-1.4.md`. Merge `native/1.4` into
+  `main` only once 1.4 is approved and out, so OTAs keep reaching 1.3.1
+  until then. Still waiting on Josh's go: moving his real moments to his
+  personal account.
 - **Live over the air on 1.3.1** (Promote to Production, `956aa3e`): the
   design sweep (one set of shared components everywhere), the moment
   resume fix, the Share card screen, ordered photos, and the data
