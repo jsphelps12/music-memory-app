@@ -80,7 +80,9 @@ Claude's additions, for Josh to accept or cut:
     social feed. Josh tried this once (tagging and reactions, since
     retired) and it wasn't executed well; a new attempt starts from why.
 
-More ideas (Claude, 2026-11-17), unranked:
+More ideas (Claude, 2026-11-17). Josh liked Journaling Suggestions, the
+part of the song, and CarPlay/Siri capture, plus voice entries (recordings
+or on-device speech to text, already under Phase 2):
 
 - **Apple's Journaling Suggestions** (`JournalingSuggestions`, iOS 17.2+):
   the system picker Apple's Journal uses, offering songs, photos, places,
