@@ -23,7 +23,6 @@ import { playAction } from "@/lib/playerAction";
 import { anniversaryLabel, fullDateLabel } from "@/lib/memoryCard";
 import { excerpt } from "@/lib/yearInReview";
 import type { MomentCardData } from "@/types";
-import { StatusBar } from "expo-status-bar";
 
 const STALE_TIME = 2 * 60 * 1000;
 const night = getTheme("dark");
@@ -166,8 +165,6 @@ function MemoryCard() {
 
   return (
     <View style={styles.screen}>
-      {/* Always Night: white status bar even when the app is light. */}
-      <StatusBar style="light" />
       {moment.songArtworkUrl ? (
         <AppImage
           source={{ uri: artworkUrlAtSize(moment.songArtworkUrl, 300) }}

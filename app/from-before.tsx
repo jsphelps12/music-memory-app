@@ -154,6 +154,7 @@ export default function FromBeforeScreen() {
           onPress={access === "ask" ? () => void askAccess() : () => void Linking.openSettings()}
           fullWidth={false}
           align="center"
+          style={styles.accessButton}
         />
       </View>
     );
@@ -228,5 +229,6 @@ function createStyles(theme: Theme) {
     center: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: theme.spacing["3xl"], gap: theme.spacing.sm },
     emptyTitle: { ...theme.typography.title, color: theme.colors.text, textAlign: "center" },
     emptyText: { ...theme.typography.body, color: theme.colors.textSecondary, textAlign: "center" },
+    accessButton: { marginTop: theme.spacing.md },
   });
 }

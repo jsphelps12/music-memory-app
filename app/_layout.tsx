@@ -533,14 +533,15 @@ function RootLayoutNav() {
           <Stack.Screen
             name="memory/[id]"
             // On this day that plays: an experience you enter and leave, full
-            // screen and always night, like Year in review.
-            options={{ headerShown: false, presentation: "fullScreenModal" }}
+            // screen and always night, like Year in review. Night: a white
+            // status bar even when the app is light.
+            options={{ headerShown: false, presentation: "fullScreenModal", statusBarStyle: "light" }}
           />
           <Stack.Screen
             name="year/[year]"
             // An experience you enter and leave (Year in review): full screen
-            // with its own close, always night.
-            options={{ headerShown: false, presentation: "fullScreenModal" }}
+            // with its own close, always night (white status bar).
+            options={{ headerShown: false, presentation: "fullScreenModal", statusBarStyle: "light" }}
           />
           <Stack.Screen
             name="moments-map"

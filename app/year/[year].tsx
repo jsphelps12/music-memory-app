@@ -36,7 +36,6 @@ import { artworkUrlAtSize } from "@/lib/itunes";
 import { friendlyError } from "@/lib/errors";
 import { buildYearReview, monthName, timesWord, type Chapter, type ReviewMoment } from "@/lib/yearInReview";
 import { fetchYearReviewMoments } from "@/lib/yearReviewData";
-import { StatusBar } from "expo-status-bar";
 
 const STALE_TIME = 2 * 60 * 1000;
 
@@ -209,8 +208,6 @@ function YearInReviewScreen() {
 
   return (
     <View style={styles.screen}>
-      {/* Always Night: white status bar even when the app is light. */}
-      <StatusBar style="light" />
       {/* The whole frame is the share image: backdrop, night and the card. */}
       <ViewShot ref={shotRef} options={{ format: "png", quality: 1 }} style={StyleSheet.absoluteFill}>
         <View style={styles.frame}>

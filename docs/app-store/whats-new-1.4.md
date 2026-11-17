@@ -23,3 +23,17 @@ Also new: lock the app with Face ID, export your whole journal as a PDF, hold a 
 ## Shorter version (if wanted)
 
 Your moments now play as a film, with the song underneath and videos straight from Photos. New: Last week (your week's songs and photos, every Sunday), From before (old songs with the photos from when you added them), more ways to start when you hold +, notification choices, Face ID lock and PDF export.
+
+---
+
+## TestFlight: "What to Test" (Beta App Review asks for this)
+
+Soundtracks is a journal for the songs attached to your memories. This build adds:
+- Tap a moment's photos: they play as a film with the song. Try one with a video from your Photos.
+- Hold the + button: Identify, Search, Last week, From before.
+- Last week (on the Journal from Sunday evening): your week's songs and photos.
+- Rediscover → From before: old songs with the photos from when you added them.
+- Settings (gear on You) → Notifications.
+- Hold a moment in the Journal for Edit and Delete.
+
+Tell us anything that feels slow, confusing or broken: shake to send feedback from TestFlight, or email the feedback address below.

@@ -244,7 +244,8 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   to 600ms for the new picture. The Journal's search icon is gone (it only
   opened Rediscover's search). Data: 21 moments from Feb–Aug 2026 stored
   their artwork as an embedded PNG (avg 2.5 MB, in every timeline fetch);
-  a backfill to Apple's artwork links is ready (needs a go, production).
+  backfilled to Apple's artwork links on production (2026-11-17, Josh's
+  go; 20 matched, "DO IT" isn't in the catalog and shows the placeholder).
   Then: check-in days became a quick pick ("Days · Every day", weekdays
   with checkmarks, like Repeat in Clock) after a row of day chips looked
   wrong; a one-time hint over the + ("Hold + for Last week, From before
@@ -277,11 +278,12 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   `notif_social`, `notif_quiet_hours`, `notif_last_week`,
   `last_notified_at`), `send-notifications` (tested),
   `_shared/socialPush.ts` (tested) in `notify-social` and
-  `accept-friend-invite`. The server half reaches 1.3.1 users too once
-  deployed (their old switches for streaks and prompts then do nothing);
-  the screen ships with 1.4. Local: `lib/dailyCheckIn.ts` (days, tested),
+  `accept-friend-invite`. The server half is live on production since
+  2026-11-17 (PR #107, merged to main on Josh's go; CI ran the migration
+  and deployed the three functions), so 1.3.1 users get it too (their old
+  streak and prompt switches now do nothing); the screen ships with 1.4. Local: `lib/dailyCheckIn.ts` (days, tested),
   `lib/lastWeekReady.ts` (tested).
-- [ ] Photos ↔ music prototype (built 2026-11-16, needs Josh's phone):
+- [x] Photos ↔ music prototype (built 2026-11-16; became Last week and From before):
   `getLibrarySongs` in the NowPlaying module (`dateAdded`, play count,
   last played) + `expo-media-library` photo counts for ±3 days. Hidden
   screen: long-press the version line in Settings. It shows how many songs
