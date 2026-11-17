@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { socialDelivery } from "../_shared/socialPush.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -89,11 +90,13 @@ Deno.serve(async (req) => {
 
   const { data: ownerWithToken } = await adminClient
     .from("profiles")
-    .select("push_token")
+    .select("push_token, notif_social, notif_quiet_hours, timezone")
     .eq("id", ownerId)
     .single();
 
-  if (ownerWithToken?.push_token) {
+  // Off for friends, or no token: skip. At night it goes silently.
+  const delivery = socialDelivery(ownerWithToken, new Date());
+  if (delivery) {
     const visitorName = visitorProfile?.display_name ?? "Someone";
     // Sharing v2 "friend_added" push: mutual-by-link means opening the link IS
     // the whole ceremony, so the copy says added, not accepted. Routes to
@@ -103,11 +106,10 @@ Deno.serve(async (req) => {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
-        to: ownerWithToken.push_token,
+        ...delivery,
         title: "New friend",
         body: `${visitorName} added you on Soundtracks`,
         data: { type: "people" },
-        sound: "default",
       }),
     });
   }
