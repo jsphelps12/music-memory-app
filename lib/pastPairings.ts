@@ -179,7 +179,7 @@ export function isAway(coords: Coord[], home: Coord | null): boolean {
  * How strong a pairing is, against the person's usual week: photos relative
  * to the median week among the candidates (so someone who shoots constantly
  * still gets their trips, not every week), then plays, then being away from
- * home and favourited photos. Each tapers so no one signal carries it.
+ * home and favorited photos. Each tapers so no one signal carries it.
  */
 export function relativeScore(photos: number, usualPhotos: number, plays: number, away = false, favorites = 0): number {
   if (photos <= 0) return 0;
@@ -190,7 +190,7 @@ export function relativeScore(photos: number, usualPhotos: number, plays: number
 export interface ScoredPairing {
   song: PastSong;
   photos: number;
-  /** Favourited photos that week. */
+  /** Favorited photos that week. */
   favorites?: number;
   /** Mostly taken away from home. */
   away?: boolean;
@@ -202,13 +202,13 @@ export interface ScoredPairing {
   event?: EventKind | null;
 }
 
-/** Favourites that mark a week as one that mattered, even without a spike. */
+/** Favorites that mark a week as one that mattered, even without a spike. */
 export const FAVORITES_MIN = 2;
 
 /**
  * The best `n` pairings, highest score first, one per month. A week counts
  * when it stands out: a photo spike (SPIKE_MIN times the usual), time away
- * from home, or several favourited photos. An ordinary week paired with a
+ * from home, or several favorited photos. An ordinary week paired with a
  * song reads as random. Fewer than `n` is fine.
  */
 export function pickFromBefore(scored: ScoredPairing[], n = FROM_BEFORE_PICKS): ScoredPairing[] {
@@ -242,7 +242,7 @@ export function addedOnLabel(at: number): string {
 
 /**
  * Why a From before pick was picked: "Away in Kailua-Kona · the week of 70
- * photos · 4 favourites · played 89 times". The row capitalizes the start.
+ * photos · 4 favorites · played 89 times". The row capitalizes the start.
  */
 export function pairingReason(p: {
   song: Pick<PastSong, "plays">;
@@ -254,7 +254,7 @@ export function pairingReason(p: {
 }): string {
   const where = p.away ? (p.place ? `away in ${p.place}` : "away from home") : "";
   const what = p.event ? eventPhrase(p.event) : "";
-  const favs = p.favorites ? (p.favorites === 1 ? "1 favourite" : `${p.favorites} favourites`) : "";
+  const favs = p.favorites ? (p.favorites === 1 ? "1 favorite" : `${p.favorites} favorites`) : "";
   return [where, what, photosLine(p.photoCount, "week"), favs, playsLine(p.song.plays)].filter(Boolean).join(" · ");
 }
 

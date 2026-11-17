@@ -141,7 +141,7 @@ describe("home and away", () => {
     expect(centroid([[0, 0], [2, 4]])).toEqual([1, 2]);
   });
 
-  it("lets a trip or a favourited week in without a spike", () => {
+  it("lets a trip or a favorited week in without a spike", () => {
     // Usual week 10 photos: none of these has 15.
     const picks = pickFromBefore([
       { song: past("2024-08-08", 20), photos: 8, away: true },
@@ -156,7 +156,7 @@ describe("home and away", () => {
   it("says why", () => {
     expect(
       pairingReason({ song: { plays: 89 }, photoCount: 70, favorites: 4, away: true, place: "Kailua-Kona" })
-    ).toBe("away in Kailua-Kona · the week of 70 photos · 4 favourites · played 89 times");
+    ).toBe("away in Kailua-Kona · the week of 70 photos · 4 favorites · played 89 times");
     expect(pairingReason({ song: { plays: 3 }, photoCount: 12, away: true })).toBe(
       "away from home · the week of 12 photos · played 3 times"
     );

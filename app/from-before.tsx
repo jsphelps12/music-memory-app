@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
+import * as MediaLibrary from "expo-media-library/legacy";
 import { Stack, useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePostHog } from "posthog-react-native";
@@ -13,7 +14,9 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { currentWeek } from "@/lib/lastWeek";
-import { captureParams, songForCreate } from "@/lib/lastWeekData";
+import { captureParams, requestLastWeekAccess, songForCreate } from "@/lib/lastWeekData";
+import { libraryAccessStatus } from "@/modules/now-playing";
+import { useOnForeground } from "@/lib/appFocus";
 import { photoWindow } from "@/lib/libraryMoments";
 import { addedOnLabel, pairingReason } from "@/lib/pastPairings";
 import {
@@ -48,6 +51,31 @@ export default function FromBeforeScreen() {
   const [mode, setMode] = useState<Mode>("week");
   const [limit, setLimit] = useState(PAGE);
   const weekKey = currentWeek(Date.now()).key;
+
+  // From before needs both the Apple Music library and Photos. Without them
+  // the list is empty for a different reason than a quiet week: say so, and
+  // offer the ask (or iOS Settings once declined).
+  const [access, setAccess] = useState<"ok" | "ask" | "denied" | null>(null);
+  const checkAccess = useCallback(async () => {
+    const library = libraryAccessStatus();
+    let photos = "undetermined";
+    try {
+      photos = (await MediaLibrary.getPermissionsAsync()).status;
+    } catch {}
+    if (library === "authorized" && photos === "granted") setAccess("ok");
+    else if (library === "notDetermined" || photos === "undetermined") setAccess("ask");
+    else setAccess("denied");
+  }, []);
+  useEffect(() => {
+    void checkAccess();
+  }, [checkAccess]);
+  useOnForeground(() => void checkAccess());
+  const askAccess = async () => {
+    await requestLastWeekAccess();
+    await checkAccess();
+    void queryClient.invalidateQueries({ queryKey: ["fromBefore", user?.id] });
+    void queryClient.invalidateQueries({ queryKey: ["fromBeforeBrowse", user?.id] });
+  };
 
   const weekly = useQuery({
     queryKey: ["fromBefore", user?.id, weekKey],
@@ -113,13 +141,29 @@ export default function FromBeforeScreen() {
     );
   } else if (current.error) {
     body = <ErrorState message={friendlyError(current.error)} onRetry={() => void current.refetch()} />;
+  } else if ((!data || data.pairings.length === 0) && (access === "ask" || access === "denied")) {
+    body = (
+      <View style={styles.center}>
+        <Text style={styles.emptyTitle}>From before needs your library</Text>
+        <Text style={styles.emptyText}>
+          It pairs old songs from your Apple Music library with the photos you took the week you added them. Everything
+          stays on this phone.
+        </Text>
+        <Button
+          label={access === "ask" ? "Allow access" : "Open Settings"}
+          onPress={access === "ask" ? () => void askAccess() : () => void Linking.openSettings()}
+          fullWidth={false}
+          align="center"
+        />
+      </View>
+    );
   } else if (!data || data.pairings.length === 0) {
     body = (
       <View style={styles.center}>
         <Text style={styles.emptyTitle}>{browsing ? "Nothing stands out here" : "Nothing stands out this week"}</Text>
         <Text style={styles.emptyText}>
           From before picks old songs from weeks that stood out: far more photos than usual, time away from home, or
-          photos you favourited.
+          photos you favorited.
         </Text>
       </View>
     );

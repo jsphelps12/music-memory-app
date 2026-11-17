@@ -191,7 +191,7 @@ export async function loadPhoneOnThisDay(userId: string, now = Date.now()): Prom
 }
 
 /**
- * Each candidate's week of photos: how many, how many favourited, and
+ * Each candidate's week of photos: how many, how many favorited, and
  * whether they were mostly taken away from home (home being where a year of
  * photos cluster). PhotoKit metadata in one native call; on a build without
  * it, counts only.
