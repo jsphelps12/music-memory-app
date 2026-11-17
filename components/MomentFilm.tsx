@@ -62,6 +62,7 @@ export function MomentFilm({
   songPlaying,
   startSong,
   pauseSong,
+  ownMoment = true,
 }: {
   items: MediaSource[];
   initialIndex: number;
@@ -70,6 +71,8 @@ export function MomentFilm({
   songPlaying: boolean;
   startSong: () => void;
   pauseSong: () => void;
+  /** Someone else's moment: its linked videos stay in their Photos, not here. */
+  ownMoment?: boolean;
 }) {
   const { width, height } = useWindowDimensions();
   const theme = useTheme();
@@ -230,6 +233,9 @@ export function MomentFilm({
               muted={!soundOn}
               progress={progress}
               onVideoEnded={next}
+              unplayableNote={
+                ownMoment ? "Plays on the phone it came from" : "This video stays in its owner's Photos"
+              }
               styles={styles}
             />
           ) : null}
@@ -307,6 +313,7 @@ function Stage({
   muted,
   progress,
   onVideoEnded,
+  unplayableNote,
   styles,
 }: {
   items: MediaSource[];
@@ -318,6 +325,7 @@ function Stage({
   muted: boolean;
   progress: SharedValue<number>;
   onVideoEnded: () => void;
+  unplayableNote: string;
   styles: Styles;
 }) {
   const reduceMotion = useReducedMotion();
@@ -387,6 +395,7 @@ function Stage({
             progress={progress}
             onVideoEnded={onVideoEnded}
             onLoaded={onLoaded}
+            unplayableNote={unplayableNote}
             styles={styles}
           />
         );
@@ -409,6 +418,7 @@ function Layer({
   progress,
   onVideoEnded,
   onLoaded,
+  unplayableNote,
   styles,
 }: {
   item: MediaSource;
@@ -423,6 +433,7 @@ function Layer({
   progress: SharedValue<number>;
   onVideoEnded: () => void;
   onLoaded: (index: number) => void;
+  unplayableNote: string;
   styles: Styles;
 }) {
   const style = useAnimatedStyle(() => ({
@@ -444,6 +455,7 @@ function Layer({
           progress={progress}
           onEnded={onVideoEnded}
           onPosterLoaded={loaded}
+          unplayableNote={unplayableNote}
           styles={styles}
         />
       ) : (
@@ -475,6 +487,7 @@ function VideoPage({
   progress,
   onEnded,
   onPosterLoaded,
+  unplayableNote,
   styles,
 }: {
   item: MediaSource;
@@ -488,6 +501,8 @@ function VideoPage({
   progress: SharedValue<number>;
   onEnded: () => void;
   onPosterLoaded: () => void;
+  /** Why a video that can't play here doesn't. */
+  unplayableNote: string;
   styles: Styles;
 }) {
   // A linked video streams straight from Photos (modules/photos-video): no
@@ -536,7 +551,7 @@ function VideoPage({
             <ActivityIndicator color={PAPER_ON_GLASS} />
           ) : (
             <Text style={styles.videoNoteText}>
-              {failed ? "This video couldn't be loaded from Photos" : "Plays on the phone it came from"}
+              {failed ? "This video couldn't be loaded from Photos" : unplayableNote}
             </Text>
           )}
         </View>

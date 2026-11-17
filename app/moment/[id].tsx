@@ -941,7 +941,12 @@ export default function MomentDetailScreen() {
                     <AppImage source={{ uri: url }} style={styles.photoStripThumb} contentFit="cover" transition={200} />
                     {moment.mediaRefs?.[idx]?.kind === "video" ? (
                       <View style={styles.videoBadge} pointerEvents="none">
-                        <Icon name="play" size={10} color={PAPER_ON_GLASS} />
+                        {/* Play only where it can: a linked video plays from its owner's Photos. */}
+                        <Icon
+                          name={mediaSources[idx]?.fromLibrary ? "play" : "videocam-outline"}
+                          size={10}
+                          color={PAPER_ON_GLASS}
+                        />
                         <Text style={styles.videoBadgeText}>{clipLength(moment.mediaRefs[idx]?.durationMs)}</Text>
                       </View>
                     ) : null}
@@ -1001,6 +1006,7 @@ export default function MomentDetailScreen() {
         songPlaying={action === "pause"}
         startSong={startSong}
         pauseSong={pause}
+        ownMoment={!!moment && moment.userId === user?.id}
       />
 
       {moment && (

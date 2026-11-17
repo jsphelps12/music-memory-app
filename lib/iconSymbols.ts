@@ -86,6 +86,7 @@ export const ICON_SYMBOLS = {
   "toggle-outline": { symbol: "switch.2", box: 1.27 },
   "trash-outline": { symbol: "trash", box: 1.02 },
   "volume-high-outline": { symbol: "speaker.wave.3", box: 1.08 },
+  "videocam-outline": { symbol: "video", box: 1.1 },
   "volume-mute-outline": { symbol: "speaker.slash", box: 1.08 },
 } as const satisfies Record<string, SymbolSpec>;
 
