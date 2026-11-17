@@ -132,11 +132,16 @@ export function MomentFilm({
   const next = useCallback(() => show(index + 1), [index, show]);
   const prev = useCallback(() => show(index - 1), [index, show]);
 
+  // How long the current photo has been up, kept across a pause (the photo
+  // timer below). A new item always starts from zero, even one seen before.
+  const photoShown = useRef<{ index: number; ms: number }>({ index: -1, ms: 0 });
+
   // A new item: its segment starts from zero (before the photo timer below
   // reads it), and a clip's sound goes off.
   useLayoutEffect(() => {
     cancelAnimation(progress);
     progress.value = 0;
+    photoShown.current = { index: -1, ms: 0 };
   }, [index, progress]);
   useEffect(() => {
     if (soundOn) clipSoundOff(!paused);
@@ -144,15 +149,23 @@ export function MomentFilm({
   }, [index]);
 
   // A photo holds for the rest of PHOTO_MS, then the next fades in. Pausing
-  // clears the timer and freezes the segment where it is.
+  // clears the timer and freezes the segment where it is. How long a photo
+  // has been up is kept here, per item, not read back off the progress bar:
+  // right after a video the bar can still hold the clip's last position
+  // (~98%), which once left the next photo about 0.1s.
   useEffect(() => {
     if (!visible || paused || !filmLike || !current || current.kind !== "photo") return;
-    const remaining = Math.max(50, PHOTO_MS * (1 - progress.value));
+    const done = photoShown.current.index === index ? photoShown.current.ms : 0;
+    const remaining = Math.max(50, PHOTO_MS - done);
+    const startedAt = Date.now();
+    cancelAnimation(progress);
+    progress.value = done / PHOTO_MS;
     progress.value = withTiming(1, { duration: remaining, easing: Easing.linear });
     const timer = setTimeout(next, remaining);
     return () => {
       clearTimeout(timer);
       cancelAnimation(progress);
+      photoShown.current = { index, ms: Math.min(PHOTO_MS, done + Date.now() - startedAt) };
     };
   }, [visible, paused, filmLike, current, index, next, progress]);
 
@@ -171,6 +184,7 @@ export function MomentFilm({
   const onOpen = () => {
     setIndex(initialIndex);
     progress.value = 0;
+    photoShown.current = { index: -1, ms: 0 };
     dragY.value = 0;
     setPaused(false);
     setSoundOn(false);
