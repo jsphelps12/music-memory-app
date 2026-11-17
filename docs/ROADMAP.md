@@ -576,6 +576,14 @@ clutter, navigation.
   under a clip's sound and resumes after (`duck` in PlayerContext,
   `lib/audioMix.ts`, tested); never an exported file. Pausing the film
   pauses the song.
+- [ ] Video sharing as part of a paid tier (Josh, 2026-11-17: "maybe
+  paywall that?"). Fits principle 5: your own videos always play for you
+  free; only sending the clip to others costs (storage). In 1.4 a shared
+  moment's video goes as its poster ("Plays on the phone it came from");
+  don't ship free sharing and take it away later. Needs the tier itself
+  (App Store subscription, RevenueCat SDK, paywall, review); design it as a
+  bundle (video sharing, prints, occasions), not one feature. On share:
+  upload a 720p copy alongside the poster.
 - [ ] People, later and opt-in: on-device face grouping you name once,
   linked to moment People. Not in 1.4 (face data is sensitive).
 - [ ] Smarter pairings, next: learn from what Josh saves vs ignores; on-device

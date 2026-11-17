@@ -85,7 +85,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // Local Xcode 27 builds: lift pods below iOS 15 (see the plugin).
     "./plugins/withPodsMinDeploymentTarget",
     "./plugins/withControlLinkOpener",
-    "expo-video",
     "expo-apple-authentication",
     [
       // App lock (1.4): Settings → Privacy → Lock with Face ID.

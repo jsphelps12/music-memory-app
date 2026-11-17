@@ -194,32 +194,6 @@ public class NowPlayingModule: Module {
       return ["uri": url.absoluteString, "durationMs": Int(asset.duration * 1000)]
     }
 
-    // Linked video (1.4): a playable copy of a library video in this app's
-    // temporary folder. The path Photos reports for a video sits outside the
-    // app's sandbox, so a player can't open it; this copies the clip (the
-    // edited version when there is one), downloading it from iCloud if
-    // needed, and reuses the copy while it exists. Nil if it can't.
-    AsyncFunction("videoFile") { (localId: String) async -> String? in
-      let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-      guard status == .authorized || status == .limited,
-            let asset = PHAsset.fetchAssets(withLocalIdentifiers: [localId], options: nil).firstObject,
-            asset.mediaType == .video else { return nil }
-      let resources = PHAssetResource.assetResources(for: asset)
-      guard let resource = resources.first(where: { $0.type == .fullSizeVideo })
-        ?? resources.first(where: { $0.type == .video }) else { return nil }
-      let ext = (resource.originalFilename as NSString).pathExtension
-      let name = "clip_\(localId.replacingOccurrences(of: "/", with: "_")).\(ext.isEmpty ? "mov" : ext)"
-      let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-      if FileManager.default.fileExists(atPath: url.path) { return url.absoluteString }
-      let options = PHAssetResourceRequestOptions()
-      options.isNetworkAccessAllowed = true
-      return await withCheckedContinuation { continuation in
-        PHAssetResourceManager.default().writeData(for: resource, toFile: url, options: options) { error in
-          continuation.resume(returning: error == nil ? url.absoluteString : nil)
-        }
-      }
-    }
-
     // cloudId → this device's localId (only the ones found here).
     AsyncFunction("localIdsFor") { (cloudIds: [String]) -> [String: String] in
       let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)

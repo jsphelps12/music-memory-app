@@ -134,18 +134,6 @@ export async function videoPoster(localId: string, maxSide = 1080): Promise<{ ur
   }
 }
 
-/**
- * Linked video (1.4): a playable copy of a library video inside the app's
- * sandbox (downloaded from iCloud if needed). Null if it can't be made.
- */
-export async function videoFile(localId: string): Promise<string | null> {
-  try {
-    return (await NowPlayingNative.videoFile(localId)) ?? null;
-  } catch {
-    return null;
-  }
-}
-
 /** iCloud identifiers → this device's local identifiers (only those found here). */
 export async function localIdsFor(cloudIds: string[]): Promise<Record<string, string>> {
   if (cloudIds.length === 0) return {};

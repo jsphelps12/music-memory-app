@@ -10,7 +10,6 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { useVideoPlayer, VideoView } from "expo-video";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   cancelAnimation,
@@ -30,14 +29,12 @@ import { usePlayerControls } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import type { MediaSource } from "@/lib/linkedMedia";
-import { videoFile } from "@/modules/now-playing";
+import { PhotosVideoView } from "@/modules/photos-video";
 
 /** In the film, how long a photo holds before the next fades in. */
 const PHOTO_MS = 4000;
 /** The cross-fade between one photo or video and the next. */
 const FADE_MS = 700;
-/** The slow drift on a photo while the film plays. */
-const DRIFT_SCALE = 1.06;
 /** Drag down this far to close. */
 const CLOSE_DRAG = 120;
 
@@ -52,8 +49,9 @@ type Styles = ReturnType<typeof createStyles>;
 
 /**
  * A moment's photos and videos as a little film (1.4, Josh's call). It
- * plays as soon as it opens: the song starts, photos drift for a few seconds
- * each, videos play through, and each fades into the next, looping. Tap the
+ * plays as soon as it opens: the song starts, photos hold for a few seconds
+ * each (still: Josh didn't want them zooming), videos play through, and
+ * each fades into the next, looping. Tap the
  * right side for the next, the left for the previous; Pause stops it and
  * gives a swipeable, zoomable pager. Videos play muted; the speaker brings
  * their sound up while the song ducks (lib/audioMix.ts). Story-style
@@ -217,7 +215,7 @@ export function MomentFilm({
                     styles={styles}
                   />
                 ) : (
-                  <PhotoPage uri={item.uri} width={width} height={height} drifting={false} zoomable />
+                  <PhotoPage uri={item.uri} width={width} height={height} zoomable />
                 )
               }
             />
@@ -356,7 +354,7 @@ function FilmStage({
             styles={styles}
           />
         ) : (
-          <PhotoPage uri={item.uri} width={width} height={height} drifting={!reduceMotion} zoomable={false} />
+          <PhotoPage uri={item.uri} width={width} height={height} zoomable={false} />
         )}
       </Animated.View>
     </View>
@@ -374,34 +372,8 @@ function Segment({ state, progress, styles }: { state: "done" | "now" | "next"; 
   );
 }
 
-function PhotoPage({
-  uri,
-  width,
-  height,
-  drifting,
-  zoomable,
-}: {
-  uri: string;
-  width: number;
-  height: number;
-  drifting: boolean;
-  zoomable: boolean;
-}) {
-  const scale = useSharedValue(1);
-  useEffect(() => {
-    if (drifting) {
-      scale.value = 1;
-      scale.value = withTiming(DRIFT_SCALE, { duration: PHOTO_MS + FADE_MS, easing: Easing.out(Easing.quad) });
-    } else {
-      scale.value = 1;
-    }
-  }, [drifting, scale]);
-  const drift = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  const image = (
-    <Animated.View style={[{ width, height }, drift]}>
-      <AppImage source={{ uri }} style={{ width, height }} contentFit="contain" transition={200} />
-    </Animated.View>
-  );
+function PhotoPage({ uri, width, height, zoomable }: { uri: string; width: number; height: number; zoomable: boolean }) {
+  const image = <AppImage source={{ uri }} style={{ width, height }} contentFit="contain" transition={200} />;
   if (!zoomable) return image;
   return (
     <ScrollView
@@ -439,81 +411,51 @@ function VideoPage({
   onEnded: () => void;
   styles: Styles;
 }) {
-  // A linked video plays from a copy inside the app (the library's own file
-  // is outside the sandbox), made on demand and downloaded from iCloud if
-  // needed. Elsewhere only its poster exists.
+  // A linked video streams straight from Photos (modules/photos-video): no
+  // copy, original quality. Elsewhere, or if it won't load, its poster
+  // stands in, and in the film it holds like a photo before moving on.
   const localId = item.fromLibrary && item.uri.startsWith("ph://") ? item.uri.slice(5) : null;
-  const [file, setFile] = useState<string | null>(null);
+  const playable = !!localId && !!PhotosVideoView;
+  const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  const usable = playable && !failed;
 
   useEffect(() => {
-    if (!active || !localId || file) return;
-    let cancelled = false;
-    void videoFile(localId).then((uri) => {
-      if (cancelled) return;
-      if (uri) setFile(uri);
-      else setFailed(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [active, localId, file]);
+    if (usable || !active || looping) return;
+    const timer = setTimeout(onEnded, PHOTO_MS);
+    return () => clearTimeout(timer);
+  }, [usable, active, looping, onEnded]);
 
-  const player = useVideoPlayer(file, (p) => {
-    p.loop = false;
-    p.muted = true;
-    p.timeUpdateEventInterval = 0.25;
-  });
-
-  useEffect(() => {
-    player.muted = muted;
-  }, [muted, player]);
-
-  useEffect(() => {
-    if (!file) return;
-    if (active) player.play();
-    else {
-      player.pause();
-      player.currentTime = 0;
-    }
-  }, [active, file, player]);
-
-  useEffect(() => {
-    const ended = player.addListener("playToEnd", () => {
-      if (looping) {
-        player.currentTime = 0;
-        player.play();
-      } else {
-        onEnded();
-      }
-    });
-    const tick = player.addListener("timeUpdate", ({ currentTime }) => {
-      if (active && player.duration > 0) progress.value = Math.min(1, currentTime / player.duration);
-    });
-    return () => {
-      ended.remove();
-      tick.remove();
-    };
-  }, [player, looping, onEnded, active, progress]);
-
+  const Video = PhotosVideoView;
   return (
     <View style={{ width, height, justifyContent: "center" }}>
-      {file ? (
-        <VideoView player={player} style={{ width, height }} contentFit="contain" nativeControls={false} />
-      ) : (
-        <View style={{ width, height }}>
-          <AppImage source={{ uri: item.uri }} style={{ width, height }} contentFit="contain" />
-          <View style={styles.videoNote} pointerEvents="none">
-            {localId && !failed ? (
-              active ? <ActivityIndicator color={PAPER_ON_GLASS} /> : null
-            ) : (
-              <Text style={styles.videoNoteText}>
-                {failed ? "This video couldn't be loaded from Photos" : "Plays on the phone it came from"}
-              </Text>
-            )}
-          </View>
+      <AppImage source={{ uri: item.uri }} style={[StyleSheet.absoluteFill, { width, height }]} contentFit="contain" />
+      {usable && Video ? (
+        <Video
+          localId={localId}
+          playing={active}
+          muted={muted}
+          loop={looping}
+          style={[{ width, height }, !ready && styles.hidden]}
+          onReady={() => setReady(true)}
+          onProgress={(e) => {
+            if (active) progress.value = e.nativeEvent.fraction;
+          }}
+          onEnd={onEnded}
+          onError={() => setFailed(true)}
+        />
+      ) : null}
+      {!ready ? (
+        <View style={styles.videoNote} pointerEvents="none">
+          {usable ? (
+            active ? <ActivityIndicator color={PAPER_ON_GLASS} /> : null
+          ) : (
+            <Text style={styles.videoNoteText}>
+              {failed ? "This video couldn't be loaded from Photos" : "Plays on the phone it came from"}
+            </Text>
+          )}
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -522,6 +464,8 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: NIGHT },
     night: { backgroundColor: NIGHT },
+    // Kept laid out (so it can load and play) but unseen until ready.
+    hidden: { opacity: 0 },
     segments: {
       position: "absolute",
       left: theme.spacing.lg,
