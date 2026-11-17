@@ -527,6 +527,18 @@ clutter, navigation.
   its photos are 60+ km from it, and the town is named ("away in
   Kailua-Kona"). A week qualifies with a photo spike, being away, or 2+
   favourites; all three add to the score and the reason line.
+- [x] From before controls (Josh: "no date range? any control?", built
+  2026-11-17): the From before screen (long-press + or More in Rediscover)
+  has chips (This week, All years, each year), Show more when browsing, and
+  ✕ "Not this one" (never suggested again, here or in Rediscover).
+- [x] Moment hero fades through the moment's photos (Josh's idea, built
+  2026-11-17): ~4.5 s each, still with Reduce Motion, paused after a touch
+  or off screen; tap opens the viewer at the photo showing.
+  `components/HeroPhotoCycle.tsx`.
+- [ ] Video in moments: short clips (≤15 s, 720p, ~2–5 MB) cost real
+  storage on the Supabase plan, plus compression, upload progress,
+  `expo-video` playback, thumbnails for lists and the PDF, web playback and
+  deletion. Live Photos first (small, already taken), video only if asked.
 - [ ] Smarter pairings, next: learn from what Josh saves vs ignores; on-device
   Vision scene tags (beach, concert, wedding) and best-photo choice; Apple's
   on-device model for the nudge question (never the reflection); "you

@@ -715,7 +715,10 @@ export default function ReflectionsScreen() {
           {fromBefore && beforePicks.length > 0 && (
             <View style={styles.sectionSpaced}>
               <View style={styles.sectionHeaderStacked}>
-                <Text style={styles.sectionTitle}>From before</Text>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionTitle}>From before</Text>
+                  <Button label="More" variant="text" size="pill" onPress={() => router.push("/from-before")} />
+                </View>
                 <Text style={styles.sectionNote}>From your library and photos. Not in your journal yet.</Text>
               </View>
               {beforePicks.map((p, i) => (
@@ -855,6 +858,11 @@ function createStyles(theme: Theme) {
     sectionHeaderStacked: {
       gap: theme.spacing.xs,
       marginBottom: theme.spacing.sm,
+    },
+    sectionHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
     },
     sectionNote: {
       ...theme.typography.meta,

@@ -1,7 +1,10 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePostHog } from "posthog-react-native";
+import { Button } from "@/components/Button";
+import { Chip } from "@/components/Chip";
 import { ErrorState } from "@/components/ErrorState";
 import { PastPairingRow } from "@/components/PastPairingRow";
 import { ScreenHeader } from "@/components/ScreenHeader";
@@ -13,25 +16,66 @@ import { currentWeek } from "@/lib/lastWeek";
 import { captureParams, songForCreate } from "@/lib/lastWeekData";
 import { photoWindow } from "@/lib/libraryMoments";
 import { addedOnLabel, pairingReason } from "@/lib/pastPairings";
-import { loadFromBefore, type PastPairing } from "@/lib/pastPairingsData";
+import {
+  browseFromBefore,
+  dismissPairing,
+  fromBeforeYears,
+  loadFromBefore,
+  type PastPairing,
+  type PastPairings,
+} from "@/lib/pastPairingsData";
+
+const PAGE = 6;
+const STALE = 2 * 60 * 1000;
+
+type Mode = "week" | "all" | number;
 
 /**
- * From before on its own (1.4), reached from the long-press menu on +. The
- * same weekly picks as the end of Rediscover (same query), so a pick made
- * here is the one shown there.
+ * From before on its own (1.4), from the long-press menu on +. "This week"
+ * is the same weekly picks as the end of Rediscover; "All years" or a year
+ * browses further, a page at a time. ✕ on a pick ("Not this one") means it
+ * never comes back, here or in Rediscover.
  */
 export default function FromBeforeScreen() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useRouter();
+  const posthog = usePostHog();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
+  const [mode, setMode] = useState<Mode>("week");
+  const [limit, setLimit] = useState(PAGE);
   const weekKey = currentWeek(Date.now()).key;
-  const { data, isLoading, error, refetch } = useQuery({
+
+  const weekly = useQuery({
     queryKey: ["fromBefore", user?.id, weekKey],
     queryFn: () => loadFromBefore(user!.id),
     enabled: !!user,
-    staleTime: 2 * 60 * 1000,
+    staleTime: STALE,
   });
+  const years = useQuery({
+    queryKey: ["fromBeforeYears", user?.id],
+    queryFn: () => fromBeforeYears(),
+    enabled: !!user,
+    staleTime: STALE,
+  });
+  const browsing = mode !== "week";
+  const browse = useQuery({
+    queryKey: ["fromBeforeBrowse", user?.id, mode, limit],
+    queryFn: () => browseFromBefore(user!.id, mode === "all" ? null : (mode as number), limit),
+    enabled: !!user && browsing,
+    staleTime: STALE,
+    placeholderData: (prev) => prev,
+  });
+
+  const current = browsing ? browse : weekly;
+  const data: PastPairings | undefined = current.data;
+
+  const choose = (next: Mode) => {
+    setMode(next);
+    setLimit(PAGE);
+    posthog?.capture("from_before_filter", { mode: typeof next === "number" ? "year" : next });
+  };
 
   const open = useCallback(
     (p: PastPairing) => {
@@ -45,28 +89,36 @@ export default function FromBeforeScreen() {
     [data, router]
   );
 
+  const dismiss = async (p: PastPairing) => {
+    posthog?.capture("from_before_dismissed");
+    await dismissPairing(p.song.key);
+    void queryClient.invalidateQueries({ queryKey: ["fromBefore", user?.id] });
+    void queryClient.invalidateQueries({ queryKey: ["fromBeforeBrowse", user?.id] });
+  };
+
   let body: React.ReactNode;
-  if (isLoading) {
+  if (current.isLoading) {
     body = (
       <View style={styles.center}>
         <ActivityIndicator color={theme.colors.textSecondary} />
       </View>
     );
-  } else if (error) {
-    body = <ErrorState message={friendlyError(error)} onRetry={() => void refetch()} />;
+  } else if (current.error) {
+    body = <ErrorState message={friendlyError(current.error)} onRetry={() => void current.refetch()} />;
   } else if (!data || data.pairings.length === 0) {
     body = (
       <View style={styles.center}>
-        <Text style={styles.emptyTitle}>Nothing stands out this week</Text>
+        <Text style={styles.emptyTitle}>{browsing ? "Nothing stands out here" : "Nothing stands out this week"}</Text>
         <Text style={styles.emptyText}>
-          From before picks old songs from weeks when you took far more photos than usual. A new set comes each week.
+          From before picks old songs from weeks that stood out: far more photos than usual, time away from home, or
+          photos you favourited.
         </Text>
       </View>
     );
   } else {
+    const hasMore = browsing && data.pairings.length >= limit;
     body = (
       <ScrollView contentContainerStyle={styles.list}>
-        <Text style={styles.note}>From your library and photos. Not in your journal yet. A new set comes each week.</Text>
         {data.pairings.map((p, i) => (
           <PastPairingRow
             key={p.song.key}
@@ -79,8 +131,20 @@ export default function FromBeforeScreen() {
             first={i === 0}
             onPress={() => open(p)}
             onOpenSaved={() => router.push(`/moment/${data.saved[p.song.key]}`)}
+            onDismiss={() => void dismiss(p)}
           />
         ))}
+        {hasMore ? (
+          <View style={styles.more}>
+            <Button
+              label="Show more"
+              variant="secondary"
+              size="pill"
+              loading={browse.isFetching}
+              onPress={() => setLimit((n) => n + PAGE)}
+            />
+          </View>
+        ) : null}
       </ScrollView>
     );
   }
@@ -88,7 +152,16 @@ export default function FromBeforeScreen() {
   return (
     <View style={styles.screen}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScreenHeader title="From before" />
+      <ScreenHeader title="From before" subtitle="From your library and photos. Not in your journal yet." />
+      <View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          <Chip label="This week" selected={mode === "week"} onPress={() => choose("week")} />
+          <Chip label="All years" selected={mode === "all"} onPress={() => choose("all")} />
+          {(years.data ?? []).map((y) => (
+            <Chip key={y} label={String(y)} selected={mode === y} onPress={() => choose(y)} />
+          ))}
+        </ScrollView>
+      </View>
       {body}
     </View>
   );
@@ -97,8 +170,9 @@ export default function FromBeforeScreen() {
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: theme.colors.background },
+    chips: { paddingHorizontal: theme.spacing.xl, paddingBottom: theme.spacing.md, gap: theme.spacing.sm },
     list: { paddingHorizontal: theme.spacing.xl, paddingBottom: theme.spacing["4xl"] },
-    note: { ...theme.typography.meta, color: theme.colors.textSecondary, marginBottom: theme.spacing.sm },
+    more: { alignItems: "center", paddingTop: theme.spacing.lg },
     center: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: theme.spacing["3xl"], gap: theme.spacing.sm },
     emptyTitle: { ...theme.typography.title, color: theme.colors.text, textAlign: "center" },
     emptyText: { ...theme.typography.body, color: theme.colors.textSecondary, textAlign: "center" },

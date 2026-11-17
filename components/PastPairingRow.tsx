@@ -4,6 +4,7 @@ import { AppImage } from "@/components/AppImage";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Button } from "@/components/Button";
 import { Icon } from "@/components/Icon";
+import { IconButton } from "@/components/IconButton";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { artworkUrlAtSize } from "@/lib/itunes";
@@ -29,6 +30,7 @@ export function PastPairingRow({
   first = false,
   onPress,
   onOpenSaved,
+  onDismiss,
 }: {
   song: PastSong;
   /** "2 years ago" or "Added June 3, 2019". */
@@ -44,6 +46,8 @@ export function PastPairingRow({
   onPress: () => void;
   /** Opens the moment already saved from it. */
   onOpenSaved?: () => void;
+  /** "Not this one" (the From before screen): never suggest it again. */
+  onDismiss?: () => void;
 }) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -79,6 +83,15 @@ export function PastPairingRow({
             </Text>
           ) : null}
         </View>
+        {onDismiss ? (
+          <IconButton
+            name="close"
+            size={16}
+            color={theme.colors.textTertiary}
+            accessibilityLabel={`Not this one: ${song.title}`}
+            onPress={onDismiss}
+          />
+        ) : null}
         {/* The row always makes a new moment; a saved one also offers Open. */}
         {saved && onOpenSaved ? (
           <Button label="Open" variant="text" size="pill" onPress={onOpenSaved} />

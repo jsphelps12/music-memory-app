@@ -30,6 +30,9 @@ const LIBRARY_LIMIT = 8000;
 const PICKS_KEY = "frombefore_picks_v3";
 const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 const SHOWN_KEY = "frombefore_shown_v1";
+const DISMISSED_KEY = "frombefore_dismissed_v1";
+const DISMISSED_MAX = 500;
+const HOME_TTL_MS = 24 * 60 * 60 * 1000;
 const SHOWN_MAX = 300;
 const THUMBS = 4;
 
@@ -136,6 +139,17 @@ export async function loadPhoneOnThisDay(userId: string, now = Date.now()): Prom
  * photos cluster). PhotoKit metadata in one native call; on a build without
  * it, counts only.
  */
+// Home moves rarely; browsing asks for it on every "Show more".
+let homeCache: { at: number; home: Coord | null } | null = null;
+
+async function estimateHome(now: number): Promise<Coord | null> {
+  if (homeCache && now - homeCache.at < HOME_TTL_MS) return homeCache.home;
+  const year = await photoStats([[now - YEAR_MS, now]], 400);
+  const home = homeFrom((year?.[0]?.coords ?? []) as Coord[]);
+  homeCache = { at: now, home };
+  return home;
+}
+
 async function scoreCandidates(candidates: PastSong[], now: number): Promise<ScoredPairing[]> {
   const ranges = candidates.map((s) => {
     const { from, to } = photoWindow(s.at);
@@ -143,8 +157,7 @@ async function scoreCandidates(candidates: PastSong[], now: number): Promise<Sco
   });
   const stats = await photoStats(ranges, 20);
   if (stats) {
-    const year = await photoStats([[now - YEAR_MS, now]], 400);
-    const home = homeFrom((year?.[0]?.coords ?? []) as Coord[]);
+    const home = await estimateHome(now);
     return candidates.map((song, i) => {
       const coords = (stats[i]?.coords ?? []) as Coord[];
       const away = isAway(coords, home);
@@ -182,13 +195,16 @@ async function placeName([latitude, longitude]: Coord): Promise<string | null> {
  */
 export async function loadFromBefore(userId: string, now = Date.now()): Promise<PastPairings> {
   const week = currentWeek(now);
+  const dismissed = new Set(await readJson<string[]>(DISMISSED_KEY, []));
   const cached = await readJson<{ weekKey: string; picks: PastPairing[] } | null>(PICKS_KEY, null);
-  if (cached && cached.weekKey === week.key) return finish(userId, cached.picks);
+  if (cached && cached.weekKey === week.key) {
+    return finish(userId, cached.picks.filter((p) => !dismissed.has(p.song.key)));
+  }
 
   if (libraryAccessStatus() !== "authorized" || !(await photosAllowed())) return EMPTY;
   const library = (await getLibrarySongs(LIBRARY_LIMIT)) as LibraryTrack[];
   const shown = await readJson<string[]>(SHOWN_KEY, []);
-  const pool = fromBeforeCandidates(library, now, new Set(shown), FROM_BEFORE_CANDIDATES * 2);
+  const pool = fromBeforeCandidates(library, now, new Set([...shown, ...dismissed]), FROM_BEFORE_CANDIDATES * 2);
   const storeIds = pool.map((s) => s.storeId).filter((id): id is string => !!id);
   const saved = await savedByStoreId(userId, storeIds).catch(() => ({}) as Record<string, string>);
   const candidates = pool.filter((s) => !(s.storeId && saved[s.storeId])).slice(0, FROM_BEFORE_CANDIDATES);
@@ -209,5 +225,56 @@ export async function loadFromBefore(userId: string, now = Date.now()): Promise<
     const nextShown = [...shown, ...picks.map((p) => p.song.key)].slice(-SHOWN_MAX);
     await AsyncStorage.setItem(SHOWN_KEY, JSON.stringify(nextShown));
   } catch {}
+  return finish(userId, picks);
+}
+
+// ── Browsing (the From before screen) ──────────────────────────────────────
+
+/** "Not this one": never pick this song again. */
+export async function dismissPairing(key: string): Promise<void> {
+  const dismissed = await readJson<string[]>(DISMISSED_KEY, []);
+  if (!dismissed.includes(key)) dismissed.push(key);
+  try {
+    await AsyncStorage.setItem(DISMISSED_KEY, JSON.stringify(dismissed.slice(-DISMISSED_MAX)));
+  } catch {}
+}
+
+/** Years with songs old enough for From before, newest first. */
+export async function fromBeforeYears(now = Date.now()): Promise<number[]> {
+  if (libraryAccessStatus() !== "authorized") return [];
+  const library = (await getLibrarySongs(LIBRARY_LIMIT)) as LibraryTrack[];
+  const years = new Set(fromBeforeCandidates(library, now, new Set(), 100000).map((s) => new Date(s.at).getFullYear()));
+  return [...years].sort((a, b) => b - a);
+}
+
+/**
+ * Pairings to browse, beyond the weekly three: from one year or all, the
+ * best `limit` (one per month), skipping saved and dismissed songs. Not
+ * cached and doesn't count as "shown".
+ */
+export async function browseFromBefore(
+  userId: string,
+  year: number | null,
+  limit: number,
+  now = Date.now()
+): Promise<PastPairings> {
+  if (libraryAccessStatus() !== "authorized" || !(await photosAllowed())) return EMPTY;
+  const library = ((await getLibrarySongs(LIBRARY_LIMIT)) as LibraryTrack[]).filter(
+    (t) => year === null || new Date(t.dateAdded).getFullYear() === year
+  );
+  const dismissed = new Set(await readJson<string[]>(DISMISSED_KEY, []));
+  const pool = fromBeforeCandidates(library, now, dismissed, 160);
+  const storeIds = pool.map((s) => s.storeId).filter((id): id is string => !!id);
+  const saved = await savedByStoreId(userId, storeIds).catch(() => ({}) as Record<string, string>);
+  const candidates = pool.filter((s) => !(s.storeId && saved[s.storeId])).slice(0, 120);
+  const scored = await scoreCandidates(candidates, now);
+  const picks: PastPairing[] = await Promise.all(
+    pickFromBefore(scored, limit).map(async ({ song, photos, favorites, away, awayAt }) => {
+      const { from, to } = photoWindow(song.at);
+      const p = await photosIn(from, to, true);
+      const place = away && awayAt ? await placeName(awayAt) : null;
+      return { song, photoCount: photos, photoUris: p.uris, favorites, away, place };
+    })
+  );
   return finish(userId, picks);
 }

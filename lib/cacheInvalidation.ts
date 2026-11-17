@@ -42,6 +42,7 @@ const MOMENT_SCREEN_KEYS = [
   "lastWeek",
   "phoneOnThisDay",
   "fromBefore",
+  "fromBeforeBrowse",
 ] as const;
 
 /**

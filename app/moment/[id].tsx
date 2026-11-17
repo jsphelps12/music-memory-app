@@ -69,6 +69,7 @@ import { MomentActionMenu, MenuAnchor, MomentMenuItem } from "@/components/Momen
 import { Icon } from "@/components/Icon";
 import { formatTime } from "@/lib/formatTime";
 import { runWhenIdle } from "@/lib/whenIdle";
+import { HeroPhotoCycle } from "@/components/HeroPhotoCycle";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 
 type ScreenState = "loading" | "not_found" | "error" | "ready";
@@ -735,21 +736,14 @@ export default function MomentDetailScreen() {
           {/* Hero section */}
           {hasPhotos ? (
             <View style={[styles.photoHero, { height: insets.top + 380 }]}>
-              {/* The photo prints clean: no gradient or caption over it. */}
-              <TouchableOpacity
-                activeOpacity={0.95}
-                onPress={() => { setViewerIndex(0); setViewerVisible(true); }}
-                style={StyleSheet.absoluteFill}
-                accessibilityRole="imagebutton"
-                accessibilityLabel={`Photo 1 of ${photoUrls.length}. Open photos`}
-              >
-                <AppImage source={{ uri: photoUrls[0] }} style={StyleSheet.absoluteFill} contentFit="cover" />
-              </TouchableOpacity>
-              {photoUrls.length > 1 && (
-                <View style={styles.photoCounterPill} pointerEvents="none">
-                  <Text style={styles.photoCounterText}>1 / {photoUrls.length}</Text>
-                </View>
-              )}
+              {/* The photo prints clean: no gradient or caption over it. It
+                  fades slowly through the moment's photos. */}
+              <HeroPhotoCycle
+                urls={photoUrls}
+                onOpen={(i) => { setViewerIndex(i); setViewerVisible(true); }}
+                counterStyle={styles.photoCounterPill}
+                counterTextStyle={styles.photoCounterText}
+              />
             </View>
           ) : (
             <View style={[styles.ambientHero, { paddingTop: insets.top + 56, height: insets.top + 360 }]}>
@@ -910,7 +904,7 @@ export default function MomentDetailScreen() {
               </View>
             ) : null}
 
-            {/* More photos: the hero shows the first; the rest live here. */}
+            {/* All the photos: the hero fades through them; tap one here to open it. */}
             {hasPhotos && stripUrls.length > 1 ? (
               <ScrollView
                 horizontal
