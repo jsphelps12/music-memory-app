@@ -65,12 +65,37 @@ Claude's additions, for Josh to accept or cut:
    reliable backup, a full export you can read without the app (PDF plus
    photos and data), and linked photos that survive a library cleanup.
    People only pour years into something they trust to keep.
+   Josh: this includes account security and data protection, without
+   pretending to be SOC 2. Today the operator can read every reflection in
+   the database, which may matter eventually. Options, roughly in cost
+   order: a written promise and audit log for operator access; then
+   client-side encryption of the reflection text (key in iCloud Keychain).
+   That has a price: server-side search, `/m/` links and push text could no
+   longer read the words, so decide what stays readable first.
 9. **Craft you can feel:** haptics, motion, sound, and speed, everywhere.
    Every screen opens instantly, nothing jumps, and the song is always a
    tap from playing.
 10. **The people who were there.** A shared moment collects each person's
     side of the same night (your words, their photos), without becoming a
-    social feed.
+    social feed. Josh tried this once (tagging and reactions, since
+    retired) and it wasn't executed well; a new attempt starts from why.
+
+More ideas (Claude, 2026-11-17), unranked:
+
+- **Apple's Journaling Suggestions** (`JournalingSuggestions`, iOS 17.2+):
+  the system picker Apple's Journal uses, offering songs, photos, places,
+  workouts and people from the user's day with their consent. Feeds point 1
+  directly; needs an entitlement, and the picker is Apple's UI.
+- **The part of the song.** Save where in the song the moment lives ("the
+  bridge at 2:41"); playback starts there. Cheap and very personal.
+- **CarPlay and Siri capture.** Driving is when songs hit hardest; "Hey
+  Siri, remember this song" while the screen is off.
+- **Calendar context on device** (EventKit): "at Sam's wedding" suggested
+  from the event that day, like weather and place are now.
+- **Letters to later:** a moment sealed until a date you pick, resurfaced
+  then.
+- **A memory on the Home Screen:** a widget that shows one moment a day,
+  artwork and a line of your words, opening straight into the film.
 
 ## Where things stand (2026-11-17)
 
@@ -686,9 +711,9 @@ clutter, navigation.
   the now-playing song straight to the journal, with a "write later" nudge).
   Needs an app group + the auth token in a shared keychain; the widget above
   opens the app instead.
-- [ ] **Face ID lock** (journaling-app standard; makes private writing feel
+- [x] **Face ID lock** (in 1.4, see "Next native build"; journaling-app standard; makes private writing feel
   safe).
-- [ ] **Export** your journal (PDF, in 1.4: see "Next native build"): trust that the words are
+- [x] **Export** your journal (PDF, in 1.4: see "Next native build"): trust that the words are
   yours.
 
 - [ ] **"Songs you used to love."** Prototype on device: Apple Music library
@@ -1061,8 +1086,8 @@ questionnaire/ML, NFC products, Android.
   session, cached/fresh profile, gate, first screen, in ms) and
   `moment_created` carries `capture_ms` / `save_ms` / `source`. Tune from
   these numbers, not guesses.
-- [ ] **React Compiler** (`experiments.reactCompiler` + the babel plugin):
-  moves the native fingerprint, so it rides the next binary with SF Symbols.
+- [x] **React Compiler** (`experiments.reactCompiler` + the babel plugin):
+  on in 1.4 (see "Next native build").
 - [ ] **Authorize the Sentry MCP** so crash data is readable during the
   1.2.0 / 1.3.0 rollout.
 - Known limit: after 60 days without a commit GitHub disables the scheduled
