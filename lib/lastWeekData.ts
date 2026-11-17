@@ -10,6 +10,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as MediaLibrary from "expo-media-library/legacy";
 import { supabase } from "@/lib/supabase";
+import { keepInterestingCached } from "@/lib/photoAnalysisStore";
 import { itunesTrackToSong, type ItunesTrack } from "@/lib/itunes";
 import { dayKey } from "@/lib/libraryMoments";
 import {
@@ -171,11 +172,15 @@ export async function observeListening(now = Date.now()): Promise<void> {
 
 // ── Photos ─────────────────────────────────────────────────────────────────
 
-/** Camera photos taken in [from, to), oldest first; screenshots left out. */
-export async function cameraPhotos(from: number, to: number): Promise<WeekPhoto[]> {
+/**
+ * Camera photos taken in [from, to), oldest first; screenshots and photos
+ * already known to be boring left out. `unanalyzed` are the ones not looked
+ * at yet (warmAnalyses them, then read again).
+ */
+export async function cameraPhotosChecked(from: number, to: number): Promise<{ photos: WeekPhoto[]; unanalyzed: string[] }> {
   try {
     const perm = await MediaLibrary.getPermissionsAsync();
-    if (perm.status !== "granted") return [];
+    if (perm.status !== "granted") return { photos: [], unanalyzed: [] };
     const page = await MediaLibrary.getAssetsAsync({
       mediaType: MediaLibrary.MediaType.photo,
       createdAfter: from,
@@ -183,12 +188,20 @@ export async function cameraPhotos(from: number, to: number): Promise<WeekPhoto[
       first: PHOTO_LIMIT,
       sortBy: [[MediaLibrary.SortBy.creationTime, true]],
     });
-    return page.assets
+    const photos = page.assets
       .filter((a) => !(a.mediaSubtypes ?? []).includes("screenshot"))
       .map((a) => ({ id: a.id, uri: a.uri, createdAt: a.creationTime }));
+    // Homework, receipts and documents aren't memories: leave them out.
+    const { kept, unanalyzed } = await keepInterestingCached(photos);
+    return { photos: kept, unanalyzed };
   } catch {
-    return [];
+    return { photos: [], unanalyzed: [] };
   }
+}
+
+/** Camera photos in [from, to), as cameraPhotosChecked, without the bookkeeping. */
+export async function cameraPhotos(from: number, to: number): Promise<WeekPhoto[]> {
+  return (await cameraPhotosChecked(from, to)).photos;
 }
 
 /** The day's camera photos for create's "Photos from that day". */
@@ -283,10 +296,13 @@ export function captureParams(
   day: string,
   source: string,
   /** Offer this span's photos instead of the day's (From before: the week). */
-  range?: { from: number; to: number }
+  range?: { from: number; to: number },
+  /** The question capture opens with, in place of its usual prompt. */
+  question?: string
 ): Record<string, string> {
   return {
     ...(range ? { photosFrom: String(range.from), photosTo: String(range.to) } : {}),
+    ...(question ? { promptQuestion: question } : {}),
     songId: song.id,
     songTitle: song.title,
     songArtist: song.artistName,
@@ -317,6 +333,8 @@ export interface LastWeekData {
   catalog: Record<string, Song>;
   /** WeekSong.key → moment id, for songs already saved. */
   saved: Record<string, string>;
+  /** Photos not looked at yet; useLastWeek analyses them, then refetches. */
+  unanalyzed: string[];
 }
 
 export async function loadLastWeek(userId: string, now = Date.now()): Promise<LastWeekData> {
@@ -339,12 +357,13 @@ export async function loadLastWeek(userId: string, now = Date.now()): Promise<La
     hasContent: false,
     catalog: {},
     saved: {},
+    unanalyzed: [],
   };
   if (access !== "granted") return empty;
 
-  const [library, photos, snapshots, log] = await Promise.all([
+  const [library, checked, snapshots, log] = await Promise.all([
     libraryAccessStatus() === "authorized" ? getLibrarySongs(LIBRARY_LIMIT) : Promise.resolve([]),
-    cameraPhotos(week.start, Math.min(week.end, now)),
+    cameraPhotosChecked(week.start, Math.min(week.end, now)),
     readJson<Snapshots>(SNAPSHOTS_KEY, {}),
     readJson<StreamedLog>(STREAMED_KEY, { lastList: null, entries: {} }),
   ]);
@@ -366,8 +385,10 @@ export async function loadLastWeek(userId: string, now = Date.now()): Promise<La
   const saved: Record<string, string> = {};
   for (const s of songs) if (s.storeId && savedIds[s.storeId]) saved[s.key] = savedIds[s.storeId];
 
+  const photos = checked.photos;
   return {
     ...empty,
+    unanalyzed: checked.unanalyzed,
     songs,
     days: groupByDay(songs, photos),
     photoCount: photos.length,

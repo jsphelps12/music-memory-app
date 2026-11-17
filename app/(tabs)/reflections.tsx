@@ -45,7 +45,8 @@ import { currentWeek } from "@/lib/lastWeek";
 import { captureParams, songForCreate } from "@/lib/lastWeekData";
 import { addedOnLabel, pairingReason, photosLine, yearsAgo as yearsSince } from "@/lib/pastPairings";
 import { photoWindow } from "@/lib/libraryMoments";
-import { loadFromBefore, loadPhoneOnThisDay, type PastPairing, type PastPairings } from "@/lib/pastPairingsData";
+import { loadFromBefore, loadPhoneOnThisDay, pairingFacts, type PastPairing, type PastPairings } from "@/lib/pastPairingsData";
+import { prewarmQuestions, questionFor } from "@/lib/nudgeQuestionStore";
 import { friendlyError } from "@/lib/errors";
 import { pad, dateToStr } from "@/lib/dateUtils";
 import { artworkUrlAtSize } from "@/lib/itunes";
@@ -434,12 +435,25 @@ export default function ReflectionsScreen() {
   const phoneDays = phoneOnThisDay?.pairings ?? [];
   const beforePicks = fromBefore?.pairings ?? [];
 
+  // Ask the on-device model for each pairing's question ahead of a tap
+  // (no-op without Apple Intelligence; templates cover it).
+  useEffect(() => {
+    void prewarmQuestions([
+      ...(phoneOnThisDay?.pairings ?? []).map((p) => ({ key: `on_this_day_phone:${p.song.key}`, facts: pairingFacts(p) })),
+      ...(fromBefore?.pairings ?? []).map((p) => ({ key: `from_before:${p.song.key}`, facts: pairingFacts(p) })),
+    ]);
+  }, [phoneOnThisDay, fromBefore]);
+
   // A pairing always starts a new moment: a week can hold more than one.
   const openPairing = useCallback(
     (pairing: PastPairing, data: PastPairings, source: string, span: "day" | "week") => {
       const song = songForCreate(pairing.song, data.catalog);
       const range = span === "week" ? photoWindow(pairing.song.at) : undefined;
-      router.push({ pathname: "/create", params: captureParams(song, pairing.song.at, pairing.song.day, source, range) });
+      const question = questionFor(`${source}:${pairing.song.key}`, pairingFacts(pairing));
+      router.push({
+        pathname: "/create",
+        params: captureParams(song, pairing.song.at, pairing.song.day, source, range, question),
+      });
     },
     [router]
   );

@@ -324,7 +324,7 @@ export default function CreateMomentScreen() {
       songTitle: song?.title,
       songArtist: song?.artistName,
       songArtworkUrl: song?.artworkUrl || undefined,
-      placeholder: "What's this song doing for you?",
+      placeholder: params.promptQuestion || "What's this song doing for you?",
       onDone: (text) => replaceReflection(text, false),
     });
     router.push("/write");
@@ -643,7 +643,9 @@ export default function CreateMomentScreen() {
           key={reflectionSeed.key}
           testID="create-reflection"
           style={styles.reflectionInput}
-          placeholder="What's this song doing for you?"
+          // A pairing's question ("What was playing on the drive to Kona?")
+          // asks; it never answers. Otherwise the usual prompt.
+          placeholder={params.promptQuestion || "What's this song doing for you?"}
           placeholderTextColor={theme.colors.placeholder}
           cursorColor={theme.colors.accent}
           selectionColor={theme.colors.accent}

@@ -11,6 +11,7 @@
 
 import { ALBUM_ADD_MIN, type LibraryTrack } from "@/lib/lastWeek";
 import { bulkDays, dayKey, MIN_AGE_DAYS } from "@/lib/libraryMoments";
+import { eventPhrase, type EventKind } from "@/lib/photoInterest";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -195,6 +196,10 @@ export interface ScoredPairing {
   away?: boolean;
   /** The middle of the away photos, for naming the place. */
   awayAt?: Coord | null;
+  /** From looking at the week's photos (scenes, people). */
+  bonus?: number;
+  /** What kind of week it was, when its photos agree. */
+  event?: EventKind | null;
 }
 
 /** Favourites that mark a week as one that mattered, even without a spike. */
@@ -215,7 +220,7 @@ export function pickFromBefore(scored: ScoredPairing[], n = FROM_BEFORE_PICKS): 
         (s.away === true && s.photos > 0) ||
         (s.favorites ?? 0) >= FAVORITES_MIN
     )
-    .map((s) => ({ ...s, score: relativeScore(s.photos, usual, s.song.plays, s.away, s.favorites ?? 0) }))
+    .map((s) => ({ ...s, score: relativeScore(s.photos, usual, s.song.plays, s.away, s.favorites ?? 0) + (s.bonus ?? 0) }))
     .filter((s) => s.score > 0)
     .sort((a, b) => b.score - a.score);
   const months = new Set<string>();
@@ -224,7 +229,7 @@ export function pickFromBefore(scored: ScoredPairing[], n = FROM_BEFORE_PICKS): 
     const month = r.song.day.slice(0, 7);
     if (months.has(month)) continue;
     months.add(month);
-    out.push({ song: r.song, photos: r.photos, favorites: r.favorites, away: r.away, awayAt: r.awayAt });
+    out.push({ song: r.song, photos: r.photos, favorites: r.favorites, away: r.away, awayAt: r.awayAt, event: r.event });
     if (out.length >= n) break;
   }
   return out;
@@ -245,10 +250,12 @@ export function pairingReason(p: {
   favorites?: number;
   away?: boolean;
   place?: string | null;
+  event?: EventKind | null;
 }): string {
   const where = p.away ? (p.place ? `away in ${p.place}` : "away from home") : "";
+  const what = p.event ? eventPhrase(p.event) : "";
   const favs = p.favorites ? (p.favorites === 1 ? "1 favourite" : `${p.favorites} favourites`) : "";
-  return [where, photosLine(p.photoCount, "week"), favs, playsLine(p.song.plays)].filter(Boolean).join(" · ");
+  return [where, what, photosLine(p.photoCount, "week"), favs, playsLine(p.song.plays)].filter(Boolean).join(" · ");
 }
 
 /** "played 89 times" (shown so a pick says why it was picked). */

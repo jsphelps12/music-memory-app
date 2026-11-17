@@ -539,6 +539,35 @@ clutter, navigation.
   storage on the Supabase plan, plus compression, upload progress,
   `expo-video` playback, thumbnails for lists and the PDF, web playback and
   deletion. Live Photos first (small, already taken), video only if asked.
+- [x] **On-device AI** (1.4 mega-update, Josh 2026-11-17; built, needs his
+  phone): new local module `modules/on-device-ai`. Vision (any iOS): scene
+  labels, face count, text coverage; iOS 18+: Apple's aesthetics score and
+  "utility" flag. `lib/photoInterest.ts` (tested): boring photos (homework,
+  receipts, documents) never suggested and not counted toward a photo
+  spike; best photo leads each row; weeks get a kind ("at the beach") and
+  a bonus for events and group shots. Analyses cached per photo
+  (`lib/photoAnalysisStore.ts`); lists never wait: they filter by what's
+  cached and analyse the rest in the background. Foundation Models (iOS 26
+  + Apple Intelligence): one short question per pairing from facts only
+  (`lib/nudgeQuestion.ts`, tested: must be a question, under 90 chars, not
+  in their voice, no invented names), generated ahead of a tap and shown
+  as capture's placeholder (`promptQuestion`); templates everywhere else.
+- [x] `moments.media_refs` (jsonb, default []) on staging and production
+  (2026-11-17, Josh's go): linked photos/video, see the migration's notes.
+- [ ] **Linked photos and video** (1.4): moments reference the owner's
+  Photos library by iCloud id (`PHCloudIdentifier`, same across their
+  devices); a small thumbnail (video: poster frame) is always uploaded; the
+  full file uploads when the moment is shared (friend, album, link, share
+  card) so the no-app recipient still gets everything. Plays/shows from
+  Photos on the owner's devices.
+- [ ] **Moment film viewer** (1.4): photos and videos swipe in taken order,
+  pinch to zoom, Stories-style progress, swipe down to close; Play turns
+  the moment into a short film with the song (slow drift on photos, videos
+  play through). Sound: clips muted by default; the speaker raises the
+  clip and ducks the song to 20% (~−14 dB) over 0.3 s, back over 0.8 s;
+  iOS ducking for full Apple Music playback; never an exported file.
+- [ ] People, later and opt-in: on-device face grouping you name once,
+  linked to moment People. Not in 1.4 (face data is sensitive).
 - [ ] Smarter pairings, next: learn from what Josh saves vs ignores; on-device
   Vision scene tags (beach, concert, wedding) and best-photo choice; Apple's
   on-device model for the nudge question (never the reflection); "you

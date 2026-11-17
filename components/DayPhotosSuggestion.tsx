@@ -7,7 +7,8 @@ import { SectionLabel } from "@/components/SectionLabel";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { weekdayName, type WeekPhoto } from "@/lib/lastWeek";
-import { cameraPhotos, photoFileUri, photosForDay, suggestDayPhotos } from "@/lib/lastWeekData";
+import { cameraPhotosChecked, photoFileUri, suggestDayPhotos } from "@/lib/lastWeekData";
+import { warmAnalyses } from "@/lib/photoAnalysisStore";
 
 const TILE = 64;
 
@@ -48,9 +49,17 @@ export function DayPhotosSuggestion({
     let cancelled = false;
     void (async () => {
       if (!(await suggestDayPhotos())) return;
-      const found = range ? await cameraPhotos(range.from, range.to) : await photosForDay(day);
+      const [y, m, d] = day.split("-").map(Number);
+      const span = range ?? { from: new Date(y, m - 1, d).getTime(), to: new Date(y, m - 1, d + 1).getTime() };
+      const first = await cameraPhotosChecked(span.from, span.to);
       if (cancelled) return;
-      setItems(found);
+      setItems(first.photos);
+      // Look at the rest in the background, then drop any that turn out boring.
+      if (first.unanalyzed.length && (await warmAnalyses(first.unanalyzed)) && !cancelled) {
+        const again = await cameraPhotosChecked(span.from, span.to);
+        if (!cancelled) setItems(again.photos);
+      }
+      const found = first.photos;
       for (const photo of found.slice(0, 12)) {
         if (cancelled) return;
         const uri = await photoFileUri(photo, true);

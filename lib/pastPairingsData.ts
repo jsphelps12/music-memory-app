@@ -23,11 +23,14 @@ import {
   type ScoredPairing,
 } from "@/lib/pastPairings";
 import { getLibrarySongs, libraryAccessStatus, photoStats } from "@/modules/now-playing";
+import { analysesFor, bestFirst } from "@/lib/photoAnalysisStore";
+import { lookAtWeek, lookBonus, sampleEvenly, type EventKind, type WeekLook } from "@/lib/photoInterest";
+import type { QuestionFacts } from "@/lib/nudgeQuestion";
 import type { Song } from "@/types";
 
 const LIBRARY_LIMIT = 8000;
-// v3: picks weigh location and favourites too (2026-11-17); older picks are recomputed.
-const PICKS_KEY = "frombefore_picks_v3";
+// v4: picks also weigh what the photos show (2026-11-17); older picks are recomputed.
+const PICKS_KEY = "frombefore_picks_v4";
 const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 const SHOWN_KEY = "frombefore_shown_v1";
 const DISMISSED_KEY = "frombefore_dismissed_v1";
@@ -35,6 +38,9 @@ const DISMISSED_MAX = 500;
 const HOME_TTL_MS = 24 * 60 * 60 * 1000;
 const SHOWN_MAX = 300;
 const THUMBS = 4;
+/** Candidate weeks whose photos get looked at, and photos per week. */
+const LOOK_CANDIDATES = 10;
+const LOOK_SAMPLE = 8;
 
 export interface PastPairing {
   song: PastSong;
@@ -45,6 +51,8 @@ export interface PastPairing {
   away?: boolean;
   /** The town for an away week ("Kailua-Kona"), when it could be named. */
   place?: string | null;
+  /** What kind of week it was ("beach"), from its photos. */
+  event?: EventKind | null;
 }
 
 export interface PastPairings {
@@ -71,16 +79,65 @@ async function photosIn(from: number, to: number, withThumbs: boolean): Promise<
       mediaType: MediaLibrary.MediaType.photo,
       createdAfter: from,
       createdBefore: to,
-      first: withThumbs ? 12 : 1,
+      first: withThumbs ? 40 : 1,
       sortBy: [[MediaLibrary.SortBy.creationTime, true]],
     });
-    const uris = withThumbs
-      ? page.assets.filter((a) => !(a.mediaSubtypes ?? []).includes("screenshot")).slice(0, THUMBS).map((a) => a.uri)
-      : [];
-    return { count: page.totalCount, uris };
+    if (!withThumbs) return { count: page.totalCount, uris: [] };
+    // The best of the week leads, not the first; homework and receipts don't show.
+    const camera = page.assets.filter((a) => !(a.mediaSubtypes ?? []).includes("screenshot"));
+    const best = await bestFirst(camera);
+    return { count: page.totalCount, uris: best.slice(0, THUMBS).map((a) => a.uri) };
   } catch {
     return { count: 0, uris: [] };
   }
+}
+
+/** What a week's photos show, from a sample of them. Null without the module. */
+async function weekLook(from: number, to: number): Promise<WeekLook | null> {
+  try {
+    const page = await MediaLibrary.getAssetsAsync({
+      mediaType: MediaLibrary.MediaType.photo,
+      createdAfter: from,
+      createdBefore: to,
+      first: 80,
+      sortBy: [[MediaLibrary.SortBy.creationTime, true]],
+    });
+    const sample = sampleEvenly(
+      page.assets.filter((a) => !(a.mediaSubtypes ?? []).includes("screenshot")),
+      LOOK_SAMPLE
+    );
+    const analyses = await analysesFor(sample.map((a) => a.id));
+    if (!analyses) return null;
+    return lookAtWeek([...analyses.values()]);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Looks at the photos of the strongest candidates (scenes, people, boring
+ * ones) and folds it in: boring photos stop counting, events and group
+ * shots add to the score, and the week gets its kind ("at the beach").
+ */
+async function refineWithLooks(scored: ScoredPairing[]): Promise<ScoredPairing[]> {
+  const top = pickFromBefore(scored, LOOK_CANDIDATES);
+  const looks = new Map<string, WeekLook>();
+  for (const p of top) {
+    const { from, to } = photoWindow(p.song.at);
+    const look = await weekLook(from, to);
+    if (look) looks.set(p.song.key, look);
+  }
+  if (looks.size === 0) return scored;
+  return scored.map((s) => {
+    const look = looks.get(s.song.key);
+    if (!look) return s;
+    return {
+      ...s,
+      photos: Math.round(s.photos * (1 - look.boringShare)),
+      bonus: lookBonus(look),
+      event: look.event,
+    };
+  });
 }
 
 function dayBounds(day: string): { from: number; to: number } {
@@ -209,14 +266,14 @@ export async function loadFromBefore(userId: string, now = Date.now()): Promise<
   const saved = await savedByStoreId(userId, storeIds).catch(() => ({}) as Record<string, string>);
   const candidates = pool.filter((s) => !(s.storeId && saved[s.storeId])).slice(0, FROM_BEFORE_CANDIDATES);
 
-  const scored = await scoreCandidates(candidates, now);
+  const scored = await refineWithLooks(await scoreCandidates(candidates, now));
 
   const picks: PastPairing[] = await Promise.all(
-    pickFromBefore(scored).map(async ({ song, photos, favorites, away, awayAt }) => {
+    pickFromBefore(scored).map(async ({ song, photos, favorites, away, awayAt, event }) => {
       const { from, to } = photoWindow(song.at);
       const p = await photosIn(from, to, true);
       const place = away && awayAt ? await placeName(awayAt) : null;
-      return { song, photoCount: photos, photoUris: p.uris, favorites, away, place };
+      return { song, photoCount: photos, photoUris: p.uris, favorites, away, place, event };
     })
   );
 
@@ -267,14 +324,27 @@ export async function browseFromBefore(
   const storeIds = pool.map((s) => s.storeId).filter((id): id is string => !!id);
   const saved = await savedByStoreId(userId, storeIds).catch(() => ({}) as Record<string, string>);
   const candidates = pool.filter((s) => !(s.storeId && saved[s.storeId])).slice(0, 120);
-  const scored = await scoreCandidates(candidates, now);
+  const scored = await refineWithLooks(await scoreCandidates(candidates, now));
   const picks: PastPairing[] = await Promise.all(
-    pickFromBefore(scored, limit).map(async ({ song, photos, favorites, away, awayAt }) => {
+    pickFromBefore(scored, limit).map(async ({ song, photos, favorites, away, awayAt, event }) => {
       const { from, to } = photoWindow(song.at);
       const p = await photosIn(from, to, true);
       const place = away && awayAt ? await placeName(awayAt) : null;
-      return { song, photoCount: photos, photoUris: p.uris, favorites, away, place };
+      return { song, photoCount: photos, photoUris: p.uris, favorites, away, place, event };
     })
   );
   return finish(userId, picks);
+}
+
+/** The facts a pairing's question may use (lib/nudgeQuestion.ts). */
+export function pairingFacts(p: PastPairing): QuestionFacts {
+  return {
+    song: p.song.title,
+    artist: p.song.artistName,
+    at: p.song.at,
+    place: p.place ?? null,
+    event: p.event ?? null,
+    photoCount: p.photoCount,
+    away: p.away,
+  };
 }

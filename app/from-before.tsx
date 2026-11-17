@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,9 +21,11 @@ import {
   dismissPairing,
   fromBeforeYears,
   loadFromBefore,
+  pairingFacts,
   type PastPairing,
   type PastPairings,
 } from "@/lib/pastPairingsData";
+import { prewarmQuestions, questionFor } from "@/lib/nudgeQuestionStore";
 
 const PAGE = 6;
 const STALE = 2 * 60 * 1000;
@@ -71,6 +73,11 @@ export default function FromBeforeScreen() {
   const current = browsing ? browse : weekly;
   const data: PastPairings | undefined = current.data;
 
+  useEffect(() => {
+    if (!data) return;
+    void prewarmQuestions(data.pairings.map((p) => ({ key: `from_before:${p.song.key}`, facts: pairingFacts(p) })));
+  }, [data]);
+
   const choose = (next: Mode) => {
     setMode(next);
     setLimit(PAGE);
@@ -81,9 +88,10 @@ export default function FromBeforeScreen() {
     (p: PastPairing) => {
       if (!data) return;
       const song = songForCreate(p.song, data.catalog);
+      const question = questionFor(`from_before:${p.song.key}`, pairingFacts(p));
       router.push({
         pathname: "/create",
-        params: captureParams(song, p.song.at, p.song.day, "from_before", photoWindow(p.song.at)),
+        params: captureParams(song, p.song.at, p.song.day, "from_before", photoWindow(p.song.at), question),
       });
     },
     [data, router]
