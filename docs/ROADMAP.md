@@ -139,6 +139,12 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   opened Rediscover's search). Data: 21 moments from Feb–Aug 2026 stored
   their artwork as an embedded PNG (avg 2.5 MB, in every timeline fetch);
   a backfill to Apple's artwork links is ready (needs a go, production).
+  Then: check-in days became a quick pick ("Days · Every day", weekdays
+  with checkmarks, like Repeat in Clock) after a row of day chips looked
+  wrong; a one-time hint over the + ("Hold + for Last week, From before
+  and more", `components/CaptureHint.tsx`, once per device, gone after the
+  first long-press); a linked video on someone else's moment shows a video
+  icon, not play, and the film says it stays in its owner's Photos.
 - [x] Notification choices (built 2026-11-17; Josh: "why not just do it
   now"). Settings → Notifications is its own screen
   (`app/notification-settings.tsx`) with three groups instead of five

@@ -1,6 +1,8 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { runWhenIdle, type IdleTask } from "@/lib/whenIdle";
 import { CaptureMenu } from "@/components/CaptureMenu";
+import { CaptureHint } from "@/components/CaptureHint";
+import { captureHintSeen, markCaptureHintSeen } from "@/lib/captureHint";
 import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
@@ -25,6 +27,9 @@ async function fetchAlbumsBadgeCount(userId: string): Promise<number> {
 // After the cold-start burst (first_screen lands at ~0.5s, the profile fetch
 // and first timeline page shortly after).
 const TAB_PRELOAD_DELAY_MS = 2500;
+// The hold hint: after the Journal has settled, for long enough to read.
+const HINT_DELAY_MS = 1800;
+const HINT_SHOW_MS = 7000;
 
 // Route name (app/(tabs)/*) → href, for prefetching a tab not yet shown.
 const TAB_HREFS: Record<string, "/" | "/reflections" | "/profile"> = {
@@ -48,6 +53,7 @@ export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps
   const router = useRouter();
   const { user } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [hint, setHint] = useState(false);
 
   // The tabs are lazy (app/(tabs)/_layout.tsx), so Rediscover and You no
   // longer mount and fetch alongside the Journal's first paint. Once startup
@@ -80,6 +86,28 @@ export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps
     };
   }, [userId]);
 
+  // "Hold + for more", once per device, on the Journal (components/CaptureHint).
+  const onJournal = state.index === 0;
+  useEffect(() => {
+    if (!userId || !onJournal) return;
+    let cancelled = false;
+    let hide: ReturnType<typeof setTimeout> | undefined;
+    const show = setTimeout(() => {
+      void captureHintSeen().then((seen) => {
+        if (seen || cancelled) return;
+        void markCaptureHintSeen();
+        setHint(true);
+        hide = setTimeout(() => setHint(false), HINT_SHOW_MS);
+      });
+    }, HINT_DELAY_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(show);
+      if (hide) clearTimeout(hide);
+      setHint(false);
+    };
+  }, [userId, onJournal]);
+
   const { data: albumsBadge = 0 } = useQuery({
     queryKey: ["collectionsBadge", user?.id],
     queryFn: () => fetchAlbumsBadgeCount(user!.id),
@@ -98,9 +126,14 @@ export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps
         accessibilityRole="button"
         accessibilityLabel="Capture a song"
         accessibilityHint="Hold for more ways to start"
-        onPress={() => router.push("/create")}
+        onPress={() => {
+          setHint(false);
+          router.push("/create");
+        }}
         onLongPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          setHint(false);
+          void markCaptureHintSeen();
           setMenuOpen(true);
         }}
         delayLongPress={350}
@@ -110,6 +143,7 @@ export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps
         <Icon name="add" size={28} color={theme.colors.buttonText} fixedSize />
       </TouchableOpacity>
 
+      <CaptureHint visible={hint} onDismiss={() => setHint(false)} />
       <CaptureMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
 
       <MiniPlayer />
