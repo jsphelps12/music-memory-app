@@ -40,6 +40,12 @@ import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
 import { IconButton } from "@/components/IconButton";
 import { SectionLabel } from "@/components/SectionLabel";
+import { PastPairingRow } from "@/components/PastPairingRow";
+import { currentWeek } from "@/lib/lastWeek";
+import { captureParams, songForCreate } from "@/lib/lastWeekData";
+import { addedOnLabel, photosLine, playsLine, yearsAgo as yearsSince } from "@/lib/pastPairings";
+import { photoWindow } from "@/lib/libraryMoments";
+import { loadFromBefore, loadPhoneOnThisDay, type PastPairing, type PastPairings } from "@/lib/pastPairingsData";
 import { friendlyError } from "@/lib/errors";
 import { pad, dateToStr } from "@/lib/dateUtils";
 import { artworkUrlAtSize } from "@/lib/itunes";
@@ -409,6 +415,39 @@ export default function ReflectionsScreen() {
     staleTime: STALE_TIME,
   });
 
+  // From the phone (1.4): songs added to the library on this date in past
+  // years, and this week's From before. Both read only the device (plus the
+  // user's moments for "Saved"); empty without library access.
+  const { data: phoneOnThisDay, refetch: refetchPhoneOnThisDay } = useQuery({
+    queryKey: ["phoneOnThisDay", user?.id, todayKey],
+    queryFn: () => loadPhoneOnThisDay(user!.id),
+    enabled: !!user,
+    staleTime: STALE_TIME,
+  });
+  const weekKey = useMemo(() => currentWeek(new Date(todayKey + "T00:00:00").getTime()).key, [todayKey]);
+  const { data: fromBefore, refetch: refetchFromBefore } = useQuery({
+    queryKey: ["fromBefore", user?.id, weekKey],
+    queryFn: () => loadFromBefore(user!.id),
+    enabled: !!user,
+    staleTime: STALE_TIME,
+  });
+  const phoneDays = phoneOnThisDay?.pairings ?? [];
+  const beforePicks = fromBefore?.pairings ?? [];
+
+  const openPairing = useCallback(
+    (pairing: PastPairing, data: PastPairings, source: string, span: "day" | "week") => {
+      const momentId = data.saved[pairing.song.key];
+      if (momentId) {
+        router.push(`/moment/${momentId}`);
+        return;
+      }
+      const song = songForCreate(pairing.song, data.catalog);
+      const range = span === "week" ? photoWindow(pairing.song.at) : undefined;
+      router.push({ pathname: "/create", params: captureParams(song, pairing.song.at, pairing.song.day, source, range) });
+    },
+    [router]
+  );
+
   useFocusEffect(
     useCallback(() => {
       refreshToday();
@@ -431,7 +470,9 @@ export default function ReflectionsScreen() {
     refetchRandom();
     // refetch() ignores `enabled`; with no month there is nothing to fetch.
     if (rewindMonthKey) refetchRewind();
-  }, [refetch, refetchMeta, refetchRandom, refetchRewind, rewindMonthKey]);
+    refetchPhoneOnThisDay();
+    refetchFromBefore();
+  }, [refetch, refetchMeta, refetchRandom, refetchRewind, rewindMonthKey, refetchPhoneOnThisDay, refetchFromBefore]);
 
   const handleShuffle = useCallback(() => {
     refetchRandom();
@@ -491,7 +532,7 @@ export default function ReflectionsScreen() {
   }
 
   // Empty state: user has no moments at all
-  if (randomMoment === null && onThisDay.length === 0 && meta.length === 0) {
+  if (randomMoment === null && onThisDay.length === 0 && meta.length === 0 && phoneDays.length === 0 && beforePicks.length === 0) {
     return (
       <View style={styles.container}>
         <ScreenHeader leading="none" title="Rediscover" />
@@ -584,18 +625,20 @@ export default function ReflectionsScreen() {
             />
           ) : null}
 
-          {/* ── On This Day ── */}
-          {onThisDaySorted.length > 0 && (
+          {/* ── On This Day: saved moments, then songs added this day (phone) ── */}
+          {(onThisDaySorted.length > 0 || phoneDays.length > 0) && (
             <View>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>On this day</Text>
                 <Text style={styles.sectionDetail}>{todayLabel}</Text>
               </View>
-              <OnThisDayHero
-                moment={onThisDaySorted[0].moment}
-                yearsAgo={onThisDaySorted[0].yearsAgo}
-                onPress={() => openMemory(router, onThisDaySorted[0].moment)}
-              />
+              {onThisDaySorted.length > 0 ? (
+                <OnThisDayHero
+                  moment={onThisDaySorted[0].moment}
+                  yearsAgo={onThisDaySorted[0].yearsAgo}
+                  onPress={() => openMemory(router, onThisDaySorted[0].moment)}
+                />
+              ) : null}
               {onThisDaySorted.slice(1).map(({ moment, yearsAgo }) => (
                 <OnThisDayRow
                   key={moment.id}
@@ -604,6 +647,21 @@ export default function ReflectionsScreen() {
                   onPress={() => openMemory(router, moment)}
                 />
               ))}
+              {phoneOnThisDay
+                ? phoneDays.map((p, i) => (
+                    <PastPairingRow
+                      key={p.song.key}
+                      song={p.song}
+                      when={yearsSince(p.song.at, Date.now())}
+                      line={["You added it", photosLine(p.photoCount, "day")].filter(Boolean).join(" · ")}
+                      artworkUrl={songForCreate(p.song, phoneOnThisDay.catalog).artworkUrl}
+                      photoUris={p.photoUris}
+                      saved={!!phoneOnThisDay.saved[p.song.key]}
+                      first={onThisDaySorted.length === 0 && i === 0}
+                      onPress={() => openPairing(p, phoneOnThisDay, "on_this_day_phone", "day")}
+                    />
+                  ))
+                : null}
             </View>
           )}
 
@@ -615,6 +673,29 @@ export default function ReflectionsScreen() {
               </View>
               {rewindMoments.map((m) => (
                 <MomentCard key={m.id} item={m} allMoods={allMoods} />
+              ))}
+            </View>
+          )}
+
+          {/* ── From before: this week's old pairings (phone) ── */}
+          {fromBefore && beforePicks.length > 0 && (
+            <View style={styles.sectionSpaced}>
+              <View style={styles.sectionHeaderStacked}>
+                <Text style={styles.sectionTitle}>From before</Text>
+                <Text style={styles.sectionNote}>From your library and photos. Not in your journal yet.</Text>
+              </View>
+              {beforePicks.map((p, i) => (
+                <PastPairingRow
+                  key={p.song.key}
+                  song={p.song}
+                  when={addedOnLabel(p.song.at)}
+                  line={[photosLine(p.photoCount, "week"), playsLine(p.song.plays)].filter(Boolean).join(" · ")}
+                  artworkUrl={songForCreate(p.song, fromBefore.catalog).artworkUrl}
+                  photoUris={p.photoUris}
+                  saved={!!fromBefore.saved[p.song.key]}
+                  first={i === 0}
+                  onPress={() => openPairing(p, fromBefore, "from_before", "week")}
+                />
               ))}
             </View>
           )}
@@ -771,6 +852,14 @@ function createStyles(theme: Theme) {
     sectionTitle: {
       ...theme.typography.title,
       color: theme.colors.text,
+    },
+    sectionHeaderStacked: {
+      gap: theme.spacing.xs,
+      marginBottom: theme.spacing.sm,
+    },
+    sectionNote: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
     },
     sectionDetail: {
       ...theme.typography.meta,

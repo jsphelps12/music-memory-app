@@ -126,6 +126,9 @@ export default function CreateMomentScreen() {
     photosDay?: string;
     /** From Last week: when the song or photo happened (epoch ms), the moment's date. */
     momentAt?: string;
+    /** From before: offer the week's photos (epoch ms bounds) rather than the day's. */
+    photosFrom?: string;
+    photosTo?: string;
   }>();
 
   // Opened from a widget or control: worth knowing whether capture-from-
@@ -661,7 +664,16 @@ export default function CreateMomentScreen() {
         )}
 
         {params.photosDay ? (
-          <DayPhotosSuggestion day={params.photosDay} photos={photos} onChange={setPhotos} />
+          <DayPhotosSuggestion
+            day={params.photosDay}
+            range={
+              params.photosFrom && params.photosTo
+                ? { from: Number(params.photosFrom), to: Number(params.photosTo) }
+                : undefined
+            }
+            photos={photos}
+            onChange={setPhotos}
+          />
         ) : null}
 
         <View style={styles.photos}>

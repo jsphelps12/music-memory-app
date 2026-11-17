@@ -484,6 +484,26 @@ clutter, navigation.
 - [ ] Daily check-in, next: voice entry with on-device transcription; later
   a real AI phone call as a paid feature, opening with a song you saved
   ("You saved Space Song a year ago today. What's different now?").
+- [x] **Photos ↔ music, the past half** (1.4, built 2026-11-17; the plan
+  below became two Rediscover sections instead of a range picker, Josh's
+  call): **On this day** adds songs added to the library on today's date in
+  past years, with that day's camera photos, after the saved moments (and
+  on its own for an empty journal, so a new user has a past on day one).
+  **From before** shows up to three old pairings a week (older than 90
+  days, album adds as one row, sync days out, already saved and already
+  shown left out), scored by the week's photos against the usual week (a
+  trip beats an ordinary week) and plays; picked once a week and kept.
+  Tapping either opens capture with the song, dated the day it was added,
+  offering the same photos the row showed (the day for On this day, the
+  week for From before). After Josh's first look: From before says it's
+  "From your library and photos. Not in your journal yet.", unsaved
+  pairings carry a +, each says why ("The week of 70 photos · played 89
+  times"), and a week must have 1.5× the usual photos to be picked (fewer
+  than three is fine). Picking from the strip ticks at once; photos already
+  on the phone are looked up ahead, iCloud originals load in the background.
+  `lib/pastPairings.ts` (tested),
+  `lib/pastPairingsData.ts`, `components/PastPairingRow.tsx`. No local
+  notification yet. The original plan:
 - [ ] **Photos ↔ music: three moments a week.** On device only: Apple Music
   library `dateAdded` / play count / last played (+ Replay playlists) matched
   to photos from ±3 days (date, place, favorites; iOS 18 on-device aesthetic

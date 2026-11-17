@@ -15,7 +15,7 @@ import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { artworkUrlAtSize } from "@/lib/itunes";
 import { dayLabel, songReasonLine, weekLabel, type WeekDay, type WeekPhoto, type WeekSong } from "@/lib/lastWeek";
-import { markWeekSeen, photoFileUri, songForCreate } from "@/lib/lastWeekData";
+import { captureParams, markWeekSeen, photoFileUri, songForCreate } from "@/lib/lastWeekData";
 
 const ART = 48;
 const PHOTO = 72;
@@ -55,23 +55,7 @@ export default function LastWeekScreen() {
       }
       const s = songForCreate(song, data.catalog);
       posthog?.capture("last_week_song_tapped", { reason: song.reason, has_catalog: !!(song.storeId && data.catalog[song.storeId]) });
-      router.push({
-        pathname: "/create",
-        params: {
-          songId: s.id,
-          songTitle: s.title,
-          songArtist: s.artistName,
-          songAlbum: s.albumName,
-          songArtwork: s.artworkUrl,
-          songProvider: s.provider,
-          songAppleMusicId: s.appleMusicId ?? "",
-          songSpotifyId: s.spotifyId ?? "",
-          songDurationMs: String(s.durationMs),
-          photosDay: song.day,
-          momentAt: String(song.at),
-          source: "last_week",
-        },
-      });
+      router.push({ pathname: "/create", params: captureParams(s, song.at, song.day, "last_week") });
     },
     [data, router, posthog]
   );

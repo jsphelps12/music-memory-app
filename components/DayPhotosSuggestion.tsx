@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { AppImage } from "@/components/AppImage";
@@ -7,7 +7,7 @@ import { SectionLabel } from "@/components/SectionLabel";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { weekdayName, type WeekPhoto } from "@/lib/lastWeek";
-import { photoFileUri, photosForDay, suggestDayPhotos } from "@/lib/lastWeekData";
+import { cameraPhotos, photoFileUri, photosForDay, suggestDayPhotos } from "@/lib/lastWeekData";
 
 const TILE = 64;
 
@@ -20,59 +20,84 @@ const TILE = 64;
  */
 export function DayPhotosSuggestion({
   day,
+  range,
   photos,
   onChange,
 }: {
   /** Day key, "2026-11-15". */
   day: string;
+  /** The span to offer instead of the day (From before offers its week). */
+  range?: { from: number; to: number };
   /** The moment's attached photos. */
   photos: string[];
-  onChange: (photos: string[]) => void;
+  /** Capture's setter: functional updates, so photos loading at once don't drop each other. */
+  onChange: Dispatch<SetStateAction<string[]>>;
 }) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [items, setItems] = useState<WeekPhoto[] | null>(null);
   // Library id → the file URI it was attached as, to take it off again.
   const [attached, setAttached] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState<string | null>(null);
+  // Tapped, original still loading: shown as picked straight away.
+  const [pending, setPending] = useState<Record<string, true>>({});
+  // File URIs for photos already on the phone, looked up ahead of a tap
+  // (never downloads; iCloud-only originals load when picked).
+  const localUris = useRef(new Map<string, string>());
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       if (!(await suggestDayPhotos())) return;
-      const found = await photosForDay(day);
-      if (!cancelled) setItems(found);
+      const found = range ? await cameraPhotos(range.from, range.to) : await photosForDay(day);
+      if (cancelled) return;
+      setItems(found);
+      for (const photo of found.slice(0, 12)) {
+        if (cancelled) return;
+        const uri = await photoFileUri(photo, true);
+        if (uri) localUris.current.set(photo.id, uri);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [day]);
+    // The range arrives as two numbers from route params; key on them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [day, range?.from, range?.to]);
 
   if (!items || items.length === 0) return null;
 
+  const attach = (photo: WeekPhoto, fileUri: string) => {
+    setAttached((a) => ({ ...a, [photo.id]: fileUri }));
+    onChange((current) => (current.includes(fileUri) ? current : [...current, fileUri]));
+  };
+
   const toggle = async (photo: WeekPhoto) => {
-    if (busy) return;
+    if (pending[photo.id]) return;
     Haptics.selectionAsync();
     const uri = attached[photo.id];
     if (uri && photos.includes(uri)) {
-      onChange(photos.filter((p) => p !== uri));
+      onChange((current) => current.filter((p) => p !== uri));
       setAttached(({ [photo.id]: _gone, ...rest }) => rest);
       return;
     }
-    setBusy(photo.id);
+    const local = localUris.current.get(photo.id);
+    if (local) {
+      attach(photo, local);
+      return;
+    }
+    setPending((p) => ({ ...p, [photo.id]: true }));
     const fileUri = await photoFileUri(photo);
-    setBusy(null);
-    if (!fileUri) return;
-    setAttached((a) => ({ ...a, [photo.id]: fileUri }));
-    onChange([...photos, fileUri]);
+    setPending(({ [photo.id]: _done, ...rest }) => rest);
+    if (fileUri) attach(photo, fileUri);
   };
 
   return (
     <View style={styles.wrap}>
-      <SectionLabel meta={String(items.length)}>{`Photos from ${weekdayName(day)}`}</SectionLabel>
+      <SectionLabel meta={String(items.length)}>{range ? "Photos from that week" : `Photos from ${weekdayName(day)}`}</SectionLabel>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip} style={styles.scroll}>
         {items.map((photo) => {
-          const on = !!attached[photo.id] && photos.includes(attached[photo.id]);
+          const loading = !!pending[photo.id];
+          const on = loading || (!!attached[photo.id] && photos.includes(attached[photo.id]));
           return (
             <TouchableOpacity
               key={photo.id}
@@ -83,13 +108,13 @@ export function DayPhotosSuggestion({
               accessibilityLabel={on ? "Remove this photo" : "Add this photo"}
             >
               <AppImage source={{ uri: photo.uri }} style={[styles.tile, on && styles.tileOn]} contentFit="cover" />
-              {busy === photo.id ? (
-                <View style={styles.overlay}>
-                  <ActivityIndicator color={theme.colors.textSecondary} />
-                </View>
-              ) : on ? (
+              {on ? (
                 <View style={styles.check}>
-                  <Icon name="checkmark" size={14} color={theme.colors.buttonText} />
+                  {loading ? (
+                    <ActivityIndicator size="small" color={theme.colors.buttonText} />
+                  ) : (
+                    <Icon name="checkmark" size={14} color={theme.colors.buttonText} />
+                  )}
                 </View>
               ) : null}
             </TouchableOpacity>
@@ -113,13 +138,6 @@ function createStyles(theme: Theme) {
       opacity: 0.85,
     },
     tileOn: { opacity: 1, borderWidth: 2, borderColor: theme.colors.text },
-    overlay: {
-      ...StyleSheet.absoluteFill,
-      alignItems: "center",
-      justifyContent: "center",
-      borderRadius: theme.radii.sm,
-      backgroundColor: theme.colors.scrim,
-    },
     check: {
       position: "absolute",
       right: 4,

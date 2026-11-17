@@ -40,6 +40,8 @@ const MOMENT_SCREEN_KEYS = [
   "youSummary",
   "momentsMap",
   "lastWeek",
+  "phoneOnThisDay",
+  "fromBefore",
 ] as const;
 
 /**

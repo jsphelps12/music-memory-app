@@ -199,10 +199,13 @@ export async function photosForDay(day: string): Promise<WeekPhoto[]> {
   return cameraPhotos(start, end);
 }
 
-/** A file URI create can upload, downloading from iCloud if needed. */
-export async function photoFileUri(photo: WeekPhoto): Promise<string | null> {
+/**
+ * A file URI create can upload. Downloads the original from iCloud when the
+ * phone only keeps an optimized copy, unless `localOnly` (then null).
+ */
+export async function photoFileUri(photo: WeekPhoto, localOnly = false): Promise<string | null> {
   try {
-    const info = await MediaLibrary.getAssetInfoAsync(photo.id);
+    const info = await MediaLibrary.getAssetInfoAsync(photo.id, { shouldDownloadFromNetwork: !localOnly });
     return info.localUri ?? null;
   } catch {
     return null;
@@ -212,7 +215,7 @@ export async function photoFileUri(photo: WeekPhoto): Promise<string | null> {
 // ── Catalog and saved ──────────────────────────────────────────────────────
 
 /** Catalog songs (artwork, preview, duration) for store ids, in batches. */
-async function lookupCatalog(storeIds: string[]): Promise<Record<string, Song>> {
+export async function lookupCatalog(storeIds: string[]): Promise<Record<string, Song>> {
   const out: Record<string, Song> = {};
   for (let i = 0; i < storeIds.length; i += 50) {
     const batch = storeIds.slice(i, i + 50);
@@ -229,7 +232,10 @@ async function lookupCatalog(storeIds: string[]): Promise<Record<string, Song>> 
 }
 
 /** The song create should open with, from the catalog or what the phone knows. */
-export function songForCreate(song: WeekSong, catalog: Record<string, Song>): Song {
+export function songForCreate(
+  song: Pick<WeekSong, "storeId" | "title" | "artistName" | "albumTitle" | "artworkUrl">,
+  catalog: Record<string, Song>
+): Song {
   const found = song.storeId ? catalog[song.storeId] : undefined;
   if (found) return found;
   return {
@@ -245,16 +251,19 @@ export function songForCreate(song: WeekSong, catalog: Record<string, Song>): So
   };
 }
 
-/** Week songs already made into moments since the week began: storeId → moment id. */
-async function savedMoments(userId: string, week: WeekRange, storeIds: string[]): Promise<Record<string, string>> {
+/**
+ * Songs already made into moments (since `sinceMs` when given): storeId →
+ * the newest moment's id.
+ */
+export async function savedByStoreId(userId: string, storeIds: string[], sinceMs?: number): Promise<Record<string, string>> {
   if (storeIds.length === 0) return {};
-  const { data, error } = await supabase
+  let query = supabase
     .from("moments")
     .select("id, song_apple_music_id, created_at")
     .eq("user_id", userId)
-    .in("song_apple_music_id", storeIds)
-    .gte("created_at", new Date(week.start).toISOString())
-    .order("created_at", { ascending: false });
+    .in("song_apple_music_id", storeIds);
+  if (sinceMs !== undefined) query = query.gte("created_at", new Date(sinceMs).toISOString());
+  const { data, error } = await query.order("created_at", { ascending: false });
   if (error) throw error;
   const out: Record<string, string> = {};
   for (const row of data ?? []) {
@@ -262,6 +271,35 @@ async function savedMoments(userId: string, week: WeekRange, storeIds: string[])
     if (id && !out[id]) out[id] = row.id as string;
   }
   return out;
+}
+
+/**
+ * Params that open capture with a song filled in, dated when it happened,
+ * offering that day's photos ("Last week", On this day, From before).
+ */
+export function captureParams(
+  song: Song,
+  at: number,
+  day: string,
+  source: string,
+  /** Offer this span's photos instead of the day's (From before: the week). */
+  range?: { from: number; to: number }
+): Record<string, string> {
+  return {
+    ...(range ? { photosFrom: String(range.from), photosTo: String(range.to) } : {}),
+    songId: song.id,
+    songTitle: song.title,
+    songArtist: song.artistName,
+    songAlbum: song.albumName,
+    songArtwork: song.artworkUrl,
+    songProvider: song.provider,
+    songAppleMusicId: song.appleMusicId ?? "",
+    songSpotifyId: song.spotifyId ?? "",
+    songDurationMs: String(song.durationMs),
+    photosDay: day,
+    momentAt: String(at),
+    source,
+  };
 }
 
 // ── The week ───────────────────────────────────────────────────────────────
@@ -321,12 +359,12 @@ export async function loadLastWeek(userId: string, now = Date.now()): Promise<La
   });
 
   const storeIds = [...new Set(songs.map((s) => s.storeId).filter((id): id is string => !!id))];
-  const [catalog, savedByStoreId] = await Promise.all([
+  const [catalog, savedIds] = await Promise.all([
     lookupCatalog(storeIds),
-    savedMoments(userId, week, storeIds).catch(() => ({}) as Record<string, string>),
+    savedByStoreId(userId, storeIds, week.start).catch(() => ({}) as Record<string, string>),
   ]);
   const saved: Record<string, string> = {};
-  for (const s of songs) if (s.storeId && savedByStoreId[s.storeId]) saved[s.key] = savedByStoreId[s.storeId];
+  for (const s of songs) if (s.storeId && savedIds[s.storeId]) saved[s.key] = savedIds[s.storeId];
 
   return {
     ...empty,
