@@ -140,12 +140,14 @@ export function MomentFilm({
     setFilm(true);
   }, [songPlaying, startSong]);
 
+  // Pause means everything stops: the film, the song, and any video (the
+  // paused pager doesn't play its videos). Play picks it all back up.
   const pauseFilm = useCallback(() => {
     setFilm(false);
-    if (songPlaying) pauseSong();
+    pauseSong();
     // Hand over to the pager at the same item.
     setTimeout(() => listRef.current?.scrollToIndex({ index, animated: false }), 0);
-  }, [index, pauseSong, songPlaying]);
+  }, [index, pauseSong]);
 
   // Opening starts the film (more than one item) with the song.
   const onOpen = () => {
@@ -207,7 +209,9 @@ export function MomentFilm({
                     item={item}
                     width={width}
                     height={height}
-                    active={visible && !film && i === index}
+                    // Paused, videos hold still; a moment with one video and
+                    // nothing else (no film to pause) plays it here.
+                    active={visible && !film && count === 1 && i === index}
                     looping
                     muted={!soundOn}
                     progress={progress}
