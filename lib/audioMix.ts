@@ -9,6 +9,8 @@
 
 /** The song under a clip's own sound: ~ -14 dB. */
 export const DUCK_LEVEL = 0.2;
+/** The clip's own sound when it's on: 80%, over the song at 20% (Josh, 2026-11-17). */
+export const CLIP_LEVEL = 0.8;
 export const DUCK_MS = 300;
 export const RESTORE_MS = 800;
 

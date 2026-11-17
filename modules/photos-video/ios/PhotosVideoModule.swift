@@ -27,6 +27,9 @@ public class PhotosVideoModule: Module {
       Prop("loop") { (view: PhotosVideoView, loop: Bool) in
         view.loop = loop
       }
+      Prop("volume") { (view: PhotosVideoView, volume: Double) in
+        view.player.volume = Float(max(0, min(1, volume)))
+      }
     }
   }
 }

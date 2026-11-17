@@ -10,6 +10,8 @@ export interface PhotosVideoProps {
   playing: boolean;
   muted: boolean;
   loop: boolean;
+  /** 0–1 when not muted (the film plays clips at CLIP_LEVEL under a ducked song). */
+  volume?: number;
   style?: StyleProp<ViewStyle>;
   onReady?: (e: { nativeEvent: { durationMs: number } }) => void;
   onProgress?: (e: { nativeEvent: { fraction: number } }) => void;

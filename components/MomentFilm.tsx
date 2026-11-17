@@ -20,6 +20,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import type { MediaSource } from "@/lib/linkedMedia";
 import { PhotosVideoView } from "@/modules/photos-video";
+import { CLIP_LEVEL } from "@/lib/audioMix";
 
 /** How long a photo holds before the next fades in. */
 const PHOTO_MS = 4000;
@@ -405,6 +406,7 @@ function VideoPage({
           playing={playing}
           muted={muted}
           loop={loop}
+          volume={CLIP_LEVEL}
           style={[{ width, height }, !ready && styles.hidden]}
           onReady={() => setReady(true)}
           onProgress={(e) => {
