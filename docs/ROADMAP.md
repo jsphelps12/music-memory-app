@@ -48,6 +48,15 @@ below should move that, or it doesn't belong on this page.
   fixes (checked at XXXL and AX3: inline titles cap at 1.5x and tab labels
   at 1.2x; list rows stack their detail and drop line limits at
   accessibility sizes; avatar initials and the You Albums header hold).
+- **Notification choices, server half** (2026-11-17, from `native/1.4`):
+  "How often" spacing (`profiles.notif_frequency` + `last_notified_at`,
+  default a few times a week), random memories whenever the spacing allows
+  (a moment a month old or more), friends' pushes switchable and silent
+  10pm–8am, and no more streak reminders, "still there?", "we miss you" or
+  Tue/Thu prompts (never notify about absence). 1.3.1's old Streak
+  reminders / Journal prompts switches now do nothing; the new Settings
+  screen ships with 1.4. Also brings `20261117000000_moment_media_refs`
+  (already applied by hand; history re-keyed to the file's version).
 - **EAS free plan:** the month's iOS builds ran out on 2026-11-16 (two 1.4
   simulator builds) and reset 2026-12-01. E2E now reuses an ancestor's
   simulator build for JS-only commits, so OTA promotes aren't blocked. A

@@ -165,7 +165,7 @@ Deno.serve(async (req) => {
     supabase
       .from("profiles")
       .select(
-        "id, push_token, notif_on_this_day, notif_streak, notif_prompts, notif_resurfacing, notif_milestones, created_at, timezone, last_reengagement_at"
+        "id, push_token, notif_on_this_day, notif_resurfacing, notif_milestones, notif_frequency, last_notified_at, created_at, timezone"
       )
       .not("push_token", "is", null)
       .order("id")
@@ -185,8 +185,9 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Filter to users whose local hour is 10
+  // Users whose local hour is 10, minus anyone with "How often: Off".
   const eligibleUsers: EligibleUser[] = tokenUsers.filter((u) => {
+    if (u.notif_frequency === "off") return false;
     const localHour = getLocalHour(now, u.timezone || "UTC");
     return localHour === 10;
   });
@@ -228,15 +229,15 @@ Deno.serve(async (req) => {
   // Chunks are each sorted; the cascade expects one created_at-desc list.
   momentRows.sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
 
-  // Step 3: the 7-priority cascade — pure, see selectNotifications.ts. Run
-  // once per local calendar day, so today/yesterday/On This Day/weekday are
-  // the user's own, not UTC's.
+  // Step 3: the cascade — pure, see selectNotifications.ts. Run once per
+  // local calendar day, so today and On This Day are the user's own, not
+  // UTC's.
   const messages: ExpoPushMessage[] = [];
-  const reengagedUserIds: string[] = [];
+  const notifiedUserIds: string[] = [];
   for (const input of buildSelectionInputs(eligibleUsers, momentRows, now)) {
     const result = selectNotifications(input);
     messages.push(...result.messages);
-    reengagedUserIds.push(...result.reengagedUserIds);
+    notifiedUserIds.push(...result.notifiedUserIds);
   }
 
   // Step 4: send, then reap every token Expo told us is dead.
@@ -257,15 +258,16 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Stamp the cooldown only for users who actually got a re-engagement push.
-  // Done after sending so a send failure doesn't silently suppress the next one.
-  if (reengagedUserIds.length > 0) {
+  // Stamp when each recipient was last sent something: the spacing behind
+  // "How often". Done after sending so a send failure doesn't silently
+  // suppress the next one.
+  for (let i = 0; i < notifiedUserIds.length; i += USER_CHUNK) {
     const { error: stampError } = await supabase
       .from("profiles")
-      .update({ last_reengagement_at: now.toISOString() })
-      .in("id", reengagedUserIds);
+      .update({ last_notified_at: now.toISOString() })
+      .in("id", notifiedUserIds.slice(i, i + USER_CHUNK));
     if (stampError) {
-      console.error("Failed to stamp last_reengagement_at:", stampError.message);
+      console.error("Failed to stamp last_notified_at:", stampError.message);
     }
   }
 
