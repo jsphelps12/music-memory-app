@@ -20,7 +20,16 @@ import {
  * banner), shown once someone has a moment, gone for good after either
  * answer. The time can be changed later in Settings.
  */
-export function DailyCheckInOffer({ userId, hasMoments }: { userId: string; hasMoments: boolean }) {
+export function DailyCheckInOffer({
+  userId,
+  hasMoments,
+  waiting = false,
+}: {
+  userId: string;
+  hasMoments: boolean;
+  /** Another offer is up (Last week's ask): one at a time, so this waits its turn. */
+  waiting?: boolean;
+}) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const posthog = usePostHog();
@@ -38,7 +47,7 @@ export function DailyCheckInOffer({ userId, hasMoments }: { userId: string; hasM
     };
   }, [userId, hasMoments]);
 
-  if (state === "hidden") return null;
+  if (state === "hidden" || (waiting && state === "offer")) return null;
 
   const time = formatCheckInTime(DEFAULT_CHECK_IN.hour, DEFAULT_CHECK_IN.minute);
 

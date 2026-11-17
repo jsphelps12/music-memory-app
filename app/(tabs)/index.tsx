@@ -54,6 +54,8 @@ import { CalendarView, type CalendarMoment } from "@/components/CalendarView";
 import { EmptyState } from "@/components/EmptyState";
 import { DailyCheckInOffer } from "@/components/DailyCheckInOffer";
 import { LastWeekRow } from "@/components/LastWeekRow";
+import { useLastWeek } from "@/hooks/useLastWeek";
+import { lastWeekRowState } from "@/lib/lastWeek";
 import { Moment } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 30_000;
@@ -67,6 +69,19 @@ const SHARED_BADGE_STALE_MS = 60_000;
 export default function TimelineScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
+  // One Journal offer at a time: the check-in offer waits while Last week's
+  // access ask is up (or still loading). Shares LastWeekRow's query.
+  const { data: lastWeek, isPending: lastWeekPending } = useLastWeek({ passive: true });
+  const lastWeekAsking =
+    (lastWeekPending && !!user) ||
+    (!!lastWeek &&
+      lastWeekRowState({
+        week: lastWeek.week,
+        access: lastWeek.access,
+        askDismissed: lastWeek.askDismissed,
+        dismissedWeek: lastWeek.dismissedWeek,
+        hasContent: lastWeek.hasContent,
+      }) === "ask");
   // Keyed on the id, not the user object: a token refresh replaces the object,
   // and that used to re-run the focus effect and refetch mid-scroll.
   const userId = user?.id;
@@ -572,7 +587,9 @@ export default function TimelineScreen() {
         />
       ) : null}
       {userId ? <LastWeekRow /> : null}
-      {userId ? <DailyCheckInOffer userId={userId} hasMoments={moments.length > 0} /> : null}
+      {userId ? (
+        <DailyCheckInOffer userId={userId} hasMoments={moments.length > 0} waiting={lastWeekAsking} />
+      ) : null}
     </>
   );
 

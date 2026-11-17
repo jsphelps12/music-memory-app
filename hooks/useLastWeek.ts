@@ -13,7 +13,14 @@ const STALE_TIME = 2 * 60 * 1000;
  * fresh: refetched on focus once stale. `observe` also records this week's
  * play counts and new Apple Music plays (the Journal does; throttled inside).
  */
-export function useLastWeek({ observe = false }: { observe?: boolean } = {}) {
+export function useLastWeek({
+  observe = false,
+  passive = false,
+}: {
+  observe?: boolean;
+  /** Only read the shared result: no photo analysis or focus refetch (the row does those). */
+  passive?: boolean;
+} = {}) {
   const { user } = useAuth();
   const query = useQuery({
     queryKey: ["lastWeek", user?.id],
@@ -27,7 +34,7 @@ export function useLastWeek({ observe = false }: { observe?: boolean } = {}) {
   // receipts drop out), then read the week again. Once per batch.
   const warming = useRef<string | null>(null);
   useEffect(() => {
-    const ids = data?.unanalyzed ?? [];
+    const ids = passive ? [] : (data?.unanalyzed ?? []);
     if (ids.length === 0) return;
     const batch = `${ids[0]}:${ids.length}`;
     if (warming.current === batch) return;
@@ -35,14 +42,14 @@ export function useLastWeek({ observe = false }: { observe?: boolean } = {}) {
     void warmAnalyses(ids).then((ok) => {
       if (ok) void refetch();
     });
-  }, [data?.unanalyzed, refetch]);
+  }, [data?.unanalyzed, refetch, passive]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!user) return;
+      if (!user || passive) return;
       if (observe) void observeListening();
       if (dataUpdatedAt && Date.now() - dataUpdatedAt > STALE_TIME) void refetch();
-    }, [user, observe, dataUpdatedAt, refetch])
+    }, [user, observe, passive, dataUpdatedAt, refetch])
   );
 
   return query;

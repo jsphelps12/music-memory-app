@@ -205,7 +205,13 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   wrong; a one-time hint over the + ("Hold + for Last week, From before
   and more", `components/CaptureHint.tsx`, once per device, gone after the
   first long-press); a linked video on someone else's moment shows a video
-  icon, not play, and the film says it stays in its owner's Photos.
+  icon, not play, and the film says it stays in its owner's Photos. (Then,
+  on Josh's call: someone else's linked videos are left out entirely,
+  `withoutOthersVideos`.) From the iPhone SE / iOS 18.3 pass (everything
+  runs; native menu, film, capture menu fine): the Start from sheet's rows
+  are inset like other sheets (icons sat on the screen edge), and the
+  Journal shows one offer at a time (the check-in offer waits while Last
+  week's ask is up; on an SE the two filled the first screen).
 - [x] Notification choices (built 2026-11-17; Josh: "why not just do it
   now"). Settings → Notifications is its own screen
   (`app/notification-settings.tsx`) with three groups instead of five

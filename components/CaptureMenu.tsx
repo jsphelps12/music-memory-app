@@ -1,8 +1,12 @@
+import { useMemo } from "react";
+import { StyleSheet, View } from "react-native";
 import { useRouter, type Href } from "expo-router";
 import { usePostHog } from "posthog-react-native";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ListRow } from "@/components/ListRow";
 import type { IconName } from "@/components/Icon";
+import { useTheme } from "@/hooks/useTheme";
+import { Theme } from "@/constants/theme";
 
 /**
  * Long-press on the capture button (1.4, Josh's idea): places to start a
@@ -12,6 +16,8 @@ import type { IconName } from "@/components/Icon";
 export function CaptureMenu({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const router = useRouter();
   const posthog = usePostHog();
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const go = (choice: string, href: Href) => {
     posthog?.capture("capture_menu_choice", { choice });
@@ -52,16 +58,28 @@ export function CaptureMenu({ visible, onClose }: { visible: boolean; onClose: (
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Start from">
-      {rows.map((row, i) => (
-        <ListRow
-          key={row.key}
-          label={row.label}
-          subtitle={row.subtitle}
-          icon={row.icon}
-          last={i === rows.length - 1}
-          onPress={() => go(row.key, row.href)}
-        />
-      ))}
+      {/* Inset like every other sheet's rows, so the icons clear the edge. */}
+      <View style={styles.body}>
+        {rows.map((row, i) => (
+          <ListRow
+            key={row.key}
+            label={row.label}
+            subtitle={row.subtitle}
+            icon={row.icon}
+            last={i === rows.length - 1}
+            onPress={() => go(row.key, row.href)}
+          />
+        ))}
+      </View>
     </BottomSheet>
   );
+}
+
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    body: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingBottom: theme.spacing.sm,
+    },
+  });
 }
