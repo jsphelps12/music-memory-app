@@ -85,6 +85,28 @@ export async function getRecentlyPlayed(limit = 50): Promise<RecentlyPlayedSong[
   }
 }
 
+/** A span's photos, from PhotoKit metadata (From before, 1.4). */
+export interface PhotoStats {
+  /** Photos taken, screenshots left out. */
+  count: number;
+  favorites: number;
+  /** Up to maxCoords [lat, lng] samples, evenly through the span. */
+  coords: [number, number][];
+}
+
+/**
+ * Photo counts, favourites and sampled locations for each [from, to) span
+ * (epoch ms). Null on a build without the native function, so callers can
+ * fall back.
+ */
+export async function photoStats(ranges: [number, number][], maxCoords = 20): Promise<PhotoStats[] | null> {
+  try {
+    return await NowPlayingNative.photoStats(ranges, maxCoords);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * App lock (1.4): a clock that can't be set back and counts through sleep.
  * Falls back to Date.now() where the native function is missing.

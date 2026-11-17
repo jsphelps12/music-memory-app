@@ -124,32 +124,98 @@ export function median(values: number[]): number {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
+// ── Where: home and away ───────────────────────────────────────────────────
+
+/** Farther than this from home is "away". */
+export const AWAY_KM = 60;
+/** A week is away when at least this share of its located photos is. */
+export const AWAY_SHARE = 0.5;
+/** And it needs at least this many located photos to say so. */
+export const AWAY_MIN_COORDS = 3;
+/** Home is found on a grid this many degrees square (~11 km). */
+const HOME_CELL = 0.1;
+
+export type Coord = [number, number];
+
+export function distanceKm(a: Coord, b: Coord): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b[0] - a[0]);
+  const dLng = toRad(b[1] - a[1]);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[0])) * Math.cos(toRad(b[0])) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+
+export function centroid(coords: Coord[]): Coord | null {
+  if (coords.length === 0) return null;
+  const sum = coords.reduce((acc, c) => [acc[0] + c[0], acc[1] + c[1]] as Coord, [0, 0] as Coord);
+  return [sum[0] / coords.length, sum[1] / coords.length];
+}
+
+/**
+ * Where most photos are taken: the busiest ~11 km cell of a year's sampled
+ * locations, averaged. Null without enough located photos.
+ */
+export function homeFrom(coords: Coord[], minCoords = 10): Coord | null {
+  if (coords.length < minCoords) return null;
+  const cells = new Map<string, Coord[]>();
+  for (const c of coords) {
+    const k = `${Math.round(c[0] / HOME_CELL)}:${Math.round(c[1] / HOME_CELL)}`;
+    cells.set(k, [...(cells.get(k) ?? []), c]);
+  }
+  let best: Coord[] = [];
+  for (const group of cells.values()) if (group.length > best.length) best = group;
+  return centroid(best);
+}
+
+/** The week's photos were mostly taken away from home. */
+export function isAway(coords: Coord[], home: Coord | null): boolean {
+  if (!home || coords.length < AWAY_MIN_COORDS) return false;
+  const away = coords.filter((c) => distanceKm(c, home) > AWAY_KM).length;
+  return away / coords.length >= AWAY_SHARE;
+}
+
 /**
  * How strong a pairing is, against the person's usual week: photos relative
  * to the median week among the candidates (so someone who shoots constantly
- * still gets their trips, not every week), then plays. Both taper.
+ * still gets their trips, not every week), then plays, then being away from
+ * home and favourited photos. Each tapers so no one signal carries it.
  */
-export function relativeScore(photos: number, usualPhotos: number, plays: number): number {
+export function relativeScore(photos: number, usualPhotos: number, plays: number, away = false, favorites = 0): number {
   if (photos <= 0) return 0;
   const ratio = photos / Math.max(usualPhotos, 1);
-  return Math.log2(1 + ratio) * 3 + Math.log2(1 + plays);
+  return Math.log2(1 + ratio) * 3 + Math.log2(1 + plays) + (away ? 2.5 : 0) + Math.log2(1 + favorites) * 1.5;
 }
 
 export interface ScoredPairing {
   song: PastSong;
   photos: number;
+  /** Favourited photos that week. */
+  favorites?: number;
+  /** Mostly taken away from home. */
+  away?: boolean;
+  /** The middle of the away photos, for naming the place. */
+  awayAt?: Coord | null;
 }
 
+/** Favourites that mark a week as one that mattered, even without a spike. */
+export const FAVORITES_MIN = 2;
+
 /**
- * The best `n` pairings, highest score first, one per month. Only weeks with
- * a real spike (SPIKE_MIN times the usual photos) count: an ordinary week
- * paired with a song reads as random. Fewer than `n` is fine.
+ * The best `n` pairings, highest score first, one per month. A week counts
+ * when it stands out: a photo spike (SPIKE_MIN times the usual), time away
+ * from home, or several favourited photos. An ordinary week paired with a
+ * song reads as random. Fewer than `n` is fine.
  */
 export function pickFromBefore(scored: ScoredPairing[], n = FROM_BEFORE_PICKS): ScoredPairing[] {
   const usual = median(scored.map((s) => s.photos));
   const ranked = scored
-    .filter((s) => s.photos >= Math.max(1, usual * SPIKE_MIN))
-    .map((s) => ({ ...s, score: relativeScore(s.photos, usual, s.song.plays) }))
+    .filter(
+      (s) =>
+        s.photos >= Math.max(1, usual * SPIKE_MIN) ||
+        (s.away === true && s.photos > 0) ||
+        (s.favorites ?? 0) >= FAVORITES_MIN
+    )
+    .map((s) => ({ ...s, score: relativeScore(s.photos, usual, s.song.plays, s.away, s.favorites ?? 0) }))
     .filter((s) => s.score > 0)
     .sort((a, b) => b.score - a.score);
   const months = new Set<string>();
@@ -158,7 +224,7 @@ export function pickFromBefore(scored: ScoredPairing[], n = FROM_BEFORE_PICKS): 
     const month = r.song.day.slice(0, 7);
     if (months.has(month)) continue;
     months.add(month);
-    out.push({ song: r.song, photos: r.photos });
+    out.push({ song: r.song, photos: r.photos, favorites: r.favorites, away: r.away, awayAt: r.awayAt });
     if (out.length >= n) break;
   }
   return out;
@@ -167,6 +233,22 @@ export function pickFromBefore(scored: ScoredPairing[], n = FROM_BEFORE_PICKS): 
 /** "Added June 3, 2019" for a From before row. */
 export function addedOnLabel(at: number): string {
   return `Added ${new Date(at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
+}
+
+/**
+ * Why a From before pick was picked: "Away in Kailua-Kona · the week of 70
+ * photos · 4 favourites · played 89 times". The row capitalizes the start.
+ */
+export function pairingReason(p: {
+  song: Pick<PastSong, "plays">;
+  photoCount: number;
+  favorites?: number;
+  away?: boolean;
+  place?: string | null;
+}): string {
+  const where = p.away ? (p.place ? `away in ${p.place}` : "away from home") : "";
+  const favs = p.favorites ? (p.favorites === 1 ? "1 favourite" : `${p.favorites} favourites`) : "";
+  return [where, photosLine(p.photoCount, "week"), favs, playsLine(p.song.plays)].filter(Boolean).join(" · ");
 }
 
 /** "played 89 times" (shown so a pick says why it was picked). */

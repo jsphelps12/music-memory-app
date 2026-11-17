@@ -126,6 +126,8 @@ export default function CreateMomentScreen() {
     photosDay?: string;
     /** From Last week: when the song or photo happened (epoch ms), the moment's date. */
     momentAt?: string;
+    /** "1" from the long-press menu's Search: open song search straight away. */
+    search?: string;
     /** From before: offer the week's photos (epoch ms bounds) rather than the day's. */
     photosFrom?: string;
     photosTo?: string;
@@ -209,6 +211,14 @@ export default function CreateMomentScreen() {
     openedSearchFor.current = params.shareFailedUrl;
     router.push({ pathname: "/song-search", params: { photos: JSON.stringify(photosRef.current) } });
   }, [params.shareFailedUrl, router]);
+
+  // The long-press menu's Search: straight to song search, once.
+  const openedSearch = useRef(false);
+  useEffect(() => {
+    if (params.search !== "1" || openedSearch.current) return;
+    openedSearch.current = true;
+    router.push({ pathname: "/song-search", params: { photos: JSON.stringify(photosRef.current) } });
+  }, [params.search, router]);
 
   // Restore photos from params after song-search navigation
   useEffect(() => {

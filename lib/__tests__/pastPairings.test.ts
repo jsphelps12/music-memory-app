@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { LibraryTrack } from "../lastWeek";
 import {
   addedOnLabel,
+  centroid,
   collapseAdds,
+  distanceKm,
+  homeFrom,
+  isAway,
+  pairingReason,
+  type Coord,
   fromBeforeCandidates,
   median,
   onThisDaySongs,
@@ -108,5 +114,51 @@ describe("copy", () => {
     expect(photosLine(0, "week")).toBe("");
     expect(playsLine(89)).toBe("played 89 times");
     expect(playsLine(1)).toBe("played once");
+  });
+});
+
+describe("home and away", () => {
+  const boulder: Coord = [40.015, -105.27];
+  const kona: Coord = [19.64, -155.99];
+  const near = (c: Coord, n: number): Coord[] => Array.from({ length: n }, (_, i) => [c[0] + i * 0.001, c[1] - i * 0.001]);
+
+  it("measures distance", () => {
+    expect(distanceKm(boulder, boulder)).toBe(0);
+    expect(distanceKm(boulder, kona)).toBeGreaterThan(5000);
+  });
+
+  it("finds home where most photos are taken", () => {
+    const home = homeFrom([...near(boulder, 30), ...near(kona, 8)])!;
+    expect(distanceKm(home, boulder)).toBeLessThan(5);
+    expect(homeFrom(near(boulder, 4))).toBeNull(); // too few to say
+  });
+
+  it("calls a week away when most of its photos are far from home", () => {
+    expect(isAway(near(kona, 6), boulder)).toBe(true);
+    expect(isAway([...near(boulder, 5), ...near(kona, 2)], boulder)).toBe(false);
+    expect(isAway(near(kona, 2), boulder)).toBe(false); // too few located photos
+    expect(isAway(near(kona, 6), null)).toBe(false);
+    expect(centroid([[0, 0], [2, 4]])).toEqual([1, 2]);
+  });
+
+  it("lets a trip or a favourited week in without a spike", () => {
+    // Usual week 10 photos: none of these has 15.
+    const picks = pickFromBefore([
+      { song: past("2024-08-08", 20), photos: 8, away: true },
+      { song: past("2023-03-01", 20), photos: 10, favorites: 3 },
+      { song: past("2022-05-05", 20), photos: 10 },
+      { song: past("2021-05-05", 20), photos: 12 },
+      { song: past("2020-05-05", 20), photos: 10 },
+    ]);
+    expect(picks.map((p) => p.song.day).sort()).toEqual(["2023-03-01", "2024-08-08"]);
+  });
+
+  it("says why", () => {
+    expect(
+      pairingReason({ song: { plays: 89 }, photoCount: 70, favorites: 4, away: true, place: "Kailua-Kona" })
+    ).toBe("away in Kailua-Kona · the week of 70 photos · 4 favourites · played 89 times");
+    expect(pairingReason({ song: { plays: 3 }, photoCount: 12, away: true })).toBe(
+      "away from home · the week of 12 photos · played 3 times"
+    );
   });
 });

@@ -1,6 +1,7 @@
 import ExpoModulesCore
 import MediaPlayer
 import MusicKit
+import Photos
 
 public class NowPlayingModule: Module {
   private var isObserving = false
@@ -108,6 +109,40 @@ public class NowPlayingModule: Module {
         }
       } catch {
         return []
+      }
+    }
+
+    // From before (1.4): for each [from, to) in epoch ms, the photos taken
+    // (screenshots left out), how many are favourited, and up to `maxCoords`
+    // locations sampled evenly through the range. One PhotoKit fetch per
+    // range, metadata only (no image data is loaded). Needs photo access.
+    AsyncFunction("photoStats") { (ranges: [[Double]], maxCoords: Int) -> [[String: Any]] in
+      let empty: [String: Any] = ["count": 0, "favorites": 0, "coords": [[Double]]()]
+      let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+      guard status == .authorized || status == .limited else { return ranges.map { _ in empty } }
+      return ranges.map { range in
+        guard range.count == 2 else { return empty }
+        let options = PHFetchOptions()
+        options.predicate = NSPredicate(
+          format: "mediaType == %d AND creationDate >= %@ AND creationDate < %@",
+          PHAssetMediaType.image.rawValue,
+          Date(timeIntervalSince1970: range[0] / 1000) as NSDate,
+          Date(timeIntervalSince1970: range[1] / 1000) as NSDate
+        )
+        let assets = PHAsset.fetchAssets(with: options)
+        let step = max(1, assets.count / max(1, maxCoords))
+        var count = 0
+        var favorites = 0
+        var coords: [[Double]] = []
+        assets.enumerateObjects { asset, index, _ in
+          if asset.mediaSubtypes.contains(.photoScreenshot) { return }
+          count += 1
+          if asset.isFavorite { favorites += 1 }
+          if index % step == 0, coords.count < maxCoords, let location = asset.location {
+            coords.append([location.coordinate.latitude, location.coordinate.longitude])
+          }
+        }
+        return ["count": count, "favorites": favorites, "coords": coords]
       }
     }
   }

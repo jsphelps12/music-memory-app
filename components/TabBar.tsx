@@ -1,6 +1,8 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { runWhenIdle, type IdleTask } from "@/lib/whenIdle";
-import { useEffect, useMemo, useRef } from "react";
+import { CaptureMenu } from "@/components/CaptureMenu";
+import * as Haptics from "expo-haptics";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "@/components/Icon";
@@ -45,6 +47,7 @@ export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // The tabs are lazy (app/(tabs)/_layout.tsx), so Rediscover and You no
   // longer mount and fetch alongside the Journal's first paint. Once startup
@@ -94,12 +97,20 @@ export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps
         testID="tab-create"
         accessibilityRole="button"
         accessibilityLabel="Capture a song"
+        accessibilityHint="Hold for more ways to start"
         onPress={() => router.push("/create")}
+        onLongPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          setMenuOpen(true);
+        }}
+        delayLongPress={350}
         activeOpacity={0.85}
         style={styles.capture}
       >
         <Icon name="add" size={28} color={theme.colors.buttonText} fixedSize />
       </TouchableOpacity>
+
+      <CaptureMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
 
       <MiniPlayer />
       <View style={[styles.bar, { height: 49 + insets.bottom, paddingBottom: insets.bottom }]}>

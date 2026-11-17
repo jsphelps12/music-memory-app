@@ -5,24 +5,30 @@
 // the device; only the "Saved" check reads the user's moments.
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
 import * as MediaLibrary from "expo-media-library/legacy";
 import { currentWeek, type LibraryTrack } from "@/lib/lastWeek";
 import { lookupCatalog, savedByStoreId } from "@/lib/lastWeekData";
 import { photoWindow } from "@/lib/libraryMoments";
 import {
+  centroid,
   FROM_BEFORE_CANDIDATES,
   fromBeforeCandidates,
+  homeFrom,
+  isAway,
   onThisDaySongs,
   pickFromBefore,
+  type Coord,
   type PastSong,
   type ScoredPairing,
 } from "@/lib/pastPairings";
-import { getLibrarySongs, libraryAccessStatus } from "@/modules/now-playing";
+import { getLibrarySongs, libraryAccessStatus, photoStats } from "@/modules/now-playing";
 import type { Song } from "@/types";
 
 const LIBRARY_LIMIT = 8000;
-// v2: picks need a photo spike (2026-11-17); v1 picks were recomputed.
-const PICKS_KEY = "frombefore_picks_v2";
+// v3: picks weigh location and favourites too (2026-11-17); older picks are recomputed.
+const PICKS_KEY = "frombefore_picks_v3";
+const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 const SHOWN_KEY = "frombefore_shown_v1";
 const SHOWN_MAX = 300;
 const THUMBS = 4;
@@ -31,6 +37,11 @@ export interface PastPairing {
   song: PastSong;
   photoCount: number;
   photoUris: string[];
+  favorites?: number;
+  /** Mostly taken away from home. */
+  away?: boolean;
+  /** The town for an away week ("Kailua-Kona"), when it could be named. */
+  place?: string | null;
 }
 
 export interface PastPairings {
@@ -120,6 +131,52 @@ export async function loadPhoneOnThisDay(userId: string, now = Date.now()): Prom
 }
 
 /**
+ * Each candidate's week of photos: how many, how many favourited, and
+ * whether they were mostly taken away from home (home being where a year of
+ * photos cluster). PhotoKit metadata in one native call; on a build without
+ * it, counts only.
+ */
+async function scoreCandidates(candidates: PastSong[], now: number): Promise<ScoredPairing[]> {
+  const ranges = candidates.map((s) => {
+    const { from, to } = photoWindow(s.at);
+    return [from, to] as [number, number];
+  });
+  const stats = await photoStats(ranges, 20);
+  if (stats) {
+    const year = await photoStats([[now - YEAR_MS, now]], 400);
+    const home = homeFrom((year?.[0]?.coords ?? []) as Coord[]);
+    return candidates.map((song, i) => {
+      const coords = (stats[i]?.coords ?? []) as Coord[];
+      const away = isAway(coords, home);
+      return {
+        song,
+        photos: stats[i]?.count ?? 0,
+        favorites: stats[i]?.favorites ?? 0,
+        away,
+        awayAt: away ? centroid(coords) : null,
+      };
+    });
+  }
+  const scored: ScoredPairing[] = [];
+  for (let i = 0; i < candidates.length; i += 8) {
+    const batch = candidates.slice(i, i + 8);
+    const counts = await Promise.all(batch.map((song, j) => photosIn(ranges[i + j][0], ranges[i + j][1], false)));
+    batch.forEach((song, j) => scored.push({ song, photos: counts[j].count }));
+  }
+  return scored;
+}
+
+/** "Kailua-Kona", from Apple's geocoder; null if it can't be named. */
+async function placeName([latitude, longitude]: Coord): Promise<string | null> {
+  try {
+    const [r] = await Location.reverseGeocodeAsync({ latitude, longitude });
+    return r?.city || r?.region || r?.country || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * This week's From before: up to three old pairings, chosen the first time
  * Rediscover is opened in a week and kept until the next.
  */
@@ -136,24 +193,14 @@ export async function loadFromBefore(userId: string, now = Date.now()): Promise<
   const saved = await savedByStoreId(userId, storeIds).catch(() => ({}) as Record<string, string>);
   const candidates = pool.filter((s) => !(s.storeId && saved[s.storeId])).slice(0, FROM_BEFORE_CANDIDATES);
 
-  // Count each candidate's week of photos, a few at a time.
-  const scored: ScoredPairing[] = [];
-  for (let i = 0; i < candidates.length; i += 8) {
-    const batch = candidates.slice(i, i + 8);
-    const counts = await Promise.all(
-      batch.map((song) => {
-        const { from, to } = photoWindow(song.at);
-        return photosIn(from, to, false);
-      })
-    );
-    batch.forEach((song, j) => scored.push({ song, photos: counts[j].count }));
-  }
+  const scored = await scoreCandidates(candidates, now);
 
   const picks: PastPairing[] = await Promise.all(
-    pickFromBefore(scored).map(async ({ song, photos }) => {
+    pickFromBefore(scored).map(async ({ song, photos, favorites, away, awayAt }) => {
       const { from, to } = photoWindow(song.at);
       const p = await photosIn(from, to, true);
-      return { song, photoCount: photos, photoUris: p.uris };
+      const place = away && awayAt ? await placeName(awayAt) : null;
+      return { song, photoCount: photos, photoUris: p.uris, favorites, away, place };
     })
   );
 

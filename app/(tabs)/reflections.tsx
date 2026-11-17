@@ -43,7 +43,7 @@ import { SectionLabel } from "@/components/SectionLabel";
 import { PastPairingRow } from "@/components/PastPairingRow";
 import { currentWeek } from "@/lib/lastWeek";
 import { captureParams, songForCreate } from "@/lib/lastWeekData";
-import { addedOnLabel, photosLine, playsLine, yearsAgo as yearsSince } from "@/lib/pastPairings";
+import { addedOnLabel, pairingReason, photosLine, yearsAgo as yearsSince } from "@/lib/pastPairings";
 import { photoWindow } from "@/lib/libraryMoments";
 import { loadFromBefore, loadPhoneOnThisDay, type PastPairing, type PastPairings } from "@/lib/pastPairingsData";
 import { friendlyError } from "@/lib/errors";
@@ -723,7 +723,7 @@ export default function ReflectionsScreen() {
                   key={p.song.key}
                   song={p.song}
                   when={addedOnLabel(p.song.at)}
-                  line={[photosLine(p.photoCount, "week"), playsLine(p.song.plays)].filter(Boolean).join(" · ")}
+                  line={pairingReason(p)}
                   artworkUrl={songForCreate(p.song, fromBefore.catalog).artworkUrl}
                   photoUris={p.photoUris}
                   saved={!!fromBefore.saved[p.song.key]}

@@ -119,9 +119,15 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   `components/DayPhotosSuggestion.tsx`. Native: `getRecentlyPlayed`,
   `libraryAccessStatus`, album fields on library songs.
 - [ ] Notification choices (Josh, 2026-11-17: a 9pm nudge every day may be
-  too much for most, but some want a streak): pick days (every day,
-  weekdays, a few times a week), time, and keep "skip if I already saved
-  one today". Leave the daily check-in as is until then.
+  too much for most, but some want a streak). Proposal, awaiting Josh's
+  calls: one "How often" cap (daily / a few times a week / weekly / off)
+  over non-social pushes, sending the most valuable within it; three groups
+  instead of five toggles: Check-in (days + time, skipped if saved today),
+  Things coming back (On this day, From before, random memories, a new
+  "Last week is ready" Sunday evening; only with real content), From
+  friends (uncapped); quiet hours (10pm–8am); retire streak reminders and
+  "still there?" (notifications about absence break principle 3). Server
+  work, so it ships over the air after 1.4.
 - [ ] Photos ↔ music prototype (built 2026-11-16, needs Josh's phone):
   `getLibrarySongs` in the NowPlaying module (`dateAdded`, play count,
   last played) + `expo-media-library` photo counts for ±3 days. Hidden
@@ -509,12 +515,24 @@ clutter, navigation.
   broken up by unsaved material; it stays always available. A pairing's row
   always starts a new moment (a week can hold several); a saved one also
   offers Open. "Last week" rows work the same way.
-- [ ] Long-press the + for starting points (Josh's idea, 2026-11-17): a
-  quick-pick sheet with Identify, Search, Last week and From before.
-- [ ] Smarter pairings, all on device: photo location ("away from home"
-  marks trips, the strongest single signal), favourited photos, and what
-  Josh does with them (rank down skipped kinds, up saved ones). Photos'
-  People aren't available to apps; Google Photos isn't readable at all.
+- [x] Long-press the + for starting points (Josh's idea, built 2026-11-17):
+  a tap still opens capture; holding opens a "Start from" sheet: Identify,
+  Search (capture opens straight into song search), Last week, and From
+  before (its own screen, `app/from-before.tsx`, same weekly picks).
+  `components/CaptureMenu.tsx`.
+- [x] Smarter pairings, location and favourites (built 2026-11-17): a new
+  native `photoStats` reads PhotoKit metadata per week in one call (count
+  without screenshots, favourites, sampled locations). Home is the busiest
+  ~11 km cell of a year's photo locations; a week is "away" when most of
+  its photos are 60+ km from it, and the town is named ("away in
+  Kailua-Kona"). A week qualifies with a photo spike, being away, or 2+
+  favourites; all three add to the score and the reason line.
+- [ ] Smarter pairings, next: learn from what Josh saves vs ignores; on-device
+  Vision scene tags (beach, concert, wedding) and best-photo choice; Apple's
+  on-device model for the nudge question (never the reflection); "you
+  found it the week it came out". No cloud AI for this (photo locations
+  and listening history stay on the phone). Photos' People aren't
+  available to apps; Google Photos isn't readable at all.
 - [ ] **Photos ↔ music: three moments a week.** On device only: Apple Music
   library `dateAdded` / play count / last played (+ Replay playlists) matched
   to photos from ±3 days (date, place, favorites; iOS 18 on-device aesthetic

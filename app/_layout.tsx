@@ -505,6 +505,7 @@ function RootLayoutNav() {
             name="last-week"
             options={{ headerShown: false }}
           />
+          <Stack.Screen name="from-before" options={{ headerShown: false }} />
           <Stack.Screen
             name="write"
             options={{ headerShown: false, presentation: "fullScreenModal" }}
