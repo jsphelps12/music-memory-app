@@ -36,6 +36,42 @@ below should move that, or it doesn't belong on this page.
 - **Never paywall capture or your own history.**
 - **Every surface is a screen or a quick pick** (no pageSheet cards).
 
+## What makes it an 11/10 (Josh, 2026-11-17)
+
+Josh's list, in his order. Use it to judge what goes into each phase.
+
+1. **Dialed-in suggestions for songs, photos and moments**, so logging is
+   easy and intuitive. (Last week, From before and the on-device AI are
+   the start.)
+2. **Incredible presentation of a moment.** The moment film is the start;
+   it may eventually mean real video editing.
+3. **Song suggestions and recommendations from your taste**, maybe.
+4. **Good summaries and insights** drawn from logged moments and music
+   data (Year in review is the start).
+5. **Incredible, beautiful output:** export, a printed book, printables,
+   sharing.
+
+Claude's additions, for Josh to accept or cut:
+
+6. **The song brings the memory back.** When a song you've logged plays,
+   its moment is there: on the now-playing screen in the app, a widget, a
+   Live Activity. Of everything here, this is the most distinctive: the
+   app is closed when most listening happens, so first find out what iOS
+   allows here.
+7. **Capture in three seconds, from anywhere:** Lock Screen, Control
+   Center, Action button, Siri/Shortcuts ("remember this song"), the
+   share sheet, Shazam. Write later, from a gentle "finish this one".
+8. **It lasts decades.** Your journal outlives phones and this app:
+   reliable backup, a full export you can read without the app (PDF plus
+   photos and data), and linked photos that survive a library cleanup.
+   People only pour years into something they trust to keep.
+9. **Craft you can feel:** haptics, motion, sound, and speed, everywhere.
+   Every screen opens instantly, nothing jumps, and the song is always a
+   tap from playing.
+10. **The people who were there.** A shared moment collects each person's
+    side of the same night (your words, their photos), without becoming a
+    social feed.
+
 ## Where things stand (2026-11-17)
 
 - **1.3.1 (build 10) is live** on the App Store: the "Pressed S" icon and
