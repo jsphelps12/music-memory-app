@@ -8,11 +8,13 @@ import { usePostHog } from "posthog-react-native";
 import { ListRow } from "@/components/ListRow";
 import { BottomSheet } from "@/components/BottomSheet";
 import { Button } from "@/components/Button";
+import { Chip } from "@/components/Chip";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import {
   CheckInSettings,
   DEFAULT_CHECK_IN,
+  describeDays,
   formatCheckInTime,
   readCheckInSettings,
   setCheckIn,
@@ -23,9 +25,21 @@ interface Props {
   last?: boolean;
 }
 
+/** Monday first; 0 = Sunday as in Date.getDay(). */
+const WEEK = [
+  { day: 1, label: "M", name: "Monday" },
+  { day: 2, label: "T", name: "Tuesday" },
+  { day: 3, label: "W", name: "Wednesday" },
+  { day: 4, label: "T", name: "Thursday" },
+  { day: 5, label: "F", name: "Friday" },
+  { day: 6, label: "S", name: "Saturday" },
+  { day: 0, label: "S", name: "Sunday" },
+];
+
 /**
- * Settings → Journal: the daily check-in switch, and its time. The row
- * reads "Every night at 9:00 PM"; tapping it (when on) opens a time picker.
+ * Settings → Notifications: the daily check-in switch, its time and its
+ * days. Tapping the row (when on) opens a time picker; the day chips below
+ * it pick which days to ask (at least one).
  */
 export function DailyCheckInRow({ userId, last }: Props) {
   const theme = useTheme();
@@ -78,14 +92,25 @@ export function DailyCheckInRow({ userId, last }: Props) {
 
   const saveTime = () => {
     setPickerOpen(false);
-    void apply({ enabled: true, hour: draft.getHours(), minute: draft.getMinutes() });
+    void apply({ ...settings, enabled: true, hour: draft.getHours(), minute: draft.getMinutes() });
   };
 
+  const toggleDay = (day: number) => {
+    const on = settings.days.includes(day);
+    if (on && settings.days.length === 1) return; // keep at least one
+    Haptics.selectionAsync();
+    const days = on ? settings.days.filter((d) => d !== day) : [...settings.days, day].sort();
+    setSettings({ ...settings, days }); // moves on tap; apply() confirms
+    void apply({ ...settings, days });
+  };
+
+  const when = describeDays(settings.days);
   const subtitle = denied
     ? "Notifications are off for Soundtracks in iOS Settings."
     : settings.enabled
-      ? `Every day at ${formatCheckInTime(settings.hour, settings.minute)}, unless you've already saved one`
-      : "One question a day: what song did you listen to today?";
+      ? `${when} at ${formatCheckInTime(settings.hour, settings.minute)}, unless you've already saved one`
+      : "One question: what song did you listen to today?";
+  const showDays = settings.enabled && !denied;
 
   return (
     <>
@@ -93,7 +118,7 @@ export function DailyCheckInRow({ userId, last }: Props) {
         label="Daily check-in"
         subtitle={subtitle}
         subtitleLines={3}
-        last={last && !denied}
+        last={last && !denied && !showDays}
         onPress={settings.enabled ? openPicker : undefined}
         accessibilityHint={settings.enabled ? "Change the time" : undefined}
         trailing={
@@ -107,6 +132,23 @@ export function DailyCheckInRow({ userId, last }: Props) {
           />
         }
       />
+      {showDays ? (
+        <View style={[styles.days, styles.daysDivider]} accessibilityLabel="Check-in days">
+          {WEEK.map(({ day, label, name }) => {
+            const selected = settings.days.includes(day);
+            return (
+              <Chip
+                key={day}
+                label={label}
+                selected={selected}
+                onPress={() => toggleDay(day)}
+                style={styles.dayChip}
+                accessibilityHint={`${name}, ${selected ? "on" : "off"}`}
+              />
+            );
+          })}
+        </View>
+      ) : null}
       {denied ? (
         <ListRow
           label="Open iOS Settings"
@@ -144,6 +186,20 @@ export function DailyCheckInRow({ userId, last }: Props) {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
+    days: {
+      flexDirection: "row",
+      gap: theme.spacing.xs,
+      paddingBottom: theme.spacing.md,
+    },
+    daysDivider: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.divider,
+    },
+    dayChip: {
+      flex: 1,
+      paddingHorizontal: 0,
+      justifyContent: "center",
+    },
     sheetBody: {
       paddingHorizontal: theme.spacing.xl,
       paddingBottom: theme.spacing.sm,

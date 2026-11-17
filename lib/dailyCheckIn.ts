@@ -3,6 +3,7 @@
 // phone schedules them, no server involved (decided 2026-11-16).
 //
 // - Opt-in: Settings → Notifications, or a one-time offer in the Journal.
+// - On the days you pick (every day by default, 1.4).
 // - Skips days you already logged: the next two weeks are scheduled as
 //   individual reminders, and saving a moment cancels today's.
 // - Refreshed every time the app opens, so it quietly stops after two weeks
@@ -19,9 +20,12 @@ export interface CheckInSettings {
   enabled: boolean;
   hour: number;
   minute: number;
+  /** Weekdays to ask on, 0 = Sunday … 6 = Saturday, sorted. Never empty. */
+  days: number[];
 }
 
-export const DEFAULT_CHECK_IN: CheckInSettings = { enabled: false, hour: 21, minute: 0 };
+export const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
+export const DEFAULT_CHECK_IN: CheckInSettings = { enabled: false, hour: 21, minute: 0, days: EVERY_DAY };
 /** How far ahead reminders are scheduled; also how long they outlast an absence. */
 export const CHECK_IN_DAYS = 14;
 
@@ -51,11 +55,13 @@ export function planCheckIns(
   hour: number,
   minute: number,
   loggedToday: boolean,
-  days = CHECK_IN_DAYS
+  days = CHECK_IN_DAYS,
+  weekdays: number[] = EVERY_DAY
 ): Date[] {
   const out: Date[] = [];
   for (let i = 0; i < days; i++) {
     const at = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i, hour, minute, 0, 0);
+    if (!weekdays.includes(at.getDay())) continue;
     if (i === 0 && (loggedToday || at.getTime() <= now.getTime())) continue;
     out.push(at);
   }
@@ -68,6 +74,25 @@ export function formatCheckInTime(hour: number, minute: number): string {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+/** Valid weekdays, deduplicated and sorted; every day for anything unusable. */
+export function normalizeDays(days: unknown): number[] {
+  if (!Array.isArray(days)) return EVERY_DAY;
+  const valid = [...new Set(days.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6))].sort();
+  return valid.length ? valid : EVERY_DAY;
+}
+
+const DAY_NAMES = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
+
+/** "Every day", "Weekdays", "Weekends", or "Mondays, Wednesdays". */
+export function describeDays(days: number[]): string {
+  const d = normalizeDays(days);
+  if (d.length === 7) return "Every day";
+  if (d.join() === "1,2,3,4,5") return "Weekdays";
+  if (d.join() === "0,6") return "Weekends";
+  // Week order starting Monday reads more naturally.
+  return [...d].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((x) => DAY_NAMES[x]).join(", ");
 }
 
 /** A parsed settings value, or the default when missing or malformed. */
@@ -84,7 +109,7 @@ export function parseCheckInSettings(raw: string | null): CheckInSettings {
     ) {
       return DEFAULT_CHECK_IN;
     }
-    return { enabled: v.enabled, hour, minute };
+    return { enabled: v.enabled, hour, minute, days: normalizeDays(v.days) };
   } catch {
     return DEFAULT_CHECK_IN;
   }
@@ -166,7 +191,7 @@ export async function refreshCheckIns(userId: string, now = new Date()): Promise
   if (status !== "granted") return;
 
   const logged = await loggedSinceMidnight(userId, now);
-  const times = planCheckIns(now, settings.hour, settings.minute, logged);
+  const times = planCheckIns(now, settings.hour, settings.minute, logged, CHECK_IN_DAYS, settings.days);
   for (const at of times) {
     try {
       await Notifications.scheduleNotificationAsync({

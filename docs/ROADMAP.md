@@ -127,16 +127,30 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   `components/LastWeekRow.tsx`, `app/last-week.tsx`,
   `components/DayPhotosSuggestion.tsx`. Native: `getRecentlyPlayed`,
   `libraryAccessStatus`, album fields on library songs.
-- [ ] Notification choices (Josh, 2026-11-17: a 9pm nudge every day may be
-  too much for most, but some want a streak). Proposal, awaiting Josh's
-  calls: one "How often" cap (daily / a few times a week / weekly / off)
-  over non-social pushes, sending the most valuable within it; three groups
-  instead of five toggles: Check-in (days + time, skipped if saved today),
-  Things coming back (On this day, From before, random memories, a new
-  "Last week is ready" Sunday evening; only with real content), From
-  friends (uncapped); quiet hours (10pm–8am); retire streak reminders and
-  "still there?" (notifications about absence break principle 3). Server
-  work, so it ships over the air after 1.4.
+- [x] Notification choices (built 2026-11-17; Josh: "why not just do it
+  now"). Settings → Notifications is its own screen
+  (`app/notification-settings.tsx`) with three groups instead of five
+  switches: **Your check-in** (the daily check-in, now with days as well as
+  a time; streak milestones), **Things coming back** (On this day, random
+  memories, and a new local "Last week is ready" on Sunday at 6pm, only
+  for a week that has songs or photos), and **From friends** (shares and
+  new friends; "Quiet at night" sends them silently 10pm–8am, never
+  dropped). **How often** (daily / a few times a week, the default /
+  weekly / off) spaces memories coming back 1, 3 or 7 days apart; Off
+  stops every server push except friends'. Random memories now come
+  whenever the spacing allows (a moment at least a month old, opening the
+  memory card), not only on Mondays. Retired (principle 3, never notify
+  about absence): streak reminders, "still there?", the day-7/14 "we miss
+  you" pushes, and the Tue/Thu journal prompts (the check-in, which people
+  choose, replaces them). Server: migration
+  `20261117120000_notification_choices.sql` (`notif_frequency`,
+  `notif_social`, `notif_quiet_hours`, `notif_last_week`,
+  `last_notified_at`), `send-notifications` (tested),
+  `_shared/socialPush.ts` (tested) in `notify-social` and
+  `accept-friend-invite`. The server half reaches 1.3.1 users too once
+  deployed (their old switches for streaks and prompts then do nothing);
+  the screen ships with 1.4. Local: `lib/dailyCheckIn.ts` (days, tested),
+  `lib/lastWeekReady.ts` (tested).
 - [ ] Photos ↔ music prototype (built 2026-11-16, needs Josh's phone):
   `getLibrarySongs` in the NowPlaying module (`dateAdded`, play count,
   last played) + `expo-media-library` photo counts for ±3 days. Hidden
@@ -492,7 +506,8 @@ clutter, navigation.
   (no server). Skips any day you've already saved a moment: two weeks are
   scheduled ahead, saving cancels today's, and each app open re-plans them,
   so they run out after two weeks away instead of nagging someone who left.
-  Opt in from Settings → Journal → Daily check-in (switch + time) or the
+  Opt in from Settings → Notifications → Daily check-in (switch, time and,
+  since 1.4, days) or the
   Journal's one-time offer; a denied notification permission says so and
   links to iOS Settings. Tapping opens Capture with what's playing filled
   in. Settings are per device. `lib/dailyCheckIn.ts` (tested),

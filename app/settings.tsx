@@ -4,12 +4,10 @@ import {
   ActivityIndicator,
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   Alert,
   ScrollView,
   Share,
-  Switch,
   Linking,
   Platform,
 } from "react-native";
@@ -21,7 +19,6 @@ import * as Updates from "expo-updates";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Icon } from "@/components/Icon";
 import { useAuth } from "@/contexts/AuthContext";
 import { PromptsSection } from "@/components/PromptsSection";
 import { confirmSheet } from "@/components/ConfirmSheet";
@@ -29,7 +26,6 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
 import { Button } from "@/components/Button";
 import { ListRow } from "@/components/ListRow";
-import { DailyCheckInRow } from "@/components/DailyCheckInRow";
 import { AppLockRow } from "@/components/AppLockRow";
 import { exportJournalPdf } from "@/lib/journalExportDevice";
 import { moodLabel } from "@/lib/moodLabels";
@@ -62,22 +58,6 @@ function versionLine(): string {
   return `${binary} · update ${when}`;
 }
 
-type NotifField =
-  | "notifOnThisDay"
-  | "notifStreak"
-  | "notifPrompts"
-  | "notifResurfacing"
-  | "notifMilestones";
-
-// Analytics names predate the camelCase fields; keep the event values stable.
-const NOTIF_EVENT_NAME: Record<NotifField, string> = {
-  notifOnThisDay: "notif_on_this_day",
-  notifStreak: "notif_streak",
-  notifPrompts: "notif_prompts",
-  notifResurfacing: "notif_resurfacing",
-  notifMilestones: "notif_milestones",
-};
-
 /**
  * Settings (Phase 1, 2026-10): everything that used to stack up under the
  * You tab's stats. You is now about your stuff (shared with you, albums,
@@ -88,7 +68,6 @@ export default function SettingsScreen() {
   const {
     user,
     profile,
-    updateProfile,
     signOut,
     deleteAccount,
     saveCustomPromptCategory,
@@ -103,11 +82,7 @@ export default function SettingsScreen() {
   const [signOutError, setSignOutError] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [showPrompts, setShowPrompts] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [notifPermission, setNotifPermission] = useState<"granted" | "denied" | "undetermined">("granted");
-  // The profile in AuthContext is the source of truth for the toggles; this
-  // only holds the value being saved, so the switch moves on tap.
-  const [pendingNotif, setPendingNotif] = useState<{ field: NotifField; value: boolean } | null>(null);
   const [feedbackSheetVisible, setFeedbackSheetVisible] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
@@ -146,24 +121,6 @@ export default function SettingsScreen() {
   }, []);
   useFocusEffect(readPermission);
   useOnForeground(readPermission);
-
-  const notifValue = (field: NotifField): boolean =>
-    pendingNotif?.field === field ? pendingNotif.value : profile?.[field] ?? true;
-
-  const handleNotifToggle = async (field: NotifField, value: boolean) => {
-    if (!user || !profile || pendingNotif !== null) return;
-    setPendingNotif({ field, value });
-    posthog.capture("notification_preferences_changed", { notification_type: NOTIF_EVENT_NAME[field], enabled: value });
-    try {
-      // Goes through AuthContext so the profile everyone reads is updated too.
-      await updateProfile({ [field]: value });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e) {
-      Alert.alert("Couldn't save", friendlyError(e));
-    } finally {
-      setPendingNotif(null);
-    }
-  };
 
   const handleInvite = () => {
     if (!profile?.friendInviteToken) return;
@@ -245,17 +202,6 @@ export default function SettingsScreen() {
     }
   };
 
-  // Ink, not terracotta, for an "on" switch (theme.colors.switchOn).
-  const switchTrack = { false: theme.colors.border, true: theme.colors.switchOn };
-
-  const notifRows = [
-    { field: "notifOnThisDay", label: "On this day", sub: "When a song anniversary comes up" },
-    { field: "notifResurfacing", label: "Random memories", sub: "A random moment from your past" },
-    { field: "notifMilestones", label: "Streak milestones", sub: "Celebrate hitting a new streak" },
-    { field: "notifStreak", label: "Streak reminders", sub: "Keep your logging streak going" },
-    { field: "notifPrompts", label: "Journal prompts", sub: "Occasional nudges to capture a moment" },
-  ] as const;
-
   return (
     <View style={styles.container}>
       <ScreenHeader leading="back" title="Settings" />
@@ -269,49 +215,11 @@ export default function SettingsScreen() {
 
         <SectionLabel style={[styles.groupLabel, styles.groupLabelSpaced]}>Journal</SectionLabel>
         <View style={styles.list}>
-          {user ? <DailyCheckInRow userId={user.id} /> : null}
           <ListRow
             label="Notifications"
             detail={notifPermission !== "granted" ? "Off" : undefined}
-            accessory="expand"
-            expanded={showNotifications}
-            onPress={() => setShowNotifications((v) => !v)}
-            last={showNotifications}
+            onPress={() => router.push("/notification-settings")}
           />
-          {showNotifications && (
-            <View style={styles.expandBody}>
-              {notifPermission !== "granted" ? (
-                <TouchableOpacity
-                  style={styles.notifSettingsRow}
-                  onPress={() => Linking.openSettings()}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                >
-                  <Icon name="notifications-off-outline" size={18} color={theme.colors.textSecondary} />
-                  <Text style={styles.notifSettingsText}>Notifications are off for Soundtracks</Text>
-                  <Text style={styles.notifSettingsLink}>Open Settings</Text>
-                </TouchableOpacity>
-              ) : (
-                notifRows.map(({ field, label, sub }, idx) => (
-                  <ListRow
-                    key={field}
-                    label={label}
-                    subtitle={sub}
-                    last={idx === notifRows.length - 1}
-                    trailing={
-                      <Switch
-                        value={notifValue(field)}
-                        onValueChange={(v) => handleNotifToggle(field, v)}
-                        disabled={pendingNotif !== null || !profile}
-                        trackColor={switchTrack}
-                        ios_backgroundColor={theme.colors.border}
-                      />
-                    }
-                  />
-                ))
-              )}
-            </View>
-          )}
           <ListRow
             label="Prompts"
             accessory="expand"
@@ -426,23 +334,6 @@ function createStyles(theme: Theme) {
       paddingBottom: theme.spacing.md,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.colors.divider,
-    },
-    notifSettingsRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-      paddingVertical: theme.spacing.sm,
-    },
-    notifSettingsText: {
-      flex: 1,
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
-      color: theme.colors.textSecondary,
-    },
-    notifSettingsLink: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.text,
     },
     signOutErrorText: {
       ...theme.typography.body,

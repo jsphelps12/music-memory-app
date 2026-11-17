@@ -4,9 +4,9 @@
 // is plain TypeScript so it can be unit tested with vitest from the app repo
 // (`supabase/functions/**` is excluded from tsconfig and eslint, but vitest
 // picks up the co-located test file). Everything the cascade needs is passed in,
-// including `random`, so a test can make priority 7 deterministic.
+// including `random`, so a test can make the random memory deterministic.
 //
-// index.ts owns: auth, fetching, map building, sending, cooldown stamping.
+// index.ts owns: auth, fetching, sending, stamping last_notified_at.
 // This file owns: deciding who gets which notification.
 
 export interface ExpoPushMessage {
@@ -41,19 +41,18 @@ export interface EligibleUser {
   push_token?: string | null;
   created_at?: string | null;
   timezone?: string | null;
-  last_reengagement_at?: string | null;
   notif_on_this_day?: boolean | null;
-  notif_streak?: boolean | null;
-  notif_prompts?: boolean | null;
   notif_resurfacing?: boolean | null;
   notif_milestones?: boolean | null;
+  /** "daily" | "few" | "weekly" | "off"; anything else reads as "few". */
+  notif_frequency?: string | null;
+  /** When this function last sent the user anything (the spacing). */
+  last_notified_at?: string | null;
 }
 
 export interface SelectNotificationsInput {
   eligibleUsers: EligibleUser[];
   momentsByUser: Record<string, MomentRow[]>;
-  /** userId -> song_title of the most recent moment logged yesterday */
-  loggedYesterdayByUser: Map<string, string>;
   /** userIds who logged a moment today */
   loggedTodaySet: Set<string>;
   allMoments: UserMomentRow[] | null;
@@ -62,10 +61,6 @@ export interface SelectNotificationsInput {
   todayYear: number;
   todayMM: string;
   todayDD: string;
-  /** 0=Sun … 6=Sat, in the users' local timezone (see buildSelectionInputs) */
-  todayDow: number;
-  /** deterministic copy-variant selector (local day of month) */
-  daySeed: number;
   prefsByUserId: Record<string, EligibleUser | undefined>;
   tokenByUserId: Record<string, string>;
   /** injectable for deterministic tests; defaults to Math.random */
@@ -74,11 +69,43 @@ export interface SelectNotificationsInput {
 
 export interface SelectNotificationsResult {
   messages: ExpoPushMessage[];
-  /** users who received a priority-5 re-engagement push; caller stamps their cooldown */
-  reengagedUserIds: string[];
+  /** everyone who got a push this run; the caller stamps last_notified_at */
+  notifiedUserIds: string[];
 }
 
 export const STREAK_MILESTONES = new Set([5, 10, 25, 50]);
+
+// ── How often (1.4) ──────────────────────────────────────────────────────────
+// One setting, "How often", spaces out memories coming back (On this day,
+// random memories): at least this many days between them. "off" sends
+// nothing from here at all. Friends' pushes and the user's own check-in are
+// elsewhere and not counted.
+
+export type NotifFrequency = "daily" | "few" | "weekly" | "off";
+export const DEFAULT_FREQUENCY: NotifFrequency = "few";
+export const FREQUENCY_GAP_DAYS: Record<Exclude<NotifFrequency, "off">, number> = {
+  daily: 1,
+  few: 3,
+  weekly: 7,
+};
+/** Runs land near 10am local but not to the minute; don't lose a day to that. */
+const GAP_SLACK_MS = 3 * 3600000;
+/** A random memory is at least this old: it should feel like it came back. */
+export const RANDOM_MEMORY_MIN_AGE_DAYS = 30;
+
+export function frequencyOf(user: EligibleUser | undefined): NotifFrequency {
+  const f = user?.notif_frequency;
+  return f === "daily" || f === "few" || f === "weekly" || f === "off" ? f : DEFAULT_FREQUENCY;
+}
+
+/** Whether enough time has passed since the last push for this user's setting. */
+export function spacingAllows(user: EligibleUser | undefined, now: Date): boolean {
+  const f = frequencyOf(user);
+  if (f === "off") return false;
+  const last = user?.last_notified_at ? Date.parse(user.last_notified_at) : NaN;
+  if (Number.isNaN(last)) return true;
+  return now.getTime() - last >= FREQUENCY_GAP_DAYS[f] * 86400000 - GAP_SLACK_MS;
+}
 
 export function computeStreak(momentDates: string[], todayStr: string): number {
   if (!momentDates.length) return 0;
@@ -93,16 +120,38 @@ export function computeStreak(momentDates: string[], todayStr: string): number {
   return streak;
 }
 
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/** "June 2019" from "2019-06-03"; empty for anything unparseable. */
+export function monthYear(momentDate: string): string {
+  const [y, m] = momentDate.split("-");
+  const name = MONTHS[Number(m) - 1];
+  return name && y ? `${name} ${y}` : "";
+}
+
 /**
- * The 7-priority cascade. Each user receives at most one notification per run:
- * once a user is added to `assignedUserIds` every later priority skips them.
- * Priority order is load-bearing — earlier priorities are more timely/personal.
+ * The cascade (1.4). Each user receives at most one notification per run;
+ * earlier priorities are more timely or personal.
+ *
+ * 1. Lifecycle (days 1, 3, 7 after signing up): getting started. Not spaced.
+ * 2. Streak milestone, on a day you logged: earned, so not spaced.
+ * 3. On this day: spaced by "How often".
+ * 4. A random memory at least a month old: spaced by "How often".
+ *
+ * "How often: Off" stops all of them. Retired in 1.4 (principle 3, never
+ * notify about absence): streak reminders, "still there?" re-engagement,
+ * the day-7/day-14 "we miss you" lifecycle pushes, and the Tue/Thu journal
+ * prompts (the daily check-in, which people choose, replaces them).
+ * Notifications never carry the user's own words: a push can show on the
+ * Lock Screen.
  */
 export function selectNotifications(input: SelectNotificationsInput): SelectNotificationsResult {
   const {
     eligibleUsers,
     momentsByUser,
-    loggedYesterdayByUser,
     loggedTodaySet,
     allMoments,
     now,
@@ -110,79 +159,47 @@ export function selectNotifications(input: SelectNotificationsInput): SelectNoti
     todayYear,
     todayMM,
     todayDD,
-    todayDow,
-    daySeed,
     prefsByUserId,
     tokenByUserId,
     random = Math.random,
   } = input;
 
   const messages: ExpoPushMessage[] = [];
-  const assignedUserIds = new Set<string>();
+  const assigned = new Set<string>();
+  const send = (userId: string, message: Omit<ExpoPushMessage, "to">) => {
+    messages.push({ to: tokenByUserId[userId], ...message });
+    assigned.add(userId);
+  };
+  const isOff = (userId: string) => frequencyOf(prefsByUserId[userId]) === "off";
 
-  // ── Priority 1: LIFECYCLE ──────────────────────────────────────────────────
-  // Fires on exactly the Nth day after account creation. No pref toggle.
+  // ── 1: LIFECYCLE ───────────────────────────────────────────────────────────
   for (const { id: userId, created_at } of eligibleUsers) {
-    if (!created_at) continue;
-    const accountAgeDays = Math.floor(
-      (now.getTime() - new Date(created_at).getTime()) / 86400000
-    );
-
-    const userMoments = momentsByUser[userId] ?? [];
-    const momentCount = userMoments.length;
-    const lastMoment = userMoments[0] ?? null; // sorted desc, so first = most recent
-
-    let notification: ExpoPushMessage | null = null;
+    if (!created_at || isOff(userId)) continue;
+    const accountAgeDays = Math.floor((now.getTime() - new Date(created_at).getTime()) / 86400000);
+    const momentCount = (momentsByUser[userId] ?? []).length;
 
     if (accountAgeDays === 1 && momentCount < 1) {
-      notification = {
-        to: tokenByUserId[userId],
+      send(userId, {
         title: "Start your story 🎵",
         body: "What are you listening to right now? Log your first moment — takes 30 seconds.",
         data: { type: "create" },
-      };
+      });
     } else if (accountAgeDays === 3 && momentCount < 5) {
-      notification = {
-        to: tokenByUserId[userId],
+      send(userId, {
         title: "3 days in 🎶",
         body: "Keep the story going — what's been in your ears?",
         data: { type: "create" },
-      };
+      });
     } else if (accountAgeDays === 7 && momentCount >= 1) {
-      notification = {
-        to: tokenByUserId[userId],
+      send(userId, {
         title: "One week! 🎉",
         body: `You've saved ${momentCount} moment${momentCount !== 1 ? "s" : ""}. Keep it coming.`,
         data: { type: "tabs" },
-      };
-    } else if (accountAgeDays === 7 && momentCount < 1) {
-      notification = {
-        to: tokenByUserId[userId],
-        title: "One week in",
-        body: "Your musical story is still waiting to start.",
-        data: { type: "create" },
-      };
-    } else if (accountAgeDays === 14 && lastMoment) {
-      const daysSinceLast = Math.floor(
-        (now.getTime() - new Date(lastMoment.moment_date + "T00:00:00Z").getTime()) / 86400000
-      );
-      if (daysSinceLast > 7) {
-        notification = {
-          to: tokenByUserId[userId],
-          title: "We miss your story",
-          body: `${lastMoment.song_title} was your last. Add another?`,
-          data: { momentId: lastMoment.id },
-        };
-      }
-    }
-
-    if (notification) {
-      messages.push(notification);
-      assignedUserIds.add(userId);
+      });
     }
   }
 
-  // ── Priority 2: STREAK MILESTONE ──────────────────────────────────────────
+  // ── 2: STREAK MILESTONE ────────────────────────────────────────────────────
   const milestoneCopyMap: Record<number, string> = {
     5: "5-day streak 🔥 — Your music story is taking shape.",
     10: "10 days straight. You're on a roll.",
@@ -191,7 +208,7 @@ export function selectNotifications(input: SelectNotificationsInput): SelectNoti
   };
 
   for (const { id: userId } of eligibleUsers) {
-    if (assignedUserIds.has(userId)) continue;
+    if (assigned.has(userId) || isOff(userId)) continue;
     if (prefsByUserId[userId]?.notif_milestones === false) continue;
     // Streak can only be non-zero if user logged today
     if (!loggedTodaySet.has(userId)) continue;
@@ -202,28 +219,24 @@ export function selectNotifications(input: SelectNotificationsInput): SelectNoti
     const streak = computeStreak(dates, todayStr);
     if (!STREAK_MILESTONES.has(streak)) continue;
 
-    messages.push({
-      to: tokenByUserId[userId],
+    send(userId, {
       title: `${streak}-Day Streak 🔥`,
       body: milestoneCopyMap[streak],
       data: { type: "tabs", streak },
     });
-    assignedUserIds.add(userId);
   }
 
-  // ── Priority 3: ON THIS DAY ────────────────────────────────────────────────
-  // "On this day that plays" (2026-11-16): the title is the anniversary, the
-  // body is the song, and a tap opens the memory card (type "memory"), where
-  // the song is already playing. Never the user's words: a push can show on
-  // the Lock Screen. Binaries without the card fall back to momentId.
-
+  // ── 3: ON THIS DAY ─────────────────────────────────────────────────────────
+  // The title is the anniversary, the body is the song, and a tap opens the
+  // memory card (type "memory"), where the song is already playing. Binaries
+  // without the card fall back to momentId.
   const byUserOnThisDay = new Map<
     string,
     { momentId: string; songTitle: string; songArtist: string; momentYear: number }
   >();
 
   for (const row of allMoments ?? []) {
-    if (assignedUserIds.has(row.user_id)) continue;
+    if (assigned.has(row.user_id)) continue;
     if (!row.moment_date) continue;
     const [yearStr, month, day] = row.moment_date.split("-");
     const rowYear = Number(yearStr);
@@ -242,157 +255,49 @@ export function selectNotifications(input: SelectNotificationsInput): SelectNoti
 
   for (const [userId, { momentId, songTitle, songArtist, momentYear }] of byUserOnThisDay) {
     if (prefsByUserId[userId]?.notif_on_this_day === false) continue;
+    if (!spacingAllows(prefsByUserId[userId], now)) continue;
     const yearsAgo = todayYear - momentYear;
-    messages.push({
-      to: tokenByUserId[userId],
+    send(userId, {
       title: `${yearsAgo === 1 ? "1 year" : `${yearsAgo} years`} ago today`,
       body: `${songTitle}, ${songArtist}`,
       data: { momentId, type: "memory" },
     });
-    assignedUserIds.add(userId);
   }
 
-  // ── Priority 4: STREAK REMINDER ───────────────────────────────────────────
-  const streakReminderCopies: Array<(song: string) => string> = [
-    (_song) => "You logged yesterday. Keep it going — what are you hearing today?",
-    (_song) => "Don't break it. What song describes today?",
-    (song) => `${song} was yesterday. Add today's.`,
-  ];
-
+  // ── 4: A RANDOM MEMORY ─────────────────────────────────────────────────────
+  // Whenever "How often" allows and nothing above was sent: one moment saved
+  // at least a month ago, opened on the memory card like On this day.
+  const oldEnough = now.getTime() - RANDOM_MEMORY_MIN_AGE_DAYS * 86400000;
   for (const { id: userId } of eligibleUsers) {
-    if (assignedUserIds.has(userId)) continue;
-    if (prefsByUserId[userId]?.notif_streak === false) continue;
-    if (!loggedYesterdayByUser.has(userId) || loggedTodaySet.has(userId)) continue;
-
-    const yesterdaySong = loggedYesterdayByUser.get(userId)!;
-    const copyFn = streakReminderCopies[daySeed % streakReminderCopies.length];
-    messages.push({
-      to: tokenByUserId[userId],
-      title: "Keep your streak going 🔥",
-      body: copyFn(yesterdaySong),
-      data: { type: "create" },
-    });
-    assignedUserIds.add(userId);
-  }
-
-  // ── Priority 5: RE-ENGAGEMENT ─────────────────────────────────────────────
-  // Grouped with notif_prompts toggle (both are about creating).
-  //
-  // Cooldown is essential here: this branch matches on "hasn't posted in N
-  // days", which stays true indefinitely once someone goes dormant. Without a
-  // gap, every dormant user got "Still there?" every single day forever, which
-  // drives uninstalls rather than returns. Longer gaps for longer-dormant
-  // users — someone silent for a month doesn't want a weekly reminder either.
-  const reengagedUserIds: string[] = [];
-  for (const { id: userId, last_reengagement_at } of eligibleUsers) {
-    if (assignedUserIds.has(userId)) continue;
-    if (prefsByUserId[userId]?.notif_prompts === false) continue;
-
-    const lastMoment = (momentsByUser[userId] ?? [])[0] ?? null;
-    if (!lastMoment) continue; // No moments yet — lifecycle or prompt will handle
-
-    const daysSince = Math.floor(
-      (now.getTime() - new Date(lastMoment.created_at).getTime()) / 86400000
+    if (assigned.has(userId)) continue;
+    if (prefsByUserId[userId]?.notif_resurfacing === false) continue;
+    if (!spacingAllows(prefsByUserId[userId], now)) continue;
+    const pool = (momentsByUser[userId] ?? []).filter(
+      (m) => new Date(m.created_at).getTime() <= oldEnough
     );
-    if (daysSince < 7) continue;
+    if (pool.length === 0) continue;
 
-    const cooldownDays = daysSince >= 30 ? 30 : daysSince >= 14 ? 14 : 7;
-    if (last_reengagement_at) {
-      const daysSinceLastNudge = Math.floor(
-        (now.getTime() - new Date(last_reengagement_at as string).getTime()) / 86400000
-      );
-      if (daysSinceLastNudge < cooldownDays) continue;
-    }
-
-    let body: string;
-    let notifData: Record<string, unknown>;
-
-    if (daysSince >= 30) {
-      body = "Still there? Even one song keeps the story alive.";
-      notifData = { type: "create" };
-    } else if (daysSince >= 14) {
-      body = `${lastMoment.song_title} was your last moment. What's playing now?`;
-      notifData = { momentId: lastMoment.id };
-    } else {
-      const copies = [
-        "It's been a week. What's been in your ears?",
-        "What song describes this week?",
-      ];
-      body = copies[daySeed % copies.length];
-      notifData = { type: "create" };
-    }
-
-    messages.push({
-      to: tokenByUserId[userId],
-      title: "Your music story is waiting 🎶",
-      body,
-      data: notifData,
+    const pick = pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))];
+    const when = monthYear(pick.moment_date);
+    send(userId, {
+      title: "Remember this? 🎵",
+      body: `${pick.song_title}, ${pick.song_artist}${when ? ` · ${when}` : ""}`,
+      data: { momentId: pick.id, type: "memory" },
     });
-    assignedUserIds.add(userId);
-    reengagedUserIds.push(userId);
   }
 
-  // ── Priority 6: JOURNAL PROMPT (Tue=2 or Thu=4) ───────────────────────────
-  if (todayDow === 2 || todayDow === 4) {
-    const promptCopies = [
-      { title: "What are you listening to? 🎶", body: "Log it before you forget." },
-      { title: "A song is playing somewhere 🎵", body: "What does it remind you of?" },
-      { title: "Quick capture ⚡", body: "What are you listening to? Drop a moment." },
-    ];
-    const promptCopy = promptCopies[daySeed % promptCopies.length];
-
-    for (const { id: userId } of eligibleUsers) {
-      if (assignedUserIds.has(userId)) continue;
-      if (prefsByUserId[userId]?.notif_prompts === false) continue;
-      messages.push({
-        to: tokenByUserId[userId],
-        title: promptCopy.title,
-        body: promptCopy.body,
-        data: { type: "create" },
-      });
-      assignedUserIds.add(userId);
-    }
-  }
-
-  // ── Priority 7: RANDOM RESURFACING (Mon=1) ────────────────────────────────
-  if (todayDow === 1) {
-    const resurfaceCopies: Array<(song: string, artist: string) => string> = [
-      (song, _artist) => `Remember when you saved ${song}?`,
-      (song, artist) => `${song} by ${artist} — you logged this.`,
-      (song, artist) => `This came up in your history: ${song} by ${artist}`,
-    ];
-    const resurfaceCopyFn = resurfaceCopies[daySeed % resurfaceCopies.length];
-
-    for (const { id: userId } of eligibleUsers) {
-      if (assignedUserIds.has(userId)) continue;
-      if (prefsByUserId[userId]?.notif_resurfacing === false) continue;
-      const userMoments = momentsByUser[userId] ?? [];
-      if (userMoments.length === 0) continue;
-
-      const randomMoment = userMoments[Math.floor(random() * userMoments.length)];
-      messages.push({
-        to: tokenByUserId[userId],
-        title: "Remember this? 🎵",
-        body: resurfaceCopyFn(randomMoment.song_title, randomMoment.song_artist),
-        data: { momentId: randomMoment.id },
-      });
-      assignedUserIds.add(userId);
-    }
-  }
-
-  return { messages, reengagedUserIds };
+  return { messages, notifiedUserIds: [...assigned] };
 }
 
 // ── Local-day inputs ─────────────────────────────────────────────────────────
-// Users are picked when it is 10am in their own timezone, so "today",
-// "yesterday", On This Day and the weekday prompts must use that zone's
-// calendar too, not the UTC one (for UTC+10 the 10am run happens on the
-// previous UTC day).
+// Users are picked when it is 10am in their own timezone, so "today" and On
+// This Day must use that zone's calendar too, not the UTC one (for UTC+10 the
+// 10am run happens on the previous UTC day).
 
 /** The calendar day in one timezone at a given instant. */
 export interface LocalDay {
   dateStr: string; // YYYY-MM-DD
-  yesterdayStr: string; // YYYY-MM-DD
+  yesterdayStr: string; // YYYY-MM-DD (kept for callers that need it)
   year: number;
   mm: string;
   dd: string;
@@ -459,7 +364,7 @@ export function localDay(instant: Date, timezone: string): LocalDay {
  * Turn the eligible users and their moments (sorted created_at desc) into one
  * selectNotifications input per local calendar day. Users at their local 10am
  * can still be on different dates (UTC-10 and UTC+14), so each group gets its
- * own today/yesterday/MM-DD/weekday, and every moment's "logged on" date is
+ * own today and MM-DD, and every moment's "logged on" date is
  * taken in its owner's timezone.
  */
 export function buildSelectionInputs(
@@ -484,7 +389,6 @@ export function buildSelectionInputs(
 
   const momentsByUser: Record<string, MomentRow[]> = {};
   const rowsByUser = new Map<string, UserMomentRow[]>();
-  const loggedYesterdayByUser = new Map<string, string>();
   const loggedTodaySet = new Set<string>();
 
   for (const row of momentRows) {
@@ -503,9 +407,6 @@ export function buildSelectionInputs(
     const list = rowsByUser.get(row.user_id) ?? [];
     list.push(row);
     rowsByUser.set(row.user_id, list);
-    if (loggedDate === day.yesterdayStr && !loggedYesterdayByUser.has(row.user_id)) {
-      loggedYesterdayByUser.set(row.user_id, row.song_title);
-    }
     if (loggedDate === day.dateStr) loggedTodaySet.add(row.user_id);
   }
 
@@ -517,7 +418,6 @@ export function buildSelectionInputs(
       momentsByUser: Object.fromEntries(
         Object.entries(momentsByUser).filter(([id]) => ids.has(id))
       ),
-      loggedYesterdayByUser: new Map([...loggedYesterdayByUser].filter(([id]) => ids.has(id))),
       loggedTodaySet: new Set([...loggedTodaySet].filter((id) => ids.has(id))),
       allMoments: users.flatMap((u) => rowsByUser.get(u.id) ?? []),
       now,
@@ -525,8 +425,6 @@ export function buildSelectionInputs(
       todayYear: day.year,
       todayMM: day.mm,
       todayDD: day.dd,
-      todayDow: day.dow,
-      daySeed: Number(day.dd),
       prefsByUserId: Object.fromEntries(users.map((u) => [u.id, u])),
       tokenByUserId: Object.fromEntries(users.map((u) => [u.id, u.push_token as string])),
       ...(random ? { random } : {}),

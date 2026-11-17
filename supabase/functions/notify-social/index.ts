@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isUuid } from "../_shared/uuid.ts";
+import { socialDelivery } from "../_shared/socialPush.ts";
 
 // Sharing v2 (docs/SOCIAL-ARCHITECTURE.md "Notifications"): the one edge
 // function path for social pushes on v2 clients, replacing notify-friend's
@@ -113,24 +114,26 @@ Deno.serve(async (req) => {
 
     const { data: recipientProfile } = await adminClient
       .from("profiles")
-      .select("push_token")
+      .select("push_token, notif_social, notif_quiet_hours, timezone")
       .eq("id", toUserId)
       .single();
-    if (!recipientProfile?.push_token) {
-      return json(200, { ok: true, skipped: "no_push_token" });
+    // Off for friends, or no token: nothing to send. At night it goes
+    // silently (_shared/socialPush.ts).
+    const delivery = socialDelivery(recipientProfile, new Date());
+    if (!delivery) {
+      return json(200, { ok: true, skipped: recipientProfile?.push_token ? "notif_social_off" : "no_push_token" });
     }
 
     const pushRes = await fetch(EXPO_PUSH_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
-        to: recipientProfile.push_token,
+        ...delivery,
         title: "Shared with you",
         body: songTitle
           ? `${senderName} shared ${songTitle} with you`
           : `${senderName} shared a moment with you`,
         data: { type: "shared_moment", momentId },
-        sound: "default",
       }),
     });
     const pushData = await pushRes.json().catch(() => null);

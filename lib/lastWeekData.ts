@@ -397,3 +397,35 @@ export async function loadLastWeek(userId: string, now = Date.now()): Promise<La
     saved,
   };
 }
+
+// ── "Last week is ready" (1.4 notification choices) ───────────────────────
+
+/** Whether `week` was dismissed from the Journal. */
+export async function isWeekDismissed(week: WeekRange): Promise<boolean> {
+  return (await readJson<string | null>(DISMISSED_KEY, null)) === week.key;
+}
+
+/**
+ * Whether the week in progress already has something to recap: the check
+ * behind the Sunday reminder, so it's only sent for a week with real content.
+ * Same reading as loadLastWeek, minus the catalog and "Saved" lookups (no
+ * network).
+ */
+export async function weekSoFarHasContent(now = Date.now()): Promise<boolean> {
+  if ((await lastWeekAccess()) !== "granted") return false;
+  const week = currentWeek(now);
+  const [library, checked, snapshots, log] = await Promise.all([
+    libraryAccessStatus() === "authorized" ? getLibrarySongs(LIBRARY_LIMIT) : Promise.resolve([]),
+    cameraPhotosChecked(week.start, now),
+    readJson<Snapshots>(SNAPSHOTS_KEY, {}),
+    readJson<StreamedLog>(STREAMED_KEY, { lastList: null, entries: {} }),
+  ]);
+  const songs = buildWeekSongs({
+    week,
+    library: library as LibraryTrack[],
+    streamed: Object.values(log.entries).filter((e) => inWeek(e.firstSeen, week)),
+    countsAtStart: snapshots[week.key] ?? null,
+    countsAtEnd: null,
+  });
+  return weekHasContent(songs.length, checked.photos.length);
+}

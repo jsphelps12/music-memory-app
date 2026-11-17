@@ -7,6 +7,7 @@ vi.mock("@/lib/supabase", () => ({ supabase: {} }));
 import {
   CHECK_IN_DAYS,
   DEFAULT_CHECK_IN,
+  describeDays,
   formatCheckInTime,
   localDayKey,
   parseCheckInSettings,
@@ -46,7 +47,14 @@ describe("planCheckIns", () => {
 
 describe("parseCheckInSettings", () => {
   it("reads a valid value", () => {
-    expect(parseCheckInSettings('{"enabled":true,"hour":8,"minute":30}')).toEqual({ enabled: true, hour: 8, minute: 30 });
+    expect(parseCheckInSettings('{"enabled":true,"hour":8,"minute":30}')).toEqual({
+      enabled: true,
+      hour: 8,
+      minute: 30,
+      days: [0, 1, 2, 3, 4, 5, 6],
+    });
+    expect(parseCheckInSettings('{"enabled":true,"hour":8,"minute":30,"days":[5,1,1,9]}').days).toEqual([1, 5]);
+    expect(parseCheckInSettings('{"enabled":true,"hour":8,"minute":30,"days":[]}').days).toHaveLength(7);
   });
   it("falls back on missing or malformed values", () => {
     expect(parseCheckInSettings(null)).toEqual(DEFAULT_CHECK_IN);
@@ -54,8 +62,25 @@ describe("parseCheckInSettings", () => {
     expect(parseCheckInSettings('{"enabled":"yes","hour":8,"minute":0}')).toEqual(DEFAULT_CHECK_IN);
     expect(parseCheckInSettings('{"enabled":true,"hour":25,"minute":0}')).toEqual(DEFAULT_CHECK_IN);
   });
-  it("defaults to off at 9:00 PM", () => {
-    expect(DEFAULT_CHECK_IN).toEqual({ enabled: false, hour: 21, minute: 0 });
+  it("defaults to off at 9:00 PM, every day", () => {
+    expect(DEFAULT_CHECK_IN).toEqual({ enabled: false, hour: 21, minute: 0, days: [0, 1, 2, 3, 4, 5, 6] });
+  });
+});
+
+describe("check-in days (1.4)", () => {
+  it("plans only the chosen weekdays", () => {
+    // Mon Nov 16 2026, 10am; weekdays only over two weeks = 10 reminders.
+    const plan = planCheckIns(new Date(2026, 10, 16, 10, 0), 21, 0, false, 14, [1, 2, 3, 4, 5]);
+    expect(plan).toHaveLength(10);
+    expect(plan.every((d) => d.getDay() >= 1 && d.getDay() <= 5)).toBe(true);
+    const sundays = planCheckIns(new Date(2026, 10, 16, 10, 0), 21, 0, false, 14, [0]);
+    expect(sundays.map((d) => d.getDate())).toEqual([22, 29]);
+  });
+  it("describes the days", () => {
+    expect(describeDays([0, 1, 2, 3, 4, 5, 6])).toBe("Every day");
+    expect(describeDays([1, 2, 3, 4, 5])).toBe("Weekdays");
+    expect(describeDays([6, 0])).toBe("Weekends");
+    expect(describeDays([0, 3, 1])).toBe("Mondays, Wednesdays, Sundays");
   });
 });
 

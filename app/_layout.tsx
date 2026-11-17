@@ -23,6 +23,7 @@ import { useEffect, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useOnForeground, wireQueryFocus } from "@/lib/appFocus";
 import { refreshCheckIns } from "@/lib/dailyCheckIn";
+import { refreshLastWeekReady } from "@/lib/lastWeekReady";
 import { PostHogProvider } from "posthog-react-native";
 import { posthog } from "@/lib/posthog";
 import { View, ActivityIndicator } from "react-native";
@@ -292,7 +293,15 @@ function RootLayoutNav() {
   }, [user?.id]);
   useOnForeground(() => {
     if (user?.id) void refreshCheckIns(user.id);
+    // "Last week is ready" (lib/lastWeekReady.ts): throttled to every 6 hours.
+    if (user?.id) void refreshLastWeekReady(profile);
   });
+  const lastWeekPrefs = profile ? `${profile.notifLastWeek}:${profile.notifFrequency}` : null;
+  useEffect(() => {
+    if (user?.id && lastWeekPrefs) void refreshLastWeekReady(profile);
+    // Re-plan when the account or its two settings change, not on every profile edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, lastWeekPrefs]);
 
   // Min-build gate (build 23): one launch check; fail-open, so the app renders
   // normally unless the server positively says this binary is below the floor.
@@ -331,6 +340,9 @@ function RootLayoutNav() {
       if (data.type === "people") {
         // friend_added (Sharing v2): someone opened your friend link
         router.push("/friends-list" as any);
+      } else if (data.type === "last_week") {
+        // "Last week is ready" (local, Sunday 6pm)
+        router.push("/last-week");
       } else if (data.type === "memory" && data.momentId) {
         // On this day that plays: the memory card, song already going
         router.push(`/memory/${data.momentId}?source=push`);
@@ -498,6 +510,10 @@ function RootLayoutNav() {
           />
           <Stack.Screen
             name="settings"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="notification-settings"
             options={{ headerShown: false }}
           />
           <Stack.Screen

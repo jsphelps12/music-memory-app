@@ -13,6 +13,7 @@ import { getProvider, connectSpotify, disconnectSpotify } from "@/lib/providers"
 import type { SpotifyFailure } from "@/lib/providers/spotifyErrors";
 import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
 import { clearCheckInData } from "@/lib/dailyCheckIn";
+import { clearLastWeekReady } from "@/lib/lastWeekReady";
 import { resetTimelineRefresh } from "@/lib/timelineRefresh";
 import { clearLegacyAlbumCaches } from "@/lib/albums";
 import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
@@ -430,6 +431,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearBrowseCache(userId),
         clearCaptureDraft(userId),
         clearCheckInData(userId),
+        clearLastWeekReady(),
       ]);
     }
     // Spotify's session is stored device-wide, not per user: the next person

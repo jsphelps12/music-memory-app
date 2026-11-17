@@ -340,17 +340,18 @@ Runs **hourly** (not daily). The Edge Function filters by `getLocalHour(now, use
 
 The Edge Function is a Deno HTTP server deployed to Supabase's edge infrastructure.
 
-**Priority queue logic** — one notification per user per day, in priority order:
+**Priority queue logic** (1.4 notification choices) — at most one notification per user per day, in priority order. `notif_frequency` ("How often": daily / few / weekly / off) spaces out memories 1, 3 or 7 days apart using `last_notified_at`; "off" stops everything here:
 
-| Priority | Type | Condition | Pref toggle |
-|----------|------|-----------|-------------|
-| 1 | Lifecycle | Days 1/3/7/14 post-signup — onboarding nudges | None (auto-expires) |
-| 2 | Streak Milestone | Hit 5/10/25/50 day streak | `notif_milestones` |
-| 3 | On This Day | Moments exist on this date in prior years | `notif_on_this_day` |
-| 4 | Streak Reminder | Logged yesterday, not yet today | `notif_streak` |
-| 5 | Re-engagement | 7/14/30+ days since last moment | `notif_prompts` |
-| 6 | Journal Prompt | No higher priority matches | `notif_prompts` |
-| 7 | Random Resurfacing | Random past moment | `notif_resurfacing` |
+| Priority | Type | Condition | Pref toggle | Spaced |
+|----------|------|-----------|-------------|--------|
+| 1 | Lifecycle | Day 1 (no moments), day 3 (<5), day 7 (≥1, celebration) | None | No |
+| 2 | Streak Milestone | Hit 5/10/25/50 day streak today | `notif_milestones` | No |
+| 3 | On This Day | Moments exist on this date in prior years | `notif_on_this_day` | Yes |
+| 4 | Random memory | A moment saved 30+ days ago | `notif_resurfacing` | Yes |
+
+Retired in 1.4 (never notify about absence): streak reminders, re-engagement ("still there?"), day-7/14 "we miss you", Tue/Thu journal prompts. `notif_streak`/`notif_prompts` stay for 1.3.1 clients but do nothing.
+
+Elsewhere: friends' pushes (`notify-social`, `accept-friend-invite`) check `notif_social` and send silently (iOS `interruptionLevel: "passive"`) 10pm–8am local when `notif_quiet_hours` (`_shared/socialPush.ts`). The daily check-in (`lib/dailyCheckIn.ts`, time + weekdays) and "Last week is ready" (`lib/lastWeekReady.ts`, Sunday 6pm, `notif_last_week`) are local notifications.
 
 **Batch send to Expo:**
 ```typescript

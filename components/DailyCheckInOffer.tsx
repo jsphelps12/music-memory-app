@@ -49,7 +49,7 @@ export function DailyCheckInOffer({ userId, hasMoments }: { userId: string; hasM
       <View style={styles.row} accessibilityLiveRegion="polite">
         <View style={styles.textCol}>
           <Text style={styles.title}>Notifications are off</Text>
-          <Text style={styles.text}>Turn them on for Soundtracks in iOS Settings, then switch on the check-in in Settings → Journal.</Text>
+          <Text style={styles.text}>Turn them on for Soundtracks in iOS Settings, then switch on the check-in in Settings → Notifications.</Text>
         </View>
         <View style={styles.actions}>
           <Button label="Open Settings" size="pill" variant="secondary" onPress={() => Linking.openSettings()} align="center" />

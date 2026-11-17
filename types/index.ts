@@ -157,9 +157,20 @@ export interface UserProfile {
   notifPrompts: boolean;
   notifResurfacing: boolean;
   notifMilestones: boolean;
+  /** How far apart memories may come back (1.4); friends and the check-in aren't counted. */
+  notifFrequency: NotifFrequency;
+  /** Shares and new friends. */
+  notifSocial: boolean;
+  /** Friends' pushes arrive silently 10pm–8am. */
+  notifQuietHours: boolean;
+  /** The local "Last week is ready" reminder, Sunday evening. */
+  notifLastWeek: boolean;
   createdAt: string;
   updatedAt: string;
 }
+
+/** "How often" (1.4): daily, a few times a week, weekly, or off. */
+export type NotifFrequency = "daily" | "few" | "weekly" | "off";
 
 export interface Friendship {
   id: string;
