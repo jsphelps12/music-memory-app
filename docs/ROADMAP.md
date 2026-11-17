@@ -554,18 +554,28 @@ clutter, navigation.
   as capture's placeholder (`promptQuestion`); templates everywhere else.
 - [x] `moments.media_refs` (jsonb, default []) on staging and production
   (2026-11-17, Josh's go): linked photos/video, see the migration's notes.
-- [ ] **Linked photos and video** (1.4): moments reference the owner's
+- [x] **Linked photos and video** (1.4, built 2026-11-17, needs Josh's
+  phone): moments reference the owner's
   Photos library by iCloud id (`PHCloudIdentifier`, same across their
   devices); a small thumbnail (video: poster frame) is always uploaded; the
   full file uploads when the moment is shared (friend, album, link, share
   card) so the no-app recipient still gets everything. Plays/shows from
-  Photos on the owner's devices.
-- [ ] **Moment film viewer** (1.4): photos and videos swipe in taken order,
+  Photos on the owner's devices; only the owner's links resolve (a shared
+  moment never shows the recipient's own photos). Videos: picked from the
+  library (never uploaded), poster frame via native `videoPoster`, kind
+  "video" with its length; a video that can't be linked is refused with a
+  message. Strip tiles badge videos with their length.
+- [x] **Moment film viewer** (1.4, built 2026-11-17, needs Josh's phone;
+  `components/MomentFilm.tsx`, replaces PhotoViewer on the moment screen):
+  photos and videos swipe in taken order,
   pinch to zoom, Stories-style progress, swipe down to close; Play turns
   the moment into a short film with the song (slow drift on photos, videos
   play through). Sound: clips muted by default; the speaker raises the
   clip and ducks the song to 20% (~−14 dB) over 0.3 s, back over 0.8 s;
-  iOS ducking for full Apple Music playback; never an exported file.
+  full Apple Music playback (Apple's player can't be turned down) pauses
+  under a clip's sound and resumes after (`duck` in PlayerContext,
+  `lib/audioMix.ts`, tested); never an exported file. Pausing the film
+  pauses the song.
 - [ ] People, later and opt-in: on-device face grouping you name once,
   linked to moment People. Not in 1.4 (face data is sensitive).
 - [ ] Smarter pairings, next: learn from what Josh saves vs ignores; on-device

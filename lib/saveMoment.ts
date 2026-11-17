@@ -40,6 +40,8 @@ export interface SaveMomentInput extends MomentFieldsInput {
    * a thumbnail goes up, and the moment keeps the iCloud id.
    */
   photoAssetIds?: (string | null)[];
+  /** Per photo, the length in ms when it's a video's poster (1.4): linked, never uploaded. */
+  photoVideoDurations?: (number | null)[];
   selectedAlbum?: Album | null;
   /**
    * A preview lookup already started when the song was picked. Pass the
@@ -83,8 +85,15 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
   // and upload only a thumbnail. Anything else (camera, shared in) uploads.
   const assetIds = input.photoAssetIds ?? [];
   const cloud = await cloudIdsFor(assetIds.filter((id): id is string => !!id));
+  const durations = input.photoVideoDurations ?? [];
   const refs: MediaRefs = input.photos.map((_, i) => {
     const cloudId = assetIds[i] ? cloud[assetIds[i]!] : undefined;
+    const durationMs = durations[i];
+    if (durationMs != null) {
+      // A video is only ever linked; without an iCloud id it can't be kept.
+      if (!cloudId) throw new Error("A video couldn't be linked to your Photos library. Remove it and try again.");
+      return { cloudId, kind: "video", durationMs, full: false };
+    }
     return cloudId ? { cloudId, kind: "photo", full: false } : null;
   });
   const [preview, uploaded] = await Promise.all([
@@ -181,6 +190,10 @@ export async function updateMoment(input: UpdateMomentInput): Promise<Moment> {
   const cloud = await cloudIdsFor(added.flatMap((p) => (p.assetId ? [p.assetId] : [])));
   const newRefs: MediaRefs = added.map((p) => {
     const cloudId = p.assetId ? cloud[p.assetId] : undefined;
+    if (p.durationMs != null) {
+      if (!cloudId) throw new Error("A video couldn't be linked to your Photos library. Remove it and try again.");
+      return { cloudId, kind: "video", durationMs: p.durationMs, full: false };
+    }
     return cloudId ? { cloudId, kind: "photo", full: false } : null;
   });
 

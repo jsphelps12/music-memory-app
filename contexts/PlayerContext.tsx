@@ -4,6 +4,7 @@ import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from "expo-audio";
 import { getProvider } from "@/lib/providers";
 import type { MusicProvider } from "@/lib/providers";
 import { Song } from "@/types";
+import { DUCK_LEVEL, DUCK_MS, fadeVolume, RESTORE_MS } from "@/lib/audioMix";
 
 /**
  * What changes only on discrete events (a song starts, pauses, stops, fails).
@@ -20,6 +21,11 @@ interface PlayerControls {
   resume: () => void;
   stop: () => void;
   seekTo: (seconds: number) => void;
+  /**
+   * A video clip's sound is on (true) or off (false): the song ducks under it
+   * and comes back (lib/audioMix.ts). Previews fade; full playback pauses.
+   */
+  duck: (on: boolean) => void;
 }
 
 /** Updates on every playback tick (0.5-1s). Only progress UI should read it. */
@@ -55,6 +61,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const playGenRef = useRef(0);
   // Generation of the playFull still awaiting authorize()/play(), if any.
   const pendingFullGenRef = useRef<number | null>(null);
+  // Ducking under a video clip (1.4): the preview's current volume, the
+  // running fade, and whether full playback was paused for a clip.
+  const volumeRef = useRef(1);
+  const fadeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pausedForClipRef = useRef(false);
 
   useEffect(() => {
     // Fire-and-forget: if the audio session can't be configured, preview
@@ -100,6 +111,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // expo-audio positions are SECONDS (expo-av's were ms) — no /1000 here.
       const player = createAudioPlayer({ uri: previewUrl });
       soundRef.current = player;
+      // Starts at the ducked level if a clip's sound is on.
+      try {
+        player.volume = volumeRef.current;
+      } catch {}
       setCurrentSong(song);
       setIsPlaying(true);
       setIsPreview(true);
@@ -285,9 +300,52 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setPlaybackTime(seconds);
   }, []);
 
+  const duck = useCallback(
+    (on: boolean) => {
+      // Full playback runs in Apple's player, which can't be turned down.
+      if (activeProviderRef.current) {
+        if (on && isPlaying) {
+          pausedForClipRef.current = true;
+          activeProviderRef.current.pause();
+          setIsPlaying(false);
+        } else if (!on && pausedForClipRef.current) {
+          pausedForClipRef.current = false;
+          activeProviderRef.current.resume();
+          setIsPlaying(true);
+        }
+        return;
+      }
+      const target = on ? DUCK_LEVEL : 1;
+      const ms = on ? DUCK_MS : RESTORE_MS;
+      const from = volumeRef.current;
+      const start = Date.now();
+      if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
+      fadeTimerRef.current = setInterval(() => {
+        const elapsed = Date.now() - start;
+        const v = fadeVolume(from, target, elapsed, ms);
+        volumeRef.current = v;
+        try {
+          if (soundRef.current) soundRef.current.volume = v;
+        } catch {}
+        if (elapsed >= ms && fadeTimerRef.current) {
+          clearInterval(fadeTimerRef.current);
+          fadeTimerRef.current = null;
+        }
+      }, 30);
+    },
+    [isPlaying]
+  );
+
+  useEffect(
+    () => () => {
+      if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
+    },
+    []
+  );
+
   const controlsValue = useMemo<PlayerControls>(
-    () => ({ currentSong, isPlaying, isPreview, playError, playPreview, playFull, pause, resume, stop, seekTo }),
-    [currentSong, isPlaying, isPreview, playError, playPreview, playFull, pause, resume, stop, seekTo]
+    () => ({ currentSong, isPlaying, isPreview, playError, playPreview, playFull, pause, resume, stop, seekTo, duck }),
+    [currentSong, isPlaying, isPreview, playError, playPreview, playFull, pause, resume, stop, seekTo, duck]
   );
   const progressValue = useMemo<PlayerProgress>(
     () => ({ playbackTime, playbackDuration }),

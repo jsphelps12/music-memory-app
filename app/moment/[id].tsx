@@ -54,7 +54,7 @@ import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { SkeletonMomentDetail } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
-import { PhotoViewer } from "@/components/PhotoViewer";
+import { MomentFilm } from "@/components/MomentFilm";
 import { confirmSheet } from "@/components/ConfirmSheet";
 import { friendlyError } from "@/lib/errors";
 import { Album, PartialMoment } from "@/types";
@@ -83,6 +83,12 @@ const STALE_TIME = 2 * 60 * 1000;
 const INK_GLASS = "rgba(35,34,43,0.55)";
 const PAPER_ON_GLASS = "#FBF7F2";
 const SHADOW_INK = "#0E0B0A";
+
+/** A clip's length for its badge: "0:12", "1:05". */
+function clipLength(ms: number | undefined): string {
+  const total = Math.round((ms ?? 0) / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
 
 export default function MomentDetailScreen() {
   const {
@@ -666,6 +672,29 @@ export default function MomentDetailScreen() {
   const isCurrentSong = action !== "play";
   const playLabel = action === "pause" ? "Pause" : action === "resume" ? "Resume" : playError ? "Unavailable" : "Play";
 
+  // Start (or resume) this moment's song: the Play button and the film share it.
+  const startSong = () => {
+    if (!moment) return;
+    if (action === "resume") {
+      resume();
+      return;
+    }
+    playFull(
+      {
+        id: moment.songSpotifyId ?? moment.songAppleMusicId ?? "",
+        title: moment.songTitle,
+        artistName: moment.songArtist,
+        albumName: moment.songAlbumName,
+        artworkUrl: moment.songArtworkUrl,
+        provider: moment.songProvider ?? "apple_music",
+        appleMusicId: moment.songAppleMusicId ?? null,
+        spotifyId: moment.songSpotifyId ?? null,
+        durationMs: 0,
+      },
+      moment.songPreviewUrl || undefined
+    );
+  };
+
   return (
     <GestureDetector gesture={swipeGesture}>
     <Animated.View style={[styles.container, animStyle]}>
@@ -837,23 +866,8 @@ export default function MomentDetailScreen() {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     if (action === "pause") {
                       pause();
-                    } else if (action === "resume") {
-                      resume();
                     } else {
-                      playFull(
-                        {
-                          id: moment.songSpotifyId ?? moment.songAppleMusicId ?? "",
-                          title: moment.songTitle,
-                          artistName: moment.songArtist,
-                          albumName: moment.songAlbumName,
-                          artworkUrl: moment.songArtworkUrl,
-                          provider: moment.songProvider ?? 'apple_music',
-                          appleMusicId: moment.songAppleMusicId ?? null,
-                          spotifyId: moment.songSpotifyId ?? null,
-                          durationMs: 0,
-                        },
-                        moment.songPreviewUrl || undefined
-                      );
+                      startSong();
                     }
                   }}
                 >
@@ -925,6 +939,12 @@ export default function MomentDetailScreen() {
                     accessibilityLabel={`Photo ${idx + 1} of ${stripUrls.length}`}
                   >
                     <AppImage source={{ uri: url }} style={styles.photoStripThumb} contentFit="cover" transition={200} />
+                    {moment.mediaRefs?.[idx]?.kind === "video" ? (
+                      <View style={styles.videoBadge} pointerEvents="none">
+                        <Icon name="play" size={10} color={PAPER_ON_GLASS} />
+                        <Text style={styles.videoBadgeText}>{clipLength(moment.mediaRefs[idx]?.durationMs)}</Text>
+                      </View>
+                    ) : null}
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -972,11 +992,15 @@ export default function MomentDetailScreen() {
         </GestureDetector>
       )}
 
-      <PhotoViewer
-        photos={photoUrls}
+      {/* Photos and videos as a little film: swipe, zoom, play with the song. */}
+      <MomentFilm
+        items={mediaSources}
         initialIndex={viewerIndex}
         visible={viewerVisible}
         onClose={() => setViewerVisible(false)}
+        songPlaying={action === "pause"}
+        startSong={startSong}
+        pauseSong={pause}
       />
 
       {moment && (
@@ -1175,6 +1199,23 @@ function createStyles(theme: Theme) {
     // ── Hero ─────────────────────────────────────────────────────────────────
     photoHero: {
       flexShrink: 0,
+    },
+    videoBadge: {
+      position: "absolute",
+      left: 4,
+      bottom: 4,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 3,
+      paddingHorizontal: 5,
+      paddingVertical: 2,
+      borderRadius: theme.radii.full,
+      backgroundColor: INK_GLASS,
+    },
+    videoBadgeText: {
+      ...theme.typography.meta,
+      fontSize: theme.fontSize.xs,
+      color: PAPER_ON_GLASS,
     },
     photoCounterPill: {
       position: "absolute",

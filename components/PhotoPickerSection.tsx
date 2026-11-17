@@ -1,5 +1,5 @@
 import { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
-import { View, Text, Pressable, ActionSheetIOS, StyleSheet } from "react-native";
+import { View, Text, Pressable, ActionSheetIOS, Alert, StyleSheet } from "react-native";
 import { Gesture, GestureDetector, ScrollView } from "react-native-gesture-handler";
 import Animated, {
   SharedValue,
@@ -18,6 +18,7 @@ import * as Haptics from "expo-haptics";
 import { Icon } from "@/components/Icon";
 import * as ImagePicker from "expo-image-picker";
 import { extractPhotoMetadata } from "@/lib/photoMetadata";
+import { videoPoster } from "@/modules/now-playing";
 import { moveItem, slotForDrag } from "@/lib/reorder";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -47,6 +48,12 @@ interface PhotoPickerSectionProps {
   suggestion?: PhotoMetaSuggestion | null;
   /** Library ids for picked photos (URI → id), so they link instead of uploading (1.4). */
   onAssetIds?: (map: Record<string, string>) => void;
+  /**
+   * Linked video (1.4): when given, the library picker offers videos too. A
+   * picked video joins the strip as its poster frame; this hears poster URI →
+   * length in ms. Videos are never uploaded, only linked.
+   */
+  onVideos?: (map: Record<string, number>) => void;
   ref?: Ref<PhotoPickerHandle>;
 }
 
@@ -71,6 +78,7 @@ export function PhotoPickerSection({
   compact = false,
   suggestion,
   onAssetIds,
+  onVideos,
   ref,
 }: PhotoPickerSectionProps) {
   const theme = useTheme();
@@ -119,7 +127,7 @@ export function PhotoPickerSection({
           });
         } else if (buttonIndex === 2) {
           result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ["images"],
+            mediaTypes: onVideos ? ["images", "videos"] : ["images"],
             allowsMultipleSelection: true,
             quality: 0.8,
             exif: true,
@@ -127,13 +135,38 @@ export function PhotoPickerSection({
         }
 
         if (result && !result.canceled) {
-          const uris = result.assets.map((a) => a.uri);
-          // Picked from the library (not the camera): remember which photo each is.
+          // Picked from the library (not the camera): remember which photo
+          // each is. A video joins as its poster frame and stays in Photos.
           const ids: Record<string, string> = {};
-          for (const a of result.assets) if (a.assetId) ids[a.uri] = a.assetId;
+          const videos: Record<string, number> = {};
+          const uris: string[] = [];
+          let unlinkable = 0;
+          for (const a of result.assets) {
+            if (a.type === "video") {
+              const poster = a.assetId ? await videoPoster(a.assetId) : null;
+              if (!poster || !a.assetId) {
+                unlinkable++;
+                continue;
+              }
+              ids[poster.uri] = a.assetId;
+              videos[poster.uri] = poster.durationMs;
+              uris.push(poster.uri);
+              continue;
+            }
+            if (a.assetId) ids[a.uri] = a.assetId;
+            uris.push(a.uri);
+          }
+          if (unlinkable) {
+            Alert.alert(
+              unlinkable === 1 ? "That video can't be added" : "Some videos can't be added",
+              "Videos stay in your Photos library and are linked to the moment, so Soundtracks needs access to all your photos. You can change that in Settings."
+            );
+          }
           if (Object.keys(ids).length) onAssetIds?.(ids);
+          if (Object.keys(videos).length) onVideos?.(videos);
+          if (uris.length === 0) return;
           onChange([...photos, ...uris]);
-          const meta = await extractPhotoMetadata(result.assets);
+          const meta = await extractPhotoMetadata(result.assets.filter((a) => a.type !== "video"));
           if (meta.date || meta.location) {
             setMetaSuggestion(meta);
             setDismissed(false);

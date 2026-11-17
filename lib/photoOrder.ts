@@ -13,7 +13,7 @@ import type { MediaRef, MediaRefs } from "@/lib/linkedMedia";
  */
 export type EditedPhoto =
   | { kind: "kept"; path: string; thumb: string | null; ref?: MediaRef | null }
-  | { kind: "new"; uri: string; assetId?: string | null };
+  | { kind: "new"; uri: string; assetId?: string | null; durationMs?: number | null };
 
 /** Upload results for the "new" entries, in the order they appear in the list. */
 export interface UploadedPhotoPaths {

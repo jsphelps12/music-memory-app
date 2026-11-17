@@ -192,14 +192,24 @@ export default function EditMomentScreen() {
     [photos]
   );
 
-  // Library ids of photos picked this session: they link instead of uploading.
-  const [pickedAssets, setPickedAssets] = useState<Record<string, string>>({});
+  // Library ids of photos picked this session (they link instead of
+  // uploading) and poster URI → length for videos (linked, never uploaded).
+  // Refs, not state: the picker reports them in the same tick as onChange.
+  const pickedAssets = useRef<Record<string, string>>({});
+  const pickedVideos = useRef<Record<string, number>>({});
 
   const handlePhotosChange = (next: string[]) => {
     setPhotos(
       next.map((uri): EditedPhoto => {
         const stored = storedByUrl.get(uri);
-        return stored ? { kind: "kept", ...stored } : { kind: "new", uri, assetId: pickedAssets[uri] ?? null };
+        return stored
+          ? { kind: "kept", ...stored }
+          : {
+              kind: "new",
+              uri,
+              assetId: pickedAssets.current[uri] ?? null,
+              durationMs: pickedVideos.current[uri] ?? null,
+            };
       })
     );
   };
@@ -387,7 +397,8 @@ export default function EditMomentScreen() {
         <PhotoPickerSection
           photos={pickerPhotos}
           onChange={handlePhotosChange}
-          onAssetIds={(map) => setPickedAssets((current) => ({ ...current, ...map }))}
+          onAssetIds={(map) => Object.assign(pickedAssets.current, map)}
+          onVideos={(map) => Object.assign(pickedVideos.current, map)}
           horizontalPadding={theme.spacing.xl}
         />
 

@@ -2,6 +2,7 @@ import ExpoModulesCore
 import MediaPlayer
 import MusicKit
 import Photos
+import UIKit
 
 public class NowPlayingModule: Module {
   private var isObserving = false
@@ -160,6 +161,37 @@ public class NowPlayingModule: Module {
         if case .success(let cloudId) = result { out[localId] = cloudId.stringValue }
       }
       return out
+    }
+
+    // Linked video (1.4): a still frame of a library video, written as a JPEG
+    // to upload as the moment's thumbnail (the "poster"), plus its length.
+    // May download from iCloud. Nil for anything that isn't a video here.
+    AsyncFunction("videoPoster") { (localId: String, maxSide: Int) async -> [String: Any]? in
+      let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+      guard status == .authorized || status == .limited,
+            let asset = PHAsset.fetchAssets(withLocalIdentifiers: [localId], options: nil).firstObject,
+            asset.mediaType == .video else { return nil }
+      let image: UIImage? = await withCheckedContinuation { continuation in
+        let options = PHImageRequestOptions()
+        options.isNetworkAccessAllowed = true
+        options.deliveryMode = .highQualityFormat
+        options.isSynchronous = false
+        let side = CGFloat(max(200, maxSide))
+        PHImageManager.default().requestImage(
+          for: asset,
+          targetSize: CGSize(width: side, height: side),
+          contentMode: .aspectFit,
+          options: options
+        ) { image, _ in continuation.resume(returning: image) }
+      }
+      guard let data = image?.jpegData(compressionQuality: 0.85) else { return nil }
+      let url = FileManager.default.temporaryDirectory.appendingPathComponent("poster_\(UUID().uuidString).jpg")
+      do {
+        try data.write(to: url)
+      } catch {
+        return nil
+      }
+      return ["uri": url.absoluteString, "durationMs": Int(asset.duration * 1000)]
     }
 
     // cloudId → this device's localId (only the ones found here).

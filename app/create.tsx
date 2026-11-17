@@ -207,6 +207,11 @@ export default function CreateMomentScreen() {
   const rememberAssets = useCallback((map: Record<string, string>) => {
     setPhotoAssets((current) => ({ ...current, ...map }));
   }, []);
+  // Poster URI → length (ms) for videos in the strip (1.4): linked, never uploaded.
+  const [photoVideos, setPhotoVideos] = useState<Record<string, number>>({});
+  const rememberVideos = useCallback((map: Record<string, number>) => {
+    setPhotoVideos((current) => ({ ...current, ...map }));
+  }, []);
 
   // If share intent lookup failed, open song search, once. The param stays
   // set for the screen's lifetime, so without the guard any later photo
@@ -449,6 +454,7 @@ export default function CreateMomentScreen() {
         reflection,
         photos,
         photoAssetIds: photos.map((uri) => photoAssets[uri] ?? null),
+        photoVideoDurations: photos.map((uri) => photoVideos[uri] ?? null),
         people,
         moods: selectedMoods,
         locationResult,
@@ -711,6 +717,7 @@ export default function CreateMomentScreen() {
             photos={photos}
             onChange={setPhotos}
             onAssetIds={rememberAssets}
+            onVideos={rememberVideos}
             onApplyMeta={handleApplyMeta}
             suggestion={metaSuggestion}
           />

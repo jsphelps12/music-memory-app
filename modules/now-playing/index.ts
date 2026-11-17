@@ -121,6 +121,19 @@ export async function cloudIdsFor(localIds: string[]): Promise<Record<string, st
   }
 }
 
+/**
+ * Linked video (1.4): a still frame of a library video as a local JPEG (to
+ * upload as the moment's thumbnail) and its length. Null if it isn't a video
+ * on this device, or on a build without the function.
+ */
+export async function videoPoster(localId: string, maxSide = 1080): Promise<{ uri: string; durationMs: number } | null> {
+  try {
+    return (await NowPlayingNative.videoPoster(localId, maxSide)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** iCloud identifiers → this device's local identifiers (only those found here). */
 export async function localIdsFor(cloudIds: string[]): Promise<Record<string, string>> {
   if (cloudIds.length === 0) return {};
