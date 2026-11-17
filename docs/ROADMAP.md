@@ -170,9 +170,15 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
     a "b"); bundle ids are unchanged.
   - Simulator: builds, launches, Face ID, tabs (tap and swipe), moment
     detail with map and preview playback, create, warm and cold links.
-  Left: a device pass (share from Apple Music/Spotify and Photos, widgets
-  and controls, Apple Music now playing, export, Face ID, photos), then
-  E2E and merge into `native/1.4`.
+  - A share that cold-started the app landed on "This page doesn't exist":
+    the share extension's hand-off link reached the router as a page.
+    `app/+native-intent.tsx` (rule in `lib/systemPath.ts`, tested) keeps
+    it off the router; `useShareIntentHandler` opens the moment as before.
+  - **Device pass on Josh's iOS 27.2 phone (2026-11-17), all working:**
+    sharing a song (cold and warm) and several photos, widgets and
+    controls, Apple Music now playing, saving and reopening a moment,
+    export, Edit Profile's discard, the photos prototype, Face ID.
+    Not covered: a Spotify share (same path as Apple Music's).
 - [x] Version 1.4.0 in `app.config.ts`.
 - [x] Refetch on reconnect (2026-11-16): `@react-native-community/netinfo`
   feeds React Query's `onlineManager` (`wireQueryFocus` in
