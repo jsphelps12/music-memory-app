@@ -23,6 +23,7 @@ import type { MusicProviderType } from "@/types";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { updateMoment } from "@/lib/saveMoment";
 import { pairStoredPhotos, type EditedPhoto } from "@/lib/photoOrder";
+import type { MediaRef } from "@/lib/linkedMedia";
 import { mapRowToMoment } from "@/lib/moments";
 import { LocationField } from "@/components/LocationField";
 import type { GeoResult } from "@/lib/geocoding";
@@ -77,7 +78,7 @@ export default function EditMomentScreen() {
   // What was on the row when we loaded it: the stored photos (paired with
   // their thumbnails) the strip can show, and the raw arrays, so photos the
   // user removed can be deleted from storage after a successful save.
-  const [storedPhotos, setStoredPhotos] = useState<{ path: string; thumb: string | null }[]>([]);
+  const [storedPhotos, setStoredPhotos] = useState<{ path: string; thumb: string | null; ref?: MediaRef | null }[]>([]);
   const originalPhotosRef = useRef<{ photos: string[]; thumbnails: string[] }>({
     photos: [],
     thumbnails: [],
@@ -124,7 +125,11 @@ export default function EditMomentScreen() {
     setReflection(moment.reflectionText ?? "");
     setSelectedMoods(moment.moods);
     setPeople(moment.people);
-    const stored = pairStoredPhotos(moment.photoUrls, moment.photoThumbnails);
+    // Keep each photo's link to Photos (1.4) with it through any reordering.
+    const stored = pairStoredPhotos(moment.photoUrls, moment.photoThumbnails).map((p, i) => ({
+      ...p,
+      ref: moment.mediaRefs?.[i] ?? null,
+    }));
     setStoredPhotos(stored);
     setPhotos(stored.map((p) => ({ kind: "kept", ...p })));
     originalPhotosRef.current = {
@@ -187,11 +192,14 @@ export default function EditMomentScreen() {
     [photos]
   );
 
+  // Library ids of photos picked this session: they link instead of uploading.
+  const [pickedAssets, setPickedAssets] = useState<Record<string, string>>({});
+
   const handlePhotosChange = (next: string[]) => {
     setPhotos(
       next.map((uri): EditedPhoto => {
         const stored = storedByUrl.get(uri);
-        return stored ? { kind: "kept", ...stored } : { kind: "new", uri };
+        return stored ? { kind: "kept", ...stored } : { kind: "new", uri, assetId: pickedAssets[uri] ?? null };
       })
     );
   };
@@ -379,6 +387,7 @@ export default function EditMomentScreen() {
         <PhotoPickerSection
           photos={pickerPhotos}
           onChange={handlePhotosChange}
+          onAssetIds={(map) => setPickedAssets((current) => ({ ...current, ...map }))}
           horizontalPadding={theme.spacing.xl}
         />
 

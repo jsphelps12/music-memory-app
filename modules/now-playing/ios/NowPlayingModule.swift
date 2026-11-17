@@ -145,6 +145,35 @@ public class NowPlayingModule: Module {
         return ["count": count, "favorites": favorites, "coords": coords]
       }
     }
+
+    // Linked photos and video (1.4): a moment keeps a reference to the
+    // owner's Photos library instead of an upload. Local identifiers differ
+    // per device; the iCloud identifier is the same on every device signed
+    // into the same iCloud Photos, so that's what's stored.
+    // localId → cloudId (only the ones that map).
+    AsyncFunction("cloudIdsFor") { (localIds: [String]) -> [String: String] in
+      let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+      guard status == .authorized || status == .limited, !localIds.isEmpty else { return [:] }
+      var out: [String: String] = [:]
+      let mappings = PHPhotoLibrary.shared().cloudIdentifierMappings(forLocalIdentifiers: localIds)
+      for (localId, result) in mappings {
+        if case .success(let cloudId) = result { out[localId] = cloudId.stringValue }
+      }
+      return out
+    }
+
+    // cloudId → this device's localId (only the ones found here).
+    AsyncFunction("localIdsFor") { (cloudIds: [String]) -> [String: String] in
+      let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+      guard status == .authorized || status == .limited, !cloudIds.isEmpty else { return [:] }
+      var out: [String: String] = [:]
+      let identifiers = cloudIds.map { PHCloudIdentifier(stringValue: $0) }
+      let mappings = PHPhotoLibrary.shared().localIdentifierMappings(for: identifiers)
+      for (cloudId, result) in mappings {
+        if case .success(let localId) = result { out[cloudId.stringValue] = localId }
+      }
+      return out
+    }
   }
 
   private static func statusName(_ status: MPMediaLibraryAuthorizationStatus) -> String {

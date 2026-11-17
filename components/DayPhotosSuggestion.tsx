@@ -24,6 +24,7 @@ export function DayPhotosSuggestion({
   range,
   photos,
   onChange,
+  onAssetIds,
 }: {
   /** Day key, "2026-11-15". */
   day: string;
@@ -33,6 +34,8 @@ export function DayPhotosSuggestion({
   photos: string[];
   /** Capture's setter: functional updates, so photos loading at once don't drop each other. */
   onChange: Dispatch<SetStateAction<string[]>>;
+  /** Which attached file is which library photo, so it links instead of uploading. */
+  onAssetIds?: (map: Record<string, string>) => void;
 }) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -76,6 +79,7 @@ export function DayPhotosSuggestion({
   if (!items || items.length === 0) return null;
 
   const attach = (photo: WeekPhoto, fileUri: string) => {
+    onAssetIds?.({ [fileUri]: photo.id });
     setAttached((a) => ({ ...a, [photo.id]: fileUri }));
     onChange((current) => (current.includes(fileUri) ? current : [...current, fileUri]));
   };

@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
+import { ensureFullMediaForAlbum, ensureFullMediaForAlbumMoments } from "@/lib/ensureFullMedia";
 import { Album, AlbumPreview, Moment } from "@/types";
 
 // ─── Legacy AsyncStorage caches (removed) ────────────────────────────────────
@@ -249,6 +250,9 @@ export async function createAlbum(userId: string, name: string, isShared = false
 }
 
 export async function convertAlbumToShared(id: string): Promise<void> {
+  // Linked photos (1.4): members will see these moments, so upload the
+  // originals of the caller's linked photos first.
+  await ensureFullMediaForAlbumMoments(id);
   const { error } = await supabase
     .from("collections")
     .update({ is_public: true })
@@ -325,6 +329,9 @@ export async function addMomentToAlbum(
   momentId: string,
   addedByUserId: string
 ): Promise<void> {
+  // Linked photos (1.4): a shared album's members see the originals; a
+  // private album doesn't need them uploaded.
+  await ensureFullMediaForAlbum(collectionId, momentId, addedByUserId);
   const { error } = await supabase
     .from("collection_moments")
     .insert({ collection_id: collectionId, moment_id: momentId, added_by_user_id: addedByUserId });

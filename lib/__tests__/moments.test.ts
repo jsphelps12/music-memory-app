@@ -29,6 +29,7 @@ function fullRow() {
     reflection_text: "Driving home at 2am.",
     photo_urls: ["u1/a.jpg"],
     photo_thumbnails: ["u1/thumb_a.jpg"],
+    media_refs: [{ cloudId: "cloud-a", kind: "photo", full: false }],
     mood: "nostalgic",
     moods: ["nostalgic", "energetic"],
     people: ["Sam"],
@@ -62,6 +63,7 @@ describe("mapRowToMoment", () => {
       reflectionText: "Driving home at 2am.",
       photoUrls: ["u1/a.jpg"],
       photoThumbnails: ["u1/thumb_a.jpg"],
+      mediaRefs: [{ cloudId: "cloud-a", kind: "photo", full: false }],
       moods: ["nostalgic", "energetic"],
       people: ["Sam"],
       location: "Provo, UT",
@@ -161,6 +163,8 @@ const CARD_BACKED_FIELDS = [
   "moods",
   "photoUrls",
   "photoThumbnails",
+  // Linked photos/video (1.4): which photos are references to Photos.
+  "mediaRefs",
   "reflectionText",
   "guestUuid",
 ] as const;
@@ -201,6 +205,7 @@ describe("MOMENT_CARD_COLUMNS contract", () => {
         "moment_date",
         "photo_thumbnails",
         "photo_urls",
+        "media_refs",
         "reflection_text",
         "song_album_name",
         "song_apple_music_id",

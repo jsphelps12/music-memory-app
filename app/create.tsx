@@ -115,6 +115,8 @@ export default function CreateMomentScreen() {
     shareCandidates?: string;
     shareFailedUrl?: string;
     sharedPhotoPaths?: string;
+    /** Library ids for sharedPhotoPaths, same order (Last week): those photos link (1.4). */
+    sharedAssetIds?: string;
     promptQuestion?: string;
     promptStarter?: string;
     collectionId?: string;
@@ -199,6 +201,12 @@ export default function CreateMomentScreen() {
   }, [params.shareCandidates]);
 
   const [photos, setPhotos] = useState<string[]>([]);
+  // Photo URI → its Photos library id, for photos that came from the library
+  // (picker, suggestion strip, Last week). Those link instead of uploading.
+  const [photoAssets, setPhotoAssets] = useState<Record<string, string>>({});
+  const rememberAssets = useCallback((map: Record<string, string>) => {
+    setPhotoAssets((current) => ({ ...current, ...map }));
+  }, []);
 
   // If share intent lookup failed, open song search, once. The param stays
   // set for the screen's lifetime, so without the guard any later photo
@@ -237,11 +245,17 @@ export default function CreateMomentScreen() {
       const paths = JSON.parse(params.sharedPhotoPaths) as string[];
       if (paths.length === 0) return;
       setPhotos(paths);
+      const ids = params.sharedAssetIds ? (JSON.parse(params.sharedAssetIds) as (string | null)[]) : [];
+      const map: Record<string, string> = {};
+      paths.forEach((p, i) => {
+        if (ids[i]) map[p] = ids[i]!;
+      });
+      rememberAssets(map);
       extractExifFromPath(paths[0]).then((meta) => {
         if (meta.date || meta.location) setMetaSuggestion(meta);
       });
     } catch {}
-  }, [params.sharedPhotoPaths]);
+  }, [params.sharedPhotoPaths, params.sharedAssetIds, rememberAssets]);
 
   const hasSong = !!song;
 
@@ -434,6 +448,7 @@ export default function CreateMomentScreen() {
         song: song!,
         reflection,
         photos,
+        photoAssetIds: photos.map((uri) => photoAssets[uri] ?? null),
         people,
         moods: selectedMoods,
         locationResult,
@@ -677,6 +692,7 @@ export default function CreateMomentScreen() {
 
         {params.photosDay ? (
           <DayPhotosSuggestion
+            onAssetIds={rememberAssets}
             day={params.photosDay}
             range={
               params.photosFrom && params.photosTo
@@ -694,6 +710,7 @@ export default function CreateMomentScreen() {
             compact
             photos={photos}
             onChange={setPhotos}
+            onAssetIds={rememberAssets}
             onApplyMeta={handleApplyMeta}
             suggestion={metaSuggestion}
           />

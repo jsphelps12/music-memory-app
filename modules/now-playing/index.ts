@@ -108,6 +108,30 @@ export async function photoStats(ranges: [number, number][], maxCoords = 20): Pr
 }
 
 /**
+ * Linked media (1.4): Photos local identifiers → iCloud identifiers (the
+ * same on every device on the same iCloud Photos). Only ids that map are
+ * returned; {} on a build without the function or without photo access.
+ */
+export async function cloudIdsFor(localIds: string[]): Promise<Record<string, string>> {
+  if (localIds.length === 0) return {};
+  try {
+    return (await NowPlayingNative.cloudIdsFor(localIds)) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+/** iCloud identifiers → this device's local identifiers (only those found here). */
+export async function localIdsFor(cloudIds: string[]): Promise<Record<string, string>> {
+  if (cloudIds.length === 0) return {};
+  try {
+    return (await NowPlayingNative.localIdsFor(cloudIds)) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+/**
  * App lock (1.4): a clock that can't be set back and counts through sleep.
  * Falls back to Date.now() where the native function is missing.
  */

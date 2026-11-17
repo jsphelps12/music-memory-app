@@ -8,6 +8,8 @@ import { Song, Album, Moment } from "@/types";
 import { mapRowToMoment } from "@/lib/moments";
 import { momentRowFields, songIdentityChanged, type MomentFieldsInput } from "@/lib/momentRow";
 import { buildPhotoColumns, newPhotoUris, type EditedPhoto, type PhotoColumns } from "@/lib/photoOrder";
+import { refsColumn, type MediaRefs } from "@/lib/linkedMedia";
+import { cloudIdsFor } from "@/modules/now-playing";
 
 function getTimeOfDay(): string {
   const hour = new Date().getHours();
@@ -32,6 +34,12 @@ function lookupPreview(song: Song): Promise<PreviewResult> {
 export interface SaveMomentInput extends MomentFieldsInput {
   userId: string;
   photos: string[];
+  /**
+   * Per photo, its Photos library id when it came from the library (picker,
+   * suggestion strip, Last week). Those are linked, not uploaded (1.4): only
+   * a thumbnail goes up, and the moment keeps the iCloud id.
+   */
+  photoAssetIds?: (string | null)[];
   selectedAlbum?: Album | null;
   /**
    * A preview lookup already started when the song was picked. Pass the
@@ -71,9 +79,17 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
   const previewPromise: Promise<PreviewResult> = input.prefetchedPreview
     ? input.prefetchedPreview.then((p) => p ?? NO_PREVIEW).catch(() => NO_PREVIEW)
     : lookupPreview(input.song);
+  // Linked photos: library photos whose iCloud id resolves keep a reference
+  // and upload only a thumbnail. Anything else (camera, shared in) uploads.
+  const assetIds = input.photoAssetIds ?? [];
+  const cloud = await cloudIdsFor(assetIds.filter((id): id is string => !!id));
+  const refs: MediaRefs = input.photos.map((_, i) => {
+    const cloudId = assetIds[i] ? cloud[assetIds[i]!] : undefined;
+    return cloudId ? { cloudId, kind: "photo", full: false } : null;
+  });
   const [preview, uploaded] = await Promise.all([
     previewPromise,
-    uploadMomentPhotos(input.userId, input.photos),
+    uploadMomentPhotos(input.userId, input.photos, refs.map(Boolean)),
   ]);
 
   Sentry.addBreadcrumb({ category: "moment", message: "preview_url + photos ready", level: "info", data: { photoCount: uploaded.photoPaths.length } });
@@ -90,6 +106,7 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
       song_preview_url: preview.previewUrl,
       photo_urls: uploaded.photoPaths,
       photo_thumbnails: uploaded.thumbnailPaths,
+      media_refs: refsColumn(refs),
       time_of_day: getTimeOfDay(),
       weather_temp_f: input.weatherResult?.tempF ?? null,
       weather_condition: input.weatherResult?.condition ?? null,
@@ -159,17 +176,27 @@ export interface UpdateMomentInput extends MomentFieldsInput {
 export async function updateMoment(input: UpdateMomentInput): Promise<Moment> {
   const songChanged = songIdentityChanged(input.originalSong, input.song);
 
+  // New library photos link instead of uploading (1.4), as in saveMoment.
+  const added = input.photos.flatMap((p) => (p.kind === "new" ? [p] : []));
+  const cloud = await cloudIdsFor(added.flatMap((p) => (p.assetId ? [p.assetId] : [])));
+  const newRefs: MediaRefs = added.map((p) => {
+    const cloudId = p.assetId ? cloud[p.assetId] : undefined;
+    return cloudId ? { cloudId, kind: "photo", full: false } : null;
+  });
+
   const [preview, uploaded] = await Promise.all([
     songChanged ? lookupPreview(input.song) : Promise.resolve(null),
-    uploadMomentPhotos(input.userId, newPhotoUris(input.photos)),
+    uploadMomentPhotos(input.userId, newPhotoUris(input.photos), newRefs.map(Boolean)),
   ]);
 
   let columns: PhotoColumns;
   try {
-    columns = buildPhotoColumns(input.photos, uploaded, {
-      photos: input.originalPhotos,
-      thumbnails: input.originalThumbnails,
-    });
+    columns = buildPhotoColumns(
+      input.photos,
+      uploaded,
+      { photos: input.originalPhotos, thumbnails: input.originalThumbnails },
+      newRefs
+    );
   } catch (e) {
     // Nothing references these uploads yet.
     void deleteMomentPhotos(uploaded.photoPaths, uploaded.thumbnailPaths);
@@ -183,6 +210,7 @@ export async function updateMoment(input: UpdateMomentInput): Promise<Moment> {
       ...(preview ? { song_preview_url: preview.previewUrl } : {}),
       photo_urls: columns.photo_urls,
       photo_thumbnails: columns.photo_thumbnails,
+      media_refs: refsColumn(columns.media_refs),
     })
     .eq("id", input.momentId)
     .select("*")

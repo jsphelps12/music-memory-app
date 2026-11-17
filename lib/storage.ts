@@ -95,6 +95,29 @@ export async function uploadMomentPhotoWithThumbnail(
 }
 
 /**
+ * Linked photos (1.4): upload only the 400px thumbnail. It stands in for the
+ * full photo (`photo_urls`) until a share uploads the original; the owner
+ * sees the original from Photos meanwhile (lib/linkedMedia.ts).
+ */
+export async function uploadMomentThumbnailOnly(userId: string, uri: string): Promise<{ thumbnailPath: string }> {
+  const thumbnailPath = `${userId}/thumb_${Crypto.randomUUID()}.jpg`;
+  const [thumb] = await compressToSizes(uri, [MAX_THUMBNAIL_DIMENSION]);
+  await uploadJpeg(thumbnailPath, thumb);
+  return { thumbnailPath };
+}
+
+/**
+ * A linked photo's full-size original, uploaded when its moment is shared.
+ * Returns the new `photo_urls` path.
+ */
+export async function uploadMomentFullPhoto(userId: string, uri: string): Promise<string> {
+  const fullPath = `${userId}/${Crypto.randomUUID()}.jpg`;
+  const [full] = await compressToSizes(uri, [MAX_MOMENT_PHOTO_DIMENSION]);
+  await uploadJpeg(fullPath, full);
+  return fullPath;
+}
+
+/**
  * Run `fn` over `items` with at most `limit` in flight, preserving order.
  * Settles every item (like Promise.allSettled) so the caller can clean up
  * the ones that succeeded when another failed. Exported for tests.
@@ -137,11 +160,15 @@ export interface UploadedMomentPhotos {
  */
 export async function uploadMomentPhotos(
   userId: string,
-  uris: string[]
+  uris: string[],
+  /** Per photo: linked to Photos, so only its thumbnail uploads (1.4). */
+  linked: boolean[] = []
 ): Promise<UploadedMomentPhotos> {
-  const results = await mapSettledWithLimit(uris, PHOTO_UPLOAD_CONCURRENCY, (uri) =>
-    uploadMomentPhotoWithThumbnail(userId, uri)
-  );
+  const results = await mapSettledWithLimit(uris, PHOTO_UPLOAD_CONCURRENCY, async (uri, i) => {
+    if (!linked[i]) return uploadMomentPhotoWithThumbnail(userId, uri);
+    const { thumbnailPath } = await uploadMomentThumbnailOnly(userId, uri);
+    return { fullPath: thumbnailPath, thumbnailPath };
+  });
   const uploaded = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
   const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
   if (failed) {

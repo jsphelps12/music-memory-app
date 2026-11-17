@@ -40,6 +40,8 @@ export interface Moment {
   reflectionText: string;
   photoUrls: string[];
   photoThumbnails: string[];
+  /** Linked photos/video (1.4): one entry per photo, null where uploaded. */
+  mediaRefs?: import("@/lib/linkedMedia").MediaRefs;
   // Multi-mood since Wave 4; first entry doubles as the legacy single `mood`
   // column that binaries <= build 22 still read and write (dual-write in
   // lib/saveMoment.ts, dual-read in mapRowToMoment).

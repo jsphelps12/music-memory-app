@@ -70,6 +70,7 @@ import { Icon } from "@/components/Icon";
 import { formatTime } from "@/lib/formatTime";
 import { runWhenIdle } from "@/lib/whenIdle";
 import { HeroPhotoCycle } from "@/components/HeroPhotoCycle";
+import { useMediaSources } from "@/hooks/useMediaSources";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 
 type ScreenState = "loading" | "not_found" | "error" | "ready";
@@ -379,10 +380,13 @@ export default function MomentDetailScreen() {
 
   // Full-size photos for the hero and the viewer; the strip's small squares
   // use the thumbnails (full-size fallback for moments that predate them).
-  const photoUrls = useMemo(
+  // Linked photos (1.4) show their originals from Photos on this device.
+  const storedPhotoUrls = useMemo(
     () => moment?.photoUrls.map(getPublicPhotoUrl) ?? [],
     [moment?.photoUrls]
   );
+  const mediaSources = useMediaSources(storedPhotoUrls, moment?.mediaRefs);
+  const photoUrls = useMemo(() => mediaSources.map((s) => s.uri), [mediaSources]);
   const stripUrls = useMemo(() => (moment ? momentCardImageUrls(moment) : []), [moment]);
 
   const allMoods = useMemo(() => [...MOODS, ...(profile?.customMoods ?? [])], [profile?.customMoods]);

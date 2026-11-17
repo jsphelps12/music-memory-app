@@ -45,6 +45,8 @@ interface PhotoPickerSectionProps {
   compact?: boolean;
   /** A date/place found elsewhere (photos shared in from another app). */
   suggestion?: PhotoMetaSuggestion | null;
+  /** Library ids for picked photos (URI → id), so they link instead of uploading (1.4). */
+  onAssetIds?: (map: Record<string, string>) => void;
   ref?: Ref<PhotoPickerHandle>;
 }
 
@@ -68,6 +70,7 @@ export function PhotoPickerSection({
   horizontalPadding = 20,
   compact = false,
   suggestion,
+  onAssetIds,
   ref,
 }: PhotoPickerSectionProps) {
   const theme = useTheme();
@@ -125,6 +128,10 @@ export function PhotoPickerSection({
 
         if (result && !result.canceled) {
           const uris = result.assets.map((a) => a.uri);
+          // Picked from the library (not the camera): remember which photo each is.
+          const ids: Record<string, string> = {};
+          for (const a of result.assets) if (a.assetId) ids[a.uri] = a.assetId;
+          if (Object.keys(ids).length) onAssetIds?.(ids);
           onChange([...photos, ...uris]);
           const meta = await extractPhotoMetadata(result.assets);
           if (meta.date || meta.location) {

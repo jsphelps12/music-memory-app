@@ -68,7 +68,13 @@ export default function LastWeekScreen() {
       posthog?.capture("last_week_photo_tapped");
       router.push({
         pathname: "/create",
-        params: { sharedPhotoPaths: JSON.stringify([uri]), photosDay: day, momentAt: String(photo.createdAt), source: "last_week" },
+        params: {
+          sharedPhotoPaths: JSON.stringify([uri]),
+          sharedAssetIds: JSON.stringify([photo.id]),
+          photosDay: day,
+          momentAt: String(photo.createdAt),
+          source: "last_week",
+        },
       });
     },
     [opening, router, posthog]

@@ -4,11 +4,16 @@
  * save must write exactly that order. Pure: no I/O, importable from vitest.
  */
 import { removedPaths } from "@/lib/momentRow";
+import type { MediaRef, MediaRefs } from "@/lib/linkedMedia";
 
-/** One photo in the editor's strip, in on-screen order. */
+/**
+ * One photo in the editor's strip, in on-screen order. A kept photo carries
+ * its link to Photos, if any (1.4); a new one its library id, if it came
+ * from the library (it will link instead of uploading).
+ */
 export type EditedPhoto =
-  | { kind: "kept"; path: string; thumb: string | null }
-  | { kind: "new"; uri: string };
+  | { kind: "kept"; path: string; thumb: string | null; ref?: MediaRef | null }
+  | { kind: "new"; uri: string; assetId?: string | null };
 
 /** Upload results for the "new" entries, in the order they appear in the list. */
 export interface UploadedPhotoPaths {
@@ -19,6 +24,8 @@ export interface UploadedPhotoPaths {
 export interface PhotoColumns {
   photo_urls: string[];
   photo_thumbnails: string[];
+  /** One per photo, null where uploaded (lib/linkedMedia.ts). */
+  media_refs: MediaRefs;
   /** Storage objects the row no longer references: delete once the update lands. */
   removed: { photos: string[]; thumbnails: string[] };
 }
@@ -70,7 +77,9 @@ export function pairStoredPhotos(
 export function buildPhotoColumns(
   photos: EditedPhoto[],
   uploaded: UploadedPhotoPaths,
-  original: { photos: string[]; thumbnails: string[] }
+  original: { photos: string[]; thumbnails: string[] },
+  /** For each new photo in order: its link when it was linked, else null. */
+  newRefs: MediaRefs = []
 ): PhotoColumns {
   const newCount = photos.filter((p) => p.kind === "new").length;
   if (uploaded.photoPaths.length !== newCount || uploaded.thumbnailPaths.length !== newCount) {
@@ -81,9 +90,13 @@ export function buildPhotoColumns(
 
   let next = 0;
   const entries = photos.map((p) => {
-    if (p.kind === "kept") return { path: p.path, thumb: p.thumb };
+    if (p.kind === "kept") return { path: p.path, thumb: p.thumb, ref: p.ref ?? null };
     const i = next++;
-    return { path: uploaded.photoPaths[i], thumb: uploaded.thumbnailPaths[i] as string | null };
+    return {
+      path: uploaded.photoPaths[i],
+      thumb: uploaded.thumbnailPaths[i] as string | null,
+      ref: newRefs[i] ?? null,
+    };
   });
 
   const photoUrls = entries.map((e) => e.path);
@@ -94,6 +107,7 @@ export function buildPhotoColumns(
   return {
     photo_urls: photoUrls,
     photo_thumbnails: photoThumbnails,
+    media_refs: entries.map((e) => e.ref),
     removed: {
       photos: removedPaths(original.photos, photoUrls),
       thumbnails: removedPaths(original.thumbnails, photoThumbnails),
