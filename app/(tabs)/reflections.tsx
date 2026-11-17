@@ -59,7 +59,7 @@ import {
 
 // Reflections reorg (2026-08): the archive (old Browse tab) merged INTO this
 // screen. Order is deliberate — resurfacing first, browsing second:
-// search · On This Day · Weekly Rewind · Browse by · Surprise Me.
+// search · On This Day · Weekly Rewind · Browse by · Surprise Me · From before.
 // Phase 1 (2026-10): the boxed mood tiles, gradient avatars and year pills
 // became four "Browse by" rows, each opening a quick-pick sheet; On This Day
 // leads with its oldest memory as a hero. The rotating person/mood/artist spotlights are gone: the strips
@@ -434,13 +434,9 @@ export default function ReflectionsScreen() {
   const phoneDays = phoneOnThisDay?.pairings ?? [];
   const beforePicks = fromBefore?.pairings ?? [];
 
+  // A pairing always starts a new moment: a week can hold more than one.
   const openPairing = useCallback(
     (pairing: PastPairing, data: PastPairings, source: string, span: "day" | "week") => {
-      const momentId = data.saved[pairing.song.key];
-      if (momentId) {
-        router.push(`/moment/${momentId}`);
-        return;
-      }
       const song = songForCreate(pairing.song, data.catalog);
       const range = span === "week" ? photoWindow(pairing.song.at) : undefined;
       router.push({ pathname: "/create", params: captureParams(song, pairing.song.at, pairing.song.day, source, range) });
@@ -659,6 +655,7 @@ export default function ReflectionsScreen() {
                       saved={!!phoneOnThisDay.saved[p.song.key]}
                       first={onThisDaySorted.length === 0 && i === 0}
                       onPress={() => openPairing(p, phoneOnThisDay, "on_this_day_phone", "day")}
+                      onOpenSaved={() => router.push(`/moment/${phoneOnThisDay.saved[p.song.key]}`)}
                     />
                   ))
                 : null}
@@ -673,29 +670,6 @@ export default function ReflectionsScreen() {
               </View>
               {rewindMoments.map((m) => (
                 <MomentCard key={m.id} item={m} allMoods={allMoods} />
-              ))}
-            </View>
-          )}
-
-          {/* ── From before: this week's old pairings (phone) ── */}
-          {fromBefore && beforePicks.length > 0 && (
-            <View style={styles.sectionSpaced}>
-              <View style={styles.sectionHeaderStacked}>
-                <Text style={styles.sectionTitle}>From before</Text>
-                <Text style={styles.sectionNote}>From your library and photos. Not in your journal yet.</Text>
-              </View>
-              {beforePicks.map((p, i) => (
-                <PastPairingRow
-                  key={p.song.key}
-                  song={p.song}
-                  when={addedOnLabel(p.song.at)}
-                  line={[photosLine(p.photoCount, "week"), playsLine(p.song.plays)].filter(Boolean).join(" · ")}
-                  artworkUrl={songForCreate(p.song, fromBefore.catalog).artworkUrl}
-                  photoUris={p.photoUris}
-                  saved={!!fromBefore.saved[p.song.key]}
-                  first={i === 0}
-                  onPress={() => openPairing(p, fromBefore, "from_before", "week")}
-                />
               ))}
             </View>
           )}
@@ -733,6 +707,31 @@ export default function ReflectionsScreen() {
                 )}
               </View>
               <MomentCard item={randomMoment} allMoods={allMoods} />
+            </View>
+          )}
+
+          {/* ── From before: this week's old pairings (phone), last: it's
+              material for new moments, not the journal itself ── */}
+          {fromBefore && beforePicks.length > 0 && (
+            <View style={styles.sectionSpaced}>
+              <View style={styles.sectionHeaderStacked}>
+                <Text style={styles.sectionTitle}>From before</Text>
+                <Text style={styles.sectionNote}>From your library and photos. Not in your journal yet.</Text>
+              </View>
+              {beforePicks.map((p, i) => (
+                <PastPairingRow
+                  key={p.song.key}
+                  song={p.song}
+                  when={addedOnLabel(p.song.at)}
+                  line={[photosLine(p.photoCount, "week"), playsLine(p.song.plays)].filter(Boolean).join(" · ")}
+                  artworkUrl={songForCreate(p.song, fromBefore.catalog).artworkUrl}
+                  photoUris={p.photoUris}
+                  saved={!!fromBefore.saved[p.song.key]}
+                  first={i === 0}
+                  onPress={() => openPairing(p, fromBefore, "from_before", "week")}
+                  onOpenSaved={() => router.push(`/moment/${fromBefore.saved[p.song.key]}`)}
+                />
+              ))}
             </View>
           )}
         </ScrollView>

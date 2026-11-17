@@ -504,6 +504,17 @@ clutter, navigation.
   `lib/pastPairings.ts` (tested),
   `lib/pastPairingsData.ts`, `components/PastPairingRow.tsx`. No local
   notification yet. The original plan:
+  Josh's second look: From before moved to the end of Rediscover (after
+  Surprise me), so searching, browsing and revisiting saved moments aren't
+  broken up by unsaved material; it stays always available. A pairing's row
+  always starts a new moment (a week can hold several); a saved one also
+  offers Open. "Last week" rows work the same way.
+- [ ] Long-press the + for starting points (Josh's idea, 2026-11-17): a
+  quick-pick sheet with Identify, Search, Last week and From before.
+- [ ] Smarter pairings, all on device: photo location ("away from home"
+  marks trips, the strongest single signal), favourited photos, and what
+  Josh does with them (rank down skipped kinds, up saved ones). Photos'
+  People aren't available to apps; Google Photos isn't readable at all.
 - [ ] **Photos ↔ music: three moments a week.** On device only: Apple Music
   library `dateAdded` / play count / last played (+ Replay playlists) matched
   to photos from ±3 days (date, place, favorites; iOS 18 on-device aesthetic

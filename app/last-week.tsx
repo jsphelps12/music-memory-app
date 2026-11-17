@@ -4,6 +4,7 @@ import { Stack, useRouter } from "expo-router";
 import { usePostHog } from "posthog-react-native";
 import * as Haptics from "expo-haptics";
 import { AppImage } from "@/components/AppImage";
+import { Button } from "@/components/Button";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { ErrorState } from "@/components/ErrorState";
 import { Icon } from "@/components/Icon";
@@ -23,8 +24,9 @@ const PHOTO = 72;
 /**
  * "Last week" (1.4): the week just ended, by day, newest first. Each day has
  * the songs added, played a lot or streamed, and the camera photos taken.
- * A song opens a new moment with it filled in; a photo starts one with that
- * photo; a song already saved shows "Saved" and opens its moment. Pushed
+ * A song always opens a new moment with it filled in (a day can hold more
+ * than one); a photo starts one with that photo; a saved song also offers
+ * Open. Pushed
  * (not presented) so capture stacks on top and returns here after a save,
  * ready for the next one.
  */
@@ -48,11 +50,6 @@ export default function LastWeekScreen() {
     (song: WeekSong) => {
       if (!data) return;
       Haptics.selectionAsync();
-      const momentId = data.saved[song.key];
-      if (momentId) {
-        router.push(`/moment/${momentId}`);
-        return;
-      }
       const s = songForCreate(song, data.catalog);
       posthog?.capture("last_week_song_tapped", { reason: song.reason, has_catalog: !!(song.storeId && data.catalog[song.storeId]) });
       router.push({ pathname: "/create", params: captureParams(s, song.at, song.day, "last_week") });
@@ -91,7 +88,7 @@ export default function LastWeekScreen() {
             onPress={() => openSong(song)}
             accessibilityRole="button"
             accessibilityLabel={`${song.title}, ${song.artistName}. ${songReasonLine(song)}.${saved ? " Saved." : ""}`}
-            accessibilityHint={saved ? "Opens the moment" : "Starts a moment with this song"}
+            accessibilityHint="Starts a moment with this song"
           >
             {s?.artworkUrl ? (
               <AppImage source={{ uri: artworkUrlAtSize(s.artworkUrl, ART * 3) }} style={styles.art} transition={150} />
@@ -104,11 +101,11 @@ export default function LastWeekScreen() {
                 <Text style={styles.songArtist}>{`  ${song.artistName}`}</Text>
               </Text>
               <Text style={styles.reason} numberOfLines={1}>
-                {songReasonLine(song)}
+                {saved ? `${songReasonLine(song)} · Saved` : songReasonLine(song)}
               </Text>
             </View>
             {saved ? (
-              <Text style={styles.saved}>Saved</Text>
+              <Button label="Open" variant="text" size="pill" onPress={() => router.push(`/moment/${data!.saved[song.key]}`)} />
             ) : (
               <Icon name="add" size={20} color={theme.colors.textSecondary} />
             )}
@@ -210,7 +207,6 @@ function createStyles(theme: Theme) {
     songTitle: { ...theme.typography.bodyStrong, color: theme.colors.text },
     songArtist: { ...theme.typography.body, color: theme.colors.textSecondary },
     reason: { ...theme.typography.meta, color: theme.colors.textTertiary },
-    saved: { ...theme.typography.meta, color: theme.colors.textSecondary },
     photoScroll: { marginHorizontal: -theme.spacing.xl, marginTop: theme.spacing.sm },
     photoStrip: { paddingHorizontal: theme.spacing.xl, gap: theme.spacing.xs },
     photo: {

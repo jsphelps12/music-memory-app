@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
+import { Button } from "@/components/Button";
 import { Icon } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -14,8 +15,9 @@ const THUMB = 56;
 /**
  * A song from the library paired with the photos of when it was added, in
  * Rediscover (On this day, From before). Ruled like On this day's own rows:
- * when, then song and artist, then why, then the photos. Tapping starts a
- * moment with the song, dated that day; a saved one says so and opens it.
+ * when, then song and artist, then why, then the photos. Tapping always
+ * starts a moment (a week can hold more than one); once one is saved, Open
+ * goes to it.
  */
 export function PastPairingRow({
   song,
@@ -26,6 +28,7 @@ export function PastPairingRow({
   saved,
   first = false,
   onPress,
+  onOpenSaved,
 }: {
   song: PastSong;
   /** "2 years ago" or "Added June 3, 2019". */
@@ -37,7 +40,10 @@ export function PastPairingRow({
   saved: boolean;
   /** No rule above the first row of a section. */
   first?: boolean;
+  /** Starts a new moment. */
   onPress: () => void;
+  /** Opens the moment already saved from it. */
+  onOpenSaved?: () => void;
 }) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -53,7 +59,7 @@ export function PastPairingRow({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${when}. ${song.title}, ${song.artistName}.${why ? ` ${why}.` : ""}${saved ? " Saved." : ""}`}
-      accessibilityHint={saved ? "Opens the moment" : "Starts a moment with this song"}
+      accessibilityHint="Starts a moment with this song"
     >
       <View style={styles.top}>
         {artworkUrl ? (
@@ -73,8 +79,12 @@ export function PastPairingRow({
             </Text>
           ) : null}
         </View>
-        {/* Not a moment yet: the + says tapping makes one (saved ones open). */}
-        {saved ? null : <Icon name="add" size={20} color={theme.colors.textSecondary} />}
+        {/* The row always makes a new moment; a saved one also offers Open. */}
+        {saved && onOpenSaved ? (
+          <Button label="Open" variant="text" size="pill" onPress={onOpenSaved} />
+        ) : (
+          <Icon name="add" size={20} color={theme.colors.textSecondary} />
+        )}
       </View>
       {photoUris.length > 0 ? (
         <View style={styles.photos}>
