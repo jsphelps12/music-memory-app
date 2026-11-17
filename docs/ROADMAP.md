@@ -123,6 +123,15 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   build made with Xcode 27 needs this. It mirrors Expo SDK 58's own
   `ExpoAppSceneDelegate` (55–57 still don't use scenes) and is deleted by
   the SDK upgrade below.
+- [x] Control Center / Lock Screen controls open the capture screen
+  (2026-11-17, verified on Josh's phone, app running and fully closed):
+  tapping "Capture a song" did nothing, in the store app too. The phone's
+  log showed iOS running the intent inside the widget extension and
+  dropping the `OpenURLIntent`. The intents now sit in
+  `targets/widget/_shared` (built into the app as well) with
+  `openAppWhenRun`; iOS still drops a returned `OpenURLIntent`, so the app
+  opens the link itself through `ControlLinkOpener`, set at launch by
+  `plugins/withControlLinkOpener`.
 - [ ] Upgrade Expo SDK 54 → 58 (RN 0.81 → 0.88), its own release after
   1.4: four SDKs behind, and Apple will require the iOS 27 SDK for
   submissions. Brings Expo's supported scene lifecycle. Needs every native
