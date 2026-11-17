@@ -22,8 +22,9 @@ interface PlayerControls {
   stop: () => void;
   seekTo: (seconds: number) => void;
   /**
-   * A video clip's sound is on (true) or off (false): the song ducks under it
-   * and comes back (lib/audioMix.ts). Previews fade; full playback pauses.
+   * A video clip's sound is on (true) or off (false): a preview fades under it
+   * and back (lib/audioMix.ts). Full playback runs in Apple's player, which
+   * can't be turned down: callers pause and resume it themselves.
    */
   duck: (on: boolean) => void;
 }
@@ -61,11 +62,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const playGenRef = useRef(0);
   // Generation of the playFull still awaiting authorize()/play(), if any.
   const pendingFullGenRef = useRef<number | null>(null);
-  // Ducking under a video clip (1.4): the preview's current volume, the
-  // running fade, and whether full playback was paused for a clip.
+  // Ducking under a video clip (1.4): the preview's current volume and the
+  // running fade.
   const volumeRef = useRef(1);
   const fadeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pausedForClipRef = useRef(false);
 
   useEffect(() => {
     // Fire-and-forget: if the audio session can't be configured, preview
@@ -303,18 +303,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const duck = useCallback(
     (on: boolean) => {
       // Full playback runs in Apple's player, which can't be turned down.
-      if (activeProviderRef.current) {
-        if (on && isPlaying) {
-          pausedForClipRef.current = true;
-          activeProviderRef.current.pause();
-          setIsPlaying(false);
-        } else if (!on && pausedForClipRef.current) {
-          pausedForClipRef.current = false;
-          activeProviderRef.current.resume();
-          setIsPlaying(true);
-        }
-        return;
-      }
+      if (activeProviderRef.current) return;
       const target = on ? DUCK_LEVEL : 1;
       const ms = on ? DUCK_MS : RESTORE_MS;
       const from = volumeRef.current;
@@ -333,7 +322,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         }
       }, 30);
     },
-    [isPlaying]
+    []
   );
 
   useEffect(

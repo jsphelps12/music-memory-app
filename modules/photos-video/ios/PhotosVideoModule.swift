@@ -84,9 +84,8 @@ class PhotosVideoView: ExpoView {
     if playing {
       if player.currentItem?.status == .readyToPlay { player.play() }
     } else {
-      // Off screen: stop and rewind, so it starts from the top next time.
+      // Paused where it is; a fresh view starts from the top.
       player.pause()
-      player.seek(to: .zero)
     }
   }
 
