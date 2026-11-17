@@ -111,6 +111,23 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   `eas build --local` and local simulator builds work while EAS's free
   builds are used up. Prebuild with `--clean` (apple-targets fails to
   update an existing project) and run CocoaPods with a UTF-8 locale.
+- [x] UIScene lifecycle (2026-11-16; launches on Josh's iOS 27.2 phone;
+  on the simulator a cold-start widget link, a warm link and the Face ID
+  background lock all work):
+  iOS 27 won't launch an app built with the iOS 27 SDK that still makes
+  its window in `didFinishLaunching` (the first Xcode 27 device build
+  crashed on open). `plugins/withSceneLifecycle` adds a `SceneDelegate`
+  and the scene manifest, and forwards cold-start and warm URLs and user
+  activities back through the AppDelegate so Linking, the widgets, the
+  share extension and the auth confirm link behave as before. Any 1.4
+  build made with Xcode 27 needs this. It mirrors Expo SDK 58's own
+  `ExpoAppSceneDelegate` (55–57 still don't use scenes) and is deleted by
+  the SDK upgrade below.
+- [ ] Upgrade Expo SDK 54 → 58 (RN 0.81 → 0.88), its own release after
+  1.4: four SDKs behind, and Apple will require the iOS 27 SDK for
+  submissions. Brings Expo's supported scene lifecycle. Needs every native
+  dependency checked (apple-music, share-intent, apple-targets, RevenueCat,
+  Sentry, the local modules) and a full device pass.
 - [x] Version 1.4.0 in `app.config.ts`.
 - [x] Refetch on reconnect (2026-11-16): `@react-native-community/netinfo`
   feeds React Query's `onlineManager` (`wireQueryFocus` in
