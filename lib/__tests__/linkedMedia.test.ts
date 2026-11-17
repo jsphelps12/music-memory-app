@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alignRefs, displaySources, linkedCloudIds, needsFullUpload, refsColumn } from "../linkedMedia";
+import { alignRefs, displaySources, linkedCloudIds, needsFullUpload, refsColumn, withoutOthersVideos } from "../linkedMedia";
 
 const ref = (cloudId: string, full = false) => ({ cloudId, kind: "photo" as const, full });
 
@@ -44,5 +44,37 @@ describe("displaySources", () => {
       ["https://x/2.jpg", false],
       ["https://x/thumb_3.jpg", false],
     ]);
+  });
+});
+
+describe("withoutOthersVideos", () => {
+  const video = { cloudId: "v", kind: "video" as const, durationMs: 4000, full: false };
+  const photo = { cloudId: "p", kind: "photo" as const, full: false };
+  const moment = {
+    userId: "owner",
+    photoUrls: ["a.jpg", "v.jpg", "c.jpg"],
+    photoThumbnails: ["a_t.jpg", "v_t.jpg", "c_t.jpg"],
+    mediaRefs: [photo, video, null],
+  };
+
+  it("gives the owner the moment unchanged", () => {
+    expect(withoutOthersVideos(moment, "owner")).toBe(moment);
+  });
+
+  it("leaves linked videos out for anyone else, keeping the arrays aligned", () => {
+    expect(withoutOthersVideos(moment, "friend")).toEqual({
+      userId: "owner",
+      photoUrls: ["a.jpg", "c.jpg"],
+      photoThumbnails: ["a_t.jpg", "c_t.jpg"],
+      mediaRefs: [photo, null],
+    });
+    expect(withoutOthersVideos(moment, null).photoUrls).toEqual(["a.jpg", "c.jpg"]);
+  });
+
+  it("leaves a moment without videos alone, and keeps legacy thumbnails as they are", () => {
+    const photos = { ...moment, mediaRefs: [photo, null, null] };
+    expect(withoutOthersVideos(photos, "friend")).toBe(photos);
+    const legacy = { ...moment, photoThumbnails: [] };
+    expect(withoutOthersVideos(legacy, "friend").photoThumbnails).toEqual([]);
   });
 });

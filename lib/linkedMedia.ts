@@ -85,3 +85,25 @@ export function displaySources(
     };
   });
 }
+
+/**
+ * The moment as someone other than its owner sees it (1.4): linked videos
+ * play only from the owner's Photos (they're uploaded only in a future paid
+ * tier), so for anyone else they're left out entirely rather than shown as a
+ * still that can't play. The owner gets the moment back unchanged.
+ */
+export function withoutOthersVideos<
+  T extends { userId?: string; photoUrls: string[]; photoThumbnails?: string[] | null; mediaRefs?: MediaRefs },
+>(moment: T, viewerId: string | null | undefined): T {
+  const refs = moment.mediaRefs;
+  if (!refs || (viewerId && moment.userId === viewerId)) return moment;
+  if (!refs.some((r) => r?.kind === "video")) return moment;
+  const keep = (_: unknown, i: number) => refs[i]?.kind !== "video";
+  const thumbs = moment.photoThumbnails ?? [];
+  return {
+    ...moment,
+    photoUrls: moment.photoUrls.filter(keep),
+    photoThumbnails: thumbs.length === moment.photoUrls.length ? thumbs.filter(keep) : thumbs,
+    mediaRefs: refs.filter(keep),
+  };
+}

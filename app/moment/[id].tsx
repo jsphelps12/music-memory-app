@@ -71,6 +71,7 @@ import { formatTime } from "@/lib/formatTime";
 import { runWhenIdle } from "@/lib/whenIdle";
 import { HeroPhotoCycle } from "@/components/HeroPhotoCycle";
 import { useMediaSources } from "@/hooks/useMediaSources";
+import { withoutOthersVideos } from "@/lib/linkedMedia";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 
 type ScreenState = "loading" | "not_found" | "error" | "ready";
@@ -387,13 +388,16 @@ export default function MomentDetailScreen() {
   // Full-size photos for the hero and the viewer; the strip's small squares
   // use the thumbnails (full-size fallback for moments that predate them).
   // Linked photos (1.4) show their originals from Photos on this device.
+  // What this viewer sees: someone else's linked videos are left out
+  // entirely (they play only from the owner's Photos).
+  const shown = useMemo(() => (moment ? withoutOthersVideos(moment, user?.id) : null), [moment, user?.id]);
   const storedPhotoUrls = useMemo(
-    () => moment?.photoUrls.map(getPublicPhotoUrl) ?? [],
-    [moment?.photoUrls]
+    () => shown?.photoUrls.map(getPublicPhotoUrl) ?? [],
+    [shown?.photoUrls]
   );
-  const mediaSources = useMediaSources(storedPhotoUrls, moment?.mediaRefs, moment?.userId);
+  const mediaSources = useMediaSources(storedPhotoUrls, shown?.mediaRefs, shown?.userId);
   const photoUrls = useMemo(() => mediaSources.map((s) => s.uri), [mediaSources]);
-  const stripUrls = useMemo(() => (moment ? momentCardImageUrls(moment) : []), [moment]);
+  const stripUrls = useMemo(() => (shown ? momentCardImageUrls(shown) : []), [shown]);
 
   const allMoods = useMemo(() => [...MOODS, ...(profile?.customMoods ?? [])], [profile?.customMoods]);
 
@@ -939,7 +943,7 @@ export default function MomentDetailScreen() {
                     accessibilityLabel={`Photo ${idx + 1} of ${stripUrls.length}`}
                   >
                     <AppImage source={{ uri: url }} style={styles.photoStripThumb} contentFit="cover" transition={200} />
-                    {moment.mediaRefs?.[idx]?.kind === "video" ? (
+                    {shown?.mediaRefs?.[idx]?.kind === "video" ? (
                       <View style={styles.videoBadge} pointerEvents="none">
                         {/* Play only where it can: a linked video plays from its owner's Photos. */}
                         <Icon
@@ -947,7 +951,7 @@ export default function MomentDetailScreen() {
                           size={10}
                           color={PAPER_ON_GLASS}
                         />
-                        <Text style={styles.videoBadgeText}>{clipLength(moment.mediaRefs[idx]?.durationMs)}</Text>
+                        <Text style={styles.videoBadgeText}>{clipLength(shown?.mediaRefs?.[idx]?.durationMs)}</Text>
                       </View>
                     ) : null}
                   </TouchableOpacity>

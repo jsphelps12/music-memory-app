@@ -90,6 +90,7 @@ export type MomentCardData = Pick<
   | "reflectionText"
   | "guestUuid"
   | "contributorName"
+  | "mediaRefs"
 >;
 
 /**

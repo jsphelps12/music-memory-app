@@ -22,6 +22,7 @@ import { friendlyError } from "@/lib/errors";
 import { usePlayerControls } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { momentCardImageUrls } from "@/lib/storage";
+import { withoutOthersVideos } from "@/lib/linkedMedia";
 import { artworkUrlAtSize } from "@/lib/itunes";
 import { moodWords as moodWordsFor } from "@/lib/moodLabels";
 import { Theme } from "@/constants/theme";
@@ -202,7 +203,8 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
     transform: [{ scale: scale.value }],
   }));
 
-  const thumbUrls = momentCardImageUrls(item);
+  // Someone else's linked videos never show (lib/linkedMedia.ts).
+  const thumbUrls = momentCardImageUrls(withoutOthersVideos(item, currentUserId));
 
   // The year only when it isn't this one: lists without month headers
   // (browse, Surprise me, Shared) would otherwise make 2019 read as this fall.
