@@ -21,6 +21,7 @@ import { Theme } from "@/constants/theme";
 import type { MediaSource } from "@/lib/linkedMedia";
 import { PhotosVideoView, setDuckOthers } from "@/modules/photos-video";
 import { CLIP_LEVEL } from "@/lib/audioMix";
+import { StatusBar } from "expo-status-bar";
 
 /** How long a photo holds before the next fades in. */
 const PHOTO_MS = 4000;
@@ -234,6 +235,8 @@ export function MomentFilm({
 
   return (
     <Modal visible={visible} animationType="fade" transparent statusBarTranslucent onShow={onOpen} onRequestClose={close}>
+      {/* The film is Night: white status bar even when the app is light. */}
+      {visible ? <StatusBar style="light" /> : null}
       <GestureDetector gesture={gestures}>
         <Animated.View style={[styles.screen, sheetStyle]}>
           {current ? (
