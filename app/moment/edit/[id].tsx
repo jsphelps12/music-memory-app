@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
 } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
@@ -50,7 +51,7 @@ export default function EditMomentScreen() {
   const queryClient = useQueryClient();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const params = useLocalSearchParams<{
     id: string;
     songId?: string;

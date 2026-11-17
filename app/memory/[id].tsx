@@ -233,7 +233,7 @@ function createStyles(theme: Theme) {
       justifyContent: "center",
     },
     dim: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: "rgba(14,11,10,0.72)",
     },
     topBar: {

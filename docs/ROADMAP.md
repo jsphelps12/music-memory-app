@@ -106,6 +106,19 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   of these 14 photos."). `lib/libraryMoments.ts` (tested),
   `app/dev/library.tsx`. Runs on the simulator (0 songs there); the real
   answer needs a real library.
+  **Result on Josh's phone (2026-11-17): the idea works ("real cool").**
+  591 songs; 138 (23%) on three bulk days, correctly left out. The best
+  pairing was a trip: songs added Aug 8, 2024 with 70 photos of that week.
+  What to fix before this becomes a feature:
+  - Adding an album gives every song the same date, so the list repeats
+    one week's photos for each track. Group by add date: one pairing per
+    day, led by its most played song ("and 6 more you added that day").
+  - 60 of 60 songs "had photos that week": a ±3 day window always finds
+    some. Score the week against Josh's usual photo count, so a trip (70
+    photos) beats an ordinary week, and narrow the window.
+  - Dates aren't always right: "added" isn't "first heard", and saved or
+    received images carry the save date. Count only camera photos (skip
+    screenshots and saved images) and word it as a nudge, not a fact.
 - [x] Local builds on Xcode 27 (2026-11-16): `plugins/withPodsMinDeploymentTarget`
   lifts pods below iOS 15 (Xcode 27 refuses them) in the Podfile, so
   `eas build --local` and local simulator builds work while EAS's free
@@ -132,11 +145,34 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   `openAppWhenRun`; iOS still drops a returned `OpenURLIntent`, so the app
   opens the link itself through `ControlLinkOpener`, set at launch by
   `plugins/withControlLinkOpener`.
-- [ ] Upgrade Expo SDK 54 → 58 (RN 0.81 → 0.88), its own release after
-  1.4: four SDKs behind, and Apple will require the iOS 27 SDK for
-  submissions. Brings Expo's supported scene lifecycle. Needs every native
-  dependency checked (apple-music, share-intent, apple-targets, RevenueCat,
-  Sentry, the local modules) and a full device pass.
+- [ ] Upgrade Expo SDK 54 → 58 (RN 0.81 → 0.88, React 19.3, TypeScript 6)
+  inside 1.4 (Josh, 2026-11-17), on branch `native/sdk-58`; merged into
+  `native/1.4` only after a clean device pass, else 1.4 ships on 54 with
+  the scene plugin. Done so far:
+  - Every package on its SDK 58 version; third-party: expo-share-intent 9,
+    apple-targets 5, Sentry 8, apple-music 1.4. Dropped a stray
+    `@expo/cli@54` pin; added `@expo/config-plugins` (react-native-maps'
+    plugin deep-imports it) and `react-native-tab-view` (TopTabs needs it).
+  - Patches: Apple Sign-In and web browser key-window fixes are upstream
+    now (deleted); the share extension's multi-photo fix is re-ported to
+    v9 (`patches/expo-share-intent+9.0.0.patch`).
+  - Expo's own SceneDelegate replaces `withSceneLifecycle` (deleted).
+  - Expo Router 58: no `@react-navigation/*` imports in app code (now from
+    `expo-router`); tabs are `TopTabs` from `expo-router/js-top-tabs`
+    (TabBar uses `emitter`/`navigateToTab`, and `router.prefetch` replaces
+    `preload`); `usePreventRemove` discards via `repeat()`; root
+    `unstable_settings.anchor`.
+  - React Native: `InteractionManager` → `lib/whenIdle.ts`;
+    `absoluteFillObject` → `absoluteFill`; refs typed with
+    `ViewInstance`/`ScrollViewInstance`/`TextInputInstance`.
+  - `File.move()` is async (export awaited it). Minimum iOS 16.4.
+  - The beta's Xcode project is now `Soundtracksb` (SDK 58 keeps the β as
+    a "b"); bundle ids are unchanged.
+  - Simulator: builds, launches, Face ID, tabs (tap and swipe), moment
+    detail with map and preview playback, create, warm and cold links.
+  Left: a device pass (share from Apple Music/Spotify and Photos, widgets
+  and controls, Apple Music now playing, export, Face ID, photos), then
+  E2E and merge into `native/1.4`.
 - [x] Version 1.4.0 in `app.config.ts`.
 - [x] Refetch on reconnect (2026-11-16): `@react-native-community/netinfo`
   feeds React Query's `onlineManager` (`wireQueryFocus` in

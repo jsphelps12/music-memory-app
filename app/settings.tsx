@@ -19,7 +19,7 @@ import * as Notifications from "expo-notifications";
 import * as Application from "expo-application";
 import * as Updates from "expo-updates";
 import { useRouter } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "@/components/Icon";
 import { useAuth } from "@/contexts/AuthContext";

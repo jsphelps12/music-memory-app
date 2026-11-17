@@ -1,3 +1,4 @@
+import type { ComponentRef } from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -44,7 +45,7 @@ export default function ShareCardScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const viewShotRef = useRef<ViewShot>(null);
+  const viewShotRef = useRef<ComponentRef<typeof ViewShot>>(null);
 
   // Read once on mount. A cold deep link (or a swallowed hand-off) has none.
   const [data] = useState<ShareCardData | null>(() => consumeShareCardData());

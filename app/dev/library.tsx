@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
 import { Stack } from "expo-router";
-import * as MediaLibrary from "expo-media-library";
+import * as MediaLibrary from "expo-media-library/legacy";
 import { AppImage } from "@/components/AppImage";
 import { Button } from "@/components/Button";
 import { ScreenHeader } from "@/components/ScreenHeader";

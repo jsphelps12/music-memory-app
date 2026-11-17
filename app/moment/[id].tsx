@@ -1,4 +1,4 @@
-import { type ComponentProps, type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePostHog } from "posthog-react-native";
 import {
   View,
@@ -10,8 +10,8 @@ import {
   FlatList,
   ActivityIndicator,
   Linking,
-  InteractionManager,
 } from "react-native";
+import type { ViewInstance } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -29,7 +29,7 @@ import { consumeCachedMoment } from "@/lib/momentCache";
 import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayerControls, usePlayerProgress } from "@/contexts/PlayerContext";
@@ -68,6 +68,7 @@ import { IconButton } from "@/components/IconButton";
 import { MomentActionMenu, MenuAnchor, MomentMenuItem } from "@/components/MomentActionMenu";
 import { Icon } from "@/components/Icon";
 import { formatTime } from "@/lib/formatTime";
+import { runWhenIdle } from "@/lib/whenIdle";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 
 type ScreenState = "loading" | "not_found" | "error" | "ready";
@@ -134,7 +135,7 @@ export default function MomentDetailScreen() {
   const [refreshError, setRefreshError] = useState("");
   // The "…" button's frame while the context menu is open.
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
-  const menuButtonRef = useRef<View>(null);
+  const menuButtonRef = useRef<ViewInstance>(null);
   const [deleting, setDeleting] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -367,7 +368,7 @@ export default function MomentDetailScreen() {
         refetchOnFocusRef.current ||
         Date.now() - lastFetchRef.current > STALE_TIME;
       if (!due) return;
-      const task = InteractionManager.runAfterInteractions(() => {
+      const task = runWhenIdle(() => {
         refetchOnFocusRef.current = false;
         void fetchMoment(momentRef.current === null);
       });
@@ -1109,7 +1110,7 @@ function PlaybackProgress({
 }: {
   isCurrentSong: boolean;
   playError: boolean;
-  seekGesture: ComponentProps<typeof GestureDetector>["gesture"];
+  seekGesture: ReturnType<typeof Gesture.Race>;
   barWidthRef: MutableRefObject<number>;
   durationRef: MutableRefObject<number>;
   styles: ReturnType<typeof createStyles>;

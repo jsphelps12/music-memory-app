@@ -195,7 +195,7 @@ function createStyles(theme: Theme) {
       justifyContent: "flex-end",
     },
     scrim: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: theme.colors.scrim,
     },
     sheet: {

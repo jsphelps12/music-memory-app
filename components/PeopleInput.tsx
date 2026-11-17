@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { Icon } from "@/components/Icon";
 import * as Haptics from "expo-haptics";
 import { Chip } from "@/components/Chip";
@@ -20,7 +21,7 @@ export function PeopleInput({ people, onChangePeople }: Props) {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
 
   // Return, blur and the "Add" row all commit what's typed, so a name is
   // never lost by closing the sheet.

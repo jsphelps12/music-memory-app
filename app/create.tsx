@@ -12,6 +12,7 @@ import {
   Keyboard,
   StyleSheet,
 } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { AppImage } from "@/components/AppImage";
 import { Button } from "@/components/Button";
@@ -97,7 +98,7 @@ export default function CreateMomentScreen() {
   // Open → saved, the number that says whether capture is quick.
   const [sinceOpen] = useState(() => startTimer());
   const queryClient = useQueryClient();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const photoPickerRef = useRef<PhotoPickerHandle>(null);
   const params = useLocalSearchParams<{
     songId?: string;

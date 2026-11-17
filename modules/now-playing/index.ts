@@ -1,4 +1,4 @@
-import { requireNativeModule, EventEmitter, type EventSubscription } from "expo-modules-core";
+import { requireNativeModule, EventEmitter, type EventSubscription } from "expo";
 
 export interface NowPlayingItem {
   id: string;

@@ -1,3 +1,4 @@
+import type { ComponentRef } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -146,7 +147,7 @@ function YearInReviewScreen() {
     [index, chapters.length, posthog, year]
   );
 
-  const shotRef = useRef<ViewShot>(null);
+  const shotRef = useRef<ComponentRef<typeof ViewShot>>(null);
   const [sharing, setSharing] = useState(false);
   const share = useCallback(async () => {
     if (sharing) return;
@@ -400,7 +401,7 @@ function createStyles(theme: Theme) {
     },
     // Night over the blurred artwork so text holds contrast on any cover.
     dim: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: "rgba(14,11,10,0.72)",
     },
     topArea: {

@@ -14,7 +14,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // would land in the wrong app. Public soundtracks:// links stay prod-only.
   scheme: isPreview ? "soundtracks-beta" : "soundtracks",
   userInterfaceStyle: "automatic",
-  newArchEnabled: true,
   ios: {
     // "Pressed S" (2026-10): light, dark and tinted home-screen variants,
     // drawn by scripts/make-app-icon.py. The beta keeps one icon (green
@@ -65,7 +64,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       foregroundImage: "./assets/images/adaptive-icon.png",
       backgroundColor: "#FBF7F2",
     },
-    edgeToEdgeEnabled: true,
     package: "com.joshuaphelps.musicmemory",
   },
   web: {
@@ -86,7 +84,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-router",
     // Local Xcode 27 builds: lift pods below iOS 15 (see the plugin).
     "./plugins/withPodsMinDeploymentTarget",
-    "./plugins/withSceneLifecycle",
     "./plugins/withControlLinkOpener",
     "expo-apple-authentication",
     [

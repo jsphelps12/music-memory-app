@@ -239,7 +239,7 @@ function Overlay({ children }: { children: ReactNode }) {
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     cover: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: theme.colors.background,
     },
     center: {

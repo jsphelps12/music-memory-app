@@ -18,7 +18,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useRouter } from "expo-router";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -689,7 +689,7 @@ export default function TimelineScreen() {
                         style={{ paddingVertical: 20 }}
                         color={theme.colors.textSecondary}
                       />
-                    ) : null
+                    ) : undefined
                   }
                   contentContainerStyle={styles.listContent}
                   showsVerticalScrollIndicator={false}

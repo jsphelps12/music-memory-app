@@ -168,7 +168,7 @@ export function MomentActionMenu({ anchor, items, onClose }: Props) {
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     scrim: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: theme.colors.scrim,
     },
     // A raised surface: elevated paper with a hairline edge. The scrim, not a

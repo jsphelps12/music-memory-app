@@ -11,8 +11,9 @@ import {
   RefreshControl,
   TextInput,
 } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { useRouter } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router";
 import { AppImage } from "@/components/AppImage";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -281,7 +282,7 @@ export default function ReflectionsScreen() {
   const [searchActive, setSearchActive] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [browseSheet, setBrowseSheet] = useState<BrowseKind | null>(null);
-  const searchInputRef = useRef<TextInput>(null);
+  const searchInputRef = useRef<TextInputInstance>(null);
 
   const allMoods = useMemo(
     () => [...MOODS, ...(profile?.customMoods ?? [])],

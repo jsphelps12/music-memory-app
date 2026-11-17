@@ -55,7 +55,7 @@ export async function exportJournalPdf(userId: string, opts: ExportOptions): Pro
   const named = new File(Paths.cache, `Soundtracks journal ${stamp}.pdf`);
   try {
     if (named.exists) named.delete();
-    new File(uri).move(named);
+    await new File(uri).move(named);
   } catch {
     // Keep the printer's file if the rename fails.
   }

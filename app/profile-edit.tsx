@@ -13,9 +13,10 @@ import {
   FlatList,
   Linking,
 } from "react-native";
+import type { ScrollViewInstance, ViewInstance } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { usePreventRemove } from "@react-navigation/native";
+import { usePreventRemove } from "expo-router";
 import { AppImage } from "@/components/AppImage";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ListRow } from "@/components/ListRow";
@@ -26,7 +27,7 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
 import { confirmSheet } from "@/components/ConfirmSheet";
 import * as Haptics from "expo-haptics";
-import { useNavigation, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Icon } from "@/components/Icon";
 import { useAuth } from "@/contexts/AuthContext";
@@ -94,13 +95,12 @@ const PICKER_ROW_HEIGHT = 52;
 
 export default function ProfileEditScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { user, profile, updateProfile, refreshProfile } = useAuth();
   const posthog = usePostHog();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
 
   // ── Basic info ──────────────────────────────────────────────────────────
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -113,6 +113,9 @@ export default function ProfileEditScreen() {
   const [saving, setSaving] = useState(false);
   // Set after a successful save so the unsaved-changes guard lets us leave.
   const [saved, setSaved] = useState(false);
+  // Set when the person chooses Discard, so the guard lifts before the
+  // blocked navigation repeats (Expo Router 58 defers it past the commit).
+  const [discarding, setDiscarding] = useState(false);
 
   // ── Username check ──────────────────────────────────────────────────────
   const handleUsernameChange = useCallback((text: string) => {
@@ -166,7 +169,7 @@ export default function ProfileEditScreen() {
   const [artistResults, setArtistResults] = useState<FavoriteArtist[]>([]);
   const [artistSearching, setArtistSearching] = useState(false);
   const artistDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const artistSectionRef = useRef<View>(null);
+  const artistSectionRef = useRef<ViewInstance>(null);
 
   // ── Favorite songs ──────────────────────────────────────────────────────
   const [selectedSongs, setSelectedSongs] = useState<FavoriteSong[]>(
@@ -176,7 +179,7 @@ export default function ProfileEditScreen() {
   const [songResults, setSongResults] = useState<FavoriteSong[]>([]);
   const [songSearching, setSongSearching] = useState(false);
   const songDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const songSectionRef = useRef<View>(null);
+  const songSectionRef = useRef<ViewInstance>(null);
 
   // The form is seeded from the profile. If the profile hadn't loaded when
   // the screen opened, seed it once it arrives (and ask for it), instead of
@@ -215,7 +218,7 @@ export default function ProfileEditScreen() {
   };
   const dirty = !!profile && Object.keys(profileEditChanges(profile, form)).length > 0;
 
-  usePreventRemove(dirty && !saved, ({ data }) => {
+  usePreventRemove(dirty && !saved && !discarding, ({ repeat }) => {
     void confirmSheet({
       title: "Discard changes?",
       message: "Your edits to your profile won't be saved.",
@@ -223,7 +226,9 @@ export default function ProfileEditScreen() {
       cancelLabel: "Keep editing",
       destructive: true,
     }).then((discard) => {
-      if (discard) navigation.dispatch(data.action);
+      if (!discard) return;
+      setDiscarding(true);
+      repeat();
     });
   });
 

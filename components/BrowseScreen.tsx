@@ -110,7 +110,7 @@ export function BrowseScreen({ title, subtitle, items, activeKey, onSelect, mome
         ListHeaderComponent={
           showBanner ? (
             <ErrorBanner message={error!} onRetry={onRetry} onDismiss={() => setDismissedError(error!)} />
-          ) : null
+          ) : undefined
         }
         ListEmptyComponent={
           isLoading ? (

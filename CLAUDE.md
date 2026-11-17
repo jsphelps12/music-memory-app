@@ -6,7 +6,7 @@ Soundtracks — an iOS app for capturing and revisiting music-linked memories ("
 
 ## Tech Stack
 
-- **Framework**: Expo SDK 54 (React Native) with Expo Router v6 (file-based routing)
+- **Framework**: Expo SDK 58 (React Native 0.88) with Expo Router 58 (file-based routing). App code never imports `@react-navigation/*`: Expo Router 58 exports `useFocusEffect`, `usePreventRemove`, themes etc., and the bundler rejects those imports
 - **Language**: TypeScript
 - **Backend**: Supabase (auth, Postgres database, storage)
 - **Music**: Apple MusicKit via `@lomray/react-native-apple-music`, custom NowPlaying Expo module for system player, custom SpotifyRemote Expo module in `modules/spotify-remote` (lazy-loaded; see `lib/providers/`)

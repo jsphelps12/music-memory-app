@@ -1,10 +1,11 @@
-import { View, Text, TouchableOpacity, StyleSheet, InteractionManager } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { runWhenIdle, type IdleTask } from "@/lib/whenIdle";
 import { useEffect, useMemo, useRef } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "@/components/Icon";
 import { useQuery } from "@tanstack/react-query";
-import type { MaterialTopTabBarProps } from "@react-navigation/material-top-tabs";
+import type { MaterialTopTabBarProps } from "expo-router/js-top-tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -23,6 +24,13 @@ async function fetchAlbumsBadgeCount(userId: string): Promise<number> {
 // and first timeline page shortly after).
 const TAB_PRELOAD_DELAY_MS = 2500;
 
+// Route name (app/(tabs)/*) → href, for prefetching a tab not yet shown.
+const TAB_HREFS: Record<string, "/" | "/reflections" | "/profile"> = {
+  index: "/",
+  reflections: "/reflections",
+  profile: "/profile",
+};
+
 // Outline when inactive, filled when active (book / book.fill, person /
 // person.fill). Rediscover's clock.arrow.circlepath has no filled form.
 const TABS = [
@@ -31,7 +39,7 @@ const TABS = [
   { label: "You",        icon: "person-outline", activeIcon: "person" },
 ] as const;
 
-export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
+export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
@@ -41,22 +49,25 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
   // The tabs are lazy (app/(tabs)/_layout.tsx), so Rediscover and You no
   // longer mount and fetch alongside the Journal's first paint. Once startup
   // has settled, preload them so a swipe still lands on a rendered screen.
-  const navigationRef = useRef(navigation);
-  navigationRef.current = navigation;
+  // Expo Router 58's tab bar gets no navigation history, so remember which
+  // tabs have been shown here; prefetch is its replacement for preload.
+  const visitedRef = useRef(new Set<string>());
+  const current = state.routes[state.index];
+  if (current) visitedRef.current.add(current.key);
   const stateRef = useRef(state);
   stateRef.current = state;
   const userId = user?.id;
   useEffect(() => {
     if (!userId) return;
-    let task: { cancel: () => void } | null = null;
+    let task: IdleTask | null = null;
     const timer = setTimeout(() => {
-      task = InteractionManager.runAfterInteractions(() => {
-        // Only tabs never visited: preloading one that's mounted is pointless,
-        // and params are passed through so preload doesn't reset them.
+      task = runWhenIdle(() => {
+        // Only tabs never visited: preloading one that's mounted is pointless.
         const s = stateRef.current;
         s.routes.forEach((route, index) => {
-          if (index === s.index || s.history.some((h) => h.key === route.key)) return;
-          navigationRef.current.preload(route.name, route.params);
+          if (index === s.index || visitedRef.current.has(route.key)) return;
+          const href = TAB_HREFS[route.name];
+          if (href) router.prefetch(href);
         });
       });
     }, TAB_PRELOAD_DELAY_MS);
@@ -107,13 +118,13 @@ export function TabBar({ state, navigation }: MaterialTopTabBarProps) {
               accessibilityState={{ selected: isActive }}
               accessibilityLabel={badgeCount > 0 ? `${tab.label}, ${badgeCount} new` : tab.label}
               onPress={() => {
-                const event = navigation.emit({
+                const event = emitter.emit({
                   type: "tabPress",
                   target: route.key,
                   canPreventDefault: true,
                 });
                 if (!isActive && !event.defaultPrevented) {
-                  navigation.navigate(route.name);
+                  navigateToTab(route.key);
                 }
               }}
               activeOpacity={0.7}

@@ -1,13 +1,13 @@
 // Xcode 27 refuses to build pods whose deployment target is below iOS 15
-// (Sentry 11.0, SDWebImage 9.0, RNSVG 12.4, ...). EAS's older Xcode only
-// warned. This raises just those pods to the app's own minimum in the
-// Podfile's post_install, so `eas build --local` and local simulator builds
-// work. App and extension targets (the widget needs iOS 17) are untouched.
+// (Sentry 11.0, SDWebImage 9.0, RNSVG 12.4, ...). This raises just those pods
+// to the app's own minimum (iOS 16.4 since Expo SDK 56) in the Podfile's
+// post_install. App and extension targets (the widget needs iOS 17) are
+// untouched.
 const { withPodfile } = require("expo/config-plugins");
 
 const MARK = "# withPodsMinDeploymentTarget";
 
-module.exports = function withPodsMinDeploymentTarget(config, { minimum = "15.1" } = {}) {
+module.exports = function withPodsMinDeploymentTarget(config, { minimum = "16.4" } = {}) {
   return withPodfile(config, (cfg) => {
     let src = cfg.modResults.contents;
     if (src.includes(MARK)) return cfg;

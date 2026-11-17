@@ -7,6 +7,7 @@ import {
   View,
   ViewStyle,
 } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { Icon, type IconName } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -33,7 +34,7 @@ interface Props extends Omit<TextInputProps, "style"> {
  * never a terracotta box. The full-page writer is the exception and has no
  * field chrome at all; it doesn't use this.
  */
-export const TextField = forwardRef<TextInput, Props>(function TextField(
+export const TextField = forwardRef<TextInputInstance, Props>(function TextField(
   { icon, trailing, multiline = false, variant = "ui", containerStyle, onFocus, onBlur, ...rest },
   ref
 ) {

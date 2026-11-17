@@ -133,7 +133,7 @@ export default function FriendsListScreen() {
           refreshControl={
             <RefreshControl
               refreshing={isFetching && !isLoading}
-              onRefresh={refetch}
+              onRefresh={() => void refetch()}
               tintColor={theme.colors.textSecondary}
             />
           }
