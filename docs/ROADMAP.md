@@ -145,10 +145,9 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   `openAppWhenRun`; iOS still drops a returned `OpenURLIntent`, so the app
   opens the link itself through `ControlLinkOpener`, set at launch by
   `plugins/withControlLinkOpener`.
-- [ ] Upgrade Expo SDK 54 → 58 (RN 0.81 → 0.88, React 19.3, TypeScript 6)
-  inside 1.4 (Josh, 2026-11-17), on branch `native/sdk-58`; merged into
-  `native/1.4` only after a clean device pass, else 1.4 ships on 54 with
-  the scene plugin. Done so far:
+- [x] Upgrade Expo SDK 54 → 58 (RN 0.81 → 0.88, React 19.3, TypeScript 6)
+  inside 1.4 (Josh, 2026-11-17): built on `native/sdk-58`, merged into
+  `native/1.4` after a clean device pass the same day. What changed:
   - Every package on its SDK 58 version; third-party: expo-share-intent 9,
     apple-targets 5, Sentry 8, apple-music 1.4. Dropped a stray
     `@expo/cli@54` pin; added `@expo/config-plugins` (react-native-maps'
