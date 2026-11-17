@@ -38,7 +38,6 @@ import {
   TIMELINE_PAGE_SIZE,
 } from "@/lib/timelinePrefetch";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
-import { requestReflectionsSearch } from "@/lib/reflectionsSearch";
 import { fetchUnviewedSharedCount } from "@/lib/momentShares";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
@@ -48,7 +47,6 @@ import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
 import { MomentCard } from "@/components/MomentCard";
-import { IconButton } from "@/components/IconButton";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
 import { Icon } from "@/components/Icon";
@@ -585,15 +583,6 @@ export default function TimelineScreen() {
         title="Journal"
         right={
           <>
-            {/* The archive lives in Rediscover — land there with search up */}
-            <IconButton
-              name="search-outline"
-              accessibilityLabel="Search"
-              onPress={() => {
-                requestReflectionsSearch();
-                router.push("/(tabs)/reflections" as any);
-              }}
-            />
             {/* One control for the three ways to see the journal. List and
                 calendar are in-place views of My Moments (both stay mounted);
                 map is its own screen. */}

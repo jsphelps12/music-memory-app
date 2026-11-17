@@ -9,7 +9,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
-  TextInput,
 } from "react-native";
 import type { TextInputInstance } from "react-native";
 import { useRouter } from "expo-router";
@@ -20,7 +19,6 @@ import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { fetchBrowseMetadata, BrowseMeta } from "@/lib/browse";
-import { consumeReflectionsSearchRequest } from "@/lib/reflectionsSearch";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -461,11 +459,6 @@ export default function ReflectionsScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshToday();
-      // Timeline search icon lands here wanting the search bar up and focused.
-      if (consumeReflectionsSearchRequest()) {
-        setSearchActive(true);
-        setTimeout(() => searchInputRef.current?.focus(), 250);
-      }
       if (!dataUpdatedAt || Date.now() - dataUpdatedAt > STALE_TIME) {
         refetch();
       }

@@ -28,6 +28,7 @@ import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { PlayingIndicator } from "@/components/PlayingIndicator";
 import { MomentActionMenu, MenuAnchor, MomentMenuItem } from "@/components/MomentActionMenu";
+import { ContextMenuView, type ContextMenuAction } from "@/modules/context-menu";
 import { confirmSheet } from "@/components/ConfirmSheet";
 import { MomentCardData, Song } from "@/types";
 
@@ -135,6 +136,23 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
     [item.id, router, confirmAndDelete]
   );
 
+  // The iOS context menu (1.4): long-press lifts the card and attaches the
+  // menu. Builds without the native view fall back to MomentActionMenu.
+  const nativeMenu = canModify && !!ContextMenuView;
+  const nativeActions = useMemo<ContextMenuAction[]>(
+    () => [
+      { id: "edit", title: "Edit", systemImage: "pencil" },
+      { id: "delete", title: "Delete", systemImage: "trash", destructive: true },
+    ],
+    []
+  );
+  const onNativeAction = useCallback(
+    (e: { nativeEvent: { id: string } }) => {
+      menuItems.find((m) => m.key === e.nativeEvent.id)?.onPress();
+    },
+    [menuItems]
+  );
+
   const handlePlayPress = useCallback(() => {
     if (isThisPlaying) {
       player.pause();
@@ -203,90 +221,107 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
 
   const canPlay = !!(item.songAppleMusicId || item.songSpotifyId || item.songPreviewUrl);
 
+  const NativeMenu = ContextMenuView;
+  const card = (
+    <TouchableOpacity
+      activeOpacity={1}
+      onPressIn={() => {
+        scale.value = withSpring(0.98, { damping: 15, stiffness: 300 });
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, { damping: 15, stiffness: 300 });
+      }}
+      onPress={handlePress}
+      onLongPress={canModify && !nativeMenu ? handleLongPress : undefined}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.songTitle} by ${item.songArtist}${formattedDate ? `, ${formattedDate}` : ""}`}
+    >
+      <View style={styles.header}>
+        {/* Tapping the artwork plays; tapping anywhere else opens the entry. */}
+        <TouchableOpacity
+          onPress={canPlay ? handlePlayPress : handlePress}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={canPlay ? `${isThisPlaying ? "Pause" : "Play"} ${item.songTitle}` : undefined}
+          style={styles.artworkButton}
+        >
+          {item.songArtworkUrl ? (
+            <AppImage source={{ uri: artworkUrlAtSize(item.songArtworkUrl, ARTWORK_PX) }} style={styles.artwork} transition={200} />
+          ) : (
+            <ArtworkPlaceholder style={styles.artwork} />
+          )}
+          {isThisPlaying && (
+            <View style={styles.playingScrim}>
+              <PlayingIndicator />
+            </View>
+          )}
+        </TouchableOpacity>
+        <View style={styles.titles}>
+          <Text testID="moment-card-title" style={styles.songTitle} numberOfLines={1}>
+            {item.songTitle}
+          </Text>
+          {showArtist && (
+            <Text style={styles.songArtist} numberOfLines={1}>
+              {item.songArtist}
+            </Text>
+          )}
+        </View>
+        {formattedDate ? <Text style={styles.date}>{formattedDate}</Text> : null}
+      </View>
+
+      {item.reflectionText ? (
+        <Text style={styles.reflection} numberOfLines={3}>
+          {/* An excerpt reads as one flowing paragraph; the entry screen
+              keeps the line breaks. */}
+          {item.reflectionText.replace(/\s+/g, " ").trim()}
+        </Text>
+      ) : null}
+
+      {thumbUrls.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.photoStrip}
+          contentContainerStyle={styles.photoStripContent}
+        >
+          {thumbUrls.map((url, i) => (
+            <AppImage
+              key={i}
+              source={{ uri: url }}
+              style={styles.photoStripThumb}
+              contentFit="cover"
+              transition={200}
+            />
+          ))}
+        </ScrollView>
+      )}
+
+      {(moodWords || item.contributorName) ? (
+        <View style={styles.metaRow}>
+          {item.contributorName ? (
+            <Text style={styles.contributor} numberOfLines={1}>From {item.contributorName}</Text>
+          ) : null}
+          {moodWords ? <Text style={styles.moods} numberOfLines={1}>{moodWords}</Text> : null}
+        </View>
+      ) : null}
+    </TouchableOpacity>
+  );
+
   return (
     <Animated.View ref={animatedRef} style={[styles.row, animatedStyle]}>
-      <TouchableOpacity
-        activeOpacity={1}
-        onPressIn={() => {
-          scale.value = withSpring(0.98, { damping: 15, stiffness: 300 });
-        }}
-        onPressOut={() => {
-          scale.value = withSpring(1, { damping: 15, stiffness: 300 });
-        }}
-        onPress={handlePress}
-        onLongPress={canModify ? handleLongPress : undefined}
-        accessibilityRole="button"
-        accessibilityLabel={`${item.songTitle} by ${item.songArtist}${formattedDate ? `, ${formattedDate}` : ""}`}
-      >
-        <View style={styles.header}>
-          {/* Tapping the artwork plays; tapping anywhere else opens the entry. */}
-          <TouchableOpacity
-            onPress={canPlay ? handlePlayPress : handlePress}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={canPlay ? `${isThisPlaying ? "Pause" : "Play"} ${item.songTitle}` : undefined}
-            style={styles.artworkButton}
-          >
-            {item.songArtworkUrl ? (
-              <AppImage source={{ uri: artworkUrlAtSize(item.songArtworkUrl, ARTWORK_PX) }} style={styles.artwork} transition={200} />
-            ) : (
-              <ArtworkPlaceholder style={styles.artwork} />
-            )}
-            {isThisPlaying && (
-              <View style={styles.playingScrim}>
-                <PlayingIndicator />
-              </View>
-            )}
-          </TouchableOpacity>
-          <View style={styles.titles}>
-            <Text testID="moment-card-title" style={styles.songTitle} numberOfLines={1}>
-              {item.songTitle}
-            </Text>
-            {showArtist && (
-              <Text style={styles.songArtist} numberOfLines={1}>
-                {item.songArtist}
-              </Text>
-            )}
-          </View>
-          {formattedDate ? <Text style={styles.date}>{formattedDate}</Text> : null}
-        </View>
-
-        {item.reflectionText ? (
-          <Text style={styles.reflection} numberOfLines={3}>
-            {/* An excerpt reads as one flowing paragraph; the entry screen
-                keeps the line breaks. */}
-            {item.reflectionText.replace(/\s+/g, " ").trim()}
-          </Text>
-        ) : null}
-
-        {thumbUrls.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.photoStrip}
-            contentContainerStyle={styles.photoStripContent}
-          >
-            {thumbUrls.map((url, i) => (
-              <AppImage
-                key={i}
-                source={{ uri: url }}
-                style={styles.photoStripThumb}
-                contentFit="cover"
-                transition={200}
-              />
-            ))}
-          </ScrollView>
-        )}
-
-        {(moodWords || item.contributorName) ? (
-          <View style={styles.metaRow}>
-            {item.contributorName ? (
-              <Text style={styles.contributor} numberOfLines={1}>From {item.contributorName}</Text>
-            ) : null}
-            {moodWords ? <Text style={styles.moods} numberOfLines={1}>{moodWords}</Text> : null}
-          </View>
-        ) : null}
-      </TouchableOpacity>
+      {nativeMenu && NativeMenu ? (
+        <NativeMenu
+          actions={nativeActions}
+          onAction={onNativeAction}
+          previewBackgroundColor={theme.colors.background}
+          previewRadius={theme.radii.lg}
+          previewInset={theme.spacing.md}
+        >
+          {card}
+        </NativeMenu>
+      ) : (
+        card
+      )}
       <MomentActionMenu
         anchor={menuAnchor}
         items={menuItems}

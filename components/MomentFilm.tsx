@@ -285,9 +285,18 @@ export function MomentFilm({
 }
 
 /**
- * The current item over the one before it, fading in over FADE_MS. Only the
- * current item plays; the one beneath is a still.
+ * The current item over the one before it, fading in over FADE_MS.
+ *
+ * Each item is its own layer, keyed by its index, so a layer is never
+ * remounted as it changes role: the outgoing item stays exactly as it was
+ * (a video keeps its last frame) while the new one fades in on top. The items
+ * either side are mounted too, invisible, so their pictures are decoded (and
+ * a linked video's player loaded) before they're needed. The fade waits for
+ * the new item's picture, up to FADE_WAIT_MS, so it never dips to black and
+ * then pops.
  */
+const FADE_WAIT_MS = 600;
+
 function Stage({
   items,
   index,
@@ -314,43 +323,133 @@ function Stage({
   const reduceMotion = useReducedMotion();
   const [under, setUnder] = useState<number | null>(null);
   const shown = useRef(index);
+  const loaded = useRef(new Set<number>());
+  const pendingFade = useRef<number | null>(null);
   const fade = useSharedValue(1);
+
+  const startFade = useCallback(() => {
+    pendingFade.current = null;
+    fade.value = withTiming(1, { duration: reduceMotion ? 0 : FADE_MS, easing: Easing.inOut(Easing.quad) }, (done) => {
+      if (done) runOnJS(setUnder)(null);
+    });
+  }, [fade, reduceMotion]);
 
   useEffect(() => {
     if (shown.current === index) return;
     setUnder(shown.current);
     shown.current = index;
+    cancelAnimation(fade);
     fade.value = 0;
-    fade.value = withTiming(1, { duration: reduceMotion ? 0 : FADE_MS, easing: Easing.out(Easing.quad) }, (done) => {
-      if (done) runOnJS(setUnder)(null);
-    });
-  }, [index, fade, reduceMotion]);
+    if (loaded.current.has(index)) {
+      startFade();
+      return;
+    }
+    // Not decoded yet: fade as soon as it is, or after a short wait anyway.
+    pendingFade.current = index;
+    const timer = setTimeout(() => {
+      if (pendingFade.current === index) startFade();
+    }, FADE_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [index, fade, startFade]);
 
-  const topStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
-  const item = items[index];
-  const below = under !== null ? items[under] : null;
+  const onLoaded = useCallback(
+    (i: number) => {
+      loaded.current.add(i);
+      if (pendingFade.current === i) startFade();
+    },
+    [startFade]
+  );
+
+  const count = items.length;
+  const layers = new Set<number>([index]);
+  if (count > 1) {
+    layers.add((index + 1) % count);
+    layers.add((index - 1 + count) % count);
+  }
+  if (under !== null) layers.add(under);
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {below ? <AppImage source={{ uri: below.uri }} style={{ width, height }} contentFit="contain" /> : null}
-      <Animated.View key={index} style={[StyleSheet.absoluteFill, styles.night, topStyle]}>
-        {item.kind === "video" ? (
-          <VideoPage
-            item={item}
+      {[...layers].map((i) => {
+        const role = i === index ? "top" : i === under ? "under" : "ahead";
+        return (
+          <Layer
+            key={i}
+            item={items[i]}
+            index={i}
+            role={role}
+            fade={fade}
             width={width}
             height={height}
-            playing={playing}
-            loop={loopVideo}
-            muted={muted}
+            playing={role === "top" && playing}
+            loopVideo={loopVideo}
+            muted={role === "top" ? muted : true}
             progress={progress}
-            onEnded={onVideoEnded}
+            onVideoEnded={onVideoEnded}
+            onLoaded={onLoaded}
             styles={styles}
           />
-        ) : (
-          <AppImage source={{ uri: item.uri }} style={{ width, height }} contentFit="contain" transition={200} />
-        )}
-      </Animated.View>
+        );
+      })}
     </View>
+  );
+}
+
+/** One item of the film; its role decides whether it shows and which way up. */
+function Layer({
+  item,
+  index,
+  role,
+  fade,
+  width,
+  height,
+  playing,
+  loopVideo,
+  muted,
+  progress,
+  onVideoEnded,
+  onLoaded,
+  styles,
+}: {
+  item: MediaSource;
+  index: number;
+  role: "top" | "under" | "ahead";
+  fade: SharedValue<number>;
+  width: number;
+  height: number;
+  playing: boolean;
+  loopVideo: boolean;
+  muted: boolean;
+  progress: SharedValue<number>;
+  onVideoEnded: () => void;
+  onLoaded: (index: number) => void;
+  styles: Styles;
+}) {
+  const style = useAnimatedStyle(() => ({
+    opacity: role === "top" ? fade.value : role === "under" ? 1 : 0,
+    zIndex: role === "top" ? 2 : role === "under" ? 1 : 0,
+  }));
+  const loaded = () => onLoaded(index);
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, styles.night, style]}>
+      {item.kind === "video" ? (
+        <VideoPage
+          item={item}
+          width={width}
+          height={height}
+          active={role === "top"}
+          playing={playing}
+          loop={loopVideo}
+          muted={muted}
+          progress={progress}
+          onEnded={onVideoEnded}
+          onPosterLoaded={loaded}
+          styles={styles}
+        />
+      ) : (
+        <AppImage source={{ uri: item.uri }} style={{ width, height }} contentFit="contain" onLoad={loaded} />
+      )}
+    </Animated.View>
   );
 }
 
@@ -369,21 +468,26 @@ function VideoPage({
   item,
   width,
   height,
+  active,
   playing,
   loop,
   muted,
   progress,
   onEnded,
+  onPosterLoaded,
   styles,
 }: {
   item: MediaSource;
   width: number;
   height: number;
+  /** The item on screen; the ones either side load quietly and report nothing. */
+  active: boolean;
   playing: boolean;
   loop: boolean;
   muted: boolean;
   progress: SharedValue<number>;
   onEnded: () => void;
+  onPosterLoaded: () => void;
   styles: Styles;
 }) {
   // A linked video streams straight from Photos (modules/photos-video): no
@@ -396,15 +500,20 @@ function VideoPage({
   const usable = playable && !failed;
 
   useEffect(() => {
-    if (usable || !playing || loop) return;
+    if (!active || usable || !playing || loop) return;
     const timer = setTimeout(onEnded, PHOTO_MS);
     return () => clearTimeout(timer);
-  }, [usable, playing, loop, onEnded]);
+  }, [active, usable, playing, loop, onEnded]);
 
   const Video = PhotosVideoView;
   return (
     <View style={{ width, height, justifyContent: "center" }}>
-      <AppImage source={{ uri: item.uri }} style={[StyleSheet.absoluteFill, { width, height }]} contentFit="contain" />
+      <AppImage
+        source={{ uri: item.uri }}
+        style={[StyleSheet.absoluteFill, { width, height }]}
+        contentFit="contain"
+        onLoad={onPosterLoaded}
+      />
       {usable && Video ? (
         <Video
           localId={localId}
@@ -415,13 +524,13 @@ function VideoPage({
           style={[{ width, height }, !ready && styles.hidden]}
           onReady={() => setReady(true)}
           onProgress={(e) => {
-            progress.value = e.nativeEvent.fraction;
+            if (active) progress.value = e.nativeEvent.fraction;
           }}
-          onEnd={onEnded}
+          onEnd={active ? onEnded : undefined}
           onError={() => setFailed(true)}
         />
       ) : null}
-      {!ready ? (
+      {!ready && active ? (
         <View style={styles.videoNote} pointerEvents="none">
           {usable ? (
             <ActivityIndicator color={PAPER_ON_GLASS} />

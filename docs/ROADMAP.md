@@ -127,6 +127,18 @@ is cut: merging earlier would stop every OTA from reaching 1.3.1.
   `components/LastWeekRow.tsx`, `app/last-week.tsx`,
   `components/DayPhotosSuggestion.tsx`. Native: `getRecentlyPlayed`,
   `libraryAccessStatus`, album fields on library songs.
+- [x] Polish from Josh's pass (2026-11-17): long-pressing a moment now
+  uses the iOS context menu (the card lifts, the page blurs, Edit and
+  Delete attach to it; `modules/context-menu`, a UIContextMenuInteraction
+  around the card, actions reported after the menu closes so Delete's
+  confirm can present; builds without it keep MomentActionMenu). The film
+  cross-fades without the dip to black: each item is a layer keyed by its
+  index (the outgoing one is never remounted, a video keeps its last
+  frame), the items either side load ahead invisibly, and a fade waits up
+  to 600ms for the new picture. The Journal's search icon is gone (it only
+  opened Rediscover's search). Data: 21 moments from Feb–Aug 2026 stored
+  their artwork as an embedded PNG (avg 2.5 MB, in every timeline fetch);
+  a backfill to Apple's artwork links is ready (needs a go, production).
 - [x] Notification choices (built 2026-11-17; Josh: "why not just do it
   now"). Settings → Notifications is its own screen
   (`app/notification-settings.tsx`) with three groups instead of five
