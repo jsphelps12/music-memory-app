@@ -385,7 +385,7 @@ export default function MomentDetailScreen() {
     () => moment?.photoUrls.map(getPublicPhotoUrl) ?? [],
     [moment?.photoUrls]
   );
-  const mediaSources = useMediaSources(storedPhotoUrls, moment?.mediaRefs);
+  const mediaSources = useMediaSources(storedPhotoUrls, moment?.mediaRefs, moment?.userId);
   const photoUrls = useMemo(() => mediaSources.map((s) => s.uri), [mediaSources]);
   const stripUrls = useMemo(() => (moment ? momentCardImageUrls(moment) : []), [moment]);
 
