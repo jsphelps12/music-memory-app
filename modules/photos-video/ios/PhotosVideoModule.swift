@@ -12,6 +12,15 @@ public class PhotosVideoModule: Module {
   public func definition() -> ModuleDefinition {
     Name("PhotosVideo")
 
+    // Ducking (1.4): ask iOS to lower other audio while a clip's sound is on,
+    // and put the session back after. Full Apple Music playback runs in
+    // Apple's player (a "sibling" of this app's audio), which apps can't turn
+    // down; iOS ducks it (verified on Josh's phone, 2026-11-17). Returns false
+    // if the session refused.
+    Function("setDuckOthers") { (on: Bool) -> Bool in
+      PhotosVideoModule.setDuckOthers(on)
+    }
+
     View(PhotosVideoView.self) {
       Events("onReady", "onProgress", "onEnd", "onError")
 
@@ -30,6 +39,30 @@ public class PhotosVideoModule: Module {
       Prop("volume") { (view: PhotosVideoView, volume: Double) in
         view.player.volume = Float(max(0, min(1, volume)))
       }
+    }
+  }
+}
+
+extension PhotosVideoModule {
+  /// The session's options before ducking began, restored after.
+  private static var savedOptions: AVAudioSession.CategoryOptions?
+
+  static func setDuckOthers(_ on: Bool) -> Bool {
+    let session = AVAudioSession.sharedInstance()
+    do {
+      if on {
+        if savedOptions == nil { savedOptions = session.categoryOptions }
+        try session.setCategory(session.category, mode: session.mode, options: session.categoryOptions.union(.duckOthers))
+        try session.setActive(true)
+      } else {
+        let restore = savedOptions ?? session.categoryOptions.subtracting(.duckOthers)
+        savedOptions = nil
+        try session.setCategory(session.category, mode: session.mode, options: restore)
+        try session.setActive(true)
+      }
+      return true
+    } catch {
+      return false
     }
   }
 }

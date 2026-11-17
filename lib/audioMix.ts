@@ -1,10 +1,11 @@
 // How a moment's song and its video clips share the sound (1.4). The song is
-// the soundtrack: clips play muted. Turning a clip's sound on ducks the song
-// to DUCK_LEVEL over DUCK_MS; turning it off (or leaving the clip) brings the
-// song back over RESTORE_MS. A 30-second preview is ducked exactly; full
-// Apple Music playback runs in Apple's player, which can't be turned down,
-// so it pauses instead and resumes after. Playback only: a mix is never
-// rendered to a file (PRODUCT.md, licensing). Tested in
+// the soundtrack: clips play muted. Turning a clip's sound on brings it to
+// CLIP_LEVEL and ducks the song to DUCK_LEVEL over DUCK_MS; turning it off (or
+// leaving the clip) brings the song back over RESTORE_MS. A 30-second preview
+// is ducked exactly; full Apple Music playback runs in Apple's player, which
+// apps can't turn down, so iOS ducks it at its own level ("duck others",
+// modules/photos-video). Playback only: a mix is never rendered to a file
+// (PRODUCT.md, licensing). Tested in
 // lib/__tests__/audioMix.test.ts.
 
 /** The song under a clip's own sound: ~ -14 dB. */

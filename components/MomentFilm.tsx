@@ -19,7 +19,7 @@ import { usePlayerControls } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import type { MediaSource } from "@/lib/linkedMedia";
-import { PhotosVideoView } from "@/modules/photos-video";
+import { PhotosVideoView, setDuckOthers } from "@/modules/photos-video";
 import { CLIP_LEVEL } from "@/lib/audioMix";
 
 /** How long a photo holds before the next fades in. */
@@ -47,10 +47,11 @@ type Styles = ReturnType<typeof createStyles>;
  * (the photo's timer, the video, the song); Play carries on from there. Tap
  * or swipe right/left for next/previous; drag down or ✕ to close.
  *
- * Sound: clips play muted. The speaker brings a clip's sound up; a preview
- * song fades under it (lib/audioMix.ts), and full Apple Music playback,
- * which can't be turned down, pauses for the clip and says so, then comes
- * back when the clip's sound goes off (unless the film itself is paused).
+ * Sound: clips play muted. The speaker brings a clip's sound up to 80%; a
+ * preview song fades to 20% under it (lib/audioMix.ts), and full Apple Music
+ * playback is ducked by iOS (the app asks for "duck others" while the clip
+ * is heard). If iOS refuses, the song pauses for the clip and says so, and
+ * comes back when the clip's sound goes off (unless the film is paused).
  * Nothing is exported.
  */
 export function MomentFilm({
@@ -91,6 +92,7 @@ export function MomentFilm({
     (resumeSong: boolean) => {
       setSoundOn(false);
       if (isPreview) duck(false);
+      else setDuckOthers(false);
       if (songHeldForClip) {
         setSongHeldForClip(false);
         if (resumeSong) startSong();
@@ -107,7 +109,10 @@ export function MomentFilm({
     }
     setSoundOn(true);
     if (isPreview) duck(true);
-    else if (songPlaying) {
+    else if (songPlaying && setDuckOthers(true)) {
+      // Full Apple Music: iOS ducks it (verified on Josh's phone, 2026-11-17).
+    } else if (songPlaying) {
+      // The session refused to duck: pause the song for the clip instead.
       pauseSong();
       setSongHeldForClip(true);
     }

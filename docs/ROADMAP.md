@@ -582,10 +582,13 @@ clutter, navigation.
   the moment into a short film with the song (slow drift on photos, videos
   play through). Sound: clips muted by default; the speaker raises the
   clip and ducks the song to 20% (~−14 dB) over 0.3 s, back over 0.8 s;
-  full Apple Music playback (Apple's player can't be turned down) pauses
-  under a clip's sound and resumes after (`duck` in PlayerContext,
-  `lib/audioMix.ts`, tested); never an exported file. Pausing the film
-  pauses the song.
+  clips at 80%; full Apple Music playback (no volume API) is ducked by iOS
+  via "duck others" on the app's session (verified on Josh's phone; pause
+  is only the fallback) (`duck` in PlayerContext for previews,
+  `setDuckOthers` in modules/photos-video, `lib/audioMix.ts` tested); never
+  an exported file. One stage: Pause freezes the photo timer, the video
+  and the song in place; Play carries on. Videos play through a native
+  Photos player (`modules/photos-video`, no copies). Josh: "LETS GOOOO".
 - [ ] Video sharing as part of a paid tier (Josh, 2026-11-17: "maybe
   paywall that?"). Fits principle 5: your own videos always play for you
   free; only sending the clip to others costs (storage). In 1.4 a shared
