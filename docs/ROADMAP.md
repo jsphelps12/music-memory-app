@@ -99,6 +99,49 @@ or on-device speech to text, already under Phase 2):
 - **A memory on the Home Screen:** a widget that shows one moment a day,
   artwork and a line of your words, opening straight into the film.
 
+"WOW" ideas (Claude and Josh, 2026-11-17). Keep these; Josh liked them all.
+The starred ones bring the app to you, which serves the north star:
+
+- ★ **Your life as a radio show.** A station of your moments in date order,
+  with your own words between songs (a voice memo, or the reflection read
+  aloud): "Summer 2019, Big Sur…", then Holocene. For long drives.
+- ★ **Places that play.** Pass the spot where you logged a moment: "You
+  were here in 2021. This was playing." On device, with iOS region
+  monitoring (about 20 places at once, so the strongest ones). The most
+  realistic form of "the song brings the memory back", since iOS won't
+  tell the app what's playing in the background.
+- ★ **Your eras.** The app finds the periods on its own ("Your Bon Iver
+  era, spring 2019 to winter 2020", "The Lisbon summer") with a title, a
+  cover from your photos and the songs that defined them: a table of
+  contents for your life. The era clustering from the Music Memory
+  Engine, done on device without the questionnaire.
+- **A film cut to the beat.** The moment film cuts on the song's beats
+  (beat detection on the 30-second preview, on device), and photos move
+  with its energy. Looks professionally edited, with no editing.
+- **Trip mode.** "I'm going somewhere" collects what you played and the
+  photos you took; home again, a finished trip film and a draft moment
+  per day, waiting for your words.
+- **One song across the years.** A song logged more than once gets a page
+  of every moment with it over the years, and hearing it again adds the
+  next chapter.
+- **The album of your year, as a real object.** A vinyl-style sleeve: a
+  cover from your photos, your moments as the tracklist, your words as
+  liner notes, and an NFC tag or code that plays the year. Pressing the
+  songs themselves needs licences, so the object is the sleeve and the
+  code.
+- **Your past self's voice.** A voice memo from the time plays over the
+  intro when you reopen the moment years later (pairs with "the part of
+  the song").
+- **Live Photos and wallpapers.** Export the moment film as a Live Photo
+  for the Lock Screen; the memory moves when pressed.
+- **A Soundtracks code** (Josh's idea). Our own scannable mark for a
+  moment, in the spirit of a scannable music code but ours in look,
+  for example a strip drawn from the song's own waveform. It goes on share
+  cards, prints, the year sleeve and stickers, and opens `/m/`. The
+  no-app recipient must still get there: either a styled QR code the
+  stock Camera reads, or the custom mark plus a short URL under it. Each
+  code maps to the moment's existing share token.
+
 ## Where things stand (2026-11-17)
 
 - **1.3.1 (build 10) is live** on the App Store: the "Pressed S" icon and
