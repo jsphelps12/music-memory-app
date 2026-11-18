@@ -7,6 +7,8 @@
 // exportJournalPdf does the fetching, printing and sharing.
 
 export interface ExportMoment {
+  /** The moment id: the last tiebreak, so the order never depends on the fetch. */
+  id?: string;
   songTitle: string;
   songArtist: string;
   songAlbumName?: string;
@@ -76,13 +78,27 @@ function artAt(url: string, size: number): string {
   return url.replace(/\/\d+x\d+bb\./, `/${size}x${size}bb.`);
 }
 
+/**
+ * Book order: the Journal's order read the other way, oldest first. By day
+ * (the moment's date, or the day it was saved when it has none, so it can sit
+ * under a month head), then by when it was written, then by id, so two
+ * exports of the same journal always match.
+ */
+export function compareBookOrder(
+  a: Pick<ExportMoment, "momentDate" | "createdAt" | "id">,
+  b: Pick<ExportMoment, "momentDate" | "createdAt" | "id">
+): number {
+  const d = dayOf(a).localeCompare(dayOf(b));
+  if (d !== 0) return d;
+  const c = a.createdAt.localeCompare(b.createdAt);
+  if (c !== 0) return c;
+  return (a.id ?? "").localeCompare(b.id ?? "");
+}
+
 /** The whole journal as one printable HTML document, oldest moment first. */
 export function buildJournalHtml(moments: ExportMoment[], opts: ExportOptions = {}): string {
   const now = opts.now ?? new Date();
-  const sorted = [...moments].sort((a, b) => {
-    const d = dayOf(a).localeCompare(dayOf(b));
-    return d !== 0 ? d : a.createdAt.localeCompare(b.createdAt);
-  });
+  const sorted = [...moments].sort(compareBookOrder);
   const label = (v: string) => (opts.moodLabel ? opts.moodLabel(v) : v);
 
   const title = opts.ownerName?.trim() ? `${opts.ownerName.trim()}’s soundtrack` : "My soundtrack";
