@@ -588,6 +588,7 @@ supabase db push
 ## Before Every App Store Submission
 
 - [ ] Version bumped in `app.config.ts` (build number is automatic — `appVersionSource: remote`)
+- [ ] `/audit` run (the project skill; private report in `.claude/audits/`, never committed): no open critical, highs fixed or consciously accepted
 - [ ] Manual regression checklist complete on physical device
 - [ ] Sentry is connected and receiving events
 - [ ] Release notes written (what's new in this version)

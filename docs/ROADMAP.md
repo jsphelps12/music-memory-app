@@ -39,7 +39,13 @@ below should move that, or it doesn't belong on this page.
 ## Next: 1.5 and the updates before it (Josh's picks, 2026-11-17)
 
 Theme: it comes to you. Picked from the full roadmap read once 1.4 was in
-TestFlight with testers and submitted for review.
+TestFlight with testers and submitted for review. **A draft: 1.5 needs
+more refining before anything is built** (Josh). **Order: the audit and its
+security/performance fixes first, before any new feature, OTA ones
+included.** The audit is a reusable project skill (`/audit`, in
+`.claude/skills/audit/`, private like its reports in `.claude/audits/`):
+before every App Store submission, before merging a `native/*` branch into
+`main`, monthly, and after large changes.
 
 **1.5 (a new native build), in `native/1.5` off `native/1.4`:**
 - [ ] **Siri: "remember this song"** — an App Intent (Siri, Shortcuts, the
@@ -60,9 +66,9 @@ TestFlight with testers and submitted for review.
 - [ ] Songs you used to love + Replay playlists as starting points.
 - [ ] From before weekly reminder (local, follows How often).
 
-**Quality and security:**
-- [ ] A focused review of everything new in 1.4 (bugs and security),
-  fixes over the air. Before 1.4 goes live.
+**Quality and security (first):**
+- [ ] A fresh full audit (`/audit`), replacing the 2026-10 review, which
+  predates SDK 58 and 1.4; then its fixes, over the air where possible.
 - [ ] DB-2 (RLS hardening step 2) once 1.4 is out and widely installed:
   raise the min-build gate, then ship it.
 - [ ] Database hygiene from the Supabase advisors (2026-11-17): pin the
