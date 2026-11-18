@@ -73,7 +73,8 @@ before every App Store submission, before merging a `native/*` branch into
 - [ ] Its fixes, in order: security now (server), client fixes over the
   air, a 1.4.1 native build, DB-2 after the min-build raise, then code
   quality. Server security batch done 2026-11-18 (main PR 108; Expo
-  enhanced push security turned on, first run to check 2026-11-18 10am). Client
+  enhanced push security on and verified: the 2026-11-18 10am run delivered
+  with the access token). Client
   batch done 2026-11-18 on native/1.4, OTA to 1.4 the same day (first
   publish rolled back: Delete froze on moment detail; fixed with a confirm
   host per modal screen, a bug build 12 already had as a silent no-op): drafts can't be
@@ -84,6 +85,19 @@ before every App Store submission, before merging a `native/*` branch into
   under the React Compiler (97 compiled). Old PostHog tap events left as
   they are (owner's call). Next: 1.4.1 native items (plus the "…" menu as the same native
   iOS menu as long-press, Josh 2026-11-18), then code quality.
+- [ ] UI consistency pass (2026-11-18), from a code inventory of every
+  surface plus the new Maestro moment-actions flow (`.maestro/actions.yaml`,
+  run locally with `scripts/e2e-local.sh actions` before each OTA): add to
+  album applies as you tap, sheets wait for the previous one to close,
+  every loading screen has a way out, one ✕ on the left to leave a task,
+  confirms in one house style, long-presses open the native menu, Edit
+  moment asks before discarding, deleting a moment stops its song. OTA to
+  1.4; the "…" as a native menu goes in 1.4.1.
+- [ ] **Sharing and social review with Josh, after 1.4.1 and before 1.5
+  planning** (Josh, 2026-11-18): make sure sharing is where it needs to be
+  before building more on it. Start from `docs/SOCIAL-ARCHITECTURE.md`,
+  the DB-2 items that touch sharing (link-shared moments, friend tokens,
+  public albums) and how people actually use it.
 - [ ] DB-2 (RLS hardening step 2) once 1.4 is out and widely installed:
   raise the min-build gate, then ship it.
 - [ ] Database hygiene from the Supabase advisors (2026-11-17): ~~pin the

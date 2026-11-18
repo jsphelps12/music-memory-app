@@ -16,6 +16,7 @@ import type { ScrollViewInstance } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { AppImage } from "@/components/AppImage";
 import { Button } from "@/components/Button";
+import { IconButton } from "@/components/IconButton";
 import { Chip } from "@/components/Chip";
 import * as Haptics from "expo-haptics";
 import type { IconName } from "@/components/Icon";
@@ -111,6 +112,7 @@ export default function CreateMomentScreen() {
   const [sinceOpen] = useState(() => startTimer());
   const queryClient = useQueryClient();
   const scrollViewRef = useRef<ScrollViewInstance>(null);
+  const createAlbumAfterPicker = useRef(false);
   const photoPickerRef = useRef<PhotoPickerHandle>(null);
   const params = useLocalSearchParams<{
     songId?: string;
@@ -684,7 +686,14 @@ export default function CreateMomentScreen() {
       behavior="padding"
     >
       <View style={[styles.topBar, { paddingTop: insets.top }]}>
-        <Button label="Cancel" variant="text" tone="secondary" onPress={close} align="center" />
+        {/* Leaving the task: one ✕, on the left (DESIGN.md). */}
+        <IconButton
+          testID="create-close"
+          name="close"
+          accessibilityLabel="Close"
+          onPress={close}
+          style={styles.closeButton}
+        />
         <Button
           testID="create-save"
           label="Save"
@@ -887,7 +896,14 @@ export default function CreateMomentScreen() {
         onSelect={(a) => setSelectedAlbum(a)}
         onClose={() => setAlbumPickerVisible(false)}
         onRequestCreate={() => {
+          // The picker's Modal has to be gone before the next sheet presents
+          // (iOS drops a Modal that presents mid-dismiss): open from onClosed.
+          createAlbumAfterPicker.current = true;
           setAlbumPickerVisible(false);
+        }}
+        onClosed={() => {
+          if (!createAlbumAfterPicker.current) return;
+          createAlbumAfterPicker.current = false;
           setCreateAlbumVisible(true);
         }}
       />
@@ -964,9 +980,12 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingLeft: theme.spacing.lg,
-      paddingRight: theme.spacing.xl,
+      paddingHorizontal: theme.spacing.xl,
       paddingBottom: theme.spacing.xs,
+    },
+    // The ✕ glyph sits optically at the gutter, not its 44pt box.
+    closeButton: {
+      marginLeft: -12,
     },
     // Holds its width while the spinner replaces the label.
     saveButton: {

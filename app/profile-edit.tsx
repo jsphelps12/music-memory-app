@@ -277,14 +277,14 @@ export default function ProfileEditScreen() {
   const handleAvatarPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     ActionSheetIOS.showActionSheetWithOptions(
-      { options: ["Cancel", "Take Photo", "Choose from Library"], cancelButtonIndex: 0 },
+      { options: ["Cancel", "Take photo", "Choose from library"], cancelButtonIndex: 0 },
       async (buttonIndex) => {
         let result: ImagePicker.ImagePickerResult | null = null;
         if (buttonIndex === 1) {
           const { status } = await ImagePicker.requestCameraPermissionsAsync();
           if (status !== "granted") {
             Alert.alert(
-              "Camera Access Required",
+              "Allow camera access",
               "To take a photo, allow camera access in Settings.",
               [
                 { text: "Cancel", style: "cancel" },
@@ -411,7 +411,7 @@ export default function ProfileEditScreen() {
       setSaved(true);
     } catch (e) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Error", friendlyError(e));
+      Alert.alert("Couldn't save profile", friendlyError(e));
     } finally {
       setSaving(false);
     }

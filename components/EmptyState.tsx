@@ -9,7 +9,7 @@ interface Props {
   icon: IconName;
   title: string;
   subtitle?: string;
-  action?: { label: string; onPress: () => void };
+  action?: { label: string; onPress: () => void; testID?: string };
 }
 
 export function EmptyState({ icon, title, subtitle, action }: Props) {
@@ -21,7 +21,7 @@ export function EmptyState({ icon, title, subtitle, action }: Props) {
       <Text style={styles.title}>{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       {action ? (
-        <Button label={action.label} onPress={action.onPress} fullWidth={false} align="center" style={styles.action} />
+        <Button label={action.label} onPress={action.onPress} testID={action.testID} fullWidth={false} align="center" style={styles.action} />
       ) : null}
     </View>
   );

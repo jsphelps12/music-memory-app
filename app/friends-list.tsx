@@ -29,9 +29,14 @@ import { friendlyError } from "@/lib/errors";
 import { invalidateFriendCaches } from "@/lib/cacheInvalidation";
 import { fetchFriends, removeFriend } from "@/lib/friends";
 import { friendInviteUrl } from "@/lib/momentShares";
+import { ContextMenuView, type ContextMenuAction } from "@/modules/context-menu";
 import type { Friendship } from "@/types";
 
 const STALE_TIME = 2 * 60 * 1000;
+
+const FRIEND_ACTIONS: ContextMenuAction[] = [
+  { id: "remove", title: "Remove friend", systemImage: "person.badge.minus", destructive: true },
+];
 
 function Avatar({
   avatarUrl,
@@ -63,6 +68,7 @@ export default function FriendsListScreen() {
   const s = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const NativeMenu = ContextMenuView;
 
   // Add-by-link is the only door (Sharing v2): opening this link makes the
   // pair instantly mutual, so sharing it IS the whole "add a person" flow.
@@ -86,8 +92,8 @@ export default function FriendsListScreen() {
   const handleRemoveFriend = async (friendship: Friendship) => {
     const name = friendship.otherUserDisplayName ?? "this person";
     const confirmed = await confirmSheet({
-      title: "Remove friend",
-      message: `Remove ${name} from your friends?`,
+      title: `Remove ${name}?`,
+      message: "They'll leave your friends.",
       confirmLabel: "Remove",
       destructive: true,
     });
@@ -101,7 +107,7 @@ export default function FriendsListScreen() {
       // The You tab's friend count, which invalidateFriendCaches doesn't cover yet.
       void queryClient.invalidateQueries({ queryKey: ["youSummary", user?.id] });
     } catch (e) {
-      Alert.alert("Error", friendlyError(e));
+      Alert.alert("Couldn't remove friend", friendlyError(e));
     }
   };
 
@@ -164,34 +170,54 @@ export default function FriendsListScreen() {
                 Your friends
               </SectionLabel>
               <View style={s.list}>
-                {friends.map((friendship) => (
-                  <TouchableOpacity
-                    key={friendship.id}
-                    style={s.row}
-                    onLongPress={() => handleRemoveFriend(friendship)}
-                    activeOpacity={0.85}
-                    delayLongPress={400}
-                    accessibilityHint="Hold to remove this friend"
-                  >
-                    <Avatar
-                      avatarUrl={friendship.otherUserAvatarUrl}
-                      displayName={friendship.otherUserDisplayName}
-                      styles={s}
-                    />
-                    <View style={s.rowInfo}>
-                      <Text style={s.rowName} numberOfLines={1}>
-                        {friendship.otherUserDisplayName ?? "Unknown"}
-                      </Text>
-                      {friendship.otherUserUsername ? (
-                        <Text style={s.rowUsername} numberOfLines={1}>
-                          @{friendship.otherUserUsername}
+                {friends.map((friendship) => {
+                  const info = (
+                    <>
+                      <Avatar
+                        avatarUrl={friendship.otherUserAvatarUrl}
+                        displayName={friendship.otherUserDisplayName}
+                        styles={s}
+                      />
+                      <View style={s.rowInfo}>
+                        <Text style={s.rowName} numberOfLines={1}>
+                          {friendship.otherUserDisplayName ?? "Unknown"}
                         </Text>
-                      ) : null}
-                    </View>
-                  </TouchableOpacity>
-                ))}
+                        {friendship.otherUserUsername ? (
+                          <Text style={s.rowUsername} numberOfLines={1}>
+                            @{friendship.otherUserUsername}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </>
+                  );
+                  // A long-press opens the iOS menu (DESIGN.md); builds
+                  // without the native view hold straight to the confirm.
+                  return NativeMenu ? (
+                    <NativeMenu
+                      key={friendship.id}
+                      actions={FRIEND_ACTIONS}
+                      onAction={() => void handleRemoveFriend(friendship)}
+                      previewBackgroundColor={theme.colors.background}
+                      previewRadius={theme.radii.md}
+                      previewInset={theme.spacing.md}
+                    >
+                      <View style={s.row}>{info}</View>
+                    </NativeMenu>
+                  ) : (
+                    <TouchableOpacity
+                      key={friendship.id}
+                      style={s.row}
+                      onLongPress={() => handleRemoveFriend(friendship)}
+                      activeOpacity={0.85}
+                      delayLongPress={400}
+                      accessibilityHint="Hold to remove this friend"
+                    >
+                      {info}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-              <Text style={s.footnote}>Hold a name to remove a friend.</Text>
+              <Text style={s.footnote}>Touch and hold a name for options.</Text>
             </>
           )}
         </ScrollView>

@@ -56,7 +56,7 @@ export function spotifyFailureMessage(reason: SpotifyFailure): string | null {
     case "not_registered":
       return "Spotify only lets a limited set of accounts connect to Soundtracks while we wait for Spotify's approval, and yours isn't one of them yet. Apple Music works for everyone in the meantime.";
     case "signed_out":
-      return "Spotify signed you out. Reconnect it from Me → Music Service, or switch to Apple Music there.";
+      return "Spotify signed you out. Reconnect it from You → Music service, or switch to Apple Music there.";
     case "network":
       return "Couldn't reach Spotify. Check your connection and try again.";
     case "failed":
@@ -71,7 +71,7 @@ export function spotifyFailureMessage(reason: SpotifyFailure): string | null {
 export function spotifySearchFallbackNotice(reason: SpotifyFailure): string {
   switch (reason) {
     case "signed_out":
-      return "Spotify signed you out, so these are Apple Music results. Reconnect in Me → Music Service.";
+      return "Spotify signed you out, so these are Apple Music results. Reconnect in You → Music service.";
     case "not_registered":
       return "Spotify isn't enabled for your account yet, so these are Apple Music results.";
     case "network":

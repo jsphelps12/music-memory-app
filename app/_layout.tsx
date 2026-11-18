@@ -36,6 +36,7 @@ import * as Notifications from "expo-notifications";
 import { ShareIntentProvider } from "expo-share-intent";
 
 import { useColorScheme } from "@/components/useColorScheme";
+import { getTheme } from "@/constants/theme";
 import { ConfirmSheetHost } from "@/components/ConfirmSheet";
 import { UpdateRequiredScreen } from "@/components/UpdateRequiredScreen";
 import { checkUpdateRequired } from "@/lib/minBuildGate";
@@ -225,7 +226,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
           {/* The splash hides as soon as fonts load, so without this the user
               stares at a featureless rectangle while auth resolves and assumes
               the app is broken. */}
-          <ActivityIndicator color={colorScheme === "dark" ? "#8A8A8E" : "#6E6E73"} />
+          <ActivityIndicator color={getTheme(colorScheme).colors.textSecondary} />
         </View>
       )}
     </>

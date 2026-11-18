@@ -48,7 +48,7 @@ appId: com.joshuaphelps.musicmemory.preview
       id: "moment-more"
     timeout: 10000
 
-# … → Add to album (a quick pick), closed with Done
+# … → Add to album (a quick pick: ticks apply on tap), closed with Done
 - tapOn:
     id: "moment-more"
 - extendedWaitUntil:
@@ -71,6 +71,17 @@ appId: com.joshuaphelps.musicmemory.preview
     timeout: 5000
 - waitForAnimationToEnd
 - takeScreenshot: 06-share-sheet
+
+# Share sheet → Add to album: the album sheet opens once the share sheet has
+# fully closed (BottomSheet onClosed), so its rows must appear on their own.
+# The row is tapped by its subtitle; "Add to album" is also the More menu's.
+- tapOn: "Add to album, Yours, or one you share"
+- extendedWaitUntil:
+    visible:
+      id: "album-picker-new"
+    timeout: 5000
+- waitForAnimationToEnd
+- takeScreenshot: 06b-share-to-album
 - tapOn: "Done"
 - waitForAnimationToEnd
 
@@ -140,7 +151,8 @@ appId: com.joshuaphelps.musicmemory.preview
     id: "confirm-sheet-confirm"
 # Back on an empty Journal: the detail closed itself and the card is gone.
 - extendedWaitUntil:
-    visible: "Create Your First Moment"
+    visible:
+      id: "journal-empty-capture"
     timeout: 15000
 - assertNotVisible:
     id: "moment-card-title"

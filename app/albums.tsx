@@ -224,7 +224,7 @@ export default function AlbumsScreen() {
           icon="albums-outline"
           title="No albums yet"
           subtitle="Create an album to organize your moments, or join a shared album with friends."
-          action={{ label: "Create Album", onPress: () => setNewAlbumVisible(true) }}
+          action={{ label: "New album", onPress: () => setNewAlbumVisible(true) }}
         />
       ) : (
         <FlatList

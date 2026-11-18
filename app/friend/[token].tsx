@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, Alert } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Icon } from "@/components/Icon";
@@ -106,7 +106,6 @@ export default function FriendInviteScreen() {
       } else if (e.message === "already_connected") {
         setState("already_friends");
       } else if (e.message === "not_found") {
-        Alert.alert("Invalid link", "This friend link is no longer valid.");
         setState("not_found");
       } else {
         setError(friendlyError(e));
@@ -145,8 +144,8 @@ export default function FriendInviteScreen() {
       {state === "not_found" && (
         <View style={styles.center}>
           <Icon name="link-outline" size={40} color={theme.colors.textSecondary} />
-          <Text style={[styles.title, styles.titleSpaced]}>Link not found</Text>
-          <Text style={styles.sub}>This friend link may no longer be valid.</Text>
+          <Text style={[styles.title, styles.titleSpaced]}>This link doesn&apos;t work anymore</Text>
+          <Text style={styles.sub}>Ask your friend to send you a new one.</Text>
           <Button label="Go back" onPress={handleClose} />
         </View>
       )}

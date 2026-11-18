@@ -1,5 +1,5 @@
 import { Ref, SetStateAction, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
-import { View, Text, Pressable, ActionSheetIOS, Alert, StyleSheet } from "react-native";
+import { View, Text, Pressable, ActionSheetIOS, Alert, Linking, StyleSheet } from "react-native";
 import { Gesture, GestureDetector, ScrollView } from "react-native-gesture-handler";
 import Animated, {
   SharedValue,
@@ -115,7 +115,7 @@ export function PhotoPickerSection({
   const handleAddPhotos = () => {
     ActionSheetIOS.showActionSheetWithOptions(
       {
-        options: ["Cancel", "Take Photo", "Choose from Library"],
+        options: ["Cancel", "Take photo", "Choose from library"],
         cancelButtonIndex: 0,
       },
       async (buttonIndex) => {
@@ -123,7 +123,17 @@ export function PhotoPickerSection({
 
         if (buttonIndex === 1) {
           const { status } = await ImagePicker.requestCameraPermissionsAsync();
-          if (status !== "granted") return;
+          if (status !== "granted") {
+            Alert.alert(
+              "Allow camera access",
+              "To take a photo, allow camera access in Settings.",
+              [
+                { text: "Cancel", style: "cancel" },
+                { text: "Open Settings", onPress: () => Linking.openSettings() },
+              ]
+            );
+            return;
+          }
           result = await ImagePicker.launchCameraAsync({
             mediaTypes: ["images"],
             quality: 0.8,

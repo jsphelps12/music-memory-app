@@ -8,7 +8,6 @@ import {
   Alert,
   ScrollView,
   Share,
-  Linking,
   Platform,
 } from "react-native";
 import * as Haptics from "expo-haptics";
@@ -36,12 +35,12 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { friendInviteUrl } from "@/lib/momentShares";
+import { FEEDBACK_EMAIL, MAIL_UNAVAILABLE_TEXT, mailtoUrl, openMail } from "@/lib/mail";
 
 /** Prototype screens (app/dev) open in development and the beta app only. */
 const DEV_TOOLS = __DEV__ || process.env.EXPO_PUBLIC_APP_ENV === "preview";
 
-const FEEDBACK_EMAIL = "founder@soundtracks.app";
-const FEEDBACK_MAILTO = `mailto:${FEEDBACK_EMAIL}?subject=Soundtracks%20Feedback`;
+const FEEDBACK_MAILTO = mailtoUrl(FEEDBACK_EMAIL, { subject: "Soundtracks Feedback" });
 
 /**
  * "1.2.0 (27) · update Oct 17, 3:40 PM": which binary and which OTA bundle
@@ -131,27 +130,13 @@ export default function SettingsScreen() {
     Share.share(Platform.OS === "ios" ? { url } : { message: url });
   };
 
-  // "Share feedback" used to call openURL bare: with no Mail app (the
-  // simulator, or a phone that deleted Mail) it rejected silently and the
-  // row did nothing. Try Mail; if it can't open, show the address to copy.
-  // No canOpenURL pre-check: "mailto" isn't in LSApplicationQueriesSchemes,
-  // so iOS would answer false even when Mail is there (adding it is a
-  // native change).
-  // Mail if there's a mail app (mailto is declared in
-  // LSApplicationQueriesSchemes since 1.4, so canOpenURL can answer);
-  // otherwise, or if opening still fails, the copy-the-address sheet.
+  // Mail if there's a mail app; otherwise, or if opening fails, the
+  // copy-the-address sheet (lib/mail.ts; the moment's Report does the same).
   const handleFeedback = async () => {
     Haptics.selectionAsync();
-    const showAddress = () => {
-      setAddressCopied(false);
-      setFeedbackSheetVisible(true);
-    };
-    try {
-      if (!(await Linking.canOpenURL(FEEDBACK_MAILTO))) return showAddress();
-      await Linking.openURL(FEEDBACK_MAILTO);
-    } catch {
-      showAddress();
-    }
+    if (await openMail(FEEDBACK_MAILTO)) return;
+    setAddressCopied(false);
+    setFeedbackSheetVisible(true);
   };
 
   const handleCopyAddress = async () => {
@@ -181,16 +166,16 @@ export default function SettingsScreen() {
   const handleDeleteAccount = async () => {
     // Double-confirm on purpose: this is the app's only unrecoverable action.
     const first = await confirmSheet({
-      title: "Delete account",
+      title: "Delete your account?",
       message:
-        "This will permanently delete your account and all your moments, photos, and collections. This cannot be undone.",
+        "This permanently deletes your account and all your moments, photos and albums. This can't be undone.",
       confirmLabel: "Delete",
       destructive: true,
     });
     if (!first) return;
     const second = await confirmSheet({
       title: "Are you sure?",
-      message: "Your data cannot be recovered after deletion.",
+      message: "Your data can't be recovered after this.",
       confirmLabel: "Delete my account",
       destructive: true,
     });
@@ -201,7 +186,7 @@ export default function SettingsScreen() {
       await deleteAccount();
     } catch (e) {
       setDeletingAccount(false);
-      Alert.alert("Error", friendlyError(e));
+      Alert.alert("Couldn't delete account", friendlyError(e));
     }
   };
 
@@ -297,9 +282,7 @@ export default function SettingsScreen() {
         title="Share feedback"
       >
         <View style={styles.feedbackBody}>
-          <Text style={styles.feedbackText}>
-            Mail isn&apos;t set up on this phone. Send a note from any email app to:
-          </Text>
+          <Text style={styles.feedbackText}>{MAIL_UNAVAILABLE_TEXT}</Text>
           <Text style={styles.feedbackAddress} selectable>
             {FEEDBACK_EMAIL}
           </Text>

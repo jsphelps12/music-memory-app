@@ -117,7 +117,7 @@ export default function SongScreen() {
             <RefreshControl
               refreshing={isFetching && !isLoading}
               onRefresh={handleRefresh}
-              tintColor={theme.colors.text}
+              tintColor={theme.colors.textSecondary}
             />
           }
         />

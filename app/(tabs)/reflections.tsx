@@ -33,6 +33,7 @@ import { setCachedMoment } from "@/lib/momentCache";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { ErrorState } from "@/components/ErrorState";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { EmptyState } from "@/components/EmptyState";
 import { TextField } from "@/components/TextField";
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
@@ -521,9 +522,13 @@ export default function ReflectionsScreen() {
   };
 
   if (isLoading) {
+    // The header first, so the title doesn't pop in when the data lands.
     return (
-      <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator color={theme.colors.textSecondary} />
+      <View style={styles.container}>
+        <ScreenHeader leading="none" title="Rediscover" />
+        <View style={styles.centered}>
+          <ActivityIndicator color={theme.colors.textSecondary} />
+        </View>
       </View>
     );
   }
@@ -542,14 +547,12 @@ export default function ReflectionsScreen() {
     return (
       <View style={styles.container}>
         <ScreenHeader leading="none" title="Rediscover" />
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>Your memories resurface here</Text>
-          <Text style={styles.emptyBody}>
-            On this day, a weekly rewind, your moods and years: the songs that
-            marked your life, brought back to you.
-          </Text>
-          <Button label="Capture a song" fullWidth={false} align="center" onPress={() => router.push("/create")} />
-        </View>
+        <EmptyState
+          icon="time-outline"
+          title="Your memories resurface here"
+          subtitle="On this day, a weekly rewind, your moods and years: the songs that marked your life, brought back to you."
+          action={{ label: "Capture a song", onPress: () => router.push("/create") }}
+        />
       </View>
     );
   }
@@ -814,6 +817,7 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.background,
     },
     centered: {
+      flex: 1,
       alignItems: "center",
       justifyContent: "center",
     },
@@ -951,24 +955,6 @@ function createStyles(theme: Theme) {
       width: 40,
       height: 40,
       borderRadius: 6,
-    },
-    emptyState: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: theme.spacing["2xl"],
-    },
-    emptyTitle: {
-      ...theme.typography.title,
-      color: theme.colors.text,
-      textAlign: "center",
-      marginBottom: theme.spacing.md,
-    },
-    emptyBody: {
-      ...theme.typography.body,
-      color: theme.colors.textSecondary,
-      textAlign: "center",
-      marginBottom: theme.spacing["2xl"],
     },
   });
 }

@@ -6,7 +6,6 @@ import {
   Share,
   StyleSheet,
   Platform,
-  Alert,
   ScrollView,
   LayoutAnimation,
   UIManager,
@@ -79,10 +78,6 @@ interface Props {
 // full-size image, so it is its own screen (app/share-card.tsx), not a view
 // in here.
 
-// BottomSheet closes in 220ms and then unmounts its Modal; iOS won't present
-// a new screen over a Modal that is still closing, so the card waits this long.
-const SHEET_CLOSE_MS = 300;
-
 export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToAlbum }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -91,6 +86,14 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   const queryClient = useQueryClient();
   const router = useRouter();
   const [personOpen, setPersonOpen] = useState(false);
+  // What to open once the sheet is fully closed. iOS drops a Modal (the album
+  // sheet) or a full-screen route (the card) that presents while this sheet's
+  // Modal is still dismissing, so they wait for BottomSheet's onClosed.
+  const [afterClose, setAfterClose] = useState<"album" | "card" | null>(null);
+  // A failed action, shown inline at the top of the sheet (an Alert over an
+  // open sheet sits on top of it and reads as a second surface).
+  const [error, setError] = useState("");
+  const fail = (what: string, err: unknown) => setError(`${what}. ${friendlyError(err)}`);
 
   const isOwner = !!user && moment.userId === user.id;
 
@@ -103,8 +106,20 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   // navigate once its Modal is gone.
   const handleOpenCard = () => {
     setShareCardData({ moment, photoUrls });
+    setAfterClose("card");
     handleClose();
-    setTimeout(() => router.push("/share-card"), SHEET_CLOSE_MS);
+  };
+
+  const handleAddToAlbum = () => {
+    setAfterClose("album");
+    handleClose();
+  };
+
+  const handleClosed = () => {
+    const next = afterClose;
+    setAfterClose(null);
+    if (next === "album") onAddToAlbum?.();
+    else if (next === "card") router.push("/share-card");
   };
 
   // ── Link state ────────────────────────────────────────────────────────
@@ -139,6 +154,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     if (!visible) return;
     setShareToken(moment.shareToken ?? null);
     setLinkCopied(false);
+    setError("");
     supabase
       .from("moments")
       .select("share_token")
@@ -172,13 +188,14 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     if (sendingLink || !canSendLink) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSendingLink(true);
+    setError("");
     let token: string;
     try {
       token = await ensureShareToken(moment.id, shareToken);
       setShareToken(token);
     } catch (err) {
       setSendingLink(false);
-      Alert.alert("Couldn't create link", friendlyError(err));
+      fail("Couldn't create link", err);
       return;
     }
     try {
@@ -205,11 +222,12 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     const confirmed = await confirmSheet({
       title: "Turn off link?",
       message: "Anyone who has this link will no longer be able to view this moment.",
-      confirmLabel: "Turn Off",
+      confirmLabel: "Turn off",
       destructive: true,
     });
     if (!confirmed) return;
     setRevoking(true);
+    setError("");
     try {
       const { error } = await supabase
         .from("moments")
@@ -219,7 +237,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setShareToken(null);
     } catch (err) {
-      Alert.alert("Couldn't turn off link", friendlyError(err));
+      fail("Couldn't turn off link", err);
     } finally {
       setRevoking(false);
     }
@@ -262,6 +280,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     if (sentIds.has(recipientId) || sendingIds.has(recipientId)) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSendingIds((prev) => new Set(prev).add(recipientId));
+    setError("");
     try {
       const result = await sendMomentShare(moment.id, user.id, recipientId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -276,7 +295,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
         song_artist: moment.songArtist,
       });
     } catch (e) {
-      Alert.alert("Couldn't send", friendlyError(e));
+      fail("Couldn't send", e);
     } finally {
       setSendingIds((prev) => {
         const next = new Set(prev);
@@ -290,33 +309,35 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   const handleRemovePersonGrant = async (grant: MomentShareGrant) => {
     const confirmed = await confirmSheet({
       title: "Unsend?",
-      message: `${grant.name ?? "This person"} will no longer see this moment in their Shared with me.`,
+      message: `${grant.name ?? "This person"} will no longer see this moment in their Shared with you.`,
       confirmLabel: "Unsend",
       destructive: true,
     });
     if (!confirmed) return;
+    setError("");
     try {
       await removeMomentShare(grant.shareId);
       setPeopleGrants((prev) => prev.filter((g) => g.shareId !== grant.shareId));
     } catch (e) {
-      Alert.alert("Couldn't unsend", friendlyError(e));
+      fail("Couldn't unsend", e);
     }
   };
 
   const handleRemoveAlbumGrant = async (grant: AlbumGrant) => {
     const confirmed = await confirmSheet({
       title: "Remove from album?",
-      message: `This moment will leave “${grant.name}”.`,
+      message: "It stays in your journal.",
       confirmLabel: "Remove",
       destructive: true,
     });
     if (!confirmed) return;
+    setError("");
     try {
       await removeMomentFromAlbum(grant.id, moment.id);
       setAlbumGrants((prev) => prev.filter((g) => g.id !== grant.id));
       invalidateAlbumCaches(queryClient, user?.id, grant.id);
     } catch (e) {
-      Alert.alert("Couldn't remove", friendlyError(e));
+      fail("Couldn't remove", e);
     }
   };
 
@@ -443,6 +464,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     <BottomSheet
       visible={visible}
       onClose={handleClose}
+      onClosed={handleClosed}
       title="Share this moment"
     >
       <ScrollView
@@ -456,6 +478,12 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
           </Text>
         )}
 
+        {error ? (
+          <Text style={styles.error} accessibilityRole="alert">
+            {error}
+          </Text>
+        ) : null}
+
         {/* The three verbs, as rows */}
         <View style={styles.rows}>
           {isOwner && (
@@ -463,7 +491,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
               {optionRow({
                 icon: "person-add-outline",
                 title: "Send to a person",
-                desc: "It lands in their Shared with me",
+                desc: "It lands in their Shared with you",
                 onPress: togglePerson,
                 expanded: personOpen,
               })}
@@ -475,10 +503,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
               icon: "albums-outline",
               title: "Add to album",
               desc: "Yours, or one you share",
-              onPress: () => {
-                handleClose();
-                onAddToAlbum();
-              },
+              onPress: handleAddToAlbum,
             })}
           {/* Only the owner can create a link, so a viewer of a moment with
               no link doesn't get the row at all. */}
@@ -569,6 +594,11 @@ function createStyles(theme: Theme) {
       ...theme.typography.meta,
       fontSize: theme.fontSize.sm,
       color: theme.colors.textSecondary,
+      marginBottom: theme.spacing.md,
+    },
+    error: {
+      ...theme.typography.meta,
+      color: theme.colors.destructive,
       marginBottom: theme.spacing.md,
     },
     // Rows on the page, ruled by hairlines in the divider token.

@@ -214,18 +214,18 @@ export default function YouScreen() {
       return;
     }
     if (result.reason === "apple_denied") {
-      Alert.alert("Apple Music", "Couldn't switch to Apple Music. Allow Music access for Soundtracks in Settings.", [
+      Alert.alert("Allow Music access", "To switch to Apple Music, allow Music access for Soundtracks in Settings.", [
         { text: "Not now", style: "cancel" },
         { text: "Open Settings", onPress: () => Linking.openSettings() },
       ]);
       return;
     }
     if (result.reason === "save_failed") {
-      Alert.alert("Music Service", "Couldn't save your choice. Check your connection and try again.");
+      Alert.alert("Couldn't save your music service", "Check your connection and try again.");
       return;
     }
     const message = spotifyFailureMessage(result.reason);
-    if (message) Alert.alert("Spotify", message);
+    if (message) Alert.alert("Couldn't connect Spotify", message);
   }
 
   const handleMusicService = () => {

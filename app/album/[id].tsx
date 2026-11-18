@@ -123,10 +123,49 @@ export default function AlbumDetailScreen() {
     />
   ), [allMoods, collection?.id, collection?.role]);
 
+  // Floating controls, always visible over the scroll: one disc size for all
+  // three (they float over the cover and the list). Back shows while the
+  // album loads too, so the spinner always has a way out; the album's own
+  // actions wait for the album.
+  const floatingControls = (
+    <View
+      style={[styles.floatingControls, { top: insets.top + theme.spacing.sm }]}
+      pointerEvents="box-none"
+    >
+      <IconButton
+        variant="filled"
+        name="chevron-back"
+        accessibilityLabel="Back"
+        onPress={() => router.back()}
+      />
+      {collection ? (
+        <View style={styles.floatingRight}>
+          {/* Everyone who can open this screen is the owner or a member, and
+              members can already contribute to shared albums — so no role gate. */}
+          <IconButton
+            variant="filled"
+            name="add"
+            accessibilityLabel="Add a moment to this album"
+            onPress={() => router.push({ pathname: "/create", params: { collectionId: id! } })}
+          />
+          <IconButton
+            variant="filled"
+            name={collection.role === "owner" ? "settings-outline" : "ellipsis-horizontal"}
+            accessibilityLabel={collection.role === "owner" ? "Album settings" : "Album options"}
+            onPress={() => setShareSheetVisible(true)}
+          />
+        </View>
+      ) : null}
+    </View>
+  );
+
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator color={theme.colors.textSecondary} />
+      <View style={styles.container}>
+        <View style={styles.center}>
+          <ActivityIndicator color={theme.colors.textSecondary} />
+        </View>
+        {floatingControls}
       </View>
     );
   }
@@ -148,7 +187,6 @@ export default function AlbumDetailScreen() {
   }
 
   const isShared = collection?.isPublic;
-  const isOwner = collection?.role === "owner";
 
   const subLine = collection?.role === "member" && collection?.ownerName
     ? `by ${collection.ownerName} · ${pluralMoments(moments.length)}`
@@ -210,35 +248,7 @@ export default function AlbumDetailScreen() {
         }
       />
 
-      {/* Floating controls, always visible over the scroll: one disc size
-          for all three (they float over the cover and the list). */}
-      <View
-        style={[styles.floatingControls, { top: insets.top + theme.spacing.sm }]}
-        pointerEvents="box-none"
-      >
-        <IconButton
-          variant="filled"
-          name="chevron-back"
-          accessibilityLabel="Back"
-          onPress={() => router.back()}
-        />
-        <View style={styles.floatingRight}>
-          {/* Everyone who can open this screen is the owner or a member, and
-              members can already contribute to shared albums — so no role gate. */}
-          <IconButton
-            variant="filled"
-            name="add"
-            accessibilityLabel="Add a moment to this album"
-            onPress={() => router.push({ pathname: "/create", params: { collectionId: id! } })}
-          />
-          <IconButton
-            variant="filled"
-            name={isOwner ? "settings-outline" : "ellipsis-horizontal"}
-            accessibilityLabel={isOwner ? "Album settings" : "Album options"}
-            onPress={() => setShareSheetVisible(true)}
-          />
-        </View>
-      </View>
+      {floatingControls}
 
       {/* Share sheet */}
       {collection && shareSheetVisible && (

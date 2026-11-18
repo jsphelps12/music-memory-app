@@ -32,6 +32,7 @@ import { PlayingIndicator } from "@/components/PlayingIndicator";
 import { MomentActionMenu, MenuAnchor, MomentMenuItem } from "@/components/MomentActionMenu";
 import { ContextMenuView, type ContextMenuAction } from "@/modules/context-menu";
 import { confirmSheet } from "@/components/ConfirmSheet";
+import { DELETE_MOMENT_CONFIRM, DELETE_MOMENT_FAILED, stopSongOfDeletedMoment } from "@/lib/momentActions";
 import { MomentCardData, Song } from "@/types";
 
 interface Props {
@@ -95,27 +96,20 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
   }, [canModify, animatedRef]);
 
   const confirmAndDelete = useCallback(async () => {
-    const confirmed = await confirmSheet({
-      title: "Delete Moment",
-      message: "Are you sure? This cannot be undone.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
+    const confirmed = await confirmSheet(DELETE_MOMENT_CONFIRM);
     if (!confirmed) return;
     const { error } = await deleteMomentWithCleanup(item);
     if (error) {
-      Alert.alert("Error", friendlyError(error));
+      Alert.alert(DELETE_MOMENT_FAILED, friendlyError(error));
       return;
     }
     // The moment is gone — its song shouldn't keep playing (or linger
     // paused in the mini player).
-    if (momentSongId && momentSongId === playbackSongId(player.getCurrentSong())) {
-      void player.stop();
-    }
+    stopSongOfDeletedMoment(player, item);
     posthog.capture("moment_deleted", { song_title: item.songTitle, song_artist: item.songArtist });
     invalidateMomentCaches(queryClient, currentUserId);
     onDeleted?.(item.id);
-  }, [item, posthog, queryClient, currentUserId, onDeleted, momentSongId, player]);
+  }, [item, posthog, queryClient, currentUserId, onDeleted, player]);
 
   // The menu runs a row's action once it has finished closing, so the delete
   // confirm can present (iOS drops a Modal that starts mid-dismiss).

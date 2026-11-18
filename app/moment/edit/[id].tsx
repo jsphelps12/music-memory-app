@@ -11,7 +11,7 @@ import type { ScrollViewInstance } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, usePreventRemove } from "expo-router";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
@@ -31,6 +31,7 @@ import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
 import { PhotoPickerSection } from "@/components/PhotoPickerSection";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { ConfirmSheetHost, confirmSheet } from "@/components/ConfirmSheet";
 import { SectionLabel } from "@/components/SectionLabel";
 import { TextField } from "@/components/TextField";
 import { Button } from "@/components/Button";
@@ -46,6 +47,32 @@ import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches } from "@/lib/cacheInvalidation";
 
 type ScreenState = "loading" | "not_found" | "error" | "ready";
+
+/** Local calendar day, so a date the picker didn't move compares equal. */
+function dayKey(d: Date | null): string {
+  return d ? `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}` : "";
+}
+
+/** Everything the screen can change, as one comparable string. */
+function editSnapshot(v: {
+  song: Song | null;
+  reflection: string;
+  moods: string[];
+  people: string[];
+  photos: EditedPhoto[];
+  momentDate: Date | null;
+  location: GeoResult | null;
+}): string {
+  return JSON.stringify([
+    v.song ? [v.song.id, v.song.title, v.song.artistName, v.song.appleMusicId, v.song.spotifyId] : null,
+    v.reflection,
+    v.moods,
+    v.people,
+    v.photos.map((p) => (p.kind === "kept" ? p.path : p.uri)),
+    dayKey(v.momentDate),
+    v.location ? [v.location.name, v.location.lat, v.location.lng] : null,
+  ]);
+}
 
 export default function EditMomentScreen() {
   const router = useRouter();
@@ -91,6 +118,13 @@ export default function EditMomentScreen() {
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
+  // The moment as loaded, to tell whether leaving would lose edits.
+  const [initialSnapshot, setInitialSnapshot] = useState<string | null>(null);
+  // Set after a successful save so the unsaved-changes guard lets us leave.
+  const [saved, setSaved] = useState(false);
+  // Set when the person chooses Discard, so the guard lifts before the
+  // blocked navigation repeats.
+  const [discarding, setDiscarding] = useState(false);
 
   // Listen for song selected in song-search
   useEffect(() => onSongSelected((s) => setSong(s)), []);
@@ -138,16 +172,28 @@ export default function EditMomentScreen() {
       ref: moment.mediaRefs?.[i] ?? null,
     }));
     setStoredPhotos(stored);
-    setPhotos(stored.map((p) => ({ kind: "kept", ...p })));
+    const loadedPhotos: EditedPhoto[] = stored.map((p) => ({ kind: "kept", ...p }));
+    setPhotos(loadedPhotos);
     originalPhotosRef.current = {
       photos: moment.photoUrls,
       thumbnails: moment.photoThumbnails,
     };
-    setMomentDate(moment.momentDate ? new Date(moment.momentDate + "T00:00:00") : null);
-    setLocationResult(
-      moment.location
-        ? { name: moment.location, lat: moment.locationLat, lng: moment.locationLng }
-        : null
+    const loadedDate = moment.momentDate ? new Date(moment.momentDate + "T00:00:00") : null;
+    const loadedLocation: GeoResult | null = moment.location
+      ? { name: moment.location, lat: moment.locationLat, lng: moment.locationLng }
+      : null;
+    setMomentDate(loadedDate);
+    setLocationResult(loadedLocation);
+    setInitialSnapshot(
+      editSnapshot({
+        song: storedSong,
+        reflection: moment.reflectionText ?? "",
+        moods: moment.moods,
+        people: moment.people,
+        photos: loadedPhotos,
+        momentDate: loadedDate,
+        location: loadedLocation,
+      })
     );
     setScreenState("ready");
   }, [params.id]);
@@ -282,7 +328,8 @@ export default function EditMomentScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       markTimelineStale();
       invalidateMomentCaches(queryClient, user?.id);
-      router.back();
+      // Leaves in the effect below, once the guard has lifted.
+      setSaved(true);
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(friendlyError(e));
@@ -292,9 +339,46 @@ export default function EditMomentScreen() {
     }
   };
 
+  // ── Unsaved changes ─────────────────────────────────────────────────────
+  // Like Edit profile: leaving with edits (✕ or swipe) asks first; nothing
+  // changed, or just saved, leaves straight away.
+  const dirty =
+    screenState === "ready" &&
+    initialSnapshot !== null &&
+    editSnapshot({
+      song,
+      reflection,
+      moods: selectedMoods,
+      people,
+      photos,
+      momentDate,
+      location: locationResult,
+    }) !== initialSnapshot;
+
+  usePreventRemove(dirty && !saved && !discarding, ({ repeat }) => {
+    void confirmSheet({
+      title: "Discard changes?",
+      message: "Your edits to this moment won't be saved.",
+      confirmLabel: "Discard",
+      cancelLabel: "Keep editing",
+      destructive: true,
+    }).then((discard) => {
+      if (!discard) return;
+      setDiscarding(true);
+      repeat();
+    });
+  });
+
+  // Leave only after the render that lifted the guard.
+  useEffect(() => {
+    if (saved) router.back();
+  }, [saved, router]);
+
   if (screenState === "loading") {
+    // A fullScreenModal can't be swiped away: the ✕ is there while it loads.
     return (
       <View style={styles.container}>
+        <ScreenHeader leading="close" title="Edit moment" />
         <SkeletonMomentDetail />
       </View>
     );
@@ -320,6 +404,7 @@ export default function EditMomentScreen() {
       behavior="padding"
     >
       <ScreenHeader
+        leading="close"
         title="Edit moment"
         right={<Button label="Save" size="pill" onPress={handleSave} loading={saving} />}
       />
@@ -469,6 +554,10 @@ export default function EditMomentScreen() {
         {/* Error */}
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
+
+      {/* A fullScreenModal: the root confirm host can't present over it
+          (CLAUDE.md, Confirms on modal screens). */}
+      <ConfirmSheetHost />
     </KeyboardAvoidingView>
   );
 }

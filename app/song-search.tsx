@@ -10,13 +10,12 @@ import {
   StyleSheet,
 } from "react-native";
 import { AppImage } from "@/components/AppImage";
-import { CloseButton } from "@/components/CloseButton";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
 import { Icon } from "@/components/Icon";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getProvider } from "@/lib/providers";
 import { searchItunes, artworkUrlAtSize } from "@/lib/itunes";
 import { ErrorBanner } from "@/components/ErrorBanner";
@@ -32,11 +31,7 @@ import type { Song } from "@/types";
 export default function SongSearchScreen() {
   const router = useRouter();
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  // Full-screen presentation puts the header under the status bar; the inset
-  // is device state, not theme, so it stays out of createStyles.
-  const headerStyle = [styles.header, { paddingTop: insets.top + theme.spacing.sm }];
   // Paper on the warm-ink preview badge, in either theme.
   const overArtworkInk = theme.isDark ? theme.colors.text : theme.colors.background;
   const posthog = usePostHog();
@@ -181,9 +176,7 @@ export default function SongSearchScreen() {
   if (!authorized) {
     return (
       <View style={styles.container}>
-        <View style={headerStyle}>
-          <CloseButton onPress={() => router.back()} />
-        </View>
+        <ScreenHeader leading="close" />
         <View style={styles.centered}>
           <Text style={styles.emptyText}>
             Music access is required to search songs.
@@ -205,9 +198,8 @@ export default function SongSearchScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={headerStyle}>
-        <CloseButton onPress={() => router.back()} />
-      </View>
+      {/* A task presented full screen: one ✕, on the left (DESIGN.md). */}
+      <ScreenHeader leading="close" />
 
       <TextField
         testID="song-search-input"
@@ -324,12 +316,6 @@ function createStyles(theme: Theme) {
     container: {
       flex: 1,
       backgroundColor: theme.colors.background,
-    },
-    header: {
-      flexDirection: "row",
-      justifyContent: "flex-end",
-      paddingHorizontal: theme.spacing.lg,
-      paddingBottom: theme.spacing.sm,
     },
     searchField: {
       marginHorizontal: theme.spacing.lg,

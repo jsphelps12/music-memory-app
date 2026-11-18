@@ -25,7 +25,7 @@ export interface MomentMenuItem {
   key: string;
   label: string;
   icon?: IconName;
-  /** Delete, remove, report: set in the destructive color. */
+  /** Delete, remove from album: set in the destructive color. Never Report (it destroys nothing). */
   destructive?: boolean;
   /**
    * Runs once the menu has finished closing, never while it is still on

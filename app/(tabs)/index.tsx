@@ -657,7 +657,7 @@ export default function TimelineScreen() {
                     <RefreshControl
                       refreshing={refreshing}
                       onRefresh={handleRefresh}
-                      tintColor={theme.colors.text}
+                      tintColor={theme.colors.textSecondary}
                     />
                   }
                 >
@@ -666,7 +666,7 @@ export default function TimelineScreen() {
                     icon="musical-notes-outline"
                     title="No moments yet"
                     subtitle={"A moment is a song paired with a memory —\nwhat you felt, who you were with, and why it mattered."}
-                    action={{ label: "Create Your First Moment", onPress: () => router.push("/create") }}
+                    action={{ label: "Capture a song", onPress: () => router.push("/create"), testID: "journal-empty-capture" }}
                   />
                 </ScrollView>
               ) : (
@@ -689,7 +689,7 @@ export default function TimelineScreen() {
                   ListFooterComponent={
                     loadingMore ? (
                       <ActivityIndicator
-                        style={{ paddingVertical: 20 }}
+                        style={styles.footerSpinner}
                         color={theme.colors.textSecondary}
                       />
                     ) : undefined
@@ -702,7 +702,7 @@ export default function TimelineScreen() {
                     <RefreshControl
                       refreshing={refreshing}
                       onRefresh={handleRefresh}
-                      tintColor={theme.colors.text}
+                      tintColor={theme.colors.textSecondary}
                     />
                   }
                 />
@@ -788,6 +788,9 @@ function createStyles(theme: Theme) {
     },
     emptyHeader: {
       paddingHorizontal: theme.spacing.xl,
+    },
+    footerSpinner: {
+      paddingVertical: theme.spacing.xl,
     },
     listContent: {
       paddingHorizontal: theme.spacing.xl,

@@ -22,6 +22,8 @@ const COVER_SIZE = 88;
 interface Props {
   visible: boolean;
   onClose: () => void;
+  /** After the sheet has fully closed: open the next sheet from here. */
+  onClosed?: () => void;
   userId: string;
   /**
    * When provided, the new album is handed back (picker flow — e.g. selecting
@@ -40,7 +42,7 @@ interface Props {
  * the shared BottomSheet, with CreateAlbumModal's hand-back-the-album flow
  * available via onCreated.
  */
-export function CreateAlbumSheet({ visible, onClose, userId, onCreated, defaultShared = true }: Props) {
+export function CreateAlbumSheet({ visible, onClose, onClosed, userId, onCreated, defaultShared = true }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useRouter();
@@ -78,7 +80,7 @@ export function CreateAlbumSheet({ visible, onClose, userId, onCreated, defaultS
     try {
       album = await createAlbum(userId, trimmed, isShared);
     } catch (e: any) {
-      Alert.alert("Error", friendlyError(e));
+      Alert.alert("Couldn't create album", friendlyError(e));
       setLoading(false);
       return;
     }
@@ -130,6 +132,7 @@ export function CreateAlbumSheet({ visible, onClose, userId, onCreated, defaultS
     <BottomSheet
       visible={visible}
       onClose={handleClose}
+      onClosed={onClosed}
       title="New album"
       headerAction="none"
       keyboardAvoiding
