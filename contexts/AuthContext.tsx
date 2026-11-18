@@ -15,6 +15,9 @@ import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
 import { clearCheckInData } from "@/lib/dailyCheckIn";
 import { clearLastWeekReady } from "@/lib/lastWeekReady";
 import { clearSignOutKeys } from "@/lib/signOutKeys";
+import { clearPhotoAnalysisStore } from "@/lib/photoAnalysisStore";
+import { clearNudgeQuestions } from "@/lib/nudgeQuestionStore";
+import { clearLibraryCache } from "@/lib/libraryCache";
 import { resetTimelineRefresh } from "@/lib/timelineRefresh";
 import { clearLegacyAlbumCaches } from "@/lib/albums";
 import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
@@ -443,6 +446,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // From before, Last week, photo analyses, nudge questions, the capture
     // hint: one person's records, stored without a user id (lib/signOutKeys.ts).
     await clearSignOutKeys();
+    // Their in-memory copies too, or the next write would put them back.
+    await Promise.all([clearPhotoAnalysisStore(), clearNudgeQuestions()]).catch(() => {});
+    clearLibraryCache();
     // Spotify's session is stored device-wide, not per user: the next person
     // to sign in here must connect their own account.
     await disconnectSpotify().catch(() => {});

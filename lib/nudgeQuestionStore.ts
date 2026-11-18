@@ -30,6 +30,17 @@ async function save(): Promise<void> {
   } catch {}
 }
 
+/** Forget every stored question (sign-out). The next load starts empty. */
+export async function clearNudgeQuestions(): Promise<void> {
+  memory = {};
+  loading = null;
+  inFlight.clear();
+  try {
+    await AsyncStorage.removeItem(KEY);
+  } catch {}
+  memory = null;
+}
+
 /** The question for a pairing now: the model's if ready, else the template. */
 export function questionFor(key: string, facts: QuestionFacts): string {
   return memory?.[key] ?? templateQuestion(facts);

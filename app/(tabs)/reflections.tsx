@@ -67,6 +67,9 @@ import {
 
 // Focus-refetch cooldown for this screen, kept in step with the query itself.
 const STALE_TIME = REFLECTIONS_STALE;
+// The phone's library and photos change slowly; saving a moment invalidates
+// these anyway (lib/cacheInvalidation.ts).
+const DEVICE_LIBRARY_STALE = 30 * 60 * 1000;
 
 async function fetchOnThisDay(
   userId: string,
@@ -421,14 +424,14 @@ export default function ReflectionsScreen() {
     queryKey: ["phoneOnThisDay", user?.id, todayKey],
     queryFn: () => loadPhoneOnThisDay(user!.id),
     enabled: !!user,
-    staleTime: STALE_TIME,
+    staleTime: DEVICE_LIBRARY_STALE,
   });
   const weekKey = useMemo(() => currentWeek(new Date(todayKey + "T00:00:00").getTime()).key, [todayKey]);
   const { data: fromBefore, refetch: refetchFromBefore } = useQuery({
     queryKey: ["fromBefore", user?.id, weekKey],
     queryFn: () => loadFromBefore(user!.id),
     enabled: !!user,
-    staleTime: STALE_TIME,
+    staleTime: DEVICE_LIBRARY_STALE,
   });
   const phoneDays = phoneOnThisDay?.pairings ?? [];
   const beforePicks = fromBefore?.pairings ?? [];
