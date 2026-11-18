@@ -76,8 +76,8 @@ before every App Store submission, before merging a `native/*` branch into
   enhanced push security turned on, first run to check 2026-11-18 10am). Client
   batch done 2026-11-18 on native/1.4, OTA to 1.4 the same day (first
   publish rolled back: Delete froze on moment detail; fixed with a confirm
-  host per modal screen, a bug build 12 already had as a silent no-op): automatic drafts
-  removed (Josh's call), app lock can't lock you out, sign-out
+  host per modal screen, a bug build 12 already had as a silent no-op): drafts can't be
+  wiped by pre-filled captures (being re-tested on TestFlight), app lock can't lock you out, sign-out
   clears every on-device record, library read once, smaller play-count
   store, calendar windowed, whole-library queries paged, film restores
   the song on every exit and loads fewer videos, 10 more components
