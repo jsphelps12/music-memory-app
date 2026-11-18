@@ -1,4 +1,4 @@
-import { type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePostHog } from "posthog-react-native";
 import {
   View,
@@ -21,6 +21,7 @@ import Animated, {
   withTiming,
   Easing,
   runOnJS,
+  type SharedValue,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -91,6 +92,12 @@ function clipLength(ms: number | undefined): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
+/** Where a touch at `x` on the progress bar seeks to, in seconds. */
+function seekSeconds(x: number, barWidth: number, duration: number): number {
+  "worklet";
+  return Math.max(0, Math.min(1, x / barWidth)) * duration;
+}
+
 export default function MomentDetailScreen() {
   const {
     id,
@@ -119,12 +126,12 @@ export default function MomentDetailScreen() {
   // buttons never float over writing.
   const scrollY = useSharedValue(0);
   const scrollHandler = useAnimatedScrollHandler((e) => {
-    scrollY.value = e.contentOffset.y;
+    scrollY.set(e.contentOffset.y);
   });
   // The artwork's top edge reaches the bar after ~36pt of scroll, so the bar
   // is fully in by then.
   const topBarStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(scrollY.value, [12, 48], [0, 1], Extrapolation.CLAMP),
+    opacity: interpolate(scrollY.get(), [12, 48], [0, 1], Extrapolation.CLAMP),
   }));
   // Only accept the cached moment if it's actually the one being opened. A
   // swallowed navigation leaves a stale value in the module-level slot, and
@@ -169,12 +176,14 @@ export default function MomentDetailScreen() {
   const opacity = useSharedValue(origin.active ? 0 : 1);
 
   const animateOut = useCallback((then: () => void) => {
-    opacity.value = withTiming(0, { duration: 120 });
-    scaleAnim.value = withTiming(0.95, { duration: 120 }, () => {
-      "worklet";
-      runOnJS(then)();
-    });
-  }, []);
+    opacity.set(withTiming(0, { duration: 120 }));
+    scaleAnim.set(
+      withTiming(0.95, { duration: 120 }, () => {
+        "worklet";
+        runOnJS(then)();
+      })
+    );
+  }, [opacity, scaleAnim]);
 
   const goBack = useCallback(() => {
     if (returnTo) {
@@ -186,10 +195,10 @@ export default function MomentDetailScreen() {
 
   useEffect(() => {
     const config = { duration: 320, easing: Easing.out(Easing.cubic) };
-    opacity.value = withTiming(1, { duration: 180 });
-    translateX.value = withTiming(0, config);
-    translateY.value = withTiming(0, config);
-    scaleAnim.value = withTiming(1, config);
+    opacity.set(withTiming(1, { duration: 180 }));
+    translateX.set(withTiming(0, config));
+    translateY.set(withTiming(0, config));
+    scaleAnim.set(withTiming(1, config));
   }, []);
 
   // A handle on the ScrollView's own scroll gesture, so the pans on this screen
@@ -199,23 +208,23 @@ export default function MomentDetailScreen() {
   // carry, so passing one silently registers nothing.
   const scrollNativeGesture = useMemo(() => Gesture.Native(), []);
 
-  const progressBarWidthRef = useRef(1);
   // Written by PlaybackProgress, which owns the per-tick subscription, so the
-  // seek gesture can read the duration without this screen re-rendering.
-  const progressDurationRef = useRef(0);
-  const seekToRef = useRef(seekTo);
-  seekToRef.current = seekTo;
-
-  const handleProgressSeek = useCallback((x: number) => {
-    const ratio = Math.max(0, Math.min(1, x / progressBarWidthRef.current));
-    seekToRef.current(ratio * progressDurationRef.current);
-  }, []);
+  // seek gesture can read the bar width and duration without this screen
+  // re-rendering. Shared values rather than refs: the gestures read them on
+  // the UI thread, and the React Compiler can't optimize a screen whose
+  // gestures read refs.
+  const progressBarWidth = useSharedValue(1);
+  const progressDuration = useSharedValue(0);
 
   const hasAutoPlayed = useRef(false);
   const momentRef = useRef(moment);
-  momentRef.current = moment;
   const playerRef = useRef({ currentSong, isPlaying });
-  playerRef.current = { currentSong, isPlaying };
+  // Latest values for the autoplay timer and focus refetch; synced in the
+  // commit rather than during render.
+  useLayoutEffect(() => {
+    momentRef.current = moment;
+    playerRef.current = { currentSong, isPlaying };
+  }, [moment, currentSong, isPlaying]);
   useEffect(() => {
     if (hasAutoPlayed.current) return;
     const m = momentRef.current;
@@ -247,11 +256,11 @@ export default function MomentDetailScreen() {
   }, [moment?.id]);
 
   const animStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
+    opacity: opacity.get(),
     transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { scale: scaleAnim.value },
+      { translateX: translateX.get() },
+      { translateY: translateY.get() },
+      { scale: scaleAnim.get() },
     ],
   }));
 
@@ -268,19 +277,19 @@ export default function MomentDetailScreen() {
         .simultaneousWithExternalGesture(scrollNativeGesture)
         .onUpdate((e) => {
           "worklet";
-          translateX.value = Math.max(0, e.translationX);
-          opacity.value = Math.max(0, 1 - e.translationX / 220);
+          translateX.set(Math.max(0, e.translationX));
+          opacity.set(Math.max(0, 1 - e.translationX / 220));
         })
         .onEnd((e) => {
           "worklet";
           if (e.translationX > 60 || e.velocityX > 400) {
             runOnJS(animateOut)(goBack);
           } else {
-            translateX.value = withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) });
-            opacity.value = withTiming(1, { duration: 200 });
+            translateX.set(withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) }));
+            opacity.set(withTiming(1, { duration: 200 }));
           }
         }),
-    [animateOut, goBack, scrollNativeGesture]
+    [animateOut, goBack, scrollNativeGesture, translateX, opacity]
   );
 
   // Scrubbing. The seek fires on `.onStart` (activation), never `.onBegin`
@@ -299,10 +308,10 @@ export default function MomentDetailScreen() {
       Gesture.Pan()
         .activeOffsetX([-6, 6])
         .failOffsetY([-3, 3])
-        .onStart((e) => { runOnJS(handleProgressSeek)(e.x); })
-        .onUpdate((e) => { runOnJS(handleProgressSeek)(e.x); })
+        .onStart((e) => { runOnJS(seekTo)(seekSeconds(e.x, progressBarWidth.get(), progressDuration.get())); })
+        .onUpdate((e) => { runOnJS(seekTo)(seekSeconds(e.x, progressBarWidth.get(), progressDuration.get())); })
         .blocksExternalGesture(swipeGesture),
-    [handleProgressSeek, swipeGesture]
+    [seekTo, progressBarWidth, progressDuration, swipeGesture]
   );
 
   // Tap-to-seek, which onBegin used to provide for free. A tap can't be
@@ -313,8 +322,10 @@ export default function MomentDetailScreen() {
       Gesture.Tap()
         .maxDuration(250)
         .maxDistance(10)
-        .onEnd((e, success) => { if (success) { runOnJS(handleProgressSeek)(e.x); } }),
-    [handleProgressSeek]
+        .onEnd((e, success) => {
+          if (success) { runOnJS(seekTo)(seekSeconds(e.x, progressBarWidth.get(), progressDuration.get())); }
+        }),
+    [seekTo, progressBarWidth, progressDuration]
   );
 
   const seekGesture = useMemo(
@@ -607,38 +618,44 @@ export default function MomentDetailScreen() {
 
   // The "…" menu. Each row runs once the menu has closed (MomentActionMenu),
   // so the sheets and confirms these open can present.
-  const menuItems: MomentMenuItem[] = [];
-  if (moment) {
-    const isOwnMoment = moment.userId === user?.id;
-    const isGuest = !!moment.guestUuid;
-    const isCollectionOwner = collectionRole === "owner";
-    const inCollection = !!collectionId;
-    const canDelete = isOwnMoment || (isGuest && isCollectionOwner);
-    const canRemove = inCollection && (isOwnMoment || isCollectionOwner);
-    // Report for non-own, non-guest moments (guests are managed by the owner directly)
-    const canReport = !isOwnMoment && !isGuest;
-
-    menuItems.push({ key: "share", label: "Share", icon: "share-outline", onPress: openShare });
-    if (isOwnMoment) {
-      menuItems.push({ key: "edit", label: "Edit", icon: "pencil-outline", onPress: handleEdit });
-      menuItems.push({ key: "album", label: "Add to album", icon: "albums-outline", onPress: handleAddToCollection });
-    }
-    if (canReport) {
-      menuItems.push({ key: "report", label: "Report", icon: "flag-outline", destructive: true, onPress: reportMoment });
-    }
-    if (canRemove) {
-      menuItems.push({
-        key: "remove",
-        label: "Remove from album",
-        icon: "remove-circle-outline",
-        destructive: true,
-        onPress: () => void handleRemoveFromCollection(),
-      });
-    }
-    if (canDelete) {
-      menuItems.push({ key: "delete", label: "Delete", icon: "trash-outline", destructive: true, onPress: () => void handleDelete() });
-    }
-  }
+  // Built as one literal (not pushed into): the compiler can't tell a push
+  // won't call the handlers it's given.
+  const isOwnMoment = !!moment && moment.userId === user?.id;
+  const isGuest = !!moment?.guestUuid;
+  const isCollectionOwner = collectionRole === "owner";
+  const inCollection = !!collectionId;
+  const canDelete = isOwnMoment || (isGuest && isCollectionOwner);
+  const canRemove = inCollection && (isOwnMoment || isCollectionOwner);
+  // Report for non-own, non-guest moments (guests are managed by the owner directly)
+  const canReport = !isOwnMoment && !isGuest;
+  const menuItems: MomentMenuItem[] = moment
+    ? [
+        { key: "share", label: "Share", icon: "share-outline", onPress: openShare },
+        ...(isOwnMoment
+          ? ([
+              { key: "edit", label: "Edit", icon: "pencil-outline", onPress: handleEdit },
+              { key: "album", label: "Add to album", icon: "albums-outline", onPress: handleAddToCollection },
+            ] satisfies MomentMenuItem[])
+          : []),
+        ...(canReport
+          ? ([{ key: "report", label: "Report", icon: "flag-outline", destructive: true, onPress: reportMoment }] satisfies MomentMenuItem[])
+          : []),
+        ...(canRemove
+          ? ([
+              {
+                key: "remove",
+                label: "Remove from album",
+                icon: "remove-circle-outline",
+                destructive: true,
+                onPress: () => void handleRemoveFromCollection(),
+              },
+            ] satisfies MomentMenuItem[])
+          : []),
+        ...(canDelete
+          ? ([{ key: "delete", label: "Delete", icon: "trash-outline", destructive: true, onPress: () => void handleDelete() }] satisfies MomentMenuItem[])
+          : []),
+      ]
+    : [];
 
   const hasPhotos = photoUrls.length > 0;
 
@@ -885,8 +902,8 @@ export default function MomentDetailScreen() {
                   isCurrentSong={!!isCurrentSong}
                   playError={!!playError}
                   seekGesture={seekGesture}
-                  barWidthRef={progressBarWidthRef}
-                  durationRef={progressDurationRef}
+                  barWidth={progressBarWidth}
+                  duration={progressDuration}
                   styles={styles}
                 />
               </View>
@@ -1136,19 +1153,21 @@ function PlaybackProgress({
   isCurrentSong,
   playError,
   seekGesture,
-  barWidthRef,
-  durationRef,
+  barWidth,
+  duration,
   styles,
 }: {
   isCurrentSong: boolean;
   playError: boolean;
   seekGesture: ReturnType<typeof Gesture.Race>;
-  barWidthRef: MutableRefObject<number>;
-  durationRef: MutableRefObject<number>;
+  barWidth: SharedValue<number>;
+  duration: SharedValue<number>;
   styles: ReturnType<typeof createStyles>;
 }) {
   const { playbackTime, playbackDuration } = usePlayerProgress();
-  durationRef.current = playbackDuration;
+  useEffect(() => {
+    duration.set(playbackDuration);
+  }, [duration, playbackDuration]);
 
   if (!isCurrentSong || playbackDuration <= 0) {
     return <Text style={styles.playHint}>{playError ? "Unavailable" : "Play"}</Text>;
@@ -1158,7 +1177,7 @@ function PlaybackProgress({
       <GestureDetector gesture={seekGesture}>
         <View
           style={styles.progressTrackWrapper}
-          onLayout={(e) => { barWidthRef.current = e.nativeEvent.layout.width; }}
+          onLayout={(e) => { barWidth.set(e.nativeEvent.layout.width); }}
         >
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${Math.min(100, (playbackTime / playbackDuration) * 100)}%` }]} />
