@@ -151,7 +151,8 @@ export type PlayCounts = Record<string, number>;
 /**
  * Plays during the week for a library track: (counts at the week's end, or
  * now for a week still ending) minus counts at its start. Null when the
- * start wasn't recorded.
+ * start wasn't recorded. Snapshots leave out songs never played
+ * (lib/lastWeekSnapshots.ts), so a song missing from one counts as 0.
  */
 export function weeklyPlays(
   track: Pick<LibraryTrack, "persistentId" | "playCount">,
@@ -160,7 +161,7 @@ export function weeklyPlays(
 ): number | null {
   if (!atStart) return null;
   const before = atStart[track.persistentId] ?? 0;
-  const after = atEnd ? (atEnd[track.persistentId] ?? track.playCount) : track.playCount;
+  const after = atEnd ? (atEnd[track.persistentId] ?? 0) : track.playCount;
   return Math.max(0, after - before);
 }
 
@@ -317,6 +318,19 @@ export function groupByDay(songs: WeekSong[], photos: WeekPhoto[]): WeekDay[] {
 /** A week worth a row: any song, or a handful of photos. */
 export function weekHasContent(songCount: number, photoCount: number): boolean {
   return songCount > 0 || photoCount >= QUIET_PHOTO_MIN;
+}
+
+/** The photo-dependent part of a week: its days, photo count and whether it has content. */
+export function weekPhotosView(
+  songs: WeekSong[],
+  photos: WeekPhoto[]
+): { days: WeekDay[]; photoCount: number; hasContent: boolean } {
+  return { days: groupByDay(songs, photos), photoCount: photos.length, hasContent: weekHasContent(songs.length, photos.length) };
+}
+
+/** Every photo in the week's days. */
+export function photosOfDays(days: WeekDay[]): WeekPhoto[] {
+  return days.flatMap((d) => d.photos);
 }
 
 // ── The Journal row ────────────────────────────────────────────────────────

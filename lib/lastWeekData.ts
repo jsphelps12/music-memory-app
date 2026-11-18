@@ -13,31 +13,26 @@ import { supabase } from "@/lib/supabase";
 import { keepInterestingCached } from "@/lib/photoAnalysisStore";
 import { itunesTrackToSong, type ItunesTrack } from "@/lib/itunes";
 import { dayKey } from "@/lib/libraryMoments";
+import { getLibrary } from "@/lib/libraryCache";
+import { countsFromLibrary, createSnapshotStore } from "@/lib/lastWeekSnapshots";
 import {
   buildWeekSongs,
   currentWeek,
-  groupByDay,
   inWeek,
   lastWeekRange,
+  photosOfDays,
   weekHasContent,
+  weekPhotosView,
   type LastWeekAccess,
-  type LibraryTrack,
-  type PlayCounts,
   type StreamedTrack,
   type WeekDay,
   type WeekPhoto,
   type WeekRange,
   type WeekSong,
 } from "@/lib/lastWeek";
-import {
-  getLibrarySongs,
-  getRecentlyPlayed,
-  libraryAccessStatus,
-  requestLibraryAccess,
-} from "@/modules/now-playing";
+import { getRecentlyPlayed, libraryAccessStatus, requestLibraryAccess } from "@/modules/now-playing";
 import type { Song } from "@/types";
 
-const SNAPSHOTS_KEY = "lastweek_playcounts_v1";
 const STREAMED_KEY = "lastweek_streamed_v1";
 const DISMISSED_KEY = "lastweek_dismissed_v1";
 const SEEN_KEY = "lastweek_seen_v1";
@@ -45,12 +40,28 @@ const ASK_DISMISSED_KEY = "lastweek_ask_dismissed_v1";
 const DAY_PHOTOS_KEY = "lastweek_suggest_day_photos_v1";
 const OBSERVED_AT_KEY = "lastweek_observed_at_v1";
 
-/** Enough of the library to cover a week, most recently added first. */
-const LIBRARY_LIMIT = 8000;
+/**
+ * Last week's fixed AsyncStorage keys (device-wide, not per account). The
+ * per-week play-count snapshots are separate: SNAPSHOT_KEY_PREFIX and
+ * LEGACY_SNAPSHOTS_KEY in lib/lastWeekSnapshots.ts.
+ */
+export const LAST_WEEK_KEYS = [
+  STREAMED_KEY,
+  DISMISSED_KEY,
+  SEEN_KEY,
+  ASK_DISMISSED_KEY,
+  DAY_PHOTOS_KEY,
+  OBSERVED_AT_KEY,
+] as const;
+
 /** Don't re-read the whole library on every Journal focus. */
 const OBSERVE_EVERY_MS = 3 * 60 * 60 * 1000;
+/** How long streamed songs are remembered. */
 const KEEP_WEEKS = 5;
 const PHOTO_LIMIT = 600;
+
+/** Play counts at the start of each week (lib/lastWeekSnapshots.ts). */
+const snapshots = createSnapshotStore(AsyncStorage);
 
 // ── Small stored flags ─────────────────────────────────────────────────────
 
@@ -73,8 +84,8 @@ export async function dismissWeek(week: WeekRange): Promise<void> {
   await writeJson(DISMISSED_KEY, week.key);
 }
 
-export async function markWeekSeen(week: WeekRange): Promise<void> {
-  await writeJson(SEEN_KEY, week.key);
+export async function markWeekSeen(weekKey: string): Promise<void> {
+  await writeJson(SEEN_KEY, weekKey);
 }
 
 export async function dismissAccessAsk(): Promise<void> {
@@ -118,8 +129,6 @@ export async function requestLastWeekAccess(): Promise<LastWeekAccess> {
 
 // ── Observations: play-count snapshots and the streamed log ───────────────
 
-type Snapshots = Record<string, PlayCounts>;
-
 interface StreamedLog {
   /** Store ids from the previous fetch, newest first. */
   lastList: string[] | null;
@@ -140,15 +149,13 @@ export async function observeListening(now = Date.now()): Promise<void> {
   const week = currentWeek(now);
 
   if (libraryAccessStatus() === "authorized") {
-    const snapshots = await readJson<Snapshots>(SNAPSHOTS_KEY, {});
-    if (!snapshots[week.key]) {
-      const songs = await getLibrarySongs(LIBRARY_LIMIT);
-      const counts: PlayCounts = {};
-      for (const s of songs) counts[s.persistentId] = s.playCount;
-      snapshots[week.key] = counts;
-      const keep = Object.keys(snapshots).sort().slice(-KEEP_WEEKS);
-      await writeJson(SNAPSHOTS_KEY, Object.fromEntries(keep.map((k) => [k, snapshots[k]])));
-    }
+    try {
+      if (!(await snapshots.has(week.key))) {
+        // Read this week, not a copy cached before Monday.
+        const songs = await getLibrary({ freshSince: week.start });
+        if (songs.length > 0) await snapshots.write(week.key, countsFromLibrary(songs));
+      }
+    } catch {}
   }
 
   const recent = await getRecentlyPlayed(50);
@@ -333,7 +340,7 @@ export interface LastWeekData {
   catalog: Record<string, Song>;
   /** WeekSong.key → moment id, for songs already saved. */
   saved: Record<string, string>;
-  /** Photos not looked at yet; useLastWeek analyses them, then refetches. */
+  /** Photos not looked at yet; useLastWeek analyses them, then refreshWeekPhotos. */
   unanalyzed: string[];
 }
 
@@ -361,20 +368,21 @@ export async function loadLastWeek(userId: string, now = Date.now()): Promise<La
   };
   if (access !== "granted") return empty;
 
-  const [library, checked, snapshots, log] = await Promise.all([
-    libraryAccessStatus() === "authorized" ? getLibrarySongs(LIBRARY_LIMIT) : Promise.resolve([]),
+  const [library, checked, countsAtStart, countsAtEnd, log] = await Promise.all([
+    getLibrary(),
     cameraPhotosChecked(week.start, Math.min(week.end, now)),
-    readJson<Snapshots>(SNAPSHOTS_KEY, {}),
+    snapshots.read(week.key),
+    // The next week's start is this one's end.
+    snapshots.read(dayKey(week.end)),
     readJson<StreamedLog>(STREAMED_KEY, { lastList: null, entries: {} }),
   ]);
 
-  const nextWeekKey = dayKey(week.end);
   const songs = buildWeekSongs({
     week,
-    library: library as LibraryTrack[],
+    library,
     streamed: Object.values(log.entries).filter((e) => inWeek(e.firstSeen, week)),
-    countsAtStart: snapshots[week.key] ?? null,
-    countsAtEnd: snapshots[nextWeekKey] ?? null,
+    countsAtStart,
+    countsAtEnd,
   });
 
   const storeIds = [...new Set(songs.map((s) => s.storeId).filter((id): id is string => !!id))];
@@ -385,17 +393,24 @@ export async function loadLastWeek(userId: string, now = Date.now()): Promise<La
   const saved: Record<string, string> = {};
   for (const s of songs) if (s.storeId && savedIds[s.storeId]) saved[s.key] = savedIds[s.storeId];
 
-  const photos = checked.photos;
   return {
     ...empty,
+    ...weekPhotosView(songs, checked.photos),
     unanalyzed: checked.unanalyzed,
     songs,
-    days: groupByDay(songs, photos),
-    photoCount: photos.length,
-    hasContent: weekHasContent(songs.length, photos.length),
     catalog,
     saved,
   };
+}
+
+/**
+ * After photos were analysed: the same week with photos now known to be
+ * boring dropped. Only the photo part changes; the library, catalog and
+ * "Saved" lookups aren't repeated.
+ */
+export async function refreshWeekPhotos(data: LastWeekData): Promise<LastWeekData> {
+  const { kept, unanalyzed } = await keepInterestingCached(photosOfDays(data.days));
+  return { ...data, ...weekPhotosView(data.songs, kept), unanalyzed };
 }
 
 // ── "Last week is ready" (1.4 notification choices) ───────────────────────
@@ -414,17 +429,17 @@ export async function isWeekDismissed(week: WeekRange): Promise<boolean> {
 export async function weekSoFarHasContent(now = Date.now()): Promise<boolean> {
   if ((await lastWeekAccess()) !== "granted") return false;
   const week = currentWeek(now);
-  const [library, checked, snapshots, log] = await Promise.all([
-    libraryAccessStatus() === "authorized" ? getLibrarySongs(LIBRARY_LIMIT) : Promise.resolve([]),
+  const [library, checked, countsAtStart, log] = await Promise.all([
+    getLibrary(),
     cameraPhotosChecked(week.start, now),
-    readJson<Snapshots>(SNAPSHOTS_KEY, {}),
+    snapshots.read(week.key),
     readJson<StreamedLog>(STREAMED_KEY, { lastList: null, entries: {} }),
   ]);
   const songs = buildWeekSongs({
     week,
-    library: library as LibraryTrack[],
+    library,
     streamed: Object.values(log.entries).filter((e) => inWeek(e.firstSeen, week)),
-    countsAtStart: snapshots[week.key] ?? null,
+    countsAtStart,
     countsAtEnd: null,
   });
   return weekHasContent(songs.length, checked.photos.length);
