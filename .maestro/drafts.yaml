@@ -51,7 +51,7 @@ env:
     visible:
       id: "capture-menu-continue-draft"
     timeout: 5000
-- assertVisible: ${DRAFT_TEXT}
+- assertVisible: "Continue a draft, ${DRAFT_TEXT}"
 - waitForAnimationToEnd
 - takeScreenshot: 02-start-from-with-draft
 - tapOn:
