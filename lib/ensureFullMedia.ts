@@ -16,13 +16,31 @@ export interface EnsureResult {
   missing: number;
 }
 
+// One run per moment at a time: two shares started together (the share sheet
+// and a friend share, two friends tapped quickly) wait on the same uploads
+// instead of each uploading the originals and one set being left unused.
+const inFlight = new Map<string, Promise<EnsureResult>>();
+
 /**
  * Uploads the full file of every linked photo in this moment that isn't
  * uploaded yet, and records it. A no-op for plain moments and for moments
  * that aren't the caller's. Throws if an upload or the row update fails (the
- * share should fail and be retried rather than send thumbnails).
+ * share should fail and be retried rather than send thumbnails); whatever it
+ * uploaded is removed again. Calls for a moment already being handled share
+ * that run's result.
  */
-export async function ensureFullMedia(momentId: string, userId: string): Promise<EnsureResult> {
+export function ensureFullMedia(momentId: string, userId: string): Promise<EnsureResult> {
+  const key = `${userId}:${momentId}`;
+  const running = inFlight.get(key);
+  if (running) return running;
+  const run: Promise<EnsureResult> = uploadMissingOriginals(momentId, userId).finally(() => {
+    if (inFlight.get(key) === run) inFlight.delete(key);
+  });
+  inFlight.set(key, run);
+  return run;
+}
+
+async function uploadMissingOriginals(momentId: string, userId: string): Promise<EnsureResult> {
   const { data: row, error } = await supabase
     .from("moments")
     .select("id, user_id, photo_urls, media_refs")
@@ -56,14 +74,17 @@ export async function ensureFullMedia(momentId: string, userId: string): Promise
       nextRefs[i] = { ...nextRefs[i]!, full: true };
     }
     if (fresh.length === 0) return { uploaded: 0, missing };
-    const { error: updateError } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from("moments")
       .update({ photo_urls: nextUrls, media_refs: nextRefs })
-      .eq("id", momentId);
+      .eq("id", momentId)
+      .select("id");
     if (updateError) throw updateError;
+    // The moment went away while uploading (deleted): nothing recorded them.
+    if (!updated || updated.length === 0) throw new Error("The moment couldn't be updated.");
   } catch (e) {
     // Nothing points at what we just uploaded: don't leave it public.
-    if (fresh.length) void deleteMomentPhotos(fresh);
+    if (fresh.length) void deleteMomentPhotos(fresh).catch(() => {});
     Sentry.captureException(e);
     throw e;
   }
