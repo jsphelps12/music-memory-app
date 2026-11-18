@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, AppState, Modal, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   cancelAnimation,
@@ -20,11 +20,9 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import type { MediaSource } from "@/lib/linkedMedia";
 import { PhotosVideoView, setDuckOthers } from "@/modules/photos-video";
-import { CLIP_LEVEL } from "@/lib/audioMix";
+import { CLIP_LEVEL, createMixRestore } from "@/lib/audioMix";
+import { loadsVideo, PHOTO_MS, videoHoldMs } from "@/lib/filmPlayback";
 import { StatusBar } from "expo-status-bar";
-
-/** How long a photo holds before the next fades in. */
-const PHOTO_MS = 4000;
 /** The cross-fade between one photo or video and the next. */
 const FADE_MS = 700;
 /** Drag down this far to close; sideways this far to move on or back. */
@@ -82,7 +80,10 @@ export function MomentFilm({
   const { duck, isPreview } = usePlayerControls();
   const [index, setIndex] = useState(initialIndex);
   const [paused, setPaused] = useState(false);
-  const [soundOn, setSoundOn] = useState(false);
+  // The item whose clip sound is on. Moving on turns it off by itself (and
+  // the effect below puts the mix back).
+  const [soundFor, setSoundFor] = useState<number | null>(null);
+  const soundOn = soundFor === index;
   // Full playback paused for a clip's sound (Apple's player can't duck).
   const [songHeldForClip, setSongHeldForClip] = useState(false);
   const progress = useSharedValue(0);
@@ -92,17 +93,30 @@ export function MomentFilm({
   const filmLike = count > 1;
 
   // ── Clip sound and the song ────────────────────────────────────────────
+  // Whatever a clip's sound turned down is put back exactly once, on every
+  // way out: sound off, another item, close, the parent hiding or unmounting
+  // the film, the app going to the background, the clip failing to load.
+  const [mix] = useState(createMixRestore);
+  useEffect(() => {
+    if (!visible) mix.restore();
+  }, [visible, mix]);
+  useEffect(
+    () => () => {
+      mix.restore();
+    },
+    [mix]
+  );
+
   const clipSoundOff = useCallback(
     (resumeSong: boolean) => {
-      setSoundOn(false);
-      if (isPreview) duck(false);
-      else setDuckOthers(false);
+      setSoundFor(null);
+      mix.restore();
       if (songHeldForClip) {
         setSongHeldForClip(false);
         if (resumeSong) startSong();
       }
     },
-    [duck, isPreview, songHeldForClip, startSong]
+    [mix, songHeldForClip, startSong]
   );
 
   const toggleClipSound = () => {
@@ -111,16 +125,40 @@ export function MomentFilm({
       clipSoundOff(!paused);
       return;
     }
-    setSoundOn(true);
-    if (isPreview) duck(true);
-    else if (songPlaying && setDuckOthers(true)) {
+    setSoundFor(index);
+    if (isPreview) {
+      duck(true);
+      mix.hold(() => duck(false));
+    } else if (songPlaying && setDuckOthers(true)) {
       // Full Apple Music: iOS ducks it (verified on Josh's phone, 2026-11-17).
+      mix.hold(() => setDuckOthers(false));
     } else if (songPlaying) {
       // The session refused to duck: pause the song for the clip instead.
       pauseSong();
       setSongHeldForClip(true);
     }
   };
+
+  // Leaving the app with a clip's sound on: the sound goes off and the mix is
+  // put back. A song held for the clip isn't restarted in the background.
+  useEffect(() => {
+    if (!visible || !soundOn) return;
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "background") clipSoundOff(false);
+    });
+    return () => sub.remove();
+  }, [visible, soundOn, clipSoundOff]);
+
+  // The clip on screen failed to load: its sound goes off with it.
+  const onVideoFailed = useCallback(() => {
+    if (soundOn) clipSoundOff(!paused);
+  }, [soundOn, paused, clipSoundOff]);
+
+  // Moved on from a clip with its sound on (its sound is already off, see
+  // soundFor): put the mix back, and the song unless the film is paused.
+  useEffect(() => {
+    if (soundFor !== null && soundFor !== index) clipSoundOff(!paused);
+  }, [soundFor, index, paused, clipSoundOff]);
 
   // ── Moving between items ───────────────────────────────────────────────
   const show = useCallback(
@@ -138,16 +176,12 @@ export function MomentFilm({
   const photoShown = useRef<{ index: number; ms: number }>({ index: -1, ms: 0 });
 
   // A new item: its segment starts from zero (before the photo timer below
-  // reads it), and a clip's sound goes off.
+  // reads it).
   useLayoutEffect(() => {
     cancelAnimation(progress);
-    progress.value = 0;
+    progress.set(0);
     photoShown.current = { index: -1, ms: 0 };
   }, [index, progress]);
-  useEffect(() => {
-    if (soundOn) clipSoundOff(!paused);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index]);
 
   // A photo holds for the rest of PHOTO_MS, then the next fades in. Pausing
   // clears the timer and freezes the segment where it is. How long a photo
@@ -160,8 +194,8 @@ export function MomentFilm({
     const remaining = Math.max(50, PHOTO_MS - done);
     const startedAt = Date.now();
     cancelAnimation(progress);
-    progress.value = done / PHOTO_MS;
-    progress.value = withTiming(1, { duration: remaining, easing: Easing.linear });
+    progress.set(done / PHOTO_MS);
+    progress.set(withTiming(1, { duration: remaining, easing: Easing.linear }));
     const timer = setTimeout(next, remaining);
     return () => {
       clearTimeout(timer);
@@ -183,54 +217,61 @@ export function MomentFilm({
   };
 
   const onOpen = () => {
+    mix.restore();
     setIndex(initialIndex);
-    progress.value = 0;
+    progress.set(0);
     photoShown.current = { index: -1, ms: 0 };
-    dragY.value = 0;
+    dragY.set(0);
     setPaused(false);
-    setSoundOn(false);
+    setSoundFor(null);
     setSongHeldForClip(false);
     if (filmLike && !songPlaying) startSong();
   };
 
   const close = useCallback(() => {
     if (soundOn) clipSoundOff(false);
+    mix.restore();
     onClose();
-  }, [clipSoundOff, onClose, soundOn]);
+  }, [clipSoundOff, mix, onClose, soundOn]);
 
   // ── Gestures: drag down closes; swipe or tap moves ─────────────────────
-  const tap = (x: number) => {
-    Haptics.selectionAsync();
-    if (x < width / 3) prev();
-    else next();
-  };
-  const closePan = Gesture.Pan()
-    .activeOffsetY([-15, 15])
-    .failOffsetX([-20, 20])
-    .onUpdate((e) => {
-      dragY.value = Math.max(0, e.translationY);
-    })
-    .onEnd((e) => {
-      if (e.translationY > CLOSE_DRAG) runOnJS(close)();
-      else dragY.value = withTiming(0, { duration: 200 });
-    });
-  const swipePan = Gesture.Pan()
-    .activeOffsetX([-20, 20])
-    .failOffsetY([-15, 15])
-    .onEnd((e) => {
-      if (e.translationX < -SWIPE) runOnJS(next)();
-      else if (e.translationX > SWIPE) runOnJS(prev)();
-    });
-  const tapGesture = Gesture.Tap()
-    .maxDuration(250)
-    .onEnd((e, success) => {
-      if (success) runOnJS(tap)(e.x);
-    });
-  const gestures = Gesture.Race(closePan, swipePan, tapGesture);
+  const tap = useCallback(
+    (x: number) => {
+      Haptics.selectionAsync();
+      if (x < width / 3) prev();
+      else next();
+    },
+    [width, prev, next]
+  );
+  const gestures = useMemo(() => {
+    const closePan = Gesture.Pan()
+      .activeOffsetY([-15, 15])
+      .failOffsetX([-20, 20])
+      .onUpdate((e) => {
+        dragY.set(Math.max(0, e.translationY));
+      })
+      .onEnd((e) => {
+        if (e.translationY > CLOSE_DRAG) runOnJS(close)();
+        else dragY.set(withTiming(0, { duration: 200 }));
+      });
+    const swipePan = Gesture.Pan()
+      .activeOffsetX([-20, 20])
+      .failOffsetY([-15, 15])
+      .onEnd((e) => {
+        if (e.translationX < -SWIPE) runOnJS(next)();
+        else if (e.translationX > SWIPE) runOnJS(prev)();
+      });
+    const tapGesture = Gesture.Tap()
+      .maxDuration(250)
+      .onEnd((e, success) => {
+        if (success) runOnJS(tap)(e.x);
+      });
+    return Gesture.Race(closePan, swipePan, tapGesture);
+  }, [dragY, close, next, prev, tap]);
 
   const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: dragY.value }],
-    opacity: 1 - Math.min(dragY.value / (CLOSE_DRAG * 3), 0.5),
+    transform: [{ translateY: dragY.get() }],
+    opacity: 1 - Math.min(dragY.get() / (CLOSE_DRAG * 3), 0.5),
   }));
 
   return (
@@ -250,6 +291,7 @@ export function MomentFilm({
               muted={!soundOn}
               progress={progress}
               onVideoEnded={next}
+              onVideoFailed={onVideoFailed}
               unplayableNote={
                 ownMoment ? "Plays on the phone it came from" : "This video stays in its owner's Photos"
               }
@@ -313,8 +355,10 @@ export function MomentFilm({
  * Each item is its own layer, keyed by its index, so a layer is never
  * remounted as it changes role: the outgoing item stays exactly as it was
  * (a video keeps its last frame) while the new one fades in on top. The items
- * either side are mounted too, invisible, so their pictures are decoded (and
- * a linked video's player loaded) before they're needed. The fade waits for
+ * either side are mounted too, invisible, so their pictures are decoded
+ * before they're needed. Only the next one also loads a linked video ahead
+ * (lib/filmPlayback.ts loadsVideo): each is a full-quality stream, often from
+ * iCloud, so the one behind stays a poster until it's back. The fade waits for
  * the new item's picture, up to FADE_WAIT_MS, so it never dips to black and
  * then pops.
  */
@@ -330,6 +374,7 @@ function Stage({
   muted,
   progress,
   onVideoEnded,
+  onVideoFailed,
   unplayableNote,
   styles,
 }: {
@@ -342,6 +387,7 @@ function Stage({
   muted: boolean;
   progress: SharedValue<number>;
   onVideoEnded: () => void;
+  onVideoFailed: () => void;
   unplayableNote: string;
   styles: Styles;
 }) {
@@ -354,9 +400,11 @@ function Stage({
 
   const startFade = useCallback(() => {
     pendingFade.current = null;
-    fade.value = withTiming(1, { duration: reduceMotion ? 0 : FADE_MS, easing: Easing.inOut(Easing.quad) }, (done) => {
-      if (done) runOnJS(setUnder)(null);
-    });
+    fade.set(
+      withTiming(1, { duration: reduceMotion ? 0 : FADE_MS, easing: Easing.inOut(Easing.quad) }, (done) => {
+        if (done) runOnJS(setUnder)(null);
+      })
+    );
   }, [fade, reduceMotion]);
 
   useEffect(() => {
@@ -364,7 +412,7 @@ function Stage({
     setUnder(shown.current);
     shown.current = index;
     cancelAnimation(fade);
-    fade.value = 0;
+    fade.set(0);
     if (loaded.current.has(index)) {
       startFade();
       return;
@@ -403,6 +451,7 @@ function Stage({
             item={items[i]}
             index={i}
             role={role}
+            loadVideo={loadsVideo(i, index, under, count)}
             fade={fade}
             width={width}
             height={height}
@@ -411,6 +460,7 @@ function Stage({
             muted={role === "top" ? muted : true}
             progress={progress}
             onVideoEnded={onVideoEnded}
+            onVideoFailed={onVideoFailed}
             onLoaded={onLoaded}
             unplayableNote={unplayableNote}
             styles={styles}
@@ -426,6 +476,7 @@ function Layer({
   item,
   index,
   role,
+  loadVideo,
   fade,
   width,
   height,
@@ -434,6 +485,7 @@ function Layer({
   muted,
   progress,
   onVideoEnded,
+  onVideoFailed,
   onLoaded,
   unplayableNote,
   styles,
@@ -441,6 +493,8 @@ function Layer({
   item: MediaSource;
   index: number;
   role: "top" | "under" | "ahead";
+  /** Whether a linked video loads its player now (lib/filmPlayback.ts). */
+  loadVideo: boolean;
   fade: SharedValue<number>;
   width: number;
   height: number;
@@ -449,12 +503,13 @@ function Layer({
   muted: boolean;
   progress: SharedValue<number>;
   onVideoEnded: () => void;
+  onVideoFailed: () => void;
   onLoaded: (index: number) => void;
   unplayableNote: string;
   styles: Styles;
 }) {
   const style = useAnimatedStyle(() => ({
-    opacity: role === "top" ? fade.value : role === "under" ? 1 : 0,
+    opacity: role === "top" ? fade.get() : role === "under" ? 1 : 0,
     zIndex: role === "top" ? 2 : role === "under" ? 1 : 0,
   }));
   const loaded = () => onLoaded(index);
@@ -466,11 +521,13 @@ function Layer({
           width={width}
           height={height}
           active={role === "top"}
+          load={loadVideo}
           playing={playing}
           loop={loopVideo}
           muted={muted}
           progress={progress}
           onEnded={onVideoEnded}
+          onFailed={onVideoFailed}
           onPosterLoaded={loaded}
           unplayableNote={unplayableNote}
           styles={styles}
@@ -484,7 +541,7 @@ function Layer({
 
 function Segment({ state, progress, styles }: { state: "done" | "now" | "next"; progress: SharedValue<number>; styles: Styles }) {
   const fill = useAnimatedStyle(() => ({
-    width: `${(state === "done" ? 1 : state === "now" ? progress.value : 0) * 100}%`,
+    width: `${(state === "done" ? 1 : state === "now" ? progress.get() : 0) * 100}%`,
   }));
   return (
     <View style={styles.segment}>
@@ -498,11 +555,13 @@ function VideoPage({
   width,
   height,
   active,
+  load,
   playing,
   loop,
   muted,
   progress,
   onEnded,
+  onFailed,
   onPosterLoaded,
   unplayableNote,
   styles,
@@ -512,11 +571,15 @@ function VideoPage({
   height: number;
   /** The item on screen; the ones either side load quietly and report nothing. */
   active: boolean;
+  /** Whether its player loads now (on screen, fading out, or next up). */
+  load: boolean;
   playing: boolean;
   loop: boolean;
   muted: boolean;
   progress: SharedValue<number>;
   onEnded: () => void;
+  /** The video on screen couldn't be loaded. */
+  onFailed: () => void;
   onPosterLoaded: () => void;
   /** Why a video that can't play here doesn't. */
   unplayableNote: string;
@@ -529,13 +592,36 @@ function VideoPage({
   const playable = !!localId && !!PhotosVideoView;
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [ended, setEnded] = useState(false);
+  // A new player for this item (see below).
+  const [player, setPlayer] = useState(0);
   const usable = playable && !failed;
 
+  // Its player goes when it isn't needed (lib/filmPlayback.ts loadsVideo),
+  // so it starts loading again when it is. A clip that already played to
+  // its end gets a fresh player when it's back on screen, to play from the
+  // top (a finished player stays at its end).
+  const [was, setWas] = useState({ load, active });
+  if (was.load !== load || was.active !== active) {
+    setWas({ load, active });
+    if (!load) {
+      setReady(false);
+      setEnded(false);
+    } else if (active && !was.active && ended) {
+      setReady(false);
+      setEnded(false);
+      setPlayer((n) => n + 1);
+    }
+  }
+
+  // Unplayable, or still loading when it comes up: the poster holds like a
+  // photo, then the film moves on (lib/filmPlayback.ts videoHoldMs).
+  const holdMs = videoHoldMs({ active, playing, loop, usable, ready });
   useEffect(() => {
-    if (!active || usable || !playing || loop) return;
-    const timer = setTimeout(onEnded, PHOTO_MS);
+    if (holdMs === null) return;
+    const timer = setTimeout(onEnded, holdMs);
     return () => clearTimeout(timer);
-  }, [active, usable, playing, loop, onEnded]);
+  }, [holdMs, onEnded]);
 
   const Video = PhotosVideoView;
   return (
@@ -546,8 +632,9 @@ function VideoPage({
         contentFit="contain"
         onLoad={onPosterLoaded}
       />
-      {usable && Video ? (
+      {usable && load && Video ? (
         <Video
+          key={player}
           localId={localId}
           playing={playing}
           muted={muted}
@@ -556,10 +643,16 @@ function VideoPage({
           style={[{ width, height }, !ready && styles.hidden]}
           onReady={() => setReady(true)}
           onProgress={(e) => {
-            if (active) progress.value = e.nativeEvent.fraction;
+            if (active) progress.set(e.nativeEvent.fraction);
           }}
-          onEnd={active ? onEnded : undefined}
-          onError={() => setFailed(true)}
+          onEnd={() => {
+            setEnded(true);
+            if (active) onEnded();
+          }}
+          onError={() => {
+            setFailed(true);
+            if (active) onFailed();
+          }}
         />
       ) : null}
       {!ready && active ? (

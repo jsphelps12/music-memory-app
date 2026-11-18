@@ -23,3 +23,44 @@ export function fadeVolume(from: number, to: number, elapsedMs: number, duration
   const eased = 1 - (1 - t) * (1 - t);
   return from + (to - from) * eased;
 }
+
+/**
+ * What the film turned down for a clip's sound, put back exactly once. Each
+ * duck records its own undo when it happens (a preview fade, or asking iOS to
+ * duck others); `restore()` runs them all and forgets them, so every way out
+ * of a clip (sound off, next item, close, swipe away, unmount, the app going
+ * to the background, a clip that fails) can call it without restoring twice
+ * or restoring something that was never ducked.
+ */
+export interface MixRestore {
+  /** Remember how to undo a duck that just happened. */
+  hold(undo: () => void): void;
+  /** Undo every held duck, newest first. True if there was anything to undo. */
+  restore(): boolean;
+  readonly held: boolean;
+}
+
+export function createMixRestore(): MixRestore {
+  let undos: (() => void)[] = [];
+  return {
+    hold(undo) {
+      undos.push(undo);
+    },
+    restore() {
+      if (undos.length === 0) return false;
+      const run = undos;
+      undos = [];
+      for (let i = run.length - 1; i >= 0; i--) {
+        try {
+          run[i]();
+        } catch {
+          // One failed undo mustn't keep the others from running.
+        }
+      }
+      return true;
+    },
+    get held() {
+      return undos.length > 0;
+    },
+  };
+}
