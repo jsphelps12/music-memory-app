@@ -58,7 +58,7 @@ over the prompts, this becomes 1.4.0 build 13 instead.
 Status 2026-11-18: all of it written and a release simulator build
 compiles. Still to do: Josh approves the prompt wording, turns on
 Associated Domains for the store App ID and makes soundtracks.app the
-primary domain on Vercel (no redirect to www); album invite links (/c/…)
+primary domain on Vercel (done 2026-11-18: apex serves the AASA directly, www 308s to apex); album invite links (/c/…)
 now open the join screen and www links are accepted; links are claimed by
 the store app only (not β). Then a device build and TestFlight.
 

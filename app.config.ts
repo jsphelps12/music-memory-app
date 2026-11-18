@@ -61,11 +61,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // Universal links (/confirm, /m/*, /friend/*, /c/*). This must be
     // `associatedDomains`, not an `entitlements` key: Expo's withAssociatedDomains
     // rewrites that key from this field and drops it when the field is unset,
-    // which is why build 12 shipped without the entitlement. www is listed
-    // too so a www link still opens the app. Production only: the web AASA
+    // which is why build 12 shipped without the entitlement. Apex only:
+    // www permanently redirects to soundtracks.app (Vercel), so it serves no
+    // AASA of its own. Production only: the web AASA
     // lists only the store app, so the β app (installed alongside) never
     // takes a sign-in /confirm link meant for the store app.
-    ...(isPreview ? {} : { associatedDomains: ["applinks:soundtracks.app", "applinks:www.soundtracks.app"] }),
+    ...(isPreview ? {} : { associatedDomains: ["applinks:soundtracks.app"] }),
     entitlements: {
       "com.apple.developer.applesignin": ["Default"],
       "com.apple.security.application-groups": [
