@@ -73,7 +73,7 @@ before every App Store submission, before merging a `native/*` branch into
 - [ ] Its fixes, in order: security now (server), client fixes over the
   air, a 1.4.1 native build, DB-2 after the min-build raise, then code
   quality. Server security batch done 2026-11-18 (main PR 108; Expo
-  enhanced push security on, first verified run 2026-11-18 10am). Client
+  enhanced push security turned on, first run to check 2026-11-18 10am). Client
   batch done 2026-11-18 on native/1.4 (OTA pending): drafts can't be
   wiped by pre-filled captures, app lock can't lock you out, sign-out
   clears every on-device record, library read once, smaller play-count
