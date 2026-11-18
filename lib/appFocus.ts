@@ -3,7 +3,7 @@
 // whatever it loaded before the app was backgrounded, until a manual pull
 // (2026-11-15, "my most recent moment wasn't there until I refreshed").
 //
-// wireQueryFocus() teaches React Query that "active" is focus, so stale
+// wireQueryFocus() teaches React Query that coming back from the background is focus, so stale
 // queries on mounted screens refetch on return. useOnForeground() is for the
 // screens that manage their own state (the Journal).
 
@@ -25,7 +25,8 @@ export function wireQueryFocus(): void {
   wired = true;
   focusManager.setEventListener((handleFocus) => {
     const sub = AppState.addEventListener("change", (state: AppStateStatus) => {
-      handleFocus(state === "active");
+      const focused = queryFocusFor(state);
+      if (focused !== null) handleFocus(focused);
     });
     return () => sub.remove();
   });
@@ -34,6 +35,19 @@ export function wireQueryFocus(): void {
       setOnline(isOnline(state.isConnected, state.isInternetReachable));
     })
   );
+}
+
+/**
+ * What an app state change tells React Query's focus: the background is
+ * unfocused, active is focused, and "inactive" (Control Center, a Face ID
+ * prompt, the app switcher peek) says nothing, so coming back from it isn't
+ * a return to the app and doesn't refetch. React Query only refetches when
+ * focus actually changes. Pure; tested.
+ */
+export function queryFocusFor(state: AppStateStatus): boolean | null {
+  if (state === "background") return false;
+  if (state === "active") return true;
+  return null;
 }
 
 /**

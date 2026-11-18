@@ -6,6 +6,10 @@ vi.mock("@/lib/supabase", () => ({ supabase: {} }));
 
 import {
   CHECK_IN_DAYS,
+  checkInPlanSignature,
+  checkInRefreshDue,
+  CHECK_IN_REFRESH_EVERY_MS,
+  createSerialQueue,
   DEFAULT_CHECK_IN,
   describeDays,
   formatCheckInTime,
@@ -91,5 +95,65 @@ describe("formatting", () => {
   });
   it("keys a day in local time", () => {
     expect(localDayKey(new Date(2026, 0, 5, 23, 59))).toBe("2026-01-05");
+  });
+});
+
+describe("createSerialQueue", () => {
+  it("runs jobs one at a time, in order, even when an earlier one is slower", async () => {
+    const serial = createSerialQueue();
+    const log: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const a = serial(async () => {
+      log.push("a start");
+      await gate;
+      log.push("a end");
+      return "a";
+    });
+    const b = serial(async () => {
+      log.push("b");
+      return "b";
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(log).toEqual(["a start"]);
+    release();
+    expect(await Promise.all([a, b])).toEqual(["a", "b"]);
+    expect(log).toEqual(["a start", "a end", "b"]);
+  });
+
+  it("keeps going after a failed job", async () => {
+    const serial = createSerialQueue();
+    const failed = serial(async () => {
+      throw new Error("boom");
+    });
+    const next = serial(async () => "ok");
+    await expect(failed).rejects.toThrow("boom");
+    expect(await next).toBe("ok");
+  });
+});
+
+describe("checkInRefreshDue", () => {
+  const now = new Date(2026, 10, 16, 10, 0);
+  const on = { ...DEFAULT_CHECK_IN, enabled: true };
+  const sig = checkInPlanSignature("u1", now, on, "granted");
+
+  it("re-plans the first time, when forced, or when anything changed", () => {
+    expect(checkInRefreshDue(null, sig, now.getTime())).toBe(true);
+    expect(checkInRefreshDue({ signature: sig, at: now.getTime() }, sig, now.getTime() + 1000, true)).toBe(true);
+    const otherTime = checkInPlanSignature("u1", now, { ...on, hour: 8 }, "granted");
+    expect(checkInRefreshDue({ signature: sig, at: now.getTime() }, otherTime, now.getTime() + 1000)).toBe(true);
+  });
+
+  it("skips a return to the app soon after the last plan", () => {
+    expect(checkInRefreshDue({ signature: sig, at: now.getTime() }, sig, now.getTime() + 60_000)).toBe(false);
+    expect(checkInRefreshDue({ signature: sig, at: now.getTime() }, sig, now.getTime() + CHECK_IN_REFRESH_EVERY_MS)).toBe(true);
+  });
+
+  it("changes with the account, the day and the permission, not the hour", () => {
+    expect(checkInPlanSignature("u2", now, on, "granted")).not.toBe(sig);
+    expect(checkInPlanSignature("u1", new Date(2026, 10, 17, 0, 5), on, "granted")).not.toBe(sig);
+    expect(checkInPlanSignature("u1", now, on, "denied")).not.toBe(sig);
+    expect(checkInPlanSignature("u1", new Date(2026, 10, 16, 23, 0), on, "granted")).toBe(sig);
   });
 });
