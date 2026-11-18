@@ -156,7 +156,14 @@ The starred ones bring the app to you, which serves the north star:
   Next: Josh on the TestFlight build over his App Store app (the
   production variant: Apple Sign-In, `soundtracks://`, widgets), internal
   testers (invited 2026-11-17), then screenshots and App Review with the
-  What's New in `docs/app-store/whats-new-1.4.md`. Merge `native/1.4` into
+  What's New in `docs/app-store/whats-new-1.4.md`. Screenshots for 1.4
+  are done (2026-11-17, `docs/app-store/screenshots/` at 6.9" and in
+  `6.3-inch/`, the required size): Journal, a moment, Hold + (Start from),
+  capture, the widget (unchanged), Rediscover's On this day (two demo
+  anniversaries moved to the day for the shot, then put back), Year in
+  review, dark. `scripts/frame-screenshots.py` now writes both sizes. A
+  film shot needs photos on the demo account. App Review signs in as
+  founder@, which now holds a copy of the demo account's 8 moments. Merge `native/1.4` into
   `main` only once 1.4 is approved and out, so OTAs keep reaching 1.3.1
   until then. Josh's moments are consolidated (2026-11-17): founder@'s 27
   moments and its College and Footy albums moved to his personal account

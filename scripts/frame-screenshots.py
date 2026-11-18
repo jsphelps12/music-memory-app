@@ -3,6 +3,11 @@ Frame raw simulator captures into 6.9" App Store screenshots (1320x2868).
 
 Usage: python3 scripts/frame-screenshots.py <raw-dir> <out-dir>
 
+Writes the 6.9" set to <out-dir> and the 6.3" set (1206x2622, the size App
+Store Connect requires) to <out-dir>/6.3-inch. A frame whose mode is
+"existing" reuses an already framed image (the widget frame, whose raw
+captures aren't kept).
+
 Each frame is a headline in DM Serif Display, a line of DM Sans, and the
 screen in a thin bezel bleeding off the bottom edge. Raw captures come from
 `xcrun simctl io <udid> screenshot` (any modern iPhone; they're scaled).
@@ -26,10 +31,12 @@ DARK = {"bg": "#0E0B0A", "ink": "#F5F0EB", "soft": "#ABA39E", "bezel": "#3A3330"
 FRAMES = [
     ("01-journal.png", "1-journal", "Your life, one song\nat a time.", "A journal for the songs that mark your days.", LIGHT, "phone"),
     ("02-entry.png", "2-entry", "Every song holds\na memory.", "Write what it meant. Find it again years later.", LIGHT, "phone"),
-    ("04-capture.png", "3-capture", "Capture it in\ntwo taps.", "Song first. Write a line, pages, or nothing.", LIGHT, "phone"),
-    ("05-widget.png", "4-widget", "Capture from\nanywhere.", "Home Screen, Lock Screen and Control Center.", LIGHT, "widget"),
-    ("03-rediscover.png", "5-rediscover", "On this day,\nyears ago.", "The songs you saved find their way back.", LIGHT, "phone"),
-    ("06-dark-entry.png", "6-dark", "Made for\nlate nights.", "A quiet place to read what you wrote.", DARK, "phone"),
+    ("07-start-from.png", "3-start-from", "Hold + for more\nways to start.", "Last week, From before, or what's playing now.", LIGHT, "phone"),
+    ("04-capture.png", "4-capture", "Capture it in\ntwo taps.", "Song first. Write a line, pages, or nothing.", LIGHT, "phone"),
+    ("docs/app-store/screenshots/5-widget.png", "5-widget", None, None, LIGHT, "existing"),
+    ("03-rediscover.png", "6-rediscover", "On this day,\nyears ago.", "The songs you saved find their way back.", LIGHT, "phone"),
+    ("08-year.png", "7-year", "Your year,\nin songs.", "The months, the moods, the songs that stayed.", DARK, "phone"),
+    ("06-dark-entry.png", "8-dark", "Made for\nlate nights.", "A quiet place to read what you wrote.", DARK, "phone"),
 ]
 
 
@@ -106,12 +113,23 @@ def frame_phone_at(canvas, raw, palette, top, screen_w):
 
 def main():
     raw_dir, out_dir = Path(sys.argv[1]), Path(sys.argv[2])
-    out_dir.mkdir(parents=True, exist_ok=True)
+    small_dir = out_dir / "6.3-inch"
+    small_dir.mkdir(parents=True, exist_ok=True)
     global HEADLINE, SUB
+    # Read every "existing" frame before writing anything: it may live in out_dir.
+    existing = {
+        name: Image.open(ROOT / raw).convert("RGBA").copy()
+        for raw, name, _, _, _, mode in FRAMES
+        if mode == "existing"
+    }
     for raw_name, out_name, HEADLINE, SUB, palette, mode in FRAMES:
-        raw = Image.open(raw_dir / raw_name).convert("RGBA")
-        img = frame_widget(raw, palette, raw_dir) if mode == "widget" else frame_phone(raw, palette)
+        if mode == "existing":
+            img = existing[out_name]
+        else:
+            raw = Image.open(raw_dir / raw_name).convert("RGBA")
+            img = frame_widget(raw, palette, raw_dir) if mode == "widget" else frame_phone(raw, palette)
         img.convert("RGB").save(out_dir / f"{out_name}.png", optimize=True)
+        img.convert("RGB").resize((1206, 2622), Image.LANCZOS).save(small_dir / f"{out_name}.png", optimize=True)
         print(out_dir / f"{out_name}.png", img.size)
 
 

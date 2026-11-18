@@ -36,7 +36,7 @@ const STALE = 2 * 60 * 1000;
 type Mode = "week" | "all" | number;
 
 /**
- * From before on its own (1.4), from the long-press menu on +. "This week"
+ * From before on its own (1.4), from the long-press menu on +. "Picks"
  * is the same weekly picks as the end of Rediscover; "All years" or a year
  * browses further, a page at a time. ✕ on a pick ("Not this one") means it
  * never comes back, here or in Rediscover.
@@ -161,7 +161,7 @@ export default function FromBeforeScreen() {
   } else if (!data || data.pairings.length === 0) {
     body = (
       <View style={styles.center}>
-        <Text style={styles.emptyTitle}>{browsing ? "Nothing stands out here" : "Nothing stands out this week"}</Text>
+        <Text style={styles.emptyTitle}>{browsing ? "Nothing stands out here" : "No picks this week"}</Text>
         <Text style={styles.emptyText}>
           From before picks old songs from weeks that stood out: far more photos than usual, time away from home, or
           photos you favorited.
@@ -208,12 +208,15 @@ export default function FromBeforeScreen() {
       <ScreenHeader title="From before" subtitle="From your library and photos. Not in your journal yet." />
       <View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          <Chip label="This week" selected={mode === "week"} onPress={() => choose("week")} />
+          {/* "Picks": this week's set, chosen from any year (it read as songs
+              from this week, Josh 2026-11-17). */}
+          <Chip label="Picks" selected={mode === "week"} onPress={() => choose("week")} />
           <Chip label="All years" selected={mode === "all"} onPress={() => choose("all")} />
           {(years.data ?? []).map((y) => (
             <Chip key={y} label={String(y)} selected={mode === y} onPress={() => choose(y)} />
           ))}
         </ScrollView>
+        {mode === "week" ? <Text style={styles.chipNote}>A new set every Monday, from any year</Text> : null}
       </View>
       {body}
     </View>
@@ -227,6 +230,13 @@ function createStyles(theme: Theme) {
     list: { paddingHorizontal: theme.spacing.xl, paddingBottom: theme.spacing["4xl"] },
     more: { alignItems: "center", paddingTop: theme.spacing.lg },
     center: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: theme.spacing["3xl"], gap: theme.spacing.sm },
+    chipNote: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+      paddingHorizontal: theme.spacing.xl,
+      marginTop: -theme.spacing.xs,
+      marginBottom: theme.spacing.sm,
+    },
     emptyTitle: { ...theme.typography.title, color: theme.colors.text, textAlign: "center" },
     emptyText: { ...theme.typography.body, color: theme.colors.textSecondary, textAlign: "center" },
     accessButton: { marginTop: theme.spacing.md },
