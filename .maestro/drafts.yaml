@@ -110,3 +110,75 @@ env:
     timeout: 10000
 - assertNotVisible:
     id: "capture-draft-keep"
+
+# --- Several drafts: the list, and picking the older one ---------------------
+# A plain capture picks up the newest draft, so a second draft comes from a
+# capture that starts from a song (as a share, a song page or Identify does);
+# those never pick one up. The app's own link opens one here.
+- tapOn:
+    id: "journal-empty-capture"
+- extendedWaitUntil:
+    visible:
+      id: "create-reflection"
+    timeout: 10000
+- tapOn:
+    id: "create-reflection"
+- inputText: "e2e first draft"
+- tapOn:
+    id: "create-close"
+- extendedWaitUntil:
+    visible:
+      id: "capture-draft-keep"
+    timeout: 5000
+- tapOn:
+    id: "capture-draft-keep"
+- extendedWaitUntil:
+    visible:
+      id: "journal-empty-capture"
+    timeout: 10000
+
+- openLink: "soundtracks-beta:///create?songTitle=Bohemian%20Rhapsody&songArtist=Queen"
+- extendedWaitUntil:
+    visible:
+      id: "create-reflection"
+    timeout: 10000
+- assertNotVisible:
+    id: "create-draft-line"
+- tapOn:
+    id: "create-reflection"
+- inputText: "e2e second draft"
+- tapOn:
+    id: "create-close"
+- extendedWaitUntil:
+    visible:
+      id: "capture-draft-keep"
+    timeout: 5000
+- tapOn:
+    id: "capture-draft-keep"
+- extendedWaitUntil:
+    visible:
+      id: "journal-empty-capture"
+    timeout: 10000
+
+- longPressOn:
+    point: "87%,85%"
+- extendedWaitUntil:
+    visible: "Continue a draft, 2 drafts"
+    timeout: 5000
+- tapOn:
+    id: "capture-menu-continue-draft"
+- extendedWaitUntil:
+    visible: ".*e2e first draft.*"
+    timeout: 5000
+- assertVisible: ".*e2e second draft.*"
+- waitForAnimationToEnd
+- takeScreenshot: 05-drafts-list
+- tapOn: ".*e2e first draft.*"
+- extendedWaitUntil:
+    visible:
+      id: "create-draft-line"
+    timeout: 10000
+- assertVisible:
+    id: "create-reflection"
+    text: "e2e first draft"
+- takeScreenshot: 06-older-draft-picked-up
