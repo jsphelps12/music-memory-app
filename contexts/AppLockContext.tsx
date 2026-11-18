@@ -12,8 +12,12 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import {
   APP_LOCK_STORAGE_KEY,
+  AuthAttempt,
   BiometryKind,
+  decideToggle,
+  decideUnlock,
   lockMethodLabel,
+  needsDeviceCheck,
   parseLockSetting,
   shouldLockOnReturn,
 } from "@/lib/appLock";
@@ -65,19 +69,28 @@ async function detectMethod(): Promise<BiometryKind> {
   return "passcode";
 }
 
-/** Face ID, falling back to the device passcode. */
-async function authenticate(promptMessage: string): Promise<SetResult> {
+/**
+ * Face ID, falling back to the device passcode. Returns the attempt and, for
+ * a "no passcode" error only, whether the device agrees it has no way to
+ * authenticate (null when that couldn't be checked). lib/appLock.ts decides
+ * what to do with it.
+ */
+async function authenticate(promptMessage: string): Promise<{ attempt: AuthAttempt; deviceHasAuth: boolean | null }> {
+  let attempt: AuthAttempt;
   try {
     const r = await LocalAuthentication.authenticateAsync({ promptMessage, disableDeviceFallback: false });
-    if (r.success) return { ok: true };
-    if (r.error === "passcode_not_set") {
-      return { ok: false, message: "Set a passcode for this iPhone in Settings to use the lock." };
-    }
-    // Cancelled, or the system dismissed it: nothing to explain.
-    return { ok: false, message: null };
+    attempt = r.success ? { success: true } : { success: false, error: r.error };
   } catch {
-    return { ok: false, message: "Couldn't check Face ID. Try again." };
+    attempt = { success: false, error: "exception" };
   }
+  let deviceHasAuth: boolean | null = null;
+  if (needsDeviceCheck(attempt)) {
+    try {
+      const level = await LocalAuthentication.getEnrolledLevelAsync();
+      deviceHasAuth = level !== LocalAuthentication.SecurityLevel.NONE;
+    } catch {}
+  }
+  return { attempt, deviceHasAuth };
 }
 
 /**
@@ -91,7 +104,15 @@ export function AppLockProvider({ children, fontsLoaded }: { children: ReactNode
   // Locked: needs Face ID. Covered: hidden for the app switcher snapshot.
   const [locked, setLocked] = useState(false);
   const [covered, setCovered] = useState(false);
+  // Why the last unlock didn't work, under the retry button (null: nothing
+  // to say, e.g. a cancel).
+  const [lockMessage, setLockMessage] = useState<string | null>(null);
+  // Set when the lock turned itself off because the phone can't authenticate
+  // anymore: the cover says so once, with a Continue button.
+  const [turnedOffNotice, setTurnedOffNotice] = useState<string | null>(null);
   const enabledRef = useRef(false);
+  // Read by unlock(), which must stay stable (the effects below key on it).
+  const methodLabelRef = useRef(lockMethodLabel("face"));
   const backgroundedAt = useRef<number | null>(null);
   const prompting = useRef(false);
   // Bumped to remount the overlay on top (see the note at the top).
@@ -106,18 +127,43 @@ export function AppLockProvider({ children, fontsLoaded }: { children: ReactNode
   const unlock = useCallback(async () => {
     if (prompting.current) return;
     prompting.current = true;
-    const r = await authenticate("Unlock Soundtracks");
+    const { attempt, deviceHasAuth } = await authenticate("Unlock Soundtracks");
     prompting.current = false;
-    if (r.ok) {
+    const decision = decideUnlock(attempt, methodLabelRef.current, deviceHasAuth);
+    if (decision.kind === "unlock") {
+      setLockMessage(null);
       setLocked(false);
       setCovered(false);
+    } else if (decision.kind === "stay_locked") {
+      setLockMessage(decision.message);
+    } else {
+      // The phone can't authenticate anyone (its passcode was removed), so
+      // nothing could ever lift the cover. Turn the setting off and say so;
+      // the cover stays up with the notice until Continue.
+      enabledRef.current = false;
+      try {
+        await AsyncStorage.removeItem(APP_LOCK_STORAGE_KEY);
+      } catch {}
+      setLockMessage(null);
+      setTurnedOffNotice(decision.message);
     }
+  }, []);
+
+  const dismissTurnedOffNotice = useCallback(() => {
+    setTurnedOffNotice(null);
+    setLocked(false);
+    setCovered(false);
+    setEnabledState(false);
   }, []);
 
   // Cold start: read the setting; lock straight away when it's on.
   useEffect(() => {
     let cancelled = false;
-    void detectMethod().then((m) => !cancelled && setMethod(m));
+    void detectMethod().then((m) => {
+      if (cancelled) return;
+      methodLabelRef.current = lockMethodLabel(m);
+      setMethod(m);
+    });
     AsyncStorage.getItem(APP_LOCK_STORAGE_KEY)
       .catch(() => null)
       .then((v) => {
@@ -150,6 +196,7 @@ export function AppLockProvider({ children, fontsLoaded }: { children: ReactNode
         const lockNow = shouldLockOnReturn(true, backgroundedAt.current, monotonicMs());
         backgroundedAt.current = null;
         if (lockNow) {
+          setLockMessage(null);
           setLocked(true);
           void unlock();
         } else {
@@ -162,8 +209,11 @@ export function AppLockProvider({ children, fontsLoaded }: { children: ReactNode
 
   const setEnabled = useCallback(
     async (value: boolean): Promise<SetResult> => {
-      const r = await authenticate(value ? `Turn on ${methodLabel} lock` : `Turn off ${methodLabel} lock`);
-      if (!r.ok) return r;
+      const { attempt, deviceHasAuth } = await authenticate(
+        value ? `Turn on ${methodLabel} lock` : `Turn off ${methodLabel} lock`
+      );
+      const decision = decideToggle(value, attempt, methodLabel, deviceHasAuth);
+      if (decision.kind === "refuse") return { ok: false, message: decision.message };
       try {
         if (value) await AsyncStorage.setItem(APP_LOCK_STORAGE_KEY, "1");
         else await AsyncStorage.removeItem(APP_LOCK_STORAGE_KEY);
@@ -193,7 +243,14 @@ export function AppLockProvider({ children, fontsLoaded }: { children: ReactNode
             <LockCover
               // Only a real lock offers the button; the snapshot cover and the
               // first instant before the setting is read are a blank page.
-              action={locked ? { label: `Unlock with ${methodLabel}`, onPress: unlock } : null}
+              action={
+                turnedOffNotice
+                  ? { label: "Continue", onPress: dismissTurnedOffNotice }
+                  : locked
+                    ? { label: `Unlock with ${methodLabel}`, onPress: unlock }
+                    : null
+              }
+              message={turnedOffNotice ?? (locked ? lockMessage : null)}
               showText={fontsLoaded}
             />
           ) : null}
@@ -205,9 +262,12 @@ export function AppLockProvider({ children, fontsLoaded }: { children: ReactNode
 
 function LockCover({
   action,
+  message,
   showText,
 }: {
   action: { label: string; onPress: () => void } | null;
+  /** Why the lock is still up, or that it turned itself off. */
+  message: string | null;
   showText: boolean;
 }) {
   const theme = useTheme();
@@ -219,6 +279,11 @@ function LockCover({
         <View style={styles.center}>
           <Icon name="lock-closed-outline" size={28} color={theme.colors.textSecondary} />
           <Text style={styles.title}>Soundtracks</Text>
+          {message ? (
+            <Text style={styles.message} accessibilityLiveRegion="polite">
+              {message}
+            </Text>
+          ) : null}
         </View>
       ) : null}
       {action && showText ? (
@@ -251,6 +316,12 @@ function createStyles(theme: Theme) {
     title: {
       ...theme.typography.title,
       color: theme.colors.text,
+    },
+    message: {
+      ...theme.typography.body,
+      color: theme.colors.textSecondary,
+      textAlign: "center",
+      paddingHorizontal: theme.spacing.xl,
     },
     action: {
       paddingHorizontal: theme.spacing.xl,
