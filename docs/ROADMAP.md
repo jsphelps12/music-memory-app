@@ -85,14 +85,15 @@ before every App Store submission, before merging a `native/*` branch into
   under the React Compiler (97 compiled). Old PostHog tap events left as
   they are (owner's call). Next: 1.4.1 native items (plus the "…" menu as the same native
   iOS menu as long-press, Josh 2026-11-18), then code quality.
-- [ ] UI consistency pass (2026-11-18), from a code inventory of every
+- [x] UI consistency pass (2026-11-18), from a code inventory of every
   surface plus the new Maestro moment-actions flow (`.maestro/actions.yaml`,
   run locally with `scripts/e2e-local.sh actions` before each OTA): add to
   album applies as you tap, sheets wait for the previous one to close,
   every loading screen has a way out, one ✕ on the left to leave a task,
   confirms in one house style, long-presses open the native menu, Edit
   moment asks before discarding, deleting a moment stops its song. OTA to
-  1.4; the "…" as a native menu goes in 1.4.1.
+  1.4 the same day (group 420e532c), checked by Josh on TestFlight; the "…"
+  as a native menu goes in 1.4.1.
 - [ ] **Sharing and social review with Josh, after 1.4.1 and before 1.5
   planning** (Josh, 2026-11-18): make sure sharing is where it needs to be
   before building more on it. Start from `docs/SOCIAL-ARCHITECTURE.md`,
