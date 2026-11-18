@@ -14,6 +14,7 @@ import type { SpotifyFailure } from "@/lib/providers/spotifyErrors";
 import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
 import { clearCheckInData } from "@/lib/dailyCheckIn";
 import { clearLastWeekReady } from "@/lib/lastWeekReady";
+import { clearSignOutKeys } from "@/lib/signOutKeys";
 import { resetTimelineRefresh } from "@/lib/timelineRefresh";
 import { clearLegacyAlbumCaches } from "@/lib/albums";
 import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
@@ -434,6 +435,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearLastWeekReady(),
       ]);
     }
+    // From before, Last week, photo analyses, nudge questions, the capture
+    // hint: one person's records, stored without a user id (lib/signOutKeys.ts).
+    await clearSignOutKeys();
     // Spotify's session is stored device-wide, not per user: the next person
     // to sign in here must connect their own account.
     await disconnectSpotify().catch(() => {});
