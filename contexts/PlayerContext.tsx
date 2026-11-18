@@ -1,10 +1,21 @@
-import React, { createContext, useCallback, useContext, useMemo, useState, useRef, useEffect } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useSyncExternalStore,
+} from "react";
 import { AppState } from "react-native";
 import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from "expo-audio";
 import { getProvider } from "@/lib/providers";
 import type { MusicProvider } from "@/lib/providers";
 import { Song } from "@/types";
 import { DUCK_LEVEL, DUCK_MS, fadeVolume, RESTORE_MS } from "@/lib/audioMix";
+import { createPlaybackStore, isSongPlaying, type PlaybackStore } from "@/lib/playbackStore";
 
 /**
  * What changes only on discrete events (a song starts, pauses, stops, fails).
@@ -37,10 +48,22 @@ interface PlayerProgress {
 
 type PlayerState = PlayerControls & PlayerProgress;
 
-// Two contexts so the per-tick progress updates re-render only the progress
-// UI. With one context, every mounted MomentCard re-rendered on every tick.
+/** Never changes after mount: safe for every row of a long list. */
+interface PlayerActions {
+  playFull: PlayerControls["playFull"];
+  pause: PlayerControls["pause"];
+  stop: PlayerControls["stop"];
+  /** The current song at call time, for event handlers. Not for render. */
+  getCurrentSong: () => Song | null;
+  store: PlaybackStore;
+}
+
+// Split so the per-tick progress updates re-render only the progress UI, and
+// play/pause re-renders only what shows it. With one context, every mounted
+// MomentCard re-rendered on every tick.
 const PlayerContext = createContext<PlayerControls | undefined>(undefined);
 const PlayerProgressContext = createContext<PlayerProgress | undefined>(undefined);
+const PlayerActionsContext = createContext<PlayerActions | undefined>(undefined);
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
@@ -341,13 +364,48 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     [playbackTime, playbackDuration]
   );
 
+  // For list rows: which song is playing, as a store they select from, and
+  // the actions, which never change. Neither re-renders a row unless its own
+  // song starts or stops.
+  const [playbackStore] = useState(createPlaybackStore);
+  useLayoutEffect(() => {
+    playbackStore.set({ currentSong, isPlaying });
+  }, [playbackStore, currentSong, isPlaying]);
+  const actionsValue = useMemo<PlayerActions>(
+    () => ({ playFull, pause, stop, getCurrentSong: () => playbackStore.get().currentSong, store: playbackStore }),
+    [playFull, pause, stop, playbackStore]
+  );
+
   return (
     <PlayerContext.Provider value={controlsValue}>
       <PlayerProgressContext.Provider value={progressValue}>
-        {children}
+        <PlayerActionsContext.Provider value={actionsValue}>
+          {children}
+        </PlayerActionsContext.Provider>
       </PlayerProgressContext.Provider>
     </PlayerContext.Provider>
   );
+}
+
+/**
+ * Stable playback actions for list rows. The value never changes, so a row
+ * using it doesn't re-render on play/pause; pair it with useIsSongPlaying.
+ */
+export function usePlayerActions(): PlayerActions {
+  const context = useContext(PlayerActionsContext);
+  if (context === undefined) {
+    throw new Error("usePlayerActions must be used within a PlayerProvider");
+  }
+  return context;
+}
+
+/**
+ * Whether `songId` (playbackSongId of the moment) is the song playing now.
+ * The caller re-renders only when this answer changes.
+ */
+export function useIsSongPlaying(songId: string | null | undefined): boolean {
+  const { store } = usePlayerActions();
+  return useSyncExternalStore(store.subscribe, () => isSongPlaying(store.get(), songId));
 }
 
 /**

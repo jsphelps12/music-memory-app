@@ -19,7 +19,8 @@ import { setCachedMoment } from "@/lib/momentCache";
 import { deleteMomentWithCleanup } from "@/lib/deleteMoment";
 import { invalidateMomentCaches } from "@/lib/cacheInvalidation";
 import { friendlyError } from "@/lib/errors";
-import { usePlayerControls } from "@/contexts/PlayerContext";
+import { useIsSongPlaying, usePlayerActions } from "@/contexts/PlayerContext";
+import { playbackSongId } from "@/lib/playbackStore";
 import { useTheme } from "@/hooks/useTheme";
 import { momentCardImageUrls } from "@/lib/storage";
 import { withoutOthersVideos } from "@/lib/linkedMedia";
@@ -62,9 +63,10 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
   const styles = useMemo(() => createStyles(theme), [theme]);
   const scale = useSharedValue(1);
   const animatedRef = useAnimatedRef<Animated.View>();
-  // Controls only: progress ticks live in a separate context, so playback
-  // doesn't re-render every card.
-  const player = usePlayerControls();
+  // Stable actions, plus a selector on just this card's song: play/pause
+  // elsewhere doesn't re-render the card, only its own song starting or
+  // stopping does.
+  const player = usePlayerActions();
   const posthog = usePostHog();
   const queryClient = useQueryClient();
 
@@ -73,9 +75,8 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
   const canModify = !!onDeleted && !!currentUserId && item.userId === currentUserId;
 
   // Match by the provider-native ID so both Apple Music and Spotify moments work
-  const momentSongId = item.songSpotifyId ?? item.songAppleMusicId;
-  const playingSongId = player.currentSong?.spotifyId ?? player.currentSong?.appleMusicId;
-  const isThisPlaying = !!momentSongId && momentSongId === playingSongId && player.isPlaying;
+  const momentSongId = playbackSongId({ spotifyId: item.songSpotifyId, appleMusicId: item.songAppleMusicId });
+  const isThisPlaying = useIsSongPlaying(momentSongId);
 
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
 
@@ -108,13 +109,13 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
     }
     // The moment is gone — its song shouldn't keep playing (or linger
     // paused in the mini player).
-    if (momentSongId && momentSongId === playingSongId) {
+    if (momentSongId && momentSongId === playbackSongId(player.getCurrentSong())) {
       void player.stop();
     }
     posthog.capture("moment_deleted", { song_title: item.songTitle, song_artist: item.songArtist });
     invalidateMomentCaches(queryClient, currentUserId);
     onDeleted?.(item.id);
-  }, [item, posthog, queryClient, currentUserId, onDeleted, momentSongId, playingSongId, player]);
+  }, [item, posthog, queryClient, currentUserId, onDeleted, momentSongId, player]);
 
   // The menu runs a row's action once it has finished closing, so the delete
   // confirm can present (iOS drops a Modal that starts mid-dismiss).
@@ -200,7 +201,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
   }, [item, collectionId, collectionRole, router, animatedRef]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
+    transform: [{ scale: scale.get() }],
   }));
 
   // Someone else's linked videos never show (lib/linkedMedia.ts).
@@ -228,10 +229,10 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
     <TouchableOpacity
       activeOpacity={1}
       onPressIn={() => {
-        scale.value = withSpring(0.98, { damping: 15, stiffness: 300 });
+        scale.set(withSpring(0.98, { damping: 15, stiffness: 300 }));
       }}
       onPressOut={() => {
-        scale.value = withSpring(1, { damping: 15, stiffness: 300 });
+        scale.set(withSpring(1, { damping: 15, stiffness: 300 }));
       }}
       onPress={handlePress}
       onLongPress={canModify && !nativeMenu ? handleLongPress : undefined}
