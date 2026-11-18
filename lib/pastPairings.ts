@@ -23,6 +23,22 @@ export const FROM_BEFORE_PICKS = 3;
 /** A From before week needs at least this many times the usual photos. */
 export const SPIKE_MIN = 1.5;
 
+/**
+ * Where From before keeps its weekly picks, the songs it has shown and the
+ * ones dismissed: per account, so a second account on the phone starts its
+ * own (v4/v1 were one set for the device).
+ */
+export function fromBeforeKeys(userId: string): { picks: string; shown: string; dismissed: string } {
+  return {
+    picks: `frombefore_picks_v5_${userId}`,
+    shown: `frombefore_shown_v2_${userId}`,
+    dismissed: `frombefore_dismissed_v2_${userId}`,
+  };
+}
+
+/** The device-wide keys from before they were per account; removed once. */
+export const LEGACY_FROM_BEFORE_KEYS = ["frombefore_picks_v4", "frombefore_shown_v1", "frombefore_dismissed_v1"];
+
 export interface PastSong {
   key: string;
   storeId: string | null;
