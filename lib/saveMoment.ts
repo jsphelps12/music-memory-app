@@ -23,8 +23,11 @@ type PreviewResult = { previewUrl: string | null; albumName: string | null };
 
 const NO_PREVIEW: PreviewResult = { previewUrl: null, albumName: null };
 
-/** The song's preview lookup. Never rejects: a missing preview never fails a save. */
-function lookupPreview(song: Song): Promise<PreviewResult> {
+/**
+ * The song's preview lookup. Never rejects: a missing preview never fails a
+ * save. Capture starts it when the song is picked and hands the promise in.
+ */
+export function lookupPreview(song: Song): Promise<PreviewResult> {
   return getProvider(song.provider)
     .fetchPreviewUrl(song)
     .then((url) => ({ previewUrl: url, albumName: null }))
