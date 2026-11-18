@@ -325,9 +325,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const duck = useCallback(
     (on: boolean) => {
-      // Full playback runs in Apple's player, which can't be turned down.
-      if (activeProviderRef.current) return;
       const target = on ? DUCK_LEVEL : 1;
+      // Full playback runs in Apple's player, which can't be turned down. Still
+      // record the level, so a preview ducked before full playback started
+      // isn't left at the ducked volume for every preview after it.
+      if (activeProviderRef.current) {
+        if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
+        fadeTimerRef.current = null;
+        volumeRef.current = target;
+        return;
+      }
       const ms = on ? DUCK_MS : RESTORE_MS;
       const from = volumeRef.current;
       const start = Date.now();
