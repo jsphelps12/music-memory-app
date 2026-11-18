@@ -29,12 +29,26 @@ export function videoHoldMs(state: {
 }
 
 /**
- * Whether item `i` should load its video from Photos. Each one is a full
- * quality (often iCloud) stream, so only the item on screen, the one it is
- * fading out of (it keeps its last frame), and the next one (loaded ahead so
- * the fade into it is smooth) do. The item behind stays mounted as a poster.
+ * How item `i` loads its video from Photos, or null when it stays a poster.
+ *
+ * - "full": the item on screen, the original quality (iCloud streaming if
+ *   need be).
+ * - "light": the next item, loaded ahead so the fade into it is smooth, and
+ *   the item it's fading out of (it keeps its last frame). The native view
+ *   (modules/photos-video) takes a copy already on the phone if there is one,
+ *   else Photos' lighter streaming version, and buffers only a few seconds,
+ *   so a film never pulls several full iCloud originals at once.
+ * - null: every other item (the one behind stays mounted as a poster).
  */
+export type VideoLoad = "full" | "light" | null;
+
+export function videoLoad(i: number, index: number, under: number | null, count: number): VideoLoad {
+  if (i === index) return "full";
+  if (i === under) return "light";
+  return count > 1 && i === (index + 1) % count ? "light" : null;
+}
+
+/** Whether item `i` loads its video at all (see videoLoad). */
 export function loadsVideo(i: number, index: number, under: number | null, count: number): boolean {
-  if (i === index || i === under) return true;
-  return count > 1 && i === (index + 1) % count;
+  return videoLoad(i, index, under, count) !== null;
 }

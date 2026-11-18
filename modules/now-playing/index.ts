@@ -127,12 +127,23 @@ export async function cloudIdsFor(localIds: string[]): Promise<Record<string, st
  * on this device, or on a build without the function.
  */
 export async function videoPoster(localId: string, maxSide = 1080): Promise<{ uri: string; durationMs: number } | null> {
+  // An iCloud video can take a long time to give up a frame (or never, off
+  // network): after VIDEO_POSTER_TIMEOUT_MS it counts as not addable rather
+  // than leave the picker hanging.
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    return (await NowPlayingNative.videoPoster(localId, maxSide)) ?? null;
+    const timeout = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), VIDEO_POSTER_TIMEOUT_MS);
+    });
+    return (await Promise.race([NowPlayingNative.videoPoster(localId, maxSide), timeout])) ?? null;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
+
+export const VIDEO_POSTER_TIMEOUT_MS = 15_000;
 
 /** iCloud identifiers → this device's local identifiers (only those found here). */
 export async function localIdsFor(cloudIds: string[]): Promise<Record<string, string>> {

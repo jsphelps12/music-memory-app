@@ -36,9 +36,16 @@ public class NowPlayingModule: Module {
     }
 
     // MPMusicPlayerController is main-thread only; AsyncFunctions run on the
-    // module's background queue unless told otherwise.
-    AsyncFunction("getNowPlaying") { () -> [String: Any]? in
-      return self.buildNowPlayingInfo()
+    // module's background queue unless told otherwise. The item is read on
+    // main; the artwork is rendered and written off it.
+    AsyncFunction("getNowPlaying") { (promise: Promise) in
+      guard let snapshot = self.nowPlayingSnapshot() else {
+        promise.resolve(nil)
+        return
+      }
+      NowPlayingModule.artworkQueue.async {
+        promise.resolve(NowPlayingModule.nowPlayingInfo(snapshot))
+      }
     }.runOnQueue(.main)
 
     // App lock (1.4): milliseconds on a clock the user can't change and that
@@ -62,8 +69,13 @@ public class NowPlayingModule: Module {
     AsyncFunction("getLibrarySongs") { (limit: Int) -> [[String: Any]] in
       guard MPMediaLibrary.authorizationStatus() == .authorized else { return [] }
       let items = MPMediaQuery.songs().items ?? []
-      let newestFirst = items.sorted { $0.dateAdded > $1.dateAdded }
-      return newestFirst.prefix(max(0, limit)).map { item in
+      // Each MPMediaItem property read goes to the media library, so read
+      // dateAdded once per song and sort on that, not inside the comparator
+      // (O(n log n) reads for a library of thousands).
+      let keyed = items.map { (dateAdded: $0.dateAdded, item: $0) }
+      let newestFirst = keyed.sorted { $0.dateAdded > $1.dateAdded }
+      return newestFirst.prefix(max(0, limit)).map { entry in
+        let item = entry.item
         var song: [String: Any] = [
           "persistentId": String(item.persistentID),
           "storeId": (item.value(forProperty: MPMediaItemPropertyPlaybackStoreID) as? String) ?? "",
@@ -71,7 +83,7 @@ public class NowPlayingModule: Module {
           "artistName": item.artist ?? "",
           "albumTitle": item.albumTitle ?? "",
           "albumId": String(item.albumPersistentID),
-          "dateAdded": item.dateAdded.timeIntervalSince1970 * 1000,
+          "dateAdded": entry.dateAdded.timeIntervalSince1970 * 1000,
           "playCount": item.playCount,
         ]
         if let last = item.lastPlayedDate {
@@ -221,12 +233,30 @@ public class NowPlayingModule: Module {
   @objc private func nowPlayingItemDidChange() {
     DispatchQueue.main.async {
       guard self.isObserving else { return }
-      let info = self.buildNowPlayingInfo()
-      self.sendEvent("onNowPlayingChanged", ["item": info as Any])
+      let snapshot = self.nowPlayingSnapshot()
+      // Serial queue, then back to main: events still arrive in order.
+      NowPlayingModule.artworkQueue.async {
+        let info = snapshot.map { NowPlayingModule.nowPlayingInfo($0) }
+        DispatchQueue.main.async {
+          guard self.isObserving else { return }
+          self.sendEvent("onNowPlayingChanged", ["item": info as Any])
+        }
+      }
     }
   }
 
-  private func buildNowPlayingInfo() -> [String: Any]? {
+  /// Rendering and JPEG-encoding artwork is too slow for the main thread.
+  private static let artworkQueue = DispatchQueue(label: "com.tracks.nowplaying.artwork", qos: .userInitiated)
+
+  /// What's needed from the now-playing item, read on the main thread.
+  private struct NowPlayingSnapshot {
+    let fields: [String: Any]
+    let persistentID: MPMediaEntityPersistentID
+    let artwork: MPMediaItemArtwork?
+  }
+
+  /// Main thread only (MPMusicPlayerController).
+  private func nowPlayingSnapshot() -> NowPlayingSnapshot? {
     let player = MPMusicPlayerController.systemMusicPlayer
     guard let item = player.nowPlayingItem else {
       return nil
@@ -237,25 +267,35 @@ public class NowPlayingModule: Module {
     let durationMs = Int(item.playbackDuration * 1000)
     let storeId = item.value(forProperty: MPMediaItemPropertyPlaybackStoreID) as? String
 
-    return [
-      "id": storeId ?? "",
-      "title": title,
-      "artistName": artist,
-      "artworkUrl": artworkFileUrl(for: item) ?? "",
-      "durationMs": durationMs,
-    ]
+    return NowPlayingSnapshot(
+      fields: [
+        "id": storeId ?? "",
+        "title": title,
+        "artistName": artist,
+        "durationMs": durationMs,
+      ],
+      persistentID: item.persistentID,
+      artwork: item.artwork
+    )
+  }
+
+  /// Off the main thread: the snapshot plus its artwork URL.
+  private static func nowPlayingInfo(_ snapshot: NowPlayingSnapshot) -> [String: Any] {
+    var info = snapshot.fields
+    info["artworkUrl"] = artworkFileUrl(persistentID: snapshot.persistentID, artwork: snapshot.artwork) ?? ""
+    return info
   }
 
   /// The item's artwork as a file:// URL in the temp directory, for display
   /// only. Image data never crosses the bridge, and JS never persists a local
   /// URL: it swaps in the catalog artwork before saving.
-  private func artworkFileUrl(for item: MPMediaItem) -> String? {
+  private static func artworkFileUrl(persistentID: MPMediaEntityPersistentID, artwork: MPMediaItemArtwork?) -> String? {
     let url = FileManager.default.temporaryDirectory
-      .appendingPathComponent("now-playing-artwork-\(item.persistentID).jpg")
+      .appendingPathComponent("now-playing-artwork-\(persistentID).jpg")
     if FileManager.default.fileExists(atPath: url.path) {
       return url.absoluteString
     }
-    guard let artwork = item.artwork,
+    guard let artwork = artwork,
           let image = artwork.image(at: CGSize(width: 600, height: 600)),
           let data = image.jpegData(compressionQuality: 0.8) else {
       return nil

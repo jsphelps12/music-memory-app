@@ -55,6 +55,12 @@ after the film, crash guards (context menu, ShazamKit tap, share patch),
 image orientation for on-device AI, lighter film preload and poster
 timeout, Shazam/Spotify races, library sort. If App Review rejects build 12
 over the prompts, this becomes 1.4.0 build 13 instead.
+Status 2026-11-18: all of it written and a release simulator build
+compiles. Still to do: Josh approves the prompt wording, turns on
+Associated Domains for the store App ID and makes soundtracks.app the
+primary domain on Vercel (no redirect to www); album invite links (/c/…)
+now open the join screen and www links are accepted; links are claimed by
+the store app only (not β). Then a device build and TestFlight.
 
 **1.5 (a new native build), in `native/1.5` off `native/1.4`:**
 - [ ] **Siri: "remember this song"** — an App Intent (Siri, Shortcuts, the

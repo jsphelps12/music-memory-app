@@ -86,7 +86,7 @@ export function useDeepLinkHandler() {
     // where auth hasn't restored (user is null here even for a signed-in
     // user). The pending-token effect below opens it once the user is in,
     // skipping it if the route already did.
-    const universalMomentMatch = url.match(/^https:\/\/soundtracks\.app\/m\/([a-zA-Z0-9-]+)/);
+    const universalMomentMatch = url.match(/^https:\/\/(?:www\.)?soundtracks\.app\/m\/([a-zA-Z0-9-]+)/);
     if (universalMomentMatch) {
       if (!user || !profile?.onboardingCompleted) {
         await AsyncStorage.setItem(PENDING_SHARE_TOKEN_KEY, universalMomentMatch[1]);
@@ -98,7 +98,7 @@ export function useDeepLinkHandler() {
     // Navigation is handled natively by the app/friend/[token].tsx Expo Router route.
     // We only need to stash the token in AsyncStorage when the user is not yet signed in
     // so the pending-token effect can redirect them after auth completes.
-    const universalFriendMatch = url.match(/^https:\/\/soundtracks\.app\/friend\/([a-zA-Z0-9-]+)/);
+    const universalFriendMatch = url.match(/^https:\/\/(?:www\.)?soundtracks\.app\/friend\/([a-zA-Z0-9-]+)/);
     if (universalFriendMatch) {
       if (!user) {
         await AsyncStorage.setItem(PENDING_FRIEND_TOKEN_KEY, universalFriendMatch[1]);
@@ -107,9 +107,11 @@ export function useDeepLinkHandler() {
     }
 
     // Universal Links — https://soundtracks.app/c/{inviteCode}
-    const universalAlbumMatch = url.match(/^https:\/\/soundtracks\.app\/c\/([a-zA-Z0-9]+)/);
+    // app/+native-intent.tsx routes it to /join (lib/systemPath.ts), so only
+    // park the code when signed out, like the friend link above.
+    const universalAlbumMatch = url.match(/^https:\/\/(?:www\.)?soundtracks\.app\/c\/([a-zA-Z0-9]+)/);
     if (universalAlbumMatch) {
-      await handleInviteCode(universalAlbumMatch[1]);
+      if (!user) await AsyncStorage.setItem(PENDING_INVITE_CODE_KEY, universalAlbumMatch[1]);
       return;
     }
 

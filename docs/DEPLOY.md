@@ -263,6 +263,28 @@ EAS's free iOS builds are used up until 2026-12-01, so 1.4 builds run locally
   restore old copies between a prebuild and its build (stale files carry
   production values and break the β share extension).
 
+### 1.4.1 checks (inspect the built IPA before submitting)
+
+Build 12's permission prompts were too narrow and it shipped without the
+associated-domains entitlement, so check the binary, not the config:
+
+```bash
+unzip -q -o <path>.ipa -d /tmp/ipa && APP=$(ls -d /tmp/ipa/Payload/*.app)
+codesign -d --entitlements :- "$APP"   # applinks:soundtracks.app and applinks:www.soundtracks.app; one app group, listed once
+plutil -p "$APP/Info.plist" | grep -E 'UsageDescription|Temporary'
+```
+
+- The usage strings match the constants at the top of `app.config.ts`
+  (Apple Music, Photos, Camera, Location when in use, Microphone, Face ID).
+- No `NSLocationAlways…`, `NSMotionUsageDescription` or
+  `NSLocationTemporaryUsageDescriptionDictionary`: the app never asks for them.
+- If associated-domains is missing from the signed app, the App ID lacks the
+  Associated Domains capability (Apple Developer → Identifiers → the bundle
+  id). Turn it on and regenerate the profile: EAS credentials for `eas build
+  --local`, or let Xcode do it with automatic signing and
+  `-allowProvisioningUpdates`. Then tap a `https://soundtracks.app/m/…` link
+  in Notes: it should open the app, not Safari.
+
 ## Manual Regression Checklist
 
 Run this on a physical device before every App Store submission: once on the

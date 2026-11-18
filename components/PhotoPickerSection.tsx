@@ -19,6 +19,7 @@ import { Icon } from "@/components/Icon";
 import * as ImagePicker from "expo-image-picker";
 import { extractPhotoMetadata } from "@/lib/photoMetadata";
 import { videoPoster } from "@/modules/now-playing";
+import { mapLimit } from "@/lib/mapLimit";
 import { moveItem, slotForDrag } from "@/lib/reorder";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -155,9 +156,14 @@ export function PhotoPickerSection({
           const videos: Record<string, number> = {};
           const uris: string[] = [];
           let unlinkable = 0;
-          for (const a of result.assets) {
+          // Posters for the picked videos, three at a time (each can wait on
+          // iCloud); the loop below keeps the picked order.
+          const posters = await mapLimit(result.assets, 3, (a) =>
+            a.type === "video" && a.assetId ? videoPoster(a.assetId) : Promise.resolve(null)
+          );
+          for (const [i, a] of result.assets.entries()) {
             if (a.type === "video") {
-              const poster = a.assetId ? await videoPoster(a.assetId) : null;
+              const poster = posters[i];
               if (!poster || !a.assetId) {
                 unlinkable++;
                 continue;

@@ -1,4 +1,5 @@
 import ExpoModulesCore
+import ImageIO
 import Photos
 import UIKit
 import Vision
@@ -27,10 +28,10 @@ public class OnDeviceAIModule: Module {
 
       var out: [[String: Any]] = []
       for id in ids {
-        guard let asset = assets[id], let image = await OnDeviceAIModule.loadImage(asset, maxSide: maxSide) else {
+        guard let asset = assets[id], let loaded = await OnDeviceAIModule.loadImage(asset, maxSide: maxSide) else {
           continue
         }
-        out.append(await OnDeviceAIModule.analyze(id: id, image: image))
+        out.append(await OnDeviceAIModule.analyze(id: id, image: loaded.image, orientation: loaded.orientation))
       }
       return out
     }
@@ -72,8 +73,11 @@ public class OnDeviceAIModule: Module {
   never invent people, places or events, never answer for them, and never write as them.
   """
 
-  /// The best version already on the phone, at most `maxSide` px. No iCloud download.
-  static func loadImage(_ asset: PHAsset, maxSide: Int) async -> CGImage? {
+  /// The best version already on the phone, at most `maxSide` px. No iCloud
+  /// download. The CGImage holds the pixels as stored; `orientation` says how
+  /// to turn them upright (a portrait photo is often stored sideways), which
+  /// Vision needs to find faces and text.
+  static func loadImage(_ asset: PHAsset, maxSide: Int) async -> (image: CGImage, orientation: CGImagePropertyOrientation)? {
     await withCheckedContinuation { continuation in
       let options = PHImageRequestOptions()
       options.isNetworkAccessAllowed = false
@@ -87,12 +91,30 @@ public class OnDeviceAIModule: Module {
         contentMode: .aspectFit,
         options: options
       ) { image, _ in
-        continuation.resume(returning: image?.cgImage)
+        guard let image = image, let cgImage = image.cgImage else {
+          continuation.resume(returning: nil)
+          return
+        }
+        continuation.resume(returning: (cgImage, OnDeviceAIModule.cgOrientation(image.imageOrientation)))
       }
     }
   }
 
-  static func analyze(id: String, image: CGImage) async -> [String: Any] {
+  static func cgOrientation(_ orientation: UIImage.Orientation) -> CGImagePropertyOrientation {
+    switch orientation {
+    case .up: return .up
+    case .down: return .down
+    case .left: return .left
+    case .right: return .right
+    case .upMirrored: return .upMirrored
+    case .downMirrored: return .downMirrored
+    case .leftMirrored: return .leftMirrored
+    case .rightMirrored: return .rightMirrored
+    @unknown default: return .up
+    }
+  }
+
+  static func analyze(id: String, image: CGImage, orientation: CGImagePropertyOrientation) async -> [String: Any] {
     var result: [String: Any] = ["id": id]
 
     let classify = VNClassifyImageRequest()
@@ -100,7 +122,7 @@ public class OnDeviceAIModule: Module {
     let text = VNRecognizeTextRequest()
     text.recognitionLevel = .fast
     text.usesLanguageCorrection = false
-    let handler = VNImageRequestHandler(cgImage: image, options: [:])
+    let handler = VNImageRequestHandler(cgImage: image, orientation: orientation, options: [:])
     try? handler.perform([classify, faces, text])
 
     let labels = (classify.results ?? [])
@@ -118,7 +140,7 @@ public class OnDeviceAIModule: Module {
     result["textCoverage"] = min(1.0, coverage)
 
     if #available(iOS 18.0, *) {
-      if let scores = try? await CalculateImageAestheticsScoresRequest().perform(on: image) {
+      if let scores = try? await CalculateImageAestheticsScoresRequest().perform(on: image, orientation: orientation) {
         result["aesthetic"] = Double(scores.overallScore)
         result["utility"] = scores.isUtility
       }

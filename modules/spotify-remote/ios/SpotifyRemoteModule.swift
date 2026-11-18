@@ -30,6 +30,25 @@ public class SpotifyRemoteModule: Module {
   private let proxy = SpotifyDelegateProxy()
   private var connectPromise: Promise?
   private var isObservingState = false
+  // isConnected is a synchronous Function, so it runs on the JS thread, while
+  // the remote lives on main. Main keeps this copy current from the delegate
+  // callbacks; the JS thread reads it under the lock instead of touching the
+  // SDK object off main.
+  private let connectedLock = NSLock()
+  private var connectedFlag = false
+
+  private var connected: Bool {
+    get {
+      connectedLock.lock()
+      defer { connectedLock.unlock() }
+      return connectedFlag
+    }
+    set {
+      connectedLock.lock()
+      connectedFlag = newValue
+      connectedLock.unlock()
+    }
+  }
 
   public func definition() -> ModuleDefinition {
     Name("SpotifyRemote")
@@ -69,7 +88,7 @@ public class SpotifyRemoteModule: Module {
     }
 
     Function("isConnected") { [weak self] () -> Bool in
-      return self?.appRemote?.isConnected ?? false
+      return self?.connected ?? false
     }
 
     // ─── Playback ────────────────────────────────────────────────────────────
@@ -123,6 +142,7 @@ public class SpotifyRemoteModule: Module {
   /// Main queue only. Settles any pending connect as failed, detaches the
   /// delegate and drops the remote.
   private func teardownRemote() {
+    connected = false
     connectPromise?.resolve(false)
     connectPromise = nil
     if let existing = appRemote {
@@ -139,6 +159,7 @@ public class SpotifyRemoteModule: Module {
 
   func handleConnected(_ appRemote: SPTAppRemote) {
     guard appRemote === self.appRemote else { return }
+    connected = true
     appRemote.playerAPI?.delegate = proxy
     if isObservingState {
       appRemote.playerAPI?.subscribe(toPlayerState: { _, _ in })
@@ -150,12 +171,14 @@ public class SpotifyRemoteModule: Module {
 
   func handleConnectionFailed(_ appRemote: SPTAppRemote) {
     guard appRemote === self.appRemote else { return }
+    connected = false
     connectPromise?.resolve(false)
     connectPromise = nil
   }
 
   func handleDisconnected(_ appRemote: SPTAppRemote) {
     guard appRemote === self.appRemote else { return }
+    connected = false
     sendEvent("onDisconnected")
   }
 

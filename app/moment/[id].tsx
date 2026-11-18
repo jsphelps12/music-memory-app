@@ -72,7 +72,7 @@ import { Button } from "@/components/Button";
 import { AlbumPicker } from "@/components/AlbumPicker";
 import { CreateAlbumSheet } from "@/components/CreateAlbumSheet";
 import { IconButton } from "@/components/IconButton";
-import { MomentActionMenu, MenuAnchor, MomentMenuItem } from "@/components/MomentActionMenu";
+import { MomentActionMenu, MomentMenuButton, MenuAnchor, MomentMenuItem } from "@/components/MomentActionMenu";
 import { Icon } from "@/components/Icon";
 import { formatTime } from "@/lib/formatTime";
 import { runWhenIdle } from "@/lib/whenIdle";
@@ -161,7 +161,8 @@ export default function MomentDetailScreen() {
   const [error, setError] = useState("");
   // A background refresh failed: the moment on screen stays, with a banner.
   const [refreshError, setRefreshError] = useState("");
-  // The "…" button's frame while the context menu is open.
+  // The "…" button's frame while the JS fallback menu is open (binaries
+  // without the native MenuButton).
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
   const menuButtonRef = useRef<ViewInstance>(null);
   const [deleting, setDeleting] = useState(false);
@@ -429,6 +430,7 @@ export default function MomentDetailScreen() {
 
   const allMoods = useMemo(() => [...MOODS, ...(profile?.customMoods ?? [])], [profile?.customMoods]);
 
+  // The JS fallback menu, for binaries without the native MenuButton.
   const openMenu = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Anchored under the "…" itself, inside the safe area.
@@ -641,8 +643,11 @@ export default function MomentDetailScreen() {
     }
   };
 
-  // The "…" menu. Each row runs once the menu has closed (MomentActionMenu),
-  // so the sheets and confirms these open can present.
+  // The "…" menu: the native UIMenu (MenuButton, the same menu as a long-
+  // pressed card), or MomentActionMenu on a binary without it. Either way a
+  // row runs once the menu has closed, so the sheets and confirms these open
+  // can present. Destructive rows (Remove from album, Delete) sit in their
+  // own section; Report isn't one (it destroys nothing).
   // Built as one literal (not pushed into): the compiler can't tell a push
   // won't call the handlers it's given.
   const isOwnMoment = !!moment && moment.userId === user?.id;
@@ -777,20 +782,30 @@ export default function MomentDetailScreen() {
               accessibilityLabel="Share"
               testID="moment-share"
             />
-            <View ref={menuButtonRef} collapsable={false}>
-              <IconButton
-                variant="glass"
-                name="ellipsis-horizontal"
-                size={20}
-                onPress={openMenu}
-                accessibilityLabel="More"
-                testID="moment-more"
-              />
-            </View>
+            {MomentMenuButton ? (
+              // The native button is what's tapped (and carries the testID);
+              // the IconButton inside only draws the glass disc and takes no
+              // touches, so its onPress never runs.
+              <MomentMenuButton items={menuItems} testID="moment-more">
+                <IconButton variant="glass" name="ellipsis-horizontal" size={20} onPress={openMenu} />
+              </MomentMenuButton>
+            ) : (
+              <View ref={menuButtonRef} collapsable={false}>
+                <IconButton
+                  variant="glass"
+                  name="ellipsis-horizontal"
+                  size={20}
+                  onPress={openMenu}
+                  accessibilityLabel="More"
+                  testID="moment-more"
+                />
+              </View>
+            )}
           </View>
         )}
       </View>
 
+      {/* The "…" fallback; stays closed when the native MenuButton is there. */}
       <MomentActionMenu anchor={menuAnchor} items={menuItems} onClose={() => setMenuAnchor(null)} />
       {/* Own confirm host: this screen is a native modal, where the root
           host's sheet cannot present (iOS silently drops it). It answers
