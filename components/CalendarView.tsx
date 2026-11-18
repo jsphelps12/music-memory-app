@@ -1,8 +1,8 @@
-import { memo, useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
 import {
   View,
   Text,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   StyleSheet,
   Dimensions,
@@ -13,6 +13,8 @@ import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { MomentCardData } from "@/types";
 import { pad } from "@/lib/dateUtils";
+import { artworkUrlAtSize } from "@/lib/itunes";
+import { buildCalendarMonths, type CalendarMonth } from "@/lib/monthGroups";
 
 const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
 // Warm ink over artwork (DESIGN.md allows it over imagery) so the day number
@@ -24,6 +26,11 @@ const PAPER_ON_ART = "#FBF7F2";
 const { width: SW } = Dimensions.get("window");
 const H_PAD = 16;
 const CELL = Math.floor((SW - H_PAD * 2) / 7);
+// What the cells draw, at 3x. The stored URL is the 600px detail image, and a
+// year of days asked for that many full-size images.
+const CELL_ARTWORK_PX = Math.min(600, Math.ceil(CELL * 3));
+// 40pt undated rows, at 3x.
+const ROW_ARTWORK_PX = 120;
 
 /** All the calendar draws: the Journal fetches just these columns for it. */
 export type CalendarMoment = Pick<
@@ -38,44 +45,51 @@ interface Props {
   loading?: boolean;
 }
 
+type Styles = ReturnType<typeof createStyles>;
+
+// One list of months, then the undated moments as rows of their own, so both
+// are windowed: only what's near the screen is mounted.
+type Item =
+  | { kind: "month"; key: string; month: CalendarMonth<CalendarMoment> }
+  | { kind: "undatedHeader"; key: string }
+  | { kind: "undated"; key: string; moment: CalendarMoment };
+
+function todayString(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 function CalendarViewComponent({ moments, onDayPress, theme, loading }: Props) {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const byDate = useMemo(() => {
-    const map = new Map<string, CalendarMoment[]>();
-    for (const m of moments) {
-      if (!m.momentDate) continue;
-      const arr = map.get(m.momentDate) ?? [];
-      arr.push(m);
-      map.set(m.momentDate, arr);
+  const items = useMemo<Item[]>(() => {
+    const { months, undated } = buildCalendarMonths(moments);
+    const list: Item[] = months.map((month) => ({ kind: "month", key: month.key, month }));
+    if (undated.length > 0) {
+      list.push({ kind: "undatedHeader", key: "undated" });
+      for (const m of undated) list.push({ kind: "undated", key: `u-${m.id}`, moment: m });
     }
-    return map;
+    return list;
   }, [moments]);
 
-  const undated = useMemo(() => moments.filter((m) => !m.momentDate), [moments]);
+  const todayStr = todayString();
 
-  const months = useMemo(() => {
-    const dated = moments.filter((m) => m.momentDate);
-    if (!dated.length) return [];
-    const min = new Date(
-      Math.min(...dated.map((m) => new Date(m.momentDate! + "T00:00:00").getTime()))
-    );
-    const result: Date[] = [];
-    const cur = new Date();
-    cur.setDate(1);
-    cur.setHours(0, 0, 0, 0);
-    const end = new Date(min.getFullYear(), min.getMonth(), 1);
-    while (cur >= end) {
-      result.push(new Date(cur));
-      cur.setMonth(cur.getMonth() - 1);
-    }
-    return result;
-  }, [moments]);
+  const renderItem = useCallback(
+    ({ item }: { item: Item }) => {
+      if (item.kind === "month") {
+        return <MonthGrid month={item.month} todayStr={todayStr} onDayPress={onDayPress} styles={styles} />;
+      }
+      if (item.kind === "undatedHeader") {
+        return <Text style={[styles.monthLabel, styles.undatedLabel]}>No date</Text>;
+      }
+      return <UndatedRow moment={item.moment} onDayPress={onDayPress} styles={styles} />;
+    },
+    [todayStr, onDayPress, styles]
+  );
 
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-
-  if (loading) {
+  // The spinner only before there's anything to show: a refresh of a calendar
+  // already on screen keeps it (and its scroll position) in place.
+  if (loading && moments.length === 0) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.colors.textSecondary} />
@@ -84,120 +98,132 @@ function CalendarViewComponent({ moments, onDayPress, theme, loading }: Props) {
   }
 
   return (
-    <ScrollView
+    <FlatList
+      data={items}
+      keyExtractor={keyOf}
+      renderItem={renderItem}
       style={styles.scroll}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
-    >
-      {months.map((month) => {
-        const y = month.getFullYear();
-        const mo = month.getMonth();
-        const daysInMonth = new Date(y, mo + 1, 0).getDate();
-        const firstDow = new Date(y, mo, 1).getDay();
-
-        // Skip months with no moments
-        let hasAny = false;
-        for (let d = 1; d <= daysInMonth; d++) {
-          if (byDate.has(`${y}-${pad(mo + 1)}-${pad(d)}`)) { hasAny = true; break; }
-        }
-        if (!hasAny) return null;
-
-        const label = month.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-
-        return (
-          <View key={`${y}-${mo}`} style={styles.monthBlock}>
-            <Text style={styles.monthLabel}>{label}</Text>
-            <View style={styles.dowRow}>
-              {DAYS.map((d, i) => (
-                <View key={i} style={styles.dowCell}>
-                  <Text style={styles.dowText}>{d}</Text>
-                </View>
-              ))}
-            </View>
-            <View style={styles.grid}>
-              {Array.from({ length: firstDow }, (_, i) => (
-                <View key={`b${i}`} style={styles.blankCell} />
-              ))}
-              {Array.from({ length: daysInMonth }, (_, i) => {
-                const day = i + 1;
-                const dateStr = `${y}-${pad(mo + 1)}-${pad(day)}`;
-                const dayMoments = byDate.get(dateStr);
-                const hasMoment = !!dayMoments?.length;
-                const first = dayMoments?.[0];
-                const count = dayMoments?.length ?? 0;
-                const isToday = dateStr === todayStr;
-
-                return (
-                  <TouchableOpacity
-                    key={dateStr}
-                    style={[styles.cell, isToday && styles.cellToday]}
-                    onPress={() => first && onDayPress(first.id)}
-                    disabled={!hasMoment}
-                    activeOpacity={0.75}
-                  >
-                    {hasMoment && first?.songArtworkUrl ? (
-                      <>
-                        <AppImage
-                          source={{ uri: first.songArtworkUrl }}
-                          style={[StyleSheet.absoluteFill, styles.cellArtwork]}
-                          contentFit="cover"
-                        />
-                        <View style={[StyleSheet.absoluteFill, styles.cellScrim]} />
-                        <Text style={[styles.dayNum, styles.dayNumOnArt]}>{day}</Text>
-                        {count > 1 && (
-                          <View style={styles.badge}>
-                            <Text style={styles.badgeText}>{count}</Text>
-                          </View>
-                        )}
-                      </>
-                    ) : hasMoment ? (
-                      <>
-                        {/* No artwork: an ink tile, not a terracotta one. */}
-                        <View style={[StyleSheet.absoluteFill, styles.cellInk]} />
-                        <Text style={[styles.dayNum, styles.dayNumOnInk]}>{day}</Text>
-                        {count > 1 && (
-                          <View style={styles.badge}>
-                            <Text style={styles.badgeText}>{count}</Text>
-                          </View>
-                        )}
-                      </>
-                    ) : (
-                      <Text style={[styles.dayNum, isToday && styles.dayNumToday]}>{day}</Text>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        );
-      })}
-
-      {undated.length > 0 && (
-        <View style={styles.undatedBlock}>
-          <Text style={styles.monthLabel}>No date</Text>
-          {undated.map((m) => (
-            <TouchableOpacity
-              key={m.id}
-              style={styles.undatedRow}
-              activeOpacity={0.7}
-              onPress={() => onDayPress(m.id)}
-            >
-              {m.songArtworkUrl ? (
-                <AppImage source={{ uri: m.songArtworkUrl }} style={styles.undatedArt} />
-              ) : (
-                <ArtworkPlaceholder style={styles.undatedArt} />
-              )}
-              <View style={styles.undatedInfo}>
-                <Text style={styles.undatedTitle} numberOfLines={1}>{m.songTitle}</Text>
-                <Text style={styles.undatedArtist} numberOfLines={1}>{m.songArtist}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-    </ScrollView>
+      // A month is most of a screen tall, so a few at a time is plenty.
+      initialNumToRender={3}
+      maxToRenderPerBatch={2}
+      windowSize={5}
+      removeClippedSubviews
+    />
   );
 }
+
+function keyOf(item: Item): string {
+  return item.key;
+}
+
+const MonthGrid = memo(function MonthGrid({
+  month,
+  todayStr,
+  onDayPress,
+  styles,
+}: {
+  month: CalendarMonth<CalendarMoment>;
+  todayStr: string;
+  onDayPress: (momentId: string) => void;
+  styles: Styles;
+}) {
+  const { year: y, month: mo, days } = month;
+  const daysInMonth = new Date(y, mo + 1, 0).getDate();
+  const firstDow = new Date(y, mo, 1).getDay();
+
+  return (
+    <View style={styles.monthBlock}>
+      <Text style={styles.monthLabel}>{month.label}</Text>
+      <View style={styles.dowRow}>
+        {DAYS.map((d, i) => (
+          <View key={i} style={styles.dowCell}>
+            <Text style={styles.dowText}>{d}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={styles.grid}>
+        {Array.from({ length: firstDow }, (_, i) => (
+          <View key={`b${i}`} style={styles.blankCell} />
+        ))}
+        {Array.from({ length: daysInMonth }, (_, i) => {
+          const day = i + 1;
+          const dateStr = `${y}-${pad(mo + 1)}-${pad(day)}`;
+          const dayMoments = days.get(day);
+          const hasMoment = !!dayMoments?.length;
+          const first = dayMoments?.[0];
+          const count = dayMoments?.length ?? 0;
+          const isToday = dateStr === todayStr;
+
+          return (
+            <TouchableOpacity
+              key={dateStr}
+              style={[styles.cell, isToday && styles.cellToday]}
+              onPress={() => first && onDayPress(first.id)}
+              disabled={!hasMoment}
+              activeOpacity={0.75}
+            >
+              {hasMoment && first?.songArtworkUrl ? (
+                <>
+                  <AppImage
+                    source={{ uri: artworkUrlAtSize(first.songArtworkUrl, CELL_ARTWORK_PX) }}
+                    style={[StyleSheet.absoluteFill, styles.cellArtwork]}
+                    contentFit="cover"
+                  />
+                  <View style={[StyleSheet.absoluteFill, styles.cellScrim]} />
+                  <Text style={[styles.dayNum, styles.dayNumOnArt]}>{day}</Text>
+                  {count > 1 && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{count}</Text>
+                    </View>
+                  )}
+                </>
+              ) : hasMoment ? (
+                <>
+                  {/* No artwork: an ink tile, not a terracotta one. */}
+                  <View style={[StyleSheet.absoluteFill, styles.cellInk]} />
+                  <Text style={[styles.dayNum, styles.dayNumOnInk]}>{day}</Text>
+                  {count > 1 && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{count}</Text>
+                    </View>
+                  )}
+                </>
+              ) : (
+                <Text style={[styles.dayNum, isToday && styles.dayNumToday]}>{day}</Text>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+});
+
+const UndatedRow = memo(function UndatedRow({
+  moment: m,
+  onDayPress,
+  styles,
+}: {
+  moment: CalendarMoment;
+  onDayPress: (momentId: string) => void;
+  styles: Styles;
+}) {
+  return (
+    <TouchableOpacity style={styles.undatedRow} activeOpacity={0.7} onPress={() => onDayPress(m.id)}>
+      {m.songArtworkUrl ? (
+        <AppImage source={{ uri: artworkUrlAtSize(m.songArtworkUrl, ROW_ARTWORK_PX) }} style={styles.undatedArt} />
+      ) : (
+        <ArtworkPlaceholder style={styles.undatedArt} />
+      )}
+      <View style={styles.undatedInfo}>
+        <Text style={styles.undatedTitle} numberOfLines={1}>{m.songTitle}</Text>
+        <Text style={styles.undatedArtist} numberOfLines={1}>{m.songArtist}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+});
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
@@ -299,7 +325,7 @@ function createStyles(theme: Theme) {
       fontSize: 9,
       color: PAPER_ON_ART,
     },
-    undatedBlock: {
+    undatedLabel: {
       marginTop: theme.spacing.sm,
     },
     undatedRow: {
