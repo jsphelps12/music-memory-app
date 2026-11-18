@@ -36,6 +36,40 @@ below should move that, or it doesn't belong on this page.
 - **Never paywall capture or your own history.**
 - **Every surface is a screen or a quick pick** (no pageSheet cards).
 
+## Next: 1.5 and the updates before it (Josh's picks, 2026-11-17)
+
+Theme: it comes to you. Picked from the full roadmap read once 1.4 was in
+TestFlight with testers and submitted for review.
+
+**1.5 (a new native build), in `native/1.5` off `native/1.4`:**
+- [ ] **Siri: "remember this song"** — an App Intent (Siri, Shortcuts, the
+  Action button) saves what's playing without opening the app, screen off;
+  a gentle "finish this one" later. Needs an app group and the session in
+  a shared keychain.
+- [ ] **Journaling Suggestions** — Apple's system picker (as in Apple's
+  Journal) offering the day's songs, photos and places, with consent.
+  iOS 17.2+; check the entitlement first.
+- [ ] **Voice entries** — speak the reflection, transcribed on device.
+- [ ] **Memory widget** — one moment a day on the Home Screen, opening
+  into the film.
+
+**Over the air on 1.4 meanwhile:**
+- [ ] The part of the song: where in the song the moment lives ("the
+  bridge at 2:41"); full playback starts there (`seekToTime` exists).
+- [ ] One song across the years: moments with the same song as chapters.
+- [ ] Songs you used to love + Replay playlists as starting points.
+- [ ] From before weekly reminder (local, follows How often).
+
+**Quality and security:**
+- [ ] A focused review of everything new in 1.4 (bugs and security),
+  fixes over the air. Before 1.4 goes live.
+- [ ] DB-2 (RLS hardening step 2) once 1.4 is out and widely installed:
+  raise the min-build gate, then ship it.
+- [ ] Database hygiene from the Supabase advisors (2026-11-17): pin the
+  search_path on the four occasion slug/song functions, recheck why
+  `get_public_profiles` is callable without signing in, move `pg_trgm` out
+  of public. (Leaked-password protection is Josh's dashboard toggle.)
+
 ## What makes it an 11/10 (Josh, 2026-11-17)
 
 Josh's list, in his order. Use it to judge what goes into each phase.
