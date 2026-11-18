@@ -67,8 +67,12 @@ before every App Store submission, before merging a `native/*` branch into
 - [ ] From before weekly reminder (local, follows How often).
 
 **Quality and security (first):**
-- [ ] A fresh full audit (`/audit`), replacing the 2026-10 review, which
-  predates SDK 58 and 1.4; then its fixes, over the air where possible.
+- [x] A fresh full audit (`/audit`), replacing the 2026-10 review.
+  Audit 2026-11-17: ~67 open (1 critical, 6 high), private report in
+  `.claude/audits/`.
+- [ ] Its fixes, in order: security now (server), client fixes over the
+  air, a 1.4.1 native build, DB-2 after the min-build raise, then code
+  quality.
 - [ ] DB-2 (RLS hardening step 2) once 1.4 is out and widely installed:
   raise the min-build gate, then ship it.
 - [ ] Database hygiene from the Supabase advisors (2026-11-17): pin the
