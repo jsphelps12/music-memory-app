@@ -37,14 +37,17 @@ import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { friendInviteUrl } from "@/lib/momentShares";
 
+/** Prototype screens (app/dev) open in development and the beta app only. */
+const DEV_TOOLS = __DEV__ || process.env.EXPO_PUBLIC_APP_ENV === "preview";
+
+const FEEDBACK_EMAIL = "founder@soundtracks.app";
+const FEEDBACK_MAILTO = `mailto:${FEEDBACK_EMAIL}?subject=Soundtracks%20Feedback`;
+
 /**
  * "1.2.0 (27) · update Oct 17, 3:40 PM": which binary and which OTA bundle
  * this is, so "I can't see the changes" can be answered from the phone.
  * The embedded bundle (no OTA applied yet) says so.
  */
-const FEEDBACK_EMAIL = "founder@soundtracks.app";
-const FEEDBACK_MAILTO = `mailto:${FEEDBACK_EMAIL}?subject=Soundtracks%20Feedback`;
-
 function versionLine(): string {
   const binary = `${Application.nativeApplicationVersion ?? "?"} (${Application.nativeBuildVersion ?? "?"})`;
   if (__DEV__) return `${binary} · development`;
@@ -277,8 +280,13 @@ export default function SettingsScreen() {
           style={styles.deleteAccountButton}
         />
         {user?.email ? <Text style={styles.signedInAs}>Signed in as {user.email}</Text> : null}
-        {/* Long-press: the photos ↔ music prototype (1.4), hidden on purpose. */}
-        <Text style={styles.signedInAs} onLongPress={() => router.push("/dev/library" as any)} suppressHighlighting>
+        {/* Long-press: the photos ↔ music prototype (1.4), hidden on purpose,
+            and only in development and the beta app. */}
+        <Text
+          style={styles.signedInAs}
+          onLongPress={DEV_TOOLS ? () => router.push("/dev/library" as any) : undefined}
+          suppressHighlighting
+        >
           {versionLine()}
         </Text>
       </ScrollView>
