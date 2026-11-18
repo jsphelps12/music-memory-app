@@ -15,8 +15,15 @@
  * What it guarantees for the smoke flow:
  *   - the account exists and E2E_PASSWORD signs it in;
  *   - it has no moments (and their photo objects are deleted first);
+ *   - it has no albums (a flow that makes one starts clean next time);
  *   - its profile has onboarding_completed = true, so the app routes to the
- *     timeline rather than onboarding.
+ *     timeline rather than onboarding;
+ *   - with E2E_SEED=N, exactly N plain moments (no photos), so a flow that
+ *     needs several doesn't have to tap through capture for each. A flow
+ *     asks for them with a `# seed: N` line (scripts/e2e-local.sh reads it);
+ *   - with E2E_SEED_ALBUM=name too, one personal album of that name holding
+ *     the newest seeded moment (`# seed-album: name`), so a flow can add to
+ *     an existing album and meet "already in it".
  *
  * Usage (CI pulls the URL and anon key from the EAS production environment):
  *   npx eas-cli env:exec production "node scripts/reset-e2e-prod.mjs"
@@ -112,6 +119,14 @@ if ((moments ?? []).length > 0) {
   if (deleteError) throw new Error(`delete moments failed: ${deleteError.message}`);
 }
 
+// Albums it owns (members, invites and album links cascade).
+const { data: albums, error: albumsError } = await supabase.from("collections").select("id").eq("user_id", user.id);
+if (albumsError) throw new Error(`select albums failed: ${albumsError.message}`);
+if ((albums ?? []).length > 0) {
+  const { error } = await supabase.from("collections").delete().eq("user_id", user.id);
+  if (error) throw new Error(`delete albums failed: ${error.message}`);
+}
+
 // The profile row comes from a signup trigger. onboarding_completed must be
 // true or the app routes to onboarding and the flow's tab-create wait spins.
 const { error: profileError } = await supabase
@@ -128,7 +143,61 @@ const { count, error: countError } = await supabase
 if (countError) throw new Error(`count moments failed: ${countError.message}`);
 if (count !== 0) throw new Error(`expected 0 moments after reset, found ${count}`);
 
+// Seeded moments: distinct songs on distinct recent days (newest first in the
+// Journal is Seed 1), no photos, no song ids (nothing to autoplay).
+const SEED_SONGS = [
+  ["Bohemian Rhapsody", "Queen"],
+  ["Dreams", "Fleetwood Mac"],
+  ["Heroes", "David Bowie"],
+  ["Jolene", "Dolly Parton"],
+  ["Hey Ya!", "Outkast"],
+  ["Africa", "Toto"],
+  ["Clocks", "Coldplay"],
+  ["Royals", "Lorde"],
+];
+const seed = Math.max(0, Math.min(SEED_SONGS.length, Number(process.env.E2E_SEED ?? 0) || 0));
+if (seed > 0) {
+  const day = (offset) => {
+    const d = new Date();
+    d.setDate(d.getDate() - offset);
+    return d.toISOString().slice(0, 10);
+  };
+  const rows = SEED_SONGS.slice(0, seed).map(([title, artist], i) => ({
+    user_id: user.id,
+    song_title: title,
+    song_artist: artist,
+    song_provider: "apple",
+    reflection_text: `e2e seed ${i + 1}`,
+    moment_date: day(i),
+    moods: [],
+    people: [],
+    photo_urls: [],
+    photo_thumbnails: [],
+  }));
+  const { data: seeded, error: seedError } = await supabase.from("moments").insert(rows).select("id, moment_date");
+  if (seedError) throw new Error(`seed moments failed: ${seedError.message}`);
+
+  const albumName = (process.env.E2E_SEED_ALBUM ?? "").trim();
+  if (albumName) {
+    const { data: album, error: albumError } = await supabase
+      .from("collections")
+      .insert({ user_id: user.id, name: albumName, is_public: false })
+      .select("id")
+      .single();
+    if (albumError) throw new Error(`seed album failed: ${albumError.message}`);
+    const newest = [...seeded].sort((a, b) => (a.moment_date < b.moment_date ? 1 : -1))[0];
+    const { error: linkError } = await supabase
+      .from("collection_moments")
+      .insert({ collection_id: album.id, moment_id: newest.id, added_by_user_id: user.id });
+    if (linkError) throw new Error(`seed album moment failed: ${linkError.message}`);
+  }
+}
+
 await supabase.auth.signOut({ scope: "local" });
 
 console.log(`reset ${E2E_EMAIL} on production (${user.id})`);
-console.log(`  deleted ${moments?.length ?? 0} moment(s), ${photoCount} photo object(s); onboarding complete`);
+console.log(
+  `  deleted ${moments?.length ?? 0} moment(s), ${photoCount} photo object(s), ${albums?.length ?? 0} album(s); onboarding complete` +
+    (seed > 0 ? `; seeded ${seed} moment(s)` : "") +
+    (seed > 0 && process.env.E2E_SEED_ALBUM ? ` and album “${process.env.E2E_SEED_ALBUM}”` : "")
+);
