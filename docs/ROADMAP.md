@@ -163,7 +163,16 @@ The starred ones bring the app to you, which serves the north star:
   anniversaries moved to the day for the shot, then put back), Year in
   review, dark. `scripts/frame-screenshots.py` now writes both sizes. A
   film shot needs photos on the demo account. App Review signs in as
-  founder@, which now holds a copy of the demo account's 8 moments. Merge `native/1.4` into
+  founder@, which now holds a copy of the demo account's 8 moments.
+  First OTA to 1.4 (2026-11-17, Josh's go): From before's "Picks" label,
+  published by hand from `native/1.4` (`eas update --branch production
+  --environment production --platform ios`, `EXPO_PUBLIC_APP_ENV=production`,
+  local `.env` set aside) to runtime `233cbaf8…`, which only build 12 has;
+  the promote workflow can't do this before 1.4 is live on the App Store.
+- [ ] Sentry source maps for OTA bundles are broken on SDK 58:
+  `sentry-expo-upload-sourcemaps` can't find `@expo/env`, and `expo export`
+  needs `--source-maps`. The promote workflow's upload step will fail
+  quietly (continue-on-error) once 1.4 is on main; fix before then. Merge `native/1.4` into
   `main` only once 1.4 is approved and out, so OTAs keep reaching 1.3.1
   until then. Josh's moments are consolidated (2026-11-17): founder@'s 27
   moments and its College and Footy albums moved to his personal account
