@@ -47,6 +47,15 @@ included.** The audit is a reusable project skill (`/audit`, in
 before every App Store submission, before merging a `native/*` branch into
 `main`, monthly, and after large changes.
 
+**1.4.1 (native), in `native/1.4.1` off `native/1.4`** (`native/1.4` keeps
+serving OTAs to build 12 until 1.4.1 ships; JS work there merges forward):
+the "…" as the same native menu as long-press, accurate permission prompts,
+universal links (associated domains + AASA), audio unducks by deactivating
+after the film, crash guards (context menu, ShazamKit tap, share patch),
+image orientation for on-device AI, lighter film preload and poster
+timeout, Shazam/Spotify races, library sort. If App Review rejects build 12
+over the prompts, this becomes 1.4.0 build 13 instead.
+
 **1.5 (a new native build), in `native/1.5` off `native/1.4`:**
 - [ ] **Siri: "remember this song"** — an App Intent (Siri, Shortcuts, the
   Action button) saves what's playing without opening the app, screen off;
@@ -60,6 +69,17 @@ before every App Store submission, before merging a `native/*` branch into
   into the film.
 
 **Over the air on 1.4 meanwhile:**
+- [ ] **Drafts you can see** (decided 2026-11-18): closing capture with
+  writing asks "Keep as a draft?" (Keep draft / Discard); long-press + →
+  Start from gets "Continue a draft" (with a count, lists every draft) when
+  any exist; plain + still picks up the newest, with a "Draft from … ·
+  Start fresh" line; crashes and iOS kills still save silently. No hidden
+  long-press on Save (long-press always opens a menu).
+- [ ] **Select moments** (decided 2026-11-18): "Select" in the card's
+  long-press menu and in the Journal header enters selection mode; tap to
+  tick; a bottom bar with Add to album and Delete ("Delete 5 moments?",
+  photos deleted too). Journal first, album screens next. The menu stays
+  the long-press; selection is one of its actions (as in Photos and Files).
 - [ ] The part of the song: where in the song the moment lives ("the
   bridge at 2:41"); full playback starts there (`seekToTime` exists).
 - [ ] One song across the years: moments with the same song as chapters.
