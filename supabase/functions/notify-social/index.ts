@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isUuid } from "../_shared/uuid.ts";
 import { socialDelivery } from "../_shared/socialPush.ts";
+import { expoPushHeaders, EXPO_PUSH_URL } from "../_shared/expoPush.ts";
 
 // Sharing v2 (docs/SOCIAL-ARCHITECTURE.md "Notifications"): the one edge
 // function path for social pushes on v2 clients, replacing notify-friend's
@@ -17,8 +18,6 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
 // Only a share sent in the last few minutes is announced; the app calls this
 // right after inserting the row.
@@ -126,7 +125,7 @@ Deno.serve(async (req) => {
 
     const pushRes = await fetch(EXPO_PUSH_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: expoPushHeaders(Deno.env.get("EXPO_ACCESS_TOKEN")),
       body: JSON.stringify({
         ...delivery,
         title: "Shared with you",

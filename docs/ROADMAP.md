@@ -72,13 +72,15 @@ before every App Store submission, before merging a `native/*` branch into
   `.claude/audits/`.
 - [ ] Its fixes, in order: security now (server), client fixes over the
   air, a 1.4.1 native build, DB-2 after the min-build raise, then code
-  quality.
+  quality. Server security batch done 2026-11-18 (main PR 108). Next:
+  Expo enhanced push security on once a push with the token is verified.
 - [ ] DB-2 (RLS hardening step 2) once 1.4 is out and widely installed:
   raise the min-build gate, then ship it.
-- [ ] Database hygiene from the Supabase advisors (2026-11-17): pin the
-  search_path on the four occasion slug/song functions, recheck why
-  `get_public_profiles` is callable without signing in, move `pg_trgm` out
-  of public. (Leaked-password protection is Josh's dashboard toggle.)
+- [ ] Database hygiene from the Supabase advisors (2026-11-17): ~~pin the
+  search_path on the four occasion slug/song functions~~ (done 2026-11-18),
+  recheck why `get_public_profiles` is callable without signing in, move
+  `pg_trgm` out of public. (Leaked-password protection needs the Pro plan:
+  Authentication → Providers → Email.)
 
 ## What makes it an 11/10 (Josh, 2026-11-17)
 

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { socialDelivery } from "../_shared/socialPush.ts";
+import { expoPushHeaders, EXPO_PUSH_URL } from "../_shared/expoPush.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -64,6 +65,7 @@ Deno.serve(async (req) => {
     .from("friendships")
     .select("id, status, requester_id, addressee_id")
     .or(`and(requester_id.eq.${ownerId},addressee_id.eq.${visitorId}),and(requester_id.eq.${visitorId},addressee_id.eq.${ownerId})`)
+    .limit(1)
     .maybeSingle();
 
   if (existing) {
@@ -102,16 +104,22 @@ Deno.serve(async (req) => {
     // the whole ceremony, so the copy says added, not accepted. Routes to
     // People (data.type "people"); old binaries only know "friends" and land
     // on the Albums tab, which is harmless.
-    await fetch("https://exp.host/--/api/v2/push/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        ...delivery,
-        title: "New friend",
-        body: `${visitorName} added you on Soundtracks`,
-        data: { type: "people" },
-      }),
-    });
+    // The friendship is already saved: a failed push must not turn this
+    // into an error the visitor sees as a bad link.
+    try {
+      await fetch(EXPO_PUSH_URL, {
+        method: "POST",
+        headers: expoPushHeaders(Deno.env.get("EXPO_ACCESS_TOKEN")),
+        body: JSON.stringify({
+          ...delivery,
+          title: "New friend",
+          body: `${visitorName} added you on Soundtracks`,
+          data: { type: "people" },
+        }),
+      });
+    } catch (e) {
+      console.error("[accept-friend-invite] push failed:", e);
+    }
   }
 
   return ok();

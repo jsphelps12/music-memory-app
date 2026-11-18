@@ -50,6 +50,11 @@ Deno.serve(async (req) => {
   if (!spotifyId) {
     return new Response(JSON.stringify({ error: "missing_id" }), { status: 400 });
   }
+  // A Spotify track id is 22 base62 characters; anything else would let a
+  // caller steer our token at other Spotify endpoints via the URL path.
+  if (!/^[A-Za-z0-9]{22}$/.test(spotifyId)) {
+    return new Response(JSON.stringify({ error: "invalid_id" }), { status: 400 });
+  }
 
   try {
     const token = await getSpotifyToken();
