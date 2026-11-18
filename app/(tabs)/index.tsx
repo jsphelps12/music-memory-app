@@ -75,6 +75,7 @@ import { SectionLabel } from "@/components/SectionLabel";
 import { Icon } from "@/components/Icon";
 import { CalendarView, type CalendarMoment } from "@/components/CalendarView";
 import { EmptyState } from "@/components/EmptyState";
+import { setJournalSelecting } from "@/lib/journalSelecting";
 import { DailyCheckInOffer } from "@/components/DailyCheckInOffer";
 import { LastWeekRow } from "@/components/LastWeekRow";
 import { useLastWeek } from "@/hooks/useLastWeek";
@@ -187,6 +188,11 @@ export default function TimelineScreen() {
   // Select mode (list view only): taps tick cards, a bar offers Add to album
   // and Delete for all of them.
   const [selecting, setSelecting] = useState(false);
+  // The tab bar hides the floating capture button while selecting.
+  useEffect(() => {
+    setJournalSelecting(selecting);
+  }, [selecting]);
+  useEffect(() => () => setJournalSelecting(false), []);
   const [selected, setSelected] = useState<ReadonlySet<string>>(EMPTY_SELECTION);
   const [bulkAlbumVisible, setBulkAlbumVisible] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -733,8 +739,9 @@ export default function TimelineScreen() {
           onDismiss={() => setBannerError("")}
         />
       ) : null}
-      {userId ? <LastWeekRow /> : null}
-      {userId ? (
+      {/* Offers step aside while choosing moments. */}
+      {userId && !selecting ? <LastWeekRow /> : null}
+      {userId && !selecting ? (
         <DailyCheckInOffer userId={userId} hasMoments={moments.length > 0} waiting={lastWeekAsking} />
       ) : null}
     </>

@@ -72,8 +72,9 @@ over the prompts, this becomes 1.4.0 build 13 instead.
 - [ ] **Drafts you can see** (decided 2026-11-18): built 2026-11-18 on native/1.4 (`.maestro/drafts.yaml`), awaiting the flow run and OTA.: closing capture with
   writing asks "Keep as a draft?" (Keep draft / Discard); long-press + →
   Start from gets "Continue a draft" (with a count, lists every draft) when
-  any exist; plain + still picks up the newest, with a "Draft from … ·
-  Start fresh" line; crashes and iOS kills still save silently. No hidden
+  any exist; plain + opens blank, with no hint (Josh, 2026-11-18: a hint
+  would clutter the top; drafts live in long-press only); a continued draft
+  shows "Draft from …"; crashes and iOS kills still save silently. No hidden
   long-press on Save (long-press always opens a menu).
 - [ ] **Select moments** (decided 2026-11-18): built 2026-11-18 on native/1.4 with the card menu (Edit, Share, Add to album, Select, Delete; `.maestro/select.yaml`), awaiting the flow run and OTA.: "Select" in the card's
   long-press menu and in the Journal header enters selection mode; tap to

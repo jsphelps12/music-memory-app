@@ -8,9 +8,11 @@ import type { Song } from "@/types";
  * Each capture screen owns one draft, by id, and only ever writes or clears
  * that one. So a capture opened pre-filled (a shared song, Last week, From
  * before, a prompt, Identify) can never overwrite or wipe writing left in an
- * earlier capture: that draft waits, and the next blank capture picks it up.
- * A blank capture picks up the newest draft (or, opened from "Continue a
- * draft", exactly the one picked) and takes over its id. A draft goes away
+ * earlier capture: that draft waits.
+ * Every capture opens blank (decided 2026-11-18): a draft comes back only
+ * when picked from long-press + → "Continue a draft", and that capture takes
+ * over its id. Writing lost to a crash or iOS closing the app is kept the
+ * same way and waits there too. A draft goes away
  * when its own capture is saved, on "Discard" when closing capture, on "Start
  * fresh", when its text is emptied, or after a week.
  *
@@ -87,20 +89,19 @@ export function draftById(drafts: readonly CaptureDraft[], id: string, now: numb
 }
 
 /**
- * What a capture screen picks up as it opens: the newest draft, or exactly
- * the one asked for (`draftId`, from "Continue a draft"; if that one has gone,
- * nothing rather than a different one). Only for a blank capture (pre-filled
- * ones never pick one up), and only while nothing has been typed yet, so a
- * draft never replaces fresh writing.
+ * What a capture screen picks up as it opens: only the draft asked for
+ * (`draftId`, from "Continue a draft"; if that one has gone, nothing rather
+ * than a different one). A plain capture opens blank. Never for a pre-filled
+ * capture, and only while nothing has been typed yet, so a draft never
+ * replaces fresh writing.
  */
 export function draftToPickUp(
   drafts: readonly CaptureDraft[],
   opts: { prefilled: boolean; typed: string; draftId?: string },
   now: number
 ): CaptureDraft | null {
-  if (opts.prefilled || opts.typed.trim()) return null;
-  if (opts.draftId) return draftById(drafts, opts.draftId, now);
-  return liveDrafts(drafts, now)[0] ?? null;
+  if (opts.prefilled || opts.typed.trim() || !opts.draftId) return null;
+  return draftById(drafts, opts.draftId, now);
 }
 
 // ── Labels ──────────────────────────────────────────────────────────────────

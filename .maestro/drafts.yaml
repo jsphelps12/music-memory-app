@@ -112,9 +112,8 @@ env:
     id: "capture-draft-keep"
 
 # --- Several drafts: the list, and picking the older one ---------------------
-# A plain capture picks up the newest draft, so a second draft comes from a
-# capture that starts from a song (as a share, a song page or Identify does);
-# those never pick one up. The app's own link opens one here.
+# Every capture opens blank (drafts come back only from long-press +), so two
+# plain captures make two drafts.
 - tapOn:
     id: "journal-empty-capture"
 - extendedWaitUntil:
@@ -137,7 +136,8 @@ env:
       id: "journal-empty-capture"
     timeout: 10000
 
-- openLink: "soundtracks-beta:///create?songTitle=Bohemian%20Rhapsody&songArtist=Queen"
+- tapOn:
+    id: "journal-empty-capture"
 - extendedWaitUntil:
     visible:
       id: "create-reflection"

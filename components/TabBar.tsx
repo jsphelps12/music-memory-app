@@ -1,3 +1,4 @@
+import { useJournalSelecting } from "@/lib/journalSelecting";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { runWhenIdle, type IdleTask } from "@/lib/whenIdle";
 import { CaptureMenu } from "@/components/CaptureMenu";
@@ -92,6 +93,7 @@ export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps
 
   // "Hold + for more", once per device, on the Journal (components/CaptureHint).
   const onJournal = state.index === 0;
+  const journalSelecting = useJournalSelecting();
   useEffect(() => {
     if (!userId || !onJournal) return;
     let cancelled = false;
@@ -125,31 +127,35 @@ export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps
     <View style={styles.container}>
       {/* Above the bar and the mini player: it sits at the top of this
           container, so it rises when the mini player appears. */}
-      <TouchableOpacity
-        testID="tab-create"
-        accessibilityRole="button"
-        accessibilityLabel="Capture a song"
-        accessibilityHint="Hold for more ways to start"
-        onPress={() => {
-          setHint(false);
-          router.push("/create");
-        }}
-        onLongPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          setHint(false);
-          void markCaptureHintSeen();
-          const read = user ? listCaptureDrafts(user.id) : Promise.resolve([]);
-          void read.then((drafts) => {
-            setMenuDrafts(drafts);
-            setMenuOpen(true);
-          });
-        }}
-        delayLongPress={350}
-        activeOpacity={0.85}
-        style={styles.capture}
-      >
-        <Icon name="add" size={28} color={theme.colors.buttonText} fixedSize />
-      </TouchableOpacity>
+      {/* Hidden while the Journal is selecting moments: the selection bar
+          has the bottom to itself (lib/journalSelecting.ts). */}
+      {journalSelecting && onJournal ? null : (
+        <TouchableOpacity
+          testID="tab-create"
+          accessibilityRole="button"
+          accessibilityLabel="Capture a song"
+          accessibilityHint="Hold for more ways to start"
+          onPress={() => {
+            setHint(false);
+            router.push("/create");
+          }}
+          onLongPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setHint(false);
+            void markCaptureHintSeen();
+            const read = user ? listCaptureDrafts(user.id) : Promise.resolve([]);
+            void read.then((drafts) => {
+              setMenuDrafts(drafts);
+              setMenuOpen(true);
+            });
+          }}
+          delayLongPress={350}
+          activeOpacity={0.85}
+          style={styles.capture}
+        >
+          <Icon name="add" size={28} color={theme.colors.buttonText} fixedSize />
+        </TouchableOpacity>
+      )}
 
       <CaptureHint visible={hint} onDismiss={() => setHint(false)} />
       <CaptureMenu visible={menuOpen} onClose={() => setMenuOpen(false)} drafts={menuDrafts} />

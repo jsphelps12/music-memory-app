@@ -6,8 +6,10 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { ScreenHeader } from "@/components/ScreenHeader";
 
-// Every real way into capture (checked against app/create.tsx and
-// targets/widget, 2026-11). No count in the copy: it drifts.
+// Every real way into capture (checked against app/create.tsx, the routes
+// that push /create, components/CaptureMenu.tsx and targets/widget,
+// 2026-11-18). Keep it current when a way in is added. No count in the copy:
+// it drifts.
 const CAPTURE_METHODS = [
   {
     icon: "add",
@@ -15,9 +17,39 @@ const CAPTURE_METHODS = [
     desc: "Search for any song by title or artist. If Apple Music is already playing, the song is filled in for you.",
   },
   {
+    icon: "list-outline",
+    label: "Hold the + button",
+    desc: "Start from Identify, Search, Last week or From before, or pick up a draft.",
+  },
+  {
+    icon: "pencil-outline",
+    label: "Drafts",
+    desc: "Close capture with something written and you can keep it as a draft. Hold + and choose Continue a draft to finish it.",
+  },
+  {
     icon: "ear-outline",
     label: "Identify",
     desc: "Hear something you love out in the world? Tap Identify on the capture screen and Soundtracks will name it.",
+  },
+  {
+    icon: "calendar-outline",
+    label: "Last week",
+    desc: "Each week, the songs you played most and the photos you took, ready to become moments. Find it at the top of your Journal.",
+  },
+  {
+    icon: "time-outline",
+    label: "From before",
+    desc: "Songs from your library you haven't played in a while, with photos from when you loved them. Find it in Rediscover.",
+  },
+  {
+    icon: "notifications-outline",
+    label: "A nudge each night",
+    desc: "Turn it on and Soundtracks asks what song you listened to today. Skipped if you've already saved one.",
+  },
+  {
+    icon: "albums-outline",
+    label: "From an album",
+    desc: "Add a moment straight into an album from the album's page.",
   },
   {
     icon: "share-outline",
