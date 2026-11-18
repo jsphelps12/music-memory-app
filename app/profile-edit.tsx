@@ -36,11 +36,14 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { searchItunesArtists, searchItunesSongs } from "@/lib/musicSearch";
+import { artworkUrlAtSize } from "@/lib/itunes";
 import { checkUsernameAvailable } from "@/lib/friends";
 import { profileEditChanges } from "@/lib/profile";
 import { FavoriteArtist, FavoriteSong } from "@/types";
 
 const AVATAR_SIZE = 72;
+// 36pt search-result artwork, at 3x.
+const SONG_ARTWORK_PX = 108;
 
 const BIRTH_YEARS = Array.from({ length: 86 }, (_, i) => 2015 - i); // 2015 → 1930
 
@@ -638,7 +641,7 @@ export default function ProfileEditScreen() {
                       accessibilityState={{ selected }}
                     >
                       {item.artworkUrl ? (
-                        <AppImage source={{ uri: item.artworkUrl }} style={styles.songArtwork} contentFit="cover" />
+                        <AppImage source={{ uri: artworkUrlAtSize(item.artworkUrl, SONG_ARTWORK_PX) }} style={styles.songArtwork} contentFit="cover" />
                       ) : null}
                       <View style={styles.resultText}>
                         <Text style={styles.resultTitle} numberOfLines={1}>{item.title}</Text>

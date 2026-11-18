@@ -23,7 +23,7 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { spotifyFailureOf, spotifySearchFallbackNotice } from "@/lib/providers/spotifyErrors";
 import { emitSongSelected } from "@/lib/songEvents";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePlayer } from "@/contexts/PlayerContext";
+import { usePlayerControls } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
@@ -52,7 +52,10 @@ export default function SongSearchScreen() {
   const [authorized, setAuthorized] = useState(true);
   const [retryKey, setRetryKey] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const player = usePlayer();
+  // Controls only: this screen draws no progress, and with it the whole
+  // screen re-rendered on every playback tick.
+  const player = usePlayerControls();
+  const stopPlayback = player.stop;
   const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
   const [previewUnavailable, setPreviewUnavailable] = useState<Record<string, boolean>>({});
   // Preview URLs are fetched per song on first tap; cache so replays are instant.
@@ -63,10 +66,9 @@ export default function SongSearchScreen() {
 
   useEffect(() => {
     return () => {
-      if (startedPreviewRef.current) void player.stop();
+      if (startedPreviewRef.current) void stopPlayback();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [stopPlayback]);
 
   async function handlePreviewPress(song: Song) {
     if (player.isPreview && player.currentSong?.id === song.id) {

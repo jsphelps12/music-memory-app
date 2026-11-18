@@ -5,8 +5,11 @@ import { Icon } from "@/components/Icon";
 import { usePlayer } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 import { formatTime } from "@/lib/formatTime";
+import { artworkUrlAtSize } from "@/lib/itunes";
 import { Theme } from "@/constants/theme";
 
+// 40pt artwork at 3x; songs carry the 600px detail image.
+const ARTWORK_PX = 120;
 // Night, not pure black, for the float shadow in both themes.
 const SHADOW_INK = "#0E0B0A";
 
@@ -65,7 +68,7 @@ export function MiniPlayer() {
     <View style={styles.card}>
       <View style={styles.mainRow}>
         {currentSong.artworkUrl ? (
-          <AppImage source={{ uri: currentSong.artworkUrl }} style={styles.artwork} contentFit="cover" />
+          <AppImage source={{ uri: artworkUrlAtSize(currentSong.artworkUrl, ARTWORK_PX) }} style={styles.artwork} contentFit="cover" />
         ) : (
           <View style={[styles.artwork, styles.artworkEmpty]} />
         )}

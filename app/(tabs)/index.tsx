@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePostHog } from "posthog-react-native";
 import {
   View,
@@ -38,6 +38,8 @@ import {
   TIMELINE_PAGE_SIZE,
 } from "@/lib/timelinePrefetch";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
+import { fetchAllRows } from "@/lib/fetchAllRows";
+import { groupMomentsByMonth } from "@/lib/monthGroups";
 import { fetchUnviewedSharedCount } from "@/lib/momentShares";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
@@ -66,6 +68,43 @@ const NETWORK_RETRY_MS = 5_000;
 // Unread-shares count is a badge-style query — 60s staleTime per the convention.
 const SHARED_BADGE_STALE_MS = 60_000;
 
+/**
+ * Every moment, just the columns the calendar draws, in timeline order (so a
+ * day's tile is the same moment the list shows first). Paged: one response
+ * stops at 1000 rows. Null on failure.
+ */
+async function fetchCalendarRows(userId: string): Promise<CalendarMoment[] | null> {
+  try {
+    const rows = await fetchAllRows<any>((from, to) =>
+      supabase
+        .from("moments")
+        .select("id, moment_date, song_artwork_url, song_title, song_artist")
+        .eq("user_id", userId)
+        .order("moment_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to)
+    );
+    return rows.map((r): CalendarMoment => ({
+      id: r.id,
+      momentDate: r.moment_date ?? null,
+      songArtworkUrl: r.song_artwork_url ?? "",
+      songTitle: r.song_title ?? "",
+      songArtist: r.song_artist ?? "",
+    }));
+  } catch {
+    return null;
+  }
+}
+
+// Throws when the target isn't laid out yet; the calendar tap then just
+// lands on the list where it was.
+function scrollToMoment(list: SectionList, sectionIndex: number, itemIndex: number) {
+  try {
+    list.scrollToLocation({ sectionIndex, itemIndex, viewPosition: 0.3, animated: false });
+  } catch {}
+}
+
 export default function TimelineScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
@@ -86,7 +125,6 @@ export default function TimelineScreen() {
   // and that used to re-run the focus effect and refetch mid-scroll.
   const userId = user?.id;
   const userIdRef = useRef(userId);
-  userIdRef.current = userId;
   const theme = useTheme();
   const posthog = usePostHog();
 
@@ -111,9 +149,7 @@ export default function TimelineScreen() {
   // Latest rendered list and hasMore, for merging a refreshed first page into
   // it outside a state updater.
   const momentsRef = useRef<Moment[]>(moments);
-  momentsRef.current = moments;
   const hasMoreRef = useRef(hasMore);
-  hasMoreRef.current = hasMore;
 
   // Snapshot of the loaded timeline (every page) so the calendar can derive data without another query
   const timelineSnapshotRef = useRef<{ moments: Moment[]; hasMore: boolean } | null>(null);
@@ -137,7 +173,19 @@ export default function TimelineScreen() {
   // every badge update, which during a cold start fired a second
   // fetchMoments(true) before the first had finished.
   const unviewedUpdatedAtRef = useRef(unviewedUpdatedAt);
-  unviewedUpdatedAtRef.current = unviewedUpdatedAt;
+
+  const viewModeRef = useRef(viewMode);
+
+  // Latest values for the async callbacks below. Synced in a layout effect,
+  // not during render (the React Compiler skips components that touch refs in
+  // render); it runs in the same commit, before any other effect or callback.
+  useLayoutEffect(() => {
+    userIdRef.current = userId;
+    momentsRef.current = moments;
+    hasMoreRef.current = hasMore;
+    unviewedUpdatedAtRef.current = unviewedUpdatedAt;
+    viewModeRef.current = viewMode;
+  }, [userId, moments, hasMore, unviewedUpdatedAt, viewMode]);
 
   // Clear data on user change (sign out / sign in as different user)
   useEffect(() => {
@@ -159,11 +207,8 @@ export default function TimelineScreen() {
 
   const listOpacity = useSharedValue(1);
   const calendarOpacity = useSharedValue(0);
-  const listAnimStyle = useAnimatedStyle(() => ({ opacity: listOpacity.value }));
-  const calendarAnimStyle = useAnimatedStyle(() => ({ opacity: calendarOpacity.value }));
-
-  const viewModeRef = useRef(viewMode);
-  viewModeRef.current = viewMode;
+  const listAnimStyle = useAnimatedStyle(() => ({ opacity: listOpacity.get() }));
+  const calendarAnimStyle = useAnimatedStyle(() => ({ opacity: calendarOpacity.get() }));
 
   // `silent`: a refresh of a calendar already on screen, without the spinner.
   const fetchCalendarMoments = useCallback(async (silent = false) => {
@@ -178,22 +223,10 @@ export default function TimelineScreen() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("moments")
-      .select("id, moment_date, song_artwork_url, song_title, song_artist")
-      .eq("user_id", userId)
-      .order("moment_date", { ascending: false, nullsFirst: false });
+    const rows = await fetchCalendarRows(userId);
     if (userIdRef.current !== userId) return;
-    if (!error && data) {
-      setCalendarMoments(
-        data.map((r: any): CalendarMoment => ({
-          id: r.id,
-          momentDate: r.moment_date ?? null,
-          songArtworkUrl: r.song_artwork_url ?? "",
-          songTitle: r.song_title ?? "",
-          songArtist: r.song_artist ?? "",
-        }))
-      );
+    if (rows) {
+      setCalendarMoments(rows);
       calendarFetchedRef.current = true;
     } else {
       calendarFetchedRef.current = false;
@@ -201,99 +234,58 @@ export default function TimelineScreen() {
     setCalendarLoading(false);
   }, [userId]);
 
-  const switchToList = useCallback(() => {
-    if (viewModeRef.current !== "list") {
-      calendarOpacity.value = withTiming(0, { duration: 200 });
-      listOpacity.value = withTiming(1, { duration: 200 });
-      setViewMode("list");
-    }
-  }, []);
+  // Both views stay mounted; this only crossfades them. Fading to the view
+  // already shown is a no-op, so callers needn't check first.
+  const showView = useCallback((mode: "list" | "calendar") => {
+    listOpacity.set(withTiming(mode === "list" ? 1 : 0, { duration: 200 }));
+    calendarOpacity.set(withTiming(mode === "calendar" ? 1 : 0, { duration: 200 }));
+    setViewMode(mode);
+  }, [listOpacity, calendarOpacity]);
 
-  const switchToCalendar = useCallback(() => {
-    if (viewModeRef.current !== "calendar") {
-      listOpacity.value = withTiming(0, { duration: 200 });
-      calendarOpacity.value = withTiming(1, { duration: 200 });
-      setViewMode("calendar");
-      if (calendarFetchedRef.current !== true) fetchCalendarMoments();
-    }
-  }, [fetchCalendarMoments]);
+  // Opening the calendar loads it if the list changed since it last did.
+  useEffect(() => {
+    if (viewMode === "calendar" && calendarFetchedRef.current !== true) fetchCalendarMoments();
+  }, [viewMode, fetchCalendarMoments]);
 
   const pinchGesture = useMemo(
     () =>
       Gesture.Pinch().onEnd((e) => {
         "worklet";
         if (e.scale < 0.75) {
-          runOnJS(switchToList)();
+          runOnJS(showView)("list");
         } else if (e.scale > 1.3) {
-          runOnJS(switchToCalendar)();
+          runOnJS(showView)("calendar");
         }
       }),
-    [switchToList, switchToCalendar]
+    [showView]
   );
 
   const navigation = useNavigation();
 
   useEffect(() => {
     return navigation.addListener("tabPress" as any, () => {
-      if (viewMode === "calendar") {
-        calendarOpacity.value = withTiming(0, { duration: 200 });
-        listOpacity.value = withTiming(1, { duration: 200 });
-        setViewMode("list");
-      }
+      if (viewMode === "calendar") showView("list");
     });
-  }, [navigation, viewMode]);
-
-  const toggleView = useCallback(() => {
-    if (viewMode === "list") {
-      listOpacity.value = withTiming(0, { duration: 200 });
-      calendarOpacity.value = withTiming(1, { duration: 200 });
-      setViewMode("calendar");
-      if (calendarFetchedRef.current !== true) fetchCalendarMoments();
-    } else {
-      calendarOpacity.value = withTiming(0, { duration: 200 });
-      listOpacity.value = withTiming(1, { duration: 200 });
-      setViewMode("list");
-    }
-  }, [viewMode, fetchCalendarMoments]);
+  }, [navigation, viewMode, showView]);
 
   const handleDayPress = useCallback((momentId: string) => {
-    calendarOpacity.value = withTiming(0, { duration: 200 });
-    listOpacity.value = withTiming(1, { duration: 200 });
-    setViewMode("list");
+    showView("list");
     setPendingScrollId(momentId);
-  }, []);
+  }, [showView]);
 
-  const sections = useMemo(() => {
-    const grouped: Record<string, Moment[]> = {};
-    for (const m of moments) {
-      const key = m.momentDate
-        ? new Date(m.momentDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })
-        : "No Date";
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(m);
-    }
-    return Object.entries(grouped).map(([title, data]) => ({ title, data }));
-  }, [moments]);
+  // Each month's title is formatted once (lib/monthGroups.ts), not per moment.
+  const sections = useMemo(() => groupMomentsByMonth(moments), [moments]);
 
   useEffect(() => {
     if (!pendingScrollId || sections.length === 0) return;
-    for (let s = 0; s < sections.length; s++) {
-      const idx = sections[s].data.findIndex((m) => m.id === pendingScrollId);
-      if (idx >= 0) {
-        setPendingScrollId(null);
-        setTimeout(() => {
-          try {
-            sectionListRef.current?.scrollToLocation({
-              sectionIndex: s,
-              itemIndex: idx,
-              viewPosition: 0.3,
-              animated: false,
-            });
-          } catch {}
-        }, 100);
-        return;
-      }
-    }
+    const sectionIndex = sections.findIndex((s) => s.data.some((m) => m.id === pendingScrollId));
+    if (sectionIndex < 0) return;
+    const itemIndex = sections[sectionIndex].data.findIndex((m) => m.id === pendingScrollId);
+    setPendingScrollId(null);
+    setTimeout(() => {
+      const list = sectionListRef.current;
+      if (list) scrollToMoment(list, sectionIndex, itemIndex);
+    }, 100);
   }, [pendingScrollId, sections]);
 
   // Sets the rendered list and keeps the snapshot (used by the calendar and
@@ -325,6 +317,10 @@ export default function TimelineScreen() {
     pageRef.current = lastLoadedPage(merged.moments.length);
     applyList(merged.moments, merged.hasMore);
   }, [applyList]);
+
+  // The launch retry calls the latest fetchMoments through this; declared
+  // before the callbacks that read it so the compiler knows it's a ref.
+  const fetchMomentsRef = useRef<(showLoading: boolean) => Promise<void>>(() => Promise.resolve());
 
   const fetchMomentsInner = useCallback(
     async (showLoading: boolean, append = false, skipPrefetch = false) => {
@@ -451,18 +447,17 @@ export default function TimelineScreen() {
     [userId, posthog, applyList, mergeFresh, persistFirstPage]
   );
 
+  // .finally() rather than try/finally, which the React Compiler can't handle.
   const fetchMoments = useCallback(
-    async (showLoading: boolean, append = false, skipPrefetch = false) => {
-      try {
-        await fetchMomentsInner(showLoading, append, skipPrefetch);
-      } finally {
+    (showLoading: boolean, append = false, skipPrefetch = false): Promise<void> =>
+      fetchMomentsInner(showLoading, append, skipPrefetch).finally(() => {
         if (!append) refreshInFlightRef.current = false;
-      }
-    },
+      }),
     [fetchMomentsInner]
   );
-  const fetchMomentsRef = useRef(fetchMoments);
-  fetchMomentsRef.current = fetchMoments;
+  useEffect(() => {
+    fetchMomentsRef.current = fetchMoments;
+  }, [fetchMoments]);
 
   const handleLoadMore = useCallback(async () => {
     // Don't append while a refresh is resetting pageRef — the two racing would
@@ -620,7 +615,7 @@ export default function TimelineScreen() {
                     activeOpacity={0.7}
                     onPress={() => {
                       if (seg.key === "map") router.push("/moments-map" as any);
-                      else if (viewMode !== seg.key) toggleView();
+                      else if (viewMode !== seg.key) showView(seg.key);
                     }}
                   >
                     <Icon

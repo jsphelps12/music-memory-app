@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { supabase } from "@/lib/supabase";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { DEFAULT_SCREEN_STALE } from "@/lib/queryConfig";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { IconButton } from "@/components/IconButton";
@@ -58,16 +59,18 @@ export default function MomentsMapScreen() {
 
   const { data: mapMoments = [], isSuccess, isError, error, refetch } = useQuery<MapMoment[]>({
     queryKey: ["momentsMap", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("moments")
-        .select("id, song_title, song_artist, song_artwork_url, moment_date, location_lat, location_lng, location")
-        .eq("user_id", user!.id)
-        .not("location_lat", "is", null)
-        .not("location_lng", "is", null);
-      if (error) throw error;
-      return (data ?? []) as MapMoment[];
-    },
+    // Paged: one response stops at 1000 rows.
+    queryFn: () =>
+      fetchAllRows<MapMoment>((from, to) =>
+        supabase
+          .from("moments")
+          .select("id, song_title, song_artist, song_artwork_url, moment_date, location_lat, location_lng, location")
+          .eq("user_id", user!.id)
+          .not("location_lat", "is", null)
+          .not("location_lng", "is", null)
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
     enabled: !!user,
     staleTime: DEFAULT_SCREEN_STALE,
   });
