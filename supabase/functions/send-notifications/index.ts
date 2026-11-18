@@ -6,8 +6,8 @@ import {
   type ExpoPushMessage,
   type UserMomentRow,
 } from "./selectNotifications.ts";
+import { expoPushHeaders, EXPO_PUSH_URL } from "../_shared/expoPush.ts";
 
-const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const BATCH_SIZE = 100;
 const PAGE_SIZE = 1000; // matches PostgREST's default max_rows
 const USER_CHUNK = 100;
@@ -63,15 +63,18 @@ interface ExpoPushResponse {
  * discovered at delivery time. That needs a second scheduled function to
  * persist ticket ids and poll them later — deliberately out of scope here.
  */
-async function sendBatch(messages: ExpoPushMessage[]): Promise<string[]> {
+async function sendBatch(messages: ExpoPushMessage[]): Promise<{ deadTokens: string[]; delivered: Set<string> }> {
   const deadTokens: string[] = [];
+  // Tokens Expo accepted ("ok" ticket): only these count as notified.
+  const delivered = new Set<string>();
+  const headers = expoPushHeaders(Deno.env.get("EXPO_ACCESS_TOKEN"));
 
   for (let i = 0; i < messages.length; i += BATCH_SIZE) {
     const batch = messages.slice(i, i + BATCH_SIZE);
 
     const res = await fetch(EXPO_PUSH_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers,
       body: JSON.stringify(batch),
     });
 
@@ -103,9 +106,13 @@ async function sendBatch(messages: ExpoPushMessage[]): Promise<string[]> {
 
     for (let j = 0; j < tickets.length; j++) {
       const ticket = tickets[j];
-      if (!ticket || ticket.status === "ok") continue;
-
       const token = batch[j]?.to;
+      if (ticket?.status === "ok") {
+        if (token) delivered.add(token);
+        continue;
+      }
+      if (!ticket) continue;
+
       const code = ticket.details?.error;
 
       if (code === "DeviceNotRegistered") {
@@ -122,7 +129,7 @@ async function sendBatch(messages: ExpoPushMessage[]): Promise<string[]> {
     }
   }
 
-  return deadTokens;
+  return { deadTokens, delivered };
 }
 
 function getLocalHour(utcDate: Date, timezone: string): number {
@@ -185,11 +192,13 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Users whose local hour is 10, minus anyone with "How often: Off".
+  // Users whose local hour is 10, minus anyone with "How often: Off". A
+  // user with no timezone yet is skipped rather than guessed as UTC (that
+  // was 2-5am in the US); the app records it on the next open.
   const eligibleUsers: EligibleUser[] = tokenUsers.filter((u) => {
     if (u.notif_frequency === "off") return false;
-    const localHour = getLocalHour(now, u.timezone || "UTC");
-    return localHour === 10;
+    if (!u.timezone) return false;
+    return getLocalHour(now, u.timezone) === 10;
   });
 
   if (eligibleUsers.length === 0) {
@@ -242,8 +251,11 @@ Deno.serve(async (req) => {
 
   // Step 4: send, then reap every token Expo told us is dead.
   let deadTokensCleared = 0;
+  let delivered = new Set<string>();
   if (messages.length > 0) {
-    const deadTokens = [...new Set(await sendBatch(messages))];
+    const result = await sendBatch(messages);
+    delivered = result.delivered;
+    const deadTokens = [...new Set(result.deadTokens)];
     if (deadTokens.length > 0) {
       const { error: reapError } = await supabase
         .from("profiles")
@@ -259,19 +271,21 @@ Deno.serve(async (req) => {
   }
 
   // Stamp when each recipient was last sent something: the spacing behind
-  // "How often". Done after sending so a send failure doesn't silently
-  // suppress the next one.
-  for (let i = 0; i < notifiedUserIds.length; i += USER_CHUNK) {
+  // "How often". Only pushes Expo accepted count: a failed batch (429, 5xx)
+  // must not hold someone's memories back for days.
+  const tokenOf = new Map(eligibleUsers.map((u) => [u.id, u.push_token as string]));
+  const stampIds = notifiedUserIds.filter((id) => delivered.has(tokenOf.get(id) ?? ""));
+  for (let i = 0; i < stampIds.length; i += USER_CHUNK) {
     const { error: stampError } = await supabase
       .from("profiles")
       .update({ last_notified_at: now.toISOString() })
-      .in("id", notifiedUserIds.slice(i, i + USER_CHUNK));
+      .in("id", stampIds.slice(i, i + USER_CHUNK));
     if (stampError) {
       console.error("Failed to stamp last_notified_at:", stampError.message);
     }
   }
 
-  return new Response(JSON.stringify({ sent: messages.length, deadTokensCleared }), {
+  return new Response(JSON.stringify({ sent: messages.length, delivered: delivered.size, deadTokensCleared }), {
     headers: { "Content-Type": "application/json" },
   });
 });
