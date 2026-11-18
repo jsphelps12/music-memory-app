@@ -74,13 +74,16 @@ before every App Store submission, before merging a `native/*` branch into
   air, a 1.4.1 native build, DB-2 after the min-build raise, then code
   quality. Server security batch done 2026-11-18 (main PR 108; Expo
   enhanced push security turned on, first run to check 2026-11-18 10am). Client
-  batch done 2026-11-18 on native/1.4 (OTA pending): drafts can't be
+  batch done 2026-11-18 on native/1.4, OTA to 1.4 the same day (first
+  publish rolled back: Delete froze on moment detail; fixed with a confirm
+  host per modal screen, a bug build 12 already had as a silent no-op): drafts can't be
   wiped by pre-filled captures, app lock can't lock you out, sign-out
   clears every on-device record, library read once, smaller play-count
   store, calendar windowed, whole-library queries paged, film restores
   the song on every exit and loads fewer videos, 10 more components
   under the React Compiler (97 compiled). Old PostHog tap events left as
-  they are (owner's call). Next: 1.4.1 native items, then code quality.
+  they are (owner's call). Next: 1.4.1 native items (plus the "…" menu as the same native
+  iOS menu as long-press, Josh 2026-11-18), then code quality.
 - [ ] DB-2 (RLS hardening step 2) once 1.4 is out and widely installed:
   raise the min-build gate, then ship it.
 - [ ] Database hygiene from the Supabase advisors (2026-11-17): ~~pin the
