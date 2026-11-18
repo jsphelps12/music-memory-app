@@ -18,12 +18,18 @@ const {
   withDraft,
   withoutDraft,
   draftToPickUp,
+  draftById,
+  draftWhenLabel,
+  draftExcerpt,
+  continueDraftSubtitle,
   startDraftSession,
   afterDraftLoad,
   afterMomentSaved,
+  afterDraftDiscarded,
   canWriteDraft,
   parseStoredDrafts,
   loadDraftToPickUp,
+  listCaptureDrafts,
   saveCaptureDraft,
   discardCaptureDraft,
   clearCaptureDraft,
@@ -114,16 +120,81 @@ describe("list rules", () => {
 describe("draftToPickUp", () => {
   const list = [draft("older", "first", NOW - 2000), draft("newer", "second", NOW - 1000)];
 
-  it("a blank capture picks up the newest draft", () => {
-    expect(draftToPickUp(list, { prefilled: false, typed: "" }, NOW)?.id).toBe("newer");
+  it("a plain capture opens blank, drafts or not", () => {
+    expect(draftToPickUp(list, { prefilled: false, typed: "" }, NOW)).toBeNull();
   });
 
   it("a pre-filled capture never picks one up", () => {
     expect(draftToPickUp(list, { prefilled: true, typed: "" }, NOW)).toBeNull();
+    expect(draftToPickUp(list, { prefilled: true, typed: "", draftId: "older" }, NOW)).toBeNull();
   });
 
   it("never replaces writing typed while the read was in flight", () => {
-    expect(draftToPickUp(list, { prefilled: false, typed: "already writing" }, NOW)).toBeNull();
+    expect(draftToPickUp(list, { prefilled: false, typed: "already writing", draftId: "older" }, NOW)).toBeNull();
+  });
+});
+
+describe("picking one draft", () => {
+  const list = [draft("older", "first", NOW - 2000), draft("newer", "second", NOW - 1000)];
+
+  it("finds a live draft by id, and not an expired or emptied one", () => {
+    expect(draftById(list, "older", NOW)?.reflection).toBe("first");
+    expect(draftById([draft("old", "stale", NOW - MAX_AGE_MS - 1)], "old", NOW)).toBeNull();
+    expect(draftById([draft("blank", "  ")], "blank", NOW)).toBeNull();
+    expect(draftById(list, "missing", NOW)).toBeNull();
+  });
+
+  it("Continue a draft opens exactly that one, not the newest", () => {
+    expect(draftToPickUp(list, { prefilled: false, typed: "", draftId: "older" }, NOW)?.id).toBe("older");
+  });
+
+  it("if the chosen draft has gone, it opens blank rather than a different one", () => {
+    expect(draftToPickUp(list, { prefilled: false, typed: "", draftId: "missing" }, NOW)).toBeNull();
+  });
+});
+
+describe("draftWhenLabel", () => {
+  // Local time throughout, so this passes in any time zone.
+  const at = (day: number, hour: number, minute = 0) => new Date(2026, 10, day, hour, minute).getTime();
+  const now = at(18, 15); // Wednesday 18 Nov 2026, 3pm
+
+  it("names the part of today", () => {
+    expect(draftWhenLabel(at(18, 9), now)).toBe("this morning");
+    expect(draftWhenLabel(at(18, 13), now)).toBe("this afternoon");
+    expect(draftWhenLabel(at(18, 19), at(18, 22))).toBe("this evening");
+    expect(draftWhenLabel(at(18, 1), now)).toBe("last night");
+  });
+
+  it("says yesterday, or last night for a late one", () => {
+    expect(draftWhenLabel(at(17, 10), now)).toBe("yesterday");
+    expect(draftWhenLabel(at(17, 23), now)).toBe("last night");
+  });
+
+  it("names the weekday within the week, then the date", () => {
+    expect(draftWhenLabel(at(17, 10), at(18, 0, 5))).toBe("yesterday");
+    expect(draftWhenLabel(at(16, 10), now)).toBe("Monday");
+    expect(draftWhenLabel(at(12, 10), now)).toBe("Thursday");
+    expect(draftWhenLabel(at(11, 10), now)).toBe("Nov 11");
+  });
+});
+
+describe("draft excerpts", () => {
+  it("takes the first line of writing", () => {
+    expect(draftExcerpt("\n  The drive to Kona  \nand then the rain")).toBe("The drive to Kona");
+  });
+
+  it("cuts a long line at a word", () => {
+    const text = "We played this on the porch every night of that summer until the record wore out";
+    const cut = draftExcerpt(text, 30);
+    expect(cut.endsWith("…")).toBe(true);
+    expect(cut.length).toBeLessThanOrEqual(31);
+    expect(text.startsWith(cut.slice(0, -1))).toBe(true);
+    expect(cut).toBe("We played this on the porch…");
+  });
+
+  it("the menu row says the one draft's words, or how many", () => {
+    expect(continueDraftSubtitle([draft("a", "Dad's truck")])).toBe("Dad's truck");
+    expect(continueDraftSubtitle([draft("a", "one"), draft("b", "two")])).toBe("2 drafts");
   });
 });
 
@@ -148,6 +219,14 @@ describe("draft session", () => {
     // A read finishing late doesn't reopen it.
     expect(canWriteDraft(afterDraftLoad(saved, null))).toBe(false);
     expect(canWriteDraft(null)).toBe(false);
+  });
+});
+
+describe("closing capture with Discard", () => {
+  it("writes nothing more, so the flush on leaving can't bring the draft back", () => {
+    const discarded = afterDraftDiscarded({ id: "x", phase: "open" });
+    expect(canWriteDraft(discarded)).toBe(false);
+    expect(discarded.id).toBe("x");
   });
 });
 
@@ -190,8 +269,9 @@ describe("storage: a pre-filled capture keeps an earlier draft", () => {
     expect(stored().map((d) => d.id)).toEqual(["shared", "earlier"]);
   });
 
-  it("the next blank capture picks it up, and saving that one clears it", async () => {
-    const picked = await loadDraftToPickUp(USER, { prefilled: false, typed: () => "" });
+  it("a plain capture opens blank; Continue a draft picks it up, and saving that one clears it", async () => {
+    expect(await loadDraftToPickUp(USER, { prefilled: false, typed: () => "" })).toBeNull();
+    const picked = await loadDraftToPickUp(USER, { prefilled: false, typed: () => "", draftId: "earlier" });
     expect(picked?.reflection).toBe("Half a page about Dad's truck");
     const session = afterDraftLoad(startDraftSession("blank", false), picked);
     await saveCaptureDraft(USER, session.id, { reflection: "Half a page about Dad's truck, finished", song });
@@ -201,17 +281,53 @@ describe("storage: a pre-filled capture keeps an earlier draft", () => {
     releaseDraft(session.id);
   });
 
-  it("a second blank capture opened over the first doesn't pick up the same draft", async () => {
-    const first = await loadDraftToPickUp(USER, { prefilled: false, typed: () => "" });
+  it("a second capture opened over the first can't pick up the same draft", async () => {
+    const first = await loadDraftToPickUp(USER, { prefilled: false, typed: () => "", draftId: "earlier" });
     expect(first?.id).toBe("earlier");
-    expect(await loadDraftToPickUp(USER, { prefilled: false, typed: () => "" })).toBeNull();
+    expect(await loadDraftToPickUp(USER, { prefilled: false, typed: () => "", draftId: "earlier" })).toBeNull();
     releaseDraft("earlier");
-    expect((await loadDraftToPickUp(USER, { prefilled: false, typed: () => "" }))?.id).toBe("earlier");
+    expect((await loadDraftToPickUp(USER, { prefilled: false, typed: () => "", draftId: "earlier" }))?.id).toBe("earlier");
     releaseDraft("earlier");
   });
 
   it("a pre-filled capture doesn't pick it up", async () => {
     expect(await loadDraftToPickUp(USER, { prefilled: true, typed: () => "" })).toBeNull();
+  });
+});
+
+describe("storage: Continue a draft", () => {
+  beforeEach(() => {
+    storage.seed(
+      KEY,
+      JSON.stringify([
+        draft("older", "the wedding", Date.now() - 120_000),
+        draft("newer", "the drive", Date.now() - 60_000),
+        draft("stale", "too old", Date.now() - MAX_AGE_MS - 1),
+      ])
+    );
+  });
+
+  it("lists the live drafts, newest first, leaving out one an open capture holds", async () => {
+    expect((await listCaptureDrafts(USER)).map((d) => d.id)).toEqual(["newer", "older"]);
+    const held = await loadDraftToPickUp(USER, { prefilled: false, typed: () => "", draftId: "newer" });
+    expect(held?.id).toBe("newer");
+    expect((await listCaptureDrafts(USER)).map((d) => d.id)).toEqual(["older"]);
+    releaseDraft("newer");
+  });
+
+  it("a capture opened with a draft id picks up exactly that one", async () => {
+    const picked = await loadDraftToPickUp(USER, { prefilled: false, typed: () => "", draftId: "older" });
+    expect(picked?.reflection).toBe("the wedding");
+    // The plain + opens blank.
+    expect(await loadDraftToPickUp(USER, { prefilled: false, typed: () => "" })).toBeNull();
+    // And the chosen one can't be opened twice.
+    expect(await loadDraftToPickUp(USER, { prefilled: false, typed: () => "", draftId: "older" })).toBeNull();
+    releaseDraft("older");
+  });
+
+  it("Discard on close takes out only that capture's draft", async () => {
+    await discardCaptureDraft(USER, "newer");
+    expect(stored().map((d) => d.id)).toEqual(["older"]);
   });
 });
 
@@ -250,7 +366,8 @@ describe("storage: a saved moment's draft stays gone", () => {
 describe("storage: old single draft", () => {
   it("is picked up, and moved into the list on the next write", async () => {
     storage.seed(LEGACY_KEY, JSON.stringify({ reflection: "from 1.4 beta", song: null, savedAt: Date.now() }));
-    const picked = await loadDraftToPickUp(USER, { prefilled: false, typed: () => "" });
+    expect((await listCaptureDrafts(USER)).map((d) => d.id)).toEqual(["legacy"]);
+    const picked = await loadDraftToPickUp(USER, { prefilled: false, typed: () => "", draftId: "legacy" });
     expect(picked).toMatchObject({ id: "legacy", reflection: "from 1.4 beta" });
     await saveCaptureDraft(USER, "other", { reflection: "new", song: null });
     expect(storage.map.has(LEGACY_KEY)).toBe(false);

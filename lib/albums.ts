@@ -2,7 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
-import { ensureFullMediaForAlbum, ensureFullMediaForAlbumMoments } from "@/lib/ensureFullMedia";
+import { ensureFullMedia, ensureFullMediaForAlbum, ensureFullMediaForAlbumMoments } from "@/lib/ensureFullMedia";
+import { planAlbumAdd } from "@/lib/momentSelection";
 import { Album, AlbumPreview, Moment } from "@/types";
 
 // ─── Legacy AsyncStorage caches (removed) ────────────────────────────────────
@@ -336,6 +337,50 @@ export async function addMomentToAlbum(
     .from("collection_moments")
     .insert({ collection_id: collectionId, moment_id: momentId, added_by_user_id: addedByUserId });
   if (error) throw error;
+}
+
+// Keeps each `.in()` filter's URL well short of request-line limits.
+const BULK_ID_CHUNK = 100;
+
+/**
+ * Select mode's Add to album: every moment not already in the album, in one
+ * insert. Shared albums get the moments' linked originals uploaded first, as
+ * addMomentToAlbum does. Throws on any failure, adding none (the insert is
+ * one statement), so the selection can be kept and retried.
+ */
+export async function addMomentsToAlbum(
+  collectionId: string,
+  momentIds: readonly string[],
+  addedByUserId: string
+): Promise<{ added: string[]; skipped: string[] }> {
+  const existing: string[] = [];
+  for (let i = 0; i < momentIds.length; i += BULK_ID_CHUNK) {
+    const { data, error } = await supabase
+      .from("collection_moments")
+      .select("moment_id")
+      .eq("collection_id", collectionId)
+      .in("moment_id", momentIds.slice(i, i + BULK_ID_CHUNK));
+    if (error) throw error;
+    for (const r of (data ?? []) as { moment_id: string }[]) existing.push(r.moment_id);
+  }
+  const { toAdd, skipped } = planAlbumAdd(momentIds, existing);
+  if (toAdd.length === 0) return { added: [], skipped };
+
+  const { data: album, error: albumError } = await supabase
+    .from("collections")
+    .select("is_public")
+    .eq("id", collectionId)
+    .maybeSingle();
+  if (albumError) throw albumError;
+  if (album?.is_public) {
+    for (const id of toAdd) await ensureFullMedia(id, addedByUserId);
+  }
+
+  const { error } = await supabase
+    .from("collection_moments")
+    .insert(toAdd.map((id) => ({ collection_id: collectionId, moment_id: id, added_by_user_id: addedByUserId })));
+  if (error) throw error;
+  return { added: toAdd, skipped };
 }
 
 export async function removeMomentFromAlbum(collectionId: string, momentId: string): Promise<void> {

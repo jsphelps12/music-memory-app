@@ -75,13 +75,14 @@ the store app only (not β). Then a device build and TestFlight.
   into the film.
 
 **Over the air on 1.4 meanwhile:**
-- [ ] **Drafts you can see** (decided 2026-11-18): closing capture with
+- [x] **Drafts you can see** (decided 2026-11-18): built 2026-11-18 on native/1.4 (`.maestro/drafts.yaml`), OTA to 1.4 the same day (group 8419f305) after all three flows passed.: closing capture with
   writing asks "Keep as a draft?" (Keep draft / Discard); long-press + →
   Start from gets "Continue a draft" (with a count, lists every draft) when
-  any exist; plain + still picks up the newest, with a "Draft from … ·
-  Start fresh" line; crashes and iOS kills still save silently. No hidden
+  any exist; plain + opens blank, with no hint (Josh, 2026-11-18: a hint
+  would clutter the top; drafts live in long-press only); a continued draft
+  shows "Draft from …"; crashes and iOS kills still save silently. No hidden
   long-press on Save (long-press always opens a menu).
-- [ ] **Select moments** (decided 2026-11-18): "Select" in the card's
+- [x] **Select moments** (decided 2026-11-18): built 2026-11-18 on native/1.4 with the card menu (Edit, Share, Add to album, Select, Delete; `.maestro/select.yaml`), OTA to 1.4 the same day (group 8419f305) after all three flows passed.: "Select" in the card's
   long-press menu and in the Journal header enters selection mode; tap to
   tick; a bottom bar with Add to album and Delete ("Delete 5 moments?",
   photos deleted too). Journal first, album screens next. The menu stays
@@ -125,6 +126,8 @@ the store app only (not β). Then a device build and TestFlight.
   before building more on it. Start from `docs/SOCIAL-ARCHITECTURE.md`,
   the DB-2 items that touch sharing (link-shared moments, friend tokens,
   public albums) and how people actually use it.
+  Also revisit: Share as its own button on moment detail vs folded into
+  "…" (kept separate for now, Josh 2026-11-18).
 - [ ] DB-2 (RLS hardening step 2) once 1.4 is out and widely installed:
   raise the min-build gate, then ship it.
 - [ ] Database hygiene from the Supabase advisors (2026-11-17): ~~pin the

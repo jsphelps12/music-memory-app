@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { StyleSheet, View } from "react-native";
+import { useMemo, useState } from "react";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { useRouter, type Href } from "expo-router";
 import { usePostHog } from "posthog-react-native";
 import { BottomSheet } from "@/components/BottomSheet";
@@ -7,17 +7,44 @@ import { ListRow } from "@/components/ListRow";
 import type { IconName } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import {
+  continueDraftSubtitle,
+  draftExcerpt,
+  draftWhenLabel,
+  type CaptureDraft,
+} from "@/lib/captureDraft";
+
+const draftHref = (draft: CaptureDraft): Href => ({
+  pathname: "/create",
+  params: { draftId: draft.id, source: "capture_menu" },
+});
 
 /**
  * Long-press on the capture button (1.4, Josh's idea): places to start a
  * moment from. A tap on + still opens capture as always; this is the quick
  * pick for when you know where you want to begin.
+ *
+ * With drafts waiting (`drafts`: live, not open in another capture, newest
+ * first, read by TabBar before it opens this), "Continue a draft" comes
+ * first. One draft opens straight away; several open a second quick pick
+ * listing them, once this sheet has gone (DESIGN.md: hand off on onClosed).
  */
-export function CaptureMenu({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+export function CaptureMenu({
+  visible,
+  onClose,
+  drafts,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  drafts: readonly CaptureDraft[];
+}) {
   const router = useRouter();
   const posthog = usePostHog();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const [listOpen, setListOpen] = useState(false);
+  // Several drafts: list them once this sheet has gone.
+  const [listAfterClose, setListAfterClose] = useState(false);
 
   const go = (choice: string, href: Href) => {
     posthog?.capture("capture_menu_choice", { choice });
@@ -25,53 +52,109 @@ export function CaptureMenu({ visible, onClose }: { visible: boolean; onClose: (
     router.push(href);
   };
 
-  const rows: { key: string; label: string; subtitle: string; icon: IconName; href: Href }[] = [
+  const continueDraft = () => {
+    if (drafts.length === 1) {
+      go("continue_draft", draftHref(drafts[0]));
+      return;
+    }
+    posthog?.capture("capture_menu_choice", { choice: "continue_draft", drafts: drafts.length });
+    setListAfterClose(true);
+    onClose();
+  };
+
+  const rows: { key: string; label: string; subtitle: string; icon: IconName; onPress: () => void }[] = [
+    ...(drafts.length > 0
+      ? [
+          {
+            key: "continue_draft",
+            label: "Continue a draft",
+            subtitle: continueDraftSubtitle(drafts),
+            icon: "pencil-outline" as const,
+            onPress: continueDraft,
+          },
+        ]
+      : []),
     {
       key: "identify",
       label: "Identify",
       subtitle: "Listen for what's playing nearby",
       icon: "pulse",
-      href: { pathname: "/create", params: { identify: "1", source: "capture_menu" } },
+      onPress: () => go("identify", { pathname: "/create", params: { identify: "1", source: "capture_menu" } }),
     },
     {
       key: "search",
       label: "Search",
       subtitle: "Find a song by name or artist",
       icon: "search",
-      href: { pathname: "/create", params: { search: "1", source: "capture_menu" } },
+      onPress: () => go("search", { pathname: "/create", params: { search: "1", source: "capture_menu" } }),
     },
     {
       key: "last_week",
       label: "Last week",
       subtitle: "Songs and photos from the week just ended",
       icon: "calendar-outline",
-      href: "/last-week",
+      onPress: () => go("last_week", "/last-week"),
     },
     {
       key: "from_before",
       label: "From before",
       subtitle: "Old songs from your library, with their photos",
       icon: "time-outline",
-      href: "/from-before",
+      onPress: () => go("from_before", "/from-before"),
     },
   ];
 
+  const now = Date.now();
+
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Start from">
-      {/* Inset like every other sheet's rows, so the icons clear the edge. */}
-      <View style={styles.body}>
-        {rows.map((row, i) => (
-          <ListRow
-            key={row.key}
-            label={row.label}
-            subtitle={row.subtitle}
-            icon={row.icon}
-            last={i === rows.length - 1}
-            onPress={() => go(row.key, row.href)}
-          />
-        ))}
-      </View>
-    </BottomSheet>
+    <>
+      <BottomSheet
+        visible={visible}
+        onClose={onClose}
+        onClosed={() => {
+          if (!listAfterClose) return;
+          setListAfterClose(false);
+          setListOpen(true);
+        }}
+        title="Start from"
+      >
+        {/* Inset like every other sheet's rows, so the icons clear the edge. */}
+        <View style={styles.body}>
+          {rows.map((row, i) => (
+            <ListRow
+              key={row.key}
+              testID={`capture-menu-${row.key.replace(/_/g, "-")}`}
+              label={row.label}
+              subtitle={row.subtitle}
+              icon={row.icon}
+              last={i === rows.length - 1}
+              onPress={row.onPress}
+            />
+          ))}
+        </View>
+      </BottomSheet>
+
+      {/* Up to MAX_DRAFTS rows, so it scrolls past the sheet's height. */}
+      <BottomSheet visible={listOpen} onClose={() => setListOpen(false)} title="Drafts" testID="capture-drafts-sheet">
+        <ScrollView contentContainerStyle={styles.body}>
+          {drafts.map((draft, i) => (
+            <ListRow
+              key={draft.id}
+              testID={`capture-draft-${i}`}
+              label={draftExcerpt(draft.reflection)}
+              subtitle={[draft.song?.title, draftWhenLabel(draft.savedAt, now)].filter(Boolean).join(" · ")}
+              subtitleLines={1}
+              last={i === drafts.length - 1}
+              onPress={() => {
+                posthog?.capture("capture_menu_draft_opened", { index: i, drafts: drafts.length });
+                setListOpen(false);
+                router.push(draftHref(draft));
+              }}
+            />
+          ))}
+        </ScrollView>
+      </BottomSheet>
+    </>
   );
 }
 

@@ -20,7 +20,7 @@ import { IconButton } from "@/components/IconButton";
 import { Chip } from "@/components/Chip";
 import * as Haptics from "expo-haptics";
 import type { IconName } from "@/components/Icon";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, usePreventRemove } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { useQueryClient } from "@tanstack/react-query";
@@ -63,7 +63,10 @@ import {
   startDraftSession,
   afterDraftLoad,
   afterMomentSaved,
+  afterDraftDiscarded,
   canWriteDraft,
+  isWorthKeeping,
+  draftWhenLabel,
   newDraftId,
   type DraftSession,
 } from "@/lib/captureDraft";
@@ -146,6 +149,8 @@ export default function CreateMomentScreen() {
     /** From before: offer the week's photos (epoch ms bounds) rather than the day's. */
     photosFrom?: string;
     photosTo?: string;
+    /** From "Continue a draft" (components/CaptureMenu): pick up exactly this draft. */
+    draftId?: string;
   }>();
 
   // Opened from a widget or control: worth knowing whether capture-from-
@@ -301,20 +306,29 @@ export default function CreateMomentScreen() {
     if (params.promptStarter) replaceReflection(params.promptStarter, false);
   }, [params.promptStarter, replaceReflection]);
 
-  // Drafts: writing survives Cancel, a crash or iOS killing the app. This
+  // Drafts: writing survives a crash or iOS killing the app, silently, and
+  // closing capture asks whether to keep it (below, by close()). This
   // capture writes only its own draft (lib/captureDraft.ts), so a pre-filled
   // one (a share, Last week, From before, a prompt, Identify) leaves an
   // earlier draft alone for the next blank capture to pick up. A blank
   // capture picks up the newest draft, and writes wait until that read is
-  // done. After the save nothing is written again.
-  const [restoredDraft, setRestoredDraft] = useState(false);
+  // done (or, from "Continue a draft", exactly the draft picked: draftId).
+  // After the save, or Discard, nothing is written again.
+  // When the picked-up draft was last written (for "Draft from Tuesday"), or
+  // null when this capture didn't pick one up.
+  const [restoredDraftAt, setRestoredDraftAt] = useState<number | null>(null);
   const draftSession = useRef<DraftSession | null>(null);
   const latestDraft = useRef<{ reflection: string; song: Song | null }>({ reflection: "", song: null });
   // Text the app put in (starters, prompts): not the user's writing on its own.
-  const draftTemplates = useRef<string[]>([
+  // State for the close prompt's check in render; the ref for effects.
+  const [templates, setTemplates] = useState<string[]>(() => [
     ...STARTERS.map((s) => s.text),
     ...(params.promptStarter ? [params.promptStarter] : []),
   ]);
+  const draftTemplates = useRef(templates);
+  useEffect(() => {
+    draftTemplates.current = templates;
+  }, [templates]);
   useEffect(() => {
     if (!user) return;
     const prefilled =
@@ -324,11 +338,15 @@ export default function CreateMomentScreen() {
     const session = startDraftSession(newDraftId(), prefilled);
     draftSession.current = session;
     if (session.phase === "open") return;
-    loadDraftToPickUp(user.id, { prefilled, typed: () => latestDraft.current.reflection }).then((draft) => {
+    loadDraftToPickUp(user.id, {
+      prefilled,
+      typed: () => latestDraft.current.reflection,
+      draftId: params.draftId,
+    }).then((draft) => {
       if (draft) {
         replaceReflection(draft.reflection, false);
         if (draft.song) handleSongChange(draft.song);
-        setRestoredDraft(true);
+        setRestoredDraftAt(draft.savedAt);
       }
       draftSession.current = afterDraftLoad(draftSession.current ?? session, draft);
       // Anything typed while the read was in flight: keep it now rather
@@ -373,7 +391,7 @@ export default function CreateMomentScreen() {
     draftSession.current = startDraftSession(newDraftId(), true);
     replaceReflection("", false);
     if (!params.sharedPhotoPaths) setPhotos([]);
-    setRestoredDraft(false);
+    setRestoredDraftAt(null);
     // Only a new share starts this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shareKey]);
@@ -399,7 +417,7 @@ export default function CreateMomentScreen() {
     if (user && canWriteDraft(current)) void discardCaptureDraft(user.id, current.id);
     replaceReflection("", false);
     handleSongChange(null);
-    setRestoredDraft(false);
+    setRestoredDraftAt(null);
   };
 
   const openFullPage = () => {
@@ -499,6 +517,52 @@ export default function CreateMomentScreen() {
     setShowCandidateModal(false);
   };
 
+  function close() {
+    if (router.canGoBack()) router.back();
+    else router.replace("/(tabs)");
+  }
+
+  // Closing with writing worth keeping asks (✕, swipe back, a replace): keep
+  // it as a draft, or discard it. Dismissing the question stays in capture.
+  // A crash or iOS killing the app still keeps the draft silently (above).
+  const [keepAsk, setKeepAsk] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const keepChoice = useRef<"keep" | "discard" | null>(null);
+  const continueLeave = useRef<(() => void) | null>(null);
+  const worthKeeping = isWorthKeeping(reflection, templates);
+  const allowLeave = usePreventRemove(worthKeeping && !leaving, ({ repeat }) => {
+    Keyboard.dismiss();
+    keepChoice.current = null;
+    continueLeave.current = repeat;
+    setKeepAsk(true);
+  });
+
+  const chooseKeep = (choice: "keep" | "discard") => {
+    Haptics.selectionAsync();
+    keepChoice.current = choice;
+    if (choice === "discard") {
+      const current = draftSession.current;
+      if (current) {
+        // Before anything else can write it back: the flush on leaving
+        // checks the session.
+        draftSession.current = afterDraftDiscarded(current);
+        if (user) void discardCaptureDraft(user.id, current.id);
+      }
+    }
+    setKeepAsk(false);
+  };
+
+  // Leave once the question's sheet is gone (DESIGN.md: hand off on onClosed).
+  const onKeepAskClosed = () => {
+    const choice = keepChoice.current;
+    const leave = continueLeave.current;
+    keepChoice.current = null;
+    continueLeave.current = null;
+    if (!choice || !leave) return;
+    setLeaving(true);
+    leave();
+  };
+
   const handleSave = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!hasSong) {
@@ -574,7 +638,7 @@ export default function CreateMomentScreen() {
       }
 
       // Reset form
-      setRestoredDraft(false);
+      setRestoredDraftAt(null);
       handleSongChange(null);
       replaceReflection("", false);
       setSelectedMoods([]);
@@ -595,11 +659,10 @@ export default function CreateMomentScreen() {
       // stale too — invalidate here rather than widening saveMoment's signature.
       if (savedToAlbumId) invalidateAlbumCaches(queryClient, user.id, savedToAlbumId);
 
-      if (router.canGoBack()) {
-        router.back();
-      } else {
-        router.replace("/(tabs)");
-      }
+      // Saved: nothing left to ask about. Lift the close guard now; the
+      // reset above only lands on the next render.
+      allowLeave();
+      close();
     } catch (e: any) {
       Sentry.captureException(e);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -609,8 +672,6 @@ export default function CreateMomentScreen() {
       setLoading(false);
     }
   };
-
-  const close = () => (router.canGoBack() ? router.back() : router.replace("/(tabs)"));
 
   const openSheet = (sheet: Exclude<DetailSheet, null>) => {
     Keyboard.dismiss();
@@ -735,10 +796,21 @@ export default function CreateMomentScreen() {
           />
         </View>
 
-        {restoredDraft ? (
-          <View style={styles.draftRow}>
-            <Text style={styles.draftText}>Picked up where you left off</Text>
-            <Button label="Start fresh" variant="text" size="pill" onPress={startFresh} align="center" />
+        {restoredDraftAt !== null ? (
+          <View style={styles.draftRow} testID="create-draft-line">
+            <Text style={styles.draftText}>
+              Draft from {draftWhenLabel(restoredDraftAt, Date.now())} ·
+            </Text>
+            <Button
+              testID="create-start-fresh"
+              label="Start fresh"
+              variant="text"
+              tone="secondary"
+              size="pill"
+              onPress={startFresh}
+              align="center"
+              accessibilityLabel="Start fresh: clear this draft"
+            />
           </View>
         ) : null}
 
@@ -925,12 +997,40 @@ export default function CreateMomentScreen() {
       <PromptPickerModal
         visible={promptPickerVisible}
         onSelect={(prompt) => {
-          draftTemplates.current.push(prompt);
+          setTemplates((list) => [...list, prompt]);
+          draftTemplates.current = [...draftTemplates.current, prompt];
           replaceReflection(prompt, true);
         }}
         onClose={() => setPromptPickerVisible(false)}
         customCategories={profile?.customPromptCategories ?? []}
       />
+
+      {/* Closing with writing: keep it as a draft or discard it. Its own
+          sheet, not confirmSheet(): dismissing it means "stay", a third
+          answer confirmSheet can't give. Capture is a push, so this presents
+          like any screen's sheet. */}
+      <BottomSheet
+        visible={keepAsk}
+        onClose={() => setKeepAsk(false)}
+        onClosed={onKeepAskClosed}
+        title="Keep as a draft?"
+        headerAction="none"
+        testID="capture-draft-sheet"
+      >
+        <View style={styles.keepBody}>
+          <Text style={styles.keepMessage}>You can finish it from + later.</Text>
+          <Button testID="capture-draft-keep" label="Keep draft" onPress={() => chooseKeep("keep")} />
+          <Button
+            testID="capture-draft-discard"
+            label="Discard"
+            variant="text"
+            tone="destructive"
+            fullWidth
+            onPress={() => chooseKeep("discard")}
+            style={styles.keepDiscard}
+          />
+        </View>
+      </BottomSheet>
 
       {/* Spotify candidate selection — quick pick, so a compact sheet */}
       <BottomSheet
@@ -1014,8 +1114,22 @@ function createStyles(theme: Theme) {
     draftRow: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
+      gap: theme.spacing.xs,
       marginBottom: theme.spacing.sm,
+    },
+    // The keep-or-discard question: laid out like ConfirmSheet's.
+    keepBody: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingBottom: theme.spacing.xs,
+    },
+    keepMessage: {
+      ...theme.typography.body,
+      fontSize: theme.fontSize.callout,
+      color: theme.colors.textSecondary,
+      marginBottom: theme.spacing.xl,
+    },
+    keepDiscard: {
+      marginTop: theme.spacing.xs,
     },
     draftText: {
       ...theme.typography.meta,
