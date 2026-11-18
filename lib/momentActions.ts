@@ -12,6 +12,17 @@ export const DELETE_MOMENT_CONFIRM: ConfirmOptions = {
   destructive: true,
 };
 
+/** Select mode's Delete: one moment reads exactly like the single delete. */
+export function deleteMomentsConfirm(count: number): ConfirmOptions {
+  if (count === 1) return DELETE_MOMENT_CONFIRM;
+  return {
+    title: `Delete ${count} moments?`,
+    message: "Their photos are deleted too. This can't be undone.",
+    confirmLabel: "Delete",
+    destructive: true,
+  };
+}
+
 export const REMOVE_FROM_ALBUM_CONFIRM: ConfirmOptions = {
   title: "Remove from album?",
   message: "It stays in your journal.",
@@ -22,6 +33,7 @@ export const REMOVE_FROM_ALBUM_CONFIRM: ConfirmOptions = {
 /** Alert titles that say what failed; friendlyError() supplies the message. */
 export const DELETE_MOMENT_FAILED = "Couldn't delete moment";
 export const REMOVE_FROM_ALBUM_FAILED = "Couldn't remove from album";
+export const ADD_TO_ALBUM_FAILED = "Couldn't add to album";
 
 interface SongIds {
   songSpotifyId?: string | null;

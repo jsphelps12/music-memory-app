@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePostHog } from "posthog-react-native";
 import {
+  AccessibilityInfo,
+  Alert,
   View,
   Text,
   SectionList,
@@ -10,7 +12,10 @@ import {
   ActivityIndicator,
   ScrollView,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import Animated, {
+  FadeIn,
+  FadeOut,
   useSharedValue,
   useAnimatedStyle,
   withTiming,
@@ -19,8 +24,9 @@ import Animated, {
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useRouter } from "expo-router";
 import { useFocusEffect, useNavigation } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePlayerActions } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { consumeTimelineStale, planFocusFetch } from "@/lib/timelineRefresh";
@@ -48,7 +54,22 @@ import { SkeletonTimelineCard } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
-import { MomentCard } from "@/components/MomentCard";
+import { MomentCard, type CardMenuAction } from "@/components/MomentCard";
+import { MomentShareHost } from "@/components/MomentShareHost";
+import { MomentAlbumSheet } from "@/components/MomentAlbumSheet";
+import { SelectionAlbumSheet } from "@/components/SelectionAlbumSheet";
+import { Button } from "@/components/Button";
+import { confirmSheet } from "@/components/ConfirmSheet";
+import { deleteMoments } from "@/lib/deleteMoments";
+import { deleteMomentsConfirm, stopSongOfDeletedMoment } from "@/lib/momentActions";
+import {
+  albumAddNotice,
+  bulkDeleteFailedTitle,
+  pruneSelection,
+  selectionTitle,
+  toggleSelected,
+} from "@/lib/momentSelection";
+import { invalidateMomentCaches } from "@/lib/cacheInvalidation";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
 import { Icon } from "@/components/Icon";
@@ -58,7 +79,7 @@ import { DailyCheckInOffer } from "@/components/DailyCheckInOffer";
 import { LastWeekRow } from "@/components/LastWeekRow";
 import { useLastWeek } from "@/hooks/useLastWeek";
 import { lastWeekRowState } from "@/lib/lastWeek";
-import { Moment } from "@/types";
+import { Album, Moment, MomentCardData } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 30_000;
 // Reconnects can flap in a weak signal; a refresh within this window is enough.
@@ -67,6 +88,9 @@ const RECONNECT_COOLDOWN_MS = 10_000;
 const NETWORK_RETRY_MS = 5_000;
 // Unread-shares count is a badge-style query — 60s staleTime per the convention.
 const SHARED_BADGE_STALE_MS = 60_000;
+// How long a brief notice ("Added 3 moments to …") stays up.
+const NOTICE_MS = 2_500;
+const EMPTY_SELECTION: ReadonlySet<string> = new Set();
 
 /**
  * Every moment, just the columns the calendar draws, in timeline order (so a
@@ -160,6 +184,22 @@ export default function TimelineScreen() {
   const calendarFetchedRef = useRef<null | boolean>(null);
   const [pendingScrollId, setPendingScrollId] = useState<string | null>(null);
 
+  // Select mode (list view only): taps tick cards, a bar offers Add to album
+  // and Delete for all of them.
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(EMPTY_SELECTION);
+  const [bulkAlbumVisible, setBulkAlbumVisible] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [notice, setNotice] = useState("");
+  // The card menu's sheets, one instance for the whole list. The moment
+  // outlives `visible` so a sheet keeps its content while it slides away.
+  const [shareMoment, setShareMoment] = useState<MomentCardData | null>(null);
+  const [shareVisible, setShareVisible] = useState(false);
+  const [albumMomentId, setAlbumMomentId] = useState<string | null>(null);
+  const [albumVisible, setAlbumVisible] = useState(false);
+  const queryClient = useQueryClient();
+  const player = usePlayerActions();
+
   // Shared with you (Sharing v2) lives under You since Phase 1. The Journal
   // only carries a quiet "new from friends" row, driven by the cheap unread
   // count; /shared invalidates it once things are seen.
@@ -234,13 +274,20 @@ export default function TimelineScreen() {
     setCalendarLoading(false);
   }, [userId]);
 
+  const exitSelect = useCallback(() => {
+    setSelecting(false);
+    setSelected(EMPTY_SELECTION);
+  }, []);
+
   // Both views stay mounted; this only crossfades them. Fading to the view
-  // already shown is a no-op, so callers needn't check first.
+  // already shown is a no-op, so callers needn't check first. Select mode is
+  // the list's alone, so the calendar ends it.
   const showView = useCallback((mode: "list" | "calendar") => {
     listOpacity.set(withTiming(mode === "list" ? 1 : 0, { duration: 200 }));
     calendarOpacity.set(withTiming(mode === "calendar" ? 1 : 0, { duration: 200 }));
     setViewMode(mode);
-  }, [listOpacity, calendarOpacity]);
+    if (mode !== "list") exitSelect();
+  }, [listOpacity, calendarOpacity, exitSelect]);
 
   // Opening the calendar loads it if the list changed since it last did.
   useEffect(() => {
@@ -544,16 +591,121 @@ export default function TimelineScreen() {
   // In-place removal for long-press delete: the stale signal set by
   // deleteMomentWithCleanup only takes effect on the next focus, and deleting
   // from the card never leaves the screen.
-  const handleCardDeleted = useCallback((deletedId: string) => {
-    const list = momentsRef.current.filter((m) => m.id !== deletedId);
+  const removeFromList = useCallback((ids: readonly string[]) => {
+    const gone = new Set(ids);
+    const list = momentsRef.current.filter((m) => !gone.has(m.id));
     applyList(list, hasMoreRef.current);
     persistFirstPage(list);
-    setCalendarMoments((prev) => prev.filter((m) => m.id !== deletedId));
+    setCalendarMoments((prev) => prev.filter((m) => !gone.has(m.id)));
   }, [applyList, persistFirstPage]);
+  const handleCardDeleted = useCallback((deletedId: string) => removeFromList([deletedId]), [removeFromList]);
+
+  // ── Select mode ─────────────────────────────────────────────────────────
+  // Leaving the tab (or pushing a screen over it) ends it.
+  useFocusEffect(useCallback(() => exitSelect, [exitSelect]));
+
+  // A moment that leaves the list (deleted elsewhere, a refresh) leaves the
+  // selection too; with nothing left to select, select mode ends.
+  useEffect(() => {
+    if (moments.length === 0) {
+      exitSelect();
+      return;
+    }
+    setSelected((prev) => pruneSelection(prev, moments.map((m) => m.id)));
+  }, [moments, exitSelect]);
+
+  useEffect(() => {
+    if (!notice) return;
+    AccessibilityInfo.announceForAccessibility(notice);
+    const t = setTimeout(() => setNotice(""), NOTICE_MS);
+    return () => clearTimeout(t);
+  }, [notice]);
+
+  const enterSelect = useCallback((firstId?: string) => {
+    Haptics.selectionAsync();
+    setNotice("");
+    setSelecting(true);
+    setSelected(firstId ? new Set([firstId]) : EMPTY_SELECTION);
+  }, []);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelected((prev) => toggleSelected(prev, id));
+  }, []);
+
+  // The card menu's Share, Add to album and Select.
+  const handleMenuAction = useCallback((action: CardMenuAction, item: MomentCardData) => {
+    if (action === "select") {
+      enterSelect(item.id);
+    } else if (action === "share") {
+      Haptics.selectionAsync();
+      setShareMoment(item);
+      setShareVisible(true);
+      posthog?.capture("moment_shared", { song_title: item.songTitle, song_artist: item.songArtist, from: "journal_menu" });
+    } else {
+      Haptics.selectionAsync();
+      setAlbumMomentId(item.id);
+      setAlbumVisible(true);
+    }
+  }, [enterSelect, posthog]);
+
+  // The share sheet's own Add to album row, once that sheet has closed.
+  const shareToAlbum = useCallback(() => {
+    if (!shareMoment) return;
+    setAlbumMomentId(shareMoment.id);
+    setAlbumVisible(true);
+  }, [shareMoment]);
+
+  const selectedIds = useMemo(() => [...selected], [selected]);
+
+  const handleBulkAdded = useCallback((album: Album, result: { added: string[]; skipped: string[] }) => {
+    setBulkAlbumVisible(false);
+    exitSelect();
+    posthog?.capture("moments_added_to_album", { count: result.added.length, skipped: result.skipped.length });
+    setNotice(albumAddNotice(album.name, result.added.length, result.skipped.length));
+  }, [exitSelect, posthog]);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (bulkDeleting || selected.size === 0) return;
+    const targets = momentsRef.current.filter((m) => selected.has(m.id));
+    if (targets.length === 0) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    if (!(await confirmSheet(deleteMomentsConfirm(targets.length)))) return;
+    setBulkDeleting(true);
+    const result = await deleteMoments(targets);
+    setBulkDeleting(false);
+
+    const deleted = new Set(result.succeeded);
+    // Gone moments shouldn't keep playing (or linger paused in the mini player).
+    for (const m of targets) {
+      if (!deleted.has(m.id)) continue;
+      stopSongOfDeletedMoment(player, m);
+      posthog?.capture("moment_deleted", { song_title: m.songTitle, song_artist: m.songArtist, bulk: true });
+    }
+    if (result.succeeded.length > 0) {
+      invalidateMomentCaches(queryClient, userId);
+      removeFromList(result.succeeded);
+    }
+    if (result.failed.length > 0) {
+      // The ones that didn't go stay ticked, ready to try again.
+      setSelected(new Set(result.failed));
+      Alert.alert(bulkDeleteFailedTitle(result.failed.length, targets.length), friendlyError(result.firstError));
+      return;
+    }
+    exitSelect();
+  }, [bulkDeleting, selected, player, posthog, queryClient, userId, removeFromList, exitSelect]);
 
   const renderMoment = useCallback(({ item }: { item: Moment }) => (
-    <MomentCard item={item} allMoods={allMoods} onDeleted={handleCardDeleted} currentUserId={userId} />
-  ), [allMoods, handleCardDeleted, userId]);
+    <MomentCard
+      item={item}
+      allMoods={allMoods}
+      onDeleted={handleCardDeleted}
+      currentUserId={userId}
+      onMenuAction={handleMenuAction}
+      selecting={selecting}
+      selected={selecting && selected.has(item.id)}
+      onToggleSelect={toggleSelect}
+    />
+  ), [allMoods, handleCardDeleted, userId, handleMenuAction, selecting, selected, toggleSelect]);
 
   const listHeader = (
     <>
@@ -592,9 +744,30 @@ export default function TimelineScreen() {
     <View style={styles.container}>
       <ScreenHeader
         leading="none"
-        title="Journal"
+        title={selecting ? selectionTitle(selected.size) : "Journal"}
         right={
+          selecting ? (
+            <Button
+              label="Done"
+              variant="text"
+              size="pill"
+              onPress={exitSelect}
+              testID="select-done"
+            />
+          ) : (
           <>
+            {viewMode === "list" && moments.length > 0 ? (
+              <Button
+                label="Select"
+                variant="text"
+                size="pill"
+                onPress={() => enterSelect()}
+                testID="journal-select"
+                // Not just "Select": the card menu has a "Select" too.
+                accessibilityLabel="Select moments"
+                accessibilityHint="Pick moments to add to an album or delete"
+              />
+            ) : null}
             {/* One control for the three ways to see the journal. List and
                 calendar are in-place views of My Moments (both stay mounted);
                 map is its own screen. */}
@@ -628,6 +801,7 @@ export default function TimelineScreen() {
               })}
             </View>
           </>
+          )
         }
         style={styles.header}
       />
@@ -673,6 +847,7 @@ export default function TimelineScreen() {
                 <SectionList
                   ref={sectionListRef}
                   sections={sections}
+                  extraData={selected}
                   keyExtractor={(item) => item.id}
                   renderItem={renderMoment}
                   renderSectionHeader={({ section: { title } }) => (
@@ -714,7 +889,69 @@ export default function TimelineScreen() {
             </Animated.View>
           </View>
         </GestureDetector>
+
+        {/* Select mode's actions, just above the tab bar. Left-aligned so the
+            floating capture button keeps its corner. */}
+        {selecting ? (
+          <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(150)} style={styles.selectBar}>
+            <Button
+              label="Add to album"
+              icon="albums-outline"
+              variant="text"
+              size="pill"
+              disabled={selected.size === 0 || bulkDeleting}
+              onPress={() => setBulkAlbumVisible(true)}
+              testID="select-bar-album"
+            />
+            <Button
+              label="Delete"
+              icon="trash-outline"
+              variant="text"
+              size="pill"
+              tone="destructive"
+              disabled={selected.size === 0}
+              loading={bulkDeleting}
+              onPress={() => void handleBulkDelete()}
+              testID="select-bar-delete"
+            />
+          </Animated.View>
+        ) : null}
+
+        <View style={styles.noticeWrap} pointerEvents="none">
+          {notice ? (
+            <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(200)} style={styles.notice}>
+              <Icon name="checkmark" size={16} color={theme.colors.text} />
+              <Text style={styles.noticeText} numberOfLines={2}>{notice}</Text>
+            </Animated.View>
+          ) : null}
+        </View>
       </View>
+
+      {userId && shareMoment ? (
+        <MomentShareHost
+          moment={shareMoment}
+          visible={shareVisible}
+          onClose={() => setShareVisible(false)}
+          onAddToAlbum={shareToAlbum}
+        />
+      ) : null}
+      {userId ? (
+        <>
+          <MomentAlbumSheet
+            momentId={albumMomentId}
+            visible={albumVisible}
+            onClose={() => setAlbumVisible(false)}
+            userId={userId}
+          />
+          <SelectionAlbumSheet
+            visible={bulkAlbumVisible}
+            momentIds={selectedIds}
+            userId={userId}
+            onClose={() => setBulkAlbumVisible(false)}
+            onAdded={handleBulkAdded}
+          />
+        </>
+      ) : null}
     </View>
   );
 }
@@ -791,6 +1028,48 @@ function createStyles(theme: Theme) {
     },
     footerSpinner: {
       paddingVertical: theme.spacing.xl,
+    },
+    // Over the bottom of the list, which already clears 110pt for the
+    // capture button; the right side stays free for that button.
+    selectBar: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      bottom: 0,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.lg,
+      paddingLeft: theme.spacing.lg,
+      paddingRight: 100,
+      paddingVertical: theme.spacing.sm,
+      backgroundColor: theme.colors.background,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
+    },
+    // A brief notice where the select bar was: a raised surface with a
+    // hairline edge, no shadow, clear of the capture button.
+    noticeWrap: {
+      position: "absolute",
+      left: theme.spacing.xl,
+      right: 100,
+      bottom: theme.spacing.lg,
+      alignItems: "flex-start",
+    },
+    notice: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.radii.md,
+      backgroundColor: theme.colors.elevated,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+    },
+    noticeText: {
+      ...theme.typography.callout,
+      color: theme.colors.text,
+      flexShrink: 1,
     },
     listContent: {
       paddingHorizontal: theme.spacing.xl,

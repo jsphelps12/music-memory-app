@@ -9,9 +9,10 @@ import type { Song } from "@/types";
  * that one. So a capture opened pre-filled (a shared song, Last week, From
  * before, a prompt, Identify) can never overwrite or wipe writing left in an
  * earlier capture: that draft waits, and the next blank capture picks it up.
- * A blank capture picks up the newest draft and takes over its id. A draft
- * goes away when its own capture is saved, on "Start fresh", when its text is
- * emptied, or after a week.
+ * A blank capture picks up the newest draft (or, opened from "Continue a
+ * draft", exactly the one picked) and takes over its id. A draft goes away
+ * when its own capture is saved, on "Discard" when closing capture, on "Start
+ * fresh", when its text is emptied, or after a week.
  *
  * The rules are pure functions below (tested in
  * lib/__tests__/captureDraft.test.ts); the storage calls run one at a time so
@@ -80,18 +81,74 @@ export function withoutDraft(drafts: readonly CaptureDraft[], id: string, now: n
   );
 }
 
+/** One live draft by id, or null if it has expired, emptied or gone. */
+export function draftById(drafts: readonly CaptureDraft[], id: string, now: number): CaptureDraft | null {
+  return liveDrafts(drafts, now).find((d) => d.id === id) ?? null;
+}
+
 /**
- * What a capture screen picks up as it opens: the newest draft, but only for
- * a blank capture (pre-filled ones never pick one up), and only while
- * nothing has been typed yet, so a draft never replaces fresh writing.
+ * What a capture screen picks up as it opens: the newest draft, or exactly
+ * the one asked for (`draftId`, from "Continue a draft"; if that one has gone,
+ * nothing rather than a different one). Only for a blank capture (pre-filled
+ * ones never pick one up), and only while nothing has been typed yet, so a
+ * draft never replaces fresh writing.
  */
 export function draftToPickUp(
   drafts: readonly CaptureDraft[],
-  opts: { prefilled: boolean; typed: string },
+  opts: { prefilled: boolean; typed: string; draftId?: string },
   now: number
 ): CaptureDraft | null {
   if (opts.prefilled || opts.typed.trim()) return null;
+  if (opts.draftId) return draftById(drafts, opts.draftId, now);
   return liveDrafts(drafts, now)[0] ?? null;
+}
+
+// ── Labels ──────────────────────────────────────────────────────────────────
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function startOfDay(t: number): number {
+  const d = new Date(t);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+/**
+ * When a draft was last written, the way a person would say it, in local
+ * time: "this morning", "this afternoon", "this evening", "last night",
+ * "yesterday", a weekday within the week ("Tuesday"), else a date ("Nov 10").
+ * Reads after "Draft from".
+ */
+export function draftWhenLabel(savedAt: number, now: number): string {
+  const saved = new Date(savedAt);
+  // Calendar days apart, robust to DST (a day can be 23 or 25 hours).
+  const days = Math.round((startOfDay(now) - startOfDay(savedAt)) / 86_400_000);
+  const hour = saved.getHours();
+  if (days <= 0) {
+    if (hour < 5) return "last night";
+    if (hour < 12) return "this morning";
+    if (hour < 17) return "this afternoon";
+    return "this evening";
+  }
+  if (days === 1) return hour >= 21 ? "last night" : "yesterday";
+  if (days < 7) return WEEKDAYS[saved.getDay()];
+  return `${MONTHS[saved.getMonth()]} ${saved.getDate()}`;
+}
+
+/** A draft's first line of writing, cut at a word near `max` characters. */
+export function draftExcerpt(reflection: string, max = 48): string {
+  const line = reflection.split("\n").map((l) => l.trim()).find(Boolean) ?? "";
+  if (line.length <= max) return line;
+  const cut = line.slice(0, max);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max / 2 ? cut.slice(0, space) : cut).replace(/[\s.,;:!?-]+$/, "")}…`;
+}
+
+/** The "Continue a draft" row's subtitle: the one draft's words, or how many. */
+export function continueDraftSubtitle(drafts: readonly CaptureDraft[]): string {
+  if (drafts.length === 1) return draftExcerpt(drafts[0].reflection);
+  return `${drafts.length} drafts`;
 }
 
 /**
@@ -101,8 +158,10 @@ export function draftToPickUp(
  * - "open": writes go to this capture's own id.
  * - "saved": the moment is saved. Nothing is written again, or a late debounce
  *   or the flush on leaving would bring the draft back after the save.
+ * - "discarded": the user closed capture and chose Discard. Same rule: the
+ *   flush on leaving mustn't write the draft back.
  */
-export type DraftPhase = "loading" | "open" | "saved";
+export type DraftPhase = "loading" | "open" | "saved" | "discarded";
 
 export interface DraftSession {
   id: string;
@@ -121,6 +180,10 @@ export function afterDraftLoad(session: DraftSession, pickedUp: CaptureDraft | n
 
 export function afterMomentSaved(session: DraftSession): DraftSession {
   return { ...session, phase: "saved" };
+}
+
+export function afterDraftDiscarded(session: DraftSession): DraftSession {
+  return { ...session, phase: "discarded" };
 }
 
 export function canWriteDraft(session: DraftSession | null): session is DraftSession {
@@ -190,16 +253,34 @@ const held = new Set<string>();
  */
 export function loadDraftToPickUp(
   userId: string,
-  opts: { prefilled: boolean; typed: () => string }
+  opts: { prefilled: boolean; typed: () => string; draftId?: string }
 ): Promise<CaptureDraft | null> {
   return serial(async () => {
     try {
       const free = (await readDrafts(userId)).filter((d) => !held.has(d.id));
-      const draft = draftToPickUp(free, { prefilled: opts.prefilled, typed: opts.typed() }, Date.now());
+      const draft = draftToPickUp(
+        free,
+        { prefilled: opts.prefilled, typed: opts.typed(), draftId: opts.draftId },
+        Date.now()
+      );
       if (draft) held.add(draft.id);
       return draft;
     } catch {
       return null;
+    }
+  });
+}
+
+/**
+ * Drafts a capture could pick up right now, newest first: live, and not held
+ * by a capture that's open (for "Continue a draft" in the long-press menu).
+ */
+export function listCaptureDrafts(userId: string): Promise<CaptureDraft[]> {
+  return serial(async () => {
+    try {
+      return liveDrafts(await readDrafts(userId), Date.now()).filter((d) => !held.has(d.id));
+    } catch {
+      return [];
     }
   });
 }

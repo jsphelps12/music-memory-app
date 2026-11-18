@@ -3,6 +3,7 @@ import { runWhenIdle, type IdleTask } from "@/lib/whenIdle";
 import { CaptureMenu } from "@/components/CaptureMenu";
 import { CaptureHint } from "@/components/CaptureHint";
 import { captureHintSeen, markCaptureHintSeen } from "@/lib/captureHint";
+import { listCaptureDrafts, type CaptureDraft } from "@/lib/captureDraft";
 import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
@@ -53,6 +54,9 @@ export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps
   const router = useRouter();
   const { user } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  // Read as the menu opens, so "Continue a draft" is there from its first
+  // frame rather than popping in and resizing the sheet.
+  const [menuDrafts, setMenuDrafts] = useState<CaptureDraft[]>([]);
   const [hint, setHint] = useState(false);
 
   // The tabs are lazy (app/(tabs)/_layout.tsx), so Rediscover and You no
@@ -134,7 +138,11 @@ export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           setHint(false);
           void markCaptureHintSeen();
-          setMenuOpen(true);
+          const read = user ? listCaptureDrafts(user.id) : Promise.resolve([]);
+          void read.then((drafts) => {
+            setMenuDrafts(drafts);
+            setMenuOpen(true);
+          });
         }}
         delayLongPress={350}
         activeOpacity={0.85}
@@ -144,7 +152,7 @@ export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps
       </TouchableOpacity>
 
       <CaptureHint visible={hint} onDismiss={() => setHint(false)} />
-      <CaptureMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
+      <CaptureMenu visible={menuOpen} onClose={() => setMenuOpen(false)} drafts={menuDrafts} />
 
       <MiniPlayer />
       <View style={[styles.bar, { height: 49 + insets.bottom, paddingBottom: insets.bottom }]}>

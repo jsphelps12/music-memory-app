@@ -1,0 +1,96 @@
+# Select mode in the Journal: the card's long-press menu → Select, ticking and
+# unticking, then Delete from the bottom bar for everything selected.
+#
+# One moment only: create-moment.yaml starts from the empty Journal's
+# "Capture a song" button, and a second capture would need the floating "+",
+# which XCUITest can't tap reliably (see that subflow). Add a second card here
+# once there's a tappable way in.
+#
+# Runs as the E2E account on production, reset to empty first:
+#   scripts/e2e-local.sh select        (see that script for setup)
+appId: com.joshuaphelps.musicmemory.preview
+---
+- runFlow: subflows/sign-in.yaml
+- runFlow:
+    file: subflows/create-moment.yaml
+    env:
+      REFLECTION: "e2e select reflection"
+- takeScreenshot: 01-journal
+
+# The header's Select is there while the list has moments.
+- assertVisible:
+    id: "journal-select"
+
+# --- Long-press → Select: that card starts ticked --------------------------
+- longPressOn:
+    id: "moment-card-title"
+- extendedWaitUntil:
+    visible: "Select"
+    timeout: 5000
+- takeScreenshot: 02-card-menu
+# Exact match: the header button reads "Select moments" to VoiceOver.
+- tapOn: "Select"
+- extendedWaitUntil:
+    visible:
+      id: "select-bar-delete"
+    timeout: 5000
+- waitForAnimationToEnd
+- assertVisible: "1 selected"
+- assertVisible:
+    id: "select-done"
+- assertNotVisible:
+    id: "journal-select"
+- takeScreenshot: 03-select-mode
+
+# A tap toggles the tick (and doesn't open the moment).
+- tapOn:
+    id: "moment-card-title"
+- assertVisible: "Select moments"
+- assertVisible:
+    id: "select-bar-delete"
+    enabled: false
+- tapOn:
+    id: "moment-card-title"
+- assertVisible: "1 selected"
+- assertNotVisible:
+    id: "moment-more"
+
+# --- Done leaves select mode; the header's Select comes back ----------------
+- tapOn:
+    id: "select-done"
+- extendedWaitUntil:
+    visible:
+      id: "journal-select"
+    timeout: 5000
+- assertNotVisible:
+    id: "select-bar-delete"
+
+# --- Header Select → tick → Delete from the bar -----------------------------
+- tapOn:
+    id: "journal-select"
+- extendedWaitUntil:
+    visible: "Select moments"
+    timeout: 5000
+- tapOn:
+    id: "moment-card-title"
+- assertVisible: "1 selected"
+- tapOn:
+    id: "select-bar-delete"
+- extendedWaitUntil:
+    visible:
+      id: "confirm-sheet-confirm"
+    timeout: 5000
+- waitForAnimationToEnd
+- takeScreenshot: 04-delete-confirm
+- tapOn:
+    id: "confirm-sheet-confirm"
+# The list empties in place and select mode ends with it.
+- extendedWaitUntil:
+    visible:
+      id: "journal-empty-capture"
+    timeout: 15000
+- assertNotVisible:
+    id: "moment-card-title"
+- assertNotVisible:
+    id: "select-bar-delete"
+- takeScreenshot: 05-journal-after-delete

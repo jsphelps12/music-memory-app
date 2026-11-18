@@ -32,6 +32,7 @@ import { PlayingIndicator } from "@/components/PlayingIndicator";
 import { MomentActionMenu, MenuAnchor, MomentMenuItem } from "@/components/MomentActionMenu";
 import { ContextMenuView, type ContextMenuAction } from "@/modules/context-menu";
 import { confirmSheet } from "@/components/ConfirmSheet";
+import { Icon } from "@/components/Icon";
 import { DELETE_MOMENT_CONFIRM, DELETE_MOMENT_FAILED, stopSongOfDeletedMoment } from "@/lib/momentActions";
 import { MomentCardData, Song } from "@/types";
 
@@ -53,12 +54,35 @@ interface Props {
    * re-render every card in every list.
    */
   currentUserId?: string;
+  /**
+   * Adds Share, Add to album and Select to the long-press menu (the Journal).
+   * The host shows the sheets once, not one per card.
+   */
+  onMenuAction?: (action: CardMenuAction, item: MomentCardData) => void;
+  /** Select mode: a tap ticks the card instead of opening it; no menu. */
+  selecting?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
+
+export type CardMenuAction = "share" | "album" | "select";
 
 // 56pt artwork at 3x. The stored URL is the 600px detail image.
 const ARTWORK_PX = 168;
 
-function MomentCardComponent({ item, allMoods, collectionId, collectionRole, showArtist = true, onDeleted, currentUserId }: Props) {
+function MomentCardComponent({
+  item,
+  allMoods,
+  collectionId,
+  collectionRole,
+  showArtist = true,
+  onDeleted,
+  currentUserId,
+  onMenuAction,
+  selecting = false,
+  selected = false,
+  onToggleSelect,
+}: Props) {
   const theme = useTheme();
   const router = useRouter();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -82,7 +106,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
 
   const handleLongPress = useCallback(() => {
-    if (!canModify) return;
+    if (!canModify || selecting) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     // Anchor the menu to the card's screen position so it hovers just above
     // the moment being acted on, not in a detached sheet at the bottom.
@@ -93,7 +117,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
         runOnJS(setMenuAnchor)({ x: m.pageX, y: m.pageY, width: m.width, height: m.height });
       }
     })();
-  }, [canModify, animatedRef]);
+  }, [canModify, selecting, animatedRef]);
 
   const confirmAndDelete = useCallback(async () => {
     const confirmed = await confirmSheet(DELETE_MOMENT_CONFIRM);
@@ -113,6 +137,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
 
   // The menu runs a row's action once it has finished closing, so the delete
   // confirm can present (iOS drops a Modal that starts mid-dismiss).
+  // Edit, Share, Add to album, Select, then Delete last (DESIGN.md, Menus).
   const menuItems = useMemo<MomentMenuItem[]>(
     () => [
       {
@@ -121,6 +146,13 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
         icon: "pencil-outline",
         onPress: () => router.push(`/moment/edit/${item.id}`),
       },
+      ...(onMenuAction
+        ? ([
+            { key: "share", label: "Share", icon: "share-outline", onPress: () => onMenuAction("share", item) },
+            { key: "album", label: "Add to album", icon: "albums-outline", onPress: () => onMenuAction("album", item) },
+            { key: "select", label: "Select", icon: "checkmark-circle", onPress: () => onMenuAction("select", item) },
+          ] satisfies MomentMenuItem[])
+        : []),
       {
         key: "delete",
         label: "Delete",
@@ -129,18 +161,30 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
         onPress: () => void confirmAndDelete(),
       },
     ],
-    [item.id, router, confirmAndDelete]
+    [item, router, confirmAndDelete, onMenuAction]
   );
 
   // The iOS context menu (1.4): long-press lifts the card and attaches the
   // menu. Builds without the native view fall back to MomentActionMenu.
   const nativeMenu = canModify && !!ContextMenuView;
+  // No actions in select mode: the native view then offers no menu at all
+  // (it stays mounted, so the card isn't remounted on the way in or out).
   const nativeActions = useMemo<ContextMenuAction[]>(
-    () => [
-      { id: "edit", title: "Edit", systemImage: "pencil" },
-      { id: "delete", title: "Delete", systemImage: "trash", destructive: true },
-    ],
-    []
+    () =>
+      selecting
+        ? []
+        : [
+            { id: "edit", title: "Edit", systemImage: "pencil" },
+            ...(onMenuAction
+              ? [
+                  { id: "share", title: "Share", systemImage: "square.and.arrow.up" },
+                  { id: "album", title: "Add to album", systemImage: "rectangle.stack.badge.plus" },
+                  { id: "select", title: "Select", systemImage: "checkmark.circle" },
+                ]
+              : []),
+            { id: "delete", title: "Delete", systemImage: "trash", destructive: true },
+          ],
+    [selecting, onMenuAction]
   );
   const onNativeAction = useCallback(
     (e: { nativeEvent: { id: string } }) => {
@@ -169,6 +213,11 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
   }, [item, isThisPlaying, player]);
 
   const handlePress = useCallback(() => {
+    if (selecting) {
+      Haptics.selectionAsync();
+      onToggleSelect?.(item.id);
+      return;
+    }
     setCachedMoment(item);
     // contributorName rides as a param so attribution survives the detail
     // screen's background refetch — mapRowToMoment only derives it for guest
@@ -192,7 +241,7 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
     })();
     // `item`, not just its id: an edited copy with the same id must be what
     // gets cached for the detail screen.
-  }, [item, collectionId, collectionRole, router, animatedRef]);
+  }, [item, collectionId, collectionRole, router, animatedRef, selecting, onToggleSelect]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.get() }],
@@ -229,17 +278,18 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
         scale.set(withSpring(1, { damping: 15, stiffness: 300 }));
       }}
       onPress={handlePress}
-      onLongPress={canModify && !nativeMenu ? handleLongPress : undefined}
+      onLongPress={canModify && !nativeMenu && !selecting ? handleLongPress : undefined}
       accessibilityRole="button"
       accessibilityLabel={`${item.songTitle} by ${item.songArtist}${formattedDate ? `, ${formattedDate}` : ""}`}
+      accessibilityState={selecting ? { selected } : undefined}
     >
       <View style={styles.header}>
         {/* Tapping the artwork plays; tapping anywhere else opens the entry. */}
         <TouchableOpacity
-          onPress={canPlay ? handlePlayPress : handlePress}
+          onPress={canPlay && !selecting ? handlePlayPress : handlePress}
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel={canPlay ? `${isThisPlaying ? "Pause" : "Play"} ${item.songTitle}` : undefined}
+          accessibilityLabel={canPlay && !selecting ? `${isThisPlaying ? "Pause" : "Play"} ${item.songTitle}` : undefined}
           style={styles.artworkButton}
         >
           {item.songArtworkUrl ? (
@@ -264,6 +314,15 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
           )}
         </View>
         {formattedDate ? <Text style={styles.date}>{formattedDate}</Text> : null}
+        {selecting ? (
+          <View style={styles.selectMark}>
+            {selected ? (
+              <Icon name="checkmark-circle" size={24} color={theme.colors.text} />
+            ) : (
+              <View style={styles.selectRing} />
+            )}
+          </View>
+        ) : null}
       </View>
 
       {item.reflectionText ? (
@@ -359,6 +418,22 @@ function createStyles(theme: Theme) {
       backgroundColor: "rgba(35,34,43,0.45)",
       alignItems: "center",
       justifyContent: "center",
+    },
+    // Select mode's tick: ink when picked, an empty ring when not. Ink, not
+    // terracotta: the accent is a signal, and a selection isn't news.
+    selectMark: {
+      width: 28,
+      height: 28,
+      marginLeft: theme.spacing.md,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    selectRing: {
+      width: 22,
+      height: 22,
+      borderRadius: theme.radii.full,
+      borderWidth: 1.5,
+      borderColor: theme.colors.textTertiary,
     },
     titles: {
       flex: 1,
