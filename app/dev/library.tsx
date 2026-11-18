@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Switch, Text, View } from "react-native";
-import { Stack } from "expo-router";
+import { Redirect, Stack } from "expo-router";
 import * as MediaLibrary from "expo-media-library/legacy";
 import { AppImage } from "@/components/AppImage";
 import { Button } from "@/components/Button";
@@ -19,7 +19,8 @@ import {
 import { setSuggestDayPhotos, suggestDayPhotos } from "@/lib/lastWeekData";
 
 // Photos ↔ music prototype (1.4). Hidden: long-press the version line at the
-// bottom of Settings. It runs only on this phone and saves nothing. Its job
+// bottom of Settings, in development and the beta app only. It runs only on
+// this phone and saves nothing but the day-photos switch. Its job
 // is to show whether Apple Music's "date added" is good enough to pair songs
 // with photos (see lib/libraryMoments.ts and ROADMAP "three moments a week").
 
@@ -57,7 +58,15 @@ async function photosAround(dateAdded: number): Promise<{ count: number; uris: s
   return { count: page.totalCount, uris: page.assets.map((a) => a.uri) };
 }
 
-export default function LibraryPrototype() {
+/** Development and the beta app only; the App Store app goes home instead. */
+const DEV_TOOLS = __DEV__ || process.env.EXPO_PUBLIC_APP_ENV === "preview";
+
+export default function LibraryPrototypeRoute() {
+  if (!DEV_TOOLS) return <Redirect href="/" />;
+  return <LibraryPrototype />;
+}
+
+function LibraryPrototype() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [state, setState] = useState<ScreenState>("idle");

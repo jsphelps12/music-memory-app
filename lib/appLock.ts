@@ -49,3 +49,89 @@ export function lockMethodLabel(kind: BiometryKind): string {
   if (kind === "touch") return "Touch ID";
   return "Passcode";
 }
+
+// ── What to do with an authentication result ───────────────────────────────
+//
+// The lock must never leave someone stuck on the cover. A cancel just leaves
+// the lock up with its button; a failure says why. If the phone can no longer
+// authenticate anyone at all (its passcode was removed after the lock was
+// turned on), the lock turns itself off and says so once: there is nothing
+// left for it to check against, and asking again would loop forever.
+
+/**
+ * The outcome of one Face ID / passcode prompt: expo-local-authentication's
+ * result, or `error: "exception"` when the call itself threw.
+ */
+export interface AuthAttempt {
+  success: boolean;
+  error?: string | null;
+}
+
+/** Errors meaning the phone has no passcode, so nothing can unlock the app. */
+const NO_DEVICE_AUTH_ERRORS = new Set(["passcode_not_set", "not_enrolled"]);
+
+/** The person (or the system) dismissed the prompt: nothing to explain. */
+const CANCEL_ERRORS = new Set(["user_cancel", "system_cancel", "app_cancel", "user_fallback"]);
+
+/**
+ * Whether this result is worth a second look at the device (getEnrolledLevel)
+ * before acting on it. Only the "no passcode" errors are.
+ */
+export function needsDeviceCheck(attempt: AuthAttempt): boolean {
+  return !attempt.success && NO_DEVICE_AUTH_ERRORS.has(attempt.error ?? "");
+}
+
+/**
+ * True when the phone can't authenticate anyone: the prompt said there's no
+ * passcode, and the device check (`deviceHasAuth`, null when it couldn't be
+ * made) doesn't contradict it.
+ */
+export function deviceCannotAuthenticate(attempt: AuthAttempt, deviceHasAuth: boolean | null): boolean {
+  return needsDeviceCheck(attempt) && deviceHasAuth !== true;
+}
+
+export const LOCK_TURNED_OFF_MESSAGE =
+  "This iPhone no longer has a passcode, so the Soundtracks lock is off. Set a passcode in Settings to turn it back on.";
+export const NEEDS_PASSCODE_MESSAGE = "Set a passcode for this iPhone in Settings to use the lock.";
+
+/** What to tell the person after a failed prompt; null for a cancel. */
+export function authFailureMessage(attempt: AuthAttempt, label: string): string | null {
+  const error = attempt.error ?? "";
+  if (CANCEL_ERRORS.has(error)) return null;
+  if (NO_DEVICE_AUTH_ERRORS.has(error)) return NEEDS_PASSCODE_MESSAGE;
+  if (error === "lockout") return "Too many tries. Unlock your iPhone with its passcode, then try again.";
+  if (error === "authentication_failed") return "That didn't match. Try again.";
+  return `Couldn't check ${label}. Try again.`;
+}
+
+export type UnlockDecision =
+  /** Lift the cover. */
+  | { kind: "unlock" }
+  /** Keep the cover and its retry button up, with this line (null: none). */
+  | { kind: "stay_locked"; message: string | null }
+  /** The phone can't authenticate: turn the setting off and show this once. */
+  | { kind: "turn_off"; message: string };
+
+export function decideUnlock(attempt: AuthAttempt, label: string, deviceHasAuth: boolean | null = null): UnlockDecision {
+  if (attempt.success) return { kind: "unlock" };
+  if (deviceCannotAuthenticate(attempt, deviceHasAuth)) return { kind: "turn_off", message: LOCK_TURNED_OFF_MESSAGE };
+  return { kind: "stay_locked", message: authFailureMessage(attempt, label) };
+}
+
+export type ToggleDecision = { kind: "apply" } | { kind: "refuse"; message: string | null };
+
+/**
+ * Settings → Lock with Face ID. Either direction asks first. Turning it off
+ * on a phone that can't authenticate anyone goes through: the lock already
+ * can't protect anything there, and refusing would leave it stuck on.
+ */
+export function decideToggle(
+  turningOn: boolean,
+  attempt: AuthAttempt,
+  label: string,
+  deviceHasAuth: boolean | null = null
+): ToggleDecision {
+  if (attempt.success) return { kind: "apply" };
+  if (!turningOn && deviceCannotAuthenticate(attempt, deviceHasAuth)) return { kind: "apply" };
+  return { kind: "refuse", message: authFailureMessage(attempt, label) };
+}

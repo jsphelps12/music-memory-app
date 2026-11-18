@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildJournalHtml, paragraphs, type ExportMoment } from "../journalExport";
+import { buildJournalHtml, compareBookOrder, paragraphs, type ExportMoment } from "../journalExport";
 
 const m = (date: string, over: Partial<ExportMoment> = {}): ExportMoment => ({
   songTitle: `Song ${date}`,
@@ -64,6 +64,32 @@ describe("buildJournalHtml", () => {
 
   it("handles an empty journal", () => {
     expect(buildJournalHtml([], { now })).toContain("0 moments");
+  });
+
+  it("prints moments that tie on date and time the same way whatever order they arrive in", () => {
+    const a = m("2026-05-01", { id: "a", songTitle: "Tie A" });
+    const b = m("2026-05-01", { id: "b", songTitle: "Tie B" });
+    expect(buildJournalHtml([b, a], { now })).toBe(buildJournalHtml([a, b], { now }));
+    const html = buildJournalHtml([b, a], { now });
+    expect(html.indexOf("Tie A")).toBeLessThan(html.indexOf("Tie B"));
+  });
+});
+
+describe("compareBookOrder", () => {
+  it("goes by day, then when it was written, then id", () => {
+    const sorted = [
+      m("2026-05-02", { id: "x", createdAt: "2026-05-02T08:00:00Z" }),
+      m("2026-05-01", { id: "b", createdAt: "2026-05-01T09:00:00Z" }),
+      m("2026-05-01", { id: "a", createdAt: "2026-05-01T09:00:00Z" }),
+      m("2026-05-01", { id: "c", createdAt: "2026-05-01T07:00:00Z" }),
+    ].sort(compareBookOrder);
+    expect(sorted.map((x) => x.id)).toEqual(["c", "a", "b", "x"]);
+  });
+
+  it("places an undated moment on the day it was saved", () => {
+    const undated = m("2026-05-03", { id: "u", momentDate: null, createdAt: "2026-05-03T10:00:00Z" });
+    const sorted = [m("2026-05-04", { id: "late" }), undated, m("2026-05-02", { id: "early" })].sort(compareBookOrder);
+    expect(sorted.map((x) => x.id)).toEqual(["early", "u", "late"]);
   });
 });
 

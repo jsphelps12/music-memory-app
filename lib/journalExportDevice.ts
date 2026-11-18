@@ -21,12 +21,16 @@ export async function fetchAllForExport(userId: string): Promise<ExportMoment[]>
       .select(YEAR_REVIEW_COLUMNS)
       .eq("user_id", userId)
       .order("created_at", { ascending: true })
+      // A unique tiebreak, so pages never overlap or skip a row when two
+      // moments share a created_at.
+      .order("id", { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) throw error;
     rows.push(...(data ?? []));
     if (!data || data.length < PAGE) break;
   }
   return rows.map(mapRowToMoment).map((mo) => ({
+    id: mo.id,
     songTitle: mo.songTitle,
     songArtist: mo.songArtist,
     songAlbumName: mo.songAlbumName,
