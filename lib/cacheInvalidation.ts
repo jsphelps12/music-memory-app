@@ -31,7 +31,8 @@ import type { QueryClient } from "@tanstack/react-query";
 /**
  * Screen-level queries keyed `[name, userId, ...]`. invalidateQueries matches
  * by prefix, so trailing segments are covered too (reflections is
- * `["reflections", userId, date]`).
+ * `["reflections", userId, date]`, Year in review `["yearReview", userId,
+ * year]`, the memory card `["memoryCard", userId, momentId]`).
  */
 const MOMENT_SCREEN_KEYS = [
   "browseMeta",
@@ -43,6 +44,8 @@ const MOMENT_SCREEN_KEYS = [
   "phoneOnThisDay",
   "fromBefore",
   "fromBeforeBrowse",
+  "yearReview",
+  "memoryCard",
 ] as const;
 
 /**

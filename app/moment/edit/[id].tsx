@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type SetStateAction } from "react";
 import { usePostHog } from "posthog-react-native";
 import {
   View,
@@ -45,6 +45,8 @@ import { onSongSelected } from "@/lib/songEvents";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches } from "@/lib/cacheInvalidation";
 
+type ScreenState = "loading" | "not_found" | "error" | "ready";
+
 export default function EditMomentScreen() {
   const router = useRouter();
   const { user, profile, saveCustomMood, deleteCustomMood } = useAuth();
@@ -85,8 +87,8 @@ export default function EditMomentScreen() {
   });
   const [momentDate, setMomentDate] = useState<Date | null>(new Date());
   const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
-  const [loadingMoment, setLoadingMoment] = useState(true);
-  const [loading, setLoading] = useState(false);
+  const [screenState, setScreenState] = useState<ScreenState>("loading");
+  const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
 
@@ -94,17 +96,22 @@ export default function EditMomentScreen() {
   useEffect(() => onSongSelected((s) => setSong(s)), []);
 
   const fetchMoment = useCallback(async () => {
-    setLoadingMoment(true);
+    setScreenState("loading");
     setLoadError("");
     const { data, error: fetchError } = await supabase
       .from("moments")
       .select("*")
       .eq("id", params.id)
-      .single();
+      .maybeSingle();
 
-    if (fetchError || !data) {
-      setLoadError(friendlyError(fetchError ?? new Error("Moment not found")));
-      setLoadingMoment(false);
+    if (fetchError) {
+      setLoadError(friendlyError(fetchError));
+      setScreenState("error");
+      return;
+    }
+    // Deleted (or never yours): nothing to retry.
+    if (!data) {
+      setScreenState("not_found");
       return;
     }
 
@@ -142,7 +149,7 @@ export default function EditMomentScreen() {
         ? { name: moment.location, lat: moment.locationLat, lng: moment.locationLng }
         : null
     );
-    setLoadingMoment(false);
+    setScreenState("ready");
   }, [params.id]);
 
   useEffect(() => {
@@ -198,19 +205,27 @@ export default function EditMomentScreen() {
   const pickedAssets = useRef<Record<string, string>>({});
   const pickedVideos = useRef<Record<string, number>>({});
 
-  const handlePhotosChange = (next: string[]) => {
-    setPhotos(
-      next.map((uri): EditedPhoto => {
-        const stored = storedByUrl.get(uri);
-        return stored
-          ? { kind: "kept", ...stored }
-          : {
-              kind: "new",
-              uri,
-              assetId: pickedAssets.current[uri] ?? null,
-              durationMs: pickedVideos.current[uri] ?? null,
-            };
-      })
+  const toEditedPhoto = (uri: string): EditedPhoto => {
+    const stored = storedByUrl.get(uri);
+    return stored
+      ? { kind: "kept", ...stored }
+      : {
+          kind: "new",
+          uri,
+          assetId: pickedAssets.current[uri] ?? null,
+          durationMs: pickedVideos.current[uri] ?? null,
+        };
+  };
+
+  // The picker can hand over an updater (photos picked from the library are
+  // added to the strip as it is when picking ends).
+  const handlePhotosChange = (next: SetStateAction<string[]>) => {
+    if (typeof next !== "function") {
+      setPhotos(next.map(toEditedPhoto));
+      return;
+    }
+    setPhotos((current) =>
+      next(current.map((p) => (p.kind === "kept" ? getPublicPhotoUrl(p.path) : p.uri))).map(toEditedPhoto)
     );
   };
 
@@ -234,10 +249,10 @@ export default function EditMomentScreen() {
       return;
     }
     setError("");
-    setLoading(true);
+    setSaving(true);
     if (!user) {
       setError("Session expired. Please sign in again.");
-      setLoading(false);
+      setSaving(false);
       return;
     }
     try {
@@ -273,11 +288,11 @@ export default function EditMomentScreen() {
       setError(friendlyError(e));
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  if (loadingMoment) {
+  if (screenState === "loading") {
     return (
       <View style={styles.container}>
         <SkeletonMomentDetail />
@@ -285,7 +300,11 @@ export default function EditMomentScreen() {
     );
   }
 
-  if (loadError) {
+  if (screenState === "not_found") {
+    return <ErrorState message="Moment not found" onBack={() => router.back()} />;
+  }
+
+  if (screenState === "error") {
     return (
       <ErrorState
         message={loadError}
@@ -302,7 +321,7 @@ export default function EditMomentScreen() {
     >
       <ScreenHeader
         title="Edit moment"
-        right={<Button label="Save" size="pill" onPress={handleSave} loading={loading} />}
+        right={<Button label="Save" size="pill" onPress={handleSave} loading={saving} />}
       />
       <ScrollView
         ref={scrollViewRef}

@@ -1,4 +1,4 @@
-import { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
+import { Ref, SetStateAction, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
 import { View, Text, Pressable, ActionSheetIOS, Alert, StyleSheet } from "react-native";
 import { Gesture, GestureDetector, ScrollView } from "react-native-gesture-handler";
 import Animated, {
@@ -32,8 +32,12 @@ export interface PhotoMetaSuggestion {
 
 interface PhotoPickerSectionProps {
   photos: string[];
-  /** Also called with the new order after a drag-to-reorder. */
-  onChange: (photos: string[]) => void;
+  /**
+   * Also called with the new order after a drag-to-reorder. Takes an updater
+   * too, like a state setter: the library picker reports after the user is
+   * done picking, and photos can have changed meanwhile.
+   */
+  onChange: (photos: SetStateAction<string[]>) => void;
   /** Called when EXIF data provides a date/location to auto-fill */
   onApplyMeta?: (date: Date | undefined, location: { name: string; lat: number | null; lng: number | null } | undefined) => void;
   /** Horizontal padding of the parent scroll view, used to extend the photo strip edge-to-edge */
@@ -165,7 +169,9 @@ export function PhotoPickerSection({
           if (Object.keys(ids).length) onAssetIds?.(ids);
           if (Object.keys(videos).length) onVideos?.(videos);
           if (uris.length === 0) return;
-          onChange([...photos, ...uris]);
+          // Onto the photos as they are now, not as they were when the
+          // picker opened (the day-photos strip can attach one meanwhile).
+          onChange((current) => [...current, ...uris.filter((uri) => !current.includes(uri))]);
           const meta = await extractPhotoMetadata(result.assets.filter((a) => a.type !== "video"));
           if (meta.date || meta.location) {
             setMetaSuggestion(meta);
@@ -180,7 +186,7 @@ export function PhotoPickerSection({
 
   const handleRemovePhoto = (uri: string) => {
     Haptics.selectionAsync();
-    onChange(photos.filter((p) => p !== uri));
+    onChange((current) => current.filter((p) => p !== uri));
   };
 
   const handleApplyMeta = () => {

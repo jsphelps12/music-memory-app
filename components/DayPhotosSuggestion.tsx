@@ -9,6 +9,7 @@ import { Theme } from "@/constants/theme";
 import { weekdayName, type WeekPhoto } from "@/lib/lastWeek";
 import { cameraPhotosChecked, photoFileUri, suggestDayPhotos } from "@/lib/lastWeekData";
 import { warmAnalyses } from "@/lib/photoAnalysisStore";
+import type { LoadedPhoto } from "@/lib/capturePhotos";
 
 const TILE = 64;
 
@@ -25,6 +26,7 @@ export function DayPhotosSuggestion({
   photos,
   onChange,
   onAssetIds,
+  onLoading,
 }: {
   /** Day key, "2026-11-15". */
   day: string;
@@ -36,6 +38,11 @@ export function DayPhotosSuggestion({
   onChange: Dispatch<SetStateAction<string[]>>;
   /** Which attached file is which library photo, so it links instead of uploading. */
   onAssetIds?: (map: Record<string, string>) => void;
+  /**
+   * Hears each tapped photo whose original is still loading, so Save can wait
+   * for it instead of saving without it.
+   */
+  onLoading?: (load: Promise<LoadedPhoto>) => void;
 }) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -99,9 +106,16 @@ export function DayPhotosSuggestion({
       return;
     }
     setPending((p) => ({ ...p, [photo.id]: true }));
-    const fileUri = await photoFileUri(photo);
-    setPending(({ [photo.id]: _done, ...rest }) => rest);
-    if (fileUri) attach(photo, fileUri);
+    const load = photoFileUri(photo)
+      .catch(() => null)
+      .then((fileUri): LoadedPhoto => {
+        setPending(({ [photo.id]: _done, ...rest }) => rest);
+        if (!fileUri) return null;
+        attach(photo, fileUri);
+        return { uri: fileUri, assetId: photo.id };
+      });
+    onLoading?.(load);
+    await load;
   };
 
   return (

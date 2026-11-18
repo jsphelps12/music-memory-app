@@ -25,7 +25,7 @@ import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/dat
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { extractExifFromPath } from "@/lib/photoMetadata";
-import { saveMoment } from "@/lib/saveMoment";
+import { saveMoment, lookupPreview } from "@/lib/saveMoment";
 import { maybeRequestReview } from "@/lib/reviewPrompt";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
@@ -46,7 +46,6 @@ import { checkAndNotifyMilestone } from "@/lib/notifications";
 import { cancelTodaysCheckIn } from "@/lib/dailyCheckIn";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches, invalidateAlbumCaches } from "@/lib/cacheInvalidation";
-import { getProvider } from "@/lib/providers";
 import type { MusicProviderType } from "@/types";
 import { PromptPickerModal } from "@/components/PromptPickerModal";
 import { BottomSheet } from "@/components/BottomSheet";
@@ -55,7 +54,19 @@ import { dateToStr } from "@/lib/dateUtils";
 import { MOODS } from "@/constants/Moods";
 import { startTimer } from "@/lib/perf";
 import { setWritingSession } from "@/lib/writingSession";
-import { loadCaptureDraft, saveCaptureDraft, clearCaptureDraft } from "@/lib/captureDraft";
+import {
+  loadDraftToPickUp,
+  saveCaptureDraft,
+  discardCaptureDraft,
+  releaseDraft,
+  startDraftSession,
+  afterDraftLoad,
+  afterMomentSaved,
+  canWriteDraft,
+  newDraftId,
+  type DraftSession,
+} from "@/lib/captureDraft";
+import { withLoadedPhotos, type LoadedPhoto } from "@/lib/capturePhotos";
 
 // Starters, not prompts: they open a sentence for the three ways people use
 // the journal (a memory, a discovery, a day) and get out of the way.
@@ -148,9 +159,9 @@ export default function CreateMomentScreen() {
 
   const handleSongChange = useCallback((s: Song | null) => {
     setSong(s);
-    previewFetchRef.current = s
-      ? getProvider(s.provider).fetchPreviewUrl(s).then((url) => ({ previewUrl: url, albumName: null }))
-      : null;
+    // Never rejects: a lookup for a song that gets swapped out (or a capture
+    // that's cancelled) has no one awaiting it.
+    previewFetchRef.current = s ? lookupPreview(s) : null;
   }, []);
   const [candidates, setCandidates] = useState<Song[]>([]);
   const [showCandidateModal, setShowCandidateModal] = useState(false);
@@ -211,6 +222,13 @@ export default function CreateMomentScreen() {
   const [photoVideos, setPhotoVideos] = useState<Record<string, number>>({});
   const rememberVideos = useCallback((map: Record<string, number>) => {
     setPhotoVideos((current) => ({ ...current, ...map }));
+  }, []);
+  // Day photos tapped while their original is still coming from iCloud: Save
+  // waits for these, so a photo shown as picked is never left out.
+  const photoLoads = useRef(new Set<Promise<LoadedPhoto>>());
+  const trackPhotoLoad = useCallback((load: Promise<LoadedPhoto>) => {
+    photoLoads.current.add(load);
+    void load.finally(() => photoLoads.current.delete(load));
   }, []);
 
   // If share intent lookup failed, open song search, once. The param stays
@@ -281,29 +299,42 @@ export default function CreateMomentScreen() {
     if (params.promptStarter) replaceReflection(params.promptStarter, false);
   }, [params.promptStarter, replaceReflection]);
 
-  // Drafts: writing survives Cancel, a crash or iOS killing the app. Restore
-  // only into a blank capture (not a share, prompt or widget Identify), and
-  // don't save until the restore attempt is done, or an empty first save
-  // would wipe the draft before it's read.
+  // Drafts: writing survives Cancel, a crash or iOS killing the app. This
+  // capture writes only its own draft (lib/captureDraft.ts), so a pre-filled
+  // one (a share, Last week, From before, a prompt, Identify) leaves an
+  // earlier draft alone for the next blank capture to pick up. A blank
+  // capture picks up the newest draft, and writes wait until that read is
+  // done. After the save nothing is written again.
   const [restoredDraft, setRestoredDraft] = useState(false);
-  const draftReady = useRef(false);
+  const draftSession = useRef<DraftSession | null>(null);
   const latestDraft = useRef<{ reflection: string; song: Song | null }>({ reflection: "", song: null });
+  // Text the app put in (starters, prompts): not the user's writing on its own.
+  const draftTemplates = useRef<string[]>([
+    ...STARTERS.map((s) => s.text),
+    ...(params.promptStarter ? [params.promptStarter] : []),
+  ]);
   useEffect(() => {
     if (!user) return;
     const prefilled =
       !!params.songTitle || !!params.promptStarter || !!params.shareCandidates ||
-      !!params.shareFailedUrl || !!params.sharedPhotoPaths || params.identify === "1" || !!params.photosDay;
-    if (prefilled) {
-      draftReady.current = true;
-      return;
-    }
-    loadCaptureDraft(user.id).then((draft) => {
+      !!params.shareFailedUrl || !!params.sharedPhotoPaths || params.identify === "1" ||
+      !!params.photosDay;
+    const session = startDraftSession(newDraftId(), prefilled);
+    draftSession.current = session;
+    if (session.phase === "open") return;
+    loadDraftToPickUp(user.id, { prefilled, typed: () => latestDraft.current.reflection }).then((draft) => {
       if (draft) {
         replaceReflection(draft.reflection, false);
         if (draft.song) handleSongChange(draft.song);
         setRestoredDraft(true);
       }
-      draftReady.current = true;
+      draftSession.current = afterDraftLoad(draftSession.current ?? session, draft);
+      // Anything typed while the read was in flight: keep it now rather
+      // than at the next keystroke.
+      const current = draftSession.current;
+      if (!draft && canWriteDraft(current)) {
+        void saveCaptureDraft(user.id, current.id, latestDraft.current, draftTemplates.current);
+      }
     });
     // Once per screen open, for the signed-in user.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -311,17 +342,24 @@ export default function CreateMomentScreen() {
 
   useEffect(() => {
     latestDraft.current = { reflection, song };
-    if (!user || !draftReady.current) return;
-    const t = setTimeout(() => saveCaptureDraft(user.id, { reflection, song }), 600);
+    if (!user || !canWriteDraft(draftSession.current)) return;
+    const t = setTimeout(() => {
+      // Checked again when it fires: the moment may have been saved since.
+      const current = draftSession.current;
+      if (canWriteDraft(current)) void saveCaptureDraft(user.id, current.id, { reflection, song }, draftTemplates.current);
+    }, 600);
     return () => clearTimeout(t);
   }, [reflection, song, user]);
 
-  // Leaving (Cancel, swipe, save) flushes the last few keystrokes the
-  // debounce hasn't written yet. After a save the form is already blank, so
-  // this clears the draft instead.
+  // Leaving (Cancel, swipe) flushes the last few keystrokes the debounce
+  // hasn't written yet. Not after a save: the draft is gone for good then.
   useEffect(
     () => () => {
-      if (user && draftReady.current) void saveCaptureDraft(user.id, latestDraft.current);
+      const current = draftSession.current;
+      if (user && canWriteDraft(current)) {
+        void saveCaptureDraft(user.id, current.id, latestDraft.current, draftTemplates.current);
+      }
+      if (current) releaseDraft(current.id);
     },
     // Unmount only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -330,7 +368,8 @@ export default function CreateMomentScreen() {
 
   const startFresh = () => {
     Haptics.selectionAsync();
-    if (user) void clearCaptureDraft(user.id);
+    const current = draftSession.current;
+    if (user && canWriteDraft(current)) void discardCaptureDraft(user.id, current.id);
     replaceReflection("", false);
     handleSongChange(null);
     setRestoredDraft(false);
@@ -344,6 +383,8 @@ export default function CreateMomentScreen() {
       songArtist: song?.artistName,
       songArtworkUrl: song?.artworkUrl || undefined,
       placeholder: params.promptQuestion || "What's this song doing for you?",
+      // Mirrored as it's typed so the draft keeps full-page writing too.
+      onChange: setReflection,
       onDone: (text) => replaceReflection(text, false),
     });
     router.push("/write");
@@ -448,13 +489,16 @@ export default function CreateMomentScreen() {
     }
     try {
       const sinceSave = startTimer();
+      // Photos still loading were shown as picked: wait for them.
+      const loaded = await Promise.all([...photoLoads.current]);
+      const toSave = withLoadedPhotos(photos, photoAssets, loaded);
       const { id: insertedId, moment: savedMoment, secondaryFailures } = await saveMoment({
         userId: user.id,
         song: song!,
         reflection,
-        photos,
-        photoAssetIds: photos.map((uri) => photoAssets[uri] ?? null),
-        photoVideoDurations: photos.map((uri) => photoVideos[uri] ?? null),
+        photos: toSave.photos,
+        photoAssetIds: toSave.photos.map((uri) => toSave.assets[uri] ?? null),
+        photoVideoDurations: toSave.photos.map((uri) => photoVideos[uri] ?? null),
         people,
         moods: selectedMoods,
         locationResult,
@@ -465,6 +509,14 @@ export default function CreateMomentScreen() {
         weatherResult,
       });
 
+      // Saved: this capture's draft goes, and nothing writes it again (a
+      // late debounce or the flush on leaving would bring it back).
+      const session = draftSession.current;
+      if (session) {
+        draftSession.current = afterMomentSaved(session);
+        void discardCaptureDraft(user.id, session.id);
+      }
+
       // Captured before the form reset below clears selectedAlbum.
       const savedToAlbumId = selectedAlbum?.id;
 
@@ -474,7 +526,7 @@ export default function CreateMomentScreen() {
         has_reflection: reflection.trim().length > 0,
         has_mood: selectedMoods.length > 0,
         mood_count: selectedMoods.length,
-        photo_count: photos.length,
+        photo_count: toSave.photos.length,
         has_location: Boolean(locationResult),
         has_people: people.length > 0,
         has_collection: Boolean(selectedAlbum),
@@ -494,9 +546,7 @@ export default function CreateMomentScreen() {
         );
       }
 
-      // Reset form (the unmount flush then clears the draft; clear now too in
-      // case the screen stays mounted)
-      if (user) void clearCaptureDraft(user.id);
+      // Reset form
       setRestoredDraft(false);
       handleSongChange(null);
       replaceReflection("", false);
@@ -707,6 +757,7 @@ export default function CreateMomentScreen() {
             }
             photos={photos}
             onChange={setPhotos}
+            onLoading={trackPhotoLoad}
           />
         ) : null}
 
@@ -832,7 +883,10 @@ export default function CreateMomentScreen() {
 
       <PromptPickerModal
         visible={promptPickerVisible}
-        onSelect={(prompt) => replaceReflection(prompt, true)}
+        onSelect={(prompt) => {
+          draftTemplates.current.push(prompt);
+          replaceReflection(prompt, true);
+        }}
         onClose={() => setPromptPickerVisible(false)}
         customCategories={profile?.customPromptCategories ?? []}
       />

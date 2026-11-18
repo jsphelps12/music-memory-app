@@ -67,6 +67,7 @@ export default function WriteScreen() {
         onChangeText={(t) => {
           textRef.current = t;
           setWords(countWords(t));
+          session?.onChange?.(t);
         }}
         placeholder={session?.placeholder ?? "Start anywhere."}
         placeholderTextColor={theme.colors.placeholder}
