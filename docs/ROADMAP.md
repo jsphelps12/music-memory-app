@@ -158,8 +158,13 @@ The starred ones bring the app to you, which serves the north star:
   testers (invited 2026-11-17), then screenshots and App Review with the
   What's New in `docs/app-store/whats-new-1.4.md`. Merge `native/1.4` into
   `main` only once 1.4 is approved and out, so OTAs keep reaching 1.3.1
-  until then. Still waiting on Josh's go: moving his real moments to his
-  personal account.
+  until then. Josh's moments are consolidated (2026-11-17): founder@'s 27
+  moments and its College and Footy albums moved to his personal account
+  (photo files copied into his folder by a one-off script he ran with a
+  temporary key, then the old copies deleted); 9 test moments deleted.
+  founder@ stays as an empty account (support address, second account for
+  sharing tests). When 1.4 is live, the privacy page's "we plan to add an
+  export feature" should mention the PDF export.
 - **Live over the air on 1.3.1** (Promote to Production, `956aa3e`): the
   design sweep (one set of shared components everywhere), the moment
   resume fix, the Share card screen, ordered photos, and the data
