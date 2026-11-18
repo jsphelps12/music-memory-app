@@ -69,14 +69,14 @@ over the prompts, this becomes 1.4.0 build 13 instead.
   into the film.
 
 **Over the air on 1.4 meanwhile:**
-- [ ] **Drafts you can see** (decided 2026-11-18): built 2026-11-18 on native/1.4 (`.maestro/drafts.yaml`), awaiting the flow run and OTA.: closing capture with
+- [x] **Drafts you can see** (decided 2026-11-18): built 2026-11-18 on native/1.4 (`.maestro/drafts.yaml`), OTA to 1.4 the same day (group 8419f305) after all three flows passed.: closing capture with
   writing asks "Keep as a draft?" (Keep draft / Discard); long-press + →
   Start from gets "Continue a draft" (with a count, lists every draft) when
   any exist; plain + opens blank, with no hint (Josh, 2026-11-18: a hint
   would clutter the top; drafts live in long-press only); a continued draft
   shows "Draft from …"; crashes and iOS kills still save silently. No hidden
   long-press on Save (long-press always opens a menu).
-- [ ] **Select moments** (decided 2026-11-18): built 2026-11-18 on native/1.4 with the card menu (Edit, Share, Add to album, Select, Delete; `.maestro/select.yaml`), awaiting the flow run and OTA.: "Select" in the card's
+- [x] **Select moments** (decided 2026-11-18): built 2026-11-18 on native/1.4 with the card menu (Edit, Share, Add to album, Select, Delete; `.maestro/select.yaml`), OTA to 1.4 the same day (group 8419f305) after all three flows passed.: "Select" in the card's
   long-press menu and in the Journal header enters selection mode; tap to
   tick; a bottom bar with Add to album and Delete ("Delete 5 moments?",
   photos deleted too). Journal first, album screens next. The menu stays
