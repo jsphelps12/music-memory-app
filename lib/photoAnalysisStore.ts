@@ -5,24 +5,41 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { analyzePhotos, type PhotoAnalysis } from "@/modules/on-device-ai";
 import { interest, isBoring } from "@/lib/photoInterest";
 
-const KEY = "photo_analysis_v1";
+export const PHOTO_ANALYSIS_KEY = "photo_analysis_v1";
+const KEY = PHOTO_ANALYSIS_KEY;
 const MAX_ENTRIES = 4000;
 const BATCH = 24;
 
 let memory: Record<string, PhotoAnalysis> | null = null;
+let loading: Promise<Record<string, PhotoAnalysis>> | null = null;
+/** Bumped by clearPhotoAnalysisStore(), so reads and writes already under way don't bring data back. */
+let generation = 0;
 
-async function load(): Promise<Record<string, PhotoAnalysis>> {
-  if (memory) return memory;
+async function readStored(gen: number): Promise<Record<string, PhotoAnalysis>> {
+  let read: Record<string, PhotoAnalysis>;
   try {
     const raw = await AsyncStorage.getItem(KEY);
-    memory = raw ? (JSON.parse(raw) as Record<string, PhotoAnalysis>) : {};
+    read = raw ? (JSON.parse(raw) as Record<string, PhotoAnalysis>) : {};
   } catch {
-    memory = {};
+    read = {};
   }
-  return memory;
+  if (gen === generation) {
+    memory = read;
+    loading = null;
+  }
+  return read;
+}
+
+/** One read shared by everyone asking at once. */
+function load(): Promise<Record<string, PhotoAnalysis>> {
+  if (memory) return Promise.resolve(memory);
+  loading ??= readStored(generation);
+  return loading;
 }
 
 async function save(all: Record<string, PhotoAnalysis>): Promise<void> {
+  // A copy from before clearPhotoAnalysisStore() is never written back.
+  if (all !== memory) return;
   const ids = Object.keys(all);
   if (ids.length > MAX_ENTRIES) for (const id of ids.slice(0, ids.length - MAX_ENTRIES)) delete all[id];
   try {
@@ -87,4 +104,14 @@ export async function bestFirst<T extends { id: string }>(photos: T[], cap = 24)
     const a = analyses.get(p.id);
     return !a || !isBoring(a);
   }).sort((a, b) => score(b) - score(a));
+}
+
+/** Signing out: forget every analysis, in memory and stored. */
+export async function clearPhotoAnalysisStore(): Promise<void> {
+  generation++;
+  memory = null;
+  loading = null;
+  try {
+    await AsyncStorage.removeItem(KEY);
+  } catch {}
 }

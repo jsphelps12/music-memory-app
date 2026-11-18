@@ -22,6 +22,7 @@ import { markStartup, reportStartup } from "@/lib/perf";
 import { useEffect, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useOnForeground, wireQueryFocus } from "@/lib/appFocus";
+import { wireLibraryCache } from "@/lib/libraryCache";
 import { refreshCheckIns } from "@/lib/dailyCheckIn";
 import { refreshLastWeekReady } from "@/lib/lastWeekReady";
 import { PostHogProvider } from "posthog-react-native";
@@ -79,6 +80,8 @@ SplashScreen.setOptions({ duration: 250, fade: true });
 // Returning from the background counts as focus, so stale queries on mounted
 // screens refetch (lib/appFocus.ts). Must run before the client is used.
 wireQueryFocus();
+// The shared Apple Music library copy is dropped after a long time away.
+wireLibraryCache();
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -258,7 +261,7 @@ function RootLayout() {
     <QueryClientProvider client={queryClient}>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardProvider>
-      <PostHogProvider client={posthog} autocapture={{ captureScreens: false, captureTouches: true }}>
+      <PostHogProvider client={posthog} autocapture={{ captureScreens: false, captureTouches: false }}>
         <ShareIntentProvider>
           <AuthProvider>
             <PlayerProvider>
@@ -286,8 +289,9 @@ function RootLayoutNav() {
   useOtaUpdate();
 
   // Daily check-in: re-plan the next two weeks of reminders on sign-in and
-  // every return to the app, so a day you already logged gets none, and a
-  // long absence lets them run out (lib/dailyCheckIn.ts).
+  // on returns to the app (at most hourly unless the day, settings or
+  // permission changed), so a day you already logged gets none, and a long
+  // absence lets them run out (lib/dailyCheckIn.ts).
   useEffect(() => {
     if (user?.id) void refreshCheckIns(user.id);
   }, [user?.id]);
