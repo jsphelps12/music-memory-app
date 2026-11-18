@@ -351,6 +351,31 @@ export default function CreateMomentScreen() {
     return () => clearTimeout(t);
   }, [reflection, song, user]);
 
+  // A share that arrives while this capture is open (the share handler
+  // replaces the route, and the screen is reused with the new params) is a
+  // new capture: the writing so far stays as its own draft for the next
+  // blank capture instead of riding along into the shared song's moment.
+  const shareKey = [
+    params.songId, params.songTitle, params.songArtist, params.shareCandidates,
+    params.sharedPhotoPaths, params.shareFailedUrl,
+  ].join("|");
+  const openedWithShareKey = useRef(shareKey);
+  useEffect(() => {
+    if (shareKey === openedWithShareKey.current) return;
+    openedWithShareKey.current = shareKey;
+    const current = draftSession.current;
+    if (user && canWriteDraft(current)) {
+      void saveCaptureDraft(user.id, current.id, latestDraft.current, draftTemplates.current);
+    }
+    if (current) releaseDraft(current.id);
+    draftSession.current = startDraftSession(newDraftId(), true);
+    replaceReflection("", false);
+    if (!params.sharedPhotoPaths) setPhotos([]);
+    setRestoredDraft(false);
+    // Only a new share starts this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shareKey]);
+
   // Leaving (Cancel, swipe) flushes the last few keystrokes the debounce
   // hasn't written yet. Not after a save: the draft is gone for good then.
   useEffect(
