@@ -37,6 +37,8 @@ const MOMENT_SCREEN_KEYS = [
   "reflections-random",
   "youSummary",
   "momentsMap",
+  "yearReview",
+  "memoryCard",
 ];
 
 const MOMENT_DRILLDOWN_KEYS = [
@@ -60,6 +62,18 @@ describe("invalidateMomentCaches", () => {
     for (const name of MOMENT_SCREEN_KEYS) {
       expect(isInvalidated([name, USER]), `${name} should be invalidated`).toBe(true);
     }
+  });
+
+  it("invalidates Year in review and memory cards, whatever year or moment they're for", () => {
+    seed(["yearReview", USER, 2025]);
+    seed(["memoryCard", USER, "moment-1"]);
+    seed(["yearReview", OTHER_USER, 2025]);
+
+    invalidateMomentCaches(qc, USER);
+
+    expect(isInvalidated(["yearReview", USER, 2025])).toBe(true);
+    expect(isInvalidated(["memoryCard", USER, "moment-1"])).toBe(true);
+    expect(isInvalidated(["yearReview", OTHER_USER, 2025])).toBe(false);
   });
 
   it("invalidates every drill-down key regardless of its trailing filter segments", () => {
