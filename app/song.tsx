@@ -23,6 +23,7 @@ import { MomentCard } from "@/components/MomentCard";
 import { fetchSongMoments } from "@/lib/browse";
 import { pluralMoments } from "@/lib/utils";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { ConfirmSheetHost } from "@/components/ConfirmSheet";
 
 const STALE_TIME = 2 * 60 * 1000;
 
@@ -121,6 +122,9 @@ export default function SongScreen() {
           }
         />
       )}
+      {/* Own confirm host: this screen is a native modal, where the root
+          host's sheet cannot present (iOS silently drops it). */}
+      <ConfirmSheetHost />
     </View>
   );
 }

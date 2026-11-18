@@ -30,6 +30,7 @@ import { friendlyError } from "@/lib/errors";
 import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { Moment } from "@/types";
 import { pluralMoments } from "@/lib/utils";
+import { ConfirmSheetHost } from "@/components/ConfirmSheet";
 
 function groupByMonth(moments: Moment[]): { title: string; data: Moment[] }[] {
   const grouped: Record<string, Moment[]> = {};
@@ -256,6 +257,9 @@ export default function AlbumDetailScreen() {
           }}
         />
       )}
+      {/* Own confirm host: this screen is a native modal, where the root
+          host's sheet cannot present (iOS silently drops it). */}
+      <ConfirmSheetHost />
     </View>
   );
 }

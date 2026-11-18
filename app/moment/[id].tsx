@@ -56,7 +56,7 @@ import { SkeletonMomentDetail } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { MomentFilm } from "@/components/MomentFilm";
-import { confirmSheet } from "@/components/ConfirmSheet";
+import { confirmSheet, ConfirmSheetHost } from "@/components/ConfirmSheet";
 import { friendlyError } from "@/lib/errors";
 import { Album, PartialMoment } from "@/types";
 import { markTimelineStale } from "@/lib/timelineRefresh";
@@ -762,6 +762,9 @@ export default function MomentDetailScreen() {
       </View>
 
       <MomentActionMenu anchor={menuAnchor} items={menuItems} onClose={() => setMenuAnchor(null)} />
+      {/* Own confirm host: this screen is a native modal, where the root
+          host's sheet cannot present (iOS silently drops it). */}
+      <ConfirmSheetHost />
 
       {screenState === "loading" ? (
         <View style={styles.loadingContainer}>
