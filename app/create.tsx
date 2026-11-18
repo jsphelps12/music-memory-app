@@ -54,18 +54,6 @@ import { dateToStr } from "@/lib/dateUtils";
 import { MOODS } from "@/constants/Moods";
 import { startTimer } from "@/lib/perf";
 import { setWritingSession } from "@/lib/writingSession";
-import {
-  loadDraftToPickUp,
-  saveCaptureDraft,
-  discardCaptureDraft,
-  releaseDraft,
-  startDraftSession,
-  afterDraftLoad,
-  afterMomentSaved,
-  canWriteDraft,
-  newDraftId,
-  type DraftSession,
-} from "@/lib/captureDraft";
 import { withLoadedPhotos, type LoadedPhoto } from "@/lib/capturePhotos";
 
 // Starters, not prompts: they open a sentence for the three ways people use
@@ -299,117 +287,17 @@ export default function CreateMomentScreen() {
     if (params.promptStarter) replaceReflection(params.promptStarter, false);
   }, [params.promptStarter, replaceReflection]);
 
-  // Drafts: writing survives Cancel, a crash or iOS killing the app. This
-  // capture writes only its own draft (lib/captureDraft.ts), so a pre-filled
-  // one (a share, Last week, From before, a prompt, Identify) leaves an
-  // earlier draft alone for the next blank capture to pick up. A blank
-  // capture picks up the newest draft, and writes wait until that read is
-  // done. After the save nothing is written again.
-  const [restoredDraft, setRestoredDraft] = useState(false);
-  const draftSession = useRef<DraftSession | null>(null);
-  const latestDraft = useRef<{ reflection: string; song: Song | null }>({ reflection: "", song: null });
-  // Text the app put in (starters, prompts): not the user's writing on its own.
-  const draftTemplates = useRef<string[]>([
-    ...STARTERS.map((s) => s.text),
-    ...(params.promptStarter ? [params.promptStarter] : []),
-  ]);
-  useEffect(() => {
-    if (!user) return;
-    const prefilled =
-      !!params.songTitle || !!params.promptStarter || !!params.shareCandidates ||
-      !!params.shareFailedUrl || !!params.sharedPhotoPaths || params.identify === "1" ||
-      !!params.photosDay;
-    const session = startDraftSession(newDraftId(), prefilled);
-    draftSession.current = session;
-    if (session.phase === "open") return;
-    loadDraftToPickUp(user.id, { prefilled, typed: () => latestDraft.current.reflection }).then((draft) => {
-      if (draft) {
-        replaceReflection(draft.reflection, false);
-        if (draft.song) handleSongChange(draft.song);
-        setRestoredDraft(true);
-      }
-      draftSession.current = afterDraftLoad(draftSession.current ?? session, draft);
-      // Anything typed while the read was in flight: keep it now rather
-      // than at the next keystroke.
-      const current = draftSession.current;
-      if (!draft && canWriteDraft(current)) {
-        void saveCaptureDraft(user.id, current.id, latestDraft.current, draftTemplates.current);
-      }
-    });
-    // Once per screen open, for the signed-in user.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
-  useEffect(() => {
-    latestDraft.current = { reflection, song };
-    if (!user || !canWriteDraft(draftSession.current)) return;
-    const t = setTimeout(() => {
-      // Checked again when it fires: the moment may have been saved since.
-      const current = draftSession.current;
-      if (canWriteDraft(current)) void saveCaptureDraft(user.id, current.id, { reflection, song }, draftTemplates.current);
-    }, 600);
-    return () => clearTimeout(t);
-  }, [reflection, song, user]);
-
-  // A share that arrives while this capture is open (the share handler
-  // replaces the route, and the screen is reused with the new params) is a
-  // new capture: the writing so far stays as its own draft for the next
-  // blank capture instead of riding along into the shared song's moment.
-  const shareKey = [
-    params.songId, params.songTitle, params.songArtist, params.shareCandidates,
-    params.sharedPhotoPaths, params.shareFailedUrl,
-  ].join("|");
-  const openedWithShareKey = useRef(shareKey);
-  useEffect(() => {
-    if (shareKey === openedWithShareKey.current) return;
-    openedWithShareKey.current = shareKey;
-    const current = draftSession.current;
-    if (user && canWriteDraft(current)) {
-      void saveCaptureDraft(user.id, current.id, latestDraft.current, draftTemplates.current);
-    }
-    if (current) releaseDraft(current.id);
-    draftSession.current = startDraftSession(newDraftId(), true);
-    replaceReflection("", false);
-    if (!params.sharedPhotoPaths) setPhotos([]);
-    setRestoredDraft(false);
-    // Only a new share starts this.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shareKey]);
-
-  // Leaving (Cancel, swipe) flushes the last few keystrokes the debounce
-  // hasn't written yet. Not after a save: the draft is gone for good then.
-  useEffect(
-    () => () => {
-      const current = draftSession.current;
-      if (user && canWriteDraft(current)) {
-        void saveCaptureDraft(user.id, current.id, latestDraft.current, draftTemplates.current);
-      }
-      if (current) releaseDraft(current.id);
-    },
-    // Unmount only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
-
-  const startFresh = () => {
-    Haptics.selectionAsync();
-    const current = draftSession.current;
-    if (user && canWriteDraft(current)) void discardCaptureDraft(user.id, current.id);
-    replaceReflection("", false);
-    handleSongChange(null);
-    setRestoredDraft(false);
-  };
+  // No automatic drafts (Josh, 2026-11-18): a capture that's left is gone.
+  // Leftover drafts from earlier builds are cleared on sign-out.
 
   const openFullPage = () => {
     Keyboard.dismiss();
     setWritingSession({
-      text: latestDraft.current.reflection,
+      text: reflection,
       songTitle: song?.title,
       songArtist: song?.artistName,
       songArtworkUrl: song?.artworkUrl || undefined,
       placeholder: params.promptQuestion || "What's this song doing for you?",
-      // Mirrored as it's typed so the draft keeps full-page writing too.
-      onChange: setReflection,
       onDone: (text) => replaceReflection(text, false),
     });
     router.push("/write");
@@ -534,14 +422,6 @@ export default function CreateMomentScreen() {
         weatherResult,
       });
 
-      // Saved: this capture's draft goes, and nothing writes it again (a
-      // late debounce or the flush on leaving would bring it back).
-      const session = draftSession.current;
-      if (session) {
-        draftSession.current = afterMomentSaved(session);
-        void discardCaptureDraft(user.id, session.id);
-      }
-
       // Captured before the form reset below clears selectedAlbum.
       const savedToAlbumId = selectedAlbum?.id;
 
@@ -572,7 +452,6 @@ export default function CreateMomentScreen() {
       }
 
       // Reset form
-      setRestoredDraft(false);
       handleSongChange(null);
       replaceReflection("", false);
       setSelectedMoods([]);
@@ -725,13 +604,6 @@ export default function CreateMomentScreen() {
             align="center"
           />
         </View>
-
-        {restoredDraft ? (
-          <View style={styles.draftRow}>
-            <Text style={styles.draftText}>Picked up where you left off</Text>
-            <Button label="Start fresh" variant="text" size="pill" onPress={startFresh} align="center" />
-          </View>
-        ) : null}
 
         {/* Borderless, in the reading face: this is a page, not a form
             field, so it is the writer exception to TextField. */}
@@ -909,7 +781,6 @@ export default function CreateMomentScreen() {
       <PromptPickerModal
         visible={promptPickerVisible}
         onSelect={(prompt) => {
-          draftTemplates.current.push(prompt);
           replaceReflection(prompt, true);
         }}
         onClose={() => setPromptPickerVisible(false)}
@@ -991,16 +862,6 @@ function createStyles(theme: Theme) {
       flex: 1,
       height: StyleSheet.hairlineWidth,
       backgroundColor: theme.colors.divider,
-    },
-    draftRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: theme.spacing.sm,
-    },
-    draftText: {
-      ...theme.typography.meta,
-      color: theme.colors.textSecondary,
     },
     // The writer: Newsreader at 22/33 on paper, no field chrome.
     reflectionInput: {
