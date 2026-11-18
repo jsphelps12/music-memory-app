@@ -1,0 +1,147 @@
+# Moment actions: every way a moment is edited, shared, filed or deleted, and
+# a screenshot of each surface on the way (the side-by-side consistency check:
+# compare them in ~/.maestro/tests/<run>/ or the folder passed to --test-output-dir).
+#
+# Written 2026-11-18 after Delete from moment detail shipped broken in 1.4
+# build 12 (the confirm sheet never presented over the detail modal, and a
+# later bundle froze the screen). The point of the Cancel step is that the
+# screen must still respond afterwards, not just that a sheet appeared.
+#
+# Runs as the E2E account on production, reset to empty first:
+#   scripts/e2e-local.sh actions        (see that script for setup)
+# Target: under 2 minutes. Split it rather than growing it.
+appId: com.joshuaphelps.musicmemory.preview
+---
+- runFlow: subflows/sign-in.yaml
+- runFlow: subflows/create-moment.yaml
+- takeScreenshot: 01-journal
+
+# --- Moment detail --------------------------------------------------------
+- tapOn:
+    id: "moment-card-title"
+- extendedWaitUntil:
+    visible:
+      id: "moment-more"
+    timeout: 15000
+- waitForAnimationToEnd
+- takeScreenshot: 02-moment-detail
+
+# … → the menu itself
+- tapOn:
+    id: "moment-more"
+- extendedWaitUntil:
+    visible: "Add to album"
+    timeout: 5000
+- takeScreenshot: 03-more-menu
+
+# … → Edit, and back
+- tapOn: "Edit"
+- extendedWaitUntil:
+    visible: "Edit moment"
+    timeout: 10000
+- waitForAnimationToEnd
+- takeScreenshot: 04-edit
+- tapOn:
+    id: "header-leading"
+- extendedWaitUntil:
+    visible:
+      id: "moment-more"
+    timeout: 10000
+
+# … → Add to album (a quick pick), closed with Done
+- tapOn:
+    id: "moment-more"
+- extendedWaitUntil:
+    visible: "Add to album"
+    timeout: 5000
+- tapOn: "Add to album"
+- extendedWaitUntil:
+    visible: "Done"
+    timeout: 5000
+- waitForAnimationToEnd
+- takeScreenshot: 05-add-to-album
+- tapOn: "Done"
+- waitForAnimationToEnd
+
+# Share sheet, closed with Done
+- tapOn:
+    id: "moment-share"
+- extendedWaitUntil:
+    visible: "Share this moment"
+    timeout: 5000
+- waitForAnimationToEnd
+- takeScreenshot: 06-share-sheet
+- tapOn: "Done"
+- waitForAnimationToEnd
+
+# … → Delete → the confirm must present, and Cancel must leave a live screen
+- tapOn:
+    id: "moment-more"
+- extendedWaitUntil:
+    visible: "Delete"
+    timeout: 5000
+- tapOn: "Delete"
+- extendedWaitUntil:
+    visible:
+      id: "confirm-sheet-cancel"
+    timeout: 5000
+- waitForAnimationToEnd
+- takeScreenshot: 07-delete-confirm-detail
+- tapOn:
+    id: "confirm-sheet-cancel"
+- waitForAnimationToEnd
+- tapOn:
+    id: "moment-back"
+- extendedWaitUntil:
+    visible:
+      id: "moment-card-title"
+    timeout: 10000
+- assertNotVisible:
+    id: "moment-more"
+
+# --- Long-press on the card (native iOS menu) -------------------------------
+- longPressOn:
+    id: "moment-card-title"
+- extendedWaitUntil:
+    visible: "Delete"
+    timeout: 5000
+- takeScreenshot: 08-card-context-menu
+- tapOn: "Delete"
+- extendedWaitUntil:
+    visible:
+      id: "confirm-sheet-cancel"
+    timeout: 5000
+- waitForAnimationToEnd
+- takeScreenshot: 09-delete-confirm-card
+- tapOn:
+    id: "confirm-sheet-cancel"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "moment-card-title"
+
+# --- Delete for real, from detail -----------------------------------------
+- tapOn:
+    id: "moment-card-title"
+- extendedWaitUntil:
+    visible:
+      id: "moment-more"
+    timeout: 15000
+- tapOn:
+    id: "moment-more"
+- extendedWaitUntil:
+    visible: "Delete"
+    timeout: 5000
+- tapOn: "Delete"
+- extendedWaitUntil:
+    visible:
+      id: "confirm-sheet-confirm"
+    timeout: 5000
+- tapOn:
+    id: "confirm-sheet-confirm"
+# Back on an empty Journal: the detail closed itself and the card is gone.
+- extendedWaitUntil:
+    visible: "Create Your First Moment"
+    timeout: 15000
+- assertNotVisible:
+    id: "moment-card-title"
+- takeScreenshot: 10-journal-after-delete

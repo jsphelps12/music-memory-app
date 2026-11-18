@@ -99,6 +99,7 @@ export function ConfirmSheetHost() {
           <Button
             label={opts.confirmLabel}
             variant={opts.destructive ? "destructive" : "primary"}
+            testID="confirm-sheet-confirm"
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               settle(true);
@@ -110,6 +111,7 @@ export function ConfirmSheetHost() {
             tone="secondary"
             fullWidth
             onPress={() => settle(false)}
+            testID="confirm-sheet-cancel"
             style={styles.cancel}
           />
         </View>

@@ -738,6 +738,7 @@ export default function MomentDetailScreen() {
           size={20}
           onPress={() => animateOut(goBack)}
           accessibilityLabel="Back"
+          testID="moment-back"
         />
         {screenState === "ready" && moment && (
           <View style={styles.glassBtnRow}>
@@ -747,6 +748,7 @@ export default function MomentDetailScreen() {
               size={20}
               onPress={openShare}
               accessibilityLabel="Share"
+              testID="moment-share"
             />
             <View ref={menuButtonRef} collapsable={false}>
               <IconButton
@@ -755,6 +757,7 @@ export default function MomentDetailScreen() {
                 size={20}
                 onPress={openMenu}
                 accessibilityLabel="More"
+                testID="moment-more"
               />
             </View>
           </View>

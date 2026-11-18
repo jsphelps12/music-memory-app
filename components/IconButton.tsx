@@ -18,6 +18,8 @@ interface Props {
    */
   variant?: "plain" | "filled" | "glass";
   accessibilityLabel?: string;
+  /** For the Maestro flows in .maestro/. */
+  testID?: string;
 }
 
 export function IconButton({
@@ -29,6 +31,7 @@ export function IconButton({
   style,
   variant = "plain",
   accessibilityLabel,
+  testID,
 }: Props) {
   const theme = useTheme();
   const filled = variant === "filled";
@@ -46,6 +49,7 @@ export function IconButton({
       hitSlop={filled ? 8 : glass ? 4 : 0}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      testID={testID}
     >
       <Icon
         name={name}

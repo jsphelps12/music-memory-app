@@ -1,0 +1,69 @@
+# Create one moment from the empty timeline and wait for its card.
+# Copied from smoke.yaml; keep in step. Needs an empty account (reset script).
+appId: com.joshuaphelps.musicmemory.preview
+env:
+  SONG_QUERY: "Bohemian Rhapsody"
+  REFLECTION: "e2e actions reflection"
+---
+# --- Create a moment ---------------------------------------------------------
+- waitForAnimationToEnd
+# NOT the floating "+" (id: tab-create): it overflows the custom tab bar, and
+# XCUITest's element tap lands on its clipped accessibility frame — the tap
+# reports success and nothing happens (verified: a coordinate tap on the same
+# button navigates fine). The empty-state CTA is a plain text button that taps
+# reliably, and the seed script guarantees the account is empty, so it is
+# always present at this point.
+- tapOn: "Create Your First Moment"
+
+# The create screen doesn't open song search itself — its "Search" pill
+# (components/SongPickerSection.tsx) pushes /song-search. Waiting for it also
+# confirms the create screen actually opened.
+- extendedWaitUntil:
+    visible:
+      id: "create-select-song"
+    timeout: 10000
+- tapOn:
+    id: "create-select-song"
+
+- extendedWaitUntil:
+    visible:
+      id: "song-search-input"
+    timeout: 10000
+- tapOn:
+    id: "song-search-input"
+- waitForAnimationToEnd
+- inputText: ${SONG_QUERY}
+# Distinguishes "the query never reached the app" from "the catalog returned
+# nothing" — the two look identical downstream (no result 0), but only the
+# second is a real failure. The keyboard tutorial suppressed in e2e.yml caused
+# the first and read as the second for an entire debugging pass.
+# Exact text again. It was loosened to a prefix regex after CI typed "Bohemian
+# Rhapysod", but the next run typed "Bdy": the input was CONTROLLED, and a
+# stale value from a JS thread busy re-rendering results overwrote keystrokes.
+# That's an app race, not test noise, so the input is now uncontrolled and the
+# exact check guards it.
+- assertVisible:
+    id: "song-search-input"
+    text: ${SONG_QUERY}
+# The search is debounced 275ms and hits the Apple Music catalog over the
+# network, so the first result needs a real timeout, not the default.
+- extendedWaitUntil:
+    visible:
+      id: "song-search-result-0"
+    timeout: 20000
+- tapOn:
+    id: "song-search-result-0"
+
+- tapOn:
+    id: "create-reflection"
+- inputText: ${REFLECTION}
+# Save lives in the top bar (Phase 1 capture redesign), above the keyboard,
+# so there's no keyboard to dismiss first.
+- tapOn:
+    id: "create-save"
+
+# --- Assert it landed on the timeline ----------------------------------------
+- extendedWaitUntil:
+    visible:
+      id: "moment-card-title"
+    timeout: 30000
