@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Linking, StyleSheet, Switch, Text, View } from "react-native";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
@@ -50,9 +50,24 @@ export function DailyCheckInRow({ userId, last }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [daysOpen, setDaysOpen] = useState(false);
   const [draft, setDraft] = useState(new Date());
+  // The settings as last asked for, ahead of what's on screen: quick taps
+  // build on each other instead of on a render that hasn't happened yet.
+  const intended = useRef<CheckInSettings>(DEFAULT_CHECK_IN);
+  // Bumped by every change; only the newest change's result is shown, and
+  // the first read doesn't land on top of a change already made.
+  const latest = useRef(0);
 
   useEffect(() => {
-    void readCheckInSettings(userId).then(setSettings);
+    let cancelled = false;
+    const seq = latest.current;
+    void readCheckInSettings(userId).then((s) => {
+      if (cancelled || seq !== latest.current) return;
+      intended.current = s;
+      setSettings(s);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
 
   // Back from iOS Settings with notifications allowed: drop the warning.
@@ -65,8 +80,13 @@ export function DailyCheckInRow({ userId, last }: Props) {
 
   const apply = useCallback(
     async (next: CheckInSettings) => {
+      const seq = ++latest.current;
+      intended.current = next;
       setBusy(true);
+      // setCheckIn applies changes one at a time, in order (lib/dailyCheckIn.ts).
       const result = await setCheckIn(userId, next);
+      if (seq !== latest.current) return; // a newer change is on its way
+      intended.current = result.settings;
       setSettings(result.settings);
       setDenied(result.permission === "denied");
       setBusy(false);
@@ -82,7 +102,7 @@ export function DailyCheckInRow({ userId, last }: Props) {
 
   const toggle = (on: boolean) => {
     Haptics.selectionAsync();
-    void apply({ ...settings, enabled: on });
+    void apply({ ...intended.current, enabled: on });
   };
 
   const openPicker = () => {
@@ -92,16 +112,17 @@ export function DailyCheckInRow({ userId, last }: Props) {
 
   const saveTime = () => {
     setPickerOpen(false);
-    void apply({ ...settings, enabled: true, hour: draft.getHours(), minute: draft.getMinutes() });
+    void apply({ ...intended.current, enabled: true, hour: draft.getHours(), minute: draft.getMinutes() });
   };
 
   const toggleDay = (day: number) => {
-    const on = settings.days.includes(day);
-    if (on && settings.days.length === 1) return; // keep at least one
+    const base = intended.current;
+    const on = base.days.includes(day);
+    if (on && base.days.length === 1) return; // keep at least one
     Haptics.selectionAsync();
-    const days = on ? settings.days.filter((d) => d !== day) : [...settings.days, day].sort((a, b) => a - b);
-    setSettings({ ...settings, days }); // moves on tap; apply() confirms
-    void apply({ ...settings, days });
+    const days = on ? base.days.filter((d) => d !== day) : [...base.days, day].sort((a, b) => a - b);
+    setSettings({ ...base, days }); // moves on tap; apply() confirms
+    void apply({ ...base, days });
   };
 
   const when = describeDays(settings.days);

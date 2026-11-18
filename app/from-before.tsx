@@ -31,7 +31,9 @@ import {
 import { prewarmQuestions, questionFor } from "@/lib/nudgeQuestionStore";
 
 const PAGE = 6;
-const STALE = 2 * 60 * 1000;
+// Read from the phone, which changes slowly, and expensive to read (photos
+// are looked at); saving a moment invalidates these anyway.
+const STALE = 30 * 60 * 1000;
 
 type Mode = "week" | "all" | number;
 
@@ -62,19 +64,30 @@ export default function FromBeforeScreen() {
     try {
       photos = (await MediaLibrary.getPermissionsAsync()).status;
     } catch {}
-    if (library === "authorized" && photos === "granted") setAccess("ok");
-    else if (library === "notDetermined" || photos === "undetermined") setAccess("ask");
-    else setAccess("denied");
+    const next = library === "authorized" && photos === "granted" ? "ok" : library === "notDetermined" || photos === "undetermined" ? "ask" : "denied";
+    setAccess(next);
+    return next;
   }, []);
   useEffect(() => {
     void checkAccess();
   }, [checkAccess]);
-  useOnForeground(() => void checkAccess());
+  const reload = () => {
+    void queryClient.invalidateQueries({ queryKey: ["fromBefore", user?.id] });
+    void queryClient.invalidateQueries({ queryKey: ["fromBeforeYears", user?.id] });
+    void queryClient.invalidateQueries({ queryKey: ["fromBeforeBrowse", user?.id] });
+  };
+  // Back from iOS Settings with access now allowed: read again rather than
+  // keep the empty result.
+  useOnForeground(() => {
+    const before = access;
+    void checkAccess().then((next) => {
+      if (next === "ok" && before !== null && before !== "ok") reload();
+    });
+  });
   const askAccess = async () => {
     await requestLastWeekAccess();
     await checkAccess();
-    void queryClient.invalidateQueries({ queryKey: ["fromBefore", user?.id] });
-    void queryClient.invalidateQueries({ queryKey: ["fromBeforeBrowse", user?.id] });
+    reload();
   };
 
   const weekly = useQuery({
@@ -126,8 +139,9 @@ export default function FromBeforeScreen() {
   );
 
   const dismiss = async (p: PastPairing) => {
+    if (!user) return;
     posthog?.capture("from_before_dismissed");
-    await dismissPairing(p.song.key);
+    await dismissPairing(user.id, p.song.key);
     void queryClient.invalidateQueries({ queryKey: ["fromBefore", user?.id] });
     void queryClient.invalidateQueries({ queryKey: ["fromBeforeBrowse", user?.id] });
   };

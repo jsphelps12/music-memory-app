@@ -4,7 +4,7 @@ vi.mock("react-native", () => ({ AppState: { addEventListener: vi.fn(() => ({ re
 vi.mock("@tanstack/react-query", () => ({ focusManager: { setEventListener: vi.fn() }, onlineManager: { setEventListener: vi.fn() } }));
 vi.mock("@react-native-community/netinfo", () => ({ default: { addEventListener: vi.fn(() => () => {}) } }));
 
-import { isOnline, shouldRefreshOnResume } from "../appFocus";
+import { isOnline, queryFocusFor, shouldRefreshOnResume } from "../appFocus";
 
 const COOLDOWN = 30_000;
 
@@ -44,5 +44,14 @@ describe("isOnline", () => {
     expect(isOnline(true, null)).toBe(true);
     expect(isOnline(null, null)).toBe(true);
     expect(isOnline(true, undefined)).toBe(true);
+  });
+});
+
+describe("queryFocusFor", () => {
+  it("only a trip to the background changes focus", () => {
+    expect(queryFocusFor("background")).toBe(false);
+    expect(queryFocusFor("active")).toBe(true);
+    // Control Center, a Face ID prompt: no blur, so returning isn't a refocus.
+    expect(queryFocusFor("inactive")).toBeNull();
   });
 });

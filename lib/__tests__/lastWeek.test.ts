@@ -9,6 +9,8 @@ import {
   weekHasContent,
   weekLabel,
   weeklyPlays,
+  weekPhotosView,
+  photosOfDays,
   type LibraryTrack,
   type StreamedTrack,
 } from "../lastWeek";
@@ -56,6 +58,11 @@ describe("weeklyPlays", () => {
 
   it("counts a song new since the start from zero", () => {
     expect(weeklyPlays({ persistentId: "b", playCount: 4 }, { a: 1 }, null)).toBe(4);
+  });
+
+  it("reads a song missing from the end snapshot as never played (snapshots leave those out)", () => {
+    expect(weeklyPlays({ persistentId: "b", playCount: 9 }, { a: 1 }, { a: 2 })).toBe(0);
+    expect(weeklyPlays({ persistentId: "a", playCount: 9 }, {}, { a: 5 })).toBe(5);
   });
 
   it("is unknown without a start", () => {
@@ -179,5 +186,37 @@ describe("the Journal row", () => {
     expect(lastWeekRowState({ ...base, access: "undetermined" })).toBe("ask");
     expect(lastWeekRowState({ ...base, access: "undetermined", askDismissed: true })).toBe("hidden");
     expect(lastWeekRowState({ ...base, access: "denied" })).toBe("hidden");
+  });
+});
+
+describe("weekPhotosView", () => {
+  const song = {
+    key: "s1",
+    storeId: "s1",
+    title: "T",
+    artistName: "A",
+    albumTitle: "",
+    reason: "played" as const,
+    day: "2026-11-12",
+    at: at(2026, 11, 12),
+    plays: 3,
+    playsAreWeekly: true,
+  };
+  const photo = (id: string, d: number) => ({ id, uri: `ph://${id}`, createdAt: at(2026, 11, d) });
+
+  it("regroups the days when photos drop out, keeping the songs", () => {
+    const before = weekPhotosView([song], [photo("p1", 12), photo("p2", 13)]);
+    expect(before.days.map((d) => d.key)).toEqual(["2026-11-13", "2026-11-12"]);
+    expect(photosOfDays(before.days).map((p) => p.id).sort()).toEqual(["p1", "p2"]);
+
+    const after = weekPhotosView([song], [photo("p1", 12)]);
+    expect(after.days.map((d) => d.key)).toEqual(["2026-11-12"]);
+    expect(after.photoCount).toBe(1);
+    expect(after.hasContent).toBe(true);
+  });
+
+  it("is a quiet week once too few photos remain and there are no songs", () => {
+    expect(weekPhotosView([], [photo("p1", 12), photo("p2", 12), photo("p3", 12)]).hasContent).toBe(true);
+    expect(weekPhotosView([], [photo("p1", 12), photo("p2", 12)]).hasContent).toBe(false);
   });
 });

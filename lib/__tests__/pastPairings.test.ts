@@ -16,6 +16,8 @@ import {
   pickFromBefore,
   playsLine,
   relativeScore,
+  fromBeforeKeys,
+  LEGACY_FROM_BEFORE_KEYS,
   yearsAgo,
   type PastSong,
 } from "../pastPairings";
@@ -160,5 +162,14 @@ describe("home and away", () => {
     expect(pairingReason({ song: { plays: 3 }, photoCount: 12, away: true })).toBe(
       "away from home · the week of 12 photos · played 3 times"
     );
+  });
+});
+
+describe("fromBeforeKeys", () => {
+  it("is per account and never one of the device-wide keys", () => {
+    const a = Object.values(fromBeforeKeys("user-a"));
+    const b = Object.values(fromBeforeKeys("user-b"));
+    expect(new Set([...a, ...b]).size).toBe(6);
+    for (const k of [...a, ...b]) expect(LEGACY_FROM_BEFORE_KEYS).not.toContain(k);
   });
 });

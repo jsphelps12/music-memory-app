@@ -95,6 +95,48 @@ export function describeDays(days: number[]): string {
   return [...d].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((x) => DAY_NAMES[x]).join(", ");
 }
 
+/**
+ * Runs async jobs one at a time, in the order they were queued; a failed job
+ * doesn't stop the ones after it. Pure; tested.
+ */
+export function createSerialQueue(): <T>(job: () => Promise<T>) => Promise<T> {
+  let tail: Promise<unknown> = Promise.resolve();
+  return <T>(job: () => Promise<T>) => {
+    const run = tail.then(job, job);
+    tail = run.catch(() => {});
+    return run;
+  };
+}
+
+/**
+ * Re-plan on a return to the app at most this often, unless something
+ * changed (a moment saved on this phone cancels today's reminder itself).
+ */
+export const CHECK_IN_REFRESH_EVERY_MS = 60 * 60 * 1000;
+
+/**
+ * What the reminders were last planned from: the account, the day (the plan
+ * starts today), the settings and the notification permission.
+ */
+export function checkInPlanSignature(userId: string, now: Date, settings: CheckInSettings, permission: string): string {
+  return [userId, localDayKey(now), settings.enabled, settings.hour, settings.minute, settings.days.join(","), permission].join("|");
+}
+
+/**
+ * Whether reminders need re-planning: always when forced or when anything in
+ * the signature changed, else once CHECK_IN_REFRESH_EVERY_MS has passed.
+ * Pure; tested.
+ */
+export function checkInRefreshDue(
+  last: { signature: string; at: number } | null,
+  signature: string,
+  now: number,
+  force = false
+): boolean {
+  if (force || !last || last.signature !== signature) return true;
+  return now - last.at >= CHECK_IN_REFRESH_EVERY_MS;
+}
+
 /** A parsed settings value, or the default when missing or malformed. */
 export function parseCheckInSettings(raw: string | null): CheckInSettings {
   if (!raw) return DEFAULT_CHECK_IN;
@@ -146,11 +188,16 @@ export async function markCheckInOfferDone(userId: string): Promise<void> {
   } catch {}
 }
 
-export async function clearCheckInData(userId: string): Promise<void> {
-  await cancelAllCheckIns();
-  try {
-    await AsyncStorage.multiRemove([settingsKey(userId), offerKey(userId)]);
-  } catch {}
+export function clearCheckInData(userId: string): Promise<void> {
+  // Queued, so a re-plan already running for this account can't schedule
+  // reminders after they were cleared.
+  return serial(async () => {
+    lastPlan = null;
+    await cancelAllCheckIns();
+    try {
+      await AsyncStorage.multiRemove([settingsKey(userId), offerKey(userId)]);
+    } catch {}
+  });
 }
 
 // ── Scheduling ──────────────────────────────────────────────────────────
@@ -178,17 +225,36 @@ async function loggedSinceMidnight(userId: string, now: Date): Promise<boolean> 
   return !error && (count ?? 0) > 0;
 }
 
+// Every change to the scheduled reminders goes through one queue: two
+// re-plans interleaving (a slow one from a return to the app and one from a
+// settings change) could otherwise leave the older plan scheduled.
+const serial = createSerialQueue();
+let lastPlan: { signature: string; at: number } | null = null;
+
 /**
  * Brings the scheduled reminders in line with the settings: clears ours,
- * then (if on and allowed) schedules the next two weeks. Safe to call often.
+ * then (if on and allowed) schedules the next two weeks. Safe to call often:
+ * without `force` it skips the work when nothing changed in the last hour.
  */
-export async function refreshCheckIns(userId: string, now = new Date()): Promise<void> {
-  const settings = await readCheckInSettings(userId);
-  await cancelAllCheckIns();
-  if (!settings.enabled) return;
+export function refreshCheckIns(
+  userId: string,
+  { force = false, now = new Date() }: { force?: boolean; now?: Date } = {}
+): Promise<void> {
+  return serial(() => replan(userId, now, force));
+}
 
-  const { status } = await Notifications.getPermissionsAsync();
-  if (status !== "granted") return;
+async function replan(userId: string, now: Date, force: boolean): Promise<void> {
+  const settings = await readCheckInSettings(userId);
+  let status = "undetermined";
+  try {
+    status = (await Notifications.getPermissionsAsync()).status;
+  } catch {}
+  const signature = checkInPlanSignature(userId, now, settings, status);
+  if (!checkInRefreshDue(lastPlan, signature, now.getTime(), force)) return;
+  lastPlan = { signature, at: now.getTime() };
+
+  await cancelAllCheckIns();
+  if (!settings.enabled || status !== "granted") return;
 
   const logged = await loggedSinceMidnight(userId, now);
   const times = planCheckIns(now, settings.hour, settings.minute, logged, CHECK_IN_DAYS, settings.days);
@@ -208,10 +274,14 @@ export async function refreshCheckIns(userId: string, now = new Date()): Promise
 }
 
 /** After saving a moment: today's reminder has nothing left to ask. */
-export async function cancelTodaysCheckIn(now = new Date()): Promise<void> {
-  try {
-    await Notifications.cancelScheduledNotificationAsync(`${ID_PREFIX}${localDayKey(now)}`);
-  } catch {}
+export function cancelTodaysCheckIn(now = new Date()): Promise<void> {
+  // Queued behind any re-plan in progress, which may have checked "logged
+  // today" before this save and would schedule today's reminder again.
+  return serial(async () => {
+    try {
+      await Notifications.cancelScheduledNotificationAsync(`${ID_PREFIX}${localDayKey(now)}`);
+    } catch {}
+  });
 }
 
 /**
@@ -219,20 +289,24 @@ export async function cancelTodaysCheckIn(now = new Date()): Promise<void> {
  * turning it on). Resolves to the settings actually in force, so a denied
  * permission comes back as off.
  */
-export async function setCheckIn(
+export function setCheckIn(
   userId: string,
   next: CheckInSettings
 ): Promise<{ settings: CheckInSettings; permission: "granted" | "denied" }> {
-  let permission: "granted" | "denied" = "granted";
-  if (next.enabled) {
-    const current = await Notifications.getPermissionsAsync();
-    if (current.status !== "granted") {
-      const asked = await Notifications.requestPermissionsAsync();
-      if (asked.status !== "granted") permission = "denied";
+  // One change at a time, in the order made, each saved and planned before
+  // the next starts: quick taps end with the last one in force.
+  return serial(async () => {
+    let permission: "granted" | "denied" = "granted";
+    if (next.enabled) {
+      const current = await Notifications.getPermissionsAsync();
+      if (current.status !== "granted") {
+        const asked = await Notifications.requestPermissionsAsync();
+        if (asked.status !== "granted") permission = "denied";
+      }
     }
-  }
-  const settings = permission === "granted" ? next : { ...next, enabled: false };
-  await writeCheckInSettings(userId, settings);
-  await refreshCheckIns(userId);
-  return { settings, permission };
+    const settings = permission === "granted" ? next : { ...next, enabled: false };
+    await writeCheckInSettings(userId, settings);
+    await replan(userId, new Date(), true);
+    return { settings, permission };
+  });
 }

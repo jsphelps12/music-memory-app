@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePostHog } from "posthog-react-native";
 import * as Haptics from "expo-haptics";
 import { AppImage } from "@/components/AppImage";
 import { Button } from "@/components/Button";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { ErrorState } from "@/components/ErrorState";
+import { useAuth } from "@/contexts/AuthContext";
 import { Icon } from "@/components/Icon";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
@@ -16,7 +19,7 @@ import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { artworkUrlAtSize } from "@/lib/itunes";
 import { dayLabel, songReasonLine, weekLabel, type WeekDay, type WeekPhoto, type WeekSong } from "@/lib/lastWeek";
-import { captureParams, markWeekSeen, photoFileUri, songForCreate } from "@/lib/lastWeekData";
+import { captureParams, markWeekSeen, photoFileUri, songForCreate, type LastWeekData } from "@/lib/lastWeekData";
 
 const ART = 48;
 const PHOTO = 72;
@@ -35,16 +38,27 @@ export default function LastWeekScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useRouter();
   const posthog = usePostHog();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { data, isLoading, error, refetch } = useLastWeek();
   const [opening, setOpening] = useState<string | null>(null);
-  const markedSeen = useRef(false);
+  const [photoFailed, setPhotoFailed] = useState<{ photo: WeekPhoto; day: string } | null>(null);
 
+  // Seen once opened: stored, and the cached week updated so the Journal
+  // row's dot goes now rather than at the next refetch. By week, so a screen
+  // left open into a new week marks that one too.
+  const seenKey = data?.week.key;
+  const userId = user?.id;
   useEffect(() => {
-    if (data && !markedSeen.current) {
-      markedSeen.current = true;
-      void markWeekSeen(data.week);
+    if (!seenKey) return;
+    void markWeekSeen(seenKey);
+    for (const [key, old] of queryClient.getQueriesData<LastWeekData>({ queryKey: ["lastWeek", userId] })) {
+      if (!old || old.week.key !== seenKey || old.seenWeek === seenKey) continue;
+      // Keep the query's age: nothing was read.
+      const updatedAt = queryClient.getQueryState(key)?.dataUpdatedAt;
+      queryClient.setQueryData<LastWeekData>(key, { ...old, seenWeek: seenKey }, { updatedAt });
     }
-  }, [data]);
+  }, [seenKey, userId, queryClient]);
 
   const openSong = useCallback(
     (song: WeekSong) => {
@@ -62,9 +76,14 @@ export default function LastWeekScreen() {
       if (opening) return;
       Haptics.selectionAsync();
       setOpening(photo.id);
+      setPhotoFailed(null);
       const uri = await photoFileUri(photo);
       setOpening(null);
-      if (!uri) return;
+      if (!uri) {
+        // Usually an iCloud original that couldn't be downloaded just now.
+        setPhotoFailed({ photo, day });
+        return;
+      }
       posthog?.capture("last_week_photo_tapped");
       router.push({
         pathname: "/create",
@@ -183,6 +202,16 @@ export default function LastWeekScreen() {
     <View style={styles.screen}>
       <Stack.Screen options={{ headerShown: false }} />
       <ScreenHeader title="Last week" subtitle={data ? weekLabel(data.week) : undefined} />
+      {photoFailed ? (
+        // Above the list, so it shows wherever the photo was in it.
+        <View style={styles.banner}>
+          <ErrorBanner
+            message="That photo couldn't be loaded from iCloud. Check your connection and try again."
+            onRetry={() => void openPhoto(photoFailed.photo, photoFailed.day)}
+            onDismiss={() => setPhotoFailed(null)}
+          />
+        </View>
+      ) : null}
       {body}
     </View>
   );
@@ -192,6 +221,7 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: theme.colors.background },
     list: { paddingHorizontal: theme.spacing.xl, paddingBottom: theme.spacing["4xl"] },
+    banner: { paddingHorizontal: theme.spacing.xl },
     center: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: theme.spacing["3xl"], gap: theme.spacing.sm },
     emptyTitle: { ...theme.typography.title, color: theme.colors.text },
     emptyText: { ...theme.typography.body, color: theme.colors.textSecondary, textAlign: "center" },
