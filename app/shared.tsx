@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { View, FlatList, RefreshControl, ActivityIndicator, StyleSheet } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
@@ -91,11 +91,11 @@ export default function SharedScreen() {
           keyExtractor={(item) => item.shareId}
           renderItem={renderItem}
           contentContainerStyle={[styles.list, items.length === 0 && styles.listEmpty]}
-          ListHeaderComponent={items.length > 0 ? <View style={styles.listRule} /> : null}
+          ListHeaderComponent={items.length > 0 ? <View style={styles.listRule} /> : undefined}
           refreshControl={
             <RefreshControl
               refreshing={isFetching && !isLoading}
-              onRefresh={refetch}
+              onRefresh={() => void refetch()}
               tintColor={theme.colors.textSecondary}
             />
           }

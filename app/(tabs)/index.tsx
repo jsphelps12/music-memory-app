@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePostHog } from "posthog-react-native";
 import {
+  AccessibilityInfo,
+  Alert,
   View,
   Text,
   SectionList,
@@ -10,7 +12,10 @@ import {
   ActivityIndicator,
   ScrollView,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import Animated, {
+  FadeIn,
+  FadeOut,
   useSharedValue,
   useAnimatedStyle,
   withTiming,
@@ -18,13 +23,14 @@ import Animated, {
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useRouter } from "expo-router";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { useQuery } from "@tanstack/react-query";
+import { useFocusEffect, useNavigation } from "expo-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePlayerActions } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { consumeTimelineStale, planFocusFetch } from "@/lib/timelineRefresh";
-import { shouldRefreshOnResume, useOnForeground } from "@/lib/appFocus";
+import { shouldRefreshOnResume, useOnForeground, useOnReconnect } from "@/lib/appFocus";
 import {
   consumePrefetchPromise,
   consumePrefetchNetworkPromise,
@@ -38,7 +44,8 @@ import {
   TIMELINE_PAGE_SIZE,
 } from "@/lib/timelinePrefetch";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
-import { requestReflectionsSearch } from "@/lib/reflectionsSearch";
+import { fetchAllRows } from "@/lib/fetchAllRows";
+import { groupMomentsByMonth } from "@/lib/monthGroups";
 import { fetchUnviewedSharedCount } from "@/lib/momentShares";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
@@ -47,30 +54,102 @@ import { SkeletonTimelineCard } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { friendlyError } from "@/lib/errors";
-import { MomentCard } from "@/components/MomentCard";
-import { IconButton } from "@/components/IconButton";
+import { MomentCard, type CardMenuAction } from "@/components/MomentCard";
+import { MomentShareHost } from "@/components/MomentShareHost";
+import { MomentAlbumSheet } from "@/components/MomentAlbumSheet";
+import { SelectionAlbumSheet } from "@/components/SelectionAlbumSheet";
+import { Button } from "@/components/Button";
+import { confirmSheet } from "@/components/ConfirmSheet";
+import { deleteMoments } from "@/lib/deleteMoments";
+import { deleteMomentsConfirm, stopSongOfDeletedMoment } from "@/lib/momentActions";
+import {
+  albumAddNotice,
+  bulkDeleteFailedTitle,
+  pruneSelection,
+  selectionTitle,
+  toggleSelected,
+} from "@/lib/momentSelection";
+import { invalidateMomentCaches } from "@/lib/cacheInvalidation";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { CalendarView, type CalendarMoment } from "@/components/CalendarView";
 import { EmptyState } from "@/components/EmptyState";
+import { setJournalSelecting } from "@/lib/journalSelecting";
 import { DailyCheckInOffer } from "@/components/DailyCheckInOffer";
-import { Moment } from "@/types";
+import { LastWeekRow } from "@/components/LastWeekRow";
+import { useLastWeek } from "@/hooks/useLastWeek";
+import { lastWeekRowState } from "@/lib/lastWeek";
+import { Album, Moment, MomentCardData } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 30_000;
+// Reconnects can flap in a weak signal; a refresh within this window is enough.
+const RECONNECT_COOLDOWN_MS = 10_000;
 // One automatic retry when the launch network fetch fails after a cache paint.
 const NETWORK_RETRY_MS = 5_000;
 // Unread-shares count is a badge-style query — 60s staleTime per the convention.
 const SHARED_BADGE_STALE_MS = 60_000;
+// How long a brief notice ("Added 3 moments to …") stays up.
+const NOTICE_MS = 2_500;
+const EMPTY_SELECTION: ReadonlySet<string> = new Set();
+
+/**
+ * Every moment, just the columns the calendar draws, in timeline order (so a
+ * day's tile is the same moment the list shows first). Paged: one response
+ * stops at 1000 rows. Null on failure.
+ */
+async function fetchCalendarRows(userId: string): Promise<CalendarMoment[] | null> {
+  try {
+    const rows = await fetchAllRows<any>((from, to) =>
+      supabase
+        .from("moments")
+        .select("id, moment_date, song_artwork_url, song_title, song_artist")
+        .eq("user_id", userId)
+        .order("moment_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to)
+    );
+    return rows.map((r): CalendarMoment => ({
+      id: r.id,
+      momentDate: r.moment_date ?? null,
+      songArtworkUrl: r.song_artwork_url ?? "",
+      songTitle: r.song_title ?? "",
+      songArtist: r.song_artist ?? "",
+    }));
+  } catch {
+    return null;
+  }
+}
+
+// Throws when the target isn't laid out yet; the calendar tap then just
+// lands on the list where it was.
+function scrollToMoment(list: SectionList, sectionIndex: number, itemIndex: number) {
+  try {
+    list.scrollToLocation({ sectionIndex, itemIndex, viewPosition: 0.3, animated: false });
+  } catch {}
+}
 
 export default function TimelineScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
+  // One Journal offer at a time: the check-in offer waits while Last week's
+  // access ask is up (or still loading). Shares LastWeekRow's query.
+  const { data: lastWeek, isPending: lastWeekPending } = useLastWeek({ passive: true });
+  const lastWeekAsking =
+    (lastWeekPending && !!user) ||
+    (!!lastWeek &&
+      lastWeekRowState({
+        week: lastWeek.week,
+        access: lastWeek.access,
+        askDismissed: lastWeek.askDismissed,
+        dismissedWeek: lastWeek.dismissedWeek,
+        hasContent: lastWeek.hasContent,
+      }) === "ask");
   // Keyed on the id, not the user object: a token refresh replaces the object,
   // and that used to re-run the focus effect and refetch mid-scroll.
   const userId = user?.id;
   const userIdRef = useRef(userId);
-  userIdRef.current = userId;
   const theme = useTheme();
   const posthog = usePostHog();
 
@@ -95,9 +174,7 @@ export default function TimelineScreen() {
   // Latest rendered list and hasMore, for merging a refreshed first page into
   // it outside a state updater.
   const momentsRef = useRef<Moment[]>(moments);
-  momentsRef.current = moments;
   const hasMoreRef = useRef(hasMore);
-  hasMoreRef.current = hasMore;
 
   // Snapshot of the loaded timeline (every page) so the calendar can derive data without another query
   const timelineSnapshotRef = useRef<{ moments: Moment[]; hasMore: boolean } | null>(null);
@@ -107,6 +184,27 @@ export default function TimelineScreen() {
   const [calendarMoments, setCalendarMoments] = useState<CalendarMoment[]>([]);
   const calendarFetchedRef = useRef<null | boolean>(null);
   const [pendingScrollId, setPendingScrollId] = useState<string | null>(null);
+
+  // Select mode (list view only): taps tick cards, a bar offers Add to album
+  // and Delete for all of them.
+  const [selecting, setSelecting] = useState(false);
+  // The tab bar hides the floating capture button while selecting.
+  useEffect(() => {
+    setJournalSelecting(selecting);
+  }, [selecting]);
+  useEffect(() => () => setJournalSelecting(false), []);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(EMPTY_SELECTION);
+  const [bulkAlbumVisible, setBulkAlbumVisible] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [notice, setNotice] = useState("");
+  // The card menu's sheets, one instance for the whole list. The moment
+  // outlives `visible` so a sheet keeps its content while it slides away.
+  const [shareMoment, setShareMoment] = useState<MomentCardData | null>(null);
+  const [shareVisible, setShareVisible] = useState(false);
+  const [albumMomentId, setAlbumMomentId] = useState<string | null>(null);
+  const [albumVisible, setAlbumVisible] = useState(false);
+  const queryClient = useQueryClient();
+  const player = usePlayerActions();
 
   // Shared with you (Sharing v2) lives under You since Phase 1. The Journal
   // only carries a quiet "new from friends" row, driven by the cheap unread
@@ -121,7 +219,19 @@ export default function TimelineScreen() {
   // every badge update, which during a cold start fired a second
   // fetchMoments(true) before the first had finished.
   const unviewedUpdatedAtRef = useRef(unviewedUpdatedAt);
-  unviewedUpdatedAtRef.current = unviewedUpdatedAt;
+
+  const viewModeRef = useRef(viewMode);
+
+  // Latest values for the async callbacks below. Synced in a layout effect,
+  // not during render (the React Compiler skips components that touch refs in
+  // render); it runs in the same commit, before any other effect or callback.
+  useLayoutEffect(() => {
+    userIdRef.current = userId;
+    momentsRef.current = moments;
+    hasMoreRef.current = hasMore;
+    unviewedUpdatedAtRef.current = unviewedUpdatedAt;
+    viewModeRef.current = viewMode;
+  }, [userId, moments, hasMore, unviewedUpdatedAt, viewMode]);
 
   // Clear data on user change (sign out / sign in as different user)
   useEffect(() => {
@@ -143,11 +253,8 @@ export default function TimelineScreen() {
 
   const listOpacity = useSharedValue(1);
   const calendarOpacity = useSharedValue(0);
-  const listAnimStyle = useAnimatedStyle(() => ({ opacity: listOpacity.value }));
-  const calendarAnimStyle = useAnimatedStyle(() => ({ opacity: calendarOpacity.value }));
-
-  const viewModeRef = useRef(viewMode);
-  viewModeRef.current = viewMode;
+  const listAnimStyle = useAnimatedStyle(() => ({ opacity: listOpacity.get() }));
+  const calendarAnimStyle = useAnimatedStyle(() => ({ opacity: calendarOpacity.get() }));
 
   // `silent`: a refresh of a calendar already on screen, without the spinner.
   const fetchCalendarMoments = useCallback(async (silent = false) => {
@@ -162,22 +269,10 @@ export default function TimelineScreen() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("moments")
-      .select("id, moment_date, song_artwork_url, song_title, song_artist")
-      .eq("user_id", userId)
-      .order("moment_date", { ascending: false, nullsFirst: false });
+    const rows = await fetchCalendarRows(userId);
     if (userIdRef.current !== userId) return;
-    if (!error && data) {
-      setCalendarMoments(
-        data.map((r: any): CalendarMoment => ({
-          id: r.id,
-          momentDate: r.moment_date ?? null,
-          songArtworkUrl: r.song_artwork_url ?? "",
-          songTitle: r.song_title ?? "",
-          songArtist: r.song_artist ?? "",
-        }))
-      );
+    if (rows) {
+      setCalendarMoments(rows);
       calendarFetchedRef.current = true;
     } else {
       calendarFetchedRef.current = false;
@@ -185,99 +280,65 @@ export default function TimelineScreen() {
     setCalendarLoading(false);
   }, [userId]);
 
-  const switchToList = useCallback(() => {
-    if (viewModeRef.current !== "list") {
-      calendarOpacity.value = withTiming(0, { duration: 200 });
-      listOpacity.value = withTiming(1, { duration: 200 });
-      setViewMode("list");
-    }
+  const exitSelect = useCallback(() => {
+    setSelecting(false);
+    setSelected(EMPTY_SELECTION);
   }, []);
 
-  const switchToCalendar = useCallback(() => {
-    if (viewModeRef.current !== "calendar") {
-      listOpacity.value = withTiming(0, { duration: 200 });
-      calendarOpacity.value = withTiming(1, { duration: 200 });
-      setViewMode("calendar");
-      if (calendarFetchedRef.current !== true) fetchCalendarMoments();
-    }
-  }, [fetchCalendarMoments]);
+  // Both views stay mounted; this only crossfades them. Fading to the view
+  // already shown is a no-op, so callers needn't check first. Select mode is
+  // the list's alone, so the calendar ends it.
+  const showView = useCallback((mode: "list" | "calendar") => {
+    listOpacity.set(withTiming(mode === "list" ? 1 : 0, { duration: 200 }));
+    calendarOpacity.set(withTiming(mode === "calendar" ? 1 : 0, { duration: 200 }));
+    setViewMode(mode);
+    if (mode !== "list") exitSelect();
+  }, [listOpacity, calendarOpacity, exitSelect]);
+
+  // Opening the calendar loads it if the list changed since it last did.
+  useEffect(() => {
+    if (viewMode === "calendar" && calendarFetchedRef.current !== true) fetchCalendarMoments();
+  }, [viewMode, fetchCalendarMoments]);
 
   const pinchGesture = useMemo(
     () =>
       Gesture.Pinch().onEnd((e) => {
         "worklet";
         if (e.scale < 0.75) {
-          runOnJS(switchToList)();
+          runOnJS(showView)("list");
         } else if (e.scale > 1.3) {
-          runOnJS(switchToCalendar)();
+          runOnJS(showView)("calendar");
         }
       }),
-    [switchToList, switchToCalendar]
+    [showView]
   );
 
   const navigation = useNavigation();
 
   useEffect(() => {
     return navigation.addListener("tabPress" as any, () => {
-      if (viewMode === "calendar") {
-        calendarOpacity.value = withTiming(0, { duration: 200 });
-        listOpacity.value = withTiming(1, { duration: 200 });
-        setViewMode("list");
-      }
+      if (viewMode === "calendar") showView("list");
     });
-  }, [navigation, viewMode]);
-
-  const toggleView = useCallback(() => {
-    if (viewMode === "list") {
-      listOpacity.value = withTiming(0, { duration: 200 });
-      calendarOpacity.value = withTiming(1, { duration: 200 });
-      setViewMode("calendar");
-      if (calendarFetchedRef.current !== true) fetchCalendarMoments();
-    } else {
-      calendarOpacity.value = withTiming(0, { duration: 200 });
-      listOpacity.value = withTiming(1, { duration: 200 });
-      setViewMode("list");
-    }
-  }, [viewMode, fetchCalendarMoments]);
+  }, [navigation, viewMode, showView]);
 
   const handleDayPress = useCallback((momentId: string) => {
-    calendarOpacity.value = withTiming(0, { duration: 200 });
-    listOpacity.value = withTiming(1, { duration: 200 });
-    setViewMode("list");
+    showView("list");
     setPendingScrollId(momentId);
-  }, []);
+  }, [showView]);
 
-  const sections = useMemo(() => {
-    const grouped: Record<string, Moment[]> = {};
-    for (const m of moments) {
-      const key = m.momentDate
-        ? new Date(m.momentDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })
-        : "No Date";
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(m);
-    }
-    return Object.entries(grouped).map(([title, data]) => ({ title, data }));
-  }, [moments]);
+  // Each month's title is formatted once (lib/monthGroups.ts), not per moment.
+  const sections = useMemo(() => groupMomentsByMonth(moments), [moments]);
 
   useEffect(() => {
     if (!pendingScrollId || sections.length === 0) return;
-    for (let s = 0; s < sections.length; s++) {
-      const idx = sections[s].data.findIndex((m) => m.id === pendingScrollId);
-      if (idx >= 0) {
-        setPendingScrollId(null);
-        setTimeout(() => {
-          try {
-            sectionListRef.current?.scrollToLocation({
-              sectionIndex: s,
-              itemIndex: idx,
-              viewPosition: 0.3,
-              animated: false,
-            });
-          } catch {}
-        }, 100);
-        return;
-      }
-    }
+    const sectionIndex = sections.findIndex((s) => s.data.some((m) => m.id === pendingScrollId));
+    if (sectionIndex < 0) return;
+    const itemIndex = sections[sectionIndex].data.findIndex((m) => m.id === pendingScrollId);
+    setPendingScrollId(null);
+    setTimeout(() => {
+      const list = sectionListRef.current;
+      if (list) scrollToMoment(list, sectionIndex, itemIndex);
+    }, 100);
   }, [pendingScrollId, sections]);
 
   // Sets the rendered list and keeps the snapshot (used by the calendar and
@@ -309,6 +370,10 @@ export default function TimelineScreen() {
     pageRef.current = lastLoadedPage(merged.moments.length);
     applyList(merged.moments, merged.hasMore);
   }, [applyList]);
+
+  // The launch retry calls the latest fetchMoments through this; declared
+  // before the callbacks that read it so the compiler knows it's a ref.
+  const fetchMomentsRef = useRef<(showLoading: boolean) => Promise<void>>(() => Promise.resolve());
 
   const fetchMomentsInner = useCallback(
     async (showLoading: boolean, append = false, skipPrefetch = false) => {
@@ -435,18 +500,17 @@ export default function TimelineScreen() {
     [userId, posthog, applyList, mergeFresh, persistFirstPage]
   );
 
+  // .finally() rather than try/finally, which the React Compiler can't handle.
   const fetchMoments = useCallback(
-    async (showLoading: boolean, append = false, skipPrefetch = false) => {
-      try {
-        await fetchMomentsInner(showLoading, append, skipPrefetch);
-      } finally {
+    (showLoading: boolean, append = false, skipPrefetch = false): Promise<void> =>
+      fetchMomentsInner(showLoading, append, skipPrefetch).finally(() => {
         if (!append) refreshInFlightRef.current = false;
-      }
-    },
+      }),
     [fetchMomentsInner]
   );
-  const fetchMomentsRef = useRef(fetchMoments);
-  fetchMomentsRef.current = fetchMoments;
+  useEffect(() => {
+    fetchMomentsRef.current = fetchMoments;
+  }, [fetchMoments]);
 
   const handleLoadMore = useCallback(async () => {
     // Don't append while a refresh is resetting pageRef — the two racing would
@@ -470,6 +534,14 @@ export default function TimelineScreen() {
       fetchMoments(false);
     }
     if (Date.now() - unviewedUpdatedAtRef.current >= SHARED_BADGE_STALE_MS) refetchUnviewed();
+  });
+
+  // Back online after a dead zone: catch up, unless a refresh just ran.
+  useOnReconnect(() => {
+    if (!userId || lastFetchTime.current === 0) return;
+    if (needsRefreshRef.current || Date.now() - lastFetchTime.current >= RECONNECT_COOLDOWN_MS) {
+      fetchMoments(false);
+    }
   });
 
   useFocusEffect(
@@ -525,16 +597,121 @@ export default function TimelineScreen() {
   // In-place removal for long-press delete: the stale signal set by
   // deleteMomentWithCleanup only takes effect on the next focus, and deleting
   // from the card never leaves the screen.
-  const handleCardDeleted = useCallback((deletedId: string) => {
-    const list = momentsRef.current.filter((m) => m.id !== deletedId);
+  const removeFromList = useCallback((ids: readonly string[]) => {
+    const gone = new Set(ids);
+    const list = momentsRef.current.filter((m) => !gone.has(m.id));
     applyList(list, hasMoreRef.current);
     persistFirstPage(list);
-    setCalendarMoments((prev) => prev.filter((m) => m.id !== deletedId));
+    setCalendarMoments((prev) => prev.filter((m) => !gone.has(m.id)));
   }, [applyList, persistFirstPage]);
+  const handleCardDeleted = useCallback((deletedId: string) => removeFromList([deletedId]), [removeFromList]);
+
+  // ── Select mode ─────────────────────────────────────────────────────────
+  // Leaving the tab (or pushing a screen over it) ends it.
+  useFocusEffect(useCallback(() => exitSelect, [exitSelect]));
+
+  // A moment that leaves the list (deleted elsewhere, a refresh) leaves the
+  // selection too; with nothing left to select, select mode ends.
+  useEffect(() => {
+    if (moments.length === 0) {
+      exitSelect();
+      return;
+    }
+    setSelected((prev) => pruneSelection(prev, moments.map((m) => m.id)));
+  }, [moments, exitSelect]);
+
+  useEffect(() => {
+    if (!notice) return;
+    AccessibilityInfo.announceForAccessibility(notice);
+    const t = setTimeout(() => setNotice(""), NOTICE_MS);
+    return () => clearTimeout(t);
+  }, [notice]);
+
+  const enterSelect = useCallback((firstId?: string) => {
+    Haptics.selectionAsync();
+    setNotice("");
+    setSelecting(true);
+    setSelected(firstId ? new Set([firstId]) : EMPTY_SELECTION);
+  }, []);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelected((prev) => toggleSelected(prev, id));
+  }, []);
+
+  // The card menu's Share, Add to album and Select.
+  const handleMenuAction = useCallback((action: CardMenuAction, item: MomentCardData) => {
+    if (action === "select") {
+      enterSelect(item.id);
+    } else if (action === "share") {
+      Haptics.selectionAsync();
+      setShareMoment(item);
+      setShareVisible(true);
+      posthog?.capture("moment_shared", { song_title: item.songTitle, song_artist: item.songArtist, from: "journal_menu" });
+    } else {
+      Haptics.selectionAsync();
+      setAlbumMomentId(item.id);
+      setAlbumVisible(true);
+    }
+  }, [enterSelect, posthog]);
+
+  // The share sheet's own Add to album row, once that sheet has closed.
+  const shareToAlbum = useCallback(() => {
+    if (!shareMoment) return;
+    setAlbumMomentId(shareMoment.id);
+    setAlbumVisible(true);
+  }, [shareMoment]);
+
+  const selectedIds = useMemo(() => [...selected], [selected]);
+
+  const handleBulkAdded = useCallback((album: Album, result: { added: string[]; skipped: string[] }) => {
+    setBulkAlbumVisible(false);
+    exitSelect();
+    posthog?.capture("moments_added_to_album", { count: result.added.length, skipped: result.skipped.length });
+    setNotice(albumAddNotice(album.name, result.added.length, result.skipped.length));
+  }, [exitSelect, posthog]);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (bulkDeleting || selected.size === 0) return;
+    const targets = momentsRef.current.filter((m) => selected.has(m.id));
+    if (targets.length === 0) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    if (!(await confirmSheet(deleteMomentsConfirm(targets.length)))) return;
+    setBulkDeleting(true);
+    const result = await deleteMoments(targets);
+    setBulkDeleting(false);
+
+    const deleted = new Set(result.succeeded);
+    // Gone moments shouldn't keep playing (or linger paused in the mini player).
+    for (const m of targets) {
+      if (!deleted.has(m.id)) continue;
+      stopSongOfDeletedMoment(player, m);
+      posthog?.capture("moment_deleted", { song_title: m.songTitle, song_artist: m.songArtist, bulk: true });
+    }
+    if (result.succeeded.length > 0) {
+      invalidateMomentCaches(queryClient, userId);
+      removeFromList(result.succeeded);
+    }
+    if (result.failed.length > 0) {
+      // The ones that didn't go stay ticked, ready to try again.
+      setSelected(new Set(result.failed));
+      Alert.alert(bulkDeleteFailedTitle(result.failed.length, targets.length), friendlyError(result.firstError));
+      return;
+    }
+    exitSelect();
+  }, [bulkDeleting, selected, player, posthog, queryClient, userId, removeFromList, exitSelect]);
 
   const renderMoment = useCallback(({ item }: { item: Moment }) => (
-    <MomentCard item={item} allMoods={allMoods} onDeleted={handleCardDeleted} currentUserId={userId} />
-  ), [allMoods, handleCardDeleted, userId]);
+    <MomentCard
+      item={item}
+      allMoods={allMoods}
+      onDeleted={handleCardDeleted}
+      currentUserId={userId}
+      onMenuAction={handleMenuAction}
+      selecting={selecting}
+      selected={selecting && selected.has(item.id)}
+      onToggleSelect={toggleSelect}
+    />
+  ), [allMoods, handleCardDeleted, userId, handleMenuAction, selecting, selected, toggleSelect]);
 
   const listHeader = (
     <>
@@ -552,7 +729,7 @@ export default function TimelineScreen() {
           <Text style={styles.sharedRowText}>
             {unviewedCount === 1 ? "1 new from friends" : `${unviewedCount} new from friends`}
           </Text>
-          <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+          <Icon name="chevron-forward" size={16} color={theme.colors.textTertiary} />
         </TouchableOpacity>
       ) : null}
       {bannerError ? (
@@ -562,7 +739,11 @@ export default function TimelineScreen() {
           onDismiss={() => setBannerError("")}
         />
       ) : null}
-      {userId ? <DailyCheckInOffer userId={userId} hasMoments={moments.length > 0} /> : null}
+      {/* Offers step aside while choosing moments. */}
+      {userId && !selecting ? <LastWeekRow /> : null}
+      {userId && !selecting ? (
+        <DailyCheckInOffer userId={userId} hasMoments={moments.length > 0} waiting={lastWeekAsking} />
+      ) : null}
     </>
   );
 
@@ -570,18 +751,30 @@ export default function TimelineScreen() {
     <View style={styles.container}>
       <ScreenHeader
         leading="none"
-        title="Journal"
+        title={selecting ? selectionTitle(selected.size) : "Journal"}
         right={
-          <>
-            {/* The archive lives in Rediscover — land there with search up */}
-            <IconButton
-              name="search-outline"
-              accessibilityLabel="Search"
-              onPress={() => {
-                requestReflectionsSearch();
-                router.push("/(tabs)/reflections" as any);
-              }}
+          selecting ? (
+            <Button
+              label="Done"
+              variant="text"
+              size="pill"
+              onPress={exitSelect}
+              testID="select-done"
             />
+          ) : (
+          <>
+            {viewMode === "list" && moments.length > 0 ? (
+              <Button
+                label="Select"
+                variant="text"
+                size="pill"
+                onPress={() => enterSelect()}
+                testID="journal-select"
+                // Not just "Select": the card menu has a "Select" too.
+                accessibilityLabel="Select moments"
+                accessibilityHint="Pick moments to add to an album or delete"
+              />
+            ) : null}
             {/* One control for the three ways to see the journal. List and
                 calendar are in-place views of My Moments (both stay mounted);
                 map is its own screen. */}
@@ -602,10 +795,10 @@ export default function TimelineScreen() {
                     activeOpacity={0.7}
                     onPress={() => {
                       if (seg.key === "map") router.push("/moments-map" as any);
-                      else if (viewMode !== seg.key) toggleView();
+                      else if (viewMode !== seg.key) showView(seg.key);
                     }}
                   >
-                    <Ionicons
+                    <Icon
                       name={seg.icon}
                       size={17}
                       color={active ? theme.colors.text : theme.colors.textSecondary}
@@ -615,6 +808,7 @@ export default function TimelineScreen() {
               })}
             </View>
           </>
+          )
         }
         style={styles.header}
       />
@@ -644,7 +838,7 @@ export default function TimelineScreen() {
                     <RefreshControl
                       refreshing={refreshing}
                       onRefresh={handleRefresh}
-                      tintColor={theme.colors.text}
+                      tintColor={theme.colors.textSecondary}
                     />
                   }
                 >
@@ -653,13 +847,14 @@ export default function TimelineScreen() {
                     icon="musical-notes-outline"
                     title="No moments yet"
                     subtitle={"A moment is a song paired with a memory —\nwhat you felt, who you were with, and why it mattered."}
-                    action={{ label: "Create Your First Moment", onPress: () => router.push("/create") }}
+                    action={{ label: "Capture a song", onPress: () => router.push("/create"), testID: "journal-empty-capture" }}
                   />
                 </ScrollView>
               ) : (
                 <SectionList
                   ref={sectionListRef}
                   sections={sections}
+                  extraData={selected}
                   keyExtractor={(item) => item.id}
                   renderItem={renderMoment}
                   renderSectionHeader={({ section: { title } }) => (
@@ -676,10 +871,10 @@ export default function TimelineScreen() {
                   ListFooterComponent={
                     loadingMore ? (
                       <ActivityIndicator
-                        style={{ paddingVertical: 20 }}
+                        style={styles.footerSpinner}
                         color={theme.colors.textSecondary}
                       />
-                    ) : null
+                    ) : undefined
                   }
                   contentContainerStyle={styles.listContent}
                   showsVerticalScrollIndicator={false}
@@ -689,7 +884,7 @@ export default function TimelineScreen() {
                     <RefreshControl
                       refreshing={refreshing}
                       onRefresh={handleRefresh}
-                      tintColor={theme.colors.text}
+                      tintColor={theme.colors.textSecondary}
                     />
                   }
                 />
@@ -701,7 +896,69 @@ export default function TimelineScreen() {
             </Animated.View>
           </View>
         </GestureDetector>
+
+        {/* Select mode's actions, just above the tab bar. Left-aligned so the
+            floating capture button keeps its corner. */}
+        {selecting ? (
+          <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(150)} style={styles.selectBar}>
+            <Button
+              label="Add to album"
+              icon="albums-outline"
+              variant="text"
+              size="pill"
+              disabled={selected.size === 0 || bulkDeleting}
+              onPress={() => setBulkAlbumVisible(true)}
+              testID="select-bar-album"
+            />
+            <Button
+              label="Delete"
+              icon="trash-outline"
+              variant="text"
+              size="pill"
+              tone="destructive"
+              disabled={selected.size === 0}
+              loading={bulkDeleting}
+              onPress={() => void handleBulkDelete()}
+              testID="select-bar-delete"
+            />
+          </Animated.View>
+        ) : null}
+
+        <View style={styles.noticeWrap} pointerEvents="none">
+          {notice ? (
+            <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(200)} style={styles.notice}>
+              <Icon name="checkmark" size={16} color={theme.colors.text} />
+              <Text style={styles.noticeText} numberOfLines={2}>{notice}</Text>
+            </Animated.View>
+          ) : null}
+        </View>
       </View>
+
+      {userId && shareMoment ? (
+        <MomentShareHost
+          moment={shareMoment}
+          visible={shareVisible}
+          onClose={() => setShareVisible(false)}
+          onAddToAlbum={shareToAlbum}
+        />
+      ) : null}
+      {userId ? (
+        <>
+          <MomentAlbumSheet
+            momentId={albumMomentId}
+            visible={albumVisible}
+            onClose={() => setAlbumVisible(false)}
+            userId={userId}
+          />
+          <SelectionAlbumSheet
+            visible={bulkAlbumVisible}
+            momentIds={selectedIds}
+            userId={userId}
+            onClose={() => setBulkAlbumVisible(false)}
+            onAdded={handleBulkAdded}
+          />
+        </>
+      ) : null}
     </View>
   );
 }
@@ -775,6 +1032,51 @@ function createStyles(theme: Theme) {
     },
     emptyHeader: {
       paddingHorizontal: theme.spacing.xl,
+    },
+    footerSpinner: {
+      paddingVertical: theme.spacing.xl,
+    },
+    // Over the bottom of the list, which already clears 110pt for the
+    // capture button; the right side stays free for that button.
+    selectBar: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      bottom: 0,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.lg,
+      paddingLeft: theme.spacing.lg,
+      paddingRight: 100,
+      paddingVertical: theme.spacing.sm,
+      backgroundColor: theme.colors.background,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
+    },
+    // A brief notice where the select bar was: a raised surface with a
+    // hairline edge, no shadow, clear of the capture button.
+    noticeWrap: {
+      position: "absolute",
+      left: theme.spacing.xl,
+      right: 100,
+      bottom: theme.spacing.lg,
+      alignItems: "flex-start",
+    },
+    notice: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.radii.md,
+      backgroundColor: theme.colors.elevated,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+    },
+    noticeText: {
+      ...theme.typography.callout,
+      color: theme.colors.text,
+      flexShrink: 1,
     },
     listContent: {
       paddingHorizontal: theme.spacing.xl,

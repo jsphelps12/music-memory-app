@@ -1,7 +1,7 @@
 export const MOMENT_CARD_COLUMNS =
   "id, user_id, moment_date, created_at, song_title, song_artist, song_album_name, " +
   "song_artwork_url, song_provider, song_apple_music_id, song_spotify_id, song_preview_url, " +
-  "mood, moods, photo_urls, photo_thumbnails, reflection_text, guest_name, guest_uuid";
+  "mood, moods, photo_urls, photo_thumbnails, media_refs, reflection_text, guest_name, guest_uuid";
 
 /**
  * Year in review needs people and place too, which card queries leave out.

@@ -11,6 +11,11 @@ export interface WritingSession {
   songArtist?: string;
   songArtworkUrl?: string;
   placeholder?: string;
+  /**
+   * Hears the text as it's typed, so the opener's draft (capture) keeps
+   * full-page writing if the app is closed before Done.
+   */
+  onChange?: (text: string) => void;
   onDone: (text: string) => void;
 }
 

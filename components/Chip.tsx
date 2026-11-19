@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { AppImage } from "@/components/AppImage";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon, type IconName } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
@@ -17,7 +17,7 @@ interface Props {
    * add: the dashed "+ Add" at the end of a set.
    */
   variant?: "outline" | "filled" | "add";
-  icon?: React.ComponentProps<typeof Ionicons>["name"];
+  icon?: IconName;
   /** A small leading image (album art, a cover) in place of an icon. */
   imageUri?: string | null;
   /** e.g. long-press to delete a custom mood. */
@@ -59,7 +59,7 @@ export function Chip({
       {imageUri ? (
         <AppImage source={{ uri: imageUri }} style={styles.image} />
       ) : icon ? (
-        <Ionicons name={icon} size={14} color={fg} />
+        <Icon name={icon} size={14} color={fg} />
       ) : null}
       <Text style={[styles.label, { color: fg }]} numberOfLines={1}>
         {label}
@@ -71,7 +71,7 @@ export function Chip({
           accessibilityRole="button"
           accessibilityLabel={removeLabel ?? `Remove ${label}`}
         >
-          <Ionicons name="close" size={14} color={theme.colors.textSecondary} />
+          <Icon name="close" size={14} color={theme.colors.textSecondary} />
         </Pressable>
       ) : null}
     </View>

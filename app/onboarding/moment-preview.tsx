@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Share, StyleSheet, ActivityIndicator, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppImage } from "@/components/AppImage";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from "expo-audio";
 import { supabase } from "@/lib/supabase";
@@ -170,7 +170,7 @@ export default function OnboardingMomentPreviewScreen() {
       {/* Volume nudge */}
       {volumeBannerVisible ? (
         <View style={[styles.volumeBanner, { paddingTop: insets.top + theme.spacing.xs }]}>
-          <Ionicons name="volume-high-outline" size={16} color={theme.colors.textSecondary} />
+          <Icon name="volume-high-outline" size={16} color={theme.colors.textSecondary} />
           <Text style={styles.volumeText}>Turn up your volume</Text>
           <IconButton
             name="close"
@@ -192,7 +192,7 @@ export default function OnboardingMomentPreviewScreen() {
           <AppImage source={{ uri: moment.songArtworkUrl }} style={styles.artwork} contentFit="cover" />
         ) : (
           <View style={styles.artworkPlaceholder}>
-            <Ionicons name="musical-note" size={48} color={theme.colors.textSecondary} />
+            <Icon name="musical-note" size={48} color={theme.colors.textSecondary} />
           </View>
         )}
 
@@ -207,7 +207,7 @@ export default function OnboardingMomentPreviewScreen() {
           {moment.songPreviewUrl ? (
             // Playing state is the view's one terracotta signal.
             <View style={styles.playingBadge}>
-              <Ionicons name="musical-notes" size={14} color={theme.colors.accent} />
+              <Icon name="musical-notes" size={14} color={theme.colors.accent} />
               <Text style={styles.playingText}>Playing</Text>
             </View>
           ) : null}

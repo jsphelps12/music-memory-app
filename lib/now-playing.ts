@@ -1,6 +1,6 @@
 import { getNowPlayingItem, addNowPlayingListener } from "@/modules/now-playing";
 import type { NowPlayingItem } from "@/modules/now-playing";
-import type { EventSubscription } from "expo-modules-core";
+import type { EventSubscription } from "expo";
 import type { Song } from "@/types";
 
 function itemToSong(item: NowPlayingItem): Song {

@@ -19,16 +19,21 @@ import { setCachedMoment } from "@/lib/momentCache";
 import { deleteMomentWithCleanup } from "@/lib/deleteMoment";
 import { invalidateMomentCaches } from "@/lib/cacheInvalidation";
 import { friendlyError } from "@/lib/errors";
-import { usePlayerControls } from "@/contexts/PlayerContext";
+import { useIsSongPlaying, usePlayerActions } from "@/contexts/PlayerContext";
+import { playbackSongId } from "@/lib/playbackStore";
 import { useTheme } from "@/hooks/useTheme";
 import { momentCardImageUrls } from "@/lib/storage";
+import { withoutOthersVideos } from "@/lib/linkedMedia";
 import { artworkUrlAtSize } from "@/lib/itunes";
 import { moodWords as moodWordsFor } from "@/lib/moodLabels";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { PlayingIndicator } from "@/components/PlayingIndicator";
 import { MomentActionMenu, MenuAnchor, MomentMenuItem } from "@/components/MomentActionMenu";
+import { ContextMenuView, type ContextMenuAction } from "@/modules/context-menu";
 import { confirmSheet } from "@/components/ConfirmSheet";
+import { Icon } from "@/components/Icon";
+import { DELETE_MOMENT_CONFIRM, DELETE_MOMENT_FAILED, stopSongOfDeletedMoment } from "@/lib/momentActions";
 import { MomentCardData, Song } from "@/types";
 
 interface Props {
@@ -49,20 +54,44 @@ interface Props {
    * re-render every card in every list.
    */
   currentUserId?: string;
+  /**
+   * Adds Share, Add to album and Select to the long-press menu (the Journal).
+   * The host shows the sheets once, not one per card.
+   */
+  onMenuAction?: (action: CardMenuAction, item: MomentCardData) => void;
+  /** Select mode: a tap ticks the card instead of opening it; no menu. */
+  selecting?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
+
+export type CardMenuAction = "share" | "album" | "select";
 
 // 56pt artwork at 3x. The stored URL is the 600px detail image.
 const ARTWORK_PX = 168;
 
-function MomentCardComponent({ item, allMoods, collectionId, collectionRole, showArtist = true, onDeleted, currentUserId }: Props) {
+function MomentCardComponent({
+  item,
+  allMoods,
+  collectionId,
+  collectionRole,
+  showArtist = true,
+  onDeleted,
+  currentUserId,
+  onMenuAction,
+  selecting = false,
+  selected = false,
+  onToggleSelect,
+}: Props) {
   const theme = useTheme();
   const router = useRouter();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const scale = useSharedValue(1);
   const animatedRef = useAnimatedRef<Animated.View>();
-  // Controls only: progress ticks live in a separate context, so playback
-  // doesn't re-render every card.
-  const player = usePlayerControls();
+  // Stable actions, plus a selector on just this card's song: play/pause
+  // elsewhere doesn't re-render the card, only its own song starting or
+  // stopping does.
+  const player = usePlayerActions();
   const posthog = usePostHog();
   const queryClient = useQueryClient();
 
@@ -71,14 +100,13 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
   const canModify = !!onDeleted && !!currentUserId && item.userId === currentUserId;
 
   // Match by the provider-native ID so both Apple Music and Spotify moments work
-  const momentSongId = item.songSpotifyId ?? item.songAppleMusicId;
-  const playingSongId = player.currentSong?.spotifyId ?? player.currentSong?.appleMusicId;
-  const isThisPlaying = !!momentSongId && momentSongId === playingSongId && player.isPlaying;
+  const momentSongId = playbackSongId({ spotifyId: item.songSpotifyId, appleMusicId: item.songAppleMusicId });
+  const isThisPlaying = useIsSongPlaying(momentSongId);
 
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
 
   const handleLongPress = useCallback(() => {
-    if (!canModify) return;
+    if (!canModify || selecting) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     // Anchor the menu to the card's screen position so it hovers just above
     // the moment being acted on, not in a detached sheet at the bottom.
@@ -89,33 +117,27 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
         runOnJS(setMenuAnchor)({ x: m.pageX, y: m.pageY, width: m.width, height: m.height });
       }
     })();
-  }, [canModify, animatedRef]);
+  }, [canModify, selecting, animatedRef]);
 
   const confirmAndDelete = useCallback(async () => {
-    const confirmed = await confirmSheet({
-      title: "Delete Moment",
-      message: "Are you sure? This cannot be undone.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
+    const confirmed = await confirmSheet(DELETE_MOMENT_CONFIRM);
     if (!confirmed) return;
     const { error } = await deleteMomentWithCleanup(item);
     if (error) {
-      Alert.alert("Error", friendlyError(error));
+      Alert.alert(DELETE_MOMENT_FAILED, friendlyError(error));
       return;
     }
     // The moment is gone — its song shouldn't keep playing (or linger
     // paused in the mini player).
-    if (momentSongId && momentSongId === playingSongId) {
-      void player.stop();
-    }
+    stopSongOfDeletedMoment(player, item);
     posthog.capture("moment_deleted", { song_title: item.songTitle, song_artist: item.songArtist });
     invalidateMomentCaches(queryClient, currentUserId);
     onDeleted?.(item.id);
-  }, [item, posthog, queryClient, currentUserId, onDeleted, momentSongId, playingSongId, player]);
+  }, [item, posthog, queryClient, currentUserId, onDeleted, player]);
 
   // The menu runs a row's action once it has finished closing, so the delete
   // confirm can present (iOS drops a Modal that starts mid-dismiss).
+  // Edit, Share, Add to album, Select, then Delete last (DESIGN.md, Menus).
   const menuItems = useMemo<MomentMenuItem[]>(
     () => [
       {
@@ -124,6 +146,13 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
         icon: "pencil-outline",
         onPress: () => router.push(`/moment/edit/${item.id}`),
       },
+      ...(onMenuAction
+        ? ([
+            { key: "share", label: "Share", icon: "share-outline", onPress: () => onMenuAction("share", item) },
+            { key: "album", label: "Add to album", icon: "albums-outline", onPress: () => onMenuAction("album", item) },
+            { key: "select", label: "Select", icon: "checkmark-circle", onPress: () => onMenuAction("select", item) },
+          ] satisfies MomentMenuItem[])
+        : []),
       {
         key: "delete",
         label: "Delete",
@@ -132,7 +161,36 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
         onPress: () => void confirmAndDelete(),
       },
     ],
-    [item.id, router, confirmAndDelete]
+    [item, router, confirmAndDelete, onMenuAction]
+  );
+
+  // The iOS context menu (1.4): long-press lifts the card and attaches the
+  // menu. Builds without the native view fall back to MomentActionMenu.
+  const nativeMenu = canModify && !!ContextMenuView;
+  // No actions in select mode: the native view then offers no menu at all
+  // (it stays mounted, so the card isn't remounted on the way in or out).
+  const nativeActions = useMemo<ContextMenuAction[]>(
+    () =>
+      selecting
+        ? []
+        : [
+            { id: "edit", title: "Edit", systemImage: "pencil" },
+            ...(onMenuAction
+              ? [
+                  { id: "share", title: "Share", systemImage: "square.and.arrow.up" },
+                  { id: "album", title: "Add to album", systemImage: "rectangle.stack.badge.plus" },
+                  { id: "select", title: "Select", systemImage: "checkmark.circle" },
+                ]
+              : []),
+            { id: "delete", title: "Delete", systemImage: "trash", destructive: true },
+          ],
+    [selecting, onMenuAction]
+  );
+  const onNativeAction = useCallback(
+    (e: { nativeEvent: { id: string } }) => {
+      menuItems.find((m) => m.key === e.nativeEvent.id)?.onPress();
+    },
+    [menuItems]
   );
 
   const handlePlayPress = useCallback(() => {
@@ -155,6 +213,11 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
   }, [item, isThisPlaying, player]);
 
   const handlePress = useCallback(() => {
+    if (selecting) {
+      Haptics.selectionAsync();
+      onToggleSelect?.(item.id);
+      return;
+    }
     setCachedMoment(item);
     // contributorName rides as a param so attribution survives the detail
     // screen's background refetch — mapRowToMoment only derives it for guest
@@ -178,13 +241,14 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
     })();
     // `item`, not just its id: an edited copy with the same id must be what
     // gets cached for the detail screen.
-  }, [item, collectionId, collectionRole, router, animatedRef]);
+  }, [item, collectionId, collectionRole, router, animatedRef, selecting, onToggleSelect]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
+    transform: [{ scale: scale.get() }],
   }));
 
-  const thumbUrls = momentCardImageUrls(item);
+  // Someone else's linked videos never show (lib/linkedMedia.ts).
+  const thumbUrls = momentCardImageUrls(withoutOthersVideos(item, currentUserId));
 
   // The year only when it isn't this one: lists without month headers
   // (browse, Surprise me, Shared) would otherwise make 2019 read as this fall.
@@ -203,90 +267,117 @@ function MomentCardComponent({ item, allMoods, collectionId, collectionRole, sho
 
   const canPlay = !!(item.songAppleMusicId || item.songSpotifyId || item.songPreviewUrl);
 
+  const NativeMenu = ContextMenuView;
+  const card = (
+    <TouchableOpacity
+      activeOpacity={1}
+      onPressIn={() => {
+        scale.set(withSpring(0.98, { damping: 15, stiffness: 300 }));
+      }}
+      onPressOut={() => {
+        scale.set(withSpring(1, { damping: 15, stiffness: 300 }));
+      }}
+      onPress={handlePress}
+      onLongPress={canModify && !nativeMenu && !selecting ? handleLongPress : undefined}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.songTitle} by ${item.songArtist}${formattedDate ? `, ${formattedDate}` : ""}`}
+      accessibilityState={selecting ? { selected } : undefined}
+    >
+      <View style={styles.header}>
+        {/* Tapping the artwork plays; tapping anywhere else opens the entry. */}
+        <TouchableOpacity
+          onPress={canPlay && !selecting ? handlePlayPress : handlePress}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={canPlay && !selecting ? `${isThisPlaying ? "Pause" : "Play"} ${item.songTitle}` : undefined}
+          style={styles.artworkButton}
+        >
+          {item.songArtworkUrl ? (
+            <AppImage source={{ uri: artworkUrlAtSize(item.songArtworkUrl, ARTWORK_PX) }} style={styles.artwork} transition={200} />
+          ) : (
+            <ArtworkPlaceholder style={styles.artwork} />
+          )}
+          {isThisPlaying && (
+            <View style={styles.playingScrim}>
+              <PlayingIndicator />
+            </View>
+          )}
+        </TouchableOpacity>
+        <View style={styles.titles}>
+          <Text testID="moment-card-title" style={styles.songTitle} numberOfLines={1}>
+            {item.songTitle}
+          </Text>
+          {showArtist && (
+            <Text style={styles.songArtist} numberOfLines={1}>
+              {item.songArtist}
+            </Text>
+          )}
+        </View>
+        {formattedDate ? <Text style={styles.date}>{formattedDate}</Text> : null}
+        {selecting ? (
+          <View style={styles.selectMark}>
+            {selected ? (
+              <Icon name="checkmark-circle" size={24} color={theme.colors.text} />
+            ) : (
+              <View style={styles.selectRing} />
+            )}
+          </View>
+        ) : null}
+      </View>
+
+      {item.reflectionText ? (
+        <Text style={styles.reflection} numberOfLines={3}>
+          {/* An excerpt reads as one flowing paragraph; the entry screen
+              keeps the line breaks. */}
+          {item.reflectionText.replace(/\s+/g, " ").trim()}
+        </Text>
+      ) : null}
+
+      {thumbUrls.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.photoStrip}
+          contentContainerStyle={styles.photoStripContent}
+        >
+          {thumbUrls.map((url, i) => (
+            <AppImage
+              key={i}
+              source={{ uri: url }}
+              style={styles.photoStripThumb}
+              contentFit="cover"
+              transition={200}
+            />
+          ))}
+        </ScrollView>
+      )}
+
+      {(moodWords || item.contributorName) ? (
+        <View style={styles.metaRow}>
+          {item.contributorName ? (
+            <Text style={styles.contributor} numberOfLines={1}>From {item.contributorName}</Text>
+          ) : null}
+          {moodWords ? <Text style={styles.moods} numberOfLines={1}>{moodWords}</Text> : null}
+        </View>
+      ) : null}
+    </TouchableOpacity>
+  );
+
   return (
     <Animated.View ref={animatedRef} style={[styles.row, animatedStyle]}>
-      <TouchableOpacity
-        activeOpacity={1}
-        onPressIn={() => {
-          scale.value = withSpring(0.98, { damping: 15, stiffness: 300 });
-        }}
-        onPressOut={() => {
-          scale.value = withSpring(1, { damping: 15, stiffness: 300 });
-        }}
-        onPress={handlePress}
-        onLongPress={canModify ? handleLongPress : undefined}
-        accessibilityRole="button"
-        accessibilityLabel={`${item.songTitle} by ${item.songArtist}${formattedDate ? `, ${formattedDate}` : ""}`}
-      >
-        <View style={styles.header}>
-          {/* Tapping the artwork plays; tapping anywhere else opens the entry. */}
-          <TouchableOpacity
-            onPress={canPlay ? handlePlayPress : handlePress}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={canPlay ? `${isThisPlaying ? "Pause" : "Play"} ${item.songTitle}` : undefined}
-            style={styles.artworkButton}
-          >
-            {item.songArtworkUrl ? (
-              <AppImage source={{ uri: artworkUrlAtSize(item.songArtworkUrl, ARTWORK_PX) }} style={styles.artwork} transition={200} />
-            ) : (
-              <ArtworkPlaceholder style={styles.artwork} />
-            )}
-            {isThisPlaying && (
-              <View style={styles.playingScrim}>
-                <PlayingIndicator />
-              </View>
-            )}
-          </TouchableOpacity>
-          <View style={styles.titles}>
-            <Text testID="moment-card-title" style={styles.songTitle} numberOfLines={1}>
-              {item.songTitle}
-            </Text>
-            {showArtist && (
-              <Text style={styles.songArtist} numberOfLines={1}>
-                {item.songArtist}
-              </Text>
-            )}
-          </View>
-          {formattedDate ? <Text style={styles.date}>{formattedDate}</Text> : null}
-        </View>
-
-        {item.reflectionText ? (
-          <Text style={styles.reflection} numberOfLines={3}>
-            {/* An excerpt reads as one flowing paragraph; the entry screen
-                keeps the line breaks. */}
-            {item.reflectionText.replace(/\s+/g, " ").trim()}
-          </Text>
-        ) : null}
-
-        {thumbUrls.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.photoStrip}
-            contentContainerStyle={styles.photoStripContent}
-          >
-            {thumbUrls.map((url, i) => (
-              <AppImage
-                key={i}
-                source={{ uri: url }}
-                style={styles.photoStripThumb}
-                contentFit="cover"
-                transition={200}
-              />
-            ))}
-          </ScrollView>
-        )}
-
-        {(moodWords || item.contributorName) ? (
-          <View style={styles.metaRow}>
-            {item.contributorName ? (
-              <Text style={styles.contributor} numberOfLines={1}>From {item.contributorName}</Text>
-            ) : null}
-            {moodWords ? <Text style={styles.moods} numberOfLines={1}>{moodWords}</Text> : null}
-          </View>
-        ) : null}
-      </TouchableOpacity>
+      {nativeMenu && NativeMenu ? (
+        <NativeMenu
+          actions={nativeActions}
+          onAction={onNativeAction}
+          previewBackgroundColor={theme.colors.background}
+          previewRadius={theme.radii.lg}
+          previewInset={theme.spacing.md}
+        >
+          {card}
+        </NativeMenu>
+      ) : (
+        card
+      )}
       <MomentActionMenu
         anchor={menuAnchor}
         items={menuItems}
@@ -323,10 +414,26 @@ function createStyles(theme: Theme) {
     },
     // Warm ink over the artwork so the playing bars hold contrast.
     playingScrim: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: "rgba(35,34,43,0.45)",
       alignItems: "center",
       justifyContent: "center",
+    },
+    // Select mode's tick: ink when picked, an empty ring when not. Ink, not
+    // terracotta: the accent is a signal, and a selection isn't news.
+    selectMark: {
+      width: 28,
+      height: 28,
+      marginLeft: theme.spacing.md,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    selectRing: {
+      width: 22,
+      height: 22,
+      borderRadius: theme.radii.full,
+      borderWidth: 1.5,
+      borderColor: theme.colors.textTertiary,
     },
     titles: {
       flex: 1,

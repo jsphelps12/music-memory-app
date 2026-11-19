@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayer } from "@/contexts/PlayerContext";
@@ -233,7 +233,7 @@ export default function SharedMomentLinkScreen() {
             accessibilityLabel={isCurrentSong ? "Pause" : "Play"}
           >
             <View style={[styles.playButton, playError && !isCurrentSong && styles.playButtonError]}>
-              <Ionicons
+              <Icon
                 name={isCurrentSong ? "pause" : "play"}
                 size={18}
                 color={playError && !isCurrentSong ? theme.colors.textTertiary : theme.colors.buttonText}

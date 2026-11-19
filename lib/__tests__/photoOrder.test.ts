@@ -73,6 +73,7 @@ describe("buildPhotoColumns", () => {
     expect(result).toEqual({
       photo_urls: [],
       photo_thumbnails: [],
+      media_refs: [],
       removed: { photos: ["u1/old1.jpg"], thumbnails: ["u1/thumb_old1.jpg"] },
     });
   });
@@ -118,5 +119,23 @@ describe("pairStoredPhotos", () => {
       { path: "u1/b.jpg", thumb: null },
       { path: "u1/c.jpg", thumb: "u1/thumb_c.jpg" },
     ]);
+  });
+});
+
+describe("buildPhotoColumns with linked photos (1.4)", () => {
+  it("keeps each kept photo's link and gives new linked photos theirs, in strip order", () => {
+    const link = (id: string) => ({ cloudId: id, kind: "photo" as const, full: false });
+    const result = buildPhotoColumns(
+      [
+        { kind: "new", uri: "file:///b.jpg", assetId: "LB" },
+        { kind: "kept", path: "u1/thumb_k.jpg", thumb: "u1/thumb_k.jpg", ref: link("kept-cloud") },
+        { kind: "new", uri: "file:///c.jpg" },
+      ],
+      { photoPaths: ["u1/thumb_b.jpg", "u1/c.jpg"], thumbnailPaths: ["u1/thumb_b.jpg", "u1/thumb_c.jpg"] },
+      { photos: ["u1/thumb_k.jpg"], thumbnails: ["u1/thumb_k.jpg"] },
+      [link("b-cloud"), null]
+    );
+    expect(result.media_refs).toEqual([link("b-cloud"), link("kept-cloud"), null]);
+    expect(result.photo_urls).toEqual(["u1/thumb_b.jpg", "u1/thumb_k.jpg", "u1/c.jpg"]);
   });
 });

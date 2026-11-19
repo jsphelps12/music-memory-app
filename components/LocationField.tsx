@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { searchPlaces, GeoResult } from "@/lib/geocoding";
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
@@ -139,7 +139,7 @@ export function LocationField({ value, onChange, detectCurrentLocation = false }
       {/* Where you are now, offered as one row above the search. */}
       {suggestion && !dismissedSuggestion ? (
         <View style={styles.suggestionRow}>
-          <Ionicons name="navigate-outline" size={18} color={theme.colors.textSecondary} />
+          <Icon name="navigate-outline" size={18} color={theme.colors.textSecondary} />
           <Text style={styles.suggestionText} numberOfLines={1}>
             Currently in {suggestion}
           </Text>
@@ -177,7 +177,7 @@ export function LocationField({ value, onChange, detectCurrentLocation = false }
               onPress={() => selectLocation(result)}
               accessibilityRole="button"
             >
-              <Ionicons name="location-outline" size={16} color={theme.colors.textSecondary} />
+              <Icon name="location-outline" size={16} color={theme.colors.textSecondary} />
               <Text style={styles.resultText} numberOfLines={1}>
                 {result.name}
               </Text>

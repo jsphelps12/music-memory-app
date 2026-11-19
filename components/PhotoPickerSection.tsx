@@ -1,5 +1,5 @@
-import { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
-import { View, Text, Pressable, ActionSheetIOS, StyleSheet } from "react-native";
+import { Ref, SetStateAction, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
+import { View, Text, Pressable, ActionSheetIOS, Alert, Linking, StyleSheet } from "react-native";
 import { Gesture, GestureDetector, ScrollView } from "react-native-gesture-handler";
 import Animated, {
   SharedValue,
@@ -15,9 +15,10 @@ import { Button } from "@/components/Button";
 import { IconButton } from "@/components/IconButton";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import * as Haptics from "expo-haptics";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import * as ImagePicker from "expo-image-picker";
 import { extractPhotoMetadata } from "@/lib/photoMetadata";
+import { videoPoster } from "@/modules/now-playing";
 import { moveItem, slotForDrag } from "@/lib/reorder";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -31,8 +32,12 @@ export interface PhotoMetaSuggestion {
 
 interface PhotoPickerSectionProps {
   photos: string[];
-  /** Also called with the new order after a drag-to-reorder. */
-  onChange: (photos: string[]) => void;
+  /**
+   * Also called with the new order after a drag-to-reorder. Takes an updater
+   * too, like a state setter: the library picker reports after the user is
+   * done picking, and photos can have changed meanwhile.
+   */
+  onChange: (photos: SetStateAction<string[]>) => void;
   /** Called when EXIF data provides a date/location to auto-fill */
   onApplyMeta?: (date: Date | undefined, location: { name: string; lat: number | null; lng: number | null } | undefined) => void;
   /** Horizontal padding of the parent scroll view, used to extend the photo strip edge-to-edge */
@@ -45,6 +50,14 @@ interface PhotoPickerSectionProps {
   compact?: boolean;
   /** A date/place found elsewhere (photos shared in from another app). */
   suggestion?: PhotoMetaSuggestion | null;
+  /** Library ids for picked photos (URI → id), so they link instead of uploading (1.4). */
+  onAssetIds?: (map: Record<string, string>) => void;
+  /**
+   * Linked video (1.4): when given, the library picker offers videos too. A
+   * picked video joins the strip as its poster frame; this hears poster URI →
+   * length in ms. Videos are never uploaded, only linked.
+   */
+  onVideos?: (map: Record<string, number>) => void;
   ref?: Ref<PhotoPickerHandle>;
 }
 
@@ -68,6 +81,8 @@ export function PhotoPickerSection({
   horizontalPadding = 20,
   compact = false,
   suggestion,
+  onAssetIds,
+  onVideos,
   ref,
 }: PhotoPickerSectionProps) {
   const theme = useTheme();
@@ -100,7 +115,7 @@ export function PhotoPickerSection({
   const handleAddPhotos = () => {
     ActionSheetIOS.showActionSheetWithOptions(
       {
-        options: ["Cancel", "Take Photo", "Choose from Library"],
+        options: ["Cancel", "Take photo", "Choose from library"],
         cancelButtonIndex: 0,
       },
       async (buttonIndex) => {
@@ -108,7 +123,17 @@ export function PhotoPickerSection({
 
         if (buttonIndex === 1) {
           const { status } = await ImagePicker.requestCameraPermissionsAsync();
-          if (status !== "granted") return;
+          if (status !== "granted") {
+            Alert.alert(
+              "Allow camera access",
+              "To take a photo, allow camera access in Settings.",
+              [
+                { text: "Cancel", style: "cancel" },
+                { text: "Open Settings", onPress: () => Linking.openSettings() },
+              ]
+            );
+            return;
+          }
           result = await ImagePicker.launchCameraAsync({
             mediaTypes: ["images"],
             quality: 0.8,
@@ -116,7 +141,7 @@ export function PhotoPickerSection({
           });
         } else if (buttonIndex === 2) {
           result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ["images"],
+            mediaTypes: onVideos ? ["images", "videos"] : ["images"],
             allowsMultipleSelection: true,
             quality: 0.8,
             exif: true,
@@ -124,9 +149,40 @@ export function PhotoPickerSection({
         }
 
         if (result && !result.canceled) {
-          const uris = result.assets.map((a) => a.uri);
-          onChange([...photos, ...uris]);
-          const meta = await extractPhotoMetadata(result.assets);
+          // Picked from the library (not the camera): remember which photo
+          // each is. A video joins as its poster frame and stays in Photos.
+          const ids: Record<string, string> = {};
+          const videos: Record<string, number> = {};
+          const uris: string[] = [];
+          let unlinkable = 0;
+          for (const a of result.assets) {
+            if (a.type === "video") {
+              const poster = a.assetId ? await videoPoster(a.assetId) : null;
+              if (!poster || !a.assetId) {
+                unlinkable++;
+                continue;
+              }
+              ids[poster.uri] = a.assetId;
+              videos[poster.uri] = poster.durationMs;
+              uris.push(poster.uri);
+              continue;
+            }
+            if (a.assetId) ids[a.uri] = a.assetId;
+            uris.push(a.uri);
+          }
+          if (unlinkable) {
+            Alert.alert(
+              unlinkable === 1 ? "That video can't be added" : "Some videos can't be added",
+              "Videos stay in your Photos library and are linked to the moment, so Soundtracks needs access to all your photos. You can change that in Settings."
+            );
+          }
+          if (Object.keys(ids).length) onAssetIds?.(ids);
+          if (Object.keys(videos).length) onVideos?.(videos);
+          if (uris.length === 0) return;
+          // Onto the photos as they are now, not as they were when the
+          // picker opened (the day-photos strip can attach one meanwhile).
+          onChange((current) => [...current, ...uris.filter((uri) => !current.includes(uri))]);
+          const meta = await extractPhotoMetadata(result.assets.filter((a) => a.type !== "video"));
           if (meta.date || meta.location) {
             setMetaSuggestion(meta);
             setDismissed(false);
@@ -140,7 +196,7 @@ export function PhotoPickerSection({
 
   const handleRemovePhoto = (uri: string) => {
     Haptics.selectionAsync();
-    onChange(photos.filter((p) => p !== uri));
+    onChange((current) => current.filter((p) => p !== uri));
   };
 
   const handleApplyMeta = () => {
@@ -247,7 +303,7 @@ export function PhotoPickerSection({
               accessibilityRole="button"
               accessibilityLabel="Add more photos"
             >
-              <Ionicons name="add" size={24} color={theme.colors.textSecondary} />
+              <Icon name="add" size={24} color={theme.colors.textSecondary} />
             </Pressable>
           )}
         </ScrollView>
@@ -255,7 +311,7 @@ export function PhotoPickerSection({
 
       {metaSuggestion && !dismissed && onApplyMeta && (
         <View style={styles.metaRow}>
-          <Ionicons name="image-outline" size={18} color={theme.colors.textSecondary} />
+          <Icon name="image-outline" size={18} color={theme.colors.textSecondary} />
           <View style={styles.metaText}>
             <Text style={styles.metaLabel}>From the photo</Text>
             <Text style={styles.metaBody} numberOfLines={2}>
@@ -438,7 +494,7 @@ function PhotoTile({
         accessibilityRole="button"
         accessibilityLabel={`Remove photo ${index + 1}`}
       >
-        <Ionicons name="close" size={14} color={overPhotoInk(theme)} />
+        <Icon name="close" size={14} color={overPhotoInk(theme)} />
       </Pressable>
     </Animated.View>
   );

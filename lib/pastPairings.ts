@@ -1,0 +1,288 @@
+// The past half of photos ↔ music (1.4, ROADMAP "three moments a week"): songs
+// from the user's Apple Music library paired with the photos of the day or
+// week they were added, for Rediscover.
+// - On this day: songs added on today's date in past years.
+// - From before: a few strong pairings a week, older than MIN_AGE_DAYS,
+//   scored by how unusual the week was against the person's usual photo
+//   volume (a trip beats an ordinary week) and by how much the song stuck.
+// Pure and tested (lib/__tests__/pastPairings.test.ts); lib/pastPairingsData.ts
+// reads the phone. Lessons from the prototype: album adds share one date
+// (one row each), sync/import days carry no meaning (left out).
+
+import { ALBUM_ADD_MIN, type LibraryTrack } from "@/lib/lastWeek";
+import { bulkDays, dayKey, MIN_AGE_DAYS } from "@/lib/libraryMoments";
+import { eventPhrase, type EventKind } from "@/lib/photoInterest";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Rediscover shows at most this many phone pairings on a day. */
+export const ON_THIS_DAY_MAX = 3;
+/** From before checks this many candidates for photos, then picks the best. */
+export const FROM_BEFORE_CANDIDATES = 40;
+export const FROM_BEFORE_PICKS = 3;
+/** A From before week needs at least this many times the usual photos. */
+export const SPIKE_MIN = 1.5;
+
+/**
+ * Where From before keeps its weekly picks, the songs it has shown and the
+ * ones dismissed: per account, so a second account on the phone starts its
+ * own (v4/v1 were one set for the device).
+ */
+export function fromBeforeKeys(userId: string): { picks: string; shown: string; dismissed: string } {
+  return {
+    picks: `frombefore_picks_v5_${userId}`,
+    shown: `frombefore_shown_v2_${userId}`,
+    dismissed: `frombefore_dismissed_v2_${userId}`,
+  };
+}
+
+/** The device-wide keys from before they were per account; removed once. */
+export const LEGACY_FROM_BEFORE_KEYS = ["frombefore_picks_v4", "frombefore_shown_v1", "frombefore_dismissed_v1"];
+
+export interface PastSong {
+  key: string;
+  storeId: string | null;
+  title: string;
+  artistName: string;
+  albumTitle: string;
+  /** Day key it was added. */
+  day: string;
+  /** When it was added, epoch ms. */
+  at: number;
+  plays: number;
+  albumTracks?: number;
+}
+
+function toPast(t: LibraryTrack, albumTracks?: number): PastSong {
+  return {
+    key: t.storeId || `lib:${t.persistentId}`,
+    storeId: t.storeId || null,
+    title: t.title,
+    artistName: t.artistName,
+    albumTitle: t.albumTitle ?? "",
+    day: dayKey(t.dateAdded),
+    at: t.dateAdded,
+    plays: t.playCount,
+    albumTracks,
+  };
+}
+
+/**
+ * One row per add: three or more songs from one album added on one day are
+ * that album, led by its most played track. Days that look like a sync or
+ * import are dropped. Most played first.
+ */
+export function collapseAdds(tracks: LibraryTrack[], bulk: Set<string> = new Set(bulkDays(tracks).map((b) => b.day))): PastSong[] {
+  const groups = new Map<string, LibraryTrack[]>();
+  for (const t of tracks) {
+    const day = dayKey(t.dateAdded);
+    if (bulk.has(day)) continue;
+    const album = t.albumId && t.albumId !== "0" ? t.albumId : `single:${t.persistentId}`;
+    const k = `${day}|${album}`;
+    groups.set(k, [...(groups.get(k) ?? []), t]);
+  }
+  const out: PastSong[] = [];
+  for (const g of groups.values()) {
+    if (g.length >= ALBUM_ADD_MIN) {
+      out.push(toPast(g.reduce((a, b) => (b.playCount > a.playCount ? b : a)), g.length));
+    } else {
+      for (const t of g) out.push(toPast(t));
+    }
+  }
+  return out.sort((a, b) => b.plays - a.plays || b.at - a.at);
+}
+
+/** Songs added on this calendar day in an earlier year, most played first. */
+export function onThisDaySongs(library: LibraryTrack[], now: number, max = ON_THIS_DAY_MAX): PastSong[] {
+  const today = new Date(now);
+  const bulk = new Set(bulkDays(library).map((b) => b.day));
+  const matches = library.filter((t) => {
+    const d = new Date(t.dateAdded);
+    return d.getMonth() === today.getMonth() && d.getDate() === today.getDate() && d.getFullYear() < today.getFullYear();
+  });
+  return collapseAdds(matches, bulk).slice(0, max);
+}
+
+/** "1 year ago", "3 years ago". */
+export function yearsAgo(at: number, now: number): string {
+  const n = new Date(now).getFullYear() - new Date(at).getFullYear();
+  return n === 1 ? "1 year ago" : `${n} years ago`;
+}
+
+/**
+ * From before's candidates: added at least MIN_AGE_DAYS ago, not on a bulk
+ * day, not shown before or already saved; one per day (its most played),
+ * most played first.
+ */
+export function fromBeforeCandidates(
+  library: LibraryTrack[],
+  now: number,
+  exclude: Set<string>,
+  limit = FROM_BEFORE_CANDIDATES
+): PastSong[] {
+  const cutoff = now - MIN_AGE_DAYS * DAY_MS;
+  const bulk = new Set(bulkDays(library).map((b) => b.day));
+  const old = library.filter((t) => t.dateAdded <= cutoff);
+  const seenDays = new Set<string>();
+  const out: PastSong[] = [];
+  for (const s of collapseAdds(old, bulk)) {
+    if (exclude.has(s.key) || seenDays.has(s.day)) continue;
+    seenDays.add(s.day);
+    out.push(s);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+export function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+// ── Where: home and away ───────────────────────────────────────────────────
+
+/** Farther than this from home is "away". */
+export const AWAY_KM = 60;
+/** A week is away when at least this share of its located photos is. */
+export const AWAY_SHARE = 0.5;
+/** And it needs at least this many located photos to say so. */
+export const AWAY_MIN_COORDS = 3;
+/** Home is found on a grid this many degrees square (~11 km). */
+const HOME_CELL = 0.1;
+
+export type Coord = [number, number];
+
+export function distanceKm(a: Coord, b: Coord): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b[0] - a[0]);
+  const dLng = toRad(b[1] - a[1]);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[0])) * Math.cos(toRad(b[0])) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+
+export function centroid(coords: Coord[]): Coord | null {
+  if (coords.length === 0) return null;
+  const sum = coords.reduce((acc, c) => [acc[0] + c[0], acc[1] + c[1]] as Coord, [0, 0] as Coord);
+  return [sum[0] / coords.length, sum[1] / coords.length];
+}
+
+/**
+ * Where most photos are taken: the busiest ~11 km cell of a year's sampled
+ * locations, averaged. Null without enough located photos.
+ */
+export function homeFrom(coords: Coord[], minCoords = 10): Coord | null {
+  if (coords.length < minCoords) return null;
+  const cells = new Map<string, Coord[]>();
+  for (const c of coords) {
+    const k = `${Math.round(c[0] / HOME_CELL)}:${Math.round(c[1] / HOME_CELL)}`;
+    cells.set(k, [...(cells.get(k) ?? []), c]);
+  }
+  let best: Coord[] = [];
+  for (const group of cells.values()) if (group.length > best.length) best = group;
+  return centroid(best);
+}
+
+/** The week's photos were mostly taken away from home. */
+export function isAway(coords: Coord[], home: Coord | null): boolean {
+  if (!home || coords.length < AWAY_MIN_COORDS) return false;
+  const away = coords.filter((c) => distanceKm(c, home) > AWAY_KM).length;
+  return away / coords.length >= AWAY_SHARE;
+}
+
+/**
+ * How strong a pairing is, against the person's usual week: photos relative
+ * to the median week among the candidates (so someone who shoots constantly
+ * still gets their trips, not every week), then plays, then being away from
+ * home and favorited photos. Each tapers so no one signal carries it.
+ */
+export function relativeScore(photos: number, usualPhotos: number, plays: number, away = false, favorites = 0): number {
+  if (photos <= 0) return 0;
+  const ratio = photos / Math.max(usualPhotos, 1);
+  return Math.log2(1 + ratio) * 3 + Math.log2(1 + plays) + (away ? 2.5 : 0) + Math.log2(1 + favorites) * 1.5;
+}
+
+export interface ScoredPairing {
+  song: PastSong;
+  photos: number;
+  /** Favorited photos that week. */
+  favorites?: number;
+  /** Mostly taken away from home. */
+  away?: boolean;
+  /** The middle of the away photos, for naming the place. */
+  awayAt?: Coord | null;
+  /** From looking at the week's photos (scenes, people). */
+  bonus?: number;
+  /** What kind of week it was, when its photos agree. */
+  event?: EventKind | null;
+}
+
+/** Favorites that mark a week as one that mattered, even without a spike. */
+export const FAVORITES_MIN = 2;
+
+/**
+ * The best `n` pairings, highest score first, one per month. A week counts
+ * when it stands out: a photo spike (SPIKE_MIN times the usual), time away
+ * from home, or several favorited photos. An ordinary week paired with a
+ * song reads as random. Fewer than `n` is fine.
+ */
+export function pickFromBefore(scored: ScoredPairing[], n = FROM_BEFORE_PICKS): ScoredPairing[] {
+  const usual = median(scored.map((s) => s.photos));
+  const ranked = scored
+    .filter(
+      (s) =>
+        s.photos >= Math.max(1, usual * SPIKE_MIN) ||
+        (s.away === true && s.photos > 0) ||
+        (s.favorites ?? 0) >= FAVORITES_MIN
+    )
+    .map((s) => ({ ...s, score: relativeScore(s.photos, usual, s.song.plays, s.away, s.favorites ?? 0) + (s.bonus ?? 0) }))
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score);
+  const months = new Set<string>();
+  const out: ScoredPairing[] = [];
+  for (const r of ranked) {
+    const month = r.song.day.slice(0, 7);
+    if (months.has(month)) continue;
+    months.add(month);
+    out.push({ song: r.song, photos: r.photos, favorites: r.favorites, away: r.away, awayAt: r.awayAt, event: r.event });
+    if (out.length >= n) break;
+  }
+  return out;
+}
+
+/** "Added June 3, 2019" for a From before row. */
+export function addedOnLabel(at: number): string {
+  return `Added ${new Date(at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
+}
+
+/**
+ * Why a From before pick was picked: "Away in Kailua-Kona · the week of 70
+ * photos · 4 favorites · played 89 times". The row capitalizes the start.
+ */
+export function pairingReason(p: {
+  song: Pick<PastSong, "plays">;
+  photoCount: number;
+  favorites?: number;
+  away?: boolean;
+  place?: string | null;
+  event?: EventKind | null;
+}): string {
+  const where = p.away ? (p.place ? `away in ${p.place}` : "away from home") : "";
+  const what = p.event ? eventPhrase(p.event) : "";
+  const favs = p.favorites ? (p.favorites === 1 ? "1 favorite" : `${p.favorites} favorites`) : "";
+  return [where, what, photosLine(p.photoCount, "week"), favs, playsLine(p.song.plays)].filter(Boolean).join(" · ");
+}
+
+/** "played 89 times" (shown so a pick says why it was picked). */
+export function playsLine(plays: number): string {
+  if (plays <= 0) return "";
+  return plays === 1 ? "played once" : `played ${plays} times`;
+}
+
+/** "the week of 14 photos", or "and 3 photos that day" for On this day. */
+export function photosLine(count: number, span: "day" | "week"): string {
+  if (count <= 0) return "";
+  const photos = count === 1 ? "1 photo" : `${count} photos`;
+  return span === "week" ? `the week of ${photos}` : `${photos} that day`;
+}

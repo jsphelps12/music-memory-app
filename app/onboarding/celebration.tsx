@@ -3,7 +3,7 @@ import { usePostHog } from "posthog-react-native";
 import { View, Text, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppImage } from "@/components/AppImage";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
@@ -88,7 +88,7 @@ export default function OnboardingCelebrationScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.content, { paddingTop: insets.top + theme.spacing["3xl"] }]}>
-        <Ionicons name="musical-notes-outline" size={36} color={theme.colors.textSecondary} style={styles.icon} />
+        <Icon name="musical-notes-outline" size={36} color={theme.colors.textSecondary} style={styles.icon} />
         <Text style={styles.heading} accessibilityRole="header">Your soundtrack starts here.</Text>
         <Text style={styles.sub}>{subtitle}</Text>
 
@@ -120,7 +120,7 @@ function CelebrationEntryRow({ moment, theme }: { moment: Moment; theme: Theme }
         <AppImage source={{ uri: moment.songArtworkUrl }} style={rowStyles.artwork} contentFit="cover" />
       ) : (
         <View style={rowStyles.artworkPlaceholder}>
-          <Ionicons name="musical-note" size={20} color={theme.colors.textSecondary} />
+          <Icon name="musical-note" size={20} color={theme.colors.textSecondary} />
         </View>
       )}
       <View style={rowStyles.info}>

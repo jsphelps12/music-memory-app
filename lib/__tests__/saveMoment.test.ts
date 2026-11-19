@@ -24,6 +24,8 @@ vi.mock("@/lib/providers", () => ({
   getProvider: () => ({ fetchPreviewUrl: mocks.fetchPreviewUrl }),
 }));
 vi.mock("@/lib/albums", () => ({ addMomentToAlbum: vi.fn(async () => {}) }));
+// Linked photos (1.4): no Photos library in tests, so nothing links.
+vi.mock("@/modules/now-playing", () => ({ cloudIdsFor: vi.fn(async () => ({})) }));
 vi.mock("@/lib/storage", () => ({
   uploadMomentPhotos: mocks.uploadMomentPhotos,
   deleteMomentPhotos: mocks.deleteMomentPhotos,
@@ -180,7 +182,8 @@ describe("updateMoment", () => {
       })
     );
 
-    expect(mocks.uploadMomentPhotos).toHaveBeenCalledWith("u1", ["file:///a.jpg"]);
+    // Not from the library, so it uploads in full (not linked).
+    expect(mocks.uploadMomentPhotos).toHaveBeenCalledWith("u1", ["file:///a.jpg"], [false]);
     expect(writeOf("update")).toMatchObject({
       photo_urls: ["u1/new.jpg", "u1/old2.jpg"],
       photo_thumbnails: ["u1/thumb_new.jpg", "u1/thumb_old2.jpg"],

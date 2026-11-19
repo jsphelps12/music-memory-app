@@ -9,7 +9,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon, type IconName } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
@@ -24,8 +24,8 @@ export interface MenuAnchor {
 export interface MomentMenuItem {
   key: string;
   label: string;
-  icon?: React.ComponentProps<typeof Ionicons>["name"];
-  /** Delete, remove, report: set in the destructive color. */
+  icon?: IconName;
+  /** Delete, remove from album: set in the destructive color. Never Report (it destroys nothing). */
   destructive?: boolean;
   /**
    * Runs once the menu has finished closing, never while it is still on
@@ -155,7 +155,7 @@ export function MomentActionMenu({ anchor, items, onClose }: Props) {
                 <Text style={[styles.rowText, { color }]} numberOfLines={1}>
                   {item.label}
                 </Text>
-                {item.icon ? <Ionicons name={item.icon} size={18} color={color} /> : null}
+                {item.icon ? <Icon name={item.icon} size={18} color={color} /> : null}
               </Pressable>
             </View>
           );
@@ -168,7 +168,7 @@ export function MomentActionMenu({ anchor, items, onClose }: Props) {
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     scrim: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: theme.colors.scrim,
     },
     // A raised surface: elevated paper with a hairline edge. The scrim, not a

@@ -5,7 +5,7 @@ Pod::Spec.new do |s|
   s.description    = 'Identifies ambient audio using ShazamKit and AVAudioEngine'
   s.author         = ''
   s.homepage       = 'https://docs.expo.dev/modules/'
-  s.platforms      = { :ios => '15.1' }
+  s.platforms      = { :ios => '16.4' }
   s.swift_version  = '5.9'
   s.source         = { git: '' }
   s.static_framework = true

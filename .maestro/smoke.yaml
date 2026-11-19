@@ -156,13 +156,14 @@ env:
 
 # --- Create a moment ---------------------------------------------------------
 - waitForAnimationToEnd
-# NOT the floating "+" (id: tab-create): it overflows the custom tab bar, and
-# XCUITest's element tap lands on its clipped accessibility frame — the tap
-# reports success and nothing happens (verified: a coordinate tap on the same
-# button navigates fine). The empty-state CTA is a plain text button that taps
-# reliably, and the seed script guarantees the account is empty, so it is
-# always present at this point.
-- tapOn: "Create Your First Moment"
+# The empty-state CTA rather than the floating "+": on this fresh account it
+# also proves the empty Journal renders. The + taps fine by id as well since
+# it moved into its own layer (components/TabBar.tsx); before that it
+# overflowed the tab bar and XCUITest's element tap missed its clipped
+# accessibility frame. By id, not its text: "Capture a song" is also the
+# "+" button's accessibility label.
+- tapOn:
+    id: "journal-empty-capture"
 
 # The create screen doesn't open song search itself — its "Search" pill
 # (components/SongPickerSection.tsx) pushes /song-search. Waiting for it also

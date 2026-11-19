@@ -1,33 +1,49 @@
 import { useMemo } from "react";
-import { View, StyleSheet, ScrollView } from "react-native";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
 import { AppImage } from "@/components/AppImage";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { BottomSheet } from "@/components/BottomSheet";
+import { Button } from "@/components/Button";
 import { SectionLabel } from "@/components/SectionLabel";
 import { ListRow } from "@/components/ListRow";
 import { Album } from "@/types";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { pluralMoments } from "@/lib/utils";
 
-interface Props {
+interface CommonProps {
   visible: boolean;
   collections: Album[];
-  selectedId: string | null;
-  onSelect: (album: Album | null) => void;
   onClose: () => void;
+  /** After the sheet has fully closed: open the next sheet from here. */
+  onClosed?: () => void;
   onRequestCreate: () => void;
+  /** Sheet title. Default "Albums". */
+  title?: string;
+  /** A failed add or remove, shown at the top of the sheet. */
+  error?: string;
+  /** The albums are loading: a spinner in place of the list. */
+  loading?: boolean;
+  /** The albums couldn't load: the message and Try again in place of the list. */
+  loadError?: string;
+  onRetry?: () => void;
 }
 
-export function AlbumPicker({
-  visible,
-  collections,
-  selectedId,
-  onSelect,
-  onClose,
-  onRequestCreate,
-}: Props) {
+/**
+ * single (capture): pick one album or "No album"; a pick closes the sheet.
+ * multi (a saved moment): tick any number; each tap applies at once through
+ * onToggle and the sheet stays open, so Done only closes.
+ */
+type Props = CommonProps &
+  (
+    | { mode?: "single"; selectedId: string | null; onSelect: (album: Album | null) => void }
+    | { mode: "multi"; selectedIds: readonly string[]; onToggle: (album: Album) => void }
+  );
+
+export function AlbumPicker(props: Props) {
+  const { visible, collections, onClose, onClosed, onRequestCreate, title = "Albums", error, loading, loadError, onRetry } =
+    props;
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -35,8 +51,15 @@ export function AlbumPicker({
   const ownedShared = collections.filter((c) => c.role === "owner" && c.isPublic);
   const shared = collections.filter((c) => c.role === "member");
 
+  const isSelected = (id: string) =>
+    props.mode === "multi" ? props.selectedIds.includes(id) : props.selectedId === id;
+
   const handleSelect = (album: Album | null) => {
-    onSelect(album);
+    if (props.mode === "multi") {
+      if (album) props.onToggle(album);
+      return;
+    }
+    props.onSelect(album);
     onClose();
   };
 
@@ -58,7 +81,7 @@ export function AlbumPicker({
             <AppImage source={{ uri: thumbUrl }} style={styles.thumb} contentFit="cover" />
           ) : (
             <View style={styles.thumb}>
-              <Ionicons
+              <Icon
                 name={item.isPublic ? "people-outline" : "albums-outline"}
                 size={18}
                 color={theme.colors.textSecondary}
@@ -67,7 +90,7 @@ export function AlbumPicker({
           )
         }
         accessory="check"
-        selected={selectedId === item.id}
+        selected={isSelected(item.id)}
         onPress={() => handleSelect(item)}
         style={styles.row}
       />
@@ -83,38 +106,54 @@ export function AlbumPicker({
     ) : null;
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Albums" maxHeight="70%">
+    <BottomSheet visible={visible} onClose={onClose} onClosed={onClosed} title={title} maxHeight="70%">
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+
       {/* New album, pinned above the scroll list */}
       <ListRow
         label="New album"
         leading={
           <View style={styles.thumb}>
-            <Ionicons name="add" size={20} color={theme.colors.text} />
+            <Icon name="add" size={20} color={theme.colors.text} />
           </View>
         }
         accessory="none"
         onPress={onRequestCreate}
         style={[styles.row, styles.newRow]}
+        testID="album-picker-new"
       />
 
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        <ListRow
-          label="No album"
-          leading={
-            <View style={styles.thumb}>
-              <Ionicons name="musical-notes-outline" size={18} color={theme.colors.textSecondary} />
-            </View>
-          }
-          accessory="check"
-          selected={selectedId === null}
-          onPress={() => handleSelect(null)}
-          style={styles.row}
-        />
+      {loading ? (
+        <View style={styles.status}>
+          <ActivityIndicator color={theme.colors.textSecondary} />
+        </View>
+      ) : loadError ? (
+        <View style={styles.status}>
+          <Text style={styles.statusText}>{loadError}</Text>
+          {onRetry ? <Button label="Try again" variant="text" onPress={onRetry} /> : null}
+        </View>
+      ) : (
+        <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+          {props.mode === "multi" ? null : (
+            <ListRow
+              label="No album"
+              leading={
+                <View style={styles.thumb}>
+                  <Icon name="musical-notes-outline" size={18} color={theme.colors.textSecondary} />
+                </View>
+              }
+              accessory="check"
+              selected={props.selectedId === null}
+              onPress={() => handleSelect(null)}
+              style={styles.row}
+            />
+          )}
 
-        {section("My albums", ownedPersonal)}
-        {section("My shared albums", ownedShared)}
-        {section("Shared with me", shared)}
-      </ScrollView>
+          {section("My albums", ownedPersonal)}
+          {section("My shared albums", ownedShared)}
+          {section("Shared with you", shared)}
+        </ScrollView>
+      )}
     </BottomSheet>
   );
 }
@@ -145,6 +184,25 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.artworkPlaceholder,
       alignItems: "center",
       justifyContent: "center",
+    },
+    // Like AlbumShareSheet's inline error: Meta in the destructive color.
+    error: {
+      ...theme.typography.meta,
+      color: theme.colors.destructive,
+      paddingHorizontal: theme.spacing.xl,
+      paddingBottom: theme.spacing.sm,
+    },
+    status: {
+      paddingVertical: theme.spacing["2xl"],
+      paddingHorizontal: theme.spacing.xl,
+      alignItems: "center",
+    },
+    statusText: {
+      ...theme.typography.body,
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.textSecondary,
+      textAlign: "center",
+      marginBottom: theme.spacing.sm,
     },
   });
 }

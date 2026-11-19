@@ -128,15 +128,18 @@ function MemoryCard() {
 
   const topBar = (
     <View style={[styles.topBar, { paddingTop: insets.top + night.spacing.xs }]}>
-      <View />
       <IconButton name="close" onPress={close} color={night.colors.text} accessibilityLabel="Close" />
     </View>
   );
 
+  // A fullScreenModal with no swipe to dismiss: the ✕ shows while loading too.
   if (isLoading && !moment) {
     return (
-      <View style={[styles.screen, styles.centered]}>
-        <ActivityIndicator color={night.colors.textSecondary} />
+      <View style={styles.screen}>
+        {topBar}
+        <View style={styles.centered}>
+          <ActivityIndicator color={night.colors.textSecondary} />
+        </View>
       </View>
     );
   }
@@ -229,11 +232,12 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.background,
     },
     centered: {
+      flex: 1,
       alignItems: "center",
       justifyContent: "center",
     },
     dim: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: "rgba(14,11,10,0.72)",
     },
     topBar: {
@@ -241,7 +245,8 @@ function createStyles(theme: Theme) {
       justifyContent: "space-between",
       alignItems: "center",
       paddingHorizontal: theme.spacing.xl,
-      marginRight: -10,
+      // The ✕ glyph sits optically at the gutter, not its 44pt box.
+      marginLeft: -12,
       zIndex: 2,
     },
     content: {

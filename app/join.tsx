@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePostHog } from "posthog-react-native";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import * as Haptics from "expo-haptics";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/Button";
@@ -121,7 +121,7 @@ export default function JoinScreen() {
 
       {state === "not_found" && (
         <View style={styles.centered}>
-          <Ionicons name="link-outline" size={44} color={theme.colors.textSecondary} />
+          <Icon name="link-outline" size={44} color={theme.colors.textSecondary} />
           <Text style={styles.stateTitle}>Link not found</Text>
           <Text style={styles.body}>
             This invite link may have expired or the album was made private.
@@ -132,7 +132,7 @@ export default function JoinScreen() {
 
       {state === "error" && (
         <View style={styles.centered}>
-          <Ionicons name="cloud-offline-outline" size={44} color={theme.colors.textSecondary} />
+          <Icon name="cloud-offline-outline" size={44} color={theme.colors.textSecondary} />
           <Text style={styles.stateTitle}>Couldn't open this invite</Text>
           <Text style={styles.body}>{error}</Text>
           <Button label="Try again" onPress={loadPreview} style={styles.primary} />

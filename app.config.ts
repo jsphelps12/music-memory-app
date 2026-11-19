@@ -6,7 +6,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: isPreview ? "Soundtracks β" : "Soundtracks",
   slug: "music-memory",
-  version: "1.3.1",
+  version: "1.4.0",
   orientation: "portrait",
   icon: isPreview ? "./assets/images/app-icon-beta.png" : "./assets/images/app-icon.png",
   // Per-variant scheme: with both apps installed, iOS routes a shared custom
@@ -14,7 +14,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // would land in the wrong app. Public soundtracks:// links stay prod-only.
   scheme: isPreview ? "soundtracks-beta" : "soundtracks",
   userInterfaceStyle: "automatic",
-  newArchEnabled: true,
   ios: {
     // "Pressed S" (2026-10): light, dark and tinted home-screen variants,
     // drawn by scripts/make-app-icon.py. The beta keeps one icon (green
@@ -48,7 +47,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       ITSAppUsesNonExemptEncryption: false,
       // Required by react-native-spotify-remote so iOS allows querying
       // whether the Spotify app is installed and opening it for OAuth.
-      LSApplicationQueriesSchemes: ["spotify"],
+      LSApplicationQueriesSchemes: ["spotify", "mailto"],
     },
     entitlements: {
       "com.apple.developer.applesignin": ["Default"],
@@ -65,7 +64,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       foregroundImage: "./assets/images/adaptive-icon.png",
       backgroundColor: "#FBF7F2",
     },
-    edgeToEdgeEnabled: true,
     package: "com.joshuaphelps.musicmemory",
   },
   web: {
@@ -84,7 +82,24 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     "expo-router",
+    // Local Xcode 27 builds: lift pods below iOS 15 (see the plugin).
+    "./plugins/withPodsMinDeploymentTarget",
+    "./plugins/withControlLinkOpener",
     "expo-apple-authentication",
+    [
+      // App lock (1.4): Settings → Privacy → Lock with Face ID.
+      "expo-local-authentication",
+      { faceIDPermission: "Soundtracks uses Face ID to keep your journal private." },
+    ],
+    [
+      // Photos ↔ music prototype (1.4): reads photo dates near when a song
+      // was added to the library. Read-only, so no save-to-Photos permission.
+      "expo-media-library",
+      {
+        photosPermission: "Soundtracks uses your photo library to attach photos to your moments.",
+        savePhotosPermission: false,
+      },
+    ],
     [
       "expo-image-picker",
       {
@@ -169,5 +184,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   experiments: {
     typedRoutes: true,
+    // React Compiler (1.4): memoizes components and hooks at build time, so
+    // lists and screens re-render less without hand-written useMemo/useCallback.
+    // Components that break the Rules of React are skipped, not miscompiled.
+    reactCompiler: true,
   },
 });

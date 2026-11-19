@@ -3,26 +3,80 @@
 // whatever it loaded before the app was backgrounded, until a manual pull
 // (2026-11-15, "my most recent moment wasn't there until I refreshed").
 //
-// wireQueryFocus() teaches React Query that "active" is focus, so stale
+// wireQueryFocus() teaches React Query that coming back from the background is focus, so stale
 // queries on mounted screens refetch on return. useOnForeground() is for the
 // screens that manage their own state (the Journal).
 
 import { useEffect, useRef } from "react";
 import { AppState, AppStateStatus } from "react-native";
-import { focusManager } from "@tanstack/react-query";
+import { focusManager, onlineManager } from "@tanstack/react-query";
+import NetInfo from "@react-native-community/netinfo";
 
 let wired = false;
 
-/** Call once at startup. Idempotent. */
+/**
+ * Call once at startup. Idempotent. Two signals React Query can't see on its
+ * own in React Native: returning to the app counts as focus, and the
+ * connection coming back counts as online (1.4, NetInfo), so stale queries
+ * on mounted screens refetch on both.
+ */
 export function wireQueryFocus(): void {
   if (wired) return;
   wired = true;
   focusManager.setEventListener((handleFocus) => {
     const sub = AppState.addEventListener("change", (state: AppStateStatus) => {
-      handleFocus(state === "active");
+      const focused = queryFocusFor(state);
+      if (focused !== null) handleFocus(focused);
     });
     return () => sub.remove();
   });
+  onlineManager.setEventListener((setOnline) =>
+    NetInfo.addEventListener((state) => {
+      setOnline(isOnline(state.isConnected, state.isInternetReachable));
+    })
+  );
+}
+
+/**
+ * What an app state change tells React Query's focus: the background is
+ * unfocused, active is focused, and "inactive" (Control Center, a Face ID
+ * prompt, the app switcher peek) says nothing, so coming back from it isn't
+ * a return to the app and doesn't refetch. React Query only refetches when
+ * focus actually changes. Pure; tested.
+ */
+export function queryFocusFor(state: AppStateStatus): boolean | null {
+  if (state === "background") return false;
+  if (state === "active") return true;
+  return null;
+}
+
+/**
+ * Online unless NetInfo says otherwise. isInternetReachable is null while
+ * it's still checking, which must not count as offline. Pure; tested.
+ */
+export function isOnline(isConnected: boolean | null, isInternetReachable: boolean | null | undefined): boolean {
+  if (isConnected === false) return false;
+  return isInternetReachable !== false;
+}
+
+/**
+ * Runs `onReconnect` when the connection comes back after being lost (not on
+ * the first reading). For screens that manage their own state (the Journal).
+ */
+export function useOnReconnect(onReconnect: () => void): void {
+  const cb = useRef(onReconnect);
+  cb.current = onReconnect;
+  useEffect(() => {
+    let wasOffline = false;
+    return NetInfo.addEventListener((state) => {
+      const online = isOnline(state.isConnected, state.isInternetReachable);
+      if (!online) wasOffline = true;
+      else if (wasOffline) {
+        wasOffline = false;
+        cb.current();
+      }
+    });
+  }, []);
 }
 
 /**

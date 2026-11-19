@@ -40,6 +40,8 @@ export interface Moment {
   reflectionText: string;
   photoUrls: string[];
   photoThumbnails: string[];
+  /** Linked photos/video (1.4): one entry per photo, null where uploaded. */
+  mediaRefs?: import("@/lib/linkedMedia").MediaRefs;
   // Multi-mood since Wave 4; first entry doubles as the legacy single `mood`
   // column that binaries <= build 22 still read and write (dual-write in
   // lib/saveMoment.ts, dual-read in mapRowToMoment).
@@ -88,6 +90,7 @@ export type MomentCardData = Pick<
   | "reflectionText"
   | "guestUuid"
   | "contributorName"
+  | "mediaRefs"
 >;
 
 /**
@@ -155,9 +158,20 @@ export interface UserProfile {
   notifPrompts: boolean;
   notifResurfacing: boolean;
   notifMilestones: boolean;
+  /** How far apart memories may come back (1.4); friends and the check-in aren't counted. */
+  notifFrequency: NotifFrequency;
+  /** Shares and new friends. */
+  notifSocial: boolean;
+  /** Friends' pushes arrive silently 10pm–8am. */
+  notifQuietHours: boolean;
+  /** The local "Last week is ready" reminder, Sunday evening. */
+  notifLastWeek: boolean;
   createdAt: string;
   updatedAt: string;
 }
+
+/** "How often" (1.4): daily, a few times a week, weekly, or off. */
+export type NotifFrequency = "daily" | "few" | "weekly" | "off";
 
 export interface Friendship {
   id: string;

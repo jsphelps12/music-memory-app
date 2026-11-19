@@ -1,9 +1,21 @@
-import React, { createContext, useCallback, useContext, useMemo, useState, useRef, useEffect } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useSyncExternalStore,
+} from "react";
 import { AppState } from "react-native";
 import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from "expo-audio";
 import { getProvider } from "@/lib/providers";
 import type { MusicProvider } from "@/lib/providers";
 import { Song } from "@/types";
+import { DUCK_LEVEL, DUCK_MS, fadeVolume, RESTORE_MS } from "@/lib/audioMix";
+import { createPlaybackStore, isSongPlaying, type PlaybackStore } from "@/lib/playbackStore";
 
 /**
  * What changes only on discrete events (a song starts, pauses, stops, fails).
@@ -20,6 +32,12 @@ interface PlayerControls {
   resume: () => void;
   stop: () => void;
   seekTo: (seconds: number) => void;
+  /**
+   * A video clip's sound is on (true) or off (false): a preview fades under it
+   * and back (lib/audioMix.ts). Full playback runs in Apple's player, which
+   * can't be turned down: callers pause and resume it themselves.
+   */
+  duck: (on: boolean) => void;
 }
 
 /** Updates on every playback tick (0.5-1s). Only progress UI should read it. */
@@ -30,10 +48,22 @@ interface PlayerProgress {
 
 type PlayerState = PlayerControls & PlayerProgress;
 
-// Two contexts so the per-tick progress updates re-render only the progress
-// UI. With one context, every mounted MomentCard re-rendered on every tick.
+/** Never changes after mount: safe for every row of a long list. */
+interface PlayerActions {
+  playFull: PlayerControls["playFull"];
+  pause: PlayerControls["pause"];
+  stop: PlayerControls["stop"];
+  /** The current song at call time, for event handlers. Not for render. */
+  getCurrentSong: () => Song | null;
+  store: PlaybackStore;
+}
+
+// Split so the per-tick progress updates re-render only the progress UI, and
+// play/pause re-renders only what shows it. With one context, every mounted
+// MomentCard re-rendered on every tick.
 const PlayerContext = createContext<PlayerControls | undefined>(undefined);
 const PlayerProgressContext = createContext<PlayerProgress | undefined>(undefined);
+const PlayerActionsContext = createContext<PlayerActions | undefined>(undefined);
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
@@ -55,6 +85,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const playGenRef = useRef(0);
   // Generation of the playFull still awaiting authorize()/play(), if any.
   const pendingFullGenRef = useRef<number | null>(null);
+  // Ducking under a video clip (1.4): the preview's current volume and the
+  // running fade.
+  const volumeRef = useRef(1);
+  const fadeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     // Fire-and-forget: if the audio session can't be configured, preview
@@ -100,6 +134,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // expo-audio positions are SECONDS (expo-av's were ms) — no /1000 here.
       const player = createAudioPlayer({ uri: previewUrl });
       soundRef.current = player;
+      // Starts at the ducked level if a clip's sound is on.
+      try {
+        player.volume = volumeRef.current;
+      } catch {}
       setCurrentSong(song);
       setIsPlaying(true);
       setIsPreview(true);
@@ -285,22 +323,96 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setPlaybackTime(seconds);
   }, []);
 
+  const duck = useCallback(
+    (on: boolean) => {
+      const target = on ? DUCK_LEVEL : 1;
+      // Full playback runs in Apple's player, which can't be turned down. Still
+      // record the level, so a preview ducked before full playback started
+      // isn't left at the ducked volume for every preview after it.
+      if (activeProviderRef.current) {
+        if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
+        fadeTimerRef.current = null;
+        volumeRef.current = target;
+        return;
+      }
+      const ms = on ? DUCK_MS : RESTORE_MS;
+      const from = volumeRef.current;
+      const start = Date.now();
+      if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
+      fadeTimerRef.current = setInterval(() => {
+        const elapsed = Date.now() - start;
+        const v = fadeVolume(from, target, elapsed, ms);
+        volumeRef.current = v;
+        try {
+          if (soundRef.current) soundRef.current.volume = v;
+        } catch {}
+        if (elapsed >= ms && fadeTimerRef.current) {
+          clearInterval(fadeTimerRef.current);
+          fadeTimerRef.current = null;
+        }
+      }, 30);
+    },
+    []
+  );
+
+  useEffect(
+    () => () => {
+      if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
+    },
+    []
+  );
+
   const controlsValue = useMemo<PlayerControls>(
-    () => ({ currentSong, isPlaying, isPreview, playError, playPreview, playFull, pause, resume, stop, seekTo }),
-    [currentSong, isPlaying, isPreview, playError, playPreview, playFull, pause, resume, stop, seekTo]
+    () => ({ currentSong, isPlaying, isPreview, playError, playPreview, playFull, pause, resume, stop, seekTo, duck }),
+    [currentSong, isPlaying, isPreview, playError, playPreview, playFull, pause, resume, stop, seekTo, duck]
   );
   const progressValue = useMemo<PlayerProgress>(
     () => ({ playbackTime, playbackDuration }),
     [playbackTime, playbackDuration]
   );
 
+  // For list rows: which song is playing, as a store they select from, and
+  // the actions, which never change. Neither re-renders a row unless its own
+  // song starts or stops.
+  const [playbackStore] = useState(createPlaybackStore);
+  useLayoutEffect(() => {
+    playbackStore.set({ currentSong, isPlaying });
+  }, [playbackStore, currentSong, isPlaying]);
+  const actionsValue = useMemo<PlayerActions>(
+    () => ({ playFull, pause, stop, getCurrentSong: () => playbackStore.get().currentSong, store: playbackStore }),
+    [playFull, pause, stop, playbackStore]
+  );
+
   return (
     <PlayerContext.Provider value={controlsValue}>
       <PlayerProgressContext.Provider value={progressValue}>
-        {children}
+        <PlayerActionsContext.Provider value={actionsValue}>
+          {children}
+        </PlayerActionsContext.Provider>
       </PlayerProgressContext.Provider>
     </PlayerContext.Provider>
   );
+}
+
+/**
+ * Stable playback actions for list rows. The value never changes, so a row
+ * using it doesn't re-render on play/pause; pair it with useIsSongPlaying.
+ */
+export function usePlayerActions(): PlayerActions {
+  const context = useContext(PlayerActionsContext);
+  if (context === undefined) {
+    throw new Error("usePlayerActions must be used within a PlayerProvider");
+  }
+  return context;
+}
+
+/**
+ * Whether `songId` (playbackSongId of the moment) is the song playing now.
+ * The caller re-renders only when this answer changes.
+ */
+export function useIsSongPlaying(songId: string | null | undefined): boolean {
+  const { store } = usePlayerActions();
+  return useSyncExternalStore(store.subscribe, () => isSongPlaying(store.get(), songId));
 }
 
 /**

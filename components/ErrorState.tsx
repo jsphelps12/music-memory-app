@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { Button } from "@/components/Button";
@@ -19,7 +19,7 @@ export function ErrorState({ message, onRetry, onBack }: ErrorStateProps) {
 
   return (
     <View style={styles.container}>
-      <Ionicons name="cloud-offline-outline" size={32} color={theme.colors.textSecondary} />
+      <Icon name="cloud-offline-outline" size={32} color={theme.colors.textSecondary} />
       <Text style={styles.message}>{message}</Text>
       {onRetry ? (
         <Button label="Try again" onPress={onRetry} fullWidth={false} align="center" />

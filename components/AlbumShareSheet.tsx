@@ -11,7 +11,7 @@ import {
 import { AppImage } from "@/components/AppImage";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useState, useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { BottomSheet } from "@/components/BottomSheet";
@@ -171,9 +171,9 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
 
   async function handleConvert() {
     const confirmed = await confirmSheet({
-      title: "Make Shared?",
+      title: "Make this album shared?",
       message: "Anyone with the invite link can join and add moments. This can't be undone.",
-      confirmLabel: "Make Shared",
+      confirmLabel: "Make shared",
     });
     if (!confirmed) return;
     setConverting(true);
@@ -216,8 +216,8 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
 
   async function handleRemoveMember(member: AlbumMember) {
     const confirmed = await confirmSheet({
-      title: "Remove Member",
-      message: `Remove ${member.displayName ?? "this member"} from "${collection.name}"?`,
+      title: `Remove ${member.displayName ?? "this member"}?`,
+      message: `They'll leave “${collection.name}”.`,
       confirmLabel: "Remove",
       destructive: true,
     });
@@ -236,8 +236,8 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
 
   async function handleLeave() {
     const confirmed = await confirmSheet({
-      title: "Leave Album",
-      message: `Leave "${collection.name}"? You can rejoin later with the invite link.`,
+      title: "Leave this album?",
+      message: `You can rejoin “${collection.name}” later with the invite link.`,
       confirmLabel: "Leave",
       destructive: true,
     });
@@ -261,8 +261,8 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
       ? ` ${members.length} member${members.length === 1 ? "" : "s"} will be removed.`
       : "";
     const confirmed = await confirmSheet({
-      title: "Delete Album",
-      message: `Permanently delete "${collection.name}"?${memberWarning} Moments added by members will remain on their timelines. This can't be undone.`,
+      title: "Delete this album?",
+      message: `“${collection.name}” will be deleted for good.${memberWarning} Moments added by members will remain on their timelines.`,
       confirmLabel: "Delete",
       destructive: true,
     });
@@ -315,7 +315,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
             {collection.isPublic && inviteUrl ? (
               <View style={styles.inviteBlock}>
                 <View style={styles.linkRow}>
-                  <Ionicons name="link-outline" size={16} color={theme.colors.textSecondary} />
+                  <Icon name="link-outline" size={16} color={theme.colors.textSecondary} />
                   <Text style={styles.linkText} numberOfLines={1} ellipsizeMode="middle">
                     {inviteUrl.replace(/^https?:\/\//, "")}
                   </Text>
@@ -373,24 +373,19 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                   />
                 </View>
               ) : (
-                <Pressable
-                  style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+                <ListRow
+                  label="Name"
+                  detail={collection.name}
                   onPress={() => {
                     setRenaming(true);
                     setRenameText(collection.name);
                   }}
-                  accessibilityRole="button"
                   accessibilityLabel="Rename album"
-                >
-                  <Text style={styles.rowLabel}>Name</Text>
-                  <Text style={styles.rowValue} numberOfLines={1}>
-                    {collection.name}
-                  </Text>
-                  <Ionicons name="pencil-outline" size={16} color={theme.colors.textSecondary} />
-                </Pressable>
+                  style={styles.rowTight}
+                />
               )}
 
-              {/* Cover photo: tap to change; Remove (or long-press the thumb) clears it */}
+              {/* Cover photo: tap to change; Remove clears it */}
               <ListRow
                 label="Cover photo"
                 onPress={handlePickCover}
@@ -412,7 +407,11 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                           onPress={handleRemoveCover}
                           accessibilityLabel="Remove cover photo"
                         />
-                        <Pressable onPress={handlePickCover} onLongPress={handleRemoveCover}>
+                        <Pressable
+                          onPress={handlePickCover}
+                          accessibilityRole="button"
+                          accessibilityLabel="Change cover photo"
+                        >
                           <AppImage
                             source={{ uri: getPublicPhotoUrl(collection.coverPhotoUrl) }}
                             style={styles.coverThumb}
@@ -422,7 +421,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                       </>
                     ) : (
                       <View style={[styles.coverThumb, styles.coverEmpty]}>
-                        <Ionicons name="image-outline" size={18} color={theme.colors.textSecondary} />
+                        <Icon name="image-outline" size={18} color={theme.colors.textSecondary} />
                       </View>
                     )}
                   </View>
@@ -560,17 +559,6 @@ function createStyles(theme: Theme) {
     // ListRow in this sheet keeps the old 52pt rhythm with a 36pt thumb.
     rowTight: {
       paddingVertical: theme.spacing.xs,
-    },
-    pressed: { opacity: 0.6 },
-    rowLabel: {
-      ...theme.typography.body,
-      color: theme.colors.text,
-    },
-    rowValue: {
-      ...theme.typography.body,
-      color: theme.colors.textSecondary,
-      flex: 1,
-      textAlign: "right",
     },
     rowTrailing: {
       flexDirection: "row",

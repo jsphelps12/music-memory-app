@@ -48,8 +48,13 @@ const RULES = [
   },
   {
     id: "glyph-icon",
-    why: "Icons are Ionicons, not text glyphs or emoji.",
+    why: "Icons are the Icon component (SF Symbols), not text glyphs or emoji.",
     re: /(["'>]\s*[✕✓✔✖×]\s*["'<])|["']🎵["']/,
+  },
+  {
+    id: "direct-icon-font",
+    why: "Draw icons with components/Icon (SF Symbols on iOS); add new names to lib/iconSymbols.ts.",
+    re: /from\s+["']@expo\/vector-icons/,
   },
   {
     id: "page-sheet",

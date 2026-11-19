@@ -13,9 +13,10 @@ import {
   FlatList,
   Linking,
 } from "react-native";
+import type { ScrollViewInstance, ViewInstance } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { usePreventRemove } from "@react-navigation/native";
+import { usePreventRemove } from "expo-router";
 import { AppImage } from "@/components/AppImage";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ListRow } from "@/components/ListRow";
@@ -26,20 +27,23 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
 import { confirmSheet } from "@/components/ConfirmSheet";
 import * as Haptics from "expo-haptics";
-import { useNavigation, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useAuth } from "@/contexts/AuthContext";
 import { uploadAvatar, getPublicPhotoUrl } from "@/lib/storage";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { searchItunesArtists, searchItunesSongs } from "@/lib/musicSearch";
+import { artworkUrlAtSize } from "@/lib/itunes";
 import { checkUsernameAvailable } from "@/lib/friends";
 import { profileEditChanges } from "@/lib/profile";
 import { FavoriteArtist, FavoriteSong } from "@/types";
 
 const AVATAR_SIZE = 72;
+// 36pt search-result artwork, at 3x.
+const SONG_ARTWORK_PX = 108;
 
 const BIRTH_YEARS = Array.from({ length: 86 }, (_, i) => 2015 - i); // 2015 → 1930
 
@@ -94,13 +98,12 @@ const PICKER_ROW_HEIGHT = 52;
 
 export default function ProfileEditScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { user, profile, updateProfile, refreshProfile } = useAuth();
   const posthog = usePostHog();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
 
   // ── Basic info ──────────────────────────────────────────────────────────
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -113,6 +116,9 @@ export default function ProfileEditScreen() {
   const [saving, setSaving] = useState(false);
   // Set after a successful save so the unsaved-changes guard lets us leave.
   const [saved, setSaved] = useState(false);
+  // Set when the person chooses Discard, so the guard lifts before the
+  // blocked navigation repeats (Expo Router 58 defers it past the commit).
+  const [discarding, setDiscarding] = useState(false);
 
   // ── Username check ──────────────────────────────────────────────────────
   const handleUsernameChange = useCallback((text: string) => {
@@ -166,7 +172,7 @@ export default function ProfileEditScreen() {
   const [artistResults, setArtistResults] = useState<FavoriteArtist[]>([]);
   const [artistSearching, setArtistSearching] = useState(false);
   const artistDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const artistSectionRef = useRef<View>(null);
+  const artistSectionRef = useRef<ViewInstance>(null);
 
   // ── Favorite songs ──────────────────────────────────────────────────────
   const [selectedSongs, setSelectedSongs] = useState<FavoriteSong[]>(
@@ -176,7 +182,7 @@ export default function ProfileEditScreen() {
   const [songResults, setSongResults] = useState<FavoriteSong[]>([]);
   const [songSearching, setSongSearching] = useState(false);
   const songDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const songSectionRef = useRef<View>(null);
+  const songSectionRef = useRef<ViewInstance>(null);
 
   // The form is seeded from the profile. If the profile hadn't loaded when
   // the screen opened, seed it once it arrives (and ask for it), instead of
@@ -215,7 +221,7 @@ export default function ProfileEditScreen() {
   };
   const dirty = !!profile && Object.keys(profileEditChanges(profile, form)).length > 0;
 
-  usePreventRemove(dirty && !saved, ({ data }) => {
+  usePreventRemove(dirty && !saved && !discarding, ({ repeat }) => {
     void confirmSheet({
       title: "Discard changes?",
       message: "Your edits to your profile won't be saved.",
@@ -223,7 +229,9 @@ export default function ProfileEditScreen() {
       cancelLabel: "Keep editing",
       destructive: true,
     }).then((discard) => {
-      if (discard) navigation.dispatch(data.action);
+      if (!discard) return;
+      setDiscarding(true);
+      repeat();
     });
   });
 
@@ -269,14 +277,14 @@ export default function ProfileEditScreen() {
   const handleAvatarPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     ActionSheetIOS.showActionSheetWithOptions(
-      { options: ["Cancel", "Take Photo", "Choose from Library"], cancelButtonIndex: 0 },
+      { options: ["Cancel", "Take photo", "Choose from library"], cancelButtonIndex: 0 },
       async (buttonIndex) => {
         let result: ImagePicker.ImagePickerResult | null = null;
         if (buttonIndex === 1) {
           const { status } = await ImagePicker.requestCameraPermissionsAsync();
           if (status !== "granted") {
             Alert.alert(
-              "Camera Access Required",
+              "Allow camera access",
               "To take a photo, allow camera access in Settings.",
               [
                 { text: "Cancel", style: "cancel" },
@@ -403,7 +411,7 @@ export default function ProfileEditScreen() {
       setSaved(true);
     } catch (e) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Error", friendlyError(e));
+      Alert.alert("Couldn't save profile", friendlyError(e));
     } finally {
       setSaving(false);
     }
@@ -427,7 +435,7 @@ export default function ProfileEditScreen() {
       <ActivityIndicator size="small" color={theme.colors.textSecondary} />
     ) : query.length > 0 ? (
       <TouchableOpacity onPress={onClear} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search">
-        <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />
+        <Icon name="close-circle" size={17} color={theme.colors.textSecondary} />
       </TouchableOpacity>
     ) : null;
 
@@ -435,9 +443,9 @@ export default function ProfileEditScreen() {
     usernameStatus === "checking" ? (
       <ActivityIndicator size="small" color={theme.colors.textSecondary} />
     ) : usernameStatus === "available" ? (
-      <Ionicons name="checkmark-circle" size={18} color={theme.colors.success} />
+      <Icon name="checkmark-circle" size={18} color={theme.colors.success} />
     ) : usernameStatus === "taken" || usernameStatus === "error" ? (
-      <Ionicons name="close-circle" size={18} color={theme.colors.destructive} />
+      <Icon name="close-circle" size={18} color={theme.colors.destructive} />
     ) : null;
 
   return (
@@ -633,13 +641,13 @@ export default function ProfileEditScreen() {
                       accessibilityState={{ selected }}
                     >
                       {item.artworkUrl ? (
-                        <AppImage source={{ uri: item.artworkUrl }} style={styles.songArtwork} contentFit="cover" />
+                        <AppImage source={{ uri: artworkUrlAtSize(item.artworkUrl, SONG_ARTWORK_PX) }} style={styles.songArtwork} contentFit="cover" />
                       ) : null}
                       <View style={styles.resultText}>
                         <Text style={styles.resultTitle} numberOfLines={1}>{item.title}</Text>
                         <Text style={styles.resultSub} numberOfLines={1}>{item.artist}</Text>
                       </View>
-                      {selected && <Ionicons name="checkmark" size={18} color={theme.colors.text} />}
+                      {selected && <Icon name="checkmark" size={18} color={theme.colors.text} />}
                     </Pressable>
                   );
                 })}
@@ -717,7 +725,7 @@ export default function ProfileEditScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Clear search"
               >
-                <Ionicons name="close-circle" size={17} color={theme.colors.textSecondary} />
+                <Icon name="close-circle" size={17} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             ) : null
           }

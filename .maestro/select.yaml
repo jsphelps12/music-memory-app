@@ -1,0 +1,183 @@
+# Select moments in the Journal: one and several, for each action.
+#
+# Starts with four seeded moments (newest first: Bohemian Rhapsody, Dreams,
+# Heroes, Jolene) and an album "Road trip" that already holds the newest, so
+# it covers: an album add where the moment is already in, several where one
+# is, a new album from the selection, a single delete (with Cancel first) and
+# a multiple delete, checking each confirm's wording and what's left after.
+#   scripts/e2e-local.sh select        (see that script for setup)
+# seed: 4
+# seed-album: Road trip
+appId: com.joshuaphelps.musicmemory.preview
+---
+- runFlow: subflows/sign-in.yaml
+- extendedWaitUntil:
+    visible:
+      id: "moment-card-title"
+      index: 3
+    timeout: 15000
+- waitForAnimationToEnd
+- takeScreenshot: 01-journal-seeded
+
+# --- Add one, already in the album (entered from the card's long-press) -----
+- longPressOn:
+    id: "moment-card-title"
+    index: 0
+- extendedWaitUntil:
+    visible: "Select"
+    timeout: 5000
+- tapOn: "Select"
+- extendedWaitUntil:
+    visible: "1 selected"
+    timeout: 5000
+- assertNotVisible:
+    id: "tab-create"
+- takeScreenshot: 02-one-selected
+- tapOn:
+    id: "select-bar-album"
+- extendedWaitUntil:
+    visible:
+      id: "album-picker-new"
+    timeout: 5000
+- waitForAnimationToEnd
+- takeScreenshot: 03-album-pick
+- tapOn: ".*Road trip.*"
+- extendedWaitUntil:
+    visible: "Already in “Road trip”"
+    timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: "journal-select"
+    timeout: 5000
+
+# --- Add several to that album: one of the three is already in --------------
+- tapOn:
+    id: "journal-select"
+- tapOn:
+    id: "moment-card-title"
+    index: 0
+- tapOn:
+    id: "moment-card-title"
+    index: 1
+- tapOn:
+    id: "moment-card-title"
+    index: 2
+- assertVisible: "3 selected"
+- takeScreenshot: 04-three-selected
+- tapOn:
+    id: "select-bar-album"
+- extendedWaitUntil:
+    visible:
+      id: "album-picker-new"
+    timeout: 5000
+- tapOn: ".*Road trip.*"
+- extendedWaitUntil:
+    visible: "Added 2 moments to “Road trip”"
+    timeout: 5000
+
+# --- Add one to a new album made from the selection --------------------------
+- extendedWaitUntil:
+    visible:
+      id: "journal-select"
+    timeout: 5000
+- tapOn:
+    id: "journal-select"
+- tapOn:
+    id: "moment-card-title"
+    index: 3
+- assertVisible: "1 selected"
+- tapOn:
+    id: "select-bar-album"
+- extendedWaitUntil:
+    visible:
+      id: "album-picker-new"
+    timeout: 5000
+- tapOn:
+    id: "album-picker-new"
+- extendedWaitUntil:
+    visible: "Album name"
+    timeout: 5000
+- tapOn: "Album name"
+- inputText: "Gym"
+- tapOn: "Create"
+- extendedWaitUntil:
+    visible: "Added 1 moment to “Gym”"
+    timeout: 10000
+
+# --- Delete one: Cancel keeps it and the selection, then delete --------------
+- extendedWaitUntil:
+    visible:
+      id: "journal-select"
+    timeout: 5000
+- tapOn:
+    id: "journal-select"
+- tapOn:
+    id: "moment-card-title"
+    index: 3
+- assertVisible: "1 selected"
+- tapOn:
+    id: "select-bar-delete"
+- extendedWaitUntil:
+    visible: "Delete this moment?"
+    timeout: 5000
+- waitForAnimationToEnd
+- takeScreenshot: 05-delete-one-confirm
+- tapOn:
+    id: "confirm-sheet-cancel"
+- waitForAnimationToEnd
+- assertVisible: "1 selected"
+- assertVisible:
+    id: "moment-card-title"
+    index: 3
+- tapOn:
+    id: "select-bar-delete"
+- extendedWaitUntil:
+    visible:
+      id: "confirm-sheet-confirm"
+    timeout: 5000
+- tapOn:
+    id: "confirm-sheet-confirm"
+- extendedWaitUntil:
+    notVisible:
+      id: "moment-card-title"
+      index: 3
+    timeout: 10000
+- assertVisible:
+    id: "moment-card-title"
+    index: 2
+
+# --- Delete several: the confirm names how many ------------------------------
+- extendedWaitUntil:
+    visible:
+      id: "journal-select"
+    timeout: 5000
+- tapOn:
+    id: "journal-select"
+- tapOn:
+    id: "moment-card-title"
+    index: 0
+- tapOn:
+    id: "moment-card-title"
+    index: 1
+- assertVisible: "2 selected"
+- tapOn:
+    id: "select-bar-delete"
+- extendedWaitUntil:
+    visible: "Delete 2 moments?"
+    timeout: 5000
+- assertVisible: "Their photos are deleted too. This can't be undone."
+- waitForAnimationToEnd
+- takeScreenshot: 06-delete-two-confirm
+- tapOn:
+    id: "confirm-sheet-confirm"
+- extendedWaitUntil:
+    notVisible:
+      id: "moment-card-title"
+      index: 1
+    timeout: 10000
+- assertVisible:
+    id: "moment-card-title"
+    index: 0
+- assertNotVisible:
+    id: "select-bar-delete"
+- takeScreenshot: 07-one-left

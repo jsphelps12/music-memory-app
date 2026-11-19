@@ -16,13 +16,18 @@ Soundtracks is a **React Native iOS app** built with Expo (managed workflow + cu
 │  │  ├── Expo Router (file-based routing)      │   │
 │  │  ├── React Context (auth + player state)   │   │
 │  │  ├── expo-share-intent (share extension)   │   │
-│  │  └── expo-av (audio playback)              │   │
+│  │  └── expo-audio (audio playback)           │   │
 │  ├───────────────────────────────────────────┤   │
 │  │  Custom Native Modules (Swift)             │   │
 │  │  ├── NowPlaying                            │   │
 │  │  │   (MPMusicPlayerController)             │   │
-│  │  └── ShazamKit                             │   │
-│  │      (AVAudioEngine + SHSession)           │   │
+│  │  ├── ShazamKit                             │   │
+│  │  │   (AVAudioEngine + SHSession)           │   │
+│  │  ├── SpotifyRemote (lazy-loaded)           │   │
+│  │  ├── OnDeviceAI (1.4)                      │   │
+│  │  │   (Vision + Foundation Models)          │   │
+│  │  └── PhotosVideo (1.4)                     │   │
+│  │      (PHImageManager → AVPlayerLayer)      │   │
 │  ├───────────────────────────────────────────┤   │
 │  │  Third-Party Native                        │   │
 │  │  └── @lomray/react-native-apple-music      │   │
@@ -335,17 +340,18 @@ Runs **hourly** (not daily). The Edge Function filters by `getLocalHour(now, use
 
 The Edge Function is a Deno HTTP server deployed to Supabase's edge infrastructure.
 
-**Priority queue logic** — one notification per user per day, in priority order:
+**Priority queue logic** (1.4 notification choices) — at most one notification per user per day, in priority order. `notif_frequency` ("How often": daily / few / weekly / off) spaces out memories 1, 3 or 7 days apart using `last_notified_at`; "off" stops everything here:
 
-| Priority | Type | Condition | Pref toggle |
-|----------|------|-----------|-------------|
-| 1 | Lifecycle | Days 1/3/7/14 post-signup — onboarding nudges | None (auto-expires) |
-| 2 | Streak Milestone | Hit 5/10/25/50 day streak | `notif_milestones` |
-| 3 | On This Day | Moments exist on this date in prior years | `notif_on_this_day` |
-| 4 | Streak Reminder | Logged yesterday, not yet today | `notif_streak` |
-| 5 | Re-engagement | 7/14/30+ days since last moment | `notif_prompts` |
-| 6 | Journal Prompt | No higher priority matches | `notif_prompts` |
-| 7 | Random Resurfacing | Random past moment | `notif_resurfacing` |
+| Priority | Type | Condition | Pref toggle | Spaced |
+|----------|------|-----------|-------------|--------|
+| 1 | Lifecycle | Day 1 (no moments), day 3 (<5), day 7 (≥1, celebration) | None | No |
+| 2 | Streak Milestone | Hit 5/10/25/50 day streak today | `notif_milestones` | No |
+| 3 | On This Day | Moments exist on this date in prior years | `notif_on_this_day` | Yes |
+| 4 | Random memory | A moment saved 30+ days ago | `notif_resurfacing` | Yes |
+
+Retired in 1.4 (never notify about absence): streak reminders, re-engagement ("still there?"), day-7/14 "we miss you", Tue/Thu journal prompts. `notif_streak`/`notif_prompts` stay for 1.3.1 clients but do nothing.
+
+Elsewhere: friends' pushes (`notify-social`, `accept-friend-invite`) check `notif_social` and send silently (iOS `interruptionLevel: "passive"`) 10pm–8am local when `notif_quiet_hours` (`_shared/socialPush.ts`). The daily check-in (`lib/dailyCheckIn.ts`, time + weekdays) and "Last week is ready" (`lib/lastWeekReady.ts`, Sunday 6pm, `notif_last_week`) are local notifications.
 
 **Batch send to Expo:**
 ```typescript
@@ -654,6 +660,19 @@ Same UUID for both — deterministic relationship between full and thumbnail pat
 
 ---
 
+## On-Device Intelligence (1.4)
+
+Everything derived from the Photos and music libraries stays on the phone: no cloud AI, no upload of listening history or photo locations.
+
+- **Last week / From before**: Apple Music library dates and play counts (`now-playing` module, plus a weekly on-device snapshot of play counts) paired with camera photos from the same days (`lib/lastWeek.ts`, `lib/pastPairings.ts`, pure and tested; the `*Data.ts` files do the device I/O).
+- **Photo interest** (`modules/on-device-ai`, `lib/photoInterest.ts`): Vision scene labels, face count and text coverage on any iOS, Apple's aesthetics score on iOS 18+. Receipts and documents never get suggested; the best photo leads each row. Results are cached per photo and lists never wait on analysis.
+- **Nudge questions** (`lib/nudgeQuestion.ts`): on iOS 26 with Apple Intelligence, Foundation Models writes one short question per pairing from facts only, validated (must be a question, under 90 chars, no invented names); templates elsewhere. AI asks; it never writes the reflection.
+- **Linked media** (`lib/linkedMedia.ts`, `lib/ensureFullMedia.ts`): moments reference Photos by iCloud id and upload only a thumbnail until shared, when the full file uploads so a no-app recipient still gets everything.
+
+**Be ready to explain**: why on-device (privacy and zero marginal cost), how the module degrades (`requireOptionalNativeModule` returns null on older builds), and why the AI output is validated instead of trusted.
+
+---
+
 ## Observability: Sentry + PostHog
 
 ### Sentry (Crash Reporting)
@@ -701,7 +720,7 @@ posthog.identify(userId, {
 
 ### What Can Be OTA Updated
 
-Any JS/TS code change. What can't:
+Any JS/TS code change, as long as the native fingerprint (`runtimeVersion.policy: "fingerprint"`) is unchanged. What can't:
 - Native module changes (Swift/Kotlin)
 - New native dependencies (anything with a podspec)
 - `app.config.ts` changes that affect native config

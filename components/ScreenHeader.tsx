@@ -74,6 +74,7 @@ export function ScreenHeader({
           name={leading === "back" ? "chevron-back" : "close"}
           onPress={onLeadingPress ?? (() => router.back())}
           accessibilityLabel={leading === "back" ? "Back" : "Close"}
+          testID="header-leading"
           style={styles.leading}
         />
         <View style={styles.right}>{right}</View>

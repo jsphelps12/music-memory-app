@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Linking, StyleSheet, Switch, Text, View } from "react-native";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
@@ -13,6 +13,7 @@ import { Theme } from "@/constants/theme";
 import {
   CheckInSettings,
   DEFAULT_CHECK_IN,
+  describeDays,
   formatCheckInTime,
   readCheckInSettings,
   setCheckIn,
@@ -23,9 +24,21 @@ interface Props {
   last?: boolean;
 }
 
+/** Monday first; 0 = Sunday as in Date.getDay(). */
+const WEEK = [
+  { day: 1, name: "Monday" },
+  { day: 2, name: "Tuesday" },
+  { day: 3, name: "Wednesday" },
+  { day: 4, name: "Thursday" },
+  { day: 5, name: "Friday" },
+  { day: 6, name: "Saturday" },
+  { day: 0, name: "Sunday" },
+];
+
 /**
- * Settings → Journal: the daily check-in switch, and its time. The row
- * reads "Every night at 9:00 PM"; tapping it (when on) opens a time picker.
+ * Settings → Notifications: the daily check-in switch, its time and its
+ * days. Tapping the row (when on) opens a time picker; "Days" below it opens
+ * a quick pick of weekdays, like Repeat in the Clock app (at least one).
  */
 export function DailyCheckInRow({ userId, last }: Props) {
   const theme = useTheme();
@@ -35,10 +48,26 @@ export function DailyCheckInRow({ userId, last }: Props) {
   const [busy, setBusy] = useState(false);
   const [denied, setDenied] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [daysOpen, setDaysOpen] = useState(false);
   const [draft, setDraft] = useState(new Date());
+  // The settings as last asked for, ahead of what's on screen: quick taps
+  // build on each other instead of on a render that hasn't happened yet.
+  const intended = useRef<CheckInSettings>(DEFAULT_CHECK_IN);
+  // Bumped by every change; only the newest change's result is shown, and
+  // the first read doesn't land on top of a change already made.
+  const latest = useRef(0);
 
   useEffect(() => {
-    void readCheckInSettings(userId).then(setSettings);
+    let cancelled = false;
+    const seq = latest.current;
+    void readCheckInSettings(userId).then((s) => {
+      if (cancelled || seq !== latest.current) return;
+      intended.current = s;
+      setSettings(s);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
 
   // Back from iOS Settings with notifications allowed: drop the warning.
@@ -51,8 +80,13 @@ export function DailyCheckInRow({ userId, last }: Props) {
 
   const apply = useCallback(
     async (next: CheckInSettings) => {
+      const seq = ++latest.current;
+      intended.current = next;
       setBusy(true);
+      // setCheckIn applies changes one at a time, in order (lib/dailyCheckIn.ts).
       const result = await setCheckIn(userId, next);
+      if (seq !== latest.current) return; // a newer change is on its way
+      intended.current = result.settings;
       setSettings(result.settings);
       setDenied(result.permission === "denied");
       setBusy(false);
@@ -68,7 +102,7 @@ export function DailyCheckInRow({ userId, last }: Props) {
 
   const toggle = (on: boolean) => {
     Haptics.selectionAsync();
-    void apply({ ...settings, enabled: on });
+    void apply({ ...intended.current, enabled: on });
   };
 
   const openPicker = () => {
@@ -78,14 +112,26 @@ export function DailyCheckInRow({ userId, last }: Props) {
 
   const saveTime = () => {
     setPickerOpen(false);
-    void apply({ enabled: true, hour: draft.getHours(), minute: draft.getMinutes() });
+    void apply({ ...intended.current, enabled: true, hour: draft.getHours(), minute: draft.getMinutes() });
   };
 
+  const toggleDay = (day: number) => {
+    const base = intended.current;
+    const on = base.days.includes(day);
+    if (on && base.days.length === 1) return; // keep at least one
+    Haptics.selectionAsync();
+    const days = on ? base.days.filter((d) => d !== day) : [...base.days, day].sort((a, b) => a - b);
+    setSettings({ ...base, days }); // moves on tap; apply() confirms
+    void apply({ ...base, days });
+  };
+
+  const when = describeDays(settings.days);
   const subtitle = denied
     ? "Notifications are off for Soundtracks in iOS Settings."
     : settings.enabled
-      ? `Every day at ${formatCheckInTime(settings.hour, settings.minute)}, unless you've already saved one`
-      : "One question a day: what song did you listen to today?";
+      ? `At ${formatCheckInTime(settings.hour, settings.minute)}, unless you've already saved one`
+      : "One question: what song did you listen to today?";
+  const showDays = settings.enabled && !denied;
 
   return (
     <>
@@ -93,7 +139,7 @@ export function DailyCheckInRow({ userId, last }: Props) {
         label="Daily check-in"
         subtitle={subtitle}
         subtitleLines={3}
-        last={last && !denied}
+        last={last && !denied && !showDays}
         onPress={settings.enabled ? openPicker : undefined}
         accessibilityHint={settings.enabled ? "Change the time" : undefined}
         trailing={
@@ -107,6 +153,14 @@ export function DailyCheckInRow({ userId, last }: Props) {
           />
         }
       />
+      {showDays ? (
+        <ListRow
+          label="Days"
+          detail={when}
+          onPress={() => setDaysOpen(true)}
+          last={last}
+        />
+      ) : null}
       {denied ? (
         <ListRow
           label="Open iOS Settings"
@@ -115,6 +169,25 @@ export function DailyCheckInRow({ userId, last }: Props) {
           last={last}
         />
       ) : null}
+
+      <BottomSheet visible={daysOpen} onClose={() => setDaysOpen(false)} title="Check-in days">
+        <View style={styles.daysBody}>
+          {WEEK.map(({ day, name }, i) => {
+            const selected = settings.days.includes(day);
+            return (
+              <ListRow
+                key={day}
+                label={name}
+                accessory="check"
+                selected={selected}
+                onPress={() => toggleDay(day)}
+                disabled={selected && settings.days.length === 1}
+                last={i === WEEK.length - 1}
+              />
+            );
+          })}
+        </View>
+      </BottomSheet>
 
       <BottomSheet
         visible={pickerOpen}
@@ -144,6 +217,10 @@ export function DailyCheckInRow({ userId, last }: Props) {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
+    daysBody: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingBottom: theme.spacing.sm,
+    },
     sheetBody: {
       paddingHorizontal: theme.spacing.xl,
       paddingBottom: theme.spacing.sm,

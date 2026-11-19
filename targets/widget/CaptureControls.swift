@@ -31,22 +31,5 @@ struct IdentifyControl: ControlWidget {
   }
 }
 
-@available(iOSApplicationExtension 18.0, *)
-struct OpenCaptureIntent: AppIntent {
-  static let title: LocalizedStringResource = "Capture a song"
-  static let isDiscoverable = false
-
-  func perform() async throws -> some IntentResult & OpensIntent {
-    .result(opensIntent: OpenURLIntent(SoundtracksLink.capture))
-  }
-}
-
-@available(iOSApplicationExtension 18.0, *)
-struct OpenIdentifyIntent: AppIntent {
-  static let title: LocalizedStringResource = "Identify a song"
-  static let isDiscoverable = false
-
-  func perform() async throws -> some IntentResult & OpensIntent {
-    .result(opensIntent: OpenURLIntent(SoundtracksLink.identify))
-  }
-}
+// The intents themselves are in _shared/ControlIntents.swift: they must be
+// built into the app too, or tapping a control opens nothing.

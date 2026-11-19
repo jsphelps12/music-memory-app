@@ -1,4 +1,5 @@
 import { Moment, MusicProviderType } from "@/types";
+import { alignRefs } from "@/lib/linkedMedia";
 
 export function mapRowToMoment(row: any): Moment {
   return {
@@ -15,6 +16,7 @@ export function mapRowToMoment(row: any): Moment {
     reflectionText: row.reflection_text,
     photoUrls: row.photo_urls ?? [],
     photoThumbnails: row.photo_thumbnails ?? [],
+    mediaRefs: alignRefs(row.media_refs, (row.photo_urls ?? []).length),
     // Dual-read during the multi-mood transition: rows written by binaries
     // <= build 22 only have the single mood column.
     moods: row.moods ?? (row.mood ? [row.mood] : []),
