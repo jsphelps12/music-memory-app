@@ -55,6 +55,12 @@ after the film, crash guards (context menu, ShazamKit tap, share patch),
 image orientation for on-device AI, lighter film preload and poster
 timeout, Shazam/Spotify races, library sort. If App Review rejects build 12
 over the prompts, this becomes 1.4.0 build 13 instead.
+**Decided 2026-11-18 (Josh):** build 13 goes in as **1.4.0 (13)** and
+replaces build 12 in App Review once it passes on his phone (its prompts are
+the review risk). If 12 is approved first, 13 ships as 1.4.1. The min-build
+gate goes straight to 13 once it's live in the store (not 10): about 8
+people are still on 1.2.0 and auto-update hasn't moved them; DB-2 and the
+shared view follow that raise.
 Status 2026-11-18: all of it written and a release simulator build
 compiles. Still to do: Josh approves the prompt wording, turns on
 Associated Domains for the store App ID and makes soundtracks.app the
@@ -554,7 +560,8 @@ changed since build 36.
   and Search Results creative assets (Oct 2026) are optional; none yet.
 - [x] **Josh:** TestFlight pass, 1.3.1 in App Store Connect with the new
   screenshots, submitted and released (live by 2026-11-15).
-- [ ] Raise the min-build gate to 10, which unblocks DB-2 (RLS hardening
+- [ ] Raise the min-build gate to 13 once 1.4 (13) is live (decided
+  2026-11-18; was 10), which unblocks DB-2 (RLS hardening
   step 2). Josh, 2026-11-16: wait a few days so people on 1.3.0 auto-update
   first instead of hitting the update-required screen.
 - [x] E2E green on `main` so the promote path works for JS fixes (PR #33:
