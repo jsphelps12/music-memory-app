@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
+import { shapeForViewer } from "@/lib/momentView";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { ensureFullMedia, ensureFullMediaForAlbum, ensureFullMediaForAlbumMoments } from "@/lib/ensureFullMedia";
 import { planAlbumAdd } from "@/lib/momentSelection";
@@ -617,13 +618,16 @@ export async function markAlbumViewed(
 
 // Fetch all moments across all contributors in a shared album via a single
 // server-side join (get_shared_collection_moments RPC), avoiding 3 serial queries.
-export async function fetchSharedAlbumMoments(collectionId: string): Promise<Moment[]> {
+// Other people's moments come back as the shared view (no place, people or
+// link token); with the viewer's id that's applied on the device too.
+export async function fetchSharedAlbumMoments(collectionId: string, viewerId?: string): Promise<Moment[]> {
   const { data, error } = await supabase.rpc("get_shared_collection_moments", {
     p_collection_id: collectionId,
   });
   if (error) throw error;
   return (data ?? []).map((row: any) => {
-    const moment = mapRowToMoment(row);
+    const mapped = mapRowToMoment(row);
+    const moment = viewerId ? shapeForViewer(mapped, viewerId) : mapped;
     moment.contributorName = row.contributor_name ?? null;
     return moment;
   });
@@ -689,7 +693,7 @@ export async function fetchAlbumDetail(id: string, userId: string): Promise<Albu
   if (!role) throw new AlbumNotFoundError();
 
   const [moments, ownerNames] = await Promise.all([
-    row.is_public ? fetchSharedAlbumMoments(id) : fetchPersonalAlbumMoments(id),
+    row.is_public ? fetchSharedAlbumMoments(id, userId) : fetchPersonalAlbumMoments(id),
     role === "member" ? fetchOwnerNames([row.user_id]) : Promise.resolve(new Map<string, string | null>()),
   ]);
 

@@ -141,13 +141,21 @@ the store app only (not β). Then a device build and TestFlight.
     token can be forwarded). Step 1 the app reads through it (OTA + 1.4.1);
     step 2, after the min-build raise, the table becomes owner-only (with
     DB-2). New sharing features read through it from day one.
+    *Step 1 built 2026-11-19 (migration `20261119000000_shared_view`, ships
+    through CI; JS in 1.4.1):* `moment_view_for` shapes every non-owner read
+    (no place, people or link token; linked-media ids blanked);
+    `get_moment_view` (detail for a moment you don't own) and
+    `get_shared_with_me` (the inbox) are new; the album RPC and both /m/ link
+    RPCs return the shaped fields under their old keys (location now null).
+    App: `lib/momentView.ts`; non-owners get no Share button, link, card or
+    album row. Old builds still read the table directly until step 2.
   - Retire the pre-occasions album guest form (`/c/{code}/contribute`, its
     flag and edge function); switched off for every album 2026-11-18 (main PR 109).
   - The /m/ link page as the hero: opens the app (universal links, 1.4.1),
     "Open in app" / "Get the app" otherwise; the share card gets a small
     link or QR; occasion pages point to the app.
   - What travels with a share: no GPS or people's names by default; only
-    the owner can pass a moment on.
+    the owner can pass a moment on. *(Built with the shared view, step 1.)*
   - Friend links rotate on unfriend, which also unsends past shares.
   - Albums: unshare, new invite code, and on leaving, choose whether your
     moments go with you.

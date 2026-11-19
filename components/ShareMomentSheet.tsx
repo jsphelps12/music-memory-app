@@ -40,6 +40,7 @@ import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { setShareCardData } from "@/lib/shareCardStore";
 import { friendlyError } from "@/lib/errors";
+import { canPassOn } from "@/lib/momentView";
 import { Friendship, PartialMoment } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -95,7 +96,9 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   const [error, setError] = useState("");
   const fail = (what: string, err: unknown) => setError(`${what}. ${friendlyError(err)}`);
 
-  const isOwner = !!user && moment.userId === user.id;
+  // Only the owner can pass a moment on (lib/momentView.ts). The detail
+  // screen doesn't offer this sheet to anyone else; this keeps it that way.
+  const isOwner = canPassOn(moment, user?.id);
 
   const handleClose = useCallback(() => {
     setPersonOpen(false);
@@ -147,42 +150,43 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   }, [moment.id]);
 
   // A card-column preview has no shareToken (MOMENT_CARD_COLUMNS omits it), so
-  // trusting the prop could mint a second token over a live one. Re-read the truth from the row every time the sheet opens — and reload the
-  // grant chips alongside it (owner only). Every open, not once per moment:
+  // trusting the prop could mint a second token over a live one. Re-read the
+  // truth from the row every time the sheet opens (owner only), and reload the
+  // grant chips alongside it. Every open, not once per moment:
   // "Add to album" and other screens change them between opens.
   useEffect(() => {
     if (!visible) return;
-    setShareToken(moment.shareToken ?? null);
+    setShareToken(isOwner ? moment.shareToken ?? null : null);
     setLinkCopied(false);
     setError("");
+    // Nobody but the owner ever asks for the link token.
+    if (!isOwner || !user) return;
     supabase
       .from("moments")
       .select("share_token")
       .eq("id", moment.id)
-      .single()
+      .eq("user_id", user.id)
+      .maybeSingle()
       .then(({ data, error }) => {
         if (!error && data) setShareToken(data.share_token);
       });
 
-    if (isOwner && user) {
-      // A failed load keeps the chips from the last successful one; the
-      // chips are state, not the action, so they don't block sharing.
-      fetchMomentShareRecipients(moment.id)
-        .then(setPeopleGrants)
-        .catch((err) => { if (__DEV__) console.warn("[share] recipients load failed:", err); });
-      Promise.all([fetchAlbums(user.id), fetchAlbumIdsContainingMoment(moment.id)])
-        .then(([cols, memberIds]) => {
-          const inAlbum = new Set(memberIds);
-          setAlbumGrants(cols.filter((c) => inAlbum.has(c.id)).map((c) => ({ id: c.id, name: c.name })));
-        })
-        .catch((err) => { if (__DEV__) console.warn("[share] album chips load failed:", err); });
-    }
+    // A failed load keeps the chips from the last successful one; the
+    // chips are state, not the action, so they don't block sharing.
+    fetchMomentShareRecipients(moment.id)
+      .then(setPeopleGrants)
+      .catch((err) => { if (__DEV__) console.warn("[share] recipients load failed:", err); });
+    Promise.all([fetchAlbums(user.id), fetchAlbumIdsContainingMoment(moment.id)])
+      .then(([cols, memberIds]) => {
+        const inAlbum = new Set(memberIds);
+        setAlbumGrants(cols.filter((c) => inAlbum.has(c.id)).map((c) => ({ id: c.id, name: c.name })));
+      })
+      .catch((err) => { if (__DEV__) console.warn("[share] album chips load failed:", err); });
   }, [visible, moment.id, moment.shareToken, isOwner, user]);
 
   // ── Link handlers ─────────────────────────────────────────────────────
-  // Only the owner can create a link; anyone who can see the moment can send
-  // one that already exists.
-  const canSendLink = !!shareToken || isOwner;
+  // Only the owner creates or sends a link.
+  const canSendLink = isOwner;
 
   const handleSendLink = async () => {
     if (sendingLink || !canSendLink) return;
@@ -500,15 +504,14 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
               {personOpen ? <View style={styles.personList}>{personList}</View> : null}
             </>
           )}
-          {onAddToAlbum &&
+          {isOwner && onAddToAlbum &&
             optionRow({
               icon: "albums-outline",
               title: "Add to album",
               desc: "Yours, or one you share",
               onPress: handleAddToAlbum,
             })}
-          {/* Only the owner can create a link, so a viewer of a moment with
-              no link doesn't get the row at all. */}
+          {/* Link and card are the owner's to send. */}
           {canSendLink &&
             optionRow({
               icon: "link-outline",
@@ -528,12 +531,13 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
                   />
                 ) : undefined,
             })}
-          {optionRow({
-            icon: "image-outline",
-            title: "Share card",
-            desc: "A designed image for posts and Stories",
-            onPress: handleOpenCard,
-          })}
+          {isOwner &&
+            optionRow({
+              icon: "image-outline",
+              title: "Share card",
+              desc: "A designed image for posts and Stories",
+              onPress: handleOpenCard,
+            })}
         </View>
 
         {/* Honest state: one chip per grant, each removable */}

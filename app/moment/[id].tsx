@@ -43,7 +43,7 @@ import {
   addMomentToAlbum,
   removeMomentFromAlbum,
 } from "@/lib/albums";
-import { mapRowToMoment } from "@/lib/moments";
+import { canPassOn, fetchMomentForViewer } from "@/lib/momentView";
 import {
   DELETE_MOMENT_CONFIRM,
   DELETE_MOMENT_FAILED,
@@ -63,7 +63,7 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { MomentFilm } from "@/components/MomentFilm";
 import { confirmSheet, ConfirmSheetHost } from "@/components/ConfirmSheet";
 import { friendlyError } from "@/lib/errors";
-import { Album, PartialMoment } from "@/types";
+import { Album, Moment, PartialMoment } from "@/types";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches, invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { ShareMomentSheet } from "@/components/ShareMomentSheet";
@@ -125,6 +125,7 @@ export default function MomentDetailScreen() {
   }>();
   const router = useRouter();
   const { user, profile } = useAuth();
+  const userId = user?.id;
   const { currentSong, isPlaying, playError, playFull, pause, resume, seekTo } = usePlayerControls();
   const playerActions = usePlayerActions();
   const theme = useTheme();
@@ -364,13 +365,14 @@ export default function MomentDetailScreen() {
     if (blocking) setScreenState("loading");
     setRefreshError("");
     const t0 = Date.now();
-    const { data, error: fetchError } = await supabase
-      .from("moments")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (fetchError) {
+    // The shared view: someone else's moment (or one not on hand yet) comes
+    // through get_moment_view, without its place, people or link token. The
+    // viewer's own moment is re-read from the table as before.
+    const own = !!userId && momentRef.current?.userId === userId;
+    let data: Moment | null;
+    try {
+      data = await fetchMomentForViewer(id, userId, own);
+    } catch (fetchError) {
       if (blocking) {
         setError(friendlyError(fetchError));
         setScreenState("error");
@@ -385,7 +387,7 @@ export default function MomentDetailScreen() {
       setScreenState("not_found");
       return;
     }
-    setMoment(mapRowToMoment(data));
+    setMoment(data);
     setScreenState("ready");
     if (!openTrackedRef.current) {
       openTrackedRef.current = true;
@@ -394,7 +396,7 @@ export default function MomentDetailScreen() {
         duration_ms: Date.now() - t0,
       });
     }
-  }, [id, posthog]);
+  }, [id, userId, posthog]);
 
   // Focus refetch per CLAUDE.md: only when there's nothing on screen, after an
   // edit, or once the data is stale. The first focus always fetches: a moment
@@ -613,7 +615,7 @@ export default function MomentDetailScreen() {
   const moodLine = moment ? moodWords(moment.moods, allMoods, Infinity) : "";
 
   const openShare = () => {
-    if (!moment) return;
+    if (!moment || !canPassOn(moment, user?.id)) return;
     Haptics.selectionAsync();
     setShareModalVisible(true);
     posthog.capture("moment_shared", { song_title: moment.songTitle, song_artist: moment.songArtist });
@@ -651,6 +653,7 @@ export default function MomentDetailScreen() {
   // Built as one literal (not pushed into): the compiler can't tell a push
   // won't call the handlers it's given.
   const isOwnMoment = !!moment && moment.userId === user?.id;
+  const canShare = canPassOn(moment, user?.id);
   const isGuest = !!moment?.guestUuid;
   const isCollectionOwner = collectionRole === "owner";
   // Taken out of the album it was opened from (with Add to album's ticks):
@@ -774,14 +777,17 @@ export default function MomentDetailScreen() {
         />
         {screenState === "ready" && moment && (
           <View style={styles.glassBtnRow}>
-            <IconButton
-              variant="glass"
-              name="share-outline"
-              size={20}
-              onPress={openShare}
-              accessibilityLabel="Share"
-              testID="moment-share"
-            />
+            {/* Only the owner can pass a moment on (link, card, send). */}
+            {canShare ? (
+              <IconButton
+                variant="glass"
+                name="share-outline"
+                size={20}
+                onPress={openShare}
+                accessibilityLabel="Share"
+                testID="moment-share"
+              />
+            ) : null}
             {MomentMenuButton ? (
               // The native button is what's tapped (and carries the testID);
               // the IconButton inside only draws the glass disc and takes no
@@ -1079,7 +1085,7 @@ export default function MomentDetailScreen() {
         ownMoment={!!moment && moment.userId === user?.id}
       />
 
-      {moment && (
+      {moment && canShare && (
         <ShareMomentSheet
           visible={shareModalVisible}
           moment={moment}
