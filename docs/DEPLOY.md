@@ -270,7 +270,7 @@ associated-domains entitlement, so check the binary, not the config:
 
 ```bash
 unzip -q -o <path>.ipa -d /tmp/ipa && APP=$(ls -d /tmp/ipa/Payload/*.app)
-codesign -d --entitlements :- "$APP"   # applinks:soundtracks.app and applinks:www.soundtracks.app; one app group, listed once
+codesign -d --entitlements :- "$APP"   # applinks:soundtracks.app only (www 308-redirects to the apex); one app group, listed once
 plutil -p "$APP/Info.plist" | grep -E 'UsageDescription|Temporary'
 ```
 

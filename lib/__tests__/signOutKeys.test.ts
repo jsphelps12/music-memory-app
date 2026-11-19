@@ -1,7 +1,7 @@
 /**
  * Signing out must leave nothing of one person's From before, Last week,
- * photo analyses, nudge questions or capture hint for the next account on
- * the phone. Those records aren't keyed by user id and their key names are
+ * photo analyses, nudge questions, capture hint or parked links for the
+ * next account on the phone. Those records aren't keyed by user id and their key names are
  * private to their files, so lib/signOutKeys.ts repeats them; this suite
  * reads the owning files and fails when a key there isn't in the list.
  */
@@ -26,7 +26,11 @@ const OWNERS = [
   "lib/photoAnalysisStore.ts",
   "lib/nudgeQuestionStore.ts",
   "lib/captureHint.ts",
+  "hooks/useDeepLinkHandler.ts",
 ];
+
+/** Keys in those files that belong to the device, not the person. */
+const DEVICE_WIDE = new Set(["has_launched"]);
 
 /** `const SOME_KEY = "name_v1";` style storage keys in a source file. */
 function storageKeysIn(file: string): string[] {
@@ -41,7 +45,7 @@ function storageKeysIn(file: string): string[] {
 
 describe("SIGN_OUT_KEYS", () => {
   it.each(OWNERS)("covers every storage key in %s", (file) => {
-    const keys = storageKeysIn(file);
+    const keys = storageKeysIn(file).filter((k) => !DEVICE_WIDE.has(k));
     expect(keys.length).toBeGreaterThan(0);
     for (const key of keys) expect(SIGN_OUT_KEYS).toContain(key);
   });
@@ -59,6 +63,16 @@ describe("SIGN_OUT_KEYS", () => {
     const { snapshotKey } = await import("../lastWeekSnapshots");
     for (const key of Object.values(fromBeforeKeys("u1"))) expect(isSignOutKey(key)).toBe(true);
     expect(isSignOutKey(snapshotKey("2026-11-16"))).toBe(true);
+  });
+
+  it("keeps the device-wide keys", () => {
+    for (const key of DEVICE_WIDE) expect(isSignOutKey(key)).toBe(false);
+  });
+
+  it("covers the deep links parked for after sign-in", () => {
+    expect(isSignOutKey("pending_invite_code")).toBe(true);
+    expect(isSignOutKey("pending_friend_token")).toBe(true);
+    expect(isSignOutKey("pending_share_token")).toBe(true);
   });
 
   it("has no duplicates", () => {

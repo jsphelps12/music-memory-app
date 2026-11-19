@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { albumInviteCode, isShareIntentPath, routeForSystemPath } from "../systemPath";
+import { albumInviteCode, isShareIntentPath, parkedLinkAction, routeForSystemPath } from "../systemPath";
 
 describe("routeForSystemPath", () => {
   const share = "soundtracks-beta://dataUrl=soundtracks-betaShareKey?nonce=6F1C#weburl";
@@ -32,5 +32,18 @@ describe("routeForSystemPath", () => {
     expect(albumInviteCode("/c/AbC123?utm=x")).toBe("AbC123");
     expect(albumInviteCode("/create")).toBeNull();
     expect(albumInviteCode("/m/abc")).toBeNull();
+  });
+});
+
+describe("parkedLinkAction", () => {
+  it("parks a friend or album link only when nobody is signed in", () => {
+    expect(parkedLinkAction(false, false)).toBe("park");
+    expect(parkedLinkAction(false, true)).toBe("skip");
+  });
+
+  it("waits for auth on a cold start instead of parking for a signed-in user", () => {
+    expect(parkedLinkAction(true, false)).toBe("wait");
+    // The session restored before the profile: already known to be signed in.
+    expect(parkedLinkAction(true, true)).toBe("skip");
   });
 });

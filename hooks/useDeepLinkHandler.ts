@@ -6,7 +6,9 @@ import { useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { handleAuthDeepLink } from "@/lib/auth-linking";
 import { wasShareTokenOpened } from "@/lib/sharedMomentLink";
+import { parkedLinkAction } from "@/lib/systemPath";
 
+// The pending keys are also cleared on sign-out (lib/signOutKeys.ts).
 export const PENDING_INVITE_CODE_KEY = "pending_invite_code";
 export const PENDING_FRIEND_TOKEN_KEY = "pending_friend_token";
 /** A /m/{token} share link that arrived before the app could open it. */
@@ -52,11 +54,33 @@ async function checkClipboardForDeferredLink(): Promise<DeferredLink | null> {
 
 export function useDeepLinkHandler() {
   const router = useRouter();
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   // Deduplicate URL handling — getInitialURL + addEventListener both fire for same URL
   const lastHandledUrlRef = useRef<string | null>(null);
   // Deduplicate friend-accept navigations by token value — URL + AsyncStorage + clipboard can all fire the same token
   const handledFriendTokensRef = useRef(new Set<string>());
+  // Friend/album links that arrived before auth restored, waiting to learn
+  // whether anyone is signed in (key → value).
+  const waitingLinksRef = useRef(new Map<string, string>());
+
+  // Park a link the router has already opened, for after sign-in, only when
+  // nobody is signed in (lib/systemPath.ts parkedLinkAction).
+  const parkIfSignedOut = useCallback(async (key: string, value: string) => {
+    const action = parkedLinkAction(authLoading, !!user);
+    if (action === "wait") waitingLinksRef.current.set(key, value);
+    else if (action === "park") await AsyncStorage.setItem(key, value);
+  }, [authLoading, user]);
+
+  // Auth has settled: park the waiting links if nobody is signed in, drop
+  // them otherwise (the route already showed them).
+  useEffect(() => {
+    if (authLoading || waitingLinksRef.current.size === 0) return;
+    const waiting = [...waitingLinksRef.current];
+    waitingLinksRef.current.clear();
+    if (user) return;
+    AsyncStorage.multiSet(waiting)
+      .catch((err) => { if (__DEV__) console.warn("[deep-link] failed to park link:", err); });
+  }, [authLoading, user]);
 
   const handleInviteCode = useCallback(async (inviteCode: string) => {
     if (user) {
@@ -95,23 +119,24 @@ export function useDeepLinkHandler() {
     }
 
     // Universal Links — https://soundtracks.app/friend/{token}
-    // Navigation is handled natively by the app/friend/[token].tsx Expo Router route.
-    // We only need to stash the token in AsyncStorage when the user is not yet signed in
-    // so the pending-token effect can redirect them after auth completes.
+    // The app/friend/[token].tsx route opens it. Park the token only when
+    // signed out, so the pending-token effect opens it after sign-in. A
+    // signed-in cold start (no user yet) used to park it too, and the effect
+    // then opened the friend screen a second time.
     const universalFriendMatch = url.match(/^https:\/\/(?:www\.)?soundtracks\.app\/friend\/([a-zA-Z0-9-]+)/);
     if (universalFriendMatch) {
-      if (!user) {
-        await AsyncStorage.setItem(PENDING_FRIEND_TOKEN_KEY, universalFriendMatch[1]);
-      }
+      await parkIfSignedOut(PENDING_FRIEND_TOKEN_KEY, universalFriendMatch[1]);
       return;
     }
 
     // Universal Links — https://soundtracks.app/c/{inviteCode}
     // app/+native-intent.tsx routes it to /join (lib/systemPath.ts), so only
-    // park the code when signed out, like the friend link above.
+    // park the code when signed out, like the friend link above. app/_layout
+    // reads and clears it on the redirect to the tabs after sign-in; a code
+    // parked on a signed-in cold start was never read and outlived the session.
     const universalAlbumMatch = url.match(/^https:\/\/(?:www\.)?soundtracks\.app\/c\/([a-zA-Z0-9]+)/);
     if (universalAlbumMatch) {
-      if (!user) await AsyncStorage.setItem(PENDING_INVITE_CODE_KEY, universalAlbumMatch[1]);
+      await parkIfSignedOut(PENDING_INVITE_CODE_KEY, universalAlbumMatch[1]);
       return;
     }
 
@@ -141,7 +166,7 @@ export function useDeepLinkHandler() {
     if (isAuthCallback) {
       handleAuthDeepLink(url).catch(() => {});
     }
-  }, [handleInviteCode, handleFriendToken, user, profile?.onboardingCompleted]);
+  }, [handleInviteCode, handleFriendToken, parkIfSignedOut, user, profile?.onboardingCompleted]);
 
   // Clipboard check — deferred deep link fallback for cold installs via web invite/friend/gift pages
   useEffect(() => {
