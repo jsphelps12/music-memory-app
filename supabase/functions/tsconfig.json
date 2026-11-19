@@ -15,7 +15,6 @@
     "types": [],
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "baseUrl": ".",
     "paths": {
       "https://esm.sh/@supabase/supabase-js@2": [
         "../../node_modules/@supabase/supabase-js/dist/index.d.mts"
