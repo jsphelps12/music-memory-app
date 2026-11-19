@@ -7,6 +7,8 @@ const isPreview = process.env.EXPO_PUBLIC_APP_ENV === "preview";
 // plugin's own option wins over `infoPlist`.
 const MUSIC_USAGE =
   "Soundtracks uses Apple Music to search and play songs, show what's playing now, and read your library, recently played songs and play counts for Last week and From before. Your listening history stays on your iPhone.";
+const PHOTOS_SAVE_USAGE =
+  "Soundtracks saves images you choose to your photo library, like a moment's share card.";
 const PHOTOS_USAGE =
   "Soundtracks uses your photo library to attach and link photos and videos to your moments, and analyzes your photos on your iPhone to suggest moments. Only the photos you attach are uploaded; the analysis never leaves your phone.";
 const CAMERA_USAGE =
@@ -116,7 +118,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-media-library",
       {
         photosPermission: PHOTOS_USAGE,
-        savePhotosPermission: false,
+        // The share sheet's "Save Image" (share card) writes to Photos; iOS
+        // force-closes an app that offers it without this string.
+        savePhotosPermission: PHOTOS_SAVE_USAGE,
       },
     ],
     [
