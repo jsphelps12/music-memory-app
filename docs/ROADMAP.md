@@ -123,8 +123,14 @@ over the prompts, this becomes 1.4.0 build 13 instead.
   the person who was there.** Friends inbox, albums and weddings stay but
   stop growing. Share stays its own button on moment detail (revisit later).
 - [ ] Sharing work, in order (decided 2026-11-18):
+  - **First: a shared view.** Everyone but the owner reads a moment through
+    one function that returns only what the owner shares (today recipients
+    read the moments table directly, so no field can be hidden and the link
+    token can be forwarded). Step 1 the app reads through it (OTA + 1.4.1);
+    step 2, after the min-build raise, the table becomes owner-only (with
+    DB-2). New sharing features read through it from day one.
   - Retire the pre-occasions album guest form (`/c/{code}/contribute`, its
-    flag and edge function); switch it off first.
+    flag and edge function); switched off for every album 2026-11-18 (main PR 109).
   - The /m/ link page as the hero: opens the app (universal links, 1.4.1),
     "Open in app" / "Get the app" otherwise; the share card gets a small
     link or QR; occasion pages point to the app.
