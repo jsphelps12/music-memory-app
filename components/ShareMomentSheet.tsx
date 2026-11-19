@@ -200,7 +200,9 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     }
     try {
       const url = momentShareUrl(token);
-      await Share.share({ message: url, url });
+      // One or the other: iOS sends both when given both, so the link
+      // arrived twice in Messages.
+      await Share.share(Platform.OS === "ios" ? { url } : { message: url });
       handleClose();
     } catch {
       // The share sheet was dismissed or failed to present; the link exists.
