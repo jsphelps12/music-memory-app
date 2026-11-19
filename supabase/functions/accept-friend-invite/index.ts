@@ -80,7 +80,10 @@ Deno.serve(async (req) => {
     const { error: insertError } = await adminClient
       .from("friendships")
       .insert({ requester_id: ownerId, addressee_id: visitorId, status: "accepted" });
-    if (insertError) return error(500, insertError.message);
+    // 23505: the other person's link was opened at the same moment and that
+    // row landed first (friendships_pair_unique_idx). They're friends.
+    if (insertError && insertError.code !== "23505") return error(500, insertError.message);
+    if (insertError) return ok();
   }
 
   // 5. Notify the owner — they get "X is now your friend"
