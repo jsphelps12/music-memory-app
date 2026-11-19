@@ -2,7 +2,9 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["J9X5GR82CZ.com.joshuaphelps.musicmemory"],
+        "appIDs": [
+          "J9X5GR82CZ.com.joshuaphelps.musicmemory"
+        ],
         "components": [
           {
             "/": "/confirm",
@@ -15,6 +17,11 @@
           {
             "/": "/friend/*",
             "comment": "Friend invite links"
+          },
+          {
+            "/": "/c/*/*",
+            "exclude": true,
+            "comment": "Album sub-pages (contribute, qr) stay on the web"
           },
           {
             "/": "/c/*",
