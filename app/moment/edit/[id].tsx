@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type SetStateAction } from "react";
 import { usePostHog } from "posthog-react-native";
 import {
   View,
@@ -7,10 +7,11 @@ import {
   ScrollView,
   StyleSheet,
 } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, usePreventRemove } from "expo-router";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
@@ -22,6 +23,7 @@ import type { MusicProviderType } from "@/types";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { updateMoment } from "@/lib/saveMoment";
 import { pairStoredPhotos, type EditedPhoto } from "@/lib/photoOrder";
+import type { MediaRef } from "@/lib/linkedMedia";
 import { mapRowToMoment } from "@/lib/moments";
 import { LocationField } from "@/components/LocationField";
 import type { GeoResult } from "@/lib/geocoding";
@@ -29,6 +31,7 @@ import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
 import { PhotoPickerSection } from "@/components/PhotoPickerSection";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { ConfirmSheetHost, confirmSheet } from "@/components/ConfirmSheet";
 import { SectionLabel } from "@/components/SectionLabel";
 import { TextField } from "@/components/TextField";
 import { Button } from "@/components/Button";
@@ -43,6 +46,34 @@ import { onSongSelected } from "@/lib/songEvents";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches } from "@/lib/cacheInvalidation";
 
+type ScreenState = "loading" | "not_found" | "error" | "ready";
+
+/** Local calendar day, so a date the picker didn't move compares equal. */
+function dayKey(d: Date | null): string {
+  return d ? `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}` : "";
+}
+
+/** Everything the screen can change, as one comparable string. */
+function editSnapshot(v: {
+  song: Song | null;
+  reflection: string;
+  moods: string[];
+  people: string[];
+  photos: EditedPhoto[];
+  momentDate: Date | null;
+  location: GeoResult | null;
+}): string {
+  return JSON.stringify([
+    v.song ? [v.song.id, v.song.title, v.song.artistName, v.song.appleMusicId, v.song.spotifyId] : null,
+    v.reflection,
+    v.moods,
+    v.people,
+    v.photos.map((p) => (p.kind === "kept" ? p.path : p.uri)),
+    dayKey(v.momentDate),
+    v.location ? [v.location.name, v.location.lat, v.location.lng] : null,
+  ]);
+}
+
 export default function EditMomentScreen() {
   const router = useRouter();
   const { user, profile, saveCustomMood, deleteCustomMood } = useAuth();
@@ -50,7 +81,7 @@ export default function EditMomentScreen() {
   const queryClient = useQueryClient();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const params = useLocalSearchParams<{
     id: string;
     songId?: string;
@@ -76,33 +107,45 @@ export default function EditMomentScreen() {
   // What was on the row when we loaded it: the stored photos (paired with
   // their thumbnails) the strip can show, and the raw arrays, so photos the
   // user removed can be deleted from storage after a successful save.
-  const [storedPhotos, setStoredPhotos] = useState<{ path: string; thumb: string | null }[]>([]);
+  const [storedPhotos, setStoredPhotos] = useState<{ path: string; thumb: string | null; ref?: MediaRef | null }[]>([]);
   const originalPhotosRef = useRef<{ photos: string[]; thumbnails: string[] }>({
     photos: [],
     thumbnails: [],
   });
   const [momentDate, setMomentDate] = useState<Date | null>(new Date());
   const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
-  const [loadingMoment, setLoadingMoment] = useState(true);
-  const [loading, setLoading] = useState(false);
+  const [screenState, setScreenState] = useState<ScreenState>("loading");
+  const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
+  // The moment as loaded, to tell whether leaving would lose edits.
+  const [initialSnapshot, setInitialSnapshot] = useState<string | null>(null);
+  // Set after a successful save so the unsaved-changes guard lets us leave.
+  const [saved, setSaved] = useState(false);
+  // Set when the person chooses Discard, so the guard lifts before the
+  // blocked navigation repeats.
+  const [discarding, setDiscarding] = useState(false);
 
   // Listen for song selected in song-search
   useEffect(() => onSongSelected((s) => setSong(s)), []);
 
   const fetchMoment = useCallback(async () => {
-    setLoadingMoment(true);
+    setScreenState("loading");
     setLoadError("");
     const { data, error: fetchError } = await supabase
       .from("moments")
       .select("*")
       .eq("id", params.id)
-      .single();
+      .maybeSingle();
 
-    if (fetchError || !data) {
-      setLoadError(friendlyError(fetchError ?? new Error("Moment not found")));
-      setLoadingMoment(false);
+    if (fetchError) {
+      setLoadError(friendlyError(fetchError));
+      setScreenState("error");
+      return;
+    }
+    // Deleted (or never yours): nothing to retry.
+    if (!data) {
+      setScreenState("not_found");
       return;
     }
 
@@ -123,20 +166,36 @@ export default function EditMomentScreen() {
     setReflection(moment.reflectionText ?? "");
     setSelectedMoods(moment.moods);
     setPeople(moment.people);
-    const stored = pairStoredPhotos(moment.photoUrls, moment.photoThumbnails);
+    // Keep each photo's link to Photos (1.4) with it through any reordering.
+    const stored = pairStoredPhotos(moment.photoUrls, moment.photoThumbnails).map((p, i) => ({
+      ...p,
+      ref: moment.mediaRefs?.[i] ?? null,
+    }));
     setStoredPhotos(stored);
-    setPhotos(stored.map((p) => ({ kind: "kept", ...p })));
+    const loadedPhotos: EditedPhoto[] = stored.map((p) => ({ kind: "kept", ...p }));
+    setPhotos(loadedPhotos);
     originalPhotosRef.current = {
       photos: moment.photoUrls,
       thumbnails: moment.photoThumbnails,
     };
-    setMomentDate(moment.momentDate ? new Date(moment.momentDate + "T00:00:00") : null);
-    setLocationResult(
-      moment.location
-        ? { name: moment.location, lat: moment.locationLat, lng: moment.locationLng }
-        : null
+    const loadedDate = moment.momentDate ? new Date(moment.momentDate + "T00:00:00") : null;
+    const loadedLocation: GeoResult | null = moment.location
+      ? { name: moment.location, lat: moment.locationLat, lng: moment.locationLng }
+      : null;
+    setMomentDate(loadedDate);
+    setLocationResult(loadedLocation);
+    setInitialSnapshot(
+      editSnapshot({
+        song: storedSong,
+        reflection: moment.reflectionText ?? "",
+        moods: moment.moods,
+        people: moment.people,
+        photos: loadedPhotos,
+        momentDate: loadedDate,
+        location: loadedLocation,
+      })
     );
-    setLoadingMoment(false);
+    setScreenState("ready");
   }, [params.id]);
 
   useEffect(() => {
@@ -186,12 +245,33 @@ export default function EditMomentScreen() {
     [photos]
   );
 
-  const handlePhotosChange = (next: string[]) => {
-    setPhotos(
-      next.map((uri): EditedPhoto => {
-        const stored = storedByUrl.get(uri);
-        return stored ? { kind: "kept", ...stored } : { kind: "new", uri };
-      })
+  // Library ids of photos picked this session (they link instead of
+  // uploading) and poster URI → length for videos (linked, never uploaded).
+  // Refs, not state: the picker reports them in the same tick as onChange.
+  const pickedAssets = useRef<Record<string, string>>({});
+  const pickedVideos = useRef<Record<string, number>>({});
+
+  const toEditedPhoto = (uri: string): EditedPhoto => {
+    const stored = storedByUrl.get(uri);
+    return stored
+      ? { kind: "kept", ...stored }
+      : {
+          kind: "new",
+          uri,
+          assetId: pickedAssets.current[uri] ?? null,
+          durationMs: pickedVideos.current[uri] ?? null,
+        };
+  };
+
+  // The picker can hand over an updater (photos picked from the library are
+  // added to the strip as it is when picking ends).
+  const handlePhotosChange = (next: SetStateAction<string[]>) => {
+    if (typeof next !== "function") {
+      setPhotos(next.map(toEditedPhoto));
+      return;
+    }
+    setPhotos((current) =>
+      next(current.map((p) => (p.kind === "kept" ? getPublicPhotoUrl(p.path) : p.uri))).map(toEditedPhoto)
     );
   };
 
@@ -215,10 +295,10 @@ export default function EditMomentScreen() {
       return;
     }
     setError("");
-    setLoading(true);
+    setSaving(true);
     if (!user) {
       setError("Session expired. Please sign in again.");
-      setLoading(false);
+      setSaving(false);
       return;
     }
     try {
@@ -248,25 +328,67 @@ export default function EditMomentScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       markTimelineStale();
       invalidateMomentCaches(queryClient, user?.id);
-      router.back();
+      // Leaves in the effect below, once the guard has lifted.
+      setSaved(true);
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(friendlyError(e));
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  if (loadingMoment) {
+  // ── Unsaved changes ─────────────────────────────────────────────────────
+  // Like Edit profile: leaving with edits (✕ or swipe) asks first; nothing
+  // changed, or just saved, leaves straight away.
+  const dirty =
+    screenState === "ready" &&
+    initialSnapshot !== null &&
+    editSnapshot({
+      song,
+      reflection,
+      moods: selectedMoods,
+      people,
+      photos,
+      momentDate,
+      location: locationResult,
+    }) !== initialSnapshot;
+
+  usePreventRemove(dirty && !saved && !discarding, ({ repeat }) => {
+    void confirmSheet({
+      title: "Discard changes?",
+      message: "Your edits to this moment won't be saved.",
+      confirmLabel: "Discard",
+      cancelLabel: "Keep editing",
+      destructive: true,
+    }).then((discard) => {
+      if (!discard) return;
+      setDiscarding(true);
+      repeat();
+    });
+  });
+
+  // Leave only after the render that lifted the guard.
+  useEffect(() => {
+    if (saved) router.back();
+  }, [saved, router]);
+
+  if (screenState === "loading") {
+    // A fullScreenModal can't be swiped away: the ✕ is there while it loads.
     return (
       <View style={styles.container}>
+        <ScreenHeader leading="close" title="Edit moment" />
         <SkeletonMomentDetail />
       </View>
     );
   }
 
-  if (loadError) {
+  if (screenState === "not_found") {
+    return <ErrorState message="Moment not found" onBack={() => router.back()} />;
+  }
+
+  if (screenState === "error") {
     return (
       <ErrorState
         message={loadError}
@@ -282,8 +404,9 @@ export default function EditMomentScreen() {
       behavior="padding"
     >
       <ScreenHeader
+        leading="close"
         title="Edit moment"
-        right={<Button label="Save" size="pill" onPress={handleSave} loading={loading} />}
+        right={<Button label="Save" size="pill" onPress={handleSave} loading={saving} />}
       />
       <ScrollView
         ref={scrollViewRef}
@@ -378,6 +501,8 @@ export default function EditMomentScreen() {
         <PhotoPickerSection
           photos={pickerPhotos}
           onChange={handlePhotosChange}
+          onAssetIds={(map) => Object.assign(pickedAssets.current, map)}
+          onVideos={(map) => Object.assign(pickedVideos.current, map)}
           horizontalPadding={theme.spacing.xl}
         />
 
@@ -429,6 +554,10 @@ export default function EditMomentScreen() {
         {/* Error */}
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
+
+      {/* A fullScreenModal: the root confirm host can't present over it
+          (CLAUDE.md, Confirms on modal screens). */}
+      <ConfirmSheetHost />
     </KeyboardAvoidingView>
   );
 }

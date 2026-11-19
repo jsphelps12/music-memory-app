@@ -20,7 +20,16 @@ import {
  * banner), shown once someone has a moment, gone for good after either
  * answer. The time can be changed later in Settings.
  */
-export function DailyCheckInOffer({ userId, hasMoments }: { userId: string; hasMoments: boolean }) {
+export function DailyCheckInOffer({
+  userId,
+  hasMoments,
+  waiting = false,
+}: {
+  userId: string;
+  hasMoments: boolean;
+  /** Another offer is up (Last week's ask): one at a time, so this waits its turn. */
+  waiting?: boolean;
+}) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const posthog = usePostHog();
@@ -38,7 +47,7 @@ export function DailyCheckInOffer({ userId, hasMoments }: { userId: string; hasM
     };
   }, [userId, hasMoments]);
 
-  if (state === "hidden") return null;
+  if (state === "hidden" || (waiting && state === "offer")) return null;
 
   const time = formatCheckInTime(DEFAULT_CHECK_IN.hour, DEFAULT_CHECK_IN.minute);
 
@@ -49,7 +58,7 @@ export function DailyCheckInOffer({ userId, hasMoments }: { userId: string; hasM
       <View style={styles.row} accessibilityLiveRegion="polite">
         <View style={styles.textCol}>
           <Text style={styles.title}>Notifications are off</Text>
-          <Text style={styles.text}>Turn them on for Soundtracks in iOS Settings, then switch on the check-in in Settings → Journal.</Text>
+          <Text style={styles.text}>Turn them on for Soundtracks in iOS Settings, then switch on the check-in in Settings → Notifications.</Text>
         </View>
         <View style={styles.actions}>
           <Button label="Open Settings" size="pill" variant="secondary" onPress={() => Linking.openSettings()} align="center" />

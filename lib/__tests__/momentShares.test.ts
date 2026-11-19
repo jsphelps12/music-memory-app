@@ -10,6 +10,13 @@ import { describe, it, expect, vi } from "vitest";
 
 // momentShares.ts imports the supabase client (which transitively imports
 // react-native) for its fetch functions; mapShareRow itself never touches it.
+// Linked photos (1.4): share-time uploads are tested on their own.
+vi.mock("@/lib/ensureFullMedia", () => ({
+  ensureFullMedia: vi.fn(async () => ({ uploaded: 0, missing: 0 })),
+  ensureFullMediaForMe: vi.fn(async () => {}),
+  ensureFullMediaForAlbum: vi.fn(async () => {}),
+  ensureFullMediaForAlbumMoments: vi.fn(async () => {}),
+}));
 vi.mock("@/lib/supabase", () => ({ supabase: {} }));
 vi.mock("expo-crypto", () => ({ randomUUID: () => "uuid-1" }));
 

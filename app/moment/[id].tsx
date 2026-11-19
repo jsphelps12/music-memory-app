@@ -1,4 +1,4 @@
-import { type ComponentProps, type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePostHog } from "posthog-react-native";
 import {
   View,
@@ -7,11 +7,9 @@ import {
   TouchableOpacity,
   Alert,
   StyleSheet,
-  FlatList,
-  ActivityIndicator,
   Linking,
-  InteractionManager,
 } from "react-native";
+import type { ViewInstance } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -21,6 +19,7 @@ import Animated, {
   withTiming,
   Easing,
   runOnJS,
+  type SharedValue,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -28,24 +27,31 @@ import { consumeCardOrigin } from "@/lib/cardTransition";
 import { consumeCachedMoment } from "@/lib/momentCache";
 import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePlayerControls, usePlayerProgress } from "@/contexts/PlayerContext";
+import { usePlayerActions, usePlayerControls, usePlayerProgress } from "@/contexts/PlayerContext";
 import { playAction } from "@/lib/playerAction";
 import { supabase } from "@/lib/supabase";
 import { getPublicPhotoUrl, momentCardImageUrls } from "@/lib/storage";
 import { deleteGuestMoment, deleteMomentWithCleanup } from "@/lib/deleteMoment";
-import { applyMembershipResults, diffAlbumMembership } from "@/lib/momentAlbums";
-import { fetchAlbumIdsContainingMoment } from "@/lib/albums";
-import { mapRowToMoment } from "@/lib/moments";
 import {
   fetchAlbums,
+  fetchAlbumIdsContainingMoment,
   addMomentToAlbum,
   removeMomentFromAlbum,
-  createAlbum,
 } from "@/lib/albums";
+import { mapRowToMoment } from "@/lib/moments";
+import {
+  DELETE_MOMENT_CONFIRM,
+  DELETE_MOMENT_FAILED,
+  REMOVE_FROM_ALBUM_CONFIRM,
+  REMOVE_FROM_ALBUM_FAILED,
+  stopSongOfDeletedMoment,
+} from "@/lib/momentActions";
+import { FEEDBACK_EMAIL, MAIL_UNAVAILABLE_TEXT, mailtoUrl, openMail } from "@/lib/mail";
 import { MOODS } from "@/constants/Moods";
 import { moodWords } from "@/lib/moodLabels";
 import { useTheme } from "@/hooks/useTheme";
@@ -54,8 +60,8 @@ import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { SkeletonMomentDetail } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
-import { PhotoViewer } from "@/components/PhotoViewer";
-import { confirmSheet } from "@/components/ConfirmSheet";
+import { MomentFilm } from "@/components/MomentFilm";
+import { confirmSheet, ConfirmSheetHost } from "@/components/ConfirmSheet";
 import { friendlyError } from "@/lib/errors";
 import { Album, PartialMoment } from "@/types";
 import { markTimelineStale } from "@/lib/timelineRefresh";
@@ -63,11 +69,16 @@ import { invalidateMomentCaches, invalidateAlbumCaches } from "@/lib/cacheInvali
 import { ShareMomentSheet } from "@/components/ShareMomentSheet";
 import { BottomSheet } from "@/components/BottomSheet";
 import { Button } from "@/components/Button";
-import { TextField } from "@/components/TextField";
+import { AlbumPicker } from "@/components/AlbumPicker";
+import { CreateAlbumSheet } from "@/components/CreateAlbumSheet";
 import { IconButton } from "@/components/IconButton";
 import { MomentActionMenu, MenuAnchor, MomentMenuItem } from "@/components/MomentActionMenu";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { formatTime } from "@/lib/formatTime";
+import { runWhenIdle } from "@/lib/whenIdle";
+import { HeroPhotoCycle } from "@/components/HeroPhotoCycle";
+import { useMediaSources } from "@/hooks/useMediaSources";
+import { withoutOthersVideos } from "@/lib/linkedMedia";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 
 type ScreenState = "loading" | "not_found" | "error" | "ready";
@@ -75,11 +86,28 @@ type ScreenState = "loading" | "not_found" | "error" | "ready";
 /** Focus refetch cooldown (CLAUDE.md: screen-level stale time). */
 const STALE_TIME = 2 * 60 * 1000;
 
+/**
+ * Past BottomSheet's close (220ms): iOS drops a Modal that starts presenting
+ * while another is still dismissing.
+ */
+
 // Over photos and artwork only (DESIGN.md allows warm ink and night over
 // imagery): the photo counter, and the shadow under lifted artwork.
 const INK_GLASS = "rgba(35,34,43,0.55)";
 const PAPER_ON_GLASS = "#FBF7F2";
 const SHADOW_INK = "#0E0B0A";
+
+/** A clip's length for its badge: "0:12", "1:05". */
+function clipLength(ms: number | undefined): string {
+  const total = Math.round((ms ?? 0) / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** Where a touch at `x` on the progress bar seeks to, in seconds. */
+function seekSeconds(x: number, barWidth: number, duration: number): number {
+  "worklet";
+  return Math.max(0, Math.min(1, x / barWidth)) * duration;
+}
 
 export default function MomentDetailScreen() {
   const {
@@ -97,7 +125,8 @@ export default function MomentDetailScreen() {
   }>();
   const router = useRouter();
   const { user, profile } = useAuth();
-  const { currentSong, isPlaying, playError, playFull, pause, resume, seekTo, stop } = usePlayerControls();
+  const { currentSong, isPlaying, playError, playFull, pause, resume, seekTo } = usePlayerControls();
+  const playerActions = usePlayerActions();
   const theme = useTheme();
   const posthog = usePostHog();
   const queryClient = useQueryClient();
@@ -109,12 +138,12 @@ export default function MomentDetailScreen() {
   // buttons never float over writing.
   const scrollY = useSharedValue(0);
   const scrollHandler = useAnimatedScrollHandler((e) => {
-    scrollY.value = e.contentOffset.y;
+    scrollY.set(e.contentOffset.y);
   });
   // The artwork's top edge reaches the bar after ~36pt of scroll, so the bar
   // is fully in by then.
   const topBarStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(scrollY.value, [12, 48], [0, 1], Extrapolation.CLAMP),
+    opacity: interpolate(scrollY.get(), [12, 48], [0, 1], Extrapolation.CLAMP),
   }));
   // Only accept the cached moment if it's actually the one being opened. A
   // swallowed navigation leaves a stale value in the module-level slot, and
@@ -134,23 +163,28 @@ export default function MomentDetailScreen() {
   const [refreshError, setRefreshError] = useState("");
   // The "…" button's frame while the context menu is open.
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
-  const menuButtonRef = useRef<View>(null);
+  const menuButtonRef = useRef<ViewInstance>(null);
   const [deleting, setDeleting] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [shareModalVisible, setShareModalVisible] = useState(false);
-  // Album membership state
+  // Album membership: the Add to album quick pick, where each tick applies
+  // as it's tapped.
   const [collectionModalVisible, setCollectionModalVisible] = useState(false);
+  const [createAlbumVisible, setCreateAlbumVisible] = useState(false);
   const [allCollections, setAllCollections] = useState<Album[]>([]);
   const [memberIds, setMemberIds] = useState<string[]>([]);
-  const [pendingMemberIds, setPendingMemberIds] = useState<string[]>([]);
+  // memberIds is real (loaded at least once), not the empty default.
+  const [membershipLoaded, setMembershipLoaded] = useState(false);
   const [collectionLoading, setCollectionLoading] = useState(false);
   const [collectionLoadError, setCollectionLoadError] = useState("");
   const [collectionError, setCollectionError] = useState("");
-  const [savingCollections, setSavingCollections] = useState(false);
-  const [newCollectionName, setNewCollectionName] = useState("");
-  const [showingNewInput, setShowingNewInput] = useState(false);
-  const [creatingCollection, setCreatingCollection] = useState(false);
+  // Albums with an add or remove in flight: a second tap waits for the first.
+  const togglingRef = useRef(new Set<string>());
+  const createAlbumAfterPicker = useRef(false);
+  // Report's fallback when Mail can't open: the address to copy.
+  const [reportSheetVisible, setReportSheetVisible] = useState(false);
+  const [reportAddressCopied, setReportAddressCopied] = useState(false);
 
   const [origin] = useState(() => consumeCardOrigin());
   const translateX = useSharedValue(origin.active ? origin.x : 0);
@@ -159,12 +193,14 @@ export default function MomentDetailScreen() {
   const opacity = useSharedValue(origin.active ? 0 : 1);
 
   const animateOut = useCallback((then: () => void) => {
-    opacity.value = withTiming(0, { duration: 120 });
-    scaleAnim.value = withTiming(0.95, { duration: 120 }, () => {
-      "worklet";
-      runOnJS(then)();
-    });
-  }, []);
+    opacity.set(withTiming(0, { duration: 120 }));
+    scaleAnim.set(
+      withTiming(0.95, { duration: 120 }, () => {
+        "worklet";
+        runOnJS(then)();
+      })
+    );
+  }, [opacity, scaleAnim]);
 
   const goBack = useCallback(() => {
     if (returnTo) {
@@ -176,10 +212,10 @@ export default function MomentDetailScreen() {
 
   useEffect(() => {
     const config = { duration: 320, easing: Easing.out(Easing.cubic) };
-    opacity.value = withTiming(1, { duration: 180 });
-    translateX.value = withTiming(0, config);
-    translateY.value = withTiming(0, config);
-    scaleAnim.value = withTiming(1, config);
+    opacity.set(withTiming(1, { duration: 180 }));
+    translateX.set(withTiming(0, config));
+    translateY.set(withTiming(0, config));
+    scaleAnim.set(withTiming(1, config));
   }, []);
 
   // A handle on the ScrollView's own scroll gesture, so the pans on this screen
@@ -189,23 +225,23 @@ export default function MomentDetailScreen() {
   // carry, so passing one silently registers nothing.
   const scrollNativeGesture = useMemo(() => Gesture.Native(), []);
 
-  const progressBarWidthRef = useRef(1);
   // Written by PlaybackProgress, which owns the per-tick subscription, so the
-  // seek gesture can read the duration without this screen re-rendering.
-  const progressDurationRef = useRef(0);
-  const seekToRef = useRef(seekTo);
-  seekToRef.current = seekTo;
-
-  const handleProgressSeek = useCallback((x: number) => {
-    const ratio = Math.max(0, Math.min(1, x / progressBarWidthRef.current));
-    seekToRef.current(ratio * progressDurationRef.current);
-  }, []);
+  // seek gesture can read the bar width and duration without this screen
+  // re-rendering. Shared values rather than refs: the gestures read them on
+  // the UI thread, and the React Compiler can't optimize a screen whose
+  // gestures read refs.
+  const progressBarWidth = useSharedValue(1);
+  const progressDuration = useSharedValue(0);
 
   const hasAutoPlayed = useRef(false);
   const momentRef = useRef(moment);
-  momentRef.current = moment;
   const playerRef = useRef({ currentSong, isPlaying });
-  playerRef.current = { currentSong, isPlaying };
+  // Latest values for the autoplay timer and focus refetch; synced in the
+  // commit rather than during render.
+  useLayoutEffect(() => {
+    momentRef.current = moment;
+    playerRef.current = { currentSong, isPlaying };
+  }, [moment, currentSong, isPlaying]);
   useEffect(() => {
     if (hasAutoPlayed.current) return;
     const m = momentRef.current;
@@ -237,11 +273,11 @@ export default function MomentDetailScreen() {
   }, [moment?.id]);
 
   const animStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
+    opacity: opacity.get(),
     transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { scale: scaleAnim.value },
+      { translateX: translateX.get() },
+      { translateY: translateY.get() },
+      { scale: scaleAnim.get() },
     ],
   }));
 
@@ -258,19 +294,19 @@ export default function MomentDetailScreen() {
         .simultaneousWithExternalGesture(scrollNativeGesture)
         .onUpdate((e) => {
           "worklet";
-          translateX.value = Math.max(0, e.translationX);
-          opacity.value = Math.max(0, 1 - e.translationX / 220);
+          translateX.set(Math.max(0, e.translationX));
+          opacity.set(Math.max(0, 1 - e.translationX / 220));
         })
         .onEnd((e) => {
           "worklet";
           if (e.translationX > 60 || e.velocityX > 400) {
             runOnJS(animateOut)(goBack);
           } else {
-            translateX.value = withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) });
-            opacity.value = withTiming(1, { duration: 200 });
+            translateX.set(withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) }));
+            opacity.set(withTiming(1, { duration: 200 }));
           }
         }),
-    [animateOut, goBack, scrollNativeGesture]
+    [animateOut, goBack, scrollNativeGesture, translateX, opacity]
   );
 
   // Scrubbing. The seek fires on `.onStart` (activation), never `.onBegin`
@@ -289,10 +325,10 @@ export default function MomentDetailScreen() {
       Gesture.Pan()
         .activeOffsetX([-6, 6])
         .failOffsetY([-3, 3])
-        .onStart((e) => { runOnJS(handleProgressSeek)(e.x); })
-        .onUpdate((e) => { runOnJS(handleProgressSeek)(e.x); })
+        .onStart((e) => { runOnJS(seekTo)(seekSeconds(e.x, progressBarWidth.get(), progressDuration.get())); })
+        .onUpdate((e) => { runOnJS(seekTo)(seekSeconds(e.x, progressBarWidth.get(), progressDuration.get())); })
         .blocksExternalGesture(swipeGesture),
-    [handleProgressSeek, swipeGesture]
+    [seekTo, progressBarWidth, progressDuration, swipeGesture]
   );
 
   // Tap-to-seek, which onBegin used to provide for free. A tap can't be
@@ -303,8 +339,10 @@ export default function MomentDetailScreen() {
       Gesture.Tap()
         .maxDuration(250)
         .maxDistance(10)
-        .onEnd((e, success) => { if (success) { runOnJS(handleProgressSeek)(e.x); } }),
-    [handleProgressSeek]
+        .onEnd((e, success) => {
+          if (success) { runOnJS(seekTo)(seekSeconds(e.x, progressBarWidth.get(), progressDuration.get())); }
+        }),
+    [seekTo, progressBarWidth, progressDuration]
   );
 
   const seekGesture = useMemo(
@@ -367,7 +405,7 @@ export default function MomentDetailScreen() {
         refetchOnFocusRef.current ||
         Date.now() - lastFetchRef.current > STALE_TIME;
       if (!due) return;
-      const task = InteractionManager.runAfterInteractions(() => {
+      const task = runWhenIdle(() => {
         refetchOnFocusRef.current = false;
         void fetchMoment(momentRef.current === null);
       });
@@ -377,11 +415,17 @@ export default function MomentDetailScreen() {
 
   // Full-size photos for the hero and the viewer; the strip's small squares
   // use the thumbnails (full-size fallback for moments that predate them).
-  const photoUrls = useMemo(
-    () => moment?.photoUrls.map(getPublicPhotoUrl) ?? [],
-    [moment?.photoUrls]
+  // Linked photos (1.4) show their originals from Photos on this device.
+  // What this viewer sees: someone else's linked videos are left out
+  // entirely (they play only from the owner's Photos).
+  const shown = useMemo(() => (moment ? withoutOthersVideos(moment, user?.id) : null), [moment, user?.id]);
+  const storedPhotoUrls = useMemo(
+    () => shown?.photoUrls.map(getPublicPhotoUrl) ?? [],
+    [shown?.photoUrls]
   );
-  const stripUrls = useMemo(() => (moment ? momentCardImageUrls(moment) : []), [moment]);
+  const mediaSources = useMediaSources(storedPhotoUrls, shown?.mediaRefs, shown?.userId);
+  const photoUrls = useMemo(() => mediaSources.map((s) => s.uri), [mediaSources]);
+  const stripUrls = useMemo(() => (shown ? momentCardImageUrls(shown) : []), [shown]);
 
   const allMoods = useMemo(() => [...MOODS, ...(profile?.customMoods ?? [])], [profile?.customMoods]);
 
@@ -414,11 +458,9 @@ export default function MomentDetailScreen() {
         fetchAlbumIdsContainingMoment(id),
       ]);
       const listed = new Set(cols.map((c) => c.id));
-      const memberCollectionIds = containing.filter((cid) => listed.has(cid));
-
       setAllCollections(cols);
-      setMemberIds(memberCollectionIds);
-      setPendingMemberIds(memberCollectionIds);
+      setMemberIds(containing.filter((cid) => listed.has(cid)));
+      setMembershipLoaded(true);
     } catch (e) {
       // Not "No albums yet": that would read as an empty account.
       setCollectionLoadError(friendlyError(e));
@@ -429,84 +471,84 @@ export default function MomentDetailScreen() {
   const handleAddToCollection = () => {
     Haptics.selectionAsync();
     setCollectionModalVisible(true);
-    setShowingNewInput(false);
-    setNewCollectionName("");
     setCollectionError("");
     void loadCollections();
   };
 
-  const toggleCollection = (collection: Album) => {
-    setPendingMemberIds((prev) =>
-      prev.includes(collection.id)
-        ? prev.filter((cid) => cid !== collection.id)
-        : [...prev, collection.id]
+  // One tick, applied now (DESIGN.md: quick picks apply as you tap, so Done
+  // only closes). The tick and the album's count move first; a failure puts
+  // both back and says so at the top of the sheet.
+  const setMembership = (albumId: string, member: boolean) => {
+    setMemberIds((prev) =>
+      member ? (prev.includes(albumId) ? prev : [...prev, albumId]) : prev.filter((cid) => cid !== albumId)
+    );
+    setAllCollections((prev) =>
+      prev.map((c) =>
+        c.id === albumId && c.momentCount !== undefined
+          ? { ...c, momentCount: Math.max(0, c.momentCount + (member ? 1 : -1)) }
+          : c
+      )
     );
   };
 
-  // Every add/remove settles on its own: whatever saved stays saved (and its
-  // caches are invalidated), and a failure keeps the sheet open with the
-  // error, so Save retries just what's left.
-  const handleSaveCollections = async () => {
-    if (!user || savingCollections) return;
-    setSavingCollections(true);
+  // `add` says which way; a plain tap flips the album's current tick.
+  const setAlbumMember = async (album: Album, add: boolean) => {
+    if (!user || togglingRef.current.has(album.id)) return;
+    togglingRef.current.add(album.id);
+    Haptics.selectionAsync();
     setCollectionError("");
-    const { toAdd, toRemove } = diffAlbumMembership(memberIds, pendingMemberIds);
-    const results = await Promise.allSettled([
-      ...toAdd.map((cid) => addMomentToAlbum(cid, id, user.id)),
-      ...toRemove.map((cid) => removeMomentFromAlbum(cid, id)),
-    ]);
-    const outcome = applyMembershipResults(memberIds, toAdd, toRemove, results);
-    setMemberIds(outcome.memberIds);
-    if (outcome.changedIds.length > 0) {
-      invalidateMomentCaches(queryClient, user.id);
-      outcome.changedIds.forEach((cid) => invalidateAlbumCaches(queryClient, user.id, cid));
+    setMembership(album.id, add);
+    let failed = false;
+    let failure: unknown;
+    try {
+      if (add) {
+        await addMomentToAlbum(album.id, id, user.id);
+      } else {
+        await removeMomentFromAlbum(album.id, id);
+      }
+    } catch (e) {
+      failed = true;
+      failure = e;
     }
-    setSavingCollections(false);
-    if (outcome.error) {
-      setCollectionError(friendlyError(outcome.error));
+    togglingRef.current.delete(album.id);
+    if (failed) {
+      setMembership(album.id, !add);
+      setCollectionError(`Couldn't ${add ? "add to" : "remove from"} “${album.name}”. ${friendlyError(failure)}`);
       return;
     }
-    setCollectionModalVisible(false);
+    invalidateMomentCaches(queryClient, user.id);
+    invalidateAlbumCaches(queryClient, user.id, album.id);
   };
 
-  const handleCreateCollection = async () => {
-    const trimmed = newCollectionName.trim();
-    if (!user || !trimmed || creatingCollection) return;
-    setCreatingCollection(true);
-    setCollectionError("");
-    let created: Album | null = null;
-    try {
-      const collection = await createAlbum(user.id, trimmed);
-      created = collection;
-      setAllCollections((prev) => [...prev, collection]);
-      setNewCollectionName("");
-      setShowingNewInput(false);
-      invalidateAlbumCaches(queryClient, user.id, collection.id);
-      await addMomentToAlbum(collection.id, id, user.id);
-      setMemberIds((prev) => [...prev, collection.id]);
-      setPendingMemberIds((prev) => [...prev, collection.id]);
-      invalidateMomentCaches(queryClient, user.id);
-    } catch (e) {
-      // If the album was created but the add failed, leave it ticked so Save
-      // retries the add instead of a second create making a duplicate.
-      const albumId = created?.id;
-      if (albumId) {
-        setPendingMemberIds((prev) => (prev.includes(albumId) ? prev : [...prev, albumId]));
-      }
-      setCollectionError(friendlyError(e));
-    }
-    setCreatingCollection(false);
+  const toggleAlbum = (album: Album) => {
+    const isMember = memberIds.includes(album.id);
+    void setAlbumMember(album, !isMember);
+  };
+
+  // New album from the quick pick: the picker closes, the New album sheet
+  // opens once it's gone, and closing that (made or not) comes back here.
+  const openCreateAlbum = () => {
+    createAlbumAfterPicker.current = true;
+    setCollectionModalVisible(false);
+  };
+  const onPickerClosed = () => {
+    if (!createAlbumAfterPicker.current) return;
+    createAlbumAfterPicker.current = false;
+    setCreateAlbumVisible(true);
+  };
+  const closeCreateAlbum = () => setCreateAlbumVisible(false);
+  const onCreateAlbumClosed = () => setCollectionModalVisible(true);
+
+  // The new album arrives ticked: the moment is added to it straight away.
+  const handleAlbumCreated = (album: Album) => {
+    setAllCollections((prev) => [...prev, { ...album, momentCount: album.momentCount ?? 0 }]);
+    void setAlbumMember(album, true);
   };
 
   const handleDelete = async () => {
     if (deleting) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    const confirmed = await confirmSheet({
-      title: "Delete Moment",
-      message: "Are you sure? This cannot be undone.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
+    const confirmed = await confirmSheet(DELETE_MOMENT_CONFIRM);
     if (!confirmed) return;
     setDeleting(true);
     // An album owner removing a guest's contribution: the server deletes the
@@ -523,17 +565,16 @@ export default function MomentDetailScreen() {
 
     if (deleteError) {
       setDeleting(false);
-      Alert.alert("Error", friendlyError(deleteError));
+      Alert.alert(DELETE_MOMENT_FAILED, friendlyError(deleteError));
       return;
     }
 
     // The moment is gone — its song shouldn't keep playing (or linger
-    // paused in the mini player).
-    const deletedSongId = moment?.songSpotifyId ?? moment?.songAppleMusicId;
-    const playingSongId = currentSong?.spotifyId ?? currentSong?.appleMusicId;
-    if (deletedSongId && deletedSongId === playingSongId) {
-      void stop();
-    }
+    // paused in the mini player). The live song, not this render's: the
+    // menu ran this handler from when it opened. With nothing loaded yet,
+    // stop anyway: that cancels this screen's autoplay if it's still
+    // waiting on Apple Music.
+    if (moment) stopSongOfDeletedMoment(playerActions, moment, { orIdle: true });
 
     posthog.capture("moment_deleted", { song_title: moment?.songTitle ?? null, song_artist: moment?.songArtist ?? null });
     // Covers every album's detail and list too (the moment may be in any).
@@ -544,12 +585,7 @@ export default function MomentDetailScreen() {
   const handleRemoveFromCollection = async () => {
     if (!collectionId) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    const confirmed = await confirmSheet({
-      title: "Remove from Album",
-      message: "Remove this moment from the album? The moment won't be deleted.",
-      confirmLabel: "Remove",
-      destructive: true,
-    });
+    const confirmed = await confirmSheet(REMOVE_FROM_ALBUM_CONFIRM);
     if (!confirmed) return;
     setDeleting(true);
     const { error: removeError } = await supabase
@@ -560,7 +596,7 @@ export default function MomentDetailScreen() {
 
     if (removeError) {
       setDeleting(false);
-      Alert.alert("Error", friendlyError(removeError));
+      Alert.alert(REMOVE_FROM_ALBUM_FAILED, friendlyError(removeError));
       return;
     }
 
@@ -581,48 +617,72 @@ export default function MomentDetailScreen() {
     posthog.capture("moment_shared", { song_title: moment.songTitle, song_artist: moment.songArtist });
   };
 
-  const reportMoment = () => {
+  // Mail with the moment filled in; with no mail app, the same
+  // copy-the-address sheet as Settings' "Share feedback" (lib/mail.ts).
+  const reportMoment = async () => {
     if (!moment) return;
     Haptics.selectionAsync();
-    const subject = encodeURIComponent(`Report: ${moment.songTitle} by ${moment.songArtist}`);
-    const body = encodeURIComponent(`Please describe what you'd like to report about this moment:\n\n\n\n---\nMoment ID: ${moment.id}\nContributor: ${moment.contributorName ?? "unknown"}`);
-    Linking.openURL(`mailto:founder@soundtracks.app?subject=${subject}&body=${body}`);
+    const url = mailtoUrl(FEEDBACK_EMAIL, {
+      subject: `Report: ${moment.songTitle} by ${moment.songArtist}`,
+      body: `Please describe what you'd like to report about this moment:\n\n\n\n---\nMoment ID: ${moment.id}\nContributor: ${moment.contributorName ?? "unknown"}`,
+    });
+    if (await openMail(url)) return;
+    setReportAddressCopied(false);
+    setReportSheetVisible(true);
+  };
+
+  const copyReportAddress = async () => {
+    try {
+      await Clipboard.setStringAsync(FEEDBACK_EMAIL);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setReportAddressCopied(true);
+    } catch {
+      // The address is on screen and selectable; nothing else to do.
+    }
   };
 
   // The "…" menu. Each row runs once the menu has closed (MomentActionMenu),
   // so the sheets and confirms these open can present.
-  const menuItems: MomentMenuItem[] = [];
-  if (moment) {
-    const isOwnMoment = moment.userId === user?.id;
-    const isGuest = !!moment.guestUuid;
-    const isCollectionOwner = collectionRole === "owner";
-    const inCollection = !!collectionId;
-    const canDelete = isOwnMoment || (isGuest && isCollectionOwner);
-    const canRemove = inCollection && (isOwnMoment || isCollectionOwner);
-    // Report for non-own, non-guest moments (guests are managed by the owner directly)
-    const canReport = !isOwnMoment && !isGuest;
-
-    menuItems.push({ key: "share", label: "Share", icon: "share-outline", onPress: openShare });
-    if (isOwnMoment) {
-      menuItems.push({ key: "edit", label: "Edit", icon: "pencil-outline", onPress: handleEdit });
-      menuItems.push({ key: "album", label: "Add to album", icon: "albums-outline", onPress: handleAddToCollection });
-    }
-    if (canReport) {
-      menuItems.push({ key: "report", label: "Report", icon: "flag-outline", destructive: true, onPress: reportMoment });
-    }
-    if (canRemove) {
-      menuItems.push({
-        key: "remove",
-        label: "Remove from album",
-        icon: "remove-circle-outline",
-        destructive: true,
-        onPress: () => void handleRemoveFromCollection(),
-      });
-    }
-    if (canDelete) {
-      menuItems.push({ key: "delete", label: "Delete", icon: "trash-outline", destructive: true, onPress: () => void handleDelete() });
-    }
-  }
+  // Built as one literal (not pushed into): the compiler can't tell a push
+  // won't call the handlers it's given.
+  const isOwnMoment = !!moment && moment.userId === user?.id;
+  const isGuest = !!moment?.guestUuid;
+  const isCollectionOwner = collectionRole === "owner";
+  // Taken out of the album it was opened from (with Add to album's ticks):
+  // nothing left to remove.
+  const inCollection = !!collectionId && !(membershipLoaded && !memberIds.includes(collectionId));
+  const canDelete = isOwnMoment || (isGuest && isCollectionOwner);
+  const canRemove = inCollection && (isOwnMoment || isCollectionOwner);
+  // Report for non-own, non-guest moments (guests are managed by the owner directly)
+  const canReport = !isOwnMoment && !isGuest;
+  // No Share row: the glass Share button beside the "…" does that.
+  const menuItems: MomentMenuItem[] = moment
+    ? [
+        ...(isOwnMoment
+          ? ([
+              { key: "edit", label: "Edit", icon: "pencil-outline", onPress: handleEdit },
+              { key: "album", label: "Add to album", icon: "albums-outline", onPress: handleAddToCollection },
+            ] satisfies MomentMenuItem[])
+          : []),
+        ...(canReport
+          ? ([{ key: "report", label: "Report", icon: "flag-outline", onPress: () => void reportMoment() }] satisfies MomentMenuItem[])
+          : []),
+        ...(canRemove
+          ? ([
+              {
+                key: "remove",
+                label: "Remove from album",
+                icon: "remove-circle-outline",
+                destructive: true,
+                onPress: () => void handleRemoveFromCollection(),
+              },
+            ] satisfies MomentMenuItem[])
+          : []),
+        ...(canDelete
+          ? ([{ key: "delete", label: "Delete", icon: "trash-outline", destructive: true, onPress: () => void handleDelete() }] satisfies MomentMenuItem[])
+          : []),
+      ]
+    : [];
 
   const hasPhotos = photoUrls.length > 0;
 
@@ -660,6 +720,29 @@ export default function MomentDetailScreen() {
   const isCurrentSong = action !== "play";
   const playLabel = action === "pause" ? "Pause" : action === "resume" ? "Resume" : playError ? "Unavailable" : "Play";
 
+  // Start (or resume) this moment's song: the Play button and the film share it.
+  const startSong = () => {
+    if (!moment) return;
+    if (action === "resume") {
+      resume();
+      return;
+    }
+    playFull(
+      {
+        id: moment.songSpotifyId ?? moment.songAppleMusicId ?? "",
+        title: moment.songTitle,
+        artistName: moment.songArtist,
+        albumName: moment.songAlbumName,
+        artworkUrl: moment.songArtworkUrl,
+        provider: moment.songProvider ?? "apple_music",
+        appleMusicId: moment.songAppleMusicId ?? null,
+        spotifyId: moment.songSpotifyId ?? null,
+        durationMs: 0,
+      },
+      moment.songPreviewUrl || undefined
+    );
+  };
+
   return (
     <GestureDetector gesture={swipeGesture}>
     <Animated.View style={[styles.container, animStyle]}>
@@ -682,6 +765,7 @@ export default function MomentDetailScreen() {
           size={20}
           onPress={() => animateOut(goBack)}
           accessibilityLabel="Back"
+          testID="moment-back"
         />
         {screenState === "ready" && moment && (
           <View style={styles.glassBtnRow}>
@@ -691,6 +775,7 @@ export default function MomentDetailScreen() {
               size={20}
               onPress={openShare}
               accessibilityLabel="Share"
+              testID="moment-share"
             />
             <View ref={menuButtonRef} collapsable={false}>
               <IconButton
@@ -699,6 +784,7 @@ export default function MomentDetailScreen() {
                 size={20}
                 onPress={openMenu}
                 accessibilityLabel="More"
+                testID="moment-more"
               />
             </View>
           </View>
@@ -706,6 +792,10 @@ export default function MomentDetailScreen() {
       </View>
 
       <MomentActionMenu anchor={menuAnchor} items={menuItems} onClose={() => setMenuAnchor(null)} />
+      {/* Own confirm host: this screen is a native modal, where the root
+          host's sheet cannot present (iOS silently drops it). It answers
+          while this screen is focused; the root host again once it closes. */}
+      <ConfirmSheetHost />
 
       {screenState === "loading" ? (
         <View style={styles.loadingContainer}>
@@ -734,21 +824,14 @@ export default function MomentDetailScreen() {
           {/* Hero section */}
           {hasPhotos ? (
             <View style={[styles.photoHero, { height: insets.top + 380 }]}>
-              {/* The photo prints clean: no gradient or caption over it. */}
-              <TouchableOpacity
-                activeOpacity={0.95}
-                onPress={() => { setViewerIndex(0); setViewerVisible(true); }}
-                style={StyleSheet.absoluteFill}
-                accessibilityRole="imagebutton"
-                accessibilityLabel={`Photo 1 of ${photoUrls.length}. Open photos`}
-              >
-                <AppImage source={{ uri: photoUrls[0] }} style={StyleSheet.absoluteFill} contentFit="cover" />
-              </TouchableOpacity>
-              {photoUrls.length > 1 && (
-                <View style={styles.photoCounterPill} pointerEvents="none">
-                  <Text style={styles.photoCounterText}>1 / {photoUrls.length}</Text>
-                </View>
-              )}
+              {/* The photo prints clean: no gradient or caption over it. It
+                  fades slowly through the moment's photos. */}
+              <HeroPhotoCycle
+                urls={photoUrls}
+                onOpen={(i) => { setViewerIndex(i); setViewerVisible(true); }}
+                counterStyle={styles.photoCounterPill}
+                counterTextStyle={styles.photoCounterText}
+              />
             </View>
           ) : (
             <View style={[styles.ambientHero, { paddingTop: insets.top + 56, height: insets.top + 360 }]}>
@@ -838,27 +921,12 @@ export default function MomentDetailScreen() {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     if (action === "pause") {
                       pause();
-                    } else if (action === "resume") {
-                      resume();
                     } else {
-                      playFull(
-                        {
-                          id: moment.songSpotifyId ?? moment.songAppleMusicId ?? "",
-                          title: moment.songTitle,
-                          artistName: moment.songArtist,
-                          albumName: moment.songAlbumName,
-                          artworkUrl: moment.songArtworkUrl,
-                          provider: moment.songProvider ?? 'apple_music',
-                          appleMusicId: moment.songAppleMusicId ?? null,
-                          spotifyId: moment.songSpotifyId ?? null,
-                          durationMs: 0,
-                        },
-                        moment.songPreviewUrl || undefined
-                      );
+                      startSong();
                     }
                   }}
                 >
-                  <Ionicons
+                  <Icon
                     name={action === "pause" ? "pause" : "play"}
                     size={18}
                     color={playError ? theme.colors.textTertiary : theme.colors.buttonText}
@@ -868,8 +936,8 @@ export default function MomentDetailScreen() {
                   isCurrentSong={!!isCurrentSong}
                   playError={!!playError}
                   seekGesture={seekGesture}
-                  barWidthRef={progressBarWidthRef}
-                  durationRef={progressDurationRef}
+                  barWidth={progressBarWidth}
+                  duration={progressDuration}
                   styles={styles}
                 />
               </View>
@@ -909,7 +977,7 @@ export default function MomentDetailScreen() {
               </View>
             ) : null}
 
-            {/* More photos: the hero shows the first; the rest live here. */}
+            {/* All the photos: the hero fades through them; tap one here to open it. */}
             {hasPhotos && stripUrls.length > 1 ? (
               <ScrollView
                 horizontal
@@ -926,6 +994,17 @@ export default function MomentDetailScreen() {
                     accessibilityLabel={`Photo ${idx + 1} of ${stripUrls.length}`}
                   >
                     <AppImage source={{ uri: url }} style={styles.photoStripThumb} contentFit="cover" transition={200} />
+                    {shown?.mediaRefs?.[idx]?.kind === "video" ? (
+                      <View style={styles.videoBadge} pointerEvents="none">
+                        {/* Play only where it can: a linked video plays from its owner's Photos. */}
+                        <Icon
+                          name={mediaSources[idx]?.fromLibrary ? "play" : "videocam-outline"}
+                          size={10}
+                          color={PAPER_ON_GLASS}
+                        />
+                        <Text style={styles.videoBadgeText}>{clipLength(shown?.mediaRefs?.[idx]?.durationMs)}</Text>
+                      </View>
+                    ) : null}
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -963,7 +1042,7 @@ export default function MomentDetailScreen() {
                   />
                 </MapView>
                 <View style={styles.miniMapHint}>
-                  <Ionicons name="map-outline" size={12} color={theme.colors.text} />
+                  <Icon name="map-outline" size={12} color={theme.colors.text} />
                   <Text style={styles.miniMapHintText}>Open in Maps</Text>
                 </View>
               </TouchableOpacity>
@@ -973,11 +1052,16 @@ export default function MomentDetailScreen() {
         </GestureDetector>
       )}
 
-      <PhotoViewer
-        photos={photoUrls}
+      {/* Photos and videos as a little film: swipe, zoom, play with the song. */}
+      <MomentFilm
+        items={mediaSources}
         initialIndex={viewerIndex}
         visible={viewerVisible}
         onClose={() => setViewerVisible(false)}
+        songPlaying={action === "pause"}
+        startSong={startSong}
+        pauseSong={pause}
+        ownMoment={!!moment && moment.userId === user?.id}
       />
 
       {moment && (
@@ -990,103 +1074,54 @@ export default function MomentDetailScreen() {
         />
       )}
 
-      {/* Album membership: a quick pick, ticks apply on Save. */}
-      <BottomSheet
+      {/* Album membership: a quick pick, each tick applies as it's tapped. */}
+      <AlbumPicker
+        mode="multi"
         visible={collectionModalVisible}
-        onClose={() => setCollectionModalVisible(false)}
         title="Add to album"
-        keyboardAvoiding
-        maxHeight="60%"
+        collections={allCollections}
+        selectedIds={memberIds}
+        onToggle={toggleAlbum}
+        onClose={() => setCollectionModalVisible(false)}
+        onRequestCreate={openCreateAlbum}
+        onClosed={onPickerClosed}
+        error={collectionError}
+        loading={collectionLoading}
+        loadError={collectionLoadError}
+        onRetry={loadCollections}
+      />
+
+      {user ? (
+        <CreateAlbumSheet
+          visible={createAlbumVisible}
+          userId={user.id}
+          defaultShared={false}
+          onCreated={handleAlbumCreated}
+          onClose={closeCreateAlbum}
+          onClosed={onCreateAlbumClosed}
+        />
+      ) : null}
+
+      <BottomSheet
+        visible={reportSheetVisible}
+        onClose={() => setReportSheetVisible(false)}
+        title="Report"
       >
-        {collectionLoading ? (
-          <View style={styles.sheetStatus}>
-            <ActivityIndicator color={theme.colors.textSecondary} />
-          </View>
-        ) : collectionLoadError ? (
-          <View style={styles.sheetStatus}>
-            <Text style={styles.sheetStatusText}>{collectionLoadError}</Text>
-            <Button label="Try again" variant="text" onPress={loadCollections} />
-          </View>
-        ) : (
-          <FlatList
-            data={allCollections}
-            keyExtractor={(item) => item.id}
-            style={styles.albumList}
-            ListEmptyComponent={<Text style={styles.sheetStatusText}>No albums yet</Text>}
-            renderItem={({ item }) => {
-              const isMember = pendingMemberIds.includes(item.id);
-              return (
-                <TouchableOpacity
-                  style={styles.albumRow}
-                  onPress={() => toggleCollection(item)}
-                  activeOpacity={0.7}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: isMember }}
-                >
-                  <Ionicons
-                    name={item.isPublic ? "people-outline" : "albums-outline"}
-                    size={18}
-                    color={theme.colors.textSecondary}
-                  />
-                  <View style={styles.albumRowText}>
-                    <Text style={styles.albumRowName} numberOfLines={1}>{item.name}</Text>
-                    {item.isPublic ? <Text style={styles.albumRowMeta}>Shared album</Text> : null}
-                  </View>
-                  {/* Ink, never terracotta: a tick is a choice, not a signal. */}
-                  {isMember ? (
-                    <View style={styles.tickOn}>
-                      <Ionicons name="checkmark" size={15} color={theme.colors.buttonText} />
-                    </View>
-                  ) : (
-                    <View style={styles.tickOff} />
-                  )}
-                </TouchableOpacity>
-              );
-            }}
-            ItemSeparatorComponent={() => <View style={styles.albumHairline} />}
-          />
-        )}
-
-        <View style={styles.albumHairline} />
-
-        {showingNewInput ? (
-          <View style={styles.newAlbumRow}>
-            <TextField
-              placeholder="Album name"
-              value={newCollectionName}
-              onChangeText={setNewCollectionName}
-              returnKeyType="done"
-              onSubmitEditing={handleCreateCollection}
-              maxLength={60}
-              autoFocus
-              containerStyle={styles.newAlbumField}
-            />
-            <Button
-              label="Create"
-              size="pill"
-              onPress={handleCreateCollection}
-              loading={creatingCollection}
-              disabled={!newCollectionName.trim()}
-            />
-          </View>
-        ) : (
+        <View style={styles.reportBody}>
+          <Text style={styles.reportText}>{MAIL_UNAVAILABLE_TEXT}</Text>
+          <Text style={styles.reportAddress} selectable>
+            {FEEDBACK_EMAIL}
+          </Text>
+          {moment ? (
+            <Text style={styles.reportText}>
+              Say which moment: “{moment.songTitle}” by {moment.songArtist}.
+            </Text>
+          ) : null}
           <Button
-            label="New album"
-            icon="add"
-            variant="text"
-            onPress={() => setShowingNewInput(true)}
-            style={styles.newAlbumButton}
-          />
-        )}
-
-        {collectionError ? <Text style={styles.sheetError}>{collectionError}</Text> : null}
-
-        <View style={styles.sheetSave}>
-          <Button
-            label="Save"
-            onPress={handleSaveCollections}
-            loading={savingCollections}
-            disabled={collectionLoading || !!collectionLoadError}
+            label={reportAddressCopied ? "Copied" : "Copy address"}
+            icon={reportAddressCopied ? "checkmark" : "copy-outline"}
+            onPress={copyReportAddress}
+            style={styles.reportCopy}
           />
         </View>
       </BottomSheet>
@@ -1103,19 +1138,21 @@ function PlaybackProgress({
   isCurrentSong,
   playError,
   seekGesture,
-  barWidthRef,
-  durationRef,
+  barWidth,
+  duration,
   styles,
 }: {
   isCurrentSong: boolean;
   playError: boolean;
-  seekGesture: ComponentProps<typeof GestureDetector>["gesture"];
-  barWidthRef: MutableRefObject<number>;
-  durationRef: MutableRefObject<number>;
+  seekGesture: ReturnType<typeof Gesture.Race>;
+  barWidth: SharedValue<number>;
+  duration: SharedValue<number>;
   styles: ReturnType<typeof createStyles>;
 }) {
   const { playbackTime, playbackDuration } = usePlayerProgress();
-  durationRef.current = playbackDuration;
+  useEffect(() => {
+    duration.set(playbackDuration);
+  }, [duration, playbackDuration]);
 
   if (!isCurrentSong || playbackDuration <= 0) {
     return <Text style={styles.playHint}>{playError ? "Unavailable" : "Play"}</Text>;
@@ -1125,7 +1162,7 @@ function PlaybackProgress({
       <GestureDetector gesture={seekGesture}>
         <View
           style={styles.progressTrackWrapper}
-          onLayout={(e) => { barWidthRef.current = e.nativeEvent.layout.width; }}
+          onLayout={(e) => { barWidth.set(e.nativeEvent.layout.width); }}
         >
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${Math.min(100, (playbackTime / playbackDuration) * 100)}%` }]} />
@@ -1176,6 +1213,23 @@ function createStyles(theme: Theme) {
     // ── Hero ─────────────────────────────────────────────────────────────────
     photoHero: {
       flexShrink: 0,
+    },
+    videoBadge: {
+      position: "absolute",
+      left: 4,
+      bottom: 4,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 3,
+      paddingHorizontal: 5,
+      paddingVertical: 2,
+      borderRadius: theme.radii.full,
+      backgroundColor: INK_GLASS,
+    },
+    videoBadgeText: {
+      ...theme.typography.meta,
+      fontSize: theme.fontSize.xs,
+      color: PAPER_ON_GLASS,
     },
     photoCounterPill: {
       position: "absolute",
@@ -1371,87 +1425,26 @@ function createStyles(theme: Theme) {
       fontFamily: theme.fonts.bodyMedium,
       color: theme.colors.text,
     },
-    // ── Add to album sheet ───────────────────────────────────────────────────
-    sheetStatus: {
-      paddingVertical: theme.spacing["2xl"],
-      alignItems: "center",
-    },
-    sheetStatusText: {
-      ...theme.typography.body,
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
-      textAlign: "center",
-      paddingVertical: theme.spacing.xl,
+    // ── Report fallback sheet (as Settings' Share feedback) ───────────────
+    reportBody: {
       paddingHorizontal: theme.spacing.xl,
-    },
-    albumList: {
-      flexGrow: 0,
-      maxHeight: 280,
-    },
-    albumRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.md,
-      paddingHorizontal: theme.spacing.xl,
-      paddingVertical: 14,
-    },
-    albumRowText: {
-      flex: 1,
-      minWidth: 0,
-    },
-    albumRowName: {
-      ...theme.typography.body,
-      color: theme.colors.text,
-    },
-    albumRowMeta: {
-      ...theme.typography.meta,
-      color: theme.colors.textTertiary,
-      marginTop: 1,
-    },
-    tickOn: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.buttonBg,
-    },
-    tickOff: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      borderWidth: 1.5,
-      borderColor: theme.colors.border,
-    },
-    albumHairline: {
-      height: StyleSheet.hairlineWidth,
-      marginHorizontal: theme.spacing.xl,
-      backgroundColor: theme.colors.divider,
-    },
-    newAlbumRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-      paddingHorizontal: theme.spacing.xl,
-      paddingVertical: theme.spacing.md,
-    },
-    newAlbumField: {
-      flex: 1,
-    },
-    newAlbumButton: {
-      marginHorizontal: theme.spacing.xl - theme.spacing.xs,
-    },
-    sheetError: {
-      ...theme.typography.meta,
-      color: theme.colors.destructive,
-      textAlign: "center",
-      paddingHorizontal: theme.spacing.xl,
-      paddingTop: theme.spacing.md,
-    },
-    sheetSave: {
-      paddingHorizontal: theme.spacing.xl,
-      paddingTop: theme.spacing.md,
       paddingBottom: theme.spacing.xs,
+    },
+    reportText: {
+      ...theme.typography.body,
+      fontSize: theme.fontSize.callout,
+      lineHeight: 21,
+      color: theme.colors.textSecondary,
+    },
+    reportAddress: {
+      ...theme.typography.bodyStrong,
+      fontSize: theme.fontSize.lg,
+      color: theme.colors.text,
+      marginTop: theme.spacing.sm,
+      marginBottom: theme.spacing.lg,
+    },
+    reportCopy: {
+      marginTop: theme.spacing.xl,
     },
   });
 }

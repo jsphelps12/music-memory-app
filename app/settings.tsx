@@ -1,15 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
 import { usePostHog } from "posthog-react-native";
 import {
+  ActivityIndicator,
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   Alert,
   ScrollView,
   Share,
-  Switch,
-  Linking,
   Platform,
 } from "react-native";
 import * as Haptics from "expo-haptics";
@@ -18,9 +16,8 @@ import * as Notifications from "expo-notifications";
 import * as Application from "expo-application";
 import * as Updates from "expo-updates";
 import { useRouter } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/contexts/AuthContext";
 import { PromptsSection } from "@/components/PromptsSection";
 import { confirmSheet } from "@/components/ConfirmSheet";
@@ -28,22 +25,28 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
 import { Button } from "@/components/Button";
 import { ListRow } from "@/components/ListRow";
-import { DailyCheckInRow } from "@/components/DailyCheckInRow";
+import { AppLockRow } from "@/components/AppLockRow";
+import { exportJournalPdf } from "@/lib/journalExportDevice";
+import { moodLabel } from "@/lib/moodLabels";
+import { MOODS } from "@/constants/Moods";
 import { useOnForeground } from "@/lib/appFocus";
 import { BottomSheet } from "@/components/BottomSheet";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { friendlyError } from "@/lib/errors";
 import { friendInviteUrl } from "@/lib/momentShares";
+import { FEEDBACK_EMAIL, MAIL_UNAVAILABLE_TEXT, mailtoUrl, openMail } from "@/lib/mail";
+
+/** Prototype screens (app/dev) open in development and the beta app only. */
+const DEV_TOOLS = __DEV__ || process.env.EXPO_PUBLIC_APP_ENV === "preview";
+
+const FEEDBACK_MAILTO = mailtoUrl(FEEDBACK_EMAIL, { subject: "Soundtracks Feedback" });
 
 /**
  * "1.2.0 (27) · update Oct 17, 3:40 PM": which binary and which OTA bundle
  * this is, so "I can't see the changes" can be answered from the phone.
  * The embedded bundle (no OTA applied yet) says so.
  */
-const FEEDBACK_EMAIL = "founder@soundtracks.app";
-const FEEDBACK_MAILTO = `mailto:${FEEDBACK_EMAIL}?subject=Soundtracks%20Feedback`;
-
 function versionLine(): string {
   const binary = `${Application.nativeApplicationVersion ?? "?"} (${Application.nativeBuildVersion ?? "?"})`;
   if (__DEV__) return `${binary} · development`;
@@ -57,22 +60,6 @@ function versionLine(): string {
   return `${binary} · update ${when}`;
 }
 
-type NotifField =
-  | "notifOnThisDay"
-  | "notifStreak"
-  | "notifPrompts"
-  | "notifResurfacing"
-  | "notifMilestones";
-
-// Analytics names predate the camelCase fields; keep the event values stable.
-const NOTIF_EVENT_NAME: Record<NotifField, string> = {
-  notifOnThisDay: "notif_on_this_day",
-  notifStreak: "notif_streak",
-  notifPrompts: "notif_prompts",
-  notifResurfacing: "notif_resurfacing",
-  notifMilestones: "notif_milestones",
-};
-
 /**
  * Settings (Phase 1, 2026-10): everything that used to stack up under the
  * You tab's stats. You is now about your stuff (shared with you, albums,
@@ -83,7 +70,6 @@ export default function SettingsScreen() {
   const {
     user,
     profile,
-    updateProfile,
     signOut,
     deleteAccount,
     saveCustomPromptCategory,
@@ -98,12 +84,31 @@ export default function SettingsScreen() {
   const [signOutError, setSignOutError] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [showPrompts, setShowPrompts] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [notifPermission, setNotifPermission] = useState<"granted" | "denied" | "undetermined">("granted");
-  // The profile in AuthContext is the source of truth for the toggles; this
-  // only holds the value being saved, so the switch moves on tap.
-  const [pendingNotif, setPendingNotif] = useState<{ field: NotifField; value: boolean } | null>(null);
   const [feedbackSheetVisible, setFeedbackSheetVisible] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
+
+  // Export your journal (1.4): the whole journal as a PDF, then the share
+  // sheet (Save to Files, Mail, AirDrop). Your words are yours.
+  const handleExport = useCallback(async () => {
+    if (!user || exporting) return;
+    Haptics.selectionAsync();
+    setExporting(true);
+    setExportStatus("Making your PDF…");
+    try {
+      const count = await exportJournalPdf(user.id, {
+        ownerName: profile?.displayName,
+        moodLabel: (v) => moodLabel(v, [...MOODS, ...(profile?.customMoods ?? [])]),
+      });
+      posthog.capture("journal_exported", { format: "pdf", moments: count });
+      setExportStatus(null);
+    } catch (e) {
+      setExportStatus(friendlyError(e));
+    } finally {
+      setExporting(false);
+    }
+  }, [user, exporting, profile?.displayName, profile?.customMoods, posthog]);
   const [addressCopied, setAddressCopied] = useState(false);
 
   // Permission can change in iOS Settings while we're away, so read it on
@@ -119,44 +124,19 @@ export default function SettingsScreen() {
   useFocusEffect(readPermission);
   useOnForeground(readPermission);
 
-  const notifValue = (field: NotifField): boolean =>
-    pendingNotif?.field === field ? pendingNotif.value : profile?.[field] ?? true;
-
-  const handleNotifToggle = async (field: NotifField, value: boolean) => {
-    if (!user || !profile || pendingNotif !== null) return;
-    setPendingNotif({ field, value });
-    posthog.capture("notification_preferences_changed", { notification_type: NOTIF_EVENT_NAME[field], enabled: value });
-    try {
-      // Goes through AuthContext so the profile everyone reads is updated too.
-      await updateProfile({ [field]: value });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e) {
-      Alert.alert("Couldn't save", friendlyError(e));
-    } finally {
-      setPendingNotif(null);
-    }
-  };
-
   const handleInvite = () => {
     if (!profile?.friendInviteToken) return;
     const url = friendInviteUrl(profile.friendInviteToken);
     Share.share(Platform.OS === "ios" ? { url } : { message: url });
   };
 
-  // "Share feedback" used to call openURL bare: with no Mail app (the
-  // simulator, or a phone that deleted Mail) it rejected silently and the
-  // row did nothing. Try Mail; if it can't open, show the address to copy.
-  // No canOpenURL pre-check: "mailto" isn't in LSApplicationQueriesSchemes,
-  // so iOS would answer false even when Mail is there (adding it is a
-  // native change).
+  // Mail if there's a mail app; otherwise, or if opening fails, the
+  // copy-the-address sheet (lib/mail.ts; the moment's Report does the same).
   const handleFeedback = async () => {
     Haptics.selectionAsync();
-    try {
-      await Linking.openURL(FEEDBACK_MAILTO);
-    } catch {
-      setAddressCopied(false);
-      setFeedbackSheetVisible(true);
-    }
+    if (await openMail(FEEDBACK_MAILTO)) return;
+    setAddressCopied(false);
+    setFeedbackSheetVisible(true);
   };
 
   const handleCopyAddress = async () => {
@@ -186,16 +166,16 @@ export default function SettingsScreen() {
   const handleDeleteAccount = async () => {
     // Double-confirm on purpose: this is the app's only unrecoverable action.
     const first = await confirmSheet({
-      title: "Delete account",
+      title: "Delete your account?",
       message:
-        "This will permanently delete your account and all your moments, photos, and collections. This cannot be undone.",
+        "This permanently deletes your account and all your moments, photos and albums. This can't be undone.",
       confirmLabel: "Delete",
       destructive: true,
     });
     if (!first) return;
     const second = await confirmSheet({
       title: "Are you sure?",
-      message: "Your data cannot be recovered after deletion.",
+      message: "Your data can't be recovered after this.",
       confirmLabel: "Delete my account",
       destructive: true,
     });
@@ -206,20 +186,9 @@ export default function SettingsScreen() {
       await deleteAccount();
     } catch (e) {
       setDeletingAccount(false);
-      Alert.alert("Error", friendlyError(e));
+      Alert.alert("Couldn't delete account", friendlyError(e));
     }
   };
-
-  // Ink, not terracotta, for an "on" switch (theme.colors.switchOn).
-  const switchTrack = { false: theme.colors.border, true: theme.colors.switchOn };
-
-  const notifRows = [
-    { field: "notifOnThisDay", label: "On this day", sub: "When a song anniversary comes up" },
-    { field: "notifResurfacing", label: "Random memories", sub: "A random moment from your past" },
-    { field: "notifMilestones", label: "Streak milestones", sub: "Celebrate hitting a new streak" },
-    { field: "notifStreak", label: "Streak reminders", sub: "Keep your logging streak going" },
-    { field: "notifPrompts", label: "Journal prompts", sub: "Occasional nudges to capture a moment" },
-  ] as const;
 
   return (
     <View style={styles.container}>
@@ -234,49 +203,11 @@ export default function SettingsScreen() {
 
         <SectionLabel style={[styles.groupLabel, styles.groupLabelSpaced]}>Journal</SectionLabel>
         <View style={styles.list}>
-          {user ? <DailyCheckInRow userId={user.id} /> : null}
           <ListRow
             label="Notifications"
             detail={notifPermission !== "granted" ? "Off" : undefined}
-            accessory="expand"
-            expanded={showNotifications}
-            onPress={() => setShowNotifications((v) => !v)}
-            last={showNotifications}
+            onPress={() => router.push("/notification-settings")}
           />
-          {showNotifications && (
-            <View style={styles.expandBody}>
-              {notifPermission !== "granted" ? (
-                <TouchableOpacity
-                  style={styles.notifSettingsRow}
-                  onPress={() => Linking.openSettings()}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                >
-                  <Ionicons name="notifications-off-outline" size={18} color={theme.colors.textSecondary} />
-                  <Text style={styles.notifSettingsText}>Notifications are off for Soundtracks</Text>
-                  <Text style={styles.notifSettingsLink}>Open Settings</Text>
-                </TouchableOpacity>
-              ) : (
-                notifRows.map(({ field, label, sub }, idx) => (
-                  <ListRow
-                    key={field}
-                    label={label}
-                    subtitle={sub}
-                    last={idx === notifRows.length - 1}
-                    trailing={
-                      <Switch
-                        value={notifValue(field)}
-                        onValueChange={(v) => handleNotifToggle(field, v)}
-                        disabled={pendingNotif !== null || !profile}
-                        trackColor={switchTrack}
-                        ios_backgroundColor={theme.colors.border}
-                      />
-                    }
-                  />
-                ))
-              )}
-            </View>
-          )}
           <ListRow
             label="Prompts"
             accessory="expand"
@@ -293,6 +224,19 @@ export default function SettingsScreen() {
               />
             </View>
           )}
+          <ListRow
+            label="Export your journal"
+            subtitle={exportStatus ?? "Every moment and your words, as a PDF"}
+            onPress={handleExport}
+            disabled={exporting}
+            trailing={exporting ? <ActivityIndicator color={theme.colors.textSecondary} /> : undefined}
+            last
+          />
+        </View>
+
+        <SectionLabel style={[styles.groupLabel, styles.groupLabelSpaced]}>Privacy</SectionLabel>
+        <View style={styles.list}>
+          <AppLockRow last />
         </View>
 
         <SectionLabel style={[styles.groupLabel, styles.groupLabelSpaced]}>Support</SectionLabel>
@@ -321,7 +265,15 @@ export default function SettingsScreen() {
           style={styles.deleteAccountButton}
         />
         {user?.email ? <Text style={styles.signedInAs}>Signed in as {user.email}</Text> : null}
-        <Text style={styles.signedInAs}>{versionLine()}</Text>
+        {/* Long-press: the photos ↔ music prototype (1.4), hidden on purpose,
+            and only in development and the beta app. */}
+        <Text
+          style={styles.signedInAs}
+          onLongPress={DEV_TOOLS ? () => router.push("/dev/library" as any) : undefined}
+          suppressHighlighting
+        >
+          {versionLine()}
+        </Text>
       </ScrollView>
 
       <BottomSheet
@@ -330,9 +282,7 @@ export default function SettingsScreen() {
         title="Share feedback"
       >
         <View style={styles.feedbackBody}>
-          <Text style={styles.feedbackText}>
-            Mail isn&apos;t set up on this phone. Send a note from any email app to:
-          </Text>
+          <Text style={styles.feedbackText}>{MAIL_UNAVAILABLE_TEXT}</Text>
           <Text style={styles.feedbackAddress} selectable>
             {FEEDBACK_EMAIL}
           </Text>
@@ -375,23 +325,6 @@ function createStyles(theme: Theme) {
       paddingBottom: theme.spacing.md,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.colors.divider,
-    },
-    notifSettingsRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-      paddingVertical: theme.spacing.sm,
-    },
-    notifSettingsText: {
-      flex: 1,
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.body,
-      color: theme.colors.textSecondary,
-    },
-    notifSettingsLink: {
-      fontSize: theme.fontSize.sm,
-      fontFamily: theme.fonts.bodyMedium,
-      color: theme.colors.text,
     },
     signOutErrorText: {
       ...theme.typography.body,

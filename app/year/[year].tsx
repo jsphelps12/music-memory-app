@@ -1,3 +1,4 @@
+import type { ComponentRef } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -146,7 +147,7 @@ function YearInReviewScreen() {
     [index, chapters.length, posthog, year]
   );
 
-  const shotRef = useRef<ViewShot>(null);
+  const shotRef = useRef<ComponentRef<typeof ViewShot>>(null);
   const [sharing, setSharing] = useState(false);
   const share = useCallback(async () => {
     if (sharing) return;
@@ -162,20 +163,26 @@ function YearInReviewScreen() {
     }
   }, [sharing, year, posthog]);
 
+  // The story is a fullScreenModal (no swipe to dismiss), so every state,
+  // loading included, keeps its ✕ on the left.
+  const closeButton = (
+    <IconButton name="close" onPress={close} color={night.colors.text} accessibilityLabel="Close" />
+  );
+
   if (isLoading) {
     return (
-      <View style={[styles.screen, styles.centered]}>
-        <ActivityIndicator color={night.colors.textSecondary} />
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <View style={[styles.topBar, styles.topBarPadded]}>{closeButton}</View>
+        <View style={styles.centeredFill}>
+          <ActivityIndicator color={night.colors.textSecondary} />
+        </View>
       </View>
     );
   }
   if (error) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={styles.topBar}>
-          <View />
-          <IconButton name="close" onPress={close} color={night.colors.text} accessibilityLabel="Close" />
-        </View>
+        <View style={[styles.topBar, styles.topBarPadded]}>{closeButton}</View>
         <ErrorState message={friendlyError(error)} onRetry={() => refetch()} />
       </View>
     );
@@ -183,10 +190,7 @@ function YearInReviewScreen() {
   if (!review || !chapter) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={styles.topBar}>
-          <View />
-          <IconButton name="close" onPress={close} color={night.colors.text} accessibilityLabel="Close" />
-        </View>
+        <View style={[styles.topBar, styles.topBarPadded]}>{closeButton}</View>
         <View style={styles.thin}>
           <Text style={styles.headline}>{`Your ${year} is still being written.`}</Text>
           <Text style={styles.meta}>
@@ -230,8 +234,8 @@ function YearInReviewScreen() {
           ))}
         </View>
         <View style={styles.topBar}>
+          {closeButton}
           <Text style={styles.yearMark}>{`${year} in songs`}</Text>
-          <IconButton name="close" onPress={close} color={night.colors.text} accessibilityLabel="Close" />
         </View>
       </View>
 
@@ -394,13 +398,9 @@ function createStyles(theme: Theme) {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
-    centered: {
-      alignItems: "center",
-      justifyContent: "center",
-    },
     // Night over the blurred artwork so text holds contrast on any cover.
     dim: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: "rgba(14,11,10,0.72)",
     },
     topArea: {
@@ -425,7 +425,17 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       justifyContent: "space-between",
       minHeight: 48,
-      marginRight: -10,
+      // The ✕ glyph sits optically at the gutter, not its 44pt box.
+      marginLeft: -12,
+    },
+    // The bar outside the story's topArea, which carries the gutter itself.
+    topBarPadded: {
+      paddingHorizontal: theme.spacing.xl,
+    },
+    centeredFill: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
     },
     yearMark: {
       ...theme.typography.label,

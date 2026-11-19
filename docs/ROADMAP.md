@@ -36,31 +36,279 @@ below should move that, or it doesn't belong on this page.
 - **Never paywall capture or your own history.**
 - **Every surface is a screen or a quick pick** (no pageSheet cards).
 
-## Where things stand (2026-11-16)
+## Next: 1.5 and the updates before it (Josh's picks, 2026-11-17)
+
+Theme: it comes to you. Picked from the full roadmap read once 1.4 was in
+TestFlight with testers and submitted for review. **A draft: 1.5 needs
+more refining before anything is built** (Josh). **Order: the audit and its
+security/performance fixes first, before any new feature, OTA ones
+included.** The audit is a reusable project skill (`/audit`, in
+`.claude/skills/audit/`, private like its reports in `.claude/audits/`):
+before every App Store submission, before merging a `native/*` branch into
+`main`, monthly, and after large changes.
+
+**1.4.1 (native), in `native/1.4.1` off `native/1.4`** (`native/1.4` keeps
+serving OTAs to build 12 until 1.4.1 ships; JS work there merges forward):
+the "…" as the same native menu as long-press, accurate permission prompts,
+universal links (associated domains + AASA), audio unducks by deactivating
+after the film, crash guards (context menu, ShazamKit tap, share patch),
+image orientation for on-device AI, lighter film preload and poster
+timeout, Shazam/Spotify races, library sort. If App Review rejects build 12
+over the prompts, this becomes 1.4.0 build 13 instead.
+
+**1.5 (a new native build), in `native/1.5` off `native/1.4`:**
+- [ ] **Siri: "remember this song"** — an App Intent (Siri, Shortcuts, the
+  Action button) saves what's playing without opening the app, screen off;
+  a gentle "finish this one" later. Needs an app group and the session in
+  a shared keychain.
+- [ ] **Journaling Suggestions** — Apple's system picker (as in Apple's
+  Journal) offering the day's songs, photos and places, with consent.
+  iOS 17.2+; check the entitlement first.
+- [ ] **Voice entries** — speak the reflection, transcribed on device.
+- [ ] **Memory widget** — one moment a day on the Home Screen, opening
+  into the film.
+
+**Over the air on 1.4 meanwhile:**
+- [x] **Drafts you can see** (decided 2026-11-18): built 2026-11-18 on native/1.4 (`.maestro/drafts.yaml`), OTA to 1.4 the same day (group 8419f305) after all three flows passed.: closing capture with
+  writing asks "Keep as a draft?" (Keep draft / Discard); long-press + →
+  Start from gets "Continue a draft" (with a count, lists every draft) when
+  any exist; plain + opens blank, with no hint (Josh, 2026-11-18: a hint
+  would clutter the top; drafts live in long-press only); a continued draft
+  shows "Draft from …"; crashes and iOS kills still save silently. No hidden
+  long-press on Save (long-press always opens a menu).
+- [x] **Select moments** (decided 2026-11-18): built 2026-11-18 on native/1.4 with the card menu (Edit, Share, Add to album, Select, Delete; `.maestro/select.yaml`), OTA to 1.4 the same day (group 8419f305) after all three flows passed.: "Select" in the card's
+  long-press menu and in the Journal header enters selection mode; tap to
+  tick; a bottom bar with Add to album and Delete ("Delete 5 moments?",
+  photos deleted too). Journal first, album screens next. The menu stays
+  the long-press; selection is one of its actions (as in Photos and Files).
+- [ ] The part of the song: where in the song the moment lives ("the
+  bridge at 2:41"); full playback starts there (`seekToTime` exists).
+- [ ] One song across the years: moments with the same song as chapters.
+- [ ] Songs you used to love + Replay playlists as starting points.
+- [ ] From before weekly reminder (local, follows How often).
+
+**Quality and security (first):**
+- [x] A fresh full audit (`/audit`), replacing the 2026-10 review.
+  Audit 2026-11-17: ~67 open (1 critical, 6 high), private report in
+  `.claude/audits/`.
+- [ ] Its fixes, in order: security now (server), client fixes over the
+  air, a 1.4.1 native build, DB-2 after the min-build raise, then code
+  quality. Server security batch done 2026-11-18 (main PR 108; Expo
+  enhanced push security on and verified: the 2026-11-18 10am run delivered
+  with the access token). Client
+  batch done 2026-11-18 on native/1.4, OTA to 1.4 the same day (first
+  publish rolled back: Delete froze on moment detail; fixed with a confirm
+  host per modal screen, a bug build 12 already had as a silent no-op): drafts can't be
+  wiped by pre-filled captures (being re-tested on TestFlight), app lock can't lock you out, sign-out
+  clears every on-device record, library read once, smaller play-count
+  store, calendar windowed, whole-library queries paged, film restores
+  the song on every exit and loads fewer videos, 10 more components
+  under the React Compiler (97 compiled). Old PostHog tap events left as
+  they are (owner's call). Next: 1.4.1 native items (plus the "…" menu as the same native
+  iOS menu as long-press, Josh 2026-11-18), then code quality.
+- [x] UI consistency pass (2026-11-18), from a code inventory of every
+  surface plus the new Maestro moment-actions flow (`.maestro/actions.yaml`,
+  run locally with `scripts/e2e-local.sh actions` before each OTA): add to
+  album applies as you tap, sheets wait for the previous one to close,
+  every loading screen has a way out, one ✕ on the left to leave a task,
+  confirms in one house style, long-presses open the native menu, Edit
+  moment asks before discarding, deleting a moment stops its song. OTA to
+  1.4 the same day (group 420e532c), checked by Josh on TestFlight; the "…"
+  as a native menu goes in 1.4.1.
+- [x] **Sharing and social review with Josh** (2026-11-18; private notes
+  and numbers in `.claude/reviews/2026-11-18-sharing.md`). Finding: sharing
+  is built well ahead of use (direct sends and shared albums essentially
+  unused; links the only real use). **Decided (Josh): sharing is intimate,
+  not a social feed. The one thing to make excellent is sending a moment to
+  the person who was there.** Friends inbox, albums and weddings stay but
+  stop growing. Share stays its own button on moment detail (revisit later).
+- [ ] Sharing work, in order (decided 2026-11-18):
+  - **First: a shared view.** Everyone but the owner reads a moment through
+    one function that returns only what the owner shares (today recipients
+    read the moments table directly, so no field can be hidden and the link
+    token can be forwarded). Step 1 the app reads through it (OTA + 1.4.1);
+    step 2, after the min-build raise, the table becomes owner-only (with
+    DB-2). New sharing features read through it from day one.
+  - Retire the pre-occasions album guest form (`/c/{code}/contribute`, its
+    flag and edge function); switched off for every album 2026-11-18 (main PR 109).
+  - The /m/ link page as the hero: opens the app (universal links, 1.4.1),
+    "Open in app" / "Get the app" otherwise; the share card gets a small
+    link or QR; occasion pages point to the app.
+  - What travels with a share: no GPS or people's names by default; only
+    the owner can pass a moment on.
+  - Friend links rotate on unfriend, which also unsends past shares.
+  - Albums: unshare, new invite code, and on leaving, choose whether your
+    moments go with you.
+  - "Keep this": save a moment someone sent you into your own journal.
+  - Analytics: record which share option was used.
+  - Later, if direct sends get used: album activity pushes; "the people who
+    were there" as 1.5's social bet.
+- [ ] DB-2 (RLS hardening step 2) once 1.4 is out and widely installed:
+  raise the min-build gate, then ship it.
+- [ ] Database hygiene from the Supabase advisors (2026-11-17): ~~pin the
+  search_path on the four occasion slug/song functions~~ (done 2026-11-18),
+  recheck why `get_public_profiles` is callable without signing in, move
+  `pg_trgm` out of public. (Leaked-password protection needs the Pro plan:
+  Authentication → Providers → Email.)
+
+## What makes it an 11/10 (Josh, 2026-11-17)
+
+Josh's list, in his order. Use it to judge what goes into each phase.
+
+1. **Dialed-in suggestions for songs, photos and moments**, so logging is
+   easy and intuitive. (Last week, From before and the on-device AI are
+   the start.)
+2. **Incredible presentation of a moment.** The moment film is the start;
+   it may eventually mean real video editing.
+3. **Song suggestions and recommendations from your taste**, maybe.
+4. **Good summaries and insights** drawn from logged moments and music
+   data (Year in review is the start).
+5. **Incredible, beautiful output:** export, a printed book, printables,
+   sharing.
+
+Claude's additions, for Josh to accept or cut:
+
+6. **The song brings the memory back.** When a song you've logged plays,
+   its moment is there: on the now-playing screen in the app, a widget, a
+   Live Activity. Of everything here, this is the most distinctive: the
+   app is closed when most listening happens, so first find out what iOS
+   allows here.
+7. **Capture in three seconds, from anywhere:** Lock Screen, Control
+   Center, Action button, Siri/Shortcuts ("remember this song"), the
+   share sheet, Shazam. Write later, from a gentle "finish this one".
+8. **It lasts decades.** Your journal outlives phones and this app:
+   reliable backup, a full export you can read without the app (PDF plus
+   photos and data), and linked photos that survive a library cleanup.
+   People only pour years into something they trust to keep.
+   Josh: this includes account security and data protection, without
+   pretending to be SOC 2. Today the operator can read every reflection in
+   the database, which may matter eventually. Options, roughly in cost
+   order: a written promise and audit log for operator access; then
+   client-side encryption of the reflection text (key in iCloud Keychain).
+   That has a price: server-side search, `/m/` links and push text could no
+   longer read the words, so decide what stays readable first.
+9. **Craft you can feel:** haptics, motion, sound, and speed, everywhere.
+   Every screen opens instantly, nothing jumps, and the song is always a
+   tap from playing.
+10. **The people who were there.** A shared moment collects each person's
+    side of the same night (your words, their photos), without becoming a
+    social feed. Josh tried this once (tagging and reactions, since
+    retired) and it wasn't executed well; a new attempt starts from why.
+
+More ideas (Claude, 2026-11-17). Josh liked Journaling Suggestions, the
+part of the song, and CarPlay/Siri capture, plus voice entries (recordings
+or on-device speech to text, already under Phase 2):
+
+- **Apple's Journaling Suggestions** (`JournalingSuggestions`, iOS 17.2+):
+  the system picker Apple's Journal uses, offering songs, photos, places,
+  workouts and people from the user's day with their consent. Feeds point 1
+  directly; needs an entitlement, and the picker is Apple's UI.
+- **The part of the song.** Save where in the song the moment lives ("the
+  bridge at 2:41"); playback starts there. Cheap and very personal.
+- **CarPlay and Siri capture.** Driving is when songs hit hardest; "Hey
+  Siri, remember this song" while the screen is off.
+- **Calendar context on device** (EventKit): "at Sam's wedding" suggested
+  from the event that day, like weather and place are now.
+- **Letters to later:** a moment sealed until a date you pick, resurfaced
+  then.
+- **A memory on the Home Screen:** a widget that shows one moment a day,
+  artwork and a line of your words, opening straight into the film.
+
+"WOW" ideas (Claude and Josh, 2026-11-17). Keep these; Josh liked them all.
+The starred ones bring the app to you, which serves the north star:
+
+- ★ **Your life as a radio show.** A station of your moments in date order,
+  with your own words between songs (a voice memo, or the reflection read
+  aloud): "Summer 2019, Big Sur…", then Holocene. For long drives.
+- ★ **Places that play.** Pass the spot where you logged a moment: "You
+  were here in 2021. This was playing." On device, with iOS region
+  monitoring (about 20 places at once, so the strongest ones). The most
+  realistic form of "the song brings the memory back", since iOS won't
+  tell the app what's playing in the background.
+- ★ **Your eras.** The app finds the periods on its own ("Your Bon Iver
+  era, spring 2019 to winter 2020", "The Lisbon summer") with a title, a
+  cover from your photos and the songs that defined them: a table of
+  contents for your life. The era clustering from the Music Memory
+  Engine, done on device without the questionnaire.
+- **A film cut to the beat.** The moment film cuts on the song's beats
+  (beat detection on the 30-second preview, on device), and photos move
+  with its energy. Looks professionally edited, with no editing.
+- **Trip mode.** "I'm going somewhere" collects what you played and the
+  photos you took; home again, a finished trip film and a draft moment
+  per day, waiting for your words.
+- **One song across the years.** A song logged more than once gets a page
+  of every moment with it over the years, and hearing it again adds the
+  next chapter.
+- **The album of your year, as a real object.** A vinyl-style sleeve: a
+  cover from your photos, your moments as the tracklist, your words as
+  liner notes, and an NFC tag or code that plays the year. Pressing the
+  songs themselves needs licences, so the object is the sleeve and the
+  code.
+- **Your past self's voice.** A voice memo from the time plays over the
+  intro when you reopen the moment years later (pairs with "the part of
+  the song").
+- **Live Photos and wallpapers.** Export the moment film as a Live Photo
+  for the Lock Screen; the memory moves when pressed.
+- **A Soundtracks code** (Josh's idea). Our own scannable mark for a
+  moment, in the spirit of a scannable music code but ours in look,
+  for example a strip drawn from the song's own waveform. It goes on share
+  cards, prints, the year sleeve and stickers, and opens `/m/`. The
+  no-app recipient must still get there: either a styled QR code the
+  stock Camera reads, or the custom mark plus a short URL under it. Each
+  code maps to the moment's existing share token.
+
+## Where things stand (2026-11-17)
 
 - **1.3.1 (build 10) is live** on the App Store: the "Pressed S" icon and
   the Phase 1 look as a store build. 1.3.0 (build 9) went out 2026-11-13.
-- **Live over the air on 1.3.1** (Promote to Production, `df74f37`,
-  2026-11-16): the design sweep, the moment resume fix, the Share card
-  screen, ordered photos, the data freshness fixes, Year in review, the
-  daily check-in, On this day that plays, Edit moment opening full screen
-  (it showed as a page-sheet card over the moment), and the large-text
-  fixes (checked at XXXL and AX3: inline titles cap at 1.5x and tab labels
-  at 1.2x; list rows stack their detail and drop line limits at
-  accessibility sizes; avatar initials and the You Albums header hold).
-- **Notification choices, server half** (2026-11-17, from `native/1.4`):
-  "How often" spacing (`profiles.notif_frequency` + `last_notified_at`,
-  default a few times a week), random memories whenever the spacing allows
-  (a moment a month old or more), friends' pushes switchable and silent
-  10pm–8am, and no more streak reminders, "still there?", "we miss you" or
-  Tue/Thu prompts (never notify about absence). 1.3.1's old Streak
-  reminders / Journal prompts switches now do nothing; the new Settings
-  screen ships with 1.4. Also brings `20261117000000_moment_media_refs`
-  (already applied by hand; history re-keyed to the file's version).
-- **EAS free plan:** the month's iOS builds ran out on 2026-11-16 (two 1.4
-  simulator builds) and reset 2026-12-01. E2E now reuses an ancestor's
-  simulator build for JS-only commits, so OTA promotes aren't blocked. A
-  1.4 App Store build before Dec 1 means `eas build --local` or a paid plan.
+- **1.4.0 (build 12) is cut and in TestFlight** (2026-11-17, from
+  `native/1.4` at `1f0c3c0`; built locally with `eas build --local`, uploaded
+  with `eas submit` using the stored API key): Expo SDK 58, Face ID lock,
+  PDF export, SF Symbols, React Compiler, working Control Center controls,
+  Last week, From before, on-device AI, linked photos and video, the moment
+  film, the iOS context menu, notification choices. Device-verified on
+  Josh's iOS 27.2 phone; an iPhone SE / iOS 18.3 simulator pass is done.
+  Next: Josh on the TestFlight build over his App Store app (the
+  production variant: Apple Sign-In, `soundtracks://`, widgets), internal
+  testers (invited 2026-11-17), then screenshots and App Review with the
+  What's New in `docs/app-store/whats-new-1.4.md`. Screenshots for 1.4
+  are done (2026-11-17, `docs/app-store/screenshots/` at 6.9" and in
+  `6.3-inch/`, the required size): Journal, a moment, Hold + (Start from),
+  capture, the widget (unchanged), Rediscover's On this day (two demo
+  anniversaries moved to the day for the shot, then put back), Year in
+  review, dark. `scripts/frame-screenshots.py` now writes both sizes. A
+  film shot needs photos on the demo account. App Review signs in as
+  founder@, which now holds a copy of the demo account's 8 moments.
+  First OTA to 1.4 (2026-11-17, Josh's go): From before's "Picks" label,
+  published by hand from `native/1.4` (`eas update --branch production
+  --environment production --platform ios`, `EXPO_PUBLIC_APP_ENV=production`,
+  local `.env` set aside) to runtime `233cbaf8…`, which only build 12 has;
+  the promote workflow can't do this before 1.4 is live on the App Store.
+- [ ] Sentry source maps for OTA bundles are broken on SDK 58:
+  `sentry-expo-upload-sourcemaps` can't find `@expo/env`, and `expo export`
+  needs `--source-maps`. The promote workflow's upload step will fail
+  quietly (continue-on-error) once 1.4 is on main; fix before then. Merge `native/1.4` into
+  `main` only once 1.4 is approved and out, so OTAs keep reaching 1.3.1
+  until then. Josh's moments are consolidated (2026-11-17): founder@'s 27
+  moments and its College and Footy albums moved to his personal account
+  (photo files copied into his folder by a one-off script he ran with a
+  temporary key, then the old copies deleted); 9 test moments deleted.
+  founder@ stays as an empty account (support address, second account for
+  sharing tests). When 1.4 is live, the privacy page's "we plan to add an
+  export feature" should mention the PDF export.
+- **Live over the air on 1.3.1** (Promote to Production, `956aa3e`): the
+  design sweep (one set of shared components everywhere), the moment
+  resume fix, the Share card screen, ordered photos, and the data
+  freshness fixes (screens refresh when the app returns from the
+  background).
+- **On `main`, not promoted yet:** Edit moment opens full screen. It was
+  pushed over the moment overlay, so iOS showed it as a page-sheet card
+  (found in the 1.4 dark-mode pass).
+- **Large text (2026-11-16):** checked at XXXL and AX3. Fixed: the inline
+  screen title (cap 1.5x) and tab labels (cap 1.2x) no longer truncate;
+  list rows stack their detail under the label and drop line limits at
+  accessibility sizes; avatar initials stay inside their circles; the You
+  Albums header wraps instead of colliding.
 - **Usage (prod, test accounts excluded):** 82 users; 3 created a moment in
   the last 30 days, 6 in the last 90. 0 occasions. Retention, not
   activation, is still the bottleneck; Phase 2 ("Pull") is aimed at it.
@@ -77,21 +325,204 @@ below should move that, or it doesn't belong on this page.
 
 ### Next native build (1.4)
 Each item below changes the native build (the fingerprint), so they ship
-together in one App Store version, not over the air.
-- [ ] SF Symbols (Apple's own icon set, replacing Ionicons: native shapes and
-  weights, and icons scale with the reader's text size), the React Compiler
-  (automatic render optimization at build time: smoother lists, simpler
-  code), Face ID app lock, the photos ↔ music native query.
-- [ ] Refetch on reconnect: add `@react-native-community/netinfo` (via
-  `npx expo install`) and wire React Query's `onlineManager` to it next to
-  `wireQueryFocus` in `lib/appFocus.ts`; the Journal refetches page 0 on
-  reconnect too. Today a screen left open through a dead zone only catches up
-  on the next focus, foreground or pull (Josh OK'd, 2026-11-15).
-- [ ] `mailto` in `LSApplicationQueriesSchemes` (app.config.ts), so Settings >
-  Share feedback can check `canOpenURL` before trying Mail (the copy-the-
-  address fallback stays for phones with no mail app).
-
-### Ship 1.3.0
+together in one App Store version, not over the air. They're built on the
+long-lived branch `native/1.4` and merged to `main` only when the 1.4 build
+is cut: merging earlier would stop every OTA from reaching 1.3.1.
+- [x] React Compiler (2026-11-16): `experiments.reactCompiler` +
+  `babel-plugin-react-compiler`. 77 components/hooks compile; 65 are skipped
+  and run as before (`node scripts/react-compiler-check.js` lists why:
+  try/finally and throw-in-try the compiler can't lower yet, Reanimated
+  `.value` writes, refs read in render). Follow-up: move shared values to
+  `.get()/.set()` and fix the ref reads so those compile too.
+- [x] SF Symbols (2026-11-16): `expo-symbols` behind one `components/Icon`
+  (Ionicons names kept, mapped in `lib/iconSymbols.ts`, Ionicons on Android),
+  sized to the old glyphs and scaling with text size up to 1.3x; every direct
+  Ionicons use replaced, and design-lint now rejects new ones.
+  Dark-mode pass on the 1.4 simulator build (2026-11-16): icons, sheets
+  and screens read correctly; Place moved to `mappin.and.ellipse` (the bare
+  `mappin` was lighter than its neighbours). Mood's face draws filled on
+  iOS 26 whichever face symbol is used; left as is.
+- [x] Face ID app lock (2026-11-16): Settings → Privacy → Lock with Face ID
+  (`expo-local-authentication`; Touch ID or the passcode where there's no
+  Face ID). Off by default, per device; turning it on or off asks first.
+  Locks on launch and after a minute in the background (a quick trip to
+  the music app doesn't count), and covers the app switcher snapshot. The
+  cover is a react-native-screens `FullWindowOverlay`, kept mounted and
+  remounted on foreground and route changes so it sits above native modals
+  (`contexts/AppLockContext.tsx`, rules in `lib/appLock.ts`, tested).
+  Verified on a local simulator build: on/off, cold-start lock, failed
+  face, cancel then retry, the grace period, and the lock over an open
+  moment.
+- [x] **Last week** (1.4, built 2026-11-17, works on Josh's phone): the
+  week just ended, handed back as material for moments. Josh's calls: no
+  modal on open; a ruled row at the top of the Journal from Sunday 6pm,
+  staying all week (using it doesn't clear it, only the next week or its
+  ✕); named "Last week". The screen (pushed, so capture stacks on top and
+  returns there) lists each day newest first: songs added (an album add is
+  one row), played a lot (weekly counts from an on-device snapshot of play
+  counts taken the first time the app opens each week; lifetime counts the
+  first week), streamed (Apple Music's recently played via MusicKit, new
+  `getRecentlyPlayed`, logged with when each song first appeared since iOS
+  gives no dates), and that day's camera photos (no screenshots). A song
+  opens capture filled in; a saved one shows "Saved" and opens its moment;
+  a photo starts a moment with it, and either is dated when it happened
+  (added, last played, first seen, or taken). Capture offers "Photos from Saturday",
+  nothing attached until tapped, behind a switch on the Photos and music
+  screen while Josh decides. Asks for library + photos access once, never
+  again after a no. All on device; only the "Saved" check reads moments.
+  `lib/lastWeek.ts` (tested), `lib/lastWeekData.ts`, `hooks/useLastWeek.ts`,
+  `components/LastWeekRow.tsx`, `app/last-week.tsx`,
+  `components/DayPhotosSuggestion.tsx`. Native: `getRecentlyPlayed`,
+  `libraryAccessStatus`, album fields on library songs.
+- [x] Polish from Josh's pass (2026-11-17): long-pressing a moment now
+  uses the iOS context menu (the card lifts, the page blurs, Edit and
+  Delete attach to it; `modules/context-menu`, a UIContextMenuInteraction
+  around the card, actions reported after the menu closes so Delete's
+  confirm can present; builds without it keep MomentActionMenu). The film
+  cross-fades without the dip to black: each item is a layer keyed by its
+  index (the outgoing one is never remounted, a video keeps its last
+  frame), the items either side load ahead invisibly, and a fade waits up
+  to 600ms for the new picture. The Journal's search icon is gone (it only
+  opened Rediscover's search). Data: 21 moments from Feb–Aug 2026 stored
+  their artwork as an embedded PNG (avg 2.5 MB, in every timeline fetch);
+  backfilled to Apple's artwork links on production (2026-11-17, Josh's
+  go; 20 matched, "DO IT" isn't in the catalog and shows the placeholder).
+  Then: check-in days became a quick pick ("Days · Every day", weekdays
+  with checkmarks, like Repeat in Clock) after a row of day chips looked
+  wrong; a one-time hint over the + ("Hold + for Last week, From before
+  and more", `components/CaptureHint.tsx`, once per device, gone after the
+  first long-press); a linked video on someone else's moment shows a video
+  icon, not play, and the film says it stays in its owner's Photos. (Then,
+  on Josh's call: someone else's linked videos are left out entirely,
+  `withoutOthersVideos`.) From the iPhone SE / iOS 18.3 pass (everything
+  runs; native menu, film, capture menu fine): the Start from sheet's rows
+  are inset like other sheets (icons sat on the screen edge), and the
+  Journal shows one offer at a time (the check-in offer waits while Last
+  week's ask is up; on an SE the two filled the first screen).
+- [x] Notification choices (built 2026-11-17; Josh: "why not just do it
+  now"). Settings → Notifications is its own screen
+  (`app/notification-settings.tsx`) with three groups instead of five
+  switches: **Your check-in** (the daily check-in, now with days as well as
+  a time; streak milestones), **Things coming back** (On this day, random
+  memories, and a new local "Last week is ready" on Sunday at 6pm, only
+  for a week that has songs or photos), and **From friends** (shares and
+  new friends; "Quiet at night" sends them silently 10pm–8am, never
+  dropped). **How often** (daily / a few times a week, the default /
+  weekly / off) spaces memories coming back 1, 3 or 7 days apart; Off
+  stops every server push except friends'. Random memories now come
+  whenever the spacing allows (a moment at least a month old, opening the
+  memory card), not only on Mondays. Retired (principle 3, never notify
+  about absence): streak reminders, "still there?", the day-7/14 "we miss
+  you" pushes, and the Tue/Thu journal prompts (the check-in, which people
+  choose, replaces them). Server: migration
+  `20261117120000_notification_choices.sql` (`notif_frequency`,
+  `notif_social`, `notif_quiet_hours`, `notif_last_week`,
+  `last_notified_at`), `send-notifications` (tested),
+  `_shared/socialPush.ts` (tested) in `notify-social` and
+  `accept-friend-invite`. The server half is live on production since
+  2026-11-17 (PR #107, merged to main on Josh's go; CI ran the migration
+  and deployed the three functions), so 1.3.1 users get it too (their old
+  streak and prompt switches now do nothing); the screen ships with 1.4. Local: `lib/dailyCheckIn.ts` (days, tested),
+  `lib/lastWeekReady.ts` (tested).
+- [x] Photos ↔ music prototype (built 2026-11-16; became Last week and From before):
+  `getLibrarySongs` in the NowPlaying module (`dateAdded`, play count,
+  last played) + `expo-media-library` photo counts for ±3 days. Hidden
+  screen: long-press the version line in Settings. It shows how many songs
+  were added on bulk days (syncs/imports, which would make `dateAdded`
+  useless) and the top pairings ("You added Holocene June 3, 2019, the week
+  of these 14 photos."). `lib/libraryMoments.ts` (tested),
+  `app/dev/library.tsx`. Runs on the simulator (0 songs there); the real
+  answer needs a real library.
+  **Result on Josh's phone (2026-11-17): the idea works ("real cool").**
+  591 songs; 138 (23%) on three bulk days, correctly left out. The best
+  pairing was a trip: songs added Aug 8, 2024 with 70 photos of that week.
+  What to fix before this becomes a feature:
+  - Adding an album gives every song the same date, so the list repeats
+    one week's photos for each track. Group by add date: one pairing per
+    day, led by its most played song ("and 6 more you added that day").
+  - 60 of 60 songs "had photos that week": a ±3 day window always finds
+    some. Score the week against Josh's usual photo count, so a trip (70
+    photos) beats an ordinary week, and narrow the window.
+  - Dates aren't always right: "added" isn't "first heard", and saved or
+    received images carry the save date. Count only camera photos (skip
+    screenshots and saved images) and word it as a nudge, not a fact.
+- [x] Local builds on Xcode 27 (2026-11-16): `plugins/withPodsMinDeploymentTarget`
+  lifts pods below iOS 15 (Xcode 27 refuses them) in the Podfile, so
+  `eas build --local` and local simulator builds work while EAS's free
+  builds are used up. Prebuild with `--clean` (apple-targets fails to
+  update an existing project) and run CocoaPods with a UTF-8 locale.
+- [x] UIScene lifecycle (2026-11-16; launches on Josh's iOS 27.2 phone;
+  on the simulator a cold-start widget link, a warm link and the Face ID
+  background lock all work):
+  iOS 27 won't launch an app built with the iOS 27 SDK that still makes
+  its window in `didFinishLaunching` (the first Xcode 27 device build
+  crashed on open). `plugins/withSceneLifecycle` adds a `SceneDelegate`
+  and the scene manifest, and forwards cold-start and warm URLs and user
+  activities back through the AppDelegate so Linking, the widgets, the
+  share extension and the auth confirm link behave as before. Any 1.4
+  build made with Xcode 27 needs this. It mirrors Expo SDK 58's own
+  `ExpoAppSceneDelegate` (55–57 still don't use scenes) and is deleted by
+  the SDK upgrade below.
+- [x] Control Center / Lock Screen controls open the capture screen
+  (2026-11-17, verified on Josh's phone, app running and fully closed):
+  tapping "Capture a song" did nothing, in the store app too. The phone's
+  log showed iOS running the intent inside the widget extension and
+  dropping the `OpenURLIntent`. The intents now sit in
+  `targets/widget/_shared` (built into the app as well) with
+  `openAppWhenRun`; iOS still drops a returned `OpenURLIntent`, so the app
+  opens the link itself through `ControlLinkOpener`, set at launch by
+  `plugins/withControlLinkOpener`.
+- [x] Upgrade Expo SDK 54 → 58 (RN 0.81 → 0.88, React 19.3, TypeScript 6)
+  inside 1.4 (Josh, 2026-11-17): built on `native/sdk-58`, merged into
+  `native/1.4` after a clean device pass the same day. What changed:
+  - Every package on its SDK 58 version; third-party: expo-share-intent 9,
+    apple-targets 5, Sentry 8, apple-music 1.4. Dropped a stray
+    `@expo/cli@54` pin; added `@expo/config-plugins` (react-native-maps'
+    plugin deep-imports it) and `react-native-tab-view` (TopTabs needs it).
+  - Patches: Apple Sign-In and web browser key-window fixes are upstream
+    now (deleted); the share extension's multi-photo fix is re-ported to
+    v9 (`patches/expo-share-intent+9.0.0.patch`).
+  - Expo's own SceneDelegate replaces `withSceneLifecycle` (deleted).
+  - Expo Router 58: no `@react-navigation/*` imports in app code (now from
+    `expo-router`); tabs are `TopTabs` from `expo-router/js-top-tabs`
+    (TabBar uses `emitter`/`navigateToTab`, and `router.prefetch` replaces
+    `preload`); `usePreventRemove` discards via `repeat()`; root
+    `unstable_settings.anchor`.
+  - React Native: `InteractionManager` → `lib/whenIdle.ts`;
+    `absoluteFillObject` → `absoluteFill`; refs typed with
+    `ViewInstance`/`ScrollViewInstance`/`TextInputInstance`.
+  - `File.move()` is async (export awaited it). Minimum iOS 16.4.
+  - The beta's Xcode project is now `Soundtracksb` (SDK 58 keeps the β as
+    a "b"); bundle ids are unchanged.
+  - Simulator: builds, launches, Face ID, tabs (tap and swipe), moment
+    detail with map and preview playback, create, warm and cold links.
+  - A share that cold-started the app landed on "This page doesn't exist":
+    the share extension's hand-off link reached the router as a page.
+    `app/+native-intent.tsx` (rule in `lib/systemPath.ts`, tested) keeps
+    it off the router; `useShareIntentHandler` opens the moment as before.
+  - **Device pass on Josh's iOS 27.2 phone (2026-11-17), all working:**
+    sharing a song (cold and warm) and several photos, widgets and
+    controls, Apple Music now playing, saving and reopening a moment,
+    export, Edit Profile's discard, the photos prototype, Face ID.
+    Not covered: a Spotify share (same path as Apple Music's).
+- [x] Version 1.4.0 in `app.config.ts`.
+- [x] Refetch on reconnect (2026-11-16): `@react-native-community/netinfo`
+  feeds React Query's `onlineManager` (`wireQueryFocus` in
+  `lib/appFocus.ts`, `isOnline` tested), and the Journal refetches page 0
+  when the connection comes back (10s cooldown for flapping signals).
+  Verified on the 1.4 simulator build: launches with NetInfo linked. The
+  offline → online cycle itself still needs a device (airplane mode).
+- [x] **Export your journal as a PDF** (`expo-print`; Josh chose native PDF
+  over an interim text export, 2026-11-16): Settings → Journal → Export your
+  journal builds a typeset book (title page, year and month heads, every
+  moment oldest first with artwork, when/where/who, moods as words, up to
+  four photos, and the words in Newsreader) and opens the share sheet.
+  `lib/journalExport.ts` (pure, tested) + `lib/journalExportDevice.ts`.
+  On branch `native/1.4`; export worked in the SDK 58 device pass
+  (2026-11-17).
+- [x] `mailto` in `LSApplicationQueriesSchemes` (2026-11-16): Settings >
+  Share feedback checks `canOpenURL` first and goes straight to the
+  copy-the-address sheet when there's no mail app.
 - [x] Version bump + beta build 33 (PR #45).
 - [x] Production build 9 (owner ran it interactively to create the App Store
   widget profile) → submitted to App Store Connect 2026-10-19.
@@ -348,7 +779,8 @@ clutter, navigation.
   (no server). Skips any day you've already saved a moment: two weeks are
   scheduled ahead, saving cancels today's, and each app open re-plans them,
   so they run out after two weeks away instead of nagging someone who left.
-  Opt in from Settings → Journal → Daily check-in (switch + time) or the
+  Opt in from Settings → Notifications → Daily check-in (switch, time and,
+  since 1.4, days) or the
   Journal's one-time offer; a denied notification permission says so and
   links to iOS Settings. Tapping opens Capture with what's playing filled
   in. Settings are per device. `lib/dailyCheckIn.ts` (tested),
@@ -356,6 +788,111 @@ clutter, navigation.
 - [ ] Daily check-in, next: voice entry with on-device transcription; later
   a real AI phone call as a paid feature, opening with a song you saved
   ("You saved Space Song a year ago today. What's different now?").
+- [x] **Photos ↔ music, the past half** (1.4, built 2026-11-17; the plan
+  below became two Rediscover sections instead of a range picker, Josh's
+  call): **On this day** adds songs added to the library on today's date in
+  past years, with that day's camera photos, after the saved moments (and
+  on its own for an empty journal, so a new user has a past on day one).
+  **From before** shows up to three old pairings a week (older than 90
+  days, album adds as one row, sync days out, already saved and already
+  shown left out), scored by the week's photos against the usual week (a
+  trip beats an ordinary week) and plays; picked once a week and kept.
+  Tapping either opens capture with the song, dated the day it was added,
+  offering the same photos the row showed (the day for On this day, the
+  week for From before). After Josh's first look: From before says it's
+  "From your library and photos. Not in your journal yet.", unsaved
+  pairings carry a +, each says why ("The week of 70 photos · played 89
+  times"), and a week must have 1.5× the usual photos to be picked (fewer
+  than three is fine). Picking from the strip ticks at once; photos already
+  on the phone are looked up ahead, iCloud originals load in the background.
+  `lib/pastPairings.ts` (tested),
+  `lib/pastPairingsData.ts`, `components/PastPairingRow.tsx`. No local
+  notification yet. The original plan:
+  Josh's second look: From before moved to the end of Rediscover (after
+  Surprise me), so searching, browsing and revisiting saved moments aren't
+  broken up by unsaved material; it stays always available. A pairing's row
+  always starts a new moment (a week can hold several); a saved one also
+  offers Open. "Last week" rows work the same way.
+- [x] Long-press the + for starting points (Josh's idea, built 2026-11-17):
+  a tap still opens capture; holding opens a "Start from" sheet: Identify,
+  Search (capture opens straight into song search), Last week, and From
+  before (its own screen, `app/from-before.tsx`, same weekly picks).
+  `components/CaptureMenu.tsx`.
+- [x] Smarter pairings, location and favourites (built 2026-11-17): a new
+  native `photoStats` reads PhotoKit metadata per week in one call (count
+  without screenshots, favourites, sampled locations). Home is the busiest
+  ~11 km cell of a year's photo locations; a week is "away" when most of
+  its photos are 60+ km from it, and the town is named ("away in
+  Kailua-Kona"). A week qualifies with a photo spike, being away, or 2+
+  favourites; all three add to the score and the reason line.
+- [x] From before controls (Josh: "no date range? any control?", built
+  2026-11-17): the From before screen (long-press + or More in Rediscover)
+  has chips (This week, All years, each year), Show more when browsing, and
+  ✕ "Not this one" (never suggested again, here or in Rediscover).
+- [x] Moment hero fades through the moment's photos (Josh's idea, built
+  2026-11-17): ~4.5 s each, still with Reduce Motion, paused after a touch
+  or off screen; tap opens the viewer at the photo showing.
+  `components/HeroPhotoCycle.tsx`.
+- [ ] Video in moments: short clips (≤15 s, 720p, ~2–5 MB) cost real
+  storage on the Supabase plan, plus compression, upload progress,
+  `expo-video` playback, thumbnails for lists and the PDF, web playback and
+  deletion. Live Photos first (small, already taken), video only if asked.
+- [x] **On-device AI** (1.4 mega-update, Josh 2026-11-17; built, needs his
+  phone): new local module `modules/on-device-ai`. Vision (any iOS): scene
+  labels, face count, text coverage; iOS 18+: Apple's aesthetics score and
+  "utility" flag. `lib/photoInterest.ts` (tested): boring photos (homework,
+  receipts, documents) never suggested and not counted toward a photo
+  spike; best photo leads each row; weeks get a kind ("at the beach") and
+  a bonus for events and group shots. Analyses cached per photo
+  (`lib/photoAnalysisStore.ts`); lists never wait: they filter by what's
+  cached and analyse the rest in the background. Foundation Models (iOS 26
+  + Apple Intelligence): one short question per pairing from facts only
+  (`lib/nudgeQuestion.ts`, tested: must be a question, under 90 chars, not
+  in their voice, no invented names), generated ahead of a tap and shown
+  as capture's placeholder (`promptQuestion`); templates everywhere else.
+- [x] `moments.media_refs` (jsonb, default []) on staging and production
+  (2026-11-17, Josh's go): linked photos/video, see the migration's notes.
+- [x] **Linked photos and video** (1.4, built 2026-11-17, needs Josh's
+  phone): moments reference the owner's
+  Photos library by iCloud id (`PHCloudIdentifier`, same across their
+  devices); a small thumbnail (video: poster frame) is always uploaded; the
+  full file uploads when the moment is shared (friend, album, link, share
+  card) so the no-app recipient still gets everything. Plays/shows from
+  Photos on the owner's devices; only the owner's links resolve (a shared
+  moment never shows the recipient's own photos). Videos: picked from the
+  library (never uploaded), poster frame via native `videoPoster`, kind
+  "video" with its length; a video that can't be linked is refused with a
+  message. Strip tiles badge videos with their length.
+- [x] **Moment film viewer** (1.4, built 2026-11-17, needs Josh's phone;
+  `components/MomentFilm.tsx`, replaces PhotoViewer on the moment screen):
+  photos and videos swipe in taken order,
+  pinch to zoom, Stories-style progress, swipe down to close; Play turns
+  the moment into a short film with the song (slow drift on photos, videos
+  play through). Sound: clips muted by default; the speaker raises the
+  clip and ducks the song to 20% (~−14 dB) over 0.3 s, back over 0.8 s;
+  clips at 80%; full Apple Music playback (no volume API) is ducked by iOS
+  via "duck others" on the app's session (verified on Josh's phone; pause
+  is only the fallback) (`duck` in PlayerContext for previews,
+  `setDuckOthers` in modules/photos-video, `lib/audioMix.ts` tested); never
+  an exported file. One stage: Pause freezes the photo timer, the video
+  and the song in place; Play carries on. Videos play through a native
+  Photos player (`modules/photos-video`, no copies). Josh: "LETS GOOOO".
+- [ ] Video sharing as part of a paid tier (Josh, 2026-11-17: "maybe
+  paywall that?"). Fits principle 5: your own videos always play for you
+  free; only sending the clip to others costs (storage). In 1.4 a shared
+  moment's video goes as its poster ("Plays on the phone it came from");
+  don't ship free sharing and take it away later. Needs the tier itself
+  (App Store subscription, RevenueCat SDK, paywall, review); design it as a
+  bundle (video sharing, prints, occasions), not one feature. On share:
+  upload a 720p copy alongside the poster.
+- [ ] People, later and opt-in: on-device face grouping you name once,
+  linked to moment People. Not in 1.4 (face data is sensitive).
+- [ ] Smarter pairings, next: learn from what Josh saves vs ignores; on-device
+  Vision scene tags (beach, concert, wedding) and best-photo choice; Apple's
+  on-device model for the nudge question (never the reflection); "you
+  found it the week it came out". No cloud AI for this (photo locations
+  and listening history stay on the phone). Photos' People aren't
+  available to apps; Google Photos isn't readable at all.
 - [ ] **Photos ↔ music: three moments a week.** On device only: Apple Music
   library `dateAdded` / play count / last played (+ Replay playlists) matched
   to photos from ±3 days (date, place, favorites; iOS 18 on-device aesthetic
@@ -368,9 +905,9 @@ clutter, navigation.
   the now-playing song straight to the journal, with a "write later" nudge).
   Needs an app group + the auth token in a shared keychain; the widget above
   opens the app instead.
-- [ ] **Face ID lock** (journaling-app standard; makes private writing feel
+- [x] **Face ID lock** (in 1.4, see "Next native build"; journaling-app standard; makes private writing feel
   safe).
-- [ ] **Export** your journal (PDF / plain text): trust that the words are
+- [x] **Export** your journal (PDF, in 1.4: see "Next native build"): trust that the words are
   yours.
 
 - [ ] **"Songs you used to love."** Prototype on device: Apple Music library
@@ -743,8 +1280,8 @@ questionnaire/ML, NFC products, Android.
   session, cached/fresh profile, gate, first screen, in ms) and
   `moment_created` carries `capture_ms` / `save_ms` / `source`. Tune from
   these numbers, not guesses.
-- [ ] **React Compiler** (`experiments.reactCompiler` + the babel plugin):
-  moves the native fingerprint, so it rides the next binary with SF Symbols.
+- [x] **React Compiler** (`experiments.reactCompiler` + the babel plugin):
+  on in 1.4 (see "Next native build").
 - [ ] **Authorize the Sentry MCP** so crash data is readable during the
   1.2.0 / 1.3.0 rollout.
 - Known limit: after 60 days without a commit GitHub disables the scheduled

@@ -1,6 +1,6 @@
 # Soundtracks — Non-Development To-Do
 
-Current, actionable items only. Last updated May 2026.
+Current, actionable items only. Last updated 2026-11-17 (dev tooling, export and App Store items reconciled with what shipped; the product plan lives in `docs/ROADMAP.md`).
 
 ---
 
@@ -52,36 +52,19 @@ Goal: 100 *retained* users who log 10+ moments each. Downloads don't matter. Ret
 - [ ] GDPR basics audit — verify privacy policy covers: right to deletion (delete account covers this), data portability, what data is shared with third parties, DPA contact email
 - [x] Confirm delete account removes everything: auth user, moments, photos from storage, profile row, push token — **Done.** Sign-out clears `push_token` to null (AuthContext.tsx:244). Delete account deletes the auth user server-side which cascades to the profile row. DB trigger (`evict_push_token`, migration 20260502) also evicts the token from any other profile sharing the same device token.
 - [ ] COPPA review — 12+ age rating is set; confirm privacy policy explicitly addresses under-13 exclusion
-- [ ] Data export — JSON export of all moments from Profile screen (low urgency but required for full GDPR compliance; a simple Supabase query dump is fine v1)
+- [x] Data export — Settings → Journal → Export your journal builds a PDF of every moment (1.4, `lib/journalExport.ts`). A machine-readable JSON export is still open if GDPR portability needs it
 
 ---
 
 ## 🟡 Developer Tooling & Testing
 
-Set up before building the social architecture redesign (With Me inbox, Resonance, Linked Moments). Social features require multi-user test setups that are painful without this infrastructure.
+Mostly done; details live in `docs/DEPLOY.md`.
 
-### Staging Supabase Project
-- [ ] Create a second free Supabase project (`soundtracks-staging`)
-- [ ] Apply all migrations to it so schema matches production
-- [ ] Add `EXPO_PUBLIC_SUPABASE_URL_STAGING` + `EXPO_PUBLIC_SUPABASE_ANON_KEY_STAGING` to `.env` — swap via a simple `USE_STAGING=true` flag or a separate `.env.staging`
-- [ ] Point a dev build at staging for all social feature work — never test social flows against prod data
-
-### Test Account Seed Script
-- [ ] Create 2–3 pre-seeded accounts with predictable data (use personal + soundtracks email accounts you already have — add a third `carol@` account for empty-state testing)
-- [ ] Script (or SQL in Supabase dashboard) that seeds: 20+ moments for User A, 10+ moments for User B, a pre-existing friendship between them, a shared collection they're both in, some tagged moments
-- [ ] Document credentials in 1Password — never start from scratch to set up a test scenario
-- [ ] Re-run seed script on staging whenever you nuke + reset it
-
-### Jest Setup
-- [ ] `npm install --save-dev jest jest-expo @testing-library/react-native`
-- [ ] Configure `jest.config.js` with `jest-expo` preset
-- [ ] Write first tests for the easy wins: `lib/errors.ts` (`friendlyError`), `lib/profileCache.ts` (read/write/clear), timeline grouping logic
-- [ ] Add `npm test` to the pre-release checklist in DEPLOY.md once coverage is meaningful
-
-### Two-Simulator Workflow (no install needed)
-- [ ] Open a second simulator: Xcode → Window → Devices and Simulators → start a different device type
-- [ ] Log into each with a different test account — each simulator has isolated Keychain + AsyncStorage
-- [ ] Use `xcrun simctl openurl booted "soundtracks://join?inviteCode=abc"` for deep link testing without going through share sheets
+- [x] Staging Supabase project with every migration applied (`scripts/db-migrate.mjs`, `scripts/schema-diff.mjs`). Currently **paused** on the free plan, so E2E runs against production with `e2e@soundtracks.test` (`scripts/reset-e2e-prod.mjs`)
+- [x] Seeded test accounts for E2E (`scripts/seed-e2e.mjs`); credentials stay out of the repo
+- [x] Unit tests: Vitest (`npm test`), pure-logic suites in `lib/__tests__/`, run in PR checks alongside `scripts/design-lint.mjs`
+- [x] E2E: Maestro smoke flows in CI (`.maestro/`)
+- [ ] Two-simulator workflow for social flows: boot two simulators, sign each into a different test account, and drive deep links with `xcrun simctl openurl booted "soundtracks-beta://…"`
 
 ---
 
@@ -95,9 +78,9 @@ Set up before building the social architecture redesign (With Me inbox, Resonanc
 
 ## 🟢 App Store (Next Update)
 
-- [ ] Rewrite App Store description — lead with emotional hook ("A song comes on and suddenly you're back."), not feature list; current description is too feature-forward
-- [ ] Keyword optimization — research: "music diary", "song journal", "music memories" are underserved; use all 100 keyword characters
-- [ ] Update screenshots to show emotional core: moment detail with blurred artwork, Reflections tab, friends feature
+- [x] Rewrite App Store description (1.3.0, 2026-10-19) — lead with emotional hook ("A song comes on and suddenly you're back."), not feature list; current description is too feature-forward
+- [x] Keyword optimization (1.3.0) — research: "music diary", "song journal", "music memories" are underserved; use all 100 keyword characters
+- [x] Update screenshots (1.3.0: six 6.9" shots; redo for 1.4) to show emotional core: moment detail with blurred artwork, Reflections tab, friends feature
 - [ ] App preview video — 30s of the real capture flow with genuine memory content converts better than screenshots alone
 - [ ] Update promotional text seasonally (stale since launch)
 

@@ -10,11 +10,16 @@ import { ConfirmSheetHost, confirmSheet } from "@/components/ConfirmSheet";
 import { Chip } from "@/components/Chip";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
+import { ContextMenuView, type ContextMenuAction } from "@/modules/context-menu";
 
 // Moods are words (DESIGN.md), so a custom mood is only a label. The data
 // model still carries an emoji (only the share card shows it now); new custom
 // moods get the note the app already falls back to for an unknown mood.
 const CUSTOM_MOOD_EMOJI = "🎵"; // design-lint-ignore: stored data value for legacy emoji field, never rendered as an icon
+
+const CUSTOM_MOOD_ACTIONS: ContextMenuAction[] = [
+  { id: "delete", title: "Delete mood", systemImage: "trash", destructive: true },
+];
 
 interface Props {
   // Selection order is meaningful: the first mood is written to the legacy
@@ -38,6 +43,7 @@ export function MoodSelector({
   const [showAddForm, setShowAddForm] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [formError, setFormError] = useState("");
+  const NativeMenu = ContextMenuView;
 
   const closeForm = () => {
     setShowAddForm(false);
@@ -60,12 +66,11 @@ export function MoodSelector({
   };
 
   const handleDelete = async (mood: CustomMoodDefinition) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     // Removing a custom mood removes it from the profile, not just this
     // moment, so a long-press alone must not do it.
     const confirmed = await confirmSheet({
-      title: `Delete "${mood.label}"?`,
-      message: "It will be removed from your moods everywhere.",
+      title: `Delete “${mood.label}”?`,
+      message: "It'll be removed from your moods everywhere.",
       confirmLabel: "Delete",
       destructive: true,
     });
@@ -76,7 +81,7 @@ export function MoodSelector({
         onChangeMoods(selectedMoods.filter((v) => v !== mood.value));
       }
     } catch (e) {
-      Alert.alert("Error", friendlyError(e));
+      Alert.alert("Couldn't delete mood", friendlyError(e));
     }
   };
 
@@ -99,15 +104,33 @@ export function MoodSelector({
           if (!mood.value.startsWith("custom_")) {
             return <Chip key={mood.value} label={mood.label} selected={isSelected} onPress={toggle} />;
           }
-          // Chip has no long-press, so a custom mood wraps a static Chip in
-          // its own Pressable: tap toggles, hold offers to delete it.
+          // A custom mood: tap toggles, a long-press opens the iOS menu
+          // with Delete (DESIGN.md). Builds without the native view hold
+          // straight to the confirm.
+          if (NativeMenu) {
+            return (
+              <NativeMenu
+                key={mood.value}
+                actions={CUSTOM_MOOD_ACTIONS}
+                onAction={() => void handleDelete(mood as CustomMoodDefinition)}
+                previewBackgroundColor={theme.colors.background}
+                previewRadius={theme.radii.full}
+                previewInset={theme.spacing.xs}
+              >
+                <Chip label={mood.label} selected={isSelected} onPress={toggle} />
+              </NativeMenu>
+            );
+          }
           return (
             <Chip
               key={mood.value}
               label={mood.label}
               selected={isSelected}
               onPress={toggle}
-              onLongPress={() => handleDelete(mood as CustomMoodDefinition)}
+              onLongPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                void handleDelete(mood as CustomMoodDefinition);
+              }}
               accessibilityHint="Hold to delete this mood"
             />
           );

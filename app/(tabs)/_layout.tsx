@@ -1,13 +1,12 @@
-import { withLayoutContext } from "expo-router";
-import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
+import { TopTabs } from "expo-router/js-top-tabs";
 import { TabBar } from "@/components/TabBar";
 
-const { Navigator } = createMaterialTopTabNavigator();
-const SwipeTabs = withLayoutContext(Navigator);
-
+// Swipeable tabs with the bar at the bottom. Expo Router 58 replaced
+// withLayoutContext(createMaterialTopTabNavigator()) with TopTabs; it needs
+// react-native-tab-view and react-native-pager-view installed alongside.
 export default function TabLayout() {
   return (
-    <SwipeTabs
+    <TopTabs
       tabBarPosition="bottom"
       tabBar={(props) => <TabBar {...props} />}
       // lazy: Rediscover and You used to mount (and run ~7 queries) behind
@@ -16,9 +15,9 @@ export default function TabLayout() {
     >
       {/* Phase 1 (2026-10): three tabs. Route names stay as they were so
           deep links and pushes keep working; albums moved to /albums. */}
-      <SwipeTabs.Screen name="index"       options={{ title: "Journal" }} />
-      <SwipeTabs.Screen name="reflections" options={{ title: "Rediscover" }} />
-      <SwipeTabs.Screen name="profile"     options={{ title: "You" }} />
-    </SwipeTabs>
+      <TopTabs.Screen name="index"       options={{ title: "Journal" }} />
+      <TopTabs.Screen name="reflections" options={{ title: "Rediscover" }} />
+      <TopTabs.Screen name="profile"     options={{ title: "You" }} />
+    </TopTabs>
   );
 }

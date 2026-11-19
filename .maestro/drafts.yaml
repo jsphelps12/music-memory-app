@@ -1,0 +1,184 @@
+# Drafts you can see: closing capture with writing asks "Keep as a draft?",
+# a kept draft comes back from long-press + → Continue a draft, and Discard
+# really removes it.
+#
+# Drafts are device-local (AsyncStorage) and sign-in launches with
+# clearState, so every run starts with none. The account itself is reset to
+# empty by the script, so the Journal's empty-state button is there.
+#   scripts/e2e-local.sh drafts        (see that script for setup)
+# Target: under a minute.
+appId: com.joshuaphelps.musicmemory.preview
+env:
+  DRAFT_TEXT: "e2e draft reflection"
+---
+- runFlow: subflows/sign-in.yaml
+
+# --- Write, close, keep -----------------------------------------------------
+- waitForAnimationToEnd
+# The empty-state button, which also proves the Journal is empty.
+- tapOn:
+    id: "journal-empty-capture"
+- extendedWaitUntil:
+    visible:
+      id: "create-reflection"
+    timeout: 10000
+- tapOn:
+    id: "create-reflection"
+- inputText: ${DRAFT_TEXT}
+- tapOn:
+    id: "create-close"
+- extendedWaitUntil:
+    visible:
+      id: "capture-draft-keep"
+    timeout: 5000
+- waitForAnimationToEnd
+- takeScreenshot: 01-keep-as-draft
+- tapOn:
+    id: "capture-draft-keep"
+- extendedWaitUntil:
+    visible:
+      id: "journal-empty-capture"
+    timeout: 10000
+
+# --- Long-press + → Continue a draft ----------------------------------------
+# By id: the + now lives in a layer whose bounds contain it
+# (components/TabBar.tsx), so its accessibility frame is where it is drawn.
+# Until build 12's OTA of 2026-11-18 it overflowed the tab bar and was
+# long-pressed here by screen position instead.
+- longPressOn:
+    id: "tab-create"
+- extendedWaitUntil:
+    visible:
+      id: "capture-menu-continue-draft"
+    timeout: 5000
+- assertVisible: "Continue a draft, ${DRAFT_TEXT}"
+- waitForAnimationToEnd
+- takeScreenshot: 02-start-from-with-draft
+- tapOn:
+    id: "capture-menu-continue-draft"
+- extendedWaitUntil:
+    visible:
+      id: "create-draft-line"
+    timeout: 10000
+- assertVisible:
+    id: "create-reflection"
+    text: ${DRAFT_TEXT}
+- takeScreenshot: 03-draft-picked-up
+
+# --- Close, discard: gone ---------------------------------------------------
+- tapOn:
+    id: "create-close"
+- extendedWaitUntil:
+    visible:
+      id: "capture-draft-discard"
+    timeout: 5000
+- tapOn:
+    id: "capture-draft-discard"
+- extendedWaitUntil:
+    visible:
+      id: "journal-empty-capture"
+    timeout: 10000
+
+- longPressOn:
+    id: "tab-create"
+- extendedWaitUntil:
+    visible:
+      id: "capture-menu-identify"
+    timeout: 5000
+- assertNotVisible:
+    id: "capture-menu-continue-draft"
+- waitForAnimationToEnd
+- takeScreenshot: 04-start-from-no-draft
+- tapOn: "Done"
+- waitForAnimationToEnd
+
+# A plain capture opens blank now, and closing it with nothing written
+# doesn't ask.
+- tapOn:
+    id: "journal-empty-capture"
+- extendedWaitUntil:
+    visible:
+      id: "create-reflection"
+    timeout: 10000
+- assertNotVisible:
+    id: "create-draft-line"
+- tapOn:
+    id: "create-close"
+- extendedWaitUntil:
+    visible:
+      id: "journal-empty-capture"
+    timeout: 10000
+- assertNotVisible:
+    id: "capture-draft-keep"
+
+# --- Several drafts: the list, and picking the older one ---------------------
+# Every capture opens blank (drafts come back only from long-press +), so two
+# plain captures make two drafts.
+- tapOn:
+    id: "journal-empty-capture"
+- extendedWaitUntil:
+    visible:
+      id: "create-reflection"
+    timeout: 10000
+- tapOn:
+    id: "create-reflection"
+- inputText: "e2e first draft"
+- tapOn:
+    id: "create-close"
+- extendedWaitUntil:
+    visible:
+      id: "capture-draft-keep"
+    timeout: 5000
+- tapOn:
+    id: "capture-draft-keep"
+- extendedWaitUntil:
+    visible:
+      id: "journal-empty-capture"
+    timeout: 10000
+
+- tapOn:
+    id: "journal-empty-capture"
+- extendedWaitUntil:
+    visible:
+      id: "create-reflection"
+    timeout: 10000
+- assertNotVisible:
+    id: "create-draft-line"
+- tapOn:
+    id: "create-reflection"
+- inputText: "e2e second draft"
+- tapOn:
+    id: "create-close"
+- extendedWaitUntil:
+    visible:
+      id: "capture-draft-keep"
+    timeout: 5000
+- tapOn:
+    id: "capture-draft-keep"
+- extendedWaitUntil:
+    visible:
+      id: "journal-empty-capture"
+    timeout: 10000
+
+- longPressOn:
+    id: "tab-create"
+- extendedWaitUntil:
+    visible: "Continue a draft, 2 drafts"
+    timeout: 5000
+- tapOn:
+    id: "capture-menu-continue-draft"
+- extendedWaitUntil:
+    visible: ".*e2e first draft.*"
+    timeout: 5000
+- assertVisible: ".*e2e second draft.*"
+- waitForAnimationToEnd
+- takeScreenshot: 05-drafts-list
+- tapOn: ".*e2e first draft.*"
+- extendedWaitUntil:
+    visible:
+      id: "create-draft-line"
+    timeout: 10000
+- assertVisible:
+    id: "create-reflection"
+    text: "e2e first draft"
+- takeScreenshot: 06-older-draft-picked-up

@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   DimensionValue,
   Modal,
@@ -26,6 +26,12 @@ import { Theme } from "@/constants/theme";
 interface Props {
   visible: boolean;
   onClose: () => void;
+  /**
+   * Called once the sheet has finished closing and its Modal is gone. Open
+   * the next sheet or screen from here, not right after onClose: iOS silently
+   * drops a Modal that starts presenting while another is still dismissing.
+   */
+  onClosed?: () => void;
   /** Serif title at the top left. */
   title?: string;
   children: ReactNode;
@@ -48,6 +54,15 @@ interface Props {
 const EASE_OUT = Easing.bezier(0.16, 1, 0.3, 1);
 const OPEN_MS = 320;
 const CLOSE_MS = 220;
+// After the Modal unmounts, UIKit still needs a beat to finish dismissing it
+// before anything else can present (the old fixed 300ms handoff waits worked;
+// 220 + 80 keeps that).
+const DISMISS_SETTLE_MS = 80;
+/**
+ * How long a sheet takes from onClose to safely gone. Prefer `onClosed`; this
+ * is only for a wrapper that doesn't pass `onClosed` through yet.
+ */
+export const SHEET_HANDOFF_MS = CLOSE_MS + DISMISS_SETTLE_MS;
 
 /**
  * The one bottom sheet. Quick picks only — sized to content per the
@@ -64,6 +79,7 @@ const CLOSE_MS = 220;
 export function BottomSheet({
   visible,
   onClose,
+  onClosed,
   title,
   children,
   headerAction = "done",
@@ -107,6 +123,21 @@ export function BottomSheet({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
+
+  // onClosed: once the close animation has unmounted the Modal (not on the
+  // first render of a sheet that was never open).
+  const wasMounted = useRef(mounted);
+  useEffect(() => {
+    if (mounted) {
+      wasMounted.current = true;
+      return;
+    }
+    if (!wasMounted.current) return;
+    wasMounted.current = false;
+    // Not cancelled if the host unmounts meanwhile: the handoff still runs.
+    if (onClosed) setTimeout(onClosed, DISMISS_SETTLE_MS);
+    // A new onClosed alone re-runs this harmlessly: wasMounted is false by then.
+  }, [mounted, onClosed]);
 
   const panGesture = useMemo(
     () =>
@@ -195,7 +226,7 @@ function createStyles(theme: Theme) {
       justifyContent: "flex-end",
     },
     scrim: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: theme.colors.scrim,
     },
     sheet: {

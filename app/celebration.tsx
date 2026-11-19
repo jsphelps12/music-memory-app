@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePostHog } from "posthog-react-native";
 import { View, Text, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/hooks/useTheme";
@@ -73,7 +73,7 @@ export default function CelebrationScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.content, { paddingTop: insets.top + theme.spacing["3xl"] }]}>
-        <Ionicons name="musical-notes-outline" size={36} color={theme.colors.textSecondary} style={styles.icon} />
+        <Icon name="musical-notes-outline" size={36} color={theme.colors.textSecondary} style={styles.icon} />
 
         <Text style={styles.heading} accessibilityRole="header">Your story has begun.</Text>
         <Text style={styles.sub}>
@@ -83,7 +83,7 @@ export default function CelebrationScreen() {
         <View style={styles.steps}>
           {NEXT_STEPS.map((step) => (
             <View key={step.title} style={styles.step}>
-              <Ionicons name={step.icon} size={20} color={theme.colors.textSecondary} style={styles.stepIcon} />
+              <Icon name={step.icon} size={20} color={theme.colors.textSecondary} style={styles.stepIcon} />
               <View style={styles.stepText}>
                 <Text style={styles.stepTitle}>{step.title}</Text>
                 <Text style={styles.stepBody}>{step.body}</Text>

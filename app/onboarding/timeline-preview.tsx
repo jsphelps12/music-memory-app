@@ -9,7 +9,7 @@ import Animated, {
   withDelay,
 } from "react-native-reanimated";
 import { AppImage } from "@/components/AppImage";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -114,7 +114,7 @@ function RichEntryPreview({ theme }: { theme: Theme }) {
 
         {/* Static visual scrubber */}
         <View style={s.playRow}>
-          <Ionicons name="play-circle" size={32} color={theme.colors.text} />
+          <Icon name="play-circle" size={32} color={theme.colors.text} />
           <View style={s.scrubberTrack}>
             <View style={[s.scrubberFill, { width: "38%" }]} />
             <View style={s.scrubberThumb} />

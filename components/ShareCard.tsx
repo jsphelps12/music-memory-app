@@ -14,7 +14,7 @@
 // card stays self-contained when it renders off-screen.
 
 import { View, Text, StyleSheet, Dimensions } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { AppImage } from "@/components/AppImage";
 import { PartialMoment } from "@/types";
 import { MOODS } from "@/constants/Moods";
@@ -81,7 +81,7 @@ export function ShareCard({ moment, photoUrl, variant = "post" }: Props) {
           <AppImage source={{ uri: heroSource }} style={StyleSheet.absoluteFill} contentFit="cover" />
         ) : (
           <View style={styles.heroEmpty}>
-            <Ionicons name="musical-notes" size={56} color={UMBER_GRAY} />
+            <Icon name="musical-notes" size={56} color={UMBER_GRAY} />
           </View>
         )}
       </View>

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { AppImage } from "@/components/AppImage";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -41,7 +41,7 @@ export function YearReviewEntry({ year, count, artwork, onPress }: Props) {
         <Text style={styles.title}>{`Your ${year} in songs`}</Text>
         <Text style={styles.meta}>{`${count} moments · play your year`}</Text>
       </View>
-      <Ionicons name="play" size={18} color={theme.colors.text} />
+      <Icon name="play" size={18} color={theme.colors.text} />
     </Pressable>
   );
 }

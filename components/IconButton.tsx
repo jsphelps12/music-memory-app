@@ -1,9 +1,9 @@
 import { TouchableOpacity, StyleSheet, ViewStyle } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon, type IconName } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 
 interface Props {
-  name: React.ComponentProps<typeof Ionicons>["name"];
+  name: IconName;
   onPress: () => void;
   size?: number;
   color?: string;
@@ -18,6 +18,8 @@ interface Props {
    */
   variant?: "plain" | "filled" | "glass";
   accessibilityLabel?: string;
+  /** For the Maestro flows in .maestro/. */
+  testID?: string;
 }
 
 export function IconButton({
@@ -29,6 +31,7 @@ export function IconButton({
   style,
   variant = "plain",
   accessibilityLabel,
+  testID,
 }: Props) {
   const theme = useTheme();
   const filled = variant === "filled";
@@ -46,8 +49,9 @@ export function IconButton({
       hitSlop={filled ? 8 : glass ? 4 : 0}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      testID={testID}
     >
-      <Ionicons
+      <Icon
         name={name}
         size={size ?? (filled || glass ? 20 : 22)}
         color={

@@ -2,6 +2,7 @@ import * as Crypto from "expo-crypto";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
+import { ensureFullMedia, ensureFullMediaForMe } from "@/lib/ensureFullMedia";
 import { Moment } from "@/types";
 
 // Sharing v2 (docs/SOCIAL-ARCHITECTURE.md): a moment_shares row is the directed
@@ -72,6 +73,8 @@ export async function sendMomentShare(
   senderId: string,
   recipientId: string
 ): Promise<{ status: "sent"; shareId: string } | { status: "already_sent" }> {
+  // Linked photos (1.4): the friend gets the originals, not thumbnails.
+  await ensureFullMedia(momentId, senderId);
   const { data, error } = await supabase
     .from("moment_shares")
     .insert({ moment_id: momentId, sender_id: senderId, recipient_id: recipientId })
@@ -183,6 +186,10 @@ export async function ensureShareToken(
   momentId: string,
   current: string | null | undefined
 ): Promise<string> {
+  // Linked photos (1.4): the link's page shows the originals, so upload any
+  // that are only linked, even when the link already exists (photos may have
+  // been added since).
+  await ensureFullMediaForMe(momentId);
   if (current) return current;
   const token = Crypto.randomUUID();
   const { data, error } = await supabase

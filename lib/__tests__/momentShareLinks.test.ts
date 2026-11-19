@@ -9,6 +9,13 @@ const sb = await vi.hoisted(async () => {
   const { createSupabaseMock } = await import("./helpers/supabaseMock");
   return createSupabaseMock();
 });
+// Linked photos (1.4): share-time uploads are tested on their own.
+vi.mock("@/lib/ensureFullMedia", () => ({
+  ensureFullMedia: vi.fn(async () => ({ uploaded: 0, missing: 0 })),
+  ensureFullMediaForMe: vi.fn(async () => {}),
+  ensureFullMediaForAlbum: vi.fn(async () => {}),
+  ensureFullMediaForAlbumMoments: vi.fn(async () => {}),
+}));
 vi.mock("@/lib/supabase", () => ({ supabase: sb.client }));
 vi.mock("expo-crypto", () => ({ randomUUID: () => "new-token" }));
 

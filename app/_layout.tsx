@@ -2,7 +2,7 @@ import "../wdyr";
 import * as Sentry from "@sentry/react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
-import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
+import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router";
 import { useFonts } from "expo-font";
 import {
   DMSerifDisplay_400Regular,
@@ -22,7 +22,9 @@ import { markStartup, reportStartup } from "@/lib/perf";
 import { useEffect, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useOnForeground, wireQueryFocus } from "@/lib/appFocus";
+import { wireLibraryCache } from "@/lib/libraryCache";
 import { refreshCheckIns } from "@/lib/dailyCheckIn";
+import { refreshLastWeekReady } from "@/lib/lastWeekReady";
 import { PostHogProvider } from "posthog-react-native";
 import { posthog } from "@/lib/posthog";
 import { View, ActivityIndicator } from "react-native";
@@ -34,11 +36,13 @@ import * as Notifications from "expo-notifications";
 import { ShareIntentProvider } from "expo-share-intent";
 
 import { useColorScheme } from "@/components/useColorScheme";
+import { getTheme } from "@/constants/theme";
 import { ConfirmSheetHost } from "@/components/ConfirmSheet";
 import { UpdateRequiredScreen } from "@/components/UpdateRequiredScreen";
 import { checkUpdateRequired } from "@/lib/minBuildGate";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PlayerProvider } from "@/contexts/PlayerContext";
+import { AppLockProvider } from "@/contexts/AppLockContext";
 import { useDeepLinkHandler, PENDING_INVITE_CODE_KEY } from "@/hooks/useDeepLinkHandler";
 import { useShareIntentHandler } from "@/hooks/useShareIntentHandler";
 import { useOtaUpdate } from "@/hooks/useOtaUpdate";
@@ -66,7 +70,7 @@ if (!__DEV__) {
 }
 
 export const unstable_settings = {
-  initialRouteName: "(tabs)",
+  anchor: "(tabs)",
 };
 
 SplashScreen.preventAutoHideAsync();
@@ -77,6 +81,8 @@ SplashScreen.setOptions({ duration: 250, fade: true });
 // Returning from the background counts as focus, so stale queries on mounted
 // screens refetch (lib/appFocus.ts). Must run before the client is used.
 wireQueryFocus();
+// The shared Apple Music library copy is dropped after a long time away.
+wireLibraryCache();
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -220,7 +226,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
           {/* The splash hides as soon as fonts load, so without this the user
               stares at a featureless rectangle while auth resolves and assumes
               the app is broken. */}
-          <ActivityIndicator color={colorScheme === "dark" ? "#8A8A8E" : "#6E6E73"} />
+          <ActivityIndicator color={getTheme(colorScheme).colors.textSecondary} />
         </View>
       )}
     </>
@@ -256,11 +262,13 @@ function RootLayout() {
     <QueryClientProvider client={queryClient}>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardProvider>
-      <PostHogProvider client={posthog} autocapture={{ captureScreens: false, captureTouches: true }}>
+      <PostHogProvider client={posthog} autocapture={{ captureScreens: false, captureTouches: false }}>
         <ShareIntentProvider>
           <AuthProvider>
             <PlayerProvider>
-              {loaded ? <RootLayoutNav /> : null}
+              <AppLockProvider fontsLoaded={loaded}>
+                {loaded ? <RootLayoutNav /> : null}
+              </AppLockProvider>
             </PlayerProvider>
           </AuthProvider>
         </ShareIntentProvider>
@@ -282,14 +290,23 @@ function RootLayoutNav() {
   useOtaUpdate();
 
   // Daily check-in: re-plan the next two weeks of reminders on sign-in and
-  // every return to the app, so a day you already logged gets none, and a
-  // long absence lets them run out (lib/dailyCheckIn.ts).
+  // on returns to the app (at most hourly unless the day, settings or
+  // permission changed), so a day you already logged gets none, and a long
+  // absence lets them run out (lib/dailyCheckIn.ts).
   useEffect(() => {
     if (user?.id) void refreshCheckIns(user.id);
   }, [user?.id]);
   useOnForeground(() => {
     if (user?.id) void refreshCheckIns(user.id);
+    // "Last week is ready" (lib/lastWeekReady.ts): throttled to every 6 hours.
+    if (user?.id) void refreshLastWeekReady(profile);
   });
+  const lastWeekPrefs = profile ? `${profile.notifLastWeek}:${profile.notifFrequency}` : null;
+  useEffect(() => {
+    if (user?.id && lastWeekPrefs) void refreshLastWeekReady(profile);
+    // Re-plan when the account or its two settings change, not on every profile edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, lastWeekPrefs]);
 
   // Min-build gate (build 23): one launch check; fail-open, so the app renders
   // normally unless the server positively says this binary is below the floor.
@@ -328,6 +345,9 @@ function RootLayoutNav() {
       if (data.type === "people") {
         // friend_added (Sharing v2): someone opened your friend link
         router.push("/friends-list" as any);
+      } else if (data.type === "last_week") {
+        // "Last week is ready" (local, Sunday 6pm)
+        router.push("/last-week");
       } else if (data.type === "memory" && data.momentId) {
         // On this day that plays: the memory card, song already going
         router.push(`/memory/${data.momentId}?source=push`);
@@ -498,6 +518,16 @@ function RootLayoutNav() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
+            name="notification-settings"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            // Pushed, not presented: capture stacks on top and comes back here.
+            name="last-week"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen name="from-before" options={{ headerShown: false }} />
+          <Stack.Screen
             name="write"
             options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
@@ -508,14 +538,15 @@ function RootLayoutNav() {
           <Stack.Screen
             name="memory/[id]"
             // On this day that plays: an experience you enter and leave, full
-            // screen and always night, like Year in review.
-            options={{ headerShown: false, presentation: "fullScreenModal" }}
+            // screen and always night, like Year in review. Night: a white
+            // status bar even when the app is light.
+            options={{ headerShown: false, presentation: "fullScreenModal", statusBarStyle: "light" }}
           />
           <Stack.Screen
             name="year/[year]"
             // An experience you enter and leave (Year in review): full screen
-            // with its own close, always night.
-            options={{ headerShown: false, presentation: "fullScreenModal" }}
+            // with its own close, always night (white status bar).
+            options={{ headerShown: false, presentation: "fullScreenModal", statusBarStyle: "light" }}
           />
           <Stack.Screen
             name="moments-map"

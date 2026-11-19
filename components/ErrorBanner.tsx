@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { Button } from "@/components/Button";
@@ -20,7 +20,7 @@ export function ErrorBanner({ message, onRetry, onDismiss }: ErrorBannerProps) {
 
   return (
     <View style={styles.container} accessibilityRole="alert">
-      <Ionicons name="alert-circle-outline" size={18} color={theme.colors.destructive} />
+      <Icon name="alert-circle-outline" size={18} color={theme.colors.destructive} />
       <Text style={styles.message} numberOfLines={2}>{message}</Text>
       <View style={styles.actions}>
         {onRetry ? <Button label="Retry" variant="text" size="pill" onPress={onRetry} /> : null}

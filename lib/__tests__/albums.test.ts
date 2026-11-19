@@ -15,6 +15,13 @@ const sb = await vi.hoisted(async () => {
 });
 const invoke = vi.hoisted(() => vi.fn());
 
+// Linked photos (1.4): share-time uploads are tested on their own.
+vi.mock("@/lib/ensureFullMedia", () => ({
+  ensureFullMedia: vi.fn(async () => ({ uploaded: 0, missing: 0 })),
+  ensureFullMediaForMe: vi.fn(async () => {}),
+  ensureFullMediaForAlbum: vi.fn(async () => {}),
+  ensureFullMediaForAlbumMoments: vi.fn(async () => {}),
+}));
 vi.mock("@/lib/supabase", () => ({ supabase: { ...sb.client, functions: { invoke } } }));
 vi.mock("@react-native-async-storage/async-storage", () => ({ default: { multiRemove: vi.fn() } }));
 

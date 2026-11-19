@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { MusicProviderType, UserProfile } from "@/types";
+import type { MusicProviderType, NotifFrequency, UserProfile } from "@/types";
 
 /**
  * The signed-in user's own profile: reading it, mapping it, and turning a
@@ -33,6 +33,10 @@ export const OWN_PROFILE_COLUMNS = [
   "notif_prompts",
   "notif_resurfacing",
   "notif_milestones",
+  "notif_frequency",
+  "notif_social",
+  "notif_quiet_hours",
+  "notif_last_week",
   "created_at",
   "updated_at",
 ].join(", ");
@@ -111,6 +115,10 @@ export function mapProfileRow(data: ProfileRow): UserProfile {
     notifPrompts: data.notif_prompts ?? true,
     notifResurfacing: data.notif_resurfacing ?? true,
     notifMilestones: data.notif_milestones ?? true,
+    notifFrequency: toFrequency(data.notif_frequency),
+    notifSocial: data.notif_social ?? true,
+    notifQuietHours: data.notif_quiet_hours ?? true,
+    notifLastWeek: data.notif_last_week ?? true,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
   };
@@ -149,6 +157,10 @@ export type ProfilePatch = Partial<
     | "notifPrompts"
     | "notifResurfacing"
     | "notifMilestones"
+    | "notifFrequency"
+    | "notifSocial"
+    | "notifQuietHours"
+    | "notifLastWeek"
   >
 >;
 
@@ -171,7 +183,16 @@ const PATCH_COLUMNS: Record<keyof ProfilePatch, string> = {
   notifPrompts: "notif_prompts",
   notifResurfacing: "notif_resurfacing",
   notifMilestones: "notif_milestones",
+  notifFrequency: "notif_frequency",
+  notifSocial: "notif_social",
+  notifQuietHours: "notif_quiet_hours",
+  notifLastWeek: "notif_last_week",
 };
+
+/** A stored "How often", or the default for a missing or unknown one. */
+export function toFrequency(value: unknown): NotifFrequency {
+  return value === "daily" || value === "few" || value === "weekly" || value === "off" ? value : "few";
+}
 
 /** Usernames are stored lowercase and trimmed; empty means none. */
 export function normalizeUsername(username: string | null): string | null {

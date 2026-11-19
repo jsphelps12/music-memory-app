@@ -232,14 +232,46 @@ staging again once it's restored, dispatch with `backend=staging`.
 
 ---
 
+### Local builds (Xcode 27, Expo SDK 58)
+
+Production for the App Store (1.4.0 build 12 went this way, 2026-11-17):
+`npx eas-cli build --platform ios --profile production --local --non-interactive --output <path>.ipa`
+then `npx eas-cli submit --platform ios --profile production --path <path>.ipa --non-interactive`
+(the App Store Connect API key is stored on EAS, so no Apple sign-in). Needs
+fastlane and CocoaPods on the Mac, and a UTF-8 locale. Trap: a Homebrew
+upgrade of Ruby (e.g. installing fastlane) breaks CocoaPods ("Could not
+find 'ffi'"); `brew reinstall cocoapods` fixes it.
+
+EAS's free iOS builds are used up until 2026-12-01, so 1.4 builds run locally
+(`eas build --local`, or Xcode directly). Notes:
+
+- Prebuild with `--clean` (apple-targets fails to update an existing project)
+  and run CocoaPods with a UTF-8 locale. `plugins/withPodsMinDeploymentTarget`
+  lifts pods below iOS 15, which Xcode 27 refuses.
+- The preview prebuild names the project `Soundtracksb` (SDK 58 turns the β
+  into a "b"): `ios/Soundtracksb.xcworkspace`, scheme `Soundtracksb`. Bundle
+  ids are unchanged.
+- Staging is paused, so a local build that needs to sign in uses the
+  production env (`scripts/.env.prod.local`). Apple Sign-In fails on a β
+  build pointed at production (its provider only accepts the store bundle
+  id); use email there.
+- Device build without the phone attached: `xcodebuild … -destination
+  'generic/platform=iOS' -allowProvisioningUpdates`, then
+  `xcrun devicectl device install app` once it's connected.
+- `ios/ShareExtension` is generated and untracked. After a branch switch
+  across that change, re-run the preview prebuild before building, and never
+  restore old copies between a prebuild and its build (stale files carry
+  production values and break the β share extension).
+
 ## Manual Regression Checklist
 
 Run this on a physical device before every App Store submission: once on the
 beta build (staging data, "Soundtracks β") and, for the short pass at the end,
 on the TestFlight build (production data). Check each item; don't skim.
 
-Rewritten 2026-10-14 for the post-Sharing-v2 app (tabs: Moments · Reflections ·
-Albums · Me). The old Browse and Shared tabs no longer exist.
+Rewritten 2026-10-14 for the post-Sharing-v2 app; updated 2026-11-17 for 1.4
+(tabs: Journal · Rediscover · You, plus the floating +; Albums and Settings
+live under You). Section headings below still use the old tab names.
 
 ### 0. Device-only (the simulator cannot run these; do them first)
 - [ ] **Apple Music full playback**: open a moment and play the full song (not the 30s preview). Pause, resume, scrub.
@@ -268,14 +300,14 @@ Albums · Me). The old Browse and Shared tabs no longer exist.
 - [ ] Create a moment: song search, reflection, two moods, a person, a date, photos
 - [ ] Song search: tap a result's artwork to hear the preview; it stops when you pick a song
 - [ ] Moment detail: the 30s preview autoplays; the progress readout shows sensible seconds (e.g. `0:05 / 0:29`) and scrubbing seeks
-- [ ] Edit a moment, then delete one (long-press card and detail screen); the styled confirm sheet appears both times
-- [ ] Photo viewer: swipe between photos, pinch to zoom
+- [ ] Edit a moment, then delete one (long-press card: the iOS context menu lifts the card; and the detail screen's "…"); the styled confirm sheet appears both times
+- [ ] Moment film: tap a photo; it auto-plays and cross-fades through photos and videos, loops, Pause freezes everything, swipe/tap moves, drag down closes
 
 ### Moments tab
 - [ ] Timeline loads in month sections; scrolling is smooth
-- [ ] Cards show bare mood emoji(s) beside the date
+- [ ] Cards show mood words under the reflection
 - [ ] Calendar and map toggles work, and switching back keeps your scroll position
-- [ ] The search icon lands on Reflections with search focused
+- [ ] At most one offer (Last week's ask, or the check-in offer) above the timeline
 
 ### Reflections tab
 - [ ] Search finds moments by title, artist and reflection text
@@ -299,8 +331,18 @@ Albums · Me). The old Browse and Shared tabs no longer exist.
 ### Me tab
 - [ ] Avatar upload; tap the avatar to see it full size
 - [ ] Display name edit; stats look right
-- [ ] Notification toggles save
+- [ ] Settings → Notifications: How often, check-in time and Days, the switches all save
 - [ ] Delete Account (use a throwaway account): all data gone afterwards (check Supabase)
+
+### New in 1.4
+- [ ] Hold +: Start from (Identify, Search, Last week, From before) each opens the right place; the one-time "Hold +" hint shows once
+- [ ] Last week: the row appears from Sunday 6pm; a song opens capture with that day's photos suggested and the moment dated to the song
+- [ ] From before (end of Rediscover, and its screen): year chips, Show more, dismiss
+- [ ] Linked photos/video: add a video from Photos; it plays in the film; turning its sound on ducks the song (preview and full Apple Music)
+- [ ] Sharing a moment with linked media uploads the full photos first; a friend never sees your linked videos
+- [ ] Face ID lock (Settings → Privacy) asks again after a minute away
+- [ ] Export your journal: the PDF builds and the share sheet opens
+- [ ] Widgets and Control Center controls open capture / identify in the right app
 
 ### Misc
 - [ ] Dark mode: flip it in iOS settings, the app follows
@@ -546,6 +588,7 @@ supabase db push
 ## Before Every App Store Submission
 
 - [ ] Version bumped in `app.config.ts` (build number is automatic — `appVersionSource: remote`)
+- [ ] `/audit` run (the project skill; private report in `.claude/audits/`, never committed): no open critical, highs fixed or consciously accepted
 - [ ] Manual regression checklist complete on physical device
 - [ ] Sentry is connected and receiving events
 - [ ] Release notes written (what's new in this version)

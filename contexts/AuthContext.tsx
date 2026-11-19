@@ -13,6 +13,11 @@ import { getProvider, connectSpotify, disconnectSpotify } from "@/lib/providers"
 import type { SpotifyFailure } from "@/lib/providers/spotifyErrors";
 import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
 import { clearCheckInData } from "@/lib/dailyCheckIn";
+import { clearLastWeekReady } from "@/lib/lastWeekReady";
+import { clearSignOutKeys } from "@/lib/signOutKeys";
+import { clearPhotoAnalysisStore } from "@/lib/photoAnalysisStore";
+import { clearNudgeQuestions } from "@/lib/nudgeQuestionStore";
+import { clearLibraryCache } from "@/lib/libraryCache";
 import { resetTimelineRefresh } from "@/lib/timelineRefresh";
 import { clearLegacyAlbumCaches } from "@/lib/albums";
 import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
@@ -38,6 +43,11 @@ export type ProviderSwitchResult =
   | { ok: false; reason: SpotifyFailure | "apple_denied" | "save_failed" };
 
 interface AuthState {
+  /**
+   * Who is signed in, as a session. Changes on sign-in, sign-out or a change
+   * of user, NOT on the hourly token refresh (that used to re-render every
+   * consumer). So don't read tokens from it: call supabase.auth.getSession().
+   */
   session: Session | null;
   user: User | null;
   profile: UserProfile | null;
@@ -430,8 +440,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearBrowseCache(userId),
         clearCaptureDraft(userId),
         clearCheckInData(userId),
+        clearLastWeekReady(),
       ]);
     }
+    // From before, Last week, photo analyses, nudge questions, the capture
+    // hint: one person's records, stored without a user id (lib/signOutKeys.ts).
+    await clearSignOutKeys();
+    // Their in-memory copies too, or the next write would put them back.
+    await Promise.all([clearPhotoAnalysisStore(), clearNudgeQuestions()]).catch(() => {});
+    clearLibraryCache();
     // Spotify's session is stored device-wide, not per user: the next person
     // to sign in here must connect their own account.
     await disconnectSpotify().catch(() => {});
@@ -451,7 +468,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    const userId = session?.user?.id;
+    // The ref, not the render's `session`: the context value (and this
+    // function in it) isn't rebuilt on a token refresh.
+    const userId = sessionRef.current?.user?.id;
     // Clear push token fire-and-forget — don't block sign-out on this network call
     if (userId) {
       supabase.from("profiles").update({ push_token: null }).eq("id", userId).then(null, () => {});
@@ -620,9 +639,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const sessionUser = session?.user ?? null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const user = useMemo(() => sessionUser, [sessionUser?.id, sessionUser?.email]);
+  // Same for the session itself: a refresh swaps in a new object with a new
+  // token, and putting that in the context value re-rendered every useAuth()
+  // consumer once an hour. Consumers only ask whether someone is signed in
+  // and who; code that needs the current token reads it from supabase.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const identitySession = useMemo(() => session, [user]);
 
   const contextValue = useMemo(() => ({
-    session,
+    session: identitySession,
     user,
     profile,
     loading,
@@ -644,7 +669,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     preferredProvider: (profile?.preferredMusicProvider ?? 'apple_music') as MusicProviderType,
     setPreferredProvider,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [session, user, profile, loading, profileReady, profileError]);
+  }), [identitySession, user, profile, loading, profileReady, profileError]);
 
   return (
     <AuthContext.Provider value={contextValue}>

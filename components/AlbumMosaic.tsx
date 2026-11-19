@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { View, StyleSheet, StyleProp, ViewStyle } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "@/components/Icon";
 import { AppImage } from "@/components/AppImage";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { useTheme } from "@/hooks/useTheme";
@@ -49,7 +49,7 @@ export function AlbumMosaic({ coverPhotoPath, artworks = [], style }: Props) {
   } else {
     content = (
       <View style={styles.empty}>
-        <Ionicons name="albums-outline" size={28} color={theme.colors.textSecondary} />
+        <Icon name="albums-outline" size={28} color={theme.colors.textSecondary} />
       </View>
     );
   }

@@ -1,0 +1,138 @@
+diff --git a/node_modules/expo-share-intent/plugin/build/ios/ShareExtensionViewController.swift b/node_modules/expo-share-intent/plugin/build/ios/ShareExtensionViewController.swift
+index f1f4b72..7a233e7 100644
+--- a/node_modules/expo-share-intent/plugin/build/ios/ShareExtensionViewController.swift
++++ b/node_modules/expo-share-intent/plugin/build/ios/ShareExtensionViewController.swift
+@@ -17,6 +17,9 @@ class ShareViewController: UIViewController {
+   var sharedMedia: [SharedMediaFile] = []
+   var sharedWebUrl: [WebUrl] = []
+   var sharedText: [String] = []
++  // Soundtracks patch: how many image attachments to wait for before redirecting.
++  var expectedImageCount: Int = 0
++  var handledImageCount: Int = 0
+   let imageContentType: String = UTType.image.identifier
+   let videoContentType: String = UTType.movie.identifier
+   let textContentType: String = UTType.text.identifier
+@@ -52,6 +55,10 @@ class ShareViewController: UIViewController {
+         dismissWithError(message: "No content found")
+         return
+       }
++      self.expectedImageCount = attachments.filter {
++        $0.hasItemConformingToTypeIdentifier(self.imageContentType)
++      }.count
++      self.handledImageCount = 0
+       for (index, attachment) in (attachments).enumerated() {
+         if attachment.hasItemConformingToTypeIdentifier(imageContentType) {
+           await handleImages(content: content, attachment: attachment, index: index)
+@@ -238,15 +245,31 @@ class ShareViewController: UIViewController {
+ 
+ 
+   private func handleImages(content: NSExtensionItem, attachment: NSItemProvider, index: Int) async {
++    let groupId = self.hostAppGroupIdentifier
++    let imageType = self.imageContentType
+     Task.detached {
+       do {
+-        let item = try await attachment.loadItem(forTypeIdentifier: self.imageContentType)
++        let item = try await attachment.loadItem(forTypeIdentifier: imageType)
++
++        // Soundtracks patch: copy a file-backed image into the app group here,
++        // before iOS cleans up the temporary file it handed us. Copying later on
++        // the main actor dropped photos from multi-photo shares.
++        var stableCopy: URL? = nil
++        if let dataURL = item as? URL {
++          let ext = dataURL.pathExtension.isEmpty ? "jpg" : dataURL.pathExtension
++          let dst = FileManager.default
++            .containerURL(forSecurityApplicationGroupIdentifier: groupId)!
++            .appendingPathComponent("\(UUID().uuidString).\(ext)")
++          if Self.copyFile(at: dataURL, to: dst) { stableCopy = dst }
++        }
+ 
+         Task { @MainActor in
+           var url: URL? = nil
++          var alreadyCopied = false
+ 
+           if let dataURL = item as? URL {
+-            url = dataURL
++            url = stableCopy ?? dataURL
++            alreadyCopied = stableCopy != nil
+           } else if let imageData = item as? UIImage {
+             url = self.saveScreenshot(imageData)
+             if url == nil {
+@@ -264,7 +287,7 @@ class ShareViewController: UIViewController {
+ 
+           guard let safeURL = url else {
+             NSLog("[ERROR] handleImages: Failed to get URL for image item")
+-            self.dismissWithError(message: "Failed to process image")
++            self.imageHandled()
+             return
+           }
+ 
+@@ -290,18 +313,20 @@ class ShareViewController: UIViewController {
+             }
+           }
+ 
+-          // Always copy
+-          let fileName = self.getFileName(from: safeURL, type: .image)
++          let fileName = self.getFileName(from: (item as? URL) ?? safeURL, type: .image)
+           let fileExtension = self.getExtension(from: safeURL, type: .image)
+           let fileSize = self.getFileSize(from: safeURL)
+           let mimeType = safeURL.mimeType(ext: fileExtension)
+-          let newName = "\(UUID().uuidString).\(fileExtension)"
+-          let newPath = FileManager.default
+-            .containerURL(
+-              forSecurityApplicationGroupIdentifier: self.hostAppGroupIdentifier)!
+-            .appendingPathComponent(newName)
+ 
+-          let copied = Self.copyFile(at: safeURL, to: newPath)
++          var newPath = safeURL
++          var copied = alreadyCopied
++          if !alreadyCopied {
++            newPath = FileManager.default
++              .containerURL(
++                forSecurityApplicationGroupIdentifier: self.hostAppGroupIdentifier)!
++              .appendingPathComponent("\(UUID().uuidString).\(fileExtension)")
++            copied = Self.copyFile(at: safeURL, to: newPath)
++          }
+ 
+           if copied {
+             self.sharedMedia.append(
+@@ -310,22 +335,31 @@ class ShareViewController: UIViewController {
+                 fileSize: fileSize, width: pixelWidth, height: pixelHeight, duration: nil,
+                 mimeType: mimeType, type: .image))
+           }
+-
+-          // If this is the last item, save imagesData in userDefaults and redirect to host app
+-          if index == (content.attachments?.count)! - 1 {
+-            let userDefaults = UserDefaults(suiteName: self.hostAppGroupIdentifier)
+-            userDefaults?.set(self.toData(data: self.sharedMedia), forKey: self.sharedKey)
+-            userDefaults?.synchronize()
+-            self.redirectToHostApp(type: .media)
+-          }
++          self.imageHandled()
+         }
+       } catch {
+         NSLog("[ERROR] handleImages: Exception loading image item: \(error)")
+-        await self.dismissWithError(message: "Cannot load image content: \(error.localizedDescription)")
++        await MainActor.run { self.imageHandled() }
+       }
+     }
+   }
+ 
++  // Soundtracks patch: redirect once every image attachment has been handled.
++  // The template redirected when the last-indexed attachment finished, which
++  // isn't the last to finish when images load concurrently.
++  private func imageHandled() {
++    handledImageCount += 1
++    guard handledImageCount >= expectedImageCount else { return }
++    if sharedMedia.isEmpty {
++      dismissWithError(message: "Failed to process image")
++      return
++    }
++    let userDefaults = UserDefaults(suiteName: hostAppGroupIdentifier)
++    userDefaults?.set(toData(data: sharedMedia), forKey: sharedKey)
++    userDefaults?.synchronize()
++    redirectToHostApp(type: .media)
++  }
++
+   private func documentDirectoryPath() -> URL? {
+     let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+     
