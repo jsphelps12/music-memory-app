@@ -15,7 +15,7 @@ env:
 
 # --- Write, close, keep -----------------------------------------------------
 - waitForAnimationToEnd
-# The empty-state button, not "+": see subflows/create-moment.yaml.
+# The empty-state button, which also proves the Journal is empty.
 - tapOn:
     id: "journal-empty-capture"
 - extendedWaitUntil:
@@ -41,12 +41,12 @@ env:
     timeout: 10000
 
 # --- Long-press + → Continue a draft ----------------------------------------
-# By point, not id: "+" overflows the custom tab bar and XCUITest's element
-# gestures land on its clipped accessibility frame (subflows/create-moment.yaml).
-# It sits 20pt in from the right and 76pt above the 83pt tab bar: about
-# (87%, 85%) on a 393x852 iPhone.
+# By id: the + now lives in a layer whose bounds contain it
+# (components/TabBar.tsx), so its accessibility frame is where it is drawn.
+# Until build 12's OTA of 2026-11-18 it overflowed the tab bar and was
+# long-pressed here by screen position instead.
 - longPressOn:
-    point: "87%,85%"
+    id: "tab-create"
 - extendedWaitUntil:
     visible:
       id: "capture-menu-continue-draft"
@@ -80,7 +80,7 @@ env:
     timeout: 10000
 
 - longPressOn:
-    point: "87%,85%"
+    id: "tab-create"
 - extendedWaitUntil:
     visible:
       id: "capture-menu-identify"
@@ -161,7 +161,7 @@ env:
     timeout: 10000
 
 - longPressOn:
-    point: "87%,85%"
+    id: "tab-create"
 - extendedWaitUntil:
     visible: "Continue a draft, 2 drafts"
     timeout: 5000
