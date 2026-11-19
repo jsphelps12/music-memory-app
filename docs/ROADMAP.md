@@ -178,6 +178,14 @@ the store app only (not β). Then a device build and TestFlight.
     moments go with you.
   - "Keep this": save a moment someone sent you into your own journal.
   - Analytics: record which share option was used.
+  - **Who was there → friends (right after 1.4.1, over the air; decided
+    2026-11-19):** typing a name suggests matching friends (photo, name,
+    @username, so two Sams are told apart) and past names, plus "Add 'Sam'
+    as a name". Picking a friend links the name to their account in its
+    own table, private to the owner (Sam is never told unless sent the
+    moment). Rediscover People groups by the real person; the share
+    picker puts "Was there" first. Old moments stay text (link from Edit);
+    unfriending keeps the text and drops the link.
   - Later, if direct sends get used: album activity pushes; "the people who
     were there" as 1.5's social bet.
 - [ ] DB-2 (RLS hardening step 2) once 1.4 is out and widely installed:
