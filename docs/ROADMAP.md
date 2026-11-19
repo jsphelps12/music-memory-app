@@ -149,6 +149,23 @@ the store app only (not β). Then a device build and TestFlight.
     RPCs return the shaped fields under their old keys (location now null).
     App: `lib/momentView.ts`; non-owners get no Share button, link, card or
     album row. Old builds still read the table directly until step 2.
+  - **Person picker** *(built 2026-11-19, JS in 1.4.1; review in
+    `.claude/reviews/2026-11-19-friend-pickers.md`)*: one
+    `components/PersonPicker.tsx` (inline: 5 rows, search past 8, "Show all"
+    opens the full list in the sheet; list: virtualized with search) and a
+    shared `Avatar`. Used by the share sheet's "Send to a person" (recent
+    sends first, then A–Z), the Friends screen, album members and
+    Rediscover's People. Friends are one React Query cache
+    (`hooks/useFriends.ts`); `fetchFriends` pages in a stable order with no
+    500 cut, looks profiles up 100 ids at a time and throws instead of
+    showing "Unknown"; a reverse-pair duplicate shows once; a failed album
+    member load shows an error. "Who was there" suggests past names and
+    friends' names ignoring case and reuses the existing spelling.
+    Migration `20261119120000_friendship_pair_unique` (one row per pair,
+    removes existing reverse duplicates) and the matching
+    accept-friend-invite change are written, **not applied**. Held for the
+    sharing design: linking a name to a friend's account, a "Was there"
+    section in the picker, telling a friend they were named.
   - Retire the pre-occasions album guest form (`/c/{code}/contribute`, its
     flag and edge function); switched off for every album 2026-11-18 (main PR 109).
   - The /m/ link page as the hero: opens the app (universal links, 1.4.1),

@@ -82,3 +82,16 @@ export const PROFILE_STATS_STALE = DEFAULT_SCREEN_STALE;
  * keystroke, short enough to still feel like search-as-you-type.
  */
 export const SEARCH_DEBOUNCE_MS = 275;
+
+/**
+ * `["friendsList", userId]` — the one friend list every person picker reads
+ * (hooks/useFriends.ts): the share sheet, the Friends screen and the "Who was
+ * there" suggestions. Invalidated by `invalidateFriendCaches`.
+ */
+export const FRIENDS_STALE = DEFAULT_SCREEN_STALE;
+
+/**
+ * `["recentRecipients", userId]` — who this user last sent moments to, for
+ * the share picker's order. Invalidated when the share sheet closes.
+ */
+export const RECENT_RECIPIENTS_STALE = DEFAULT_SCREEN_STALE;

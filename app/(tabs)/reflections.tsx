@@ -26,6 +26,7 @@ import { MomentCard } from "@/components/MomentCard";
 import { MomentSearch } from "@/components/MomentSearch";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ListRow } from "@/components/ListRow";
+import { PersonPicker, pickerHasSearch } from "@/components/PersonPicker";
 import { YearReviewEntry } from "@/components/YearReviewEntry";
 import { eligibleReviewYears, featuredReviewYear } from "@/lib/yearInReview";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
@@ -371,6 +372,10 @@ export default function ReflectionsScreen() {
 
   const moodCounts = useMemo(() => deriveMoodCounts(meta, allMoods), [meta, allMoods]);
   const peopleCounts = useMemo(() => derivePeopleCounts(meta), [meta]);
+  const peoplePickerRows = useMemo(
+    () => peopleCounts.map(({ name, count }) => ({ id: name, displayName: name, detail: String(count) })),
+    [peopleCounts]
+  );
   const yearCounts = useMemo(() => deriveYearCounts(meta), [meta]);
 
   // Year in review, featured December 1 – January 31 for a year with enough
@@ -766,17 +771,25 @@ export default function ReflectionsScreen() {
         </ScrollView>
       </BottomSheet>
 
-      <BottomSheet visible={browseSheet === "people"} onClose={() => setBrowseSheet(null)} title="People">
-        <ScrollView contentContainerStyle={styles.sheetList}>
-          {peopleCounts.map(({ name, count }) => (
-            <SheetRow
-              key={name}
-              label={name}
-              count={count}
-              onPress={() => browseTo({ pathname: "/browse/person", params: { name } })}
-            />
-          ))}
-        </ScrollView>
+      {/* The names written on moments, most moments first. A virtualized
+          list with search past 8 names (PersonPicker). */}
+      <BottomSheet
+        visible={browseSheet === "people"}
+        onClose={() => setBrowseSheet(null)}
+        title="People"
+        keyboardAvoiding
+        minHeight={pickerHasSearch(peoplePickerRows.length) ? "75%" : undefined}
+      >
+        <PersonPicker
+          mode="list"
+          people={peoplePickerRows}
+          avatars={false}
+          searchPlaceholder="Search people"
+          rowAccessibilityLabel={(p) => `${p.displayName}, ${p.detail} ${p.detail === "1" ? "moment" : "moments"}`}
+          onPick={(p) => browseTo({ pathname: "/browse/person", params: { name: p.id } })}
+          style={styles.sheetPicker}
+          contentContainerStyle={styles.sheetPickerContent}
+        />
       </BottomSheet>
 
       <BottomSheet visible={browseSheet === "year"} onClose={() => setBrowseSheet(null)} title="Year">
@@ -949,6 +962,12 @@ function createStyles(theme: Theme) {
     },
     sheetList: {
       paddingHorizontal: theme.spacing.xl,
+      paddingBottom: theme.spacing.md,
+    },
+    sheetPicker: {
+      paddingHorizontal: theme.spacing.xl,
+    },
+    sheetPickerContent: {
       paddingBottom: theme.spacing.md,
     },
     sheetArtwork: {

@@ -34,6 +34,7 @@ import {
   deleteAlbum,
   ensureAlbumGuestUser,
   fetchAlbumArtworks,
+  fetchAlbumMembers,
   fetchAlbumIdsContainingMoment,
   fetchAlbumByInviteCode,
   fetchAlbumDetail,
@@ -383,5 +384,23 @@ describe("fetchAlbumIdsContainingMoment", () => {
     await expect(fetchAlbumIdsContainingMoment("m1")).rejects.toMatchObject({
       message: "network request failed",
     });
+  });
+});
+
+describe("fetchAlbumMembers", () => {
+  it("pages in join order and carries avatar and handle", async () => {
+    sb.queueData([{ user_id: "u1", joined_at: "2026-01-01" }]);
+    sb.queueData([{ id: "u1", display_name: "Ana", avatar_url: "u1/avatar.jpg", username: "ana" }]);
+    const members = await fetchAlbumMembers("c1");
+    expect(sb.queries[0].chain.map((c) => c.method)).toEqual(["select", "eq", "order", "order", "range"]);
+    expect(members).toEqual([
+      { userId: "u1", displayName: "Ana", avatarUrl: "u1/avatar.jpg", username: "ana", joinedAt: "2026-01-01" },
+    ]);
+  });
+
+  it("throws when names don't load, so the sheet shows an error, not 'no one'", async () => {
+    sb.queueData([{ user_id: "u1", joined_at: "2026-01-01" }]);
+    sb.queueError("Network request failed");
+    await expect(fetchAlbumMembers("c1")).rejects.toMatchObject({ message: "Network request failed" });
   });
 });

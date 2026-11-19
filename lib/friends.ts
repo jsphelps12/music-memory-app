@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { Friendship } from "@/types";
+import { fetchAllRows } from "@/lib/fetchAllRows";
+import { chunk, dedupeByOtherUser, ID_BATCH_SIZE } from "@/lib/people";
 
 export interface ProfileResult {
   id: string;
@@ -30,32 +32,74 @@ function mapFriendshipRow(row: any, currentUserId: string): Friendship {
   };
 }
 
+export interface ProfileRow {
+  id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  username: string | null;
+}
+
+/**
+ * Profiles for a set of user ids, by id. Looked up 100 ids at a time (in
+ * parallel), so a long friend list never builds an `in.(...)` URL past the
+ * gateway's limit. Throws on any failed batch: a name that didn't load is an
+ * error to show, not a person called "Unknown".
+ */
+export async function fetchProfilesByIds(ids: readonly string[]): Promise<Map<string, ProfileRow>> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return new Map();
+  const batches = await Promise.all(
+    chunk(unique, ID_BATCH_SIZE).map(async (batch) => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url, username")
+        .in("id", batch);
+      if (error) throw error;
+      return (data ?? []) as ProfileRow[];
+    })
+  );
+  return new Map(batches.flat().map((p) => [p.id, p]));
+}
+
 async function enrichFriendships(rows: any[], currentUserId: string): Promise<Friendship[]> {
   if (!rows || rows.length === 0) return [];
   const otherIds = rows.map((r) =>
     r.requester_id === currentUserId ? r.addressee_id : r.requester_id
   );
-  const uniqueIds = [...new Set(otherIds)];
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, display_name, avatar_url, username")
-    .in("id", uniqueIds);
-  const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+  const profileMap = await fetchProfilesByIds(otherIds);
   return rows.map((row) => {
     const otherId = row.requester_id === currentUserId ? row.addressee_id : row.requester_id;
     return mapFriendshipRow({ ...row, other_profile: profileMap.get(otherId) ?? null }, currentUserId);
   });
 }
 
+/**
+ * Every accepted friend, one row per person. Paged past PostgREST's row cap
+ * in a stable order (no silent cut at 500), and a reverse-pair duplicate
+ * (A→B and B→A, from two links opened at once) shows once.
+ */
 export async function fetchFriends(userId: string): Promise<Friendship[]> {
-  const { data, error } = await supabase
-    .from("friendships")
-    .select("*")
-    .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
-    .eq("status", "accepted")
-    .limit(500);
-  if (error) throw error;
-  return enrichFriendships(data ?? [], userId);
+  const rows = await fetchAllRows<any>((from, to) =>
+    supabase
+      .from("friendships")
+      .select("id, requester_id, addressee_id, status, created_at, updated_at")
+      .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
+      .eq("status", "accepted")
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to)
+  );
+  const friends = await enrichFriendships(rows, userId);
+  return dedupeByOtherUser(friends);
+}
+
+/**
+ * The shared friend list cache: every surface that lists friends reads this
+ * one key, so the share sheet opens from cache and a removal shows everywhere
+ * (`invalidateFriendCaches`).
+ */
+export function friendsQueryKey(userId: string | undefined) {
+  return ["friendsList", userId] as const;
 }
 
 /** The typed failures accept-friend-invite reports in its JSON body. */
@@ -163,4 +207,23 @@ export async function checkUsernameAvailable(username: string, currentUserId: st
     .maybeSingle();
   if (error) throw error;
   return !data;
+}
+
+/** A friend as a person-picker row: keyed by their user id. */
+export interface FriendPerson {
+  id: string;
+  displayName: string | null;
+  username: string | null;
+  avatarPath: string | null;
+  friendship: Friendship;
+}
+
+export function friendsAsPeople(friends: readonly Friendship[]): FriendPerson[] {
+  return friends.map((f) => ({
+    id: f.otherUserId,
+    displayName: f.otherUserDisplayName,
+    username: f.otherUserUsername,
+    avatarPath: f.otherUserAvatarUrl,
+    friendship: f,
+  }));
 }

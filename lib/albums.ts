@@ -5,6 +5,8 @@ import { shapeForViewer } from "@/lib/momentView";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { ensureFullMedia, ensureFullMediaForAlbum, ensureFullMediaForAlbumMoments } from "@/lib/ensureFullMedia";
 import { planAlbumAdd } from "@/lib/momentSelection";
+import { fetchProfilesByIds } from "@/lib/friends";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { Album, AlbumPreview, Moment } from "@/types";
 
 // ─── Legacy AsyncStorage caches (removed) ────────────────────────────────────
@@ -128,11 +130,13 @@ export class AlbumUnavailableError extends Error {
  * failed lookup degrades to no name rather than failing the whole screen.
  */
 async function fetchOwnerNames(ownerIds: string[]): Promise<Map<string, string | null>> {
-  const unique = [...new Set(ownerIds)];
-  if (unique.length === 0) return new Map();
-  const { data, error } = await supabase.from("profiles").select("id, display_name").in("id", unique);
-  if (error && __DEV__) console.warn("[albums] owner name lookup failed:", error.message);
-  return new Map((data ?? []).map((p: any) => [p.id, p.display_name ?? null]));
+  try {
+    const profiles = await fetchProfilesByIds(ownerIds);
+    return new Map([...profiles].map(([id, p]) => [id, p.display_name ?? null]));
+  } catch (error) {
+    if (__DEV__) console.warn("[albums] owner name lookup failed:", (error as Error)?.message);
+    return new Map();
+  }
 }
 
 // ─── Album lists ─────────────────────────────────────────────────────────────
@@ -140,6 +144,8 @@ async function fetchOwnerNames(ownerIds: string[]): Promise<Map<string, string |
 export interface AlbumMember {
   userId: string;
   displayName: string | null;
+  avatarUrl: string | null;
+  username: string | null;
   joinedAt: string;
 }
 
@@ -471,24 +477,35 @@ export async function leaveAlbum(collectionId: string, userId: string): Promise<
   if (error) throw error;
 }
 
-// Fetch all members of an album (owner use only)
+/**
+ * Every member of an album, in join order (owner use only). Paged past the
+ * row cap; throws when the members or their names don't load, so the sheet
+ * shows an error instead of "No one else has joined yet".
+ */
 export async function fetchAlbumMembers(collectionId: string): Promise<AlbumMember[]> {
-  const { data, error } = await supabase
-    .from("collection_members")
-    .select("user_id, joined_at")
-    .eq("collection_id", collectionId)
-    .order("joined_at", { ascending: true });
+  const data = await fetchAllRows<any>((from, to) =>
+    supabase
+      .from("collection_members")
+      .select("user_id, joined_at")
+      .eq("collection_id", collectionId)
+      .order("joined_at", { ascending: true })
+      .order("user_id", { ascending: true })
+      .range(from, to)
+  );
+  if (data.length === 0) return [];
 
-  if (error) throw error;
-  if (!data || data.length === 0) return [];
+  const profiles = await fetchProfilesByIds(data.map((r: any) => r.user_id));
 
-  const names = await fetchOwnerNames(data.map((r: any) => r.user_id));
-
-  return data.map((r: any) => ({
-    userId: r.user_id,
-    displayName: names.get(r.user_id) ?? null,
-    joinedAt: r.joined_at,
-  }));
+  return data.map((r: any) => {
+    const profile = profiles.get(r.user_id);
+    return {
+      userId: r.user_id,
+      displayName: profile?.display_name ?? null,
+      avatarUrl: profile?.avatar_url ?? null,
+      username: profile?.username ?? null,
+      joinedAt: r.joined_at,
+    };
+  });
 }
 
 // Remove a specific member from an album (owner use only)

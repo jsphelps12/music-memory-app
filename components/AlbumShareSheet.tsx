@@ -12,7 +12,7 @@ import { AppImage } from "@/components/AppImage";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import { Icon } from "@/components/Icon";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ConfirmSheetHost, confirmSheet } from "@/components/ConfirmSheet";
@@ -20,6 +20,7 @@ import { Button } from "@/components/Button";
 import { IconButton } from "@/components/IconButton";
 import { SectionLabel } from "@/components/SectionLabel";
 import { ListRow } from "@/components/ListRow";
+import { PersonPicker, pickerHasSearch, type PickerPerson } from "@/components/PersonPicker";
 import { TextField } from "@/components/TextField";
 import * as Haptics from "expo-haptics";
 import { Album } from "@/types";
@@ -65,6 +66,11 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
   const [error, setError] = useState("");
   const [members, setMembers] = useState<AlbumMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  // A failed load says so; it must not read as "No one else has joined yet".
+  const [membersError, setMembersError] = useState("");
+  // "Show all" swaps the sheet's content for the whole member list.
+  const [showAllMembers, setShowAllMembers] = useState(false);
+  const [showAllQuery, setShowAllQuery] = useState("");
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
   // Rename state
@@ -80,21 +86,40 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
   const queryClient = useQueryClient();
   const isOwner = collection.role === "owner";
 
+  const loadMembers = useCallback(() => {
+    setLoadingMembers(true);
+    setMembersError("");
+    fetchAlbumMembers(collection.id)
+      .then(setMembers)
+      .catch((e) => setMembersError(friendlyError(e)))
+      .finally(() => setLoadingMembers(false));
+  }, [collection.id]);
+
   useEffect(() => {
-    if (visible && isOwner) {
-      setLoadingMembers(true);
-      fetchAlbumMembers(collection.id)
-        .then(setMembers)
-        .catch(() => {})
-        .finally(() => setLoadingMembers(false));
-    }
+    if (visible && isOwner) loadMembers();
     if (!visible) {
       setMembers([]);
+      setMembersError("");
+      setShowAllMembers(false);
       setError("");
       setRenaming(false);
       setLinkCopied(false);
     }
-  }, [visible, isOwner, collection.id, collection.isPublic]);
+  }, [visible, isOwner, loadMembers, collection.isPublic]);
+
+  const memberPeople = useMemo(
+    () =>
+      members.map(
+        (m): PickerPerson & { member: AlbumMember } => ({
+          id: m.userId,
+          displayName: m.displayName,
+          username: m.username,
+          avatarPath: m.avatarUrl,
+          member: m,
+        })
+      ),
+    [members]
+  );
 
   // A shared album whose guest-user setup failed (or that was created shared
   // before the create sheet did it) is finished here, quietly: the owner
@@ -282,6 +307,33 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
   }
 
   const totalMembers = members.length + 1; // +1 for owner
+
+  // Members in join order; Remove on each row.
+  const memberPickerProps = {
+    people: memberPeople,
+    loading: loadingMembers,
+    error: membersError || undefined,
+    onRetry: loadMembers,
+    emptyState: (
+      <View style={styles.row}>
+        <Text style={styles.emptyMembers}>No one else has joined yet.</Text>
+      </View>
+    ),
+    searchPlaceholder: "Search members",
+    renderTrailing: (person: (typeof memberPeople)[number]) =>
+      removingMemberId === person.id ? (
+        <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+      ) : (
+        <IconButton
+          name="person-remove-outline"
+          size={18}
+          color={theme.colors.textSecondary}
+          onPress={() => handleRemoveMember(person.member)}
+          accessibilityLabel={`Remove ${person.displayName ?? person.username ?? "member"}`}
+          style={styles.memberAction}
+        />
+      ),
+  };
   const renameDirty = !!renameText.trim() && renameText.trim() !== collection.name;
 
   const metaLine = isOwner
@@ -299,7 +351,31 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
   // is a quiet Meta line, and the actions are the shared Button. Sized to
   // content; a long member list scrolls inside the sheet's default cap.
   return (
-    <BottomSheet visible={visible} onClose={onClose} title={collection.name} keyboardAvoiding>
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      title={collection.name}
+      keyboardAvoiding
+      // Steady height while searching the whole list.
+      minHeight={showAllMembers && pickerHasSearch(memberPeople.length) ? "75%" : undefined}
+    >
+      {showAllMembers ? (
+        <View style={styles.allMembers}>
+          <Button
+            variant="text"
+            size="pill"
+            tone="secondary"
+            icon="chevron-back"
+            label="Back"
+            onPress={() => setShowAllMembers(false)}
+            accessibilityLabel="Back to album settings"
+            style={styles.back}
+          />
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <SectionLabel meta={String(totalMembers)}>Members</SectionLabel>
+          <PersonPicker mode="list" {...memberPickerProps} initialQuery={showAllQuery} />
+        </View>
+      ) : (
       <ScrollView
         contentContainerStyle={styles.body}
         showsVerticalScrollIndicator={false}
@@ -432,42 +508,19 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
             {/* Members: only a shared album can have any */}
             {collection.isPublic ? (
               <View style={styles.section}>
-                <SectionLabel meta={loadingMembers ? undefined : String(totalMembers)}>
+                <SectionLabel meta={loadingMembers || membersError ? undefined : String(totalMembers)}>
                   Members
                 </SectionLabel>
                 <View style={[styles.rows, styles.rowsTight]}>
                   <ListRow label="You" detail="Owner" style={styles.rowTight} />
-                  {loadingMembers ? (
-                    <View style={styles.row}>
-                      <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                    </View>
-                  ) : members.length === 0 ? (
-                    <View style={styles.row}>
-                      <Text style={styles.emptyMembers}>No one else has joined yet.</Text>
-                    </View>
-                  ) : (
-                    members.map((member) => (
-                      <ListRow
-                        key={member.userId}
-                        label={member.displayName ?? "Unknown"}
-                        style={styles.rowTight}
-                        trailing={
-                          removingMemberId === member.userId ? (
-                            <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-                          ) : (
-                            <IconButton
-                              name="person-remove-outline"
-                              size={18}
-                              color={theme.colors.textSecondary}
-                              onPress={() => handleRemoveMember(member)}
-                              accessibilityLabel={`Remove ${member.displayName ?? "member"}`}
-                              style={styles.memberAction}
-                            />
-                          )
-                        }
-                      />
-                    ))
-                  )}
+                  <PersonPicker
+                    mode="inline"
+                    {...memberPickerProps}
+                    onShowAll={(query) => {
+                      setShowAllQuery(query);
+                      setShowAllMembers(true);
+                    }}
+                  />
                 </View>
               </View>
             ) : null}
@@ -494,6 +547,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
           />
         )}
       </ScrollView>
+      )}
       {/* Local confirm host: a root-level Modal can't present over this open
           sheet (iOS silently drops it), so confirms asked from in here need a
           host nested inside the sheet's own Modal hierarchy. */}
@@ -590,6 +644,15 @@ function createStyles(theme: Theme) {
     },
     memberAction: {
       marginRight: -12,
+    },
+    allMembers: {
+      flexShrink: 1,
+      paddingHorizontal: theme.spacing.xl,
+    },
+    back: {
+      alignSelf: "flex-start",
+      marginLeft: -theme.spacing.sm,
+      marginBottom: theme.spacing.xs,
     },
     emptyMembers: {
       ...theme.typography.body,

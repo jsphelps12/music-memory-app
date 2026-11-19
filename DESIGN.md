@@ -254,6 +254,8 @@ Every element below has one shared implementation in `components/`. Screens comp
 | Section labels inside a screen or sheet | `SectionLabel` |
 | Bottom sheets | `BottomSheet`, and `confirmSheet()` for decisions |
 | Icon-only controls | `IconButton` (plain in headers; filled only over imagery) |
+| A person's photo or initial (32 in sheets, 40 on screens) | `Avatar` |
+| Lists of people to pick from or manage (friends, members, names) | `PersonPicker` (inline in a sheet: 5 rows, search past 8, "Show all"; list: virtualized), rows via `PersonRow` |
 | Icons | `Icon`: SF Symbols on iOS (Ionicons on Android), named with the Ionicons names; each name maps to its symbol in `lib/iconSymbols.ts` |
 
 Type roles come from `theme.typography` (headline, title, reading, body, bodyStrong, callout, label, meta); don't restate family and size by hand.
