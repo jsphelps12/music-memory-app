@@ -59,9 +59,11 @@ export function CaptureHint({
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    // A zero-height line just above the capture button (TabBar's capture:
-    // 60pt, right xl, top -76 from the same container); the bubble grows up
-    // from it, so it follows the button when the mini player pushes it up.
+    // A zero-height line just above the capture button. The hint sits in
+    // TabBar's bar container (mini player + tabs); the 60pt button, right xl,
+    // has its top CAPTURE_RISE (76) above that container's top. The bubble
+    // grows up from this line, so it follows the button when the mini player
+    // pushes both up.
     anchor: {
       position: "absolute",
       top: -76 - 8,

@@ -1,5 +1,6 @@
-# Create one moment from the empty timeline and wait for its card.
-# Copied from smoke.yaml; keep in step. Needs an empty account (reset script).
+# Create one moment and wait for its card. Copied from smoke.yaml; keep in
+# step (except the capture tap, below). The card wait only proves the new
+# moment on an empty account (reset script), so callers still start empty.
 appId: com.joshuaphelps.musicmemory.preview
 env:
   SONG_QUERY: "Bohemian Rhapsody"
@@ -7,15 +8,14 @@ env:
 ---
 # --- Create a moment ---------------------------------------------------------
 - waitForAnimationToEnd
-# NOT the floating "+" (id: tab-create): it overflows the custom tab bar, and
-# XCUITest's element tap lands on its clipped accessibility frame — the tap
-# reports success and nothing happens (verified: a coordinate tap on the same
-# button navigates fine). The empty-state CTA is a plain button that taps
-# reliably, and the seed script guarantees the account is empty, so it is
-# always present at this point. By id, not its text: "Capture a song" is also
-# the "+" button's accessibility label.
+# The floating "+" (id: tab-create), so the subflow works whether or not the
+# Journal already has moments. It used to overflow the custom tab bar, which
+# clipped its accessibility frame and made XCUITest's element tap miss; it now
+# sits in its own layer whose bounds contain it (components/TabBar.tsx).
+# smoke.yaml still taps the empty Journal's button, which also proves the
+# empty state renders on a fresh account.
 - tapOn:
-    id: "journal-empty-capture"
+    id: "tab-create"
 
 # The create screen doesn't open song search itself — its "Search" pill
 # (components/SongPickerSection.tsx) pushes /song-search. Waiting for it also

@@ -121,13 +121,34 @@ the store app only (not β). Then a device build and TestFlight.
   moment asks before discarding, deleting a moment stops its song. OTA to
   1.4 the same day (group 420e532c), checked by Josh on TestFlight; the "…"
   as a native menu goes in 1.4.1.
-- [ ] **Sharing and social review with Josh, after 1.4.1 and before 1.5
-  planning** (Josh, 2026-11-18): make sure sharing is where it needs to be
-  before building more on it. Start from `docs/SOCIAL-ARCHITECTURE.md`,
-  the DB-2 items that touch sharing (link-shared moments, friend tokens,
-  public albums) and how people actually use it.
-  Also revisit: Share as its own button on moment detail vs folded into
-  "…" (kept separate for now, Josh 2026-11-18).
+- [x] **Sharing and social review with Josh** (2026-11-18; private notes
+  and numbers in `.claude/reviews/2026-11-18-sharing.md`). Finding: sharing
+  is built well ahead of use (direct sends and shared albums essentially
+  unused; links the only real use). **Decided (Josh): sharing is intimate,
+  not a social feed. The one thing to make excellent is sending a moment to
+  the person who was there.** Friends inbox, albums and weddings stay but
+  stop growing. Share stays its own button on moment detail (revisit later).
+- [ ] Sharing work, in order (decided 2026-11-18):
+  - **First: a shared view.** Everyone but the owner reads a moment through
+    one function that returns only what the owner shares (today recipients
+    read the moments table directly, so no field can be hidden and the link
+    token can be forwarded). Step 1 the app reads through it (OTA + 1.4.1);
+    step 2, after the min-build raise, the table becomes owner-only (with
+    DB-2). New sharing features read through it from day one.
+  - Retire the pre-occasions album guest form (`/c/{code}/contribute`, its
+    flag and edge function); switched off for every album 2026-11-18 (main PR 109).
+  - The /m/ link page as the hero: opens the app (universal links, 1.4.1),
+    "Open in app" / "Get the app" otherwise; the share card gets a small
+    link or QR; occasion pages point to the app.
+  - What travels with a share: no GPS or people's names by default; only
+    the owner can pass a moment on.
+  - Friend links rotate on unfriend, which also unsends past shares.
+  - Albums: unshare, new invite code, and on leaving, choose whether your
+    moments go with you.
+  - "Keep this": save a moment someone sent you into your own journal.
+  - Analytics: record which share option was used.
+  - Later, if direct sends get used: album activity pushes; "the people who
+    were there" as 1.5's social bet.
 - [ ] DB-2 (RLS hardening step 2) once 1.4 is out and widely installed:
   raise the min-build gate, then ship it.
 - [ ] Database hygiene from the Supabase advisors (2026-11-17): ~~pin the
