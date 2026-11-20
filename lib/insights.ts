@@ -13,6 +13,12 @@ export interface InsightMoment {
   songArtworkUrl: string;
   moods: readonly string[];
   people: readonly string[];
+  /** iTunes primary genre as Apple writes it ("Hip-Hop/Rap"); absent for older or non-catalog songs. */
+  songGenre?: string | null;
+  /** The song's release date ("YYYY-MM-DD"); absent when unknown. */
+  songReleaseDate?: string | null;
+  /** When it was written, from the phone's clock at save: "Morning", "Afternoon", "Evening", "Late Night". */
+  timeOfDay?: string | null;
 }
 
 export interface RankedArtist {
@@ -273,4 +279,382 @@ export function comingBackWhen(dates: readonly string[], count: number, now: Dat
   }
 
   return `${count.toLocaleString()} ${count === 1 ? "time" : "times"}`;
+}
+
+// ---------------------------------------------------------------------------
+// What resonates: genres and periods of music
+// ---------------------------------------------------------------------------
+
+/** Below this many moments with a genre (or a release year), that half of the section is left out. */
+export const RESONATES_MIN_MOMENTS = 3;
+
+/** Apple's catch-all genre: it says nothing about taste, so it isn't counted. */
+const GENRE_IGNORED = new Set(["music"]);
+
+/**
+ * Spellings of the same family folded into Apple's top-level name. Exact
+ * aliases only, deliberately not a taxonomy ("Soul" stays its own genre).
+ */
+const GENRE_ALIASES: Record<string, string> = {
+  "hip-hop/rap": "Hip-Hop/Rap",
+  "hip-hop": "Hip-Hop/Rap",
+  "hip hop": "Hip-Hop/Rap",
+  rap: "Hip-Hop/Rap",
+  "r&b/soul": "R&B/Soul",
+  "r&b": "R&B/Soul",
+};
+
+/** Words that stay capitalized in a sentence, so the genre keeps Apple's spelling. */
+const GENRE_PROPER_WORDS = new Set([
+  "african",
+  "americana",
+  "arabic",
+  "bollywood",
+  "brazilian",
+  "broadway",
+  "cajun",
+  "caribbean",
+  "celtic",
+  "chinese",
+  "christian",
+  "christmas",
+  "disney",
+  "french",
+  "german",
+  "greek",
+  "halloween",
+  "hawaiian",
+  "indian",
+  "italian",
+  "japanese",
+  "korean",
+  "latin",
+  "latino",
+  "motown",
+  "russian",
+  "spanish",
+  "turkish",
+]);
+
+/** Has letters and none of them lowercase: "R&B", the "K" of "K-Pop". */
+const isAbbreviation = (word: string) => word !== word.toLowerCase() && word === word.toUpperCase();
+
+/**
+ * A genre as it reads mid-sentence: lowercased ("pop", "hip-hop/rap",
+ * "singer/songwriter"), unless any word is an abbreviation ("R&B", the "K" of
+ * "K-Pop") or a proper noun ("Latin", "Christian"); then Apple's spelling is
+ * kept whole ("R&B/Soul", "K-Pop", "Christian & Gospel").
+ */
+export function genreInSentence(genre: string): string {
+  const name = genre.trim();
+  const words = name.split(/[\s/&-]+/).filter(Boolean);
+  const keep = words.some((w) => isAbbreviation(w) || GENRE_PROPER_WORDS.has(w.toLowerCase()));
+  return keep ? name : name.toLowerCase();
+}
+
+/** "pop", "pop and rock", "pop, rock and jazz" */
+function listed(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/** The leaders' share of the whole from which they're "mostly" rather than "most often". */
+const MOSTLY_SHARE = 0.5;
+
+/**
+ * Who leads a ranking (most first), if anyone clearly does: the top one when
+ * it's ahead of the rest, joined by the runner-up when that has at least 2,
+ * at least half the leader's count, and is itself ahead of third; or the top
+ * two when they tie at 2 or more ahead of third. Null when three or more tie
+ * at the top (or everything appears once): nobody leads.
+ */
+function leaders<T extends { count: number }>(ranked: readonly T[]): T[] | null {
+  const [a, b, c] = ranked;
+  if (!a) return null;
+  const bc = b?.count ?? 0;
+  const cc = c?.count ?? 0;
+  if (a.count > bc) return b && bc >= 2 && bc * 2 >= a.count && bc > cc ? [a, b] : [a];
+  if (a.count >= 2 && bc > cc) return [a, b];
+  return null;
+}
+
+/**
+ * The genres headline, from genres ranked most first (one count per moment):
+ * - one genre on every moment: "All pop";
+ * - clear leaders (see `leaders`) on half the moments or more: "Mostly pop",
+ *   "Mostly pop and hip-hop/rap"; under half: "Most often pop and rock";
+ * - nobody leads: "A mix of pop, rock and jazz" (the first three, "… and
+ *   more" when there are others).
+ * Null under RESONATES_MIN_MOMENTS moments with a genre.
+ */
+export function genreHeadline(genres: readonly Ranked[]): string | null {
+  const total = genres.reduce((n, g) => n + g.count, 0);
+  if (total < RESONATES_MIN_MOMENTS) return null;
+  const say = (g: Ranked) => genreInSentence(g.value);
+  const lead = leaders(genres);
+  if (!lead) {
+    const names = genres.slice(0, 3).map(say);
+    return genres.length > 3 ? `A mix of ${names.join(", ")} and more` : `A mix of ${listed(names)}`;
+  }
+  const covered = lead.reduce((n, g) => n + g.count, 0);
+  if (lead.length === 1 && covered === total) return `All ${say(lead[0])}`;
+  return `${covered / total >= MOSTLY_SHARE ? "Mostly" : "Most often"} ${listed(lead.map(say))}`;
+}
+
+export interface RankedDecade {
+  /** The decade's first year: 1970 for the 1970s. */
+  decade: number;
+  count: number;
+}
+
+/**
+ * A decade mid-sentence: "the 70s" from 1930 to 1990, otherwise in full
+ * ("the 2010s", "the 1920s"), so there's no "the 10s" or "the 20s" to misread.
+ */
+export function decadeInSentence(decade: number): string {
+  return decade >= 1930 && decade <= 1990 ? `the ${String(decade).slice(2)}s` : `the ${decade}s`;
+}
+
+/** A runner-up decade is a "soft spot" from this share of the moments with a release year. */
+const SOFT_SPOT_SHARE = 0.2;
+
+/**
+ * The musical-periods headline, from decades ranked most first:
+ * - every song from one decade: "All from the 2010s";
+ * - one decade ahead of the rest: "Mostly the 2010s" (half or more) or "Most
+ *   often the 2010s", plus ", with a soft spot for the 70s" when the
+ *   runner-up has at least 2 moments and a fifth of them, ahead of third;
+ * - two decades tied at the top (2 or more each, ahead of third): "Equally
+ *   the 70s and the 2010s", oldest first;
+ * - nobody leads: the span, "From the 60s to the 2020s".
+ * Null under RESONATES_MIN_MOMENTS moments with a release year.
+ */
+export function periodHeadline(decades: readonly RankedDecade[]): string | null {
+  const total = decades.reduce((n, d) => n + d.count, 0);
+  if (total < RESONATES_MIN_MOMENTS) return null;
+  const [a, b, c] = decades;
+  const bc = b?.count ?? 0;
+  const cc = c?.count ?? 0;
+  if (a.count === total) return `All from ${decadeInSentence(a.decade)}`;
+  if (a.count > bc) {
+    const lead = `${a.count / total >= MOSTLY_SHARE ? "Mostly" : "Most often"} ${decadeInSentence(a.decade)}`;
+    const soft = bc >= 2 && bc >= total * SOFT_SPOT_SHARE && bc > cc;
+    return soft ? `${lead}, with a soft spot for ${decadeInSentence(b.decade)}` : lead;
+  }
+  if (a.count >= 2 && bc > cc) {
+    const [older, newer] = [a.decade, b.decade].sort((x, y) => x - y);
+    return `Equally ${decadeInSentence(older)} and ${decadeInSentence(newer)}`;
+  }
+  const years = decades.map((d) => d.decade);
+  return `From ${decadeInSentence(Math.min(...years))} to ${decadeInSentence(Math.max(...years))}`;
+}
+
+export interface Resonates {
+  genreLine: string | null;
+  /** Genres most first (`value` as Apple writes it, aliases folded); empty without a genre line. */
+  genres: Ranked[];
+  periodLine: string | null;
+  /** Release decades most first; empty without a period line. */
+  decades: RankedDecade[];
+}
+
+/**
+ * "What resonates": the genres and release decades of the songs written
+ * about, one count per moment. A moment without a genre or release date just
+ * doesn't count toward that half, and each half needs RESONATES_MIN_MOMENTS.
+ * Null when neither half has anything to say. `meta` newest first, so ties
+ * rank the most recent first.
+ */
+export function resonates(
+  meta: readonly Pick<InsightMoment, "songGenre" | "songReleaseDate">[],
+  now: Date = new Date()
+): Resonates | null {
+  const genres = new Map<string, Ranked>();
+  const decades = new Map<number, RankedDecade>();
+  const maxYear = now.getFullYear() + 1;
+
+  for (const m of meta) {
+    const raw = m.songGenre?.trim();
+    if (raw && !GENRE_IGNORED.has(raw.toLowerCase())) {
+      const alias = GENRE_ALIASES[raw.toLowerCase()];
+      const key = (alias ?? raw).toLowerCase();
+      const entry = genres.get(key);
+      if (entry) entry.count += 1;
+      else genres.set(key, { value: alias ?? raw, count: 1 });
+    }
+
+    const year = Number(/^(\d{4})-/.exec(m.songReleaseDate ?? "")?.[1]);
+    if (year >= 1900 && year <= maxYear) {
+      const decade = Math.floor(year / 10) * 10;
+      const entry = decades.get(decade);
+      if (entry) entry.count += 1;
+      else decades.set(decade, { decade, count: 1 });
+    }
+  }
+
+  const rankedGenres = rank(genres);
+  // Stable sort: ties keep first-seen, i.e. most recent first.
+  const rankedDecades = [...decades.values()].sort((a, b) => b.count - a.count);
+  const genreLine = genreHeadline(rankedGenres);
+  const periodLine = periodHeadline(rankedDecades);
+  if (!genreLine && !periodLine) return null;
+  return {
+    genreLine,
+    genres: genreLine ? rankedGenres : [],
+    periodLine,
+    decades: periodLine ? rankedDecades : [],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// When you write: patterns, never absence
+// ---------------------------------------------------------------------------
+
+export type TimeOfDay = "morning" | "afternoon" | "evening" | "night";
+
+const TIMES: readonly TimeOfDay[] = ["morning", "afternoon", "evening", "night"];
+const TIME_LABEL: Record<TimeOfDay, string> = {
+  morning: "Morning",
+  afternoon: "Afternoon",
+  evening: "Evening",
+  night: "Late night",
+};
+const TIME_PHRASE: Record<TimeOfDay, string> = {
+  morning: "in the morning",
+  afternoon: "in the afternoon",
+  evening: "in the evening",
+  night: "late at night",
+};
+
+/** A saved time_of_day ("Late Night", "evening") as one of the four times; null for anything else. */
+export function normalizeTimeOfDay(value: string | null | undefined): TimeOfDay | null {
+  const v = value?.trim().toLowerCase();
+  if (v === "morning" || v === "afternoon" || v === "evening") return v;
+  if (v === "late night" || v === "night") return "night";
+  return null;
+}
+
+/** A time-of-day claim needs this many moments with a time... */
+export const TIME_MIN_MOMENTS = 5;
+/** ...a weekday claim this many dated moments... */
+export const WEEKDAY_MIN_MOMENTS = 7;
+/** ...and a busiest month this many dated moments, spanning at least a year. */
+export const MONTH_MIN_MOMENTS = 12;
+
+/** A leader needs at least this many moments and this many times the runner-up's... */
+const CLAIM_MIN_COUNT = 3;
+const CLAIM_MARGIN = 1.5;
+/** ...and this share: four times of day (even is 25%), seven days (14%), twelve months (8%). */
+const TIME_SHARE = 0.4;
+const WEEKDAY_SHARE = 0.25;
+const WEEKEND_SHARE = 0.5;
+const MONTH_SHARE = 0.2;
+
+const WEEKDAYS = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
+
+/** The index of the bucket that clearly leads (the constants above), or null. */
+function clearLeader(counts: readonly number[], share: number): number | null {
+  const total = counts.reduce((n, c) => n + c, 0);
+  if (total === 0) return null;
+  let top = 0;
+  for (let i = 1; i < counts.length; i++) if (counts[i] > counts[top]) top = i;
+  const second = Math.max(0, ...counts.filter((_, i) => i !== top));
+  const lead = counts[top];
+  return lead >= CLAIM_MIN_COUNT && lead / total >= share && lead >= second * CLAIM_MARGIN ? top : null;
+}
+
+/** A "YYYY-MM-DD" day as a UTC timestamp with its month and weekday; null if it isn't one. */
+function parseDay(d: string | null | undefined): { utc: number; month: number; weekday: number } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d ?? "");
+  if (!m) return null;
+  const date = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  if (Number.isNaN(date.getTime()) || date.getUTCMonth() !== Number(m[2]) - 1) return null;
+  return { utc: date.getTime(), month: date.getUTCMonth(), weekday: date.getUTCDay() };
+}
+
+const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+
+export interface WritingPattern {
+  /** "Mostly in the evening, often on Sundays"; null when nothing stands out. */
+  line: string | null;
+  /** "November", when one month clearly leads across a year or more; else null. */
+  busiestMonth: string | null;
+  /** Moments per time of day, morning to late night, only the times used; empty under TIME_MIN_MOMENTS. */
+  times: { value: TimeOfDay; label: string; count: number }[];
+}
+
+/**
+ * "When you write", as patterns that hold by a clear margin, never absence.
+ * The time of day is when the moment was written (saved); the weekday and
+ * month are of the day it happened (`momentDate`).
+ *
+ * The line joins up to two claims:
+ * - time: one time of day with 40%+ of the moments, at least 3, and 1.5× the
+ *   next ("Mostly in the evening"); when none leads but 3+ times are used,
+ *   "All through the day";
+ * - day: one weekday with 25%+, at least 3, and 1.5× the next ("often on
+ *   Sundays"); failing that, Saturdays and Sundays with half together
+ *   ("often on weekends").
+ * So "Mostly in the evening, often on Sundays", "Often on weekends", or null.
+ * Busiest month: 20%+, at least 3, 1.5× the next. Null overall when there's
+ * no line and no busiest month.
+ */
+export function writingPattern(
+  meta: readonly Pick<InsightMoment, "momentDate" | "timeOfDay">[]
+): WritingPattern | null {
+  const timeCounts = TIMES.map(() => 0);
+  const dayCounts = WEEKDAYS.map(() => 0);
+  const monthCounts = MONTHS.map(() => 0);
+  let oldest = Infinity;
+  let newest = -Infinity;
+  let dated = 0;
+
+  for (const m of meta) {
+    const t = normalizeTimeOfDay(m.timeOfDay);
+    if (t) timeCounts[TIMES.indexOf(t)] += 1;
+    const day = parseDay(m.momentDate);
+    if (day) {
+      dated += 1;
+      dayCounts[day.weekday] += 1;
+      monthCounts[day.month] += 1;
+      oldest = Math.min(oldest, day.utc);
+      newest = Math.max(newest, day.utc);
+    }
+  }
+
+  const timed = timeCounts.reduce((n, c) => n + c, 0);
+  let timeClaim: string | null = null;
+  if (timed >= TIME_MIN_MOMENTS) {
+    const lead = clearLeader(timeCounts, TIME_SHARE);
+    if (lead !== null) timeClaim = `mostly ${TIME_PHRASE[TIMES[lead]]}`;
+    else if (timeCounts.filter((c) => c > 0).length >= 3) timeClaim = "all through the day";
+  }
+
+  let dayClaim: string | null = null;
+  if (dated >= WEEKDAY_MIN_MOMENTS) {
+    const lead = clearLeader(dayCounts, WEEKDAY_SHARE);
+    if (lead !== null) dayClaim = `often on ${WEEKDAYS[lead]}`;
+    else if ((dayCounts[0] + dayCounts[6]) / dated >= WEEKEND_SHARE) dayClaim = "often on weekends";
+  }
+
+  let busiestMonth: string | null = null;
+  if (dated >= MONTH_MIN_MOMENTS && newest - oldest >= YEAR_MS) {
+    const lead = clearLeader(monthCounts, MONTH_SHARE);
+    if (lead !== null) busiestMonth = MONTHS[lead];
+  }
+
+  const joined = [timeClaim, dayClaim].filter(Boolean).join(", ");
+  const line = joined ? joined[0].toUpperCase() + joined.slice(1) : null;
+  if (!line && !busiestMonth) return null;
+
+  return {
+    line,
+    busiestMonth,
+    times:
+      timed >= TIME_MIN_MOMENTS
+        ? TIMES.map((value, i) => ({ value, label: TIME_LABEL[value], count: timeCounts[i] })).filter(
+            (t) => t.count > 0
+          )
+        : [],
+  };
 }

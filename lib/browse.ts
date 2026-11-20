@@ -13,7 +13,7 @@ import type { Moment } from "@/types";
 // so a shape change would feed stale-shaped objects to five screens with nothing
 // to notice. Bump the suffix whenever BrowseMeta changes and add the old prefix
 // to BROWSE_CACHE_PREFIXES_TO_CLEAR below. (Optional fields every reader treats
-// as maybe-missing, like songGenre and songReleaseDate, don't need a bump: an
+// as maybe-missing, like songGenre, songReleaseDate and timeOfDay, don't need a bump: an
 // older copy just lacks them until the next fetch.)
 const BROWSE_CACHE_PREFIX = "browse_meta_v2_"; // v2: mood → moods (multi-mood)
 
@@ -117,9 +117,13 @@ export interface BrowseMeta {
   songGenre?: string | null;
   /** The song's release date ("YYYY-MM-DD"); null/absent when unknown. */
   songReleaseDate?: string | null;
+  /** When it was written, as saved ("Morning" … "Late Night"); null/absent when unknown or cached before it was read. */
+  timeOfDay?: string | null;
 }
 
-const BROWSE_COLUMNS = "id, mood, moods, people, moment_date, song_title, song_artist, song_album_name, song_artwork_url";
+// time_of_day is a baseline column, so it's in the fallback list too.
+const BROWSE_COLUMNS =
+  "id, mood, moods, people, moment_date, song_title, song_artist, song_album_name, song_artwork_url, time_of_day";
 // For Insights (genres, musical periods). Added by 20261120120000_song_metadata.sql;
 // until that's applied the fetch falls back to BROWSE_COLUMNS.
 const BROWSE_SONG_COLUMNS = "song_genre, song_release_date";
@@ -163,6 +167,7 @@ export async function fetchBrowseMetadata(userId: string): Promise<BrowseMeta[]>
     songArtworkUrl: r.song_artwork_url ?? "",
     songGenre: r.song_genre ?? null,
     songReleaseDate: r.song_release_date ?? null,
+    timeOfDay: r.time_of_day ?? null,
   }));
   void persistIfSignedIn(userId, meta);
   return meta;
