@@ -19,9 +19,16 @@ interface Props {
   children: readonly ReactNode[];
   /**
    * false: no labels and no swiping, only the first pane (a person with no
-   * friends and nothing shared sees just their own things).
+   * friends and nothing shared sees just their own things). Flipping it keeps
+   * the first pane mounted, so the switch can appear once data loads without
+   * resetting that pane.
    */
   showSwitch?: boolean;
+  /**
+   * false: a swipe no longer moves between panes (the labels still do), e.g.
+   * while the Journal is selecting moments. Default true.
+   */
+  swipeEnabled?: boolean;
   /** Called when the visible pane changes (by swipe or by tapping a label). */
   onPaneChange?: (key: string) => void;
   /** Style for the label row, e.g. horizontal padding to line up with a header. */
@@ -40,6 +47,7 @@ export function PaneSwitcher({
   panes,
   children,
   showSwitch = true,
+  swipeEnabled = true,
   onPaneChange,
   labelsStyle,
   style,
@@ -59,39 +67,47 @@ export function PaneSwitcher({
     [panes, onPaneChange]
   );
 
-  if (!showSwitch) {
-    return <View style={[styles.fill, style]}>{children[0]}</View>;
-  }
+  // Hidden, the pager holds only the first pane, so a switch shown again
+  // starts there too.
+  if (!showSwitch && index !== 0) setIndex(0);
+
+  // One tree either way: hiding the switch drops the labels and the other
+  // panes but keeps the PagerView, so the first pane isn't remounted when the
+  // switch appears (that would lose its list's scroll position).
+  const shownChildren = showSwitch ? children : children.slice(0, 1);
 
   return (
     <View style={[styles.fill, style]}>
-      <View style={[styles.labels, labelsStyle]} accessibilityRole="tablist">
-        {panes.map((pane, i) => {
-          const active = i === index;
-          return (
-            <Pressable
-              key={pane.key}
-              testID={pane.testID}
-              onPress={() => select(i)}
-              hitSlop={8}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={pane.dot ? `${pane.label}, new` : pane.label}
-              style={styles.label}
-            >
-              <View style={styles.labelRow}>
-                <Text style={[styles.labelText, active && styles.labelTextActive]}>{pane.label}</Text>
-                {pane.dot ? <View style={styles.dot} /> : null}
-              </View>
-              <View style={[styles.underline, active && styles.underlineActive]} />
-            </Pressable>
-          );
-        })}
-      </View>
+      {showSwitch ? (
+        <View style={[styles.labels, labelsStyle]} accessibilityRole="tablist">
+          {panes.map((pane, i) => {
+            const active = i === index;
+            return (
+              <Pressable
+                key={pane.key}
+                testID={pane.testID}
+                onPress={() => select(i)}
+                hitSlop={8}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={pane.dot ? `${pane.label}, new` : pane.label}
+                style={styles.label}
+              >
+                <View style={styles.labelRow}>
+                  <Text style={[styles.labelText, active && styles.labelTextActive]}>{pane.label}</Text>
+                  {pane.dot ? <View style={styles.dot} /> : null}
+                </View>
+                <View style={[styles.underline, active && styles.underlineActive]} />
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
       <PagerView
         ref={pagerRef}
         style={styles.fill}
         initialPage={0}
+        scrollEnabled={showSwitch && swipeEnabled}
         onPageSelected={(e) => {
           const i = e.nativeEvent.position;
           if (i === index) return;
@@ -100,7 +116,7 @@ export function PaneSwitcher({
           if (key) onPaneChange?.(key);
         }}
       >
-        {children.map((child, i) => (
+        {shownChildren.map((child, i) => (
           <View key={panes[i]?.key ?? i} style={styles.fill} collapsable={false}>
             {child}
           </View>
