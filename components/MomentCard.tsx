@@ -33,7 +33,13 @@ import { MomentActionMenu, MenuAnchor, MomentMenuItem } from "@/components/Momen
 import { ContextMenuView, type ContextMenuAction } from "@/modules/context-menu";
 import { confirmSheet } from "@/components/ConfirmSheet";
 import { Icon } from "@/components/Icon";
-import { DELETE_MOMENT_CONFIRM, DELETE_MOMENT_FAILED, stopSongOfDeletedMoment } from "@/lib/momentActions";
+import {
+  DELETE_MOMENT_CONFIRM,
+  DELETE_MOMENT_FAILED,
+  cardMenuKeys,
+  stopSongOfDeletedMoment,
+  type CardMenuKey,
+} from "@/lib/momentActions";
 import { MomentCardData, Song } from "@/types";
 
 interface Props {
@@ -59,13 +65,31 @@ interface Props {
    * The host shows the sheets once, not one per card.
    */
   onMenuAction?: (action: CardMenuAction, item: MomentCardData) => void;
+  /**
+   * Inside an album (with onMenuAction): every moment gets a menu, with
+   * Select for all, Remove from album when canRemoveFromAlbum, and the
+   * owner's own rows (Edit, Share, Add to album, Delete) only on their own
+   * moments (lib/momentActions.ts, cardMenuKeys).
+   */
+  inAlbum?: boolean;
+  canRemoveFromAlbum?: boolean;
   /** Select mode: a tap ticks the card instead of opening it; no menu. */
   selecting?: boolean;
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
 }
 
-export type CardMenuAction = "share" | "album" | "select";
+export type CardMenuAction = "share" | "album" | "select" | "remove";
+
+// The native menu's SF Symbols (the JS fallback draws the Icon names).
+const NATIVE_SYMBOLS: Record<CardMenuKey, string> = {
+  edit: "pencil",
+  share: "square.and.arrow.up",
+  album: "rectangle.stack.badge.plus",
+  select: "checkmark.circle",
+  remove: "minus.circle",
+  delete: "trash",
+};
 
 // 56pt artwork at 3x. The stored URL is the 600px detail image.
 const ARTWORK_PX = 168;
@@ -79,6 +103,8 @@ function MomentCardComponent({
   onDeleted,
   currentUserId,
   onMenuAction,
+  inAlbum = false,
+  canRemoveFromAlbum = false,
   selecting = false,
   selected = false,
   onToggleSelect,
@@ -96,8 +122,20 @@ function MomentCardComponent({
   const queryClient = useQueryClient();
 
   // Long-press actions are for the owner's own moments only — tagged and
-  // shared lists render other users' moments through this same card.
-  const canModify = !!onDeleted && !!currentUserId && item.userId === currentUserId;
+  // shared lists render other users' moments through this same card. Inside
+  // an album, everyone in it can Select (and maybe Remove) any moment.
+  const own = !!currentUserId && item.userId === currentUserId;
+  const menuKeys = useMemo(
+    () =>
+      cardMenuKeys({
+        own,
+        deletable: !!onDeleted,
+        hostActions: !!onMenuAction,
+        album: inAlbum ? { canRemove: canRemoveFromAlbum } : null,
+      }),
+    [own, onDeleted, onMenuAction, inAlbum, canRemoveFromAlbum]
+  );
+  const canModify = menuKeys.length > 0;
 
   // Match by the provider-native ID so both Apple Music and Spotify moments work
   const momentSongId = playbackSongId({ spotifyId: item.songSpotifyId, appleMusicId: item.songAppleMusicId });
@@ -137,32 +175,36 @@ function MomentCardComponent({
 
   // The menu runs a row's action once it has finished closing, so the delete
   // confirm can present (iOS drops a Modal that starts mid-dismiss).
-  // Edit, Share, Add to album, Select, then Delete last (DESIGN.md, Menus).
-  const menuItems = useMemo<MomentMenuItem[]>(
-    () => [
-      {
+  // Edit, Share, Add to album, Select, then the destructive rows last
+  // (DESIGN.md, Menus); which of them this card gets is cardMenuKeys'.
+  const menuItems = useMemo<MomentMenuItem[]>(() => {
+    const rows: Record<CardMenuKey, MomentMenuItem> = {
+      edit: {
         key: "edit",
         label: "Edit",
         icon: "pencil-outline",
         onPress: () => router.push(`/moment/edit/${item.id}`),
       },
-      ...(onMenuAction
-        ? ([
-            { key: "share", label: "Share", icon: "share-outline", onPress: () => onMenuAction("share", item) },
-            { key: "album", label: "Add to album", icon: "albums-outline", onPress: () => onMenuAction("album", item) },
-            { key: "select", label: "Select", icon: "checkmark-circle", onPress: () => onMenuAction("select", item) },
-          ] satisfies MomentMenuItem[])
-        : []),
-      {
+      share: { key: "share", label: "Share", icon: "share-outline", onPress: () => onMenuAction?.("share", item) },
+      album: { key: "album", label: "Add to album", icon: "albums-outline", onPress: () => onMenuAction?.("album", item) },
+      select: { key: "select", label: "Select", icon: "checkmark-circle", onPress: () => onMenuAction?.("select", item) },
+      remove: {
+        key: "remove",
+        label: "Remove from album",
+        icon: "remove-circle-outline",
+        destructive: true,
+        onPress: () => onMenuAction?.("remove", item),
+      },
+      delete: {
         key: "delete",
         label: "Delete",
         icon: "trash-outline",
         destructive: true,
         onPress: () => void confirmAndDelete(),
       },
-    ],
-    [item, router, confirmAndDelete, onMenuAction]
-  );
+    };
+    return menuKeys.map((key) => rows[key]);
+  }, [menuKeys, item, router, confirmAndDelete, onMenuAction]);
 
   // The iOS context menu (1.4): long-press lifts the card and attaches the
   // menu. Builds without the native view fall back to MomentActionMenu.
@@ -173,18 +215,13 @@ function MomentCardComponent({
     () =>
       selecting
         ? []
-        : [
-            { id: "edit", title: "Edit", systemImage: "pencil" },
-            ...(onMenuAction
-              ? [
-                  { id: "share", title: "Share", systemImage: "square.and.arrow.up" },
-                  { id: "album", title: "Add to album", systemImage: "rectangle.stack.badge.plus" },
-                  { id: "select", title: "Select", systemImage: "checkmark.circle" },
-                ]
-              : []),
-            { id: "delete", title: "Delete", systemImage: "trash", destructive: true },
-          ],
-    [selecting, onMenuAction]
+        : menuItems.map((m) => ({
+            id: m.key,
+            title: m.label,
+            systemImage: NATIVE_SYMBOLS[m.key as CardMenuKey],
+            ...(m.destructive ? { destructive: true } : {}),
+          })),
+    [selecting, menuItems]
   );
   const onNativeAction = useCallback(
     (e: { nativeEvent: { id: string } }) => {

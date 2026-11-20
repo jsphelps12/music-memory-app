@@ -6,6 +6,9 @@
 import { describe, it, expect } from "vitest";
 import {
   albumAddNotice,
+  albumRemoveKeptNote,
+  bulkRemoveFailedTitle,
+  planAlbumSelection,
   bulkDeleteFailedTitle,
   planAlbumAdd,
   pruneSelection,
@@ -13,7 +16,12 @@ import {
   selectionTitle,
   toggleSelected,
 } from "../momentSelection";
-import { DELETE_MOMENT_CONFIRM, DELETE_MOMENT_FAILED, deleteMomentsConfirm } from "../momentActions";
+import {
+  DELETE_MOMENT_CONFIRM,
+  DELETE_MOMENT_FAILED,
+  REMOVE_FROM_ALBUM_FAILED,
+  deleteMomentsConfirm,
+} from "../momentActions";
 
 describe("toggleSelected", () => {
   it("adds and removes, never mutating the input", () => {
@@ -116,5 +124,51 @@ describe("bulk delete copy", () => {
     });
     expect(bulkDeleteFailedTitle(2, 5)).toBe("Couldn't delete 2 of 5 moments");
     expect(bulkDeleteFailedTitle(3, 3)).toBe("Couldn't delete 3 moments");
+  });
+});
+
+describe("planAlbumSelection", () => {
+  const list = [
+    { id: "a", userId: "me" },
+    { id: "b", userId: "friend" },
+    { id: "c", userId: "me" },
+    { id: "d", userId: null },
+  ];
+  const memberRule = (owner: string | null | undefined) => owner === "me";
+  const ownerRule = () => true;
+
+  it("a member removes only their own; the rest stay", () => {
+    const plan = planAlbumSelection(new Set(["a", "b", "c"]), list, "me", memberRule);
+    expect(plan).toEqual({ removable: ["a", "c"], kept: ["b"], allOwn: false, removableAllOwn: true });
+  });
+
+  it("an album owner removes anything, someone else's included", () => {
+    const plan = planAlbumSelection(new Set(["b", "d"]), list, "me", ownerRule);
+    expect(plan).toEqual({ removable: ["b", "d"], kept: [], allOwn: false, removableAllOwn: false });
+  });
+
+  it("all own: Add to album is open", () => {
+    expect(planAlbumSelection(new Set(["a", "c"]), list, "me", ownerRule).allOwn).toBe(true);
+  });
+
+  it("nothing selected is not all own", () => {
+    expect(planAlbumSelection(new Set(), list, "me", ownerRule).allOwn).toBe(false);
+  });
+
+  it("ignores ids no longer in the album", () => {
+    expect(planAlbumSelection(new Set(["gone", "a"]), list, "me", ownerRule).removable).toEqual(["a"]);
+  });
+});
+
+describe("album remove words", () => {
+  it("notes what stays", () => {
+    expect(albumRemoveKeptNote(0)).toBe("");
+    expect(albumRemoveKeptNote(1)).toBe("1 moment someone else added stays.");
+    expect(albumRemoveKeptNote(2)).toBe("2 moments others added stay.");
+  });
+
+  it("titles a failed remove", () => {
+    expect(bulkRemoveFailedTitle(1)).toBe(REMOVE_FROM_ALBUM_FAILED);
+    expect(bulkRemoveFailedTitle(3)).toBe("Couldn't remove 3 moments from the album");
   });
 });

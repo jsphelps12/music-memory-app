@@ -399,6 +399,30 @@ export async function removeMomentFromAlbum(collectionId: string, momentId: stri
   if (error) throw error;
 }
 
+/**
+ * The album screen's select mode: take these moments out of the album, a
+ * chunk per statement. Returns the ids actually removed: the delete policy
+ * skips rows this user may not remove without an error, so the caller learns
+ * what went from the rows that come back. Throws on a failed request.
+ */
+export async function removeMomentsFromAlbum(
+  collectionId: string,
+  momentIds: readonly string[]
+): Promise<string[]> {
+  const removed: string[] = [];
+  for (let i = 0; i < momentIds.length; i += BULK_ID_CHUNK) {
+    const { data, error } = await supabase
+      .from("collection_moments")
+      .delete()
+      .eq("collection_id", collectionId)
+      .in("moment_id", momentIds.slice(i, i + BULK_ID_CHUNK))
+      .select("moment_id");
+    if (error) throw error;
+    for (const r of (data ?? []) as { moment_id: string }[]) removed.push(r.moment_id);
+  }
+  return removed;
+}
+
 // ─── Invites ─────────────────────────────────────────────────────────────────
 
 /**
