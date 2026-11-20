@@ -836,7 +836,6 @@ export default function TimelineScreen() {
           </>
           )
         }
-        style={styles.header}
       />
       {/* The view menu's fallback; stays closed when the native MenuButton is there. */}
       <MomentActionMenu anchor={viewMenuAnchor} items={viewMenuItems} onClose={() => setViewMenuAnchor(null)} />
@@ -851,7 +850,6 @@ export default function TimelineScreen() {
           // Selecting is Yours' alone: a stray swipe mustn't carry it off.
           swipeEnabled={!selecting}
           onPaneChange={handlePaneChange}
-          labelsStyle={styles.paneLabels}
         >
           <GestureDetector gesture={pinchGesture}>
             <View style={styles.viewsContainer}>
@@ -1014,9 +1012,6 @@ function createStyles(theme: Theme) {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
-    header: {
-      paddingBottom: theme.spacing.xs,
-    },
     // The 32pt avatar in a 44pt target, like the IconButton beside it.
     avatarButton: {
       width: 44,
@@ -1026,10 +1021,6 @@ function createStyles(theme: Theme) {
     },
     body: {
       flex: 1,
-    },
-    // Yours / Shared at the page gutter, under the title.
-    paneLabels: {
-      paddingHorizontal: theme.spacing.xl,
     },
     // Clears the floating capture button, like the Yours list.
     sharedListContent: {

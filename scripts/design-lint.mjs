@@ -100,6 +100,29 @@ for (const file of files) {
   });
 }
 
+// Tab screens share one header. A tab that restyles its ScreenHeader is how
+// Journal and Albums drifted apart by 16pt (2026-11-20): the spacing lives in
+// ScreenHeader and PaneSwitcher, not in each tab.
+const TAB_HEADER_RULE = {
+  id: "tab-header-style",
+  why: "Tab screens use ScreenHeader as is: no style prop (spacing lives in ScreenHeader and PaneSwitcher).",
+};
+for (const file of files) {
+  if (!file.includes(`${path.sep}(tabs)${path.sep}`)) continue;
+  const text = fs.readFileSync(file, "utf8");
+  if (text.includes("design-lint-file-ignore:")) continue;
+  const re = /<ScreenHeader\b[\s\S]*?\/>/g;
+  let m;
+  while ((m = re.exec(text))) {
+    // Only the header's own props: drop nested JSX (e.g. the right={...} slot).
+    const own = m[0].replace(/\{[\s\S]*\}/g, "{}");
+    if (/\sstyle=/.test(own)) {
+      const line = text.slice(0, m.index).split("\n").length;
+      problems.push({ file: path.relative(ROOT, file), line, rule: TAB_HEADER_RULE, src: "<ScreenHeader … style=…>" });
+    }
+  }
+}
+
 if (problems.length === 0) {
   console.log(`design-lint: ${files.length} files clean.`);
   process.exit(0);

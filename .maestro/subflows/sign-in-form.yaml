@@ -26,13 +26,12 @@ env:
 # iOS asks "paste from CoreSimulator-Bridge?" over the sign-in screen, and the
 # app's hierarchy is empty until it's answered. Decline: the test has no
 # invite, and a stray link in the clipboard shouldn't steer the run.
-# (scripts/e2e-local.sh empties the simulator's clipboard first, so this is
-# the fallback.) Wait for the form optionally, answer the prompt if that's
-# what is up, then wait for the form for real below.
+# It shows within a few seconds of launch even after e2e-local.sh empties the
+# clipboard (an empty item still counts), so look for it first, briefly,
+# rather than waiting out the form it covers.
 - extendedWaitUntil:
-    visible:
-      id: "signin-email"
-    timeout: 45000
+    visible: "Don.t Allow Paste"
+    timeout: 8000
     optional: true
 - runFlow:
     when:

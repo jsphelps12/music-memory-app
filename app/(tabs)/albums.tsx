@@ -395,7 +395,6 @@ export default function AlbumsScreen() {
           testID="albums-new"
         />
       }
-      style={styles.header}
     />
   );
 
@@ -410,7 +409,7 @@ export default function AlbumsScreen() {
     body = <ErrorState message={friendlyError(error)} onRetry={() => refetch()} />;
   } else {
     body = (
-      <PaneSwitcher panes={panes} showSwitch={showSwitch} labelsStyle={styles.paneLabels}>
+      <PaneSwitcher panes={panes} showSwitch={showSwitch}>
         {[
           <AlbumGrid
             key="yours"
@@ -527,14 +526,6 @@ function createStyles(theme: Theme) {
     bannerWrap: {
       paddingHorizontal: SCREEN_PAD,
       paddingTop: theme.spacing.sm,
-    },
-    // Same spacing as the Journal's header and labels, so Yours / Shared
-    // doesn't jump when you switch tabs.
-    header: {
-      paddingBottom: theme.spacing.xs,
-    },
-    paneLabels: {
-      paddingHorizontal: SCREEN_PAD,
     },
     listContent: {
       paddingHorizontal: SCREEN_PAD,

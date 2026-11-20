@@ -23,6 +23,7 @@ import { BottomSheet } from "@/components/BottomSheet";
 import { ListRow } from "@/components/ListRow";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
+import { profileStats } from "@/lib/profileStats";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -93,6 +94,11 @@ export default function YouScreen() {
       count: meta.filter((m) => m.momentDate?.startsWith(String(year))).length,
     }));
   }, [browseMeta.data]);
+
+  const stats = useMemo(
+    () => (browseMeta.data && browseMeta.data.length > 0 ? profileStats(browseMeta.data) : null),
+    [browseMeta.data]
+  );
 
   const summary = useQuery({
     queryKey: ["youSummary", user?.id],
@@ -288,6 +294,30 @@ export default function YouScreen() {
           </View>
         ) : null}
 
+        {/* A few numbers, for fun (no streaks: lib/profileStats.ts) */}
+        {stats ? (
+          <View style={styles.stats} testID="you-stats">
+            <View style={styles.statsRow}>
+              {([
+                ["Moments", stats.moments],
+                ["Songs", stats.songs],
+                ["Artists", stats.artists],
+                ["Days", stats.days],
+              ] as const).map(([label, value]) => (
+                <View key={label} style={styles.stat} accessible accessibilityLabel={`${value} ${label.toLowerCase()}`}>
+                  <Text style={styles.statValue} numberOfLines={1}>{value.toLocaleString()}</Text>
+                  <Text style={styles.statLabel}>{label}</Text>
+                </View>
+              ))}
+            </View>
+            {stats.topArtist && stats.topArtist.count > 1 ? (
+              <Text style={styles.statNote} numberOfLines={2}>
+                Most often: {stats.topArtist.name}, {stats.topArtist.count} moments
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
         {/* Year in review, any year with enough moments */}
         {reviewYears.length > 0 ? (
           <View style={styles.rows}>
@@ -360,6 +390,30 @@ export default function YouScreen() {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
+    stats: {
+      marginTop: theme.spacing.xl,
+      gap: theme.spacing.md,
+    },
+    statsRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+    },
+    stat: {
+      flex: 1,
+      gap: 2,
+    },
+    statValue: {
+      ...theme.typography.title,
+      color: theme.colors.text,
+    },
+    statLabel: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+    },
+    statNote: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+    },
     outer: {
       flex: 1,
       backgroundColor: theme.colors.background,

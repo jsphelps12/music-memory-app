@@ -31,8 +31,6 @@ interface Props {
   swipeEnabled?: boolean;
   /** Called when the visible pane changes (by swipe or by tapping a label). */
   onPaneChange?: (key: string) => void;
-  /** Style for the label row, e.g. horizontal padding to line up with a header. */
-  labelsStyle?: StyleProp<ViewStyle>;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -49,7 +47,6 @@ export function PaneSwitcher({
   showSwitch = true,
   swipeEnabled = true,
   onPaneChange,
-  labelsStyle,
   style,
 }: Props) {
   const theme = useTheme();
@@ -79,7 +76,7 @@ export function PaneSwitcher({
   return (
     <View style={[styles.fill, style]}>
       {showSwitch ? (
-        <View style={[styles.labels, labelsStyle]} accessibilityRole="tablist">
+        <View style={styles.labels} accessibilityRole="tablist">
           {panes.map((pane, i) => {
             const active = i === index;
             return (
@@ -134,7 +131,9 @@ function createStyles(theme: Theme) {
     labels: {
       flexDirection: "row",
       gap: theme.spacing.lg,
-      paddingHorizontal: theme.spacing.lg,
+      // The page gutter, the same as ScreenHeader's title, so the labels line
+      // up under it on every tab. Deliberately not overridable.
+      paddingHorizontal: theme.spacing.xl,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.colors.divider,
     },
