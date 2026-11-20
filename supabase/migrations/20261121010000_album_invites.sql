@@ -40,15 +40,15 @@ ALTER TABLE public.collection_friend_invites ENABLE ROW LEVEL SECURITY;
 -- 2. Policies. None of them reads a table whose own policy reads this one,
 --    so there is no policy recursion (see 20260801180000).
 
--- The inviter sees what they sent (the picker's "Invited" state); the
--- invitee sees what they were sent.
+-- Only the invitee reads invite rows. The inviter must not learn whether a
+-- friend said Not now: the picker's "Invited" state comes from
+-- get_album_invitee_ids (below), which lists who has been asked without
+-- saying how they answered.
 DROP POLICY IF EXISTS "Inviter and invitee can view album invites" ON public.collection_friend_invites;
-CREATE POLICY "Inviter and invitee can view album invites"
+DROP POLICY IF EXISTS "Invitees can view their album invites" ON public.collection_friend_invites;
+CREATE POLICY "Invitees can view their album invites"
   ON public.collection_friend_invites FOR SELECT TO authenticated
-  USING (
-    (SELECT auth.uid()) = to_user
-    OR (SELECT auth.uid()) = from_user
-  );
+  USING ((SELECT auth.uid()) = to_user);
 
 -- Only the album's owner invites, as themselves, into a shared album, and
 -- only an accepted friend (either direction of the friendship row). The app
@@ -91,11 +91,32 @@ CREATE POLICY "Invitees can answer album invites"
 REVOKE UPDATE ON public.collection_friend_invites FROM anon, authenticated;
 GRANT UPDATE (status, responded_at) ON public.collection_friend_invites TO authenticated;
 
--- The inviter can withdraw an invite.
+-- The inviter can withdraw an invite that hasn't been answered. A declined
+-- row stays, so "Not now" can't be undone by deleting it and inviting again.
 DROP POLICY IF EXISTS "Inviters can withdraw album invites" ON public.collection_friend_invites;
 CREATE POLICY "Inviters can withdraw album invites"
   ON public.collection_friend_invites FOR DELETE TO authenticated
-  USING ((SELECT auth.uid()) = from_user);
+  USING ((SELECT auth.uid()) = from_user AND status = 'pending');
+
+-- Who the owner has asked into their album (pending or declined, without
+-- saying which), for the picker's "Invited" state.
+CREATE OR REPLACE FUNCTION public.get_album_invitee_ids(p_collection_id uuid)
+RETURNS SETOF uuid
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT i.to_user
+    FROM public.collection_friend_invites i
+    JOIN public.collections c ON c.id = i.collection_id
+   WHERE i.collection_id = p_collection_id
+     AND c.user_id = (SELECT auth.uid())
+     AND i.status IN ('pending', 'declined');
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.get_album_invitee_ids(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_album_invitee_ids(uuid) TO authenticated;
 
 -- 3. invite_to_album: the owner invites friends to a shared album. Returns how
 --    many invites were created (or re-opened). Skipped without error: the

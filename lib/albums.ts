@@ -563,16 +563,13 @@ export async function fetchPendingAlbumInviteCount(userId: string): Promise<numb
  * the share sheet then hides "Invite friends".
  */
 export async function fetchAlbumInviteeIds(collectionId: string): Promise<Set<string> | null> {
-  const { data, error } = await supabase
-    .from(INVITES_TABLE)
-    .select("to_user")
-    .eq("collection_id", collectionId)
-    .in("status", ["pending", "declined"]);
+  // Through an RPC: the owner may know who was asked, not who said Not now.
+  const { data, error } = await supabase.rpc("get_album_invitee_ids", { p_collection_id: collectionId });
   if (error) {
     if (isMissingInviteBackend(error)) return null;
     throw error;
   }
-  return new Set(((data ?? []) as { to_user: string }[]).map((r) => r.to_user));
+  return new Set(((data ?? []) as string[]).filter((id) => typeof id === "string"));
 }
 
 /**
