@@ -47,6 +47,7 @@ import {
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { groupMomentsByMonth } from "@/lib/monthGroups";
+import { sequenceFromList, setMomentSequence } from "@/lib/momentSequence";
 import { fetchUnviewedSharedCount } from "@/lib/momentShares";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
@@ -656,6 +657,14 @@ export default function TimelineScreen() {
   }, [applyList, persistFirstPage]);
   const handleCardDeleted = useCallback((deletedId: string) => removeFromList([deletedId]), [removeFromList]);
 
+  // Opening a moment hands over the list in the order it's shown (months
+  // grouped as the sections are), so left and right on the moment flip
+  // through it. Only what's loaded: the last loaded moment is the end.
+  const handleOpenMoment = useCallback((item: MomentCardData) => {
+    const shown = groupMomentsByMonth(momentsRef.current).flatMap((s) => s.data);
+    setMomentSequence(sequenceFromList(shown, item.id));
+  }, []);
+
   // ── Select mode ─────────────────────────────────────────────────────────
   // Leaving the tab (or pushing a screen over it) ends it.
   useFocusEffect(useCallback(() => exitSelect, [exitSelect]));
@@ -760,8 +769,9 @@ export default function TimelineScreen() {
       selecting={selecting}
       selected={selecting && selected.has(item.id)}
       onToggleSelect={toggleSelect}
+      onOpen={handleOpenMoment}
     />
-  ), [allMoods, handleCardDeleted, userId, handleMenuAction, selecting, selected, toggleSelect]);
+  ), [allMoods, handleCardDeleted, userId, handleMenuAction, selecting, selected, toggleSelect, handleOpenMoment]);
 
   const listHeader = (
     <>
