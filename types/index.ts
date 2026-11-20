@@ -200,3 +200,19 @@ export interface Friendship {
   otherUserUsername: string | null;
 }
 
+
+/**
+ * A "Who was there" name on a moment linked to a friend's account
+ * (moment_people_links). The owner's private note: the friend is never told,
+ * and `Moment.people` keeps the name either way.
+ */
+export interface PersonLink {
+  /** The name as it appears in `Moment.people`. */
+  name: string;
+  friendId: string;
+}
+
+/** A PersonLink with the moment it's on (the owner's whole set). */
+export interface StoredPersonLink extends PersonLink {
+  momentId: string;
+}

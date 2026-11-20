@@ -46,6 +46,8 @@ const MOMENT_SCREEN_KEYS = [
   "fromBeforeBrowse",
   "yearReview",
   "memoryCard",
+  // Names linked to friends: saves write them, deletes cascade them.
+  "peopleLinks",
 ] as const;
 
 /**
@@ -138,4 +140,6 @@ export function invalidateFriendCaches(queryClient: QueryClient, userId: string 
 
   void queryClient.invalidateQueries({ queryKey: ["friendsList", userId] });
   void queryClient.invalidateQueries({ queryKey: ["youSummary", userId] });
+  // Unfriending drops the links between the two people (DB trigger).
+  void queryClient.invalidateQueries({ queryKey: ["peopleLinks", userId] });
 }

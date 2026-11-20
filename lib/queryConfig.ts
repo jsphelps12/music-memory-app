@@ -104,3 +104,10 @@ export const FRIENDS_STALE = DEFAULT_SCREEN_STALE;
  * the share picker's order. Invalidated when the share sheet closes.
  */
 export const RECENT_RECIPIENTS_STALE = DEFAULT_SCREEN_STALE;
+
+/**
+ * `["peopleLinks", userId]` — "Who was there" names linked to friends
+ * (lib/momentPeopleLinks.ts). Read by capture, edit, Rediscover's People and
+ * the share sheet; invalidated with every moment and friend mutation.
+ */
+export const PEOPLE_LINKS_STALE = DEFAULT_SCREEN_STALE;

@@ -27,6 +27,9 @@ import { MomentSearch } from "@/components/MomentSearch";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ListRow } from "@/components/ListRow";
 import { PersonPicker, pickerHasSearch } from "@/components/PersonPicker";
+import { useFriends } from "@/hooks/useFriends";
+import { usePeopleLinks } from "@/hooks/usePeopleLinks";
+import { groupPeopleByPerson } from "@/lib/people";
 import { YearReviewEntry } from "@/components/YearReviewEntry";
 import { eligibleReviewYears, featuredReviewYear } from "@/lib/yearInReview";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
@@ -164,15 +167,6 @@ const HERO_ARTWORK_PX = 396;
 const ROW_ARTWORK_PX = 144;
 const SHEET_ARTWORK_PX = 120;
 
-function derivePeopleCounts(meta: BrowseMeta[]) {
-  const counts: Record<string, number> = {};
-  for (const m of meta) {
-    for (const p of m.people) counts[p] = (counts[p] ?? 0) + 1;
-  }
-  return Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, count]) => ({ name, count }));
-}
 
 function deriveYearCounts(meta: BrowseMeta[]) {
   const counts: Record<number, number> = {};
@@ -371,9 +365,27 @@ export default function ReflectionsScreen() {
   });
 
   const moodCounts = useMemo(() => deriveMoodCounts(meta, allMoods), [meta, allMoods]);
-  const peopleCounts = useMemo(() => derivePeopleCounts(meta), [meta]);
+  // One row per real person: names linked to the same friend are one
+  // (lib/people.ts groupPeopleByPerson); everyone else by the name written.
+  const { data: peopleLinks } = usePeopleLinks();
+  const { data: friends } = useFriends();
+  const peopleCounts = useMemo(
+    () =>
+      groupPeopleByPerson(
+        meta,
+        peopleLinks?.available ? peopleLinks.links : [],
+        friends ? new Set(friends.map((f) => f.otherUserId)) : undefined
+      ),
+    [meta, peopleLinks, friends]
+  );
   const peoplePickerRows = useMemo(
-    () => peopleCounts.map(({ name, count }) => ({ id: name, displayName: name, detail: String(count) })),
+    () =>
+      peopleCounts.map((g) => ({
+        id: g.key,
+        displayName: g.label,
+        friendId: g.friendId,
+        detail: String(g.momentIds.length),
+      })),
     [peopleCounts]
   );
   const yearCounts = useMemo(() => deriveYearCounts(meta), [meta]);
@@ -786,7 +798,12 @@ export default function ReflectionsScreen() {
           avatars={false}
           searchPlaceholder="Search people"
           rowAccessibilityLabel={(p) => `${p.displayName}, ${p.detail} ${p.detail === "1" ? "moment" : "moments"}`}
-          onPick={(p) => browseTo({ pathname: "/browse/person", params: { name: p.id } })}
+          onPick={(p) =>
+            browseTo({
+              pathname: "/browse/person",
+              params: p.friendId ? { name: p.displayName, friend: p.friendId } : { name: p.displayName },
+            })
+          }
           style={styles.sheetPicker}
           contentContainerStyle={styles.sheetPickerContent}
         />

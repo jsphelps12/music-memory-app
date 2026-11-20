@@ -45,6 +45,8 @@ import { friendlyError } from "@/lib/errors";
 import { onSongSelected } from "@/lib/songEvents";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches } from "@/lib/cacheInvalidation";
+import { fetchMomentPeopleLinks } from "@/lib/momentPeopleLinks";
+import type { PersonLink } from "@/types";
 
 type ScreenState = "loading" | "not_found" | "error" | "ready";
 
@@ -59,6 +61,7 @@ function editSnapshot(v: {
   reflection: string;
   moods: string[];
   people: string[];
+  links: PersonLink[] | null;
   photos: EditedPhoto[];
   momentDate: Date | null;
   location: GeoResult | null;
@@ -68,6 +71,7 @@ function editSnapshot(v: {
     v.reflection,
     v.moods,
     v.people,
+    (v.links ?? []).map((l) => `${l.friendId}:${l.name}`).sort(),
     v.photos.map((p) => (p.kind === "kept" ? p.path : p.uri)),
     dayKey(v.momentDate),
     v.location ? [v.location.name, v.location.lat, v.location.lng] : null,
@@ -77,6 +81,7 @@ function editSnapshot(v: {
 export default function EditMomentScreen() {
   const router = useRouter();
   const { user, profile, saveCustomMood, deleteCustomMood } = useAuth();
+  const userId = user?.id;
   const posthog = usePostHog();
   const queryClient = useQueryClient();
   const theme = useTheme();
@@ -102,6 +107,11 @@ export default function EditMomentScreen() {
   const [reflection, setReflection] = useState("");
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [people, setPeople] = useState<string[]>([]);
+  // Names linked to friends, and what was stored when the screen loaded (so
+  // a save writes only the difference). Null when they couldn't be read: the
+  // names stay plain here and a save leaves the stored links alone.
+  const [peopleLinks, setPeopleLinks] = useState<PersonLink[] | null>(null);
+  const originalLinksRef = useRef<PersonLink[]>([]);
   // Every photo in the strip, stored and new, in the order the user arranged.
   const [photos, setPhotos] = useState<EditedPhoto[]>([]);
   // What was on the row when we loaded it: the stored photos (paired with
@@ -132,11 +142,15 @@ export default function EditMomentScreen() {
   const fetchMoment = useCallback(async () => {
     setScreenState("loading");
     setLoadError("");
-    const { data, error: fetchError } = await supabase
-      .from("moments")
-      .select("*")
-      .eq("id", params.id)
-      .maybeSingle();
+    const [{ data, error: fetchError }, loadedLinks] = await Promise.all([
+      supabase.from("moments").select("*").eq("id", params.id).maybeSingle(),
+      // Never fails the load: unreadable (or not set up yet) means "leave alone".
+      userId
+        ? fetchMomentPeopleLinks(params.id, userId)
+            .then((r) => (r.available ? r.links : null))
+            .catch(() => null)
+        : Promise.resolve(null),
+    ]);
 
     if (fetchError) {
       setLoadError(friendlyError(fetchError));
@@ -166,6 +180,8 @@ export default function EditMomentScreen() {
     setReflection(moment.reflectionText ?? "");
     setSelectedMoods(moment.moods);
     setPeople(moment.people);
+    originalLinksRef.current = loadedLinks ?? [];
+    setPeopleLinks(loadedLinks);
     // Keep each photo's link to Photos (1.4) with it through any reordering.
     const stored = pairStoredPhotos(moment.photoUrls, moment.photoThumbnails).map((p, i) => ({
       ...p,
@@ -190,13 +206,14 @@ export default function EditMomentScreen() {
         reflection: moment.reflectionText ?? "",
         moods: moment.moods,
         people: moment.people,
+        links: loadedLinks,
         photos: loadedPhotos,
         momentDate: loadedDate,
         location: loadedLocation,
       })
     );
     setScreenState("ready");
-  }, [params.id]);
+  }, [params.id, userId]);
 
   useEffect(() => {
     fetchMoment();
@@ -315,6 +332,8 @@ export default function EditMomentScreen() {
         originalPhotos: originalPhotosRef.current.photos,
         originalThumbnails: originalPhotosRef.current.thumbnails,
         photos,
+        originalPeopleLinks: originalLinksRef.current,
+        peopleLinks: peopleLinks ?? undefined,
       });
 
       posthog.capture("moment_edited", {
@@ -350,6 +369,7 @@ export default function EditMomentScreen() {
       reflection,
       moods: selectedMoods,
       people,
+      links: peopleLinks,
       photos,
       momentDate,
       location: locationResult,
@@ -493,7 +513,13 @@ export default function EditMomentScreen() {
 
         {/* People */}
         <SectionLabel style={styles.section}>People</SectionLabel>
-        <PeopleInput people={people} onChangePeople={setPeople} />
+        {/* Linked names show the friend's photo; tap a name to link it. */}
+        <PeopleInput
+          people={people}
+          onChangePeople={setPeople}
+          links={peopleLinks ?? undefined}
+          onChangeLinks={peopleLinks ? setPeopleLinks : undefined}
+        />
 
         {/* Photos: the same picker as capture, so edit gets its tap-to-view
             and reordering too. */}

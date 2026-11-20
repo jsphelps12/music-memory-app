@@ -20,6 +20,8 @@ interface Props {
   icon?: IconName;
   /** A small leading image (album art, a cover) in place of an icon. */
   imageUri?: string | null;
+  /** The image is a person's photo: round, like Avatar. */
+  imageRound?: boolean;
   /** e.g. long-press to delete a custom mood. */
   onLongPress?: () => void;
   accessibilityHint?: string;
@@ -38,6 +40,7 @@ export function Chip({
   variant = "outline",
   icon,
   imageUri,
+  imageRound = false,
   onLongPress,
   accessibilityHint,
   onRemove,
@@ -57,7 +60,7 @@ export function Chip({
   const body = (
     <View style={styles.row}>
       {imageUri ? (
-        <AppImage source={{ uri: imageUri }} style={styles.image} />
+        <AppImage source={{ uri: imageUri }} style={[styles.image, imageRound && styles.imageRound]} />
       ) : icon ? (
         <Icon name={icon} size={14} color={fg} />
       ) : null}
@@ -147,6 +150,9 @@ function createStyles(theme: Theme) {
       height: 20,
       borderRadius: 4,
       marginLeft: -4,
+    },
+    imageRound: {
+      borderRadius: theme.radii.full,
     },
     label: {
       fontFamily: theme.fonts.bodyMedium,

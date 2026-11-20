@@ -35,6 +35,7 @@ vi.mock("@/lib/storage", () => ({
 
 import { saveMoment, updateMoment, type UpdateMomentInput } from "../saveMoment";
 import { EMPTY_SONG_LOOKUP, type SongLookup } from "../songMetadata";
+import * as Sentry from "@sentry/react-native";
 
 const song: Song = {
   id: "1",
@@ -336,5 +337,69 @@ describe("updateMoment", () => {
     const moment = await updateMoment(edit());
     expect(moment.photoUrls).toEqual(["u1/old1.jpg", "u1/new.jpg"]);
     expect(mocks.deleteMomentPhotos).toHaveBeenCalledWith(["u1/old2.jpg"], ["u1/thumb_old2.jpg"]);
+  });
+});
+
+describe("who was there links", () => {
+  const linkQueries = () => sb.queries.filter((q) => q.table === "moment_people_links");
+  const SAM = { name: "Sam", friendId: "f1" };
+
+  beforeEach(() => vi.mocked(Sentry.captureException).mockClear());
+
+  it("writes the links after the moment row", async () => {
+    sb.queueData(row());
+    await saveMoment({ ...base, people: ["Sam"], photos: [], peopleLinks: [SAM] });
+
+    expect(sb.queries.map((q) => q.table)).toEqual(["moments", "moment_people_links"]);
+    expect(linkQueries()[0].chain[0]).toMatchObject({
+      method: "upsert",
+      args: [
+        [{ moment_id: "moment-1", owner_id: "u1", name: "Sam", friend_id: "f1" }],
+        { onConflict: "moment_id,friend_id" },
+      ],
+    });
+  });
+
+  it("writes nothing for a moment without links", async () => {
+    sb.queueData(row());
+    await saveMoment({ ...base, people: ["Sam"], photos: [] });
+    expect(linkQueries()).toHaveLength(0);
+  });
+
+  it("never fails the save when linking fails, and tells Sentry", async () => {
+    sb.queueData(row());
+    sb.queueError({ code: "42501", message: "new row violates row-level security policy" });
+
+    const result = await saveMoment({ ...base, people: ["Sam"], photos: [], peopleLinks: [SAM] });
+    expect(result.id).toBe("moment-1");
+    expect(result.secondaryFailures).toEqual([]);
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("is quietly skipped before the migration (no table)", async () => {
+    sb.queueData(row());
+    sb.queueError({
+      code: "PGRST205",
+      message: "Could not find the table 'public.moment_people_links' in the schema cache",
+    });
+
+    await expect(saveMoment({ ...base, people: ["Sam"], photos: [], peopleLinks: [SAM] })).resolves.toBeTruthy();
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  it("an edit leaves stored links alone when the editor didn't load them", async () => {
+    sb.queueData(row());
+    await updateMoment(edit({ people: ["Sam"] }));
+    expect(linkQueries()).toHaveLength(0);
+  });
+
+  it("an edit removes the link of a name taken off the moment", async () => {
+    sb.queueData(row());
+    await updateMoment(edit({ people: [], originalPeopleLinks: [SAM], peopleLinks: [SAM] }));
+
+    expect(linkQueries()).toHaveLength(1);
+    const chain = linkQueries()[0].chain;
+    expect(chain[0].method).toBe("delete");
+    expect(chain.find((c) => c.method === "in")?.args).toEqual(["friend_id", ["f1"]]);
   });
 });

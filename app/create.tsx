@@ -42,7 +42,7 @@ import { fetchAlbums } from "@/lib/albums";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
-import { Song, Album } from "@/types";
+import { Song, Album, type PersonLink } from "@/types";
 import { GeoResult } from "@/lib/geocoding";
 import { friendlyError } from "@/lib/errors";
 import { checkAndNotifyMilestone } from "@/lib/notifications";
@@ -444,6 +444,8 @@ export default function CreateMomentScreen() {
 
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [people, setPeople] = useState<string[]>([]);
+  // Names linked to friends (private to the owner; components/PeopleInput.tsx).
+  const [peopleLinks, setPeopleLinks] = useState<PersonLink[]>([]);
   // Dated when it happened when it came from Last week, else now.
   const [momentDate, setMomentDate] = useState<Date | null>(() => {
     const at = Number(params.momentAt);
@@ -598,6 +600,7 @@ export default function CreateMomentScreen() {
         photoAssetIds: toSave.photos.map((uri) => toSave.assets[uri] ?? null),
         photoVideoDurations: toSave.photos.map((uri) => photoVideos[uri] ?? null),
         people,
+        peopleLinks,
         moods: selectedMoods,
         locationResult,
         momentDate,
@@ -660,6 +663,7 @@ export default function CreateMomentScreen() {
       replaceReflection("", false);
       setSelectedMoods([]);
       setPeople([]);
+      setPeopleLinks([]);
       setPhotos([]);
       setMomentDate(new Date());
       setLocationResult(null);
@@ -938,7 +942,12 @@ export default function CreateMomentScreen() {
 
       <BottomSheet visible={detailSheet === "people"} onClose={() => setDetailSheet(null)} title="Who was there" keyboardAvoiding>
         <View style={styles.sheetBody}>
-          <PeopleInput people={people} onChangePeople={setPeople} />
+          <PeopleInput
+            people={people}
+            onChangePeople={setPeople}
+            links={peopleLinks}
+            onChangeLinks={setPeopleLinks}
+          />
         </View>
       </BottomSheet>
 
