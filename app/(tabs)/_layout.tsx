@@ -1,7 +1,7 @@
 import { TopTabs } from "expo-router/js-top-tabs";
 import { TabBar } from "@/components/TabBar";
 
-// Swipeable tabs with the bar at the bottom. Expo Router 58 replaced
+// Tabs with the bar at the bottom. Expo Router 58 replaced
 // withLayoutContext(createMaterialTopTabNavigator()) with TopTabs; it needs
 // react-native-tab-view and react-native-pager-view installed alongside.
 export default function TabLayout() {
@@ -9,15 +9,20 @@ export default function TabLayout() {
     <TopTabs
       tabBarPosition="bottom"
       tabBar={(props) => <TabBar {...props} />}
-      // lazy: Rediscover and You used to mount (and run ~7 queries) behind
-      // the Journal at cold start. TabBar preloads them once startup settles.
-      screenOptions={{ swipeEnabled: true, lazy: true }}
+      // lazy: Albums and Rediscover used to mount (and run their queries)
+      // behind the Journal at cold start. TabBar preloads them once startup
+      // settles.
+      // swipeEnabled false (2026-11-20): a horizontal swipe inside a tab moves
+      // between Yours and Shared (components/PaneSwitcher), never between tabs.
+      screenOptions={{ swipeEnabled: false, lazy: true }}
     >
-      {/* Phase 1 (2026-10): three tabs. Route names stay as they were so
-          deep links and pushes keep working; albums moved to /albums. */}
+      {/* 2026-11-20: Journal | Albums | Rediscover. You is a pushed screen
+          (app/you.tsx) opened from the avatar on the Journal header. Route
+          names stay stable so deep links and pushes keep working: /albums
+          lands on the Albums tab. */}
       <TopTabs.Screen name="index"       options={{ title: "Journal" }} />
+      <TopTabs.Screen name="albums"      options={{ title: "Albums" }} />
       <TopTabs.Screen name="reflections" options={{ title: "Rediscover" }} />
-      <TopTabs.Screen name="profile"     options={{ title: "You" }} />
     </TopTabs>
   );
 }

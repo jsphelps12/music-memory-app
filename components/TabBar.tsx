@@ -23,9 +23,9 @@ async function fetchAlbumsBadgeCount(userId: string): Promise<number> {
   return albums.reduce((sum, c) => sum + c.newMomentCount, 0);
 }
 
-// Phase 1 (2026-10): three tabs plus a floating capture button. Albums,
-// shared-with-you and friends live under You, so the shared-album activity
-// badge moved there with them.
+// 2026-11-20: Journal | Albums | Rediscover, and a floating capture button
+// on the Journal only. The shared-album activity dot sits on Albums. You is a
+// pushed screen (app/you.tsx) opened from the Journal header's avatar.
 // After the cold-start burst (first_screen lands at ~0.5s, the profile fetch
 // and first timeline page shortly after).
 const TAB_PRELOAD_DELAY_MS = 2500;
@@ -37,18 +37,20 @@ const HINT_SHOW_MS = 7000;
 const CAPTURE_RISE = 76;
 
 // Route name (app/(tabs)/*) → href, for prefetching a tab not yet shown.
-const TAB_HREFS: Record<string, "/" | "/reflections" | "/profile"> = {
+const TAB_HREFS: Record<string, "/" | "/albums" | "/reflections"> = {
   index: "/",
+  albums: "/albums",
   reflections: "/reflections",
-  profile: "/profile",
 };
 
-// Outline when inactive, filled when active (book / book.fill, person /
-// person.fill). Rediscover's clock.arrow.circlepath has no filled form.
+// In route order (app/(tabs)/_layout.tsx). Outline when inactive, filled when
+// active (book / book.fill). Albums' rectangle.stack has no filled mapping in
+// lib/iconSymbols.ts yet, and Rediscover's clock.arrow.circlepath has no
+// filled form.
 const TABS = [
   { label: "Journal",    icon: "book-outline",   activeIcon: "book" },
+  { label: "Albums",     icon: "albums-outline", activeIcon: "albums-outline" },
   { label: "Rediscover", icon: "time-outline",   activeIcon: "time" },
-  { label: "You",        icon: "person-outline", activeIcon: "person" },
 ] as const;
 
 export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps) {
@@ -63,9 +65,9 @@ export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps
   const [menuDrafts, setMenuDrafts] = useState<CaptureDraft[]>([]);
   const [hint, setHint] = useState(false);
 
-  // The tabs are lazy (app/(tabs)/_layout.tsx), so Rediscover and You no
+  // The tabs are lazy (app/(tabs)/_layout.tsx), so Albums and Rediscover no
   // longer mount and fetch alongside the Journal's first paint. Once startup
-  // has settled, preload them so a swipe still lands on a rendered screen.
+  // has settled, preload them so a tap still lands on a rendered screen.
   // Expo Router 58's tab bar gets no navigation history, so remember which
   // tabs have been shown here; prefetch is its replacement for preload.
   const visitedRef = useRef(new Set<string>());
@@ -149,7 +151,7 @@ export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps
             if (!route) return null;
             const isActive = state.index === index;
             const color = isActive ? theme.colors.tabBarActive : theme.colors.tabBarInactive;
-            const badgeCount = tab.label === "You" ? albumsBadge : 0;
+            const badgeCount = tab.label === "Albums" ? albumsBadge : 0;
 
             return (
               <TouchableOpacity
@@ -193,9 +195,10 @@ export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps
 
       {/* At the top of the layer, which grows with the mini player, so the +
           rises when one appears. After the bar, so it draws over it. */}
-      {/* Hidden while the Journal is selecting moments: the selection bar
-          has the bottom to itself (lib/journalSelecting.ts). */}
-      {journalSelecting && onJournal ? null : (
+      {/* On the Journal only (2026-11-20): Albums has its own "New album",
+          Rediscover none. Hidden while the Journal is selecting moments: the
+          selection bar has the bottom to itself (lib/journalSelecting.ts). */}
+      {!onJournal || journalSelecting ? null : (
         <TouchableOpacity
           testID="tab-create"
           accessibilityRole="button"

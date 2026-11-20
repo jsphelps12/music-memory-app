@@ -8,18 +8,18 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 
 // Every real way into capture (checked against app/create.tsx, the routes
 // that push /create, components/CaptureMenu.tsx and targets/widget,
-// 2026-11-18). Keep it current when a way in is added. No count in the copy:
-// it drifts.
+// 2026-11-18; the + is on the Journal only since 2026-11-20). Keep it current
+// when a way in is added. No count in the copy: it drifts.
 const CAPTURE_METHODS = [
   {
     icon: "add",
     label: "The + button",
-    desc: "Search for any song by title or artist. If Apple Music is already playing, the song is filled in for you.",
+    desc: "At the bottom of your Journal. Search for any song by title or artist. If Apple Music is already playing, the song is filled in for you.",
   },
   {
     icon: "list-outline",
     label: "Hold the + button",
-    desc: "Start from Identify, Search, Last week or From before, or pick up a draft.",
+    desc: "On your Journal, start from Identify, Search, Last week or From before, or pick up a draft.",
   },
   {
     icon: "pencil-outline",
