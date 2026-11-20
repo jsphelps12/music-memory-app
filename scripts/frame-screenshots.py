@@ -30,13 +30,19 @@ DARK = {"bg": "#0E0B0A", "ink": "#F5F0EB", "soft": "#ABA39E", "bezel": "#3A3330"
 # (raw file, output name, headline, subline, palette, mode)
 FRAMES = [
     ("01-journal.png", "1-journal", "Your life, one song\nat a time.", "A journal for the songs that mark your days.", LIGHT, "phone"),
-    ("02-entry.png", "2-entry", "Every song holds\na memory.", "Write what it meant. Find it again years later.", LIGHT, "phone"),
+    # Unchanged since 1.4.0; their raw captures weren't kept, so the framed
+    # image is reused as is ("existing").
+    ("docs/app-store/screenshots/2-entry.png", "2-entry", None, None, LIGHT, "existing"),
     ("07-start-from.png", "3-start-from", "Hold + for more\nways to start.", "Last week, From before, or what's playing now.", LIGHT, "phone"),
     ("04-capture.png", "4-capture", "Capture it in\ntwo taps.", "Song first. Write a line, pages, or nothing.", LIGHT, "phone"),
     ("docs/app-store/screenshots/5-widget.png", "5-widget", None, None, LIGHT, "existing"),
-    ("03-rediscover.png", "6-rediscover", "On this day,\nyears ago.", "The songs you saved find their way back.", LIGHT, "phone"),
-    ("08-year.png", "7-year", "Your year,\nin songs.", "The months, the moods, the songs that stayed.", DARK, "phone"),
-    ("06-dark-entry.png", "8-dark", "Made for\nlate nights.", "A quiet place to read what you wrote.", DARK, "phone"),
+    # Recaptured for 1.4.1 (three tabs) on a day with no On this day, so the
+    # headline names what the screen shows: search and browse.
+    ("03-rediscover.png", "6-rediscover", "Find it again,\nyears later.", "Search what you wrote, or browse by mood.", LIGHT, "phone"),
+    ("docs/app-store/screenshots/7-year.png", "7-year", None, None, DARK, "existing"),
+    ("docs/app-store/screenshots/8-dark.png", "8-dark", None, None, DARK, "existing"),
+    # 1.4.1: Insights, from You's preview (covers carry the color).
+    ("09b-you.png", "9-insights", "What your journal\nsays about you.", "The artists, people and moods that run through it.", LIGHT, "phone"),
 ]
 
 
