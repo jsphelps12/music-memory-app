@@ -11,7 +11,7 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
   ...storage,
 }));
 
-const { fetchSongMoments, fetchAlbumMoments, fetchArtistMoments, momentSearchOrFilter } =
+const { fetchSongMoments, fetchAlbumMoments, fetchArtistMoments, momentSearchOrFilter, fetchMomentsByIds } =
   await import("../browse");
 
 beforeEach(() => {
@@ -33,6 +33,30 @@ describe("song / album / artist drill-downs", () => {
       { ascending: false, nullsFirst: false },
     ]);
     expect(orders[1].args).toEqual(["created_at", { ascending: false }]);
+  });
+});
+
+describe("a friend's moments by id (People grouped by person)", () => {
+  const r = (id: string, moment_date: string | null, created_at: string) => ({
+    id,
+    user_id: "u1",
+    moment_date,
+    created_at,
+    song_title: "t",
+    song_artist: "a",
+  });
+
+  it("reads 100 ids a request and puts them in library order, undated last", async () => {
+    const ids = Array.from({ length: 150 }, (_, i) => `m${i}`);
+    sb.queueData([r("m0", null, "2026-03-01"), r("m1", "2025-01-01", "2025-01-01")]);
+    sb.queueData([r("m120", "2026-01-01", "2026-01-02"), r("m121", "2026-01-01", "2026-01-05")]);
+
+    const moments = await fetchMomentsByIds("u1", ids);
+    expect(sb.queries).toHaveLength(2);
+    const batches = sb.queries.map((q) => q.chain.find((c) => c.method === "in")!.args[1] as string[]);
+    expect(batches.map((b) => b.length)).toEqual([100, 50]);
+    expect(sb.queries[0].chain.find((c) => c.method === "eq")!.args).toEqual(["user_id", "u1"]);
+    expect(moments.map((m) => m.id)).toEqual(["m121", "m120", "m1", "m0"]);
   });
 });
 

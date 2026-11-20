@@ -3,7 +3,10 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchBrowseMetadata, fetchPersonMoments } from "@/lib/browse";
+import { fetchBrowseMetadata, fetchMomentsByIds, fetchPersonMoments } from "@/lib/browse";
+import { findPersonGroup, groupPeopleByPerson, type PersonGroup } from "@/lib/people";
+import { useFriends } from "@/hooks/useFriends";
+import { usePeopleLinks } from "@/hooks/usePeopleLinks";
 import { BROWSE_META_STALE, BROWSE_DRILLDOWN_STALE } from "@/lib/queryConfig";
 import { friendlyError } from "@/lib/errors";
 import { artworkUrlAtSize } from "@/lib/itunes";
@@ -21,8 +24,10 @@ const TILE_ARTWORK_PX = 300;
 
 export default function PersonScreen() {
   const { user, profile } = useAuth();
-  const { name: initialName } = useLocalSearchParams<{ name: string }>();
-  const [activePerson, setActivePerson] = useState(initialName ?? "");
+  // `name`: a name as written. `friend`: a friend's id, when Rediscover's
+  // People row was a friend with linked names.
+  const { name: initialName, friend: initialFriend } = useLocalSearchParams<{ name: string; friend?: string }>();
+  const [pickedKey, setPickedKey] = useState<string | null>(null);
 
   const { data: meta = [] } = useQuery({
     queryKey: ["browseMeta", user?.id],
@@ -30,21 +35,49 @@ export default function PersonScreen() {
     enabled: !!user,
     staleTime: BROWSE_META_STALE,
   });
+  const { data: linkData } = usePeopleLinks();
+  const { data: friends } = useFriends();
 
+  // One entry per real person: names linked to the same friend are one
+  // (lib/people.ts groupPeopleByPerson); everyone else by the name written.
+  const groups = useMemo(
+    () =>
+      groupPeopleByPerson(
+        meta,
+        linkData?.available ? linkData.links : [],
+        friends ? new Set(friends.map((f) => f.otherUserId)) : undefined
+      ),
+    [meta, linkData, friends]
+  );
+
+  const active: PersonGroup = useMemo(() => {
+    const picked = pickedKey ? groups.find((g) => g.key === pickedKey) : undefined;
+    const name = initialName ?? "";
+    return (
+      picked ??
+      findPersonGroup(groups, { friendId: initialFriend, name }) ?? {
+        key: `name:${name}`,
+        label: name,
+        friendId: null,
+        names: name ? [name] : [],
+        momentIds: [],
+      }
+    );
+  }, [groups, pickedKey, initialFriend, initialName]);
+
+  // A friend's moments are known by id (any of their names); a plain name is
+  // matched on the moment, as before.
+  const friendMomentIds = active.friendId ? active.momentIds : null;
+  const plainName = active.friendId ? "" : active.key.slice("name:".length);
   const { data: moments, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["personMoments", user?.id, activePerson] as const,
-    queryFn: ({ queryKey }) => fetchPersonMoments(queryKey[1]!, queryKey[2]),
-    enabled: !!user && !!activePerson,
+    queryKey: ["personMoments", user?.id, active.key, friendMomentIds] as const,
+    queryFn: ({ queryKey }) =>
+      queryKey[3]
+        ? fetchMomentsByIds(queryKey[1]!, queryKey[3])
+        : fetchPersonMoments(queryKey[1]!, queryKey[2].slice("name:".length)),
+    enabled: !!user && (friendMomentIds ? friendMomentIds.length > 0 : !!plainName),
     staleTime: BROWSE_DRILLDOWN_STALE,
   });
-
-  const allPeople = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const m of meta) for (const p of m.people) counts[p] = (counts[p] ?? 0) + 1;
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .map(([name]) => name);
-  }, [meta]);
 
   const allMoods = useMemo(() => [...MOODS, ...(profile?.customMoods ?? [])], [profile?.customMoods]);
   // Only from loaded moments: none while loading, after a failed first load,
@@ -53,10 +86,10 @@ export default function PersonScreen() {
 
   return (
     <BrowseScreen
-      title={`With ${activePerson}`}
-      items={allPeople.map((name) => ({ key: name, label: name }))}
-      activeKey={activePerson}
-      onSelect={setActivePerson}
+      title={`With ${active.label}`}
+      items={groups.map((g) => ({ key: g.key, label: g.label }))}
+      activeKey={active.key}
+      onSelect={setPickedKey}
       moments={moments ?? []}
       isLoading={isLoading}
       error={isError ? friendlyError(error) : null}

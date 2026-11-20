@@ -12,6 +12,7 @@ import type { TextInputInstance } from "react-native";
 import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/Button";
 import { ListRow } from "@/components/ListRow";
+import { SectionLabel } from "@/components/SectionLabel";
 import { TextField } from "@/components/TextField";
 import { filterPeople, idsNeedingHandle, personLabel } from "@/lib/people";
 import { useTheme } from "@/hooks/useTheme";
@@ -69,6 +70,12 @@ interface Props<T extends PickerPerson> {
   avatars?: boolean;
   /** @handle under the name: always, or only when two names match (default). */
   handles?: "always" | "duplicates";
+  /**
+   * A label for the group a row is in (e.g. the share sheet's "Was there"),
+   * drawn above the first row of each run. `people` must already be ordered
+   * so each group is one run.
+   */
+  sectionOf?: (person: T) => string | undefined;
   searchThreshold?: number;
   inlineLimit?: number;
   searchPlaceholder?: string;
@@ -111,6 +118,7 @@ export function PersonPicker<T extends PickerPerson>({
   rowAccessibilityHint,
   avatars = true,
   handles = "duplicates",
+  sectionOf,
   searchThreshold = PICKER_SEARCH_THRESHOLD,
   inlineLimit = PICKER_INLINE_LIMIT,
   searchPlaceholder = "Search",
@@ -155,6 +163,14 @@ export function PersonPicker<T extends PickerPerson>({
       />
     );
     return wrapRow ? wrapRow(person, row) : row;
+  };
+
+  // The group label above a row that starts a run (see `sectionOf`).
+  const sectionLabelAt = (list: readonly T[], index: number): ReactNode => {
+    if (!sectionOf) return null;
+    const section = sectionOf(list[index]);
+    if (!section || (index > 0 && sectionOf(list[index - 1]) === section)) return null;
+    return <SectionLabel style={index > 0 ? styles.sectionLater : styles.section}>{section}</SectionLabel>;
   };
 
   const search = hasSearch ? (
@@ -211,7 +227,16 @@ export function PersonPicker<T extends PickerPerson>({
             <FlatList
               data={matches}
               keyExtractor={(p) => p.id}
-              renderItem={({ item, index }) => renderRow(item, index === matches.length - 1)}
+              renderItem={({ item, index }) =>
+                sectionOf ? (
+                  <>
+                    {sectionLabelAt(matches, index)}
+                    {renderRow(item, index === matches.length - 1)}
+                  </>
+                ) : (
+                  renderRow(item, index === matches.length - 1)
+                )
+              }
               // Nobody yet sits inside the list, so pull-to-refresh still works.
               ListEmptyComponent={
                 people.length === 0 ? (
@@ -256,7 +281,10 @@ export function PersonPicker<T extends PickerPerson>({
         <View style={styles.state}>{noMatch}</View>
       ) : (
         visible.map((person, i) => (
-          <Fragment key={person.id}>{renderRow(person, hidden === 0 && i === visible.length - 1)}</Fragment>
+          <Fragment key={person.id}>
+            {sectionLabelAt(visible, i)}
+            {renderRow(person, hidden === 0 && i === visible.length - 1)}
+          </Fragment>
         ))
       )}
       {hidden > 0 ? (
@@ -349,6 +377,14 @@ function createStyles(theme: Theme) {
     },
     searchList: {
       marginBottom: theme.spacing.sm,
+    },
+    section: {
+      marginTop: theme.spacing.xs,
+      marginBottom: theme.spacing.xs,
+    },
+    sectionLater: {
+      marginTop: theme.spacing.lg,
+      marginBottom: theme.spacing.xs,
     },
     state: {
       paddingVertical: theme.spacing.md,

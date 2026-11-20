@@ -25,8 +25,10 @@ import { SectionLabel } from "@/components/SectionLabel";
 import { ListRow } from "@/components/ListRow";
 import { PersonPicker, pickerHasSearch } from "@/components/PersonPicker";
 import { friendsAsPeople, type FriendPerson } from "@/lib/friends";
-import { rankPeople } from "@/lib/people";
+import { rankPeople, wasThereFirst } from "@/lib/people";
+import { linksForMoment } from "@/lib/momentPeopleLinks";
 import { recentRecipientsQueryKey, useFriends, useRecentRecipients } from "@/hooks/useFriends";
+import { usePeopleLinks } from "@/hooks/usePeopleLinks";
 import {
   ensureShareToken,
   fetchMomentShareRecipients,
@@ -150,9 +152,20 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   // come first, then A–Z.
   const friendsQuery = useFriends({ enabled: visible && isOwner });
   const recentsQuery = useRecentRecipients({ enabled: visible && isOwner });
-  const people = useMemo(
-    () => rankPeople(friendsAsPeople(friendsQuery.data ?? []), recentsQuery.data),
-    [friendsQuery.data, recentsQuery.data]
+  // Friends linked under "Who was there" on this moment come first ("Was
+  // there"), then the usual order. The links are the owner's own; reading
+  // them tells nobody anything.
+  const linksQuery = usePeopleLinks({ enabled: visible && isOwner });
+  const wasThereIds = useMemo(
+    () =>
+      new Set(
+        linksQuery.data?.available ? linksForMoment(linksQuery.data.links, moment.id).map((l) => l.friendId) : []
+      ),
+    [linksQuery.data, moment.id]
+  );
+  const { people, wasThereCount } = useMemo(
+    () => wasThereFirst(rankPeople(friendsAsPeople(friendsQuery.data ?? []), recentsQuery.data), wasThereIds),
+    [friendsQuery.data, recentsQuery.data, wasThereIds]
   );
   const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
 
@@ -456,6 +469,8 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
       `${sentIds.has(p.id) ? "Sent to" : "Send to"} ${p.displayName ?? p.username ?? "this person"}`,
     searchPlaceholder: "Search friends",
     canPick: (p: FriendPerson) => !sentIds.has(p.id) && !sendingIds.has(p.id),
+    sectionOf:
+      wasThereCount > 0 ? (p: FriendPerson) => (wasThereIds.has(p.id) ? "Was there" : "Friends") : undefined,
   };
   const pickerOnPick = (p: FriendPerson) => void handleSendToFriend(p);
 

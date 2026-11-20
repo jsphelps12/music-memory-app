@@ -6,6 +6,7 @@ import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { BROWSE_META_STALE } from "@/lib/queryConfig";
 import { isMissingColumnError } from "@/lib/optionalColumns";
+import { chunk, ID_BATCH_SIZE } from "@/lib/people";
 import type { Moment } from "@/types";
 
 // Versioned, like timeline_cache_v2_ / profile_cache_v1_. What lands here is
@@ -237,6 +238,41 @@ export async function fetchPersonMoments(userId: string, personName: string): Pr
       .order("id", { ascending: false })
       .range(from, to)
   );
+}
+
+/** Newest first, undated last, as the drill-down queries order them. */
+export function compareLibraryOrder(
+  a: { momentDate: string | null; createdAt: string; id: string },
+  b: { momentDate: string | null; createdAt: string; id: string }
+): number {
+  if (a.momentDate !== b.momentDate) {
+    if (!a.momentDate) return 1;
+    if (!b.momentDate) return -1;
+    return a.momentDate < b.momentDate ? 1 : -1;
+  }
+  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+  return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+}
+
+/**
+ * A person's moments when they're a friend with linked names (lib/people.ts
+ * `groupPeopleByPerson` knows which moments): read by id, 100 a request,
+ * then put in library order.
+ */
+export async function fetchMomentsByIds(userId: string, ids: readonly string[]): Promise<Moment[]> {
+  const batches = chunk([...new Set(ids)], ID_BATCH_SIZE);
+  const results = await Promise.all(
+    batches.map(async (batch) => {
+      const { data, error } = await supabase
+        .from("moments")
+        .select(MOMENT_CARD_COLUMNS)
+        .eq("user_id", userId)
+        .in("id", batch);
+      if (error) throw error;
+      return (data ?? []).map(mapRowToMoment);
+    })
+  );
+  return results.flat().sort(compareLibraryOrder);
 }
 
 export async function fetchYearMoments(userId: string, year: number): Promise<Moment[]> {

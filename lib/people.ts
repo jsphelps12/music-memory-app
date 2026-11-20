@@ -279,18 +279,33 @@ export function recentNames(known: readonly KnownName[], exclude: readonly strin
     .slice(0, limit);
 }
 
+/** A friend as a "Who was there" suggestion. */
+export interface FriendCandidate extends PersonLike {
+  avatarPath?: string | null;
+  /** Names the owner has linked to this friend before, most used first. */
+  linkedNames?: readonly string[];
+  /** Moments this friend is linked on. */
+  linkCount?: number;
+}
+
 /**
- * One suggestion under "Who was there". A tagged union so the list can take
- * other kinds later (a friend's account, shown with PersonRow) without a
- * rewrite; today every suggestion is a free-text name.
+ * One suggestion under "Who was there": a friend's account (drawn with
+ * PersonRow; picking links the name) or a free-text name.
  */
-export type PeopleSuggestion = {
-  kind: "name";
-  /** Stable React key. */
-  key: string;
-  /** What's added to the moment when picked. */
-  label: string;
-};
+export type PeopleSuggestion =
+  | {
+      kind: "name";
+      /** Stable React key. */
+      key: string;
+      /** What's added to the moment when picked. */
+      label: string;
+    }
+  | {
+      kind: "friend";
+      key: string;
+      label: string;
+      friend: FriendCandidate;
+    };
 
 /** Suggestions for what's typed, as rows to render (see `suggestNames`). */
 export function peopleSuggestions(
@@ -307,8 +322,61 @@ export function peopleSuggestions(
 }
 
 /**
+ * Friends matching what's typed, by name, @handle or a name the owner linked
+ * to them before ("Sammy" finds Sam Kim if Sam was linked as Sammy). Friends
+ * already linked on the moment are left out. An exact match first, then a
+ * prefix, then the rest; within each, the friend linked on the most moments,
+ * then A–Z.
+ */
+export function suggestFriends<T extends FriendCandidate>(
+  friends: readonly T[],
+  query: string,
+  excludeIds: readonly string[] = [],
+  limit = 4
+): T[] {
+  const q = normalizeName(query).replace(/^@+/, "");
+  if (!q) return [];
+  const excluded = new Set(excludeIds);
+  const fields = (f: T) => [f.displayName, f.username, ...(f.linkedNames ?? [])];
+  const tier = (f: T) => {
+    const all = fields(f).map(normalizeName).filter(Boolean);
+    if (all.some((n) => n === q)) return 0;
+    if (all.some((n) => n.startsWith(q))) return 1;
+    return 2;
+  };
+  return friends
+    .filter((f) => !excluded.has(f.id) && matchesQuery(fields(f), query))
+    .sort((a, b) => tier(a) - tier(b) || (b.linkCount ?? 0) - (a.linkCount ?? 0) || compareByName(a, b))
+    .slice(0, limit);
+}
+
+/**
+ * Everything to show under "Who was there" for what's typed: matching
+ * friends first, then past names (a friend's display name isn't offered as a
+ * plain name unless it's already on a moment).
+ */
+export function whoWasThereSuggestions(input: {
+  known: readonly KnownName[];
+  query: string;
+  people: readonly string[];
+  friends: readonly FriendCandidate[];
+  linkedFriendIds: readonly string[];
+  friendLimit?: number;
+  nameLimit?: number;
+}): PeopleSuggestion[] {
+  const friendRows: PeopleSuggestion[] = suggestFriends(
+    input.friends,
+    input.query,
+    input.linkedFriendIds,
+    input.friendLimit ?? 4
+  ).map((f) => ({ kind: "friend", key: `friend:${f.id}`, label: personLabel(f), friend: f }));
+  return [...friendRows, ...peopleSuggestions(input.known, input.query, input.people, input.nameLimit ?? 5)];
+}
+
+/**
  * Whether to offer "Add 'x'" for what's typed: not when it's empty, already
- * on the moment, or one of the suggestions (ignoring case).
+ * on the moment, or one of the name suggestions (ignoring case). A friend
+ * with that name doesn't hide it: "Add 'Sam' as a name" stays plain text.
  */
 export function offerAddTyped(
   query: string,
@@ -317,5 +385,185 @@ export function offerAddTyped(
 ): boolean {
   const key = nameKey(query);
   if (!key || hasName(people, query)) return false;
-  return !suggestions.some((s) => nameKey(s.label) === key);
+  return !suggestions.some((s) => s.kind === "name" && nameKey(s.label) === key);
+}
+
+// ── Names linked to friends ─────────────────────────────────────────────
+
+/** A link with its moment (StoredPersonLink fits). */
+interface LinkLike {
+  momentId: string;
+  name: string;
+  friendId: string;
+}
+
+/**
+ * Per friend, the names the owner linked to them (most used first, then
+ * A–Z) and how many moments they're linked on.
+ */
+export function linkedNamesByFriend(links: readonly LinkLike[]): Map<string, { names: string[]; count: number }> {
+  const counts = new Map<string, Map<string, number>>();
+  const moments = new Map<string, Set<string>>();
+  for (const l of links) {
+    let byName = counts.get(l.friendId);
+    if (!byName) counts.set(l.friendId, (byName = new Map()));
+    const name = tidyName(l.name);
+    byName.set(name, (byName.get(name) ?? 0) + 1);
+    let ids = moments.get(l.friendId);
+    if (!ids) moments.set(l.friendId, (ids = new Set()));
+    ids.add(l.momentId);
+  }
+  const out = new Map<string, { names: string[]; count: number }>();
+  for (const [friendId, byName] of counts) {
+    const names = [...byName.entries()]
+      .sort((a, b) => b[1] - a[1] || compareByName({ id: a[0], displayName: a[0] }, { id: b[0], displayName: b[0] }))
+      .map(([name]) => name);
+    out.set(friendId, { names, count: moments.get(friendId)!.size });
+  }
+  return out;
+}
+
+/**
+ * The name to put on the moment when a friend is picked, and whether it's a
+ * chip already there (which then gets linked rather than added). Tries the
+ * name the owner usually links to them, then their display name, then their
+ * @handle (spelled as a past name when one matches, ignoring case). A name
+ * already on the moment and linked to someone else is skipped, so two Sams
+ * stay two chips. Null only for a friend with no name at all.
+ */
+export function nameForFriend(input: {
+  friend: FriendCandidate;
+  people: readonly string[];
+  links: readonly { name: string; friendId: string }[];
+  known: readonly KnownName[];
+}): { name: string; existing: boolean } | null {
+  const { friend, people, links, known } = input;
+  const display = friend.displayName ? tidyName(friend.displayName) : "";
+  const handle = friend.username ? tidyName(friend.username) : "";
+  const candidates = [friend.linkedNames?.[0] ?? "", display, handle].filter(Boolean);
+  if (display && handle) candidates.push(`${display} (@${handle})`);
+  for (const candidate of candidates) {
+    const key = nameKey(candidate);
+    const onMoment = people.find((p) => nameKey(p) === key);
+    if (onMoment) {
+      const linked = links.find((l) => nameKey(l.name) === key);
+      if (!linked || linked.friendId === friend.id) return { name: onMoment, existing: true };
+      continue;
+    }
+    return { name: resolveName(candidate, known), existing: false };
+  }
+  return null;
+}
+
+/**
+ * Friends to offer when linking a name already on a moment: those whose name,
+ * @handle or past linked names match it first, then the order given.
+ */
+export function friendsForName<T extends FriendCandidate>(friends: readonly T[], name: string): T[] {
+  const first = suggestFriends(friends, tidyName(name), [], friends.length);
+  const firstIds = new Set(first.map((f) => f.id));
+  return [...first, ...friends.filter((f) => !firstIds.has(f.id))];
+}
+
+/** One person in Rediscover: a friend (every name linked to them) or a name. */
+export interface PersonGroup {
+  /** `friend:<id>` or `name:<the name as written>`. */
+  key: string;
+  /** The name the owner writes most for them. */
+  label: string;
+  friendId: string | null;
+  /** The names written for them, most used first. */
+  names: string[];
+  /** Their moments, in the order given. */
+  momentIds: string[];
+}
+
+/**
+ * Rediscover's People, grouped by the real person. A name linked to a friend
+ * on a moment counts for that friend, so "Sam" and "Samuel" linked to the
+ * same friend are one person. A plain name that has only ever been linked to
+ * one friend counts for them too (older moments say "Sam" with no link); a
+ * name linked to two different friends stays text wherever it isn't linked.
+ * Anything else is grouped by the name as written, as before. Pass
+ * `friendIds` (current friends) to ignore links to someone no longer a
+ * friend. Most moments first; ties keep the order first seen.
+ */
+export function groupPeopleByPerson(
+  moments: readonly { id: string; people: readonly string[] }[],
+  links: readonly LinkLike[],
+  friendIds?: ReadonlySet<string>
+): PersonGroup[] {
+  const live = friendIds ? links.filter((l) => friendIds.has(l.friendId)) : links;
+  const linkAt = new Map<string, string>();
+  const friendsByKey = new Map<string, Set<string>>();
+  for (const l of live) {
+    const key = nameKey(l.name);
+    linkAt.set(`${l.momentId}\u0000${key}`, l.friendId);
+    let ids = friendsByKey.get(key);
+    if (!ids) friendsByKey.set(key, (ids = new Set()));
+    ids.add(l.friendId);
+  }
+
+  const groups = new Map<string, { group: PersonGroup; nameCounts: Map<string, number>; seen: Set<string> }>();
+  for (const m of moments) {
+    for (const raw of m.people) {
+      const key = nameKey(raw);
+      if (!key) continue;
+      const only = friendsByKey.get(key);
+      const friendId = linkAt.get(`${m.id}\u0000${key}`) ?? (only?.size === 1 ? [...only][0] : null);
+      const groupKey = friendId ? `friend:${friendId}` : `name:${raw}`;
+      let entry = groups.get(groupKey);
+      if (!entry) {
+        entry = {
+          group: { key: groupKey, label: raw, friendId, names: [], momentIds: [] },
+          nameCounts: new Map(),
+          seen: new Set(),
+        };
+        groups.set(groupKey, entry);
+      }
+      entry.nameCounts.set(raw, (entry.nameCounts.get(raw) ?? 0) + 1);
+      if (!entry.seen.has(m.id)) {
+        entry.seen.add(m.id);
+        entry.group.momentIds.push(m.id);
+      }
+    }
+  }
+
+  const out: PersonGroup[] = [];
+  for (const { group, nameCounts } of groups.values()) {
+    // Most used first; a tie keeps the first seen (Map order, stable sort).
+    const names = [...nameCounts.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n);
+    out.push({ ...group, names, label: names[0] ?? group.label });
+  }
+  return out.sort((a, b) => b.momentIds.length - a.momentIds.length);
+}
+
+/**
+ * The group a Rediscover link means: by friend id when given, else the group
+ * holding that name (a friend's group when the name is linked to them).
+ */
+export function findPersonGroup(
+  groups: readonly PersonGroup[],
+  target: { friendId?: string | null; name?: string | null }
+): PersonGroup | undefined {
+  if (target.friendId) {
+    const byFriend = groups.find((g) => g.friendId === target.friendId);
+    if (byFriend) return byFriend;
+  }
+  const name = target.name ?? "";
+  if (!name) return undefined;
+  return groups.find((g) => g.key === `name:${name}`) ?? groups.find((g) => g.names.includes(name));
+}
+
+/**
+ * The share picker's order with the friends linked on this moment first
+ * ("Was there"), each part keeping the order given.
+ */
+export function wasThereFirst<T extends { id: string }>(
+  people: readonly T[],
+  linkedIds: ReadonlySet<string>
+): { people: T[]; wasThereCount: number } {
+  const first = people.filter((p) => linkedIds.has(p.id));
+  const rest = people.filter((p) => !linkedIds.has(p.id));
+  return { people: [...first, ...rest], wasThereCount: first.length };
 }

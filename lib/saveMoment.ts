@@ -4,7 +4,8 @@ import { supabase } from "@/lib/supabase";
 import { getProvider } from "@/lib/providers";
 import { uploadMomentPhotos, deleteMomentPhotos, type UploadedMomentPhotos } from "@/lib/storage";
 import { addMomentToAlbum } from "@/lib/albums";
-import { Song, Album, Moment } from "@/types";
+import { Song, Album, Moment, type PersonLink } from "@/types";
+import { syncMomentPeopleLinks } from "@/lib/momentPeopleLinks";
 import { mapRowToMoment } from "@/lib/moments";
 import { momentRowFields, songIdentityChanged, type MomentFieldsInput } from "@/lib/momentRow";
 import { buildPhotoColumns, newPhotoUris, type EditedPhoto, type PhotoColumns } from "@/lib/photoOrder";
@@ -13,6 +14,26 @@ import { cloudIdsFor } from "@/modules/now-playing";
 import { EMPTY_SONG_LOOKUP, songMetadataColumns, type SongLookup } from "@/lib/songMetadata";
 import { SONG_METADATA_OPTIONAL_COLUMNS, writeWithOptionalColumns } from "@/lib/optionalColumns";
 import type { CaptureSource } from "@/lib/captureSource";
+
+/**
+ * Write the moment's "Who was there" links (lib/momentPeopleLinks.ts) after
+ * its row is saved. Never fails the save: a missing table (migration not
+ * applied yet) is skipped, anything else goes to Sentry and the names stay
+ * on the moment as plain text.
+ */
+async function savePeopleLinks(input: {
+  momentId: string;
+  ownerId: string;
+  people: readonly string[];
+  before: readonly PersonLink[];
+  after: readonly PersonLink[];
+}): Promise<void> {
+  try {
+    await syncMomentPeopleLinks(input);
+  } catch (e) {
+    Sentry.captureException(e, { tags: { area: "people_links" } });
+  }
+}
 
 function getTimeOfDay(): string {
   const hour = new Date().getHours();
@@ -57,6 +78,8 @@ export interface SaveMomentInput extends MomentFieldsInput {
   weatherResult?: { tempF: number; condition: string } | null;
   /** How the moment was captured (lib/captureSource.ts). */
   captureSource?: CaptureSource | null;
+  /** Names in `people` linked to friends (written after the row; never blocks the save). */
+  peopleLinks?: PersonLink[];
 }
 
 export interface SaveMomentResult {
@@ -172,6 +195,18 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
     );
   }
 
+  if (input.peopleLinks?.length) {
+    secondaryOps.push(
+      savePeopleLinks({
+        momentId: id,
+        ownerId: input.userId,
+        people: input.people,
+        before: [],
+        after: input.peopleLinks,
+      })
+    );
+  }
+
   await Promise.all(secondaryOps);
 
   return { id, moment: mapRowToMoment(inserted!), secondaryFailures };
@@ -191,6 +226,13 @@ export interface UpdateMomentInput extends MomentFieldsInput {
    * them. Saved in exactly this order; the first is the cover.
    */
   photos: EditedPhoto[];
+  /**
+   * "Who was there" links: what was stored when the editor loaded, and what
+   * it has now. Leave `peopleLinks` out to keep the stored links untouched
+   * (e.g. they didn't load).
+   */
+  originalPeopleLinks?: PersonLink[];
+  peopleLinks?: PersonLink[];
 }
 
 /**
@@ -269,6 +311,16 @@ export async function updateMoment(input: UpdateMomentInput): Promise<Moment> {
   const { photos: gonePhotos, thumbnails: goneThumbs } = columns.removed;
   if (gonePhotos.length || goneThumbs.length) {
     void deleteMomentPhotos(gonePhotos, goneThumbs);
+  }
+
+  if (input.peopleLinks) {
+    await savePeopleLinks({
+      momentId: input.momentId,
+      ownerId: input.userId,
+      people: input.people,
+      before: input.originalPeopleLinks ?? [],
+      after: input.peopleLinks,
+    });
   }
 
   return mapRowToMoment(updated!);
