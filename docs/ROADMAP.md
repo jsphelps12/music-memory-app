@@ -67,6 +67,12 @@ Associated Domains for the store App ID and makes soundtracks.app the
 primary domain on Vercel (done 2026-11-18: apex serves the AASA directly, www 308s to apex); album invite links (/c/…)
 now open the join screen and www links are accepted; links are claimed by
 the store app only (not β). Then a device build and TestFlight.
+**Blank Journal after switching accounts (fixed 2026-11-19, OTA to build 16
+and 1.4.0):** signing out from Settings and back in left the Journal blank
+until relaunch (an old tab navigator stayed mounted under sign-in). The auth
+gate now dismisses to a one-screen stack before every redirect;
+`.maestro/switch-account.yaml` covers it, and the e2e sign-in declines the
+simulator's paste prompt (the script also empties its clipboard per flow).
 **Fields and fills (2026-11-19, in build 16):** the color audit
 (`.claude/reviews/2026-11-19-color-audit.md`) found one opaque tan fill on
 every field, chip and secondary button that read beige on paper and vanished

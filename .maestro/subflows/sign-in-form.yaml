@@ -1,0 +1,158 @@
+# The sign-in form, from wherever it's showing through to the timeline.
+# Used after a cold launch (sign-in.yaml) and after signing out
+# (switch-account.yaml). Copied from smoke.yaml (which stays self-contained
+# for CI); keep in step.
+appId: com.joshuaphelps.musicmemory.preview
+env:
+  E2E_EMAIL: e2e@soundtracks.test
+---
+# Apple Music initializes at app boot and, with no Apple Account on the
+# simulator, may pop a system "Sign in to your Apple Account" alert — iOS
+# throttles it, so it appears on some launches and not others. While any system
+# alert is up, the app's own hierarchy is EMPTY to XCUITest, so nothing below
+# can be found until it's dismissed. Give it a window, dismiss if it came.
+- extendedWaitUntil:
+    visible: "Sign in to your Apple Account"
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible: "Sign in to your Apple Account"
+    commands:
+      - tapOn: "Close"
+
+# A fresh install reads the clipboard once for a pending invite link (deferred
+# deep links). If the Mac's clipboard has synced something into the simulator,
+# iOS asks "paste from CoreSimulator-Bridge?" over the sign-in screen, and the
+# app's hierarchy is empty until it's answered. Decline: the test has no
+# invite, and a stray link in the clipboard shouldn't steer the run.
+# (scripts/e2e-local.sh empties the simulator's clipboard first, so this is
+# the fallback.) Wait for the form optionally, answer the prompt if that's
+# what is up, then wait for the form for real below.
+- extendedWaitUntil:
+    visible:
+      id: "signin-email"
+    timeout: 45000
+    optional: true
+- runFlow:
+    when:
+      visible: "Don.t Allow Paste"
+    commands:
+      - tapOn: "Don.t Allow Paste"
+
+# Cold start also races the first tap: the JS bundle isn't loaded yet (seconds
+# in a release build, tens of seconds through Metro in dev). Wait for the
+# sign-in screen to actually exist.
+- extendedWaitUntil:
+    visible:
+      id: "signin-email"
+    timeout: 45000
+
+# --- Sign in -----------------------------------------------------------------
+# Maestro enters text by pasting, and iOS asks per-app paste permission on a
+# fresh install — the dialog swallows the input, leaving the field empty. On a
+# long-lived simulator, pre-set Settings → Apps → Soundtracks β → Paste from
+# Other Apps → Allow. The conditional blocks below cover fresh simulators (CI
+# creates one per run): allow the paste, then re-enter the text that was lost.
+# This is the first tap of the flow, so it RAISES the keyboard rather than
+# moving between two already-raised fields, and typing can start before that
+# animation settles: only the first character lands ("e"). Maestro 2.8.0 did it
+# every time, so the workflow pins 2.7.0, but 2.7.0 does it too, just not every
+# time (green 2026-08-07, red 08-10 and 10-14 with the same "e", same iOS 26.5
+# runtime). Neither the pin nor waitForAnimationToEnd closes the race, so retry:
+# by the second attempt the keyboard is already up, which is the case that has
+# always typed cleanly (the password field never once dropped input).
+# eraseText first, so a retry replaces a partial "e" rather than appending.
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          id: "signin-email"
+      - waitForAnimationToEnd
+      - eraseText
+      - inputText: ${E2E_EMAIL}
+      - runFlow:
+          when:
+            visible: "Allow Paste"
+          commands:
+            - tapOn: "Allow Paste"
+            - tapOn:
+                id: "signin-email"
+            - eraseText
+            - inputText: ${E2E_EMAIL}
+      # Assert the field round-tripped. This is also what makes the retry fire:
+      # dropped input otherwise surfaces 20 steps later as "tab-create is
+      # visible" failing after a rejected sign-in, a symptom that points at the
+      # app instead of at the typing.
+      - assertVisible:
+          id: "signin-email"
+          text: ${E2E_EMAIL}
+- tapOn:
+    id: "signin-password"
+# Passed in with `maestro test --env E2E_PASSWORD=...`; never committed.
+- inputText: ${E2E_PASSWORD}
+- runFlow:
+    when:
+      visible: "Allow Paste"
+    commands:
+      - tapOn: "Allow Paste"
+      - tapOn:
+          id: "signin-password"
+      - eraseText
+      - inputText: ${E2E_PASSWORD}
+# No hideKeyboard: it fails on this screen ("Couldn't hide the keyboard"), and
+# the submit button sits above the keyboard anyway.
+- tapOn:
+    id: "signin-submit"
+
+# Dialogs must be cleared BEFORE waiting for the timeline: while any system
+# sheet is up the app's hierarchy is empty to XCUITest, so a wait placed first
+# just times out blind. iOS offers to save the password right as submit
+# resolves (not on every run), and the Apple Account alert can arrive late.
+- extendedWaitUntil:
+    visible: "Save Password?"
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible: "Save Password?"
+    commands:
+      - tapOn: "Not Now"
+- runFlow:
+    when:
+      visible: "Sign in to your Apple Account"
+    commands:
+      - tapOn: "Close"
+
+# A fresh CI simulator's first connection can outlast the app's 10s auth
+# timeout (lib/fetchWithRetry.ts), which shows "No connection" on the sign-in
+# screen (2 of 4 production runs on 2026-11-16, same commit-independent
+# step). Press Sign in once more, as a person would. One retry only: a
+# second failure is a real failure.
+- extendedWaitUntil:
+    visible:
+      id: "tab-create"
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible: "No connection. Check your internet and try again."
+    commands:
+      - tapOn:
+          id: "signin-submit"
+      - extendedWaitUntil:
+          visible: "Save Password?"
+          timeout: 15000
+          optional: true
+      - runFlow:
+          when:
+            visible: "Save Password?"
+          commands:
+            - tapOn: "Not Now"
+
+# Landing on the timeline is what proves auth resolved and the auth gate in
+# app/_layout.tsx routed correctly.
+- extendedWaitUntil:
+    visible:
+      id: "tab-create"
+    timeout: 30000

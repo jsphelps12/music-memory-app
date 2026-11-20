@@ -92,6 +92,11 @@ for FLOW in "${FLOWS[@]}"; do
   echo "── Resetting the E2E account (production, as itself)${SEED:+, seeding $SEED moment(s)}${SEED_ALBUM:+ and an album}"
   E2E_SEED="${SEED:-0}" E2E_SEED_ALBUM="$SEED_ALBUM" npx eas-cli env:exec production "node scripts/reset-e2e-prod.mjs" --non-interactive
 
+  # A fresh install reads the clipboard once (deferred invite links); anything
+  # the Mac synced into the simulator's clipboard makes iOS ask to paste over
+  # the sign-in screen. Start each flow with it empty.
+  printf '' | xcrun simctl pbcopy "$DEVICE" 2>/dev/null || true
+
   echo "── Running .maestro/${FLOW}.yaml"
   mkdir -p "$RUN/$FLOW"
   if maestro --device "$DEVICE" test ".maestro/${FLOW}.yaml" \

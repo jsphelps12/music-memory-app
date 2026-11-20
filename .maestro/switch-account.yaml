@@ -1,0 +1,61 @@
+# Sign out and back in without relaunching: the Journal must render.
+#
+# 2026-11-19: after Settings → Sign out → sign in, the Journal tab was blank
+# (no header, nothing mounted; Rediscover and You fine) until a relaunch.
+# Signs out from Settings, where the stack is (tabs) → settings, the way a
+# person switching accounts does it, then checks the Journal on landing, after
+# visiting another tab, and again on the way back.
+#   scripts/e2e-local.sh switch-account
+# seed: 2
+appId: com.joshuaphelps.musicmemory.preview
+---
+- runFlow: subflows/sign-in.yaml
+- extendedWaitUntil:
+    visible:
+      id: "moment-card-title"
+      index: 1
+    timeout: 15000
+- takeScreenshot: 01-journal-first-sign-in
+
+# --- Sign out from Settings (You → gear) -------------------------------------
+- tapOn: "You"
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 10000
+- tapOn: "Settings"
+- extendedWaitUntil:
+    visible: "Sign out"
+    timeout: 10000
+- scrollUntilVisible:
+    element: "Sign out"
+    direction: DOWN
+- tapOn: "Sign out"
+- extendedWaitUntil:
+    visible:
+      id: "signin-email"
+    timeout: 15000
+- takeScreenshot: 02-signed-out
+
+# --- Sign back in, same app process ------------------------------------------
+- runFlow: subflows/sign-in-form.yaml
+- waitForAnimationToEnd
+- takeScreenshot: 03-journal-after-switch
+# Not assertVisible "Journal": the tab bar label matches even when the
+# screen is blank. A card is the real proof the screen rendered.
+- extendedWaitUntil:
+    visible:
+      id: "moment-card-title"
+      index: 1
+    timeout: 15000
+
+# --- Away and back -----------------------------------------------------------
+- tapOn: "Rediscover"
+- extendedWaitUntil:
+    visible: "Rediscover"
+    timeout: 10000
+- tapOn: "Journal"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "moment-card-title"
+    index: 0
+- takeScreenshot: 04-journal-after-tabs
