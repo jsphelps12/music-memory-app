@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   View,
@@ -21,6 +21,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { MomentCard, type CardMenuAction } from "@/components/MomentCard";
+import { sequenceFromList, setMomentSequence } from "@/lib/momentSequence";
 import { MomentShareHost } from "@/components/MomentShareHost";
 import { MomentAlbumSheet } from "@/components/MomentAlbumSheet";
 import { SelectionAlbumSheet } from "@/components/SelectionAlbumSheet";
@@ -142,6 +143,18 @@ export default function AlbumDetailScreen() {
   }, [refetch]);
 
   const sections = useMemo(() => groupByMonth(moments), [moments]);
+  // Opening a moment hands over the album in the order it's shown, so left
+  // and right on the moment flip through it. Read at tap time, so a ref
+  // (synced after each commit) rather than a dependency that would re-render
+  // every card whenever the album changes.
+  const sectionsRef = useRef(sections);
+  useLayoutEffect(() => {
+    sectionsRef.current = sections;
+  }, [sections]);
+  const handleOpenMoment = useCallback((item: MomentCardData) => {
+    const shown = sectionsRef.current.flatMap((s) => s.data);
+    setMomentSequence(sequenceFromList(shown, item.id));
+  }, []);
 
   // The album's face when it has no cover photo: its songs' artwork, the same
   // mosaic the Albums grid shows (it used to be the retired brand gradient).
@@ -318,8 +331,9 @@ export default function AlbumDetailScreen() {
       selecting={selecting}
       selected={selecting && selected.has(item.id)}
       onToggleSelect={toggleSelect}
+      onOpen={handleOpenMoment}
     />
-  ), [allMoods, collection?.id, role, userId, handleCardDeleted, handleMenuAction, selecting, selected, toggleSelect]);
+  ), [allMoods, collection?.id, role, userId, handleCardDeleted, handleMenuAction, selecting, selected, toggleSelect, handleOpenMoment]);
 
   // Floating controls, always visible over the scroll: one disc size for
   // both (they float over the cover and the list). Back shows while the

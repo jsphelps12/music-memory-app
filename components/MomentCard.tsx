@@ -77,6 +77,12 @@ interface Props {
   selecting?: boolean;
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
+  /**
+   * Called as a tap opens the moment, before the screen is pushed: the list
+   * hands over its order here (lib/momentSequence.ts) so left and right on
+   * the moment flip through it.
+   */
+  onOpen?: (item: MomentCardData) => void;
 }
 
 export type CardMenuAction = "share" | "album" | "select" | "remove";
@@ -108,6 +114,7 @@ function MomentCardComponent({
   selecting = false,
   selected = false,
   onToggleSelect,
+  onOpen,
 }: Props) {
   const theme = useTheme();
   const router = useRouter();
@@ -256,6 +263,7 @@ function MomentCardComponent({
       return;
     }
     setCachedMoment(item);
+    onOpen?.(item);
     // contributorName rides as a param so attribution survives the detail
     // screen's background refetch — mapRowToMoment only derives it for guest
     // rows, so a Shared-with-me card relying on the cached moment alone would
@@ -278,7 +286,7 @@ function MomentCardComponent({
     })();
     // `item`, not just its id: an edited copy with the same id must be what
     // gets cached for the detail screen.
-  }, [item, collectionId, collectionRole, router, animatedRef, selecting, onToggleSelect]);
+  }, [item, collectionId, collectionRole, router, animatedRef, selecting, onToggleSelect, onOpen]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.get() }],
