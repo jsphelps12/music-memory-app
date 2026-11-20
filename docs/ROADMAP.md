@@ -75,10 +75,29 @@ has Most written about (artists with artwork → artist screen), Featuring
 (tagged people → their moments) and Moods (ranked words with a quiet ink
 bar → mood browse); a section with nothing to say is left out, and under 3
 moments it says insights show up as the journal grows.
-- [ ] Next insights (pick with Josh): when you write (months, time of day),
-  songs you came back to, eras/years compared, places, moods by season,
-  then narrated observations ("You reach for Bon Iver when it's cold"; AI may
-  narrate, never writes the reflection).
+- Principle (Josh): **powerful and digestible**. One idea per section, a
+  line you can take in at a glance; depth only when you tap in.
+- [ ] Next, in order (decided 2026-11-20, as OTAs while 1.4.1 is in review):
+  1. **Save more song data at capture** from the lookup already made: genre
+     (Apple's genreNames), release date, artist id, album id, ISRC, duration,
+     plus how the moment was captured (now playing, Shazam, search, share,
+     widget, nudge). Nullable columns (old builds ignore them) and a one-time
+     backfill from the server (needs Josh's go). Library data (play counts,
+     date added) stays on device: insights may read it locally, never upload.
+  2. **Songs that keep coming back:** one song across the years, with dates.
+  3. **Your soundtrack with a person:** a summary header (top artists/songs,
+     first and latest, moods) on Rediscover's person screen, which Featuring
+     already opens; no new screen.
+  4. **When you write:** time of day, weekdays, months, as a pattern (never
+     as days missed).
+  5. **Eras, version 2:** found in the data, not the calendar: slide a ~6-week
+     window; where one artist dominates, extend the era while they keep
+     dominating; it ends when someone else takes over or moments thin out
+     (real dates, "Mar 12 – May 30 · Bon Iver"); sparse journals fall back to
+     years. Open: can an era be a mood or genre; one headliner per stretch.
+  - Then: what resonates (favorite genres and periods, needs 1), memories vs
+    now, your words, places, moods through the year, narrated observations
+    (on-device AI narrates; never writes the reflection).
 **Three tabs, Yours / Shared (decided with Josh 2026-11-20, OTA to build 16
 before submitting):** Journal | Albums | Rediscover; the tab bar no longer
 swipes. Journal and Albums each swipe between Yours and Shared ("Shared" =
