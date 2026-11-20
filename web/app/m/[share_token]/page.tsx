@@ -1,180 +1,195 @@
 import { notFound } from "next/navigation";
-import type { Metadata } from "next";
-import { getSupabase } from "@/lib/supabase";
-import { PreviewPlayer } from "@/components/PreviewPlayer";
-import { AppStoreBadge, TopBar, formatMomentDate, moodLabel } from "@/components/Share";
-import s from "@/components/share.module.css";
+import { headers } from "next/headers";
+import type { Metadata, Viewport } from "next";
+import { TopBar, formatMomentDate, moodLabel } from "@/components/Share";
 import { GiftClipboardWriter } from "./GiftClipboardWriter";
+import { AppHandoff } from "./AppHandoff";
+import { Preview } from "./Preview";
+import { fetchSharedMoment } from "./data";
+import m from "./moment.module.css";
 
 export const dynamic = "force-dynamic";
+
+const APP_STORE_ID = "6759203604";
 
 interface PageProps {
   params: Promise<{ share_token: string }>;
 }
 
-interface SharedMoment {
-  id: string;
-  song_title: string | null;
-  song_artist: string | null;
-  song_album_name: string | null;
-  song_artwork_url: string | null;
-  song_preview_url: string | null;
-  reflection_text: string | null;
-  photo_urls: string[] | null;
-  moment_date: string | null;
-  mood: string | null;
-  location: string | null;
-  sender_name: string | null;
-  sender_friend_token: string | null;
-}
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FBF7F2" },
+    { media: "(prefers-color-scheme: dark)", color: "#0E0B0A" },
+  ],
+};
 
-// One RPC returns only the page's fields, instead of reading moments and
-// profiles directly.
-async function fetchMomentData(share_token: string) {
-  const { data } = await getSupabase().rpc("get_shared_moment", { p_token: share_token });
-  const row = data as SharedMoment | null;
-  if (!row) return null;
-
-  return {
-    row,
-    senderName: row.sender_name ?? "Someone",
-    // Powers the relational CTA below. /friend/{token} already handles both
-    // cases (deep link if the app is installed, App Store if not), so the
-    // page doesn't have to guess.
-    senderFriendToken: row.sender_friend_token,
-  };
-}
-
+/**
+ * The link preview (Messages, Slack, social cards) shows the artwork and
+ * names the song; the sender's words stay on the page. Whoever holds the
+ * link can read them, but a preview gets pasted into group chats and
+ * screenshotted out of context.
+ */
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { share_token } = await params;
-  const result = await fetchMomentData(share_token);
-  if (!result) return { title: "A Memory on Soundtracks" };
+  const moment = await fetchSharedMoment(share_token).catch(() => null);
+  // A private link: never indexed, found or not.
+  const robots = { index: false, follow: false };
+  if (!moment) return { title: "Soundtracks", robots };
 
-  const { row, senderName } = result;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-
-  const ogImage = row.photo_urls?.[0]
-    ? `${supabaseUrl}/storage/v1/object/public/moment-photos/${row.photo_urls[0]}`
-    : row.song_artwork_url ?? undefined;
-
-  const title = `${senderName} shared a memory`;
-  const songLine = [row.song_title, row.song_artist].filter(Boolean).join(" · ");
-  const reflection = row.reflection_text
-    ? ` — "${row.reflection_text.length > 120 ? row.reflection_text.slice(0, 120) + "…" : row.reflection_text}"`
-    : "";
-  const description = songLine ? `${songLine}${reflection}` : "A memory on Soundtracks";
+  const title = moment.artist ? `${moment.title} · ${moment.artist}` : moment.title;
+  const who = moment.sender ?? "Someone";
+  const description = moment.words
+    ? `${who} shared this song and what it means to them.`
+    : `${who} shared this song with you.`;
+  const url = `/m/${share_token}`;
+  const image = moment.artwork
+    ? { url: moment.artwork(1200), width: 1200, height: 1200, alt: `Album artwork for ${moment.title}` }
+    : null;
 
   return {
     title,
     description,
+    robots,
+    alternates: { canonical: url },
+    // Safari's Smart App Banner: "Open" when the app is installed (with this
+    // link as the argument), "Get" when it isn't. Native, dismissable, and
+    // above the page rather than over it.
+    itunes: { appId: APP_STORE_ID, appArgument: `https://soundtracks.app${url}` },
     openGraph: {
       title,
       description,
-      images: ogImage ? [{ url: ogImage, width: 1200, height: 1200 }] : [],
-      type: "website",
+      url,
       siteName: "Soundtracks",
+      type: "website",
+      images: image ? [image] : [],
     },
     twitter: {
-      card: "summary_large_image",
+      // Square artwork: the large card would crop it to a strip.
+      card: "summary",
       title,
       description,
-      images: ogImage ? [ogImage] : [],
+      images: image ? [image] : [],
     },
   };
 }
 
-export default async function GiftedMomentPage({ params }: PageProps) {
+export default async function SharedMomentPage({ params }: PageProps) {
   const { share_token } = await params;
-  const result = await fetchMomentData(share_token);
-  if (!result) notFound();
-  const { row, senderName, senderFriendToken } = result;
-  const senderFirstName = senderName.split(" ")[0];
+  const moment = await fetchSharedMoment(share_token);
+  if (!moment) notFound();
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const photoUrls: string[] = (row.photo_urls ?? []).map(
-    (path: string) => `${supabaseUrl}/storage/v1/object/public/moment-photos/${path}`
-  );
+  const ua = (await headers()).get("user-agent") ?? "";
+  const serverIOS = /iPhone|iPad|iPod/.test(ua);
 
-  // A photo leads when there is one; otherwise the artwork is the picture.
-  const heroPhoto = photoUrls[0] ?? null;
-  const remainingPhotos = photoUrls.slice(1);
-
-  const meta = [formatMomentDate(row.moment_date), row.location, moodLabel(row.mood)].filter(Boolean);
+  const date = formatMomentDate(moment.date);
+  const mood = moodLabel(moment.mood);
+  const art = moment.artwork;
+  const photoCount = moment.photos.length;
+  const byline = [moment.sender ? `From ${moment.sender}` : null, date].filter(Boolean).join(" · ");
 
   return (
-    <main className={s.page}>
+    <main className={m.page}>
       <GiftClipboardWriter shareToken={share_token} />
-      <div className={s.column}>
+
+      {/* The app's entry screen: the cover, blurred, as the light behind the
+          song. Decoration only; the artwork itself sits sharp on top. */}
+      {art && (
+        <div className={m.ambient} aria-hidden="true">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={art(100)} alt="" />
+        </div>
+      )}
+
+      <div className={m.frame}>
         <TopBar />
 
-        <p className={`${s.body} ${s.from}`}>{senderName} shared a moment with you.</p>
-
-        <article>
-          {heroPhoto ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={heroPhoto} alt="" className={s.hero} />
-          ) : row.song_artwork_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={row.song_artwork_url} alt="" className={s.coverArt} />
-          ) : null}
-
-          <div className={s.songHead}>
-            {heroPhoto && row.song_artwork_url && (
+        <article className={m.layout}>
+          <div className={m.sleeve}>
+            {art ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={row.song_artwork_url} alt="" className={s.thumb} />
+              <img
+                className={m.artwork}
+                src={art(600)}
+                srcSet={`${art(600)} 600w, ${art(1000)} 1000w`}
+                sizes="(min-width: 900px) 460px, calc(100vw - 40px)"
+                width={600}
+                height={600}
+                alt={`Album artwork for ${moment.title}`}
+                fetchPriority="high"
+              />
+            ) : (
+              <div className={m.artworkBlank} role="img" aria-label={`No artwork for ${moment.title}`}>
+                <span className={m.disc} />
+              </div>
             )}
-            <div style={{ minWidth: 0 }}>
-              <h1 className={s.headline}>{row.song_title}</h1>
-              <p className={s.entryArtist}>{row.song_artist}</p>
-            </div>
           </div>
 
-          {row.song_preview_url && <PreviewPlayer url={row.song_preview_url} />}
+          <div className={m.notes}>
+            <header>
+              <h1 className={m.song}>{moment.title}</h1>
+              {moment.artist && <p className={m.artist}>{moment.artist}</p>}
+            </header>
 
-          {row.reflection_text && (
-            <div className={s.entryText}>
-              <p className={s.reading}>{row.reflection_text}</p>
-            </div>
-          )}
+            {moment.previewUrl && (
+              <Preview url={moment.previewUrl} title={moment.title} artist={moment.artist} artwork={art ? art(600) : null} />
+            )}
 
-          <p className={`${s.meta} ${s.entryMeta}`}>
-            {[senderName, ...meta].join(" · ")}
-          </p>
+            {moment.words ? (
+              <figure className={m.words}>
+                <blockquote className={m.reading}>{moment.words}</blockquote>
+                {(byline || mood) && (
+                  <figcaption className={m.byline}>
+                    {byline}
+                    {mood && <span className={m.mood}>{byline ? ` · ${mood}` : mood}</span>}
+                  </figcaption>
+                )}
+              </figure>
+            ) : (
+              (byline || mood) && (
+                <p className={`${m.byline} ${m.bylineAlone}`}>
+                  {byline}
+                  {mood && <span className={m.mood}>{byline ? ` · ${mood}` : mood}</span>}
+                </p>
+              )
+            )}
 
-          {remainingPhotos.length > 0 && (
-            <div className={s.photos}>
-              {remainingPhotos.map((url, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={i} src={url} alt="" loading="lazy" />
-              ))}
-            </div>
-          )}
+            {photoCount > 0 && (
+              <section className={m.photosSection} aria-labelledby="photos-heading">
+                <h2 id="photos-heading" className={m.visuallyHidden}>
+                  {photoCount === 1 ? "Photo" : "Photos"}
+                </h2>
+                {photoCount === 1 ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    className={m.photoSingle}
+                    src={moment.photos[0]}
+                    alt={moment.sender ? `Photo from ${moment.sender}` : "Photo from this moment"}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  // A swipeable strip at each photo's own shape; it scrolls
+                  // with the keyboard too (focusable region).
+                  <ul className={m.strip} tabIndex={0} aria-label={`${photoCount} photos, scroll sideways for more`}>
+                    {moment.photos.map((src, i) => (
+                      <li key={src} className={m.stripItem}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={src}
+                          alt={`Photo ${i + 1} of ${photoCount}${moment.sender ? ` from ${moment.sender}` : ""}`}
+                          loading={i < 2 ? "eager" : "lazy"}
+                          decoding="async"
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
+
+            <AppHandoff token={share_token} serverIOS={serverIOS} />
+          </div>
         </article>
-
-        {/* The ask: below the memory and never sticky. Someone with no app
-            and no account (a grandparent) gets the whole thing (words,
-            preview, photos) without meeting a wall. */}
-        <section className={s.ask}>
-          {senderFriendToken ? (
-            <>
-              <p className={s.body}>
-                Add {senderFirstName} back and you&rsquo;ll see each other&rsquo;s moments when a song means
-                something.
-              </p>
-              <div className={s.askActions}>
-                <a href={`/friend/${senderFriendToken}`} className={s.button}>
-                  Add {senderFirstName} on Soundtracks
-                </a>
-                <AppStoreBadge handoff={`soundtracks-gift:${share_token}`} />
-              </div>
-            </>
-          ) : (
-            <>
-              <p className={s.body}>Soundtracks is a journal for the songs that mark your days.</p>
-              <AppStoreBadge handoff={`soundtracks-gift:${share_token}`} />
-            </>
-          )}
-        </section>
       </div>
     </main>
   );
