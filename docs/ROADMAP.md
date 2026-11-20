@@ -104,8 +104,24 @@ widget colors.
   tick; a bottom bar with Add to album and Delete ("Delete 5 moments?",
   photos deleted too). Journal first, album screens next. The menu stays
   the long-press; selection is one of its actions (as in Photos and Files).
-- [ ] The part of the song: where in the song the moment lives ("the
-  bridge at 2:41"); full playback starts there (`seekToTime` exists).
+- [ ] **The part of the song** (on the polish list after build 16, Josh
+  2026-11-19; design still to riff on): where in the song the moment
+  lives ("the bridge at 2:41"); full playback starts there (`seekToTime`
+  exists). Over the air: mark it with a scrubber in capture/Edit, one new
+  nullable column (also returned by `moment_view_for`). Previews are a
+  fixed 30 s clip, so without full playback it's a label only. Grabbing the
+  second automatically from Now Playing needs the system player's position
+  (native, 1.5).
+- [ ] **Swipe between moments** (polish after 16, Josh 2026-11-19): left and
+  right on a moment flip to the previous/next one in the list it came from.
+  Horizontal is taken today (swipe right closes, the seek bar drags, the
+  photo strip scrolls), so close moves to a swipe down (like Apple Music's
+  player) and the strip and seek bar keep their own drags. JS only; test
+  on device.
+- [ ] **Play the month** (polish after 16, Josh 2026-11-19): in Rediscover →
+  Browse by, a play button on a year or month runs through its moments in
+  order, the song under each reflection (preview playback + the film's
+  pieces).
 - [ ] One song across the years: moments with the same song as chapters.
 - [ ] Songs you used to love + Replay playlists as starting points.
 - [ ] From before weekly reminder (local, follows How often).
