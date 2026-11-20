@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { insightsSummary, journalInsights, repeatArtists, type InsightMoment } from "@/lib/insights";
+import { artistHighlights, insightsSummary, journalInsights, repeatArtists, type InsightMoment } from "@/lib/insights";
 
 const m = (over: Partial<InsightMoment>): InsightMoment => ({
   momentDate: "2026-11-01",
@@ -95,5 +95,28 @@ describe("repeatArtists", () => {
     ]);
     expect(repeatArtists(i, 1).map((a) => a.name)).toEqual(["C"]);
     expect(repeatArtists(journalInsights([m({ songArtist: "Solo" })]), 5)).toEqual([]);
+  });
+});
+
+describe("artistHighlights", () => {
+  it("ranks repeats when there are any", () => {
+    const i = journalInsights([m({ songArtist: "A" }), m({ songArtist: "B" }), m({ songArtist: "A" })]);
+    const h = artistHighlights(i, 5);
+    expect(h.kind).toBe("repeats");
+    expect(h.artists.map((a) => a.name)).toEqual(["A"]);
+  });
+
+  it("falls back to the most recent artists, with their latest song, when nobody repeats", () => {
+    const i = journalInsights([
+      m({ songArtist: "Newest", songTitle: "Latest" }),
+      m({ songArtist: "Middle", songTitle: "Mid" }),
+      m({ songArtist: "Oldest", songTitle: "First" }),
+    ]);
+    const h = artistHighlights(i, 2);
+    expect(h.kind).toBe("recent");
+    expect(h.artists.map((a) => [a.name, a.latestSong])).toEqual([
+      ["Newest", "Latest"],
+      ["Middle", "Mid"],
+    ]);
   });
 });

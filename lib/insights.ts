@@ -20,6 +20,8 @@ export interface RankedArtist {
   count: number;
   /** Artwork from this artist's most recent moment that has any. */
   artworkUrl: string | null;
+  /** The song on this artist's most recent moment. */
+  latestSong: string;
 }
 
 export interface Ranked {
@@ -54,6 +56,20 @@ export function repeatArtists(i: Pick<Insights, "topArtists">, max: number): Ran
   return i.topArtists.filter((a) => a.count >= REPEAT_MIN).slice(0, max);
 }
 
+/**
+ * The artists section: "Most written about" once anyone repeats; before that,
+ * "Artists so far", the most recent ones (there's always something to show).
+ */
+export function artistHighlights(
+  i: Pick<Insights, "topArtists">,
+  max: number
+): { kind: "repeats" | "recent"; artists: RankedArtist[] } {
+  const repeats = repeatArtists(i, max);
+  if (repeats.length > 0) return { kind: "repeats", artists: repeats };
+  // All tied at one: topArtists keeps first-seen order, i.e. most recent first.
+  return { kind: "recent", artists: i.topArtists.slice(0, max) };
+}
+
 const norm = (s: string) => s.trim().toLowerCase();
 
 function rank(counts: Map<string, Ranked>): Ranked[] {
@@ -83,7 +99,7 @@ export function journalInsights(meta: readonly InsightMoment[]): Insights {
         entry.count += 1;
         if (!entry.artworkUrl && m.songArtworkUrl) entry.artworkUrl = m.songArtworkUrl;
       } else {
-        artists.set(key, { name: artist, count: 1, artworkUrl: m.songArtworkUrl || null });
+        artists.set(key, { name: artist, count: 1, artworkUrl: m.songArtworkUrl || null, latestSong: title });
       }
     }
 

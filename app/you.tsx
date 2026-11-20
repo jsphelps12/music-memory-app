@@ -24,7 +24,7 @@ import { BottomSheet } from "@/components/BottomSheet";
 import { ListRow } from "@/components/ListRow";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
-import { INSIGHTS_MIN_MOMENTS, insightsSummary, journalInsights, repeatArtists } from "@/lib/insights";
+import { INSIGHTS_MIN_MOMENTS, artistHighlights, insightsSummary, journalInsights } from "@/lib/insights";
 import { artworkUrlAtSize } from "@/lib/itunes";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Icon } from "@/components/Icon";
@@ -104,8 +104,8 @@ export default function YouScreen() {
     [browseMeta.data]
   );
   const insightsReady = !!insights && insights.moments >= INSIGHTS_MIN_MOMENTS;
-  // Covers only for artists you've come back to; three one-offs say nothing.
-  const previewArtists = insights ? repeatArtists(insights, 3) : [];
+  // Your most-written artists, or until anyone repeats, your latest three.
+  const previewArtists = insights ? artistHighlights(insights, 3).artists : [];
 
   const summary = useQuery({
     queryKey: ["youSummary", user?.id],
@@ -345,8 +345,8 @@ export default function YouScreen() {
                             <ArtworkPlaceholder style={styles.topArt} />
                           )}
                           <Text style={styles.topName} numberOfLines={1}>{a.name}</Text>
-                          <Text style={styles.topCount}>
-                            {a.count} {a.count === 1 ? "moment" : "moments"}
+                          <Text style={styles.topCount} numberOfLines={1}>
+                            {a.count > 1 ? `${a.count} moments` : a.latestSong || "1 moment"}
                           </Text>
                         </>
                       ) : null}

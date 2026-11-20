@@ -14,7 +14,7 @@ import { MOODS } from "@/constants/Moods";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchBrowseMetadata } from "@/lib/browse";
 import { friendlyError } from "@/lib/errors";
-import { INSIGHTS_MIN_MOMENTS, insightsSummary, journalInsights, repeatArtists } from "@/lib/insights";
+import { INSIGHTS_MIN_MOMENTS, artistHighlights, insightsSummary, journalInsights } from "@/lib/insights";
 import { artworkUrlAtSize } from "@/lib/itunes";
 import { moodLabel } from "@/lib/moodLabels";
 import { BROWSE_META_STALE } from "@/lib/queryConfig";
@@ -85,7 +85,8 @@ export default function InsightsScreen() {
   }
 
   const enough = !!insights && insights.moments >= INSIGHTS_MIN_MOMENTS;
-  const artists = insights ? repeatArtists(insights, TOP_ARTISTS) : [];
+  const highlights = insights ? artistHighlights(insights, TOP_ARTISTS) : null;
+  const artists = highlights?.artists ?? [];
   const people = insights?.featuring.slice(0, TOP_PEOPLE) ?? [];
   const topMoodCount = moods[0]?.count ?? 1;
 
@@ -102,24 +103,16 @@ export default function InsightsScreen() {
           </Text>
         ) : null}
 
-        {enough && artists.length === 0 && insights.artists > 0 ? (
-          <View style={styles.section}>
-            <SectionLabel>Most written about</SectionLabel>
-            <Text style={styles.note}>
-              {insights.artists.toLocaleString()} {insights.artists === 1 ? "artist" : "artists"} so far, no repeats yet.
-            </Text>
-          </View>
-        ) : null}
-
         {enough && artists.length > 0 ? (
           <View style={styles.section}>
-            <SectionLabel>Most written about</SectionLabel>
+            <SectionLabel>{highlights?.kind === "repeats" ? "Most written about" : "Artists so far"}</SectionLabel>
             {artists.map((a, i) => (
               <ListRow
                 key={a.name}
                 label={a.name}
                 strong
-                subtitle={plural(a.count)}
+                // A count once it means something; before that, the song.
+                subtitle={a.count > 1 ? plural(a.count) : a.latestSong || plural(a.count)}
                 leading={
                   a.artworkUrl ? (
                     <AppImage
@@ -203,11 +196,6 @@ function createStyles(theme: Theme) {
     },
     section: {
       marginTop: theme.spacing["2xl"],
-    },
-    note: {
-      ...theme.typography.body,
-      color: theme.colors.textSecondary,
-      paddingVertical: theme.spacing.md,
     },
     art: {
       width: ART,
