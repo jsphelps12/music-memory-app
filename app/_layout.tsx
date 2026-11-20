@@ -363,6 +363,13 @@ function RootLayoutNav() {
       } else if (data.type === "shared_moment" && data.momentId) {
         // share_received (Sharing v2): straight to the moment
         router.push(`/moment/${data.momentId}`);
+      } else if (data.type === "album_invite") {
+        // A friend invited you to an album: the invite waits at the top of
+        // Albums → Shared. navigate switches to the tab; the lists may be
+        // cached from before the invite, so refetch them.
+        void queryClient.invalidateQueries({ queryKey: ["collectionsScreen"] });
+        void queryClient.invalidateQueries({ queryKey: ["collectionsBadge"] });
+        router.navigate("/albums");
       } else if (data.type === "friends") {
         // Legacy pushes from pre-v2 binaries: the old Friends tab became
         // Albums, a tab again since 2026-11-20. navigate, not push: it

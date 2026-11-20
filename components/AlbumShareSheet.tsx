@@ -23,6 +23,7 @@ import { ListRow } from "@/components/ListRow";
 import { PersonPicker, pickerHasSearch, type PickerPerson } from "@/components/PersonPicker";
 import { TextField } from "@/components/TextField";
 import * as Haptics from "expo-haptics";
+import { usePostHog } from "posthog-react-native";
 import { Album } from "@/types";
 import {
   albumCoverKey,
@@ -31,12 +32,18 @@ import {
   deleteAlbum,
   ensureAlbumGuestUser,
   leaveAlbum,
+  fetchAlbumInviteeIds,
   fetchAlbumMembers,
+  inviteFriendToAlbum,
   removeAlbumMember,
   renameAlbum,
   updateAlbumCover,
   AlbumMember,
 } from "@/lib/albums";
+import { inviteCandidates, inviteRowState } from "@/lib/albumInvites";
+import { friendsAsPeople, type FriendPerson } from "@/lib/friends";
+import { rankPeople } from "@/lib/people";
+import { useFriends, useRecentRecipients } from "@/hooks/useFriends";
 import { uploadAlbumCover, getPublicPhotoUrl } from "@/lib/storage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
@@ -68,8 +75,9 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
   const [loadingMembers, setLoadingMembers] = useState(false);
   // A failed load says so; it must not read as "No one else has joined yet".
   const [membersError, setMembersError] = useState("");
-  // "Show all" swaps the sheet's content for the whole member list.
-  const [showAllMembers, setShowAllMembers] = useState(false);
+  // "Show all" swaps the sheet's content for the whole member list, or the
+  // whole friend list under "Invite friends".
+  const [showAll, setShowAll] = useState<"members" | "friends" | null>(null);
   const [showAllQuery, setShowAllQuery] = useState("");
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
@@ -84,7 +92,40 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
   const [linkCopied, setLinkCopied] = useState(false);
 
   const queryClient = useQueryClient();
+  const posthog = usePostHog();
   const isOwner = collection.role === "owner";
+
+  // ── Invite friends (album basics, 2026-11-20) ─────────────────────────
+  // Owner of a shared album only. The friend gets a push and an invite in
+  // Albums → Shared; they join only if they tap Join.
+  const canInvite = visible && isOwner && collection.isPublic;
+  const friendsQuery = useFriends({ enabled: canInvite });
+  const recentsQuery = useRecentRecipients({ enabled: canInvite });
+  // Who's already invited. undefined: loading; null: the server has no
+  // invites yet, so the section stays hidden (today's link-only sheet).
+  const [invitedIds, setInvitedIds] = useState<Set<string> | null | undefined>(undefined);
+  const [invitingIds, setInvitingIds] = useState<Set<string>>(new Set());
+
+  const loadInvitees = useCallback(() => {
+    setInvitedIds(undefined);
+    fetchAlbumInviteeIds(collection.id)
+      .then(setInvitedIds)
+      .catch((e) => {
+        // The server dedupes, so the picker still works without the
+        // "Invited" marks; an invite that was already sent reads Invited
+        // once tapped.
+        if (__DEV__) console.warn("[albums] invitee lookup failed:", e);
+        setInvitedIds(new Set());
+      });
+  }, [collection.id]);
+
+  useEffect(() => {
+    if (canInvite) loadInvitees();
+    if (!visible) {
+      setInvitedIds(undefined);
+      setInvitingIds(new Set());
+    }
+  }, [canInvite, visible, loadInvitees]);
 
   const loadMembers = useCallback(() => {
     setLoadingMembers(true);
@@ -100,7 +141,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
     if (!visible) {
       setMembers([]);
       setMembersError("");
-      setShowAllMembers(false);
+      setShowAll(null);
       setError("");
       setRenaming(false);
       setLinkCopied(false);
@@ -120,6 +161,20 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
       ),
     [members]
   );
+
+  // Friends who aren't in the album yet, recent sends first, then A–Z.
+  const memberIds = useMemo(() => new Set(members.map((m) => m.userId)), [members]);
+  const invitePeople = useMemo(
+    () =>
+      inviteCandidates(
+        rankPeople(friendsAsPeople(friendsQuery.data ?? []), recentsQuery.data),
+        user?.id,
+        memberIds
+      ),
+    [friendsQuery.data, recentsQuery.data, user?.id, memberIds]
+  );
+  const showInvite =
+    canInvite && invitedIds !== null && (friendsQuery.isLoading || (friendsQuery.data?.length ?? 0) > 0 || friendsQuery.isError);
 
   // A shared album whose guest-user setup failed (or that was created shared
   // before the create sheet did it) is finished here, quietly: the owner
@@ -239,6 +294,31 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
     setTimeout(() => setLinkCopied(false), 2000);
   }
 
+  // One tap per friend, like "Send to a person" in the moment share sheet.
+  async function handleInvite(person: FriendPerson) {
+    const id = person.id;
+    if (!invitedIds || invitedIds.has(id) || invitingIds.has(id)) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setInvitingIds((prev) => new Set(prev).add(id));
+    setError("");
+    try {
+      const result = await inviteFriendToAlbum(collection.id, id);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // "already_invited" too: the server already has an invite (or the
+      // friend said Not now), so the row reads Invited either way.
+      setInvitedIds((prev) => new Set(prev ?? []).add(id));
+      if (result === "invited") posthog?.capture("album_invite_sent");
+    } catch (e: any) {
+      setError(friendlyError(e));
+    } finally {
+      setInvitingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }
+
   async function handleRemoveMember(member: AlbumMember) {
     const confirmed = await confirmSheet({
       title: `Remove ${member.displayName ?? "this member"}?`,
@@ -334,6 +414,53 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
         />
       ),
   };
+  // Friends to invite: an Invite pill, a spinner while it goes, then
+  // "Invited" (pending or answered Not now; the owner isn't told which).
+  const inviteSet = invitedIds ?? new Set<string>();
+  const inviteTrailing = (person: FriendPerson) => {
+    const state = inviteRowState(person.id, inviteSet, invitingIds);
+    if (state === "inviting") {
+      return <ActivityIndicator size="small" color={theme.colors.textSecondary} />;
+    }
+    if (state === "invited") {
+      return (
+        <View style={styles.invitedState}>
+          <Icon name="checkmark" size={16} color={theme.colors.text} />
+          <Text style={styles.invitedText}>Invited</Text>
+        </View>
+      );
+    }
+    return (
+      <Button
+        label="Invite"
+        variant="secondary"
+        size="pill"
+        align="center"
+        onPress={() => handleInvite(person)}
+        accessibilityLabel={`Invite ${person.displayName ?? person.username ?? "this friend"}`}
+      />
+    );
+  };
+  const invitePickerProps = {
+    people: invitePeople,
+    loading: friendsQuery.isLoading || loadingMembers || invitedIds === undefined,
+    error: friendsQuery.isError ? friendlyError(friendsQuery.error) : undefined,
+    onRetry: () => void friendsQuery.refetch(),
+    emptyState: (
+      <View style={styles.row}>
+        <Text style={styles.emptyMembers}>Your friends are all in this album.</Text>
+      </View>
+    ),
+    searchPlaceholder: "Search friends",
+    renderTrailing: inviteTrailing,
+    onPick: (person: FriendPerson) => void handleInvite(person),
+    canPick: (person: FriendPerson) => inviteRowState(person.id, inviteSet, invitingIds) === "available",
+    rowAccessibilityLabel: (person: FriendPerson) =>
+      `${inviteRowState(person.id, inviteSet, invitingIds) === "invited" ? "Invited" : "Invite"} ${
+        person.displayName ?? person.username ?? "this friend"
+      }`,
+  };
+
   const renameDirty = !!renameText.trim() && renameText.trim() !== collection.name;
 
   const metaLine = isOwner
@@ -357,9 +484,14 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
       title={collection.name}
       keyboardAvoiding
       // Steady height while searching the whole list.
-      minHeight={showAllMembers && pickerHasSearch(memberPeople.length) ? "75%" : undefined}
+      minHeight={
+        (showAll === "members" && pickerHasSearch(memberPeople.length)) ||
+        (showAll === "friends" && pickerHasSearch(invitePeople.length))
+          ? "75%"
+          : undefined
+      }
     >
-      {showAllMembers ? (
+      {showAll ? (
         <View style={styles.allMembers}>
           <Button
             variant="text"
@@ -367,13 +499,22 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
             tone="secondary"
             icon="chevron-back"
             label="Back"
-            onPress={() => setShowAllMembers(false)}
+            onPress={() => setShowAll(null)}
             accessibilityLabel="Back to album settings"
             style={styles.back}
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          <SectionLabel meta={String(totalMembers)}>Members</SectionLabel>
-          <PersonPicker mode="list" {...memberPickerProps} initialQuery={showAllQuery} />
+          {showAll === "members" ? (
+            <>
+              <SectionLabel meta={String(totalMembers)}>Members</SectionLabel>
+              <PersonPicker mode="list" {...memberPickerProps} initialQuery={showAllQuery} />
+            </>
+          ) : (
+            <>
+              <SectionLabel>Invite friends</SectionLabel>
+              <PersonPicker mode="list" {...invitePickerProps} initialQuery={showAllQuery} />
+            </>
+          )}
         </View>
       ) : (
       <ScrollView
@@ -414,6 +555,24 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                 style={styles.inviteBlock}
               />
             )}
+
+            {/* Invite friends: shared albums only, hidden until the server
+                has invites and while the owner has no friends. */}
+            {showInvite ? (
+              <View style={styles.section} testID="album-invite-friends">
+                <SectionLabel>Invite friends</SectionLabel>
+                <View style={[styles.rows, styles.rowsTight]}>
+                  <PersonPicker
+                    mode="inline"
+                    {...invitePickerProps}
+                    onShowAll={(query) => {
+                      setShowAllQuery(query);
+                      setShowAll("friends");
+                    }}
+                  />
+                </View>
+              </View>
+            ) : null}
 
             <View style={styles.rows}>
               {/* Name, renamed inline */}
@@ -518,7 +677,7 @@ export function AlbumShareSheet({ visible, collection, onClose, onUpdated, onLef
                     {...memberPickerProps}
                     onShowAll={(query) => {
                       setShowAllQuery(query);
-                      setShowAllMembers(true);
+                      setShowAll("members");
                     }}
                   />
                 </View>
@@ -644,6 +803,17 @@ function createStyles(theme: Theme) {
     },
     memberAction: {
       marginRight: -12,
+    },
+    // "Invited", like the moment share sheet's "Sent".
+    invitedState: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.sm,
+    },
+    invitedText: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
     },
     allMembers: {
       flexShrink: 1,

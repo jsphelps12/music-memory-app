@@ -27,12 +27,22 @@ import { CreateAlbumSheet } from "@/components/CreateAlbumSheet";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { ErrorState } from "@/components/ErrorState";
+import { ListRow } from "@/components/ListRow";
 import { MomentActionMenu, nativeMenuAction, type MenuAnchor, type MomentMenuItem } from "@/components/MomentActionMenu";
 import { PaneSwitcher } from "@/components/PaneSwitcher";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { SectionLabel } from "@/components/SectionLabel";
 import { TextField } from "@/components/TextField";
 import { ContextMenuView } from "@/modules/context-menu";
-import { deleteAlbum, fetchAlbumsOverview, leaveAlbum, renameAlbum, type AlbumsOverview } from "@/lib/albums";
+import {
+  deleteAlbum,
+  fetchAlbumsOverview,
+  leaveAlbum,
+  renameAlbum,
+  respondToAlbumInvite,
+  type AlbumsOverview,
+} from "@/lib/albums";
+import { inviteClosedMessage, inviteFromLine, type AlbumInvite, type RespondStatus } from "@/lib/albumInvites";
 import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { DEFAULT_SCREEN_STALE } from "@/lib/queryConfig";
 import { friendlyError } from "@/lib/errors";
@@ -40,9 +50,11 @@ import { pluralMoments } from "@/lib/utils";
 import { Album } from "@/types";
 
 // The Albums tab (2026-11-20). Yours: albums you made, including ones you've
-// invited people into. Shared: albums other people invited you to. Someone
-// with no joined albums and no friends sees only Yours, without the switch.
-// Long-press a tile for Invite, Rename and Delete (yours) or Leave (shared).
+// invited people into. Shared: albums other people invited you to, with
+// friends' invites waiting for Join / Not now at the top. Someone with no
+// joined albums, no invites and no friends sees only Yours, without the
+// switch. Long-press a tile for Invite, Rename and Delete (yours) or Leave
+// (shared).
 
 const GRID_GAP = 12;
 // The page gutter (theme.spacing.xl), matching ScreenHeader's title.
@@ -162,6 +174,74 @@ function AlbumTile({
   );
 }
 
+// ── Invites (Shared pane) ─────────────────────────────────────────────────────
+
+type InviteAnswer = "join" | "decline";
+
+/**
+ * A friend's invite: the album's face and name, who sent it, then Not now
+ * and Join. Nothing joins until Join is tapped.
+ */
+function InviteRow({
+  invite,
+  artworks,
+  answering,
+  onAnswer,
+  last,
+  styles,
+}: {
+  invite: AlbumInvite;
+  artworks: string[];
+  /** Which button is waiting on the server for this invite, if any. */
+  answering: InviteAnswer | null;
+  onAnswer: (invite: AlbumInvite, answer: InviteAnswer) => void;
+  last: boolean;
+  styles: Styles;
+}) {
+  const name = invite.albumName || "an album";
+  return (
+    <ListRow
+      label={invite.albumName || "Untitled album"}
+      subtitle={inviteFromLine(invite.fromName)}
+      subtitleLines={1}
+      strong
+      last={last}
+      leading={
+        <View style={styles.inviteArt}>
+          <AlbumMosaic coverPhotoPath={invite.coverPhotoUrl} artworks={artworks} style={StyleSheet.absoluteFill} />
+        </View>
+      }
+      trailing={
+        <View style={styles.inviteActions}>
+          <Button
+            label="Not now"
+            variant="text"
+            size="pill"
+            tone="secondary"
+            align="center"
+            onPress={() => onAnswer(invite, "decline")}
+            loading={answering === "decline"}
+            disabled={answering !== null}
+            accessibilityLabel={`Not now, ${name}`}
+          />
+          <Button
+            label="Join"
+            variant="secondary"
+            size="pill"
+            align="center"
+            onPress={() => onAnswer(invite, "join")}
+            loading={answering === "join"}
+            disabled={answering !== null}
+            accessibilityLabel={`Join ${name}`}
+          />
+        </View>
+      }
+      style={styles.inviteRow}
+      testID={`album-invite-${invite.collectionId}`}
+    />
+  );
+}
+
 // ── One pane's grid ───────────────────────────────────────────────────────────
 
 function AlbumGrid({
@@ -172,6 +252,7 @@ function AlbumGrid({
   onPress,
   onAction,
   empty,
+  header,
   styles,
   theme,
 }: {
@@ -181,24 +262,29 @@ function AlbumGrid({
   onRefresh: () => void;
   onPress: (album: Album) => void;
   onAction: (action: TileAction, album: Album) => void;
-  empty: ReactElement;
+  empty: ReactElement | null;
+  /** Above the grid (the Shared pane's invites). */
+  header?: ReactElement | null;
   styles: Styles;
   theme: Theme;
 }) {
   const newCounts = overview?.newCounts ?? {};
   const artworks = overview?.artworks ?? {};
+  const contentStyle =
+    albums.length > 0 ? styles.listContent : header ? [styles.listContent, styles.emptyContent] : styles.emptyContent;
   return (
     <FlatList
       data={albums}
       keyExtractor={(album) => album.id}
       numColumns={2}
       columnWrapperStyle={styles.gridRow}
-      contentContainerStyle={albums.length === 0 ? styles.emptyContent : styles.listContent}
+      contentContainerStyle={contentStyle}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.textSecondary} />
       }
-      ListEmptyComponent={empty}
+      ListHeaderComponent={header ?? undefined}
+      ListEmptyComponent={empty ?? undefined}
       renderItem={({ item }) => (
         <AlbumTile
           album={item}
@@ -255,19 +341,66 @@ export default function AlbumsScreen() {
   const albums = useMemo(() => data?.albums ?? [], [data?.albums]);
   const yours = useMemo(() => albums.filter((a) => a.role === "owner"), [albums]);
   const joined = useMemo(() => albums.filter((a) => a.role === "member"), [albums]);
+  const invites = useMemo(() => data?.invites ?? [], [data?.invites]);
   const joinedHasNew = useMemo(
     () => joined.some((a) => (data?.newCounts[a.id] ?? 0) > 0),
     [joined, data?.newCounts]
   );
   // Nothing anyone could share with you yet: just your own albums.
-  const showSwitch = joined.length > 0 || (friends.data?.length ?? 0) > 0;
+  const showSwitch = joined.length > 0 || invites.length > 0 || (friends.data?.length ?? 0) > 0;
+  // A waiting invite is "something new" in Shared too.
+  const sharedDot = joinedHasNew || invites.length > 0;
 
   const panes = useMemo(
     () => [
       { key: "yours", label: "Yours", testID: "albums-pane-yours" },
-      { key: "shared", label: "Shared", dot: joinedHasNew, testID: "albums-pane-shared" },
+      { key: "shared", label: "Shared", dot: sharedDot, testID: "albums-pane-shared" },
     ],
-    [joinedHasNew]
+    [sharedDot]
+  );
+
+  // Invite id → the button waiting on the server.
+  const [answering, setAnswering] = useState<Record<string, InviteAnswer>>({});
+
+  const dropInviteLocally = useCallback(
+    (collectionId: string) => {
+      queryClient.setQueryData<AlbumsOverview>([QUERY_KEY, userId], (old) =>
+        old ? { ...old, invites: (old.invites ?? []).filter((i) => i.collectionId !== collectionId) } : old
+      );
+    },
+    [queryClient, userId]
+  );
+
+  const answerInvite = useCallback(
+    async (invite: AlbumInvite, answer: InviteAnswer) => {
+      const id = invite.collectionId;
+      if (answering[id]) return;
+      if (answer === "join") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setAnswering((prev) => ({ ...prev, [id]: answer }));
+      const accept = answer === "join";
+      const failTitle = accept ? "Couldn't join album" : "Couldn't answer invite";
+      // Only the call sits in the try (no finally, no conditionals): the
+      // React Compiler skips a component otherwise.
+      let status: RespondStatus | null = null;
+      try {
+        status = await respondToAlbumInvite(id, accept);
+      } catch (e) {
+        Alert.alert(failTitle, friendlyError(e));
+      }
+      if (status) {
+        dropInviteLocally(id);
+        if (status === "joined") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        else if (accept) Alert.alert(failTitle, inviteClosedMessage(status));
+        // The joined album (or nothing) arrives with the refetch.
+        invalidateAlbumCaches(queryClient, userId, id);
+      }
+      setAnswering((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    },
+    [answering, dropInviteLocally, queryClient, userId]
   );
 
   const openAlbum = useCallback(
@@ -440,12 +573,34 @@ export default function AlbumsScreen() {
             onAction={handleTileAction}
             styles={styles}
             theme={theme}
+            header={
+              invites.length > 0 ? (
+                <View style={styles.invites} testID="album-invites">
+                  <SectionLabel meta={String(invites.length)}>Invites</SectionLabel>
+                  <View style={styles.inviteList}>
+                    {invites.map((invite, i) => (
+                      <InviteRow
+                        key={invite.collectionId}
+                        invite={invite}
+                        artworks={data?.artworks[invite.collectionId] ?? []}
+                        answering={answering[invite.collectionId] ?? null}
+                        onAnswer={answerInvite}
+                        last={i === invites.length - 1}
+                        styles={styles}
+                      />
+                    ))}
+                  </View>
+                </View>
+              ) : null
+            }
             empty={
-              <EmptyState
-                icon="people-outline"
-                title="Nothing shared yet"
-                subtitle="When a friend invites you to an album, it shows up here."
-              />
+              invites.length > 0 ? null : (
+                <EmptyState
+                  icon="people-outline"
+                  title="Nothing shared yet"
+                  subtitle="When a friend invites you to an album, it shows up here."
+                />
+              )
             }
           />,
         ]}
@@ -572,6 +727,31 @@ function createStyles(theme: Theme) {
       ...theme.typography.meta,
       color: theme.colors.textSecondary,
       marginTop: 2,
+    },
+    // Invites sit above the Shared grid as hairline-ruled rows (DESIGN.md,
+    // Rows Not Boxes), the album's face at the 48pt row-thumb size.
+    invites: {
+      marginBottom: theme.spacing.xl,
+    },
+    inviteList: {
+      marginTop: theme.spacing.xs,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.divider,
+    },
+    inviteRow: {
+      paddingVertical: theme.spacing.sm,
+    },
+    inviteArt: {
+      width: 48,
+      height: 48,
+      borderRadius: theme.radii.sm,
+      overflow: "hidden",
+      backgroundColor: theme.colors.artworkPlaceholder,
+    },
+    inviteActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
     },
     renameBody: {
       paddingHorizontal: theme.spacing.xl,
