@@ -234,6 +234,18 @@ describe("fetchBrowseMetadata song details", () => {
     expect(meta[1]).toMatchObject({ songGenre: null, songReleaseDate: null });
   });
 
+  it("reads when each moment was written, in both column lists", async () => {
+    const { fetchBrowseMetadata } = await import("../browse");
+    sb.queueError({ code: "42703", message: "column moments.song_genre does not exist" });
+    sb.queueData([{ id: "m1", time_of_day: "Late Night" }, { id: "m2" }]);
+    const meta = await fetchBrowseMetadata("u1");
+    for (const q of sb.queries) {
+      expect(q.chain.find((c) => c.method === "select")?.args[0]).toContain("time_of_day");
+    }
+    expect(meta[0].timeOfDay).toBe("Late Night");
+    expect(meta[1].timeOfDay).toBeNull();
+  });
+
   it("falls back to the old columns before the migration is applied", async () => {
     const { fetchBrowseMetadata } = await import("../browse");
     sb.queueError({ code: "42703", message: "column moments.song_genre does not exist" });

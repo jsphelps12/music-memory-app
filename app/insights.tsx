@@ -21,6 +21,8 @@ import {
   comingBackWhen,
   insightsSummary,
   journalInsights,
+  resonates,
+  writingPattern,
 } from "@/lib/insights";
 import { artworkUrlAtSize } from "@/lib/itunes";
 import { moodLabel } from "@/lib/moodLabels";
@@ -34,15 +36,72 @@ const TOP_ARTISTS = 5;
 const TOP_SONGS = 5;
 const TOP_PEOPLE = 8;
 const TOP_MOODS = 8;
+const TOP_GENRES = 5;
+const TOP_DECADES = 5;
 
 const plural = (n: number) => `${n.toLocaleString()} ${n === 1 ? "moment" : "moments"}`;
+
+type Styles = ReturnType<typeof createStyles>;
+
+/**
+ * One ranked word with its count and a quiet ink bar of its share against the
+ * top one: the one chart Insights allows. Moods, genres, decades and times of
+ * day all use it, so they read alike. Tappable only when there's somewhere to go.
+ */
+function BarRow({
+  label,
+  count,
+  max,
+  styles,
+  onPress,
+}: {
+  label: string;
+  count: number;
+  max: number;
+  styles: Styles;
+  onPress?: () => void;
+}) {
+  const content = (
+    <>
+      <View style={styles.barLine}>
+        <Text style={styles.barWord} numberOfLines={1}>
+          {label}
+        </Text>
+        <Text style={styles.barCount}>{count.toLocaleString()}</Text>
+      </View>
+      <View style={styles.barTrack}>
+        <View style={[styles.bar, { width: `${Math.max(4, (count / Math.max(1, max)) * 100)}%` }]} />
+      </View>
+    </>
+  );
+  const a11y = `${label}, ${plural(count)}`;
+  if (!onPress) {
+    return (
+      <View style={styles.barRow} accessible accessibilityLabel={a11y}>
+        {content}
+      </View>
+    );
+  }
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.barRow, pressed && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel={a11y}
+    >
+      {content}
+    </Pressable>
+  );
+}
 
 /**
  * Insights: what the journal says about its writer, as ruled sections like a
  * record's credits (DESIGN.md "The Liner Notes"). Everything comes from the
  * browse metadata the app already holds (lib/insights.ts): artists, the songs
- * that keep coming back, people and moods; new sections are added to
- * lib/insights.ts and here. A section with nothing to say is left out, not shown empty.
+ * that keep coming back, genres and decades, when you write, people and moods;
+ * new sections are added to lib/insights.ts and here. Each section leads with
+ * one line you can take in at a glance, the rows under it are the depth. A
+ * section with nothing to say is left out, not shown empty.
  */
 export default function InsightsScreen() {
   const router = useRouter();
@@ -71,6 +130,9 @@ export default function InsightsScreen() {
     const now = new Date();
     return comingBack(meta.data, TOP_SONGS).map((s) => ({ ...s, when: comingBackWhen(s.dates, s.count, now) }));
   }, [meta.data]);
+  // Genres and decades of the songs; when moments get written.
+  const taste = useMemo(() => (meta.data ? resonates(meta.data) : null), [meta.data]);
+  const writing = useMemo(() => (meta.data ? writingPattern(meta.data) : null), [meta.data]);
   const allMoods = useMemo(() => [...MOODS, ...(profile?.customMoods ?? [])], [profile?.customMoods]);
 
   const moods = useMemo(() => {
@@ -103,6 +165,14 @@ export default function InsightsScreen() {
   const artists = highlights?.artists ?? [];
   const people = insights?.featuring.slice(0, TOP_PEOPLE) ?? [];
   const topMoodCount = moods[0]?.count ?? 1;
+  // A single row only repeats the line above it, so rows show from two.
+  const genres = taste && taste.genres.length > 1 ? taste.genres.slice(0, TOP_GENRES) : [];
+  const decades = taste && taste.decades.length > 1 ? taste.decades.slice(0, TOP_DECADES) : [];
+  const times = writing && writing.times.length > 1 ? writing.times : [];
+  const topTimeCount = Math.max(1, ...times.map((t) => t.count));
+  // The pattern line leads; with no pattern, the busiest month does.
+  const writingLine = writing?.line ?? (writing?.busiestMonth ? `Busiest in ${writing.busiestMonth}` : null);
+  const writingSub = writing?.line && writing.busiestMonth ? `Busiest in ${writing.busiestMonth}` : null;
 
   return (
     <View style={styles.container}>
@@ -176,6 +246,35 @@ export default function InsightsScreen() {
           </View>
         ) : null}
 
+        {/* Each half only when it has something to say (lib/insights.ts resonates). */}
+        {enough && taste ? (
+          <View style={styles.section}>
+            <SectionLabel>What resonates</SectionLabel>
+            {taste.genreLine ? <Text style={styles.headline}>{taste.genreLine}</Text> : null}
+            {genres.map((g) => (
+              <BarRow key={g.value} label={g.value} count={g.count} max={genres[0].count} styles={styles} />
+            ))}
+            {taste.periodLine ? (
+              <Text style={[styles.headline, taste.genreLine ? styles.headlineNext : null]}>{taste.periodLine}</Text>
+            ) : null}
+            {decades.map((d) => (
+              <BarRow key={d.decade} label={`${d.decade}s`} count={d.count} max={decades[0].count} styles={styles} />
+            ))}
+          </View>
+        ) : null}
+
+        {/* Patterns only, never absence (lib/insights.ts writingPattern). */}
+        {enough && writingLine ? (
+          <View style={styles.section}>
+            <SectionLabel>When you write</SectionLabel>
+            <Text style={styles.headline}>{writingLine}</Text>
+            {writingSub ? <Text style={styles.subline}>{writingSub}</Text> : null}
+            {times.map((t) => (
+              <BarRow key={t.value} label={t.label} count={t.count} max={topTimeCount} styles={styles} />
+            ))}
+          </View>
+        ) : null}
+
         {enough && people.length > 0 ? (
           <View style={styles.section}>
             <SectionLabel>Featuring</SectionLabel>
@@ -196,22 +295,14 @@ export default function InsightsScreen() {
           <View style={styles.section}>
             <SectionLabel>Moods</SectionLabel>
             {moods.map((m) => (
-              <Pressable
+              <BarRow
                 key={m.value}
+                label={m.label}
+                count={m.count}
+                max={topMoodCount}
+                styles={styles}
                 onPress={() => router.push({ pathname: "/browse/mood", params: { value: m.value } })}
-                style={({ pressed }) => [styles.moodRow, pressed && styles.pressed]}
-                accessibilityRole="button"
-                accessibilityLabel={`${m.label}, ${plural(m.count)}`}
-              >
-                <View style={styles.moodLine}>
-                  <Text style={styles.moodWord} numberOfLines={1}>{m.label}</Text>
-                  <Text style={styles.moodCount}>{m.count.toLocaleString()}</Text>
-                </View>
-                {/* Its share against the most-used mood: the one quiet chart. */}
-                <View style={styles.moodTrack}>
-                  <View style={[styles.moodBar, { width: `${Math.max(4, (m.count / topMoodCount) * 100)}%` }]} />
-                </View>
-              </Pressable>
+              />
             ))}
           </View>
         ) : null}
@@ -247,37 +338,53 @@ function createStyles(theme: Theme) {
       height: ART,
       borderRadius: theme.radii.sm,
     },
-    // No hairline under a mood: its bar already rules the row, and a line
+    // A section's one glanceable line ("Mostly pop and hip-hop/rap"), above its rows.
+    headline: {
+      ...theme.typography.bodyStrong,
+      color: theme.colors.text,
+      paddingTop: theme.spacing.sm,
+      paddingBottom: theme.spacing.xs,
+    },
+    // A second line in the same section starts a new group.
+    headlineNext: {
+      marginTop: theme.spacing.lg,
+    },
+    subline: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+      paddingBottom: theme.spacing.xs,
+    },
+    // No hairline under a bar row: its bar already rules the row, and a line
     // under a line read as clutter.
-    moodRow: {
+    barRow: {
       paddingVertical: theme.spacing.md,
       gap: theme.spacing.sm,
     },
     pressed: {
       opacity: 0.6,
     },
-    moodLine: {
+    barLine: {
       flexDirection: "row",
       alignItems: "baseline",
       justifyContent: "space-between",
       gap: theme.spacing.md,
     },
-    moodWord: {
+    barWord: {
       ...theme.typography.body,
       color: theme.colors.text,
       flexShrink: 1,
     },
-    moodCount: {
+    barCount: {
       ...theme.typography.meta,
       color: theme.colors.textSecondary,
     },
-    moodTrack: {
+    barTrack: {
       height: 3,
       borderRadius: 2,
       backgroundColor: theme.colors.fill,
       overflow: "hidden",
     },
-    moodBar: {
+    bar: {
       height: 3,
       borderRadius: 2,
       backgroundColor: theme.colors.text,
