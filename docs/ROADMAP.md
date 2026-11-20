@@ -413,7 +413,28 @@ The starred ones bring the app to you, which serves the north star:
   stock Camera reads, or the custom mark plus a short URL under it. Each
   code maps to the moment's existing share token.
 
-## Where things stand (2026-11-17)
+## Where things stand (2026-11-20)
+
+- **Store:** 1.4.0 (build 12) live since 2026-11-19, with OTAs from `main`
+  (blank-Journal fix 73bdcb83). **1.4.1 (build 16) submitted to App Review
+  2026-11-20** from `native/1.4.1`, new 6.3" screenshots with photos.
+- **On build 16 by OTA (TestFlight until approval):** three tabs with
+  Yours / Shared, You behind the avatar, Insights (artists, people, moods,
+  songs you keep coming back to), your soundtrack with a person, swipe
+  between moments, song details saved at capture, account-switch and album
+  fixes, the color/fill fix. Last group 80d8fd23.
+- **Server (prod):** shared view (step 1), friendship pair index, push
+  logging, song-metadata columns + backfill (184 of 207 moments).
+- **Next, in order:** 1.4.1 approved → merge `native/1.4.1` into `main` →
+  raise min-build to 16 (Josh's go) → DB-2 (moments owner-only, shared view
+  step 2) → who-was-there linked to friends → Insights: when you write, then
+  eras v2, what resonates (genres/periods) → the rest of sharing (link page
+  as hero, friend link rotation, album basics, Keep this, share analytics)
+  → retire the guest-form code. 1.5 (native): memory widget, Lock Screen
+  capture, offline saves, exact second from Now Playing. EAS cloud builds
+  return 2026-12-01.
+
+## Where things stood (2026-11-17)
 
 - **1.3.1 (build 10) is live** on the App Store: the "Pressed S" icon and
   the Phase 1 look as a store build. 1.3.0 (build 9) went out 2026-11-13.
