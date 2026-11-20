@@ -67,6 +67,19 @@ Associated Domains for the store App ID and makes soundtracks.app the
 primary domain on Vercel (done 2026-11-18: apex serves the AASA directly, www 308s to apex); album invite links (/c/…)
 now open the join screen and www links are accepted; links are claimed by
 the store app only (not β). Then a device build and TestFlight.
+**Three tabs, Yours / Shared (decided with Josh 2026-11-20, OTA to build 16
+before submitting):** Journal | Albums | Rediscover; the tab bar no longer
+swipes. Journal and Albums each swipe between Yours and Shared ("Shared" =
+from other people: moments friends sent you; albums others invited you to),
+and the switch hides for someone with no friends and nothing shared. The
+"new from friends" row became a dot on the Shared label. The header lost
+"Select" (long-press → Select everywhere) and the list/calendar/map toggle
+(one view button with a native menu); an avatar opens You (a pushed screen:
+profile, friends and friend link, Year in review, settings). The + is only
+on the Journal and inside an album (adds to it); Albums has "New album".
+Album tiles long-press to Invite / Rename / Delete or Leave; moments in an
+album long-press to Select / Remove from album / Share (Share only on your
+own), with a select bar (Add to album, Remove from album).
 **Blank Journal after switching accounts (fixed 2026-11-19, OTA to build 16
 and 1.4.0):** signing out from Settings and back in left the Journal blank
 until relaunch (an old tab navigator stayed mounted under sign-in). The auth

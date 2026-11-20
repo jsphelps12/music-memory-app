@@ -395,6 +395,7 @@ export default function AlbumsScreen() {
           testID="albums-new"
         />
       }
+      style={styles.header}
     />
   );
 
@@ -527,9 +528,13 @@ function createStyles(theme: Theme) {
       paddingHorizontal: SCREEN_PAD,
       paddingTop: theme.spacing.sm,
     },
+    // Same spacing as the Journal's header and labels, so Yours / Shared
+    // doesn't jump when you switch tabs.
+    header: {
+      paddingBottom: theme.spacing.xs,
+    },
     paneLabels: {
       paddingHorizontal: SCREEN_PAD,
-      marginTop: theme.spacing.sm,
     },
     listContent: {
       paddingHorizontal: SCREEN_PAD,
