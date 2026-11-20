@@ -87,6 +87,7 @@ Deno.serve(async (req) => {
     // push again.
     const sharedAt = Date.parse(share.created_at);
     if (!Number.isFinite(sharedAt) || Date.now() - sharedAt > SHARE_PUSH_WINDOW_MS) {
+      console.log("[notify-social] skipped: stale_share");
       return json(200, { ok: true, skipped: "stale_share" });
     }
 
@@ -120,7 +121,9 @@ Deno.serve(async (req) => {
     // silently (_shared/socialPush.ts).
     const delivery = socialDelivery(recipientProfile, new Date());
     if (!delivery) {
-      return json(200, { ok: true, skipped: recipientProfile?.push_token ? "notif_social_off" : "no_push_token" });
+      const skipped = recipientProfile?.push_token ? "notif_social_off" : "no_push_token";
+      console.log(`[notify-social] skipped: ${skipped}`);
+      return json(200, { ok: true, skipped });
     }
 
     const pushRes = await fetch(EXPO_PUSH_URL, {
@@ -138,6 +141,12 @@ Deno.serve(async (req) => {
     const pushData = await pushRes.json().catch(() => null);
     if (!pushRes.ok || pushData?.data?.status === "error") {
       console.error("[notify-social] Expo push error:", JSON.stringify(pushData));
+    } else {
+      // The ticket id is what Expo's receipts endpoint answers for, so a push
+      // that was accepted but never arrived can be traced (APNs rejected the
+      // token, etc.). No names, words or tokens in the log.
+      const silent = delivery.interruptionLevel === "passive";
+      console.log(`[notify-social] sent: ticket=${pushData?.data?.id ?? "?"} silent=${silent}`);
     }
 
     return json(200, { ok: true });
