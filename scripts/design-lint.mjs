@@ -62,6 +62,11 @@ const RULES = [
     re: /presentation:\s*["']modal["']/,
   },
   {
+    id: "replace-to-tabs",
+    why: 'Use goHome(router) (lib/goHome.ts): replace("/(tabs)") over the tabs stacks a second tab navigator (blank Journal).',
+    re: /\.replace\(\s*["'`]\/\(tabs\)/,
+  },
+  {
     id: "retired-accent",
     why: "#E8825C and #2C2C3A are the pre-2026-10 accent and ink.",
     re: /#E8825C|#2C2C3A/i,

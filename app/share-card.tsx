@@ -32,6 +32,7 @@ import { consumeShareCardData, ShareCardData } from "@/lib/shareCardStore";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
+import { goHome } from "@/lib/goHome";
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
@@ -55,7 +56,7 @@ export default function ShareCardScreen() {
 
   const close = useCallback(() => {
     if (router.canGoBack()) router.back();
-    else router.replace("/(tabs)");
+    else goHome(router);
   }, [router]);
 
   const handleShare = async () => {

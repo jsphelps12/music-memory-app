@@ -11,6 +11,7 @@ import { Theme } from "@/constants/theme";
 import { consumeWritingSession, WritingSession } from "@/lib/writingSession";
 import { countWords } from "@/lib/utils";
 
+import { goHome } from "@/lib/goHome";
 /**
  * The full-page writer (Phase 1, 2026-10): for the journal case, where an
  * entry runs to pages. Nothing on screen but the song you're writing about,
@@ -35,7 +36,7 @@ export default function WriteScreen() {
 
   const close = useCallback(() => {
     if (router.canGoBack()) router.back();
-    else router.replace("/(tabs)");
+    else goHome(router);
   }, [router]);
 
   const handleDone = useCallback(() => {

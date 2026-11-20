@@ -17,6 +17,7 @@ import { friendlyError } from "@/lib/errors";
 import { pluralMoments } from "@/lib/utils";
 import { AlbumPreview } from "@/types";
 
+import { goHome } from "@/lib/goHome";
 type ScreenState = "loading" | "not_found" | "error" | "already_owner" | "already_member" | "ready" | "joining";
 
 export default function JoinScreen() {
@@ -78,7 +79,7 @@ export default function JoinScreen() {
   }
 
   function leave() {
-    router.replace("/(tabs)");
+    goHome(router);
   }
 
   async function handleJoin() {

@@ -22,6 +22,7 @@ import {
 import { invalidateFriendCaches } from "@/lib/cacheInvalidation";
 import { useAuth } from "@/contexts/AuthContext";
 
+import { goHome } from "@/lib/goHome";
 type ScreenState =
   | "loading"
   | "not_found"
@@ -47,7 +48,7 @@ export default function FriendInviteScreen() {
   const [error, setError] = useState("");
 
   const handleClose = () => {
-    router.replace("/(tabs)" as any);
+    goHome(router);
   };
 
   useEffect(() => {
@@ -99,7 +100,7 @@ export default function FriendInviteScreen() {
       void queryClient.invalidateQueries({ queryKey: ["youSummary", user.id] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setState("sent");
-      setTimeout(() => router.replace("/(tabs)" as any), 1500);
+      setTimeout(() => goHome(router), 1500);
     } catch (e: any) {
       if (e.message === "self_request") {
         setState("already_self");

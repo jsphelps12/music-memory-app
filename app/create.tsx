@@ -74,6 +74,7 @@ import {
 } from "@/lib/captureDraft";
 import { withLoadedPhotos, type LoadedPhoto } from "@/lib/capturePhotos";
 
+import { goHome } from "@/lib/goHome";
 // Starters, not prompts: they open a sentence for the three ways people use
 // the journal (a memory, a discovery, a day) and get out of the way.
 const STARTERS = [
@@ -525,7 +526,7 @@ export default function CreateMomentScreen() {
 
   function close() {
     if (router.canGoBack()) router.back();
-    else router.replace("/(tabs)");
+    else goHome(router);
   }
 
   // Closing with writing worth keeping asks (✕, swipe back, a replace): keep

@@ -24,6 +24,7 @@ import { anniversaryLabel, fullDateLabel } from "@/lib/memoryCard";
 import { excerpt } from "@/lib/yearInReview";
 import type { MomentCardData } from "@/types";
 
+import { goHome } from "@/lib/goHome";
 const STALE_TIME = 2 * 60 * 1000;
 const night = getTheme("dark");
 
@@ -115,7 +116,7 @@ function MemoryCard() {
 
   const close = useCallback(() => {
     if (router.canGoBack()) router.back();
-    else router.replace("/(tabs)");
+    else goHome(router);
   }, [router]);
 
   const openMoment = useCallback(() => {

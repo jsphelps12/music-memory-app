@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase";
 import { TextField } from "@/components/TextField";
 import { Button } from "@/components/Button";
 
+import { goHome } from "@/lib/goHome";
 export default function QuestionnaireScreen() {
   const router = useRouter();
   const { completeOnboarding, saveOnboardingData, user, profile, profileReady } = useAuth();
@@ -43,7 +44,7 @@ export default function QuestionnaireScreen() {
           completeOnboarding(data)
             .then(async () => {
               try { if (user) await registerForPushNotifications(user.id); } catch {}
-              router.replace("/(tabs)" as any);
+              goHome(router);
             })
             .catch(() => {});
         }

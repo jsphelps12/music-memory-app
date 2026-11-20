@@ -11,7 +11,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "@/components/Icon";
 import { useQuery } from "@tanstack/react-query";
-import type { MaterialTopTabBarProps } from "expo-router/js-top-tabs";
+import type { BottomTabBarProps } from "expo-router/js-tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -53,7 +53,7 @@ const TABS = [
   { label: "Rediscover", icon: "time-outline",   activeIcon: "time" },
 ] as const;
 
-export function TabBar({ state, emitter, navigateToTab }: MaterialTopTabBarProps) {
+export function TabBar({ state, emitter, navigateToTab }: BottomTabBarProps) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();

@@ -48,6 +48,7 @@ import { useShareIntentHandler } from "@/hooks/useShareIntentHandler";
 import { useOtaUpdate } from "@/hooks/useOtaUpdate";
 import { registerForPushNotifications } from "@/lib/notifications";
 
+import { goHome } from "@/lib/goHome";
 const HAS_LAUNCHED_KEY = "has_launched";
 
 // Notification taps already routed in this process (request identifiers).
@@ -174,12 +175,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       AsyncStorage.getItem(PENDING_INVITE_CODE_KEY)
         .then((code) => {
           AsyncStorage.removeItem(PENDING_INVITE_CODE_KEY).catch(() => {});
-          router.replace("/(tabs)");
+          router.replace("/(tabs)"); // design-lint-ignore: the auth gate dismisses to one screen first
           if (code) {
             setTimeout(() => router.push({ pathname: "/join" as any, params: { inviteCode: code } }), 300);
           }
         })
-        .catch(() => router.replace("/(tabs)"));
+        .catch(() => router.replace("/(tabs)")); // design-lint-ignore: the auth gate dismisses to one screen first
       return;
     }
 
@@ -374,7 +375,7 @@ function RootLayoutNav() {
         // daily check-in); capture fills in what's playing as usual.
         router.push(typeof data.source === "string" ? `/create?source=${data.source}` : "/create");
       } else if (data.type === "tabs") {
-        router.replace("/(tabs)");
+        goHome(router);
       }
     }
 
