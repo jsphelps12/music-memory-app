@@ -67,6 +67,17 @@ Associated Domains for the store App ID and makes soundtracks.app the
 primary domain on Vercel (done 2026-11-18: apex serves the AASA directly, www 308s to apex); album invite links (/c/…)
 now open the join screen and www links are accepted; links are claimed by
 the store app only (not β). Then a device build and TestFlight.
+**Fields and fills (2026-11-19, in build 16):** the color audit
+(`.claude/reviews/2026-11-19-color-audit.md`) found one opaque tan fill on
+every field, chip and secondary button that read beige on paper and vanished
+on sheets (Send pills, picker search). Now one translucent `fill` token; the
+field's icon, placeholder and clear share one AA gray; the caret is
+Terracotta Text; 1pt focus edge; `clearable` search fields; missing artwork
+is a flat tile with a note (the old gradient is gone); action sheets in ink;
+dark `elevated` sits above the sheet; unused tokens deleted. Still to do
+(over the air, later): over-image glass tokens, the shadow token, lint rules
+for hex literals; with a later binary, an app-wide ink tint for Alerts and
+widget colors.
 
 **1.5 (a new native build), in `native/1.5` off `native/1.4`:**
 - [ ] **Siri: "remember this song"** — an App Intent (Siri, Shortcuts, the

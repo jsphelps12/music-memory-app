@@ -5,7 +5,6 @@ colors:
   paper: "#FBF7F2"
   paper-deep: "#F3EDE6"
   paper-tertiary: "#EBE4DC"
-  paper-input: "#F8F3EE"
   elevated: "#FFFFFF"
   ink: "#23222B"
   ink-body: "#3A3943"
@@ -13,9 +12,10 @@ colors:
   ink-tertiary: "#736A63"
   divider: "#E9E2D9"
   border: "#E0D8CF"
-  chip: "#F0EAE3"
+  fill: "rgba(35,34,43,0.06)"
+  field-gray: "#6A615A"
   terracotta: "#D9693F"
-  terracotta-wash: "#FDF0EB"
+  terracotta-text: "#B04F2A"
   slate-violet: "#6B5F8C"
   night: "#0E0B0A"
   night-raised: "#1E1A18"
@@ -25,7 +25,7 @@ colors:
   night-secondary: "#ABA39E"
   night-terracotta: "#EE8B62"
   night-button: "#F5EEE8"
-  destructive: "#D32F2F"
+  destructive: "#C62828"
   success: "#2E7D32"
 typography:
   display:
@@ -127,7 +127,7 @@ components:
     backgroundColor: "{colors.paper}"
     textColor: "{colors.ink}"
   search-field:
-    backgroundColor: "{colors.chip}"
+    backgroundColor: "{colors.fill}"
     textColor: "{colors.ink}"
     rounded: "{rounded.md}"
     padding: "10px 12px"
@@ -159,7 +159,7 @@ Warm paper and blue-black ink, with a single terracotta signal and a muted slate
 
 ### Primary
 - **Terracotta** (`terracotta`): the signal. Unread and "something new" dots (8px, 4px radius), active indicators, playing state, focus rings, text selection tint at 24% opacity. Darkened in the 2026-10 redesign so it holds 3:1 as an indicator; it is not a text color at body sizes. Its night counterpart is **Ember** (`night-terracotta`). When terracotta must carry small text on paper (the landing page's dates), use **Terracotta Text** #B04F2A (4.9:1), never #D9693F (3.3:1).
-- **Terracotta Wash** (`terracotta-wash`): the faint ground behind an accent-tinted element when a signal needs a surface.
+- **Terracotta Text** (`terracotta-text`, token `accentText`): terracotta that has to be thin or small, such as the caret and text selection in fields (night: Ember).
 
 ### Secondary
 - **Slate Violet** (`slate-violet`): the cool end of the old app-icon gradient (retired 2026-10). Reserved for brand moments; used sparingly and never alongside terracotta as a second accent on ordinary screens.
@@ -170,9 +170,10 @@ Warm paper and blue-black ink, with a single terracotta signal and a muted slate
 ### Neutral
 - **Paper** (`paper`): the page. App background, tab bar, the web landing's base.
 - **Deep Paper** (`paper-deep`): sheets and secondary surfaces one step down from the page.
-- **Paper Shade** (`paper-tertiary`) and **Chip Paper** (`chip`): segmented controls, search fields, quiet filled chips.
-- **Paper Input** (`paper-input`): text field ground.
-- **Raised White** (`elevated`): surfaces that float over content (mini player, sheets over imagery).
+- **Paper Shade** (`paper-tertiary`): avatar grounds and other opaque tiles one step below Deep Paper.
+- **Fill** (`fill`): the one quiet fill, translucent ink at 6% on paper (paper at 10% on night), so it steps the same off the page and off a sheet. Fields and search fields, the segmented track, filled and "add" chips, secondary buttons, empty avatar and art slots. `fillPressed` (10% / 16%) is a pressed row on a sheet or menu. Never a fill on a fill, and nothing that casts a shadow (it would show through). It replaced an opaque tan that vanished on sheets (2026-11).
+- **Field Gray** (`field-gray`, token `placeholder`; night #A39992): placeholder text, the leading icon and the clear button inside a field. One color, so the parts of a field don't change temperature; AA on a field on a sheet.
+- **Raised White** (`elevated`): surfaces that float over content (mini player, menus, the active segment). Night: #26211F, one step *above* Night Raised.
 - **Ink** (`ink`): titles, primary text, and the primary button fill. The same ink fills selected chips and the capture button.
 - **Body Ink** (`ink-body`): long running UI prose on the web (chapter body, section body) where full ink is too heavy.
 - **Graphite** (`ink-secondary`): artist lines, metadata, secondary copy; passes AA on paper.
@@ -182,7 +183,8 @@ Warm paper and blue-black ink, with a single terracotta signal and a muted slate
 - **Night** (`night`), **Night Raised** (`night-raised`), **Night Shade** (`night-tertiary`): dark-theme page, raised surface, and dividers; on the web, the ground of photographic sections.
 - **Night Paper** (`night-text`), **Night Soft** (`night-soft`), **Night Gray** (`night-secondary`): text on night, from primary to supporting.
 - **Night Button** (`night-button`): the inverted primary fill in dark mode (ink becomes paper).
-- **Destructive** (`destructive`) and **Success** (`success`): status only.
+- **Destructive** (`destructive`, #C62828 so it passes AA on a sheet) and **Success** (`success`): status only. Native menus and alerts keep iOS systemRed.
+- **No artwork:** a flat `artworkPlaceholder` tile with a music note in Umber Gray (`ArtworkPlaceholder`). The old orange-to-violet gradient is gone.
 
 ### Named Rules
 **The One Signal Rule.** Terracotta marks one thing at a time on a view: a dot, an indicator, a focus ring. If two terracotta elements compete, one of them should be ink.
@@ -270,7 +272,7 @@ Quiet, solid, ink.
 
 ### Chips
 - **Style:** pill, 8px by 12px padding, transparent with an Edge outline, DM Sans 500 at 14px.
-- **Selected:** ink fill, paper text, ink border. The "add" chip is Chip Paper with a dashed Edge outline and Graphite text.
+- **Selected:** ink fill, paper text, ink border. The "add" chip is Fill with a dashed Edge outline and Graphite text.
 - **Moods are words.** Mood tags render as text, not emoji pills, wherever they summarize a row.
 
 ### Entry Row (signature)
@@ -280,7 +282,7 @@ The core unit of the journal. Full width, 16px vertical padding, hairline bottom
 A shared album shown as a record's tracklist: 2px ink top rule, serif title with a Meta count ("4 songs · 4 people"), numbered rows in tabular figures, song then artist, and the contributor's words in Newsreader.
 
 ### Inputs / Fields
-- **Style:** Chip Paper or Paper Input ground, no border, 12px radius, DM Sans 15 to 16px; placeholder in its own warm gray.
+- **Style:** Fill ground, no border at rest, 12px radius, DM Sans 16px. Placeholder, leading icon and clear (×) all in Field Gray; caret and selection in Terracotta Text. Focus draws a 1pt Umber edge (reserved at rest so nothing shifts). Search fields take `clearable`. `TextField` is the only field; never hand-roll one.
 - **Writer:** the full-page writer has no field chrome at all: Newsreader at 22px/33px on paper, dividers only between sections.
 - **Focus (web):** 2px terracotta outline, 4px offset, 6px radius.
 

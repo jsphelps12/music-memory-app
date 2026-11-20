@@ -580,7 +580,7 @@ function createStyles(theme: Theme) {
     songRow: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: theme.colors.chipBg,
+      backgroundColor: theme.colors.fill,
       padding: theme.spacing.md,
       borderRadius: theme.radii.md,
     },

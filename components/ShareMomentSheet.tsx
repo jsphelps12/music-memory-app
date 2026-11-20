@@ -407,7 +407,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     if (sentIds.has(person.id)) {
       return (
         <View style={styles.sentState}>
-          <Icon name="checkmark" size={16} color={theme.colors.textSecondary} />
+          <Icon name="checkmark" size={16} color={theme.colors.text} />
           <Text style={styles.sentText}>Sent</Text>
         </View>
       );

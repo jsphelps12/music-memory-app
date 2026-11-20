@@ -125,10 +125,10 @@ function createStyles(theme: Theme) {
       borderColor: theme.colors.border,
     },
     filled: {
-      backgroundColor: theme.colors.chipBg,
+      backgroundColor: theme.colors.fill,
     },
     add: {
-      backgroundColor: theme.colors.chipBg,
+      backgroundColor: theme.colors.fill,
       borderColor: theme.colors.border,
       borderStyle: "dashed",
     },

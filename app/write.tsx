@@ -72,7 +72,7 @@ export default function WriteScreen() {
         placeholder={session?.placeholder ?? "Start anywhere."}
         placeholderTextColor={theme.colors.placeholder}
         cursorColor={theme.colors.accent}
-        selectionColor={theme.colors.accent}
+        selectionColor={theme.colors.accentText}
         accessibilityLabel="Write about this song"
         multiline
         autoFocus

@@ -40,7 +40,7 @@ export function IconButton({
     <TouchableOpacity
       style={[
         glass ? styles.glass : filled ? styles.filled : styles.plain,
-        filled && { backgroundColor: theme.colors.closeButtonBg },
+        filled && { backgroundColor: theme.colors.fill },
         glass && { backgroundColor: theme.colors.glass },
         style,
       ]}

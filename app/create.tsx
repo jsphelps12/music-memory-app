@@ -825,7 +825,7 @@ export default function CreateMomentScreen() {
           placeholder={params.promptQuestion || "What's this song doing for you?"}
           placeholderTextColor={theme.colors.placeholder}
           cursorColor={theme.colors.accent}
-          selectionColor={theme.colors.accent}
+          selectionColor={theme.colors.accentText}
           accessibilityLabel="Write about this song"
           multiline
           scrollEnabled={false}

@@ -978,7 +978,7 @@ function createStyles(theme: Theme) {
       padding: 3,
       gap: 2,
       borderRadius: theme.radii.full,
-      backgroundColor: theme.colors.chipBg,
+      backgroundColor: theme.colors.fill,
     },
     segment: {
       width: 36,
@@ -987,10 +987,11 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       justifyContent: "center",
     },
-    // Segment lift (DESIGN.md, Shadow Vocabulary): a faint ink shadow on
-    // paper, none on night, where the darker fill carries the step.
+    // Segment lift (DESIGN.md, Shadow Vocabulary): white with a faint ink
+    // shadow on paper; on night, the border step (lighter than the track, so
+    // it reads raised, not as a hole) and no shadow.
     segmentActive: {
-      backgroundColor: theme.colors.background,
+      backgroundColor: theme.isDark ? theme.colors.border : theme.colors.elevated,
       shadowColor: theme.colors.text,
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: theme.isDark ? 0 : 0.08,

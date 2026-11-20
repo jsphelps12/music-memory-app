@@ -107,7 +107,7 @@ export default function OnboardingCapture1Screen() {
           placeholder="What does this song remind you of? (optional)"
           placeholderTextColor={theme.colors.placeholder}
           cursorColor={theme.colors.accent}
-          selectionColor={theme.colors.accent}
+          selectionColor={theme.colors.accentText}
           accessibilityLabel="Reflection"
           multiline
           scrollEnabled={false}

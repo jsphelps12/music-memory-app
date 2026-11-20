@@ -11,7 +11,6 @@ import {
 import type { TextInputInstance } from "react-native";
 import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/Button";
-import { IconButton } from "@/components/IconButton";
 import { ListRow } from "@/components/ListRow";
 import { TextField } from "@/components/TextField";
 import { filterPeople, idsNeedingHandle, personLabel } from "@/lib/people";
@@ -171,18 +170,7 @@ export function PersonPicker<T extends PickerPerson>({
       autoCorrect={false}
       returnKeyType="search"
       containerStyle={mode === "inline" ? styles.searchInline : styles.searchList}
-      trailing={
-        query ? (
-          <IconButton
-            name="close-circle"
-            size={18}
-            color={theme.colors.textSecondary}
-            onPress={() => setQuery("")}
-            accessibilityLabel="Clear search"
-            style={styles.clear}
-          />
-        ) : undefined
-      }
+      clearable
     />
   ) : null;
 
@@ -361,9 +349,6 @@ function createStyles(theme: Theme) {
     },
     searchList: {
       marginBottom: theme.spacing.sm,
-    },
-    clear: {
-      marginRight: -12,
     },
     state: {
       paddingVertical: theme.spacing.md,

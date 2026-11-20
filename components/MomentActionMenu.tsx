@@ -232,7 +232,7 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.lg,
     },
     rowPressed: {
-      backgroundColor: theme.colors.backgroundSecondary,
+      backgroundColor: theme.colors.fillPressed,
     },
     rowText: {
       ...theme.typography.body,

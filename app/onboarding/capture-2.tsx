@@ -145,7 +145,7 @@ export default function OnboardingCapture2Screen() {
           placeholder="Who were you with and what was happening? (optional)"
           placeholderTextColor={theme.colors.placeholder}
           cursorColor={theme.colors.accent}
-          selectionColor={theme.colors.accent}
+          selectionColor={theme.colors.accentText}
           accessibilityLabel="Reflection"
           multiline
           scrollEnabled={false}
@@ -196,7 +196,7 @@ export default function OnboardingCapture2Screen() {
             maximumDate={new Date()}
             onChange={(_event: DateTimePickerEvent, date?: Date) => { if (date) setMomentDate(date); }}
             themeVariant={theme.isDark ? "dark" : "light"}
-            accentColor={theme.colors.accent}
+            accentColor={theme.colors.text}
             style={styles.datePicker}
           />
         ) : (

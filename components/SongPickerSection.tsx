@@ -267,7 +267,7 @@ function createStyles(theme: Theme) {
       borderRadius: theme.radii.sm,
     },
     emptyArtwork: {
-      backgroundColor: theme.colors.chipBg,
+      backgroundColor: theme.colors.fill,
       alignItems: "center",
       justifyContent: "center",
     },

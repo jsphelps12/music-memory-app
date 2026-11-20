@@ -518,7 +518,7 @@ function createStyles(theme: Theme) {
       borderRadius: 28,
     },
     avatarEmpty: {
-      backgroundColor: theme.colors.chipBg,
+      backgroundColor: theme.colors.fill,
       alignItems: "center",
       justifyContent: "center",
     },

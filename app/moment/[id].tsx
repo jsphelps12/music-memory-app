@@ -1348,7 +1348,7 @@ function createStyles(theme: Theme) {
       justifyContent: "center",
     },
     playButtonError: {
-      backgroundColor: theme.colors.chipBg,
+      backgroundColor: theme.colors.fill,
     },
     playHint: {
       fontSize: 14,

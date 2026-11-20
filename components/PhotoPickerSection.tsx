@@ -118,6 +118,8 @@ export function PhotoPickerSection({
       {
         options: ["Cancel", "Take photo", "Choose from library"],
         cancelButtonIndex: 0,
+        tintColor: theme.colors.text,
+        userInterfaceStyle: theme.isDark ? "dark" : "light",
       },
       async (buttonIndex) => {
         let result: ImagePicker.ImagePickerResult | null = null;
@@ -539,7 +541,8 @@ function createStyles(theme: Theme, horizontalPadding: number, compact: boolean)
       width: TILE,
       height: TILE,
       borderRadius: theme.radii.sm,
-      backgroundColor: theme.colors.chipBg,
+      // Opaque: it casts the drag shadow, which a translucent fill can't.
+      backgroundColor: theme.colors.backgroundTertiary,
       shadowColor: theme.isDark ? theme.colors.background : theme.colors.text,
       shadowOffset: { width: 0, height: 8 },
       shadowRadius: 12,
@@ -556,7 +559,7 @@ function createStyles(theme: Theme, horizontalPadding: number, compact: boolean)
     },
     addTile: {
       marginLeft: GAP,
-      backgroundColor: theme.colors.chipBg,
+      backgroundColor: theme.colors.fill,
       alignItems: "center",
       justifyContent: "center",
     },
