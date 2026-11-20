@@ -98,3 +98,29 @@ export async function liveBuild(profile) {
   const builds = await liveBuilds(profile, 1);
   return builds[0] ?? null;
 }
+
+/**
+ * What the CI gate does with a runtime version and a profile's finished builds.
+ *
+ *   "publish" — some build serves this runtime version.
+ *   "skip"    — none does, and the caller opted into skipping (preview: no beta
+ *               binary exists for this native fingerprint yet, which is expected
+ *               after a native change). Nothing is published.
+ *   "fail"    — none does and the caller did not opt in (production), or the
+ *               runtime version itself is missing, which is a broken gate, not
+ *               an unserved fingerprint.
+ *
+ * `reason` is "match", "no-builds", "no-match" or "no-runtime".
+ */
+export function gateDecision({ runtimeVersion, builds, skipIfUnserved = false }) {
+  if (typeof runtimeVersion !== "string" || runtimeVersion === "") {
+    return { action: "fail", reason: "no-runtime", match: null };
+  }
+  const match = builds.find((b) => b.runtimeVersion === runtimeVersion) ?? null;
+  if (match) return { action: "publish", reason: "match", match };
+  return {
+    action: skipIfUnserved ? "skip" : "fail",
+    reason: builds.length === 0 ? "no-builds" : "no-match",
+    match: null,
+  };
+}

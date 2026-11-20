@@ -116,8 +116,10 @@ for beta, and there is no way to opt out short of not merging.
 No new native packages, no permission changes, no `app.config.ts` entitlement
 changes, no `eas.json` or `package.json` `scripts` edits.
 `node scripts/fingerprint-check.mjs` answers this definitively — CI runs the same
-check (`scripts/fingerprint-gate.mjs`) and fails the job rather than publishing
-an update that reaches nobody.
+check (`scripts/fingerprint-gate.mjs`) rather than publishing an update that
+reaches nobody. For preview, "no build matches this fingerprint" skips the
+publish and passes with a warning (annotation + job summary: cut a preview build
+to resume beta updates); gate errors still fail the job. Production always fails.
 
 **2. Test locally**
 ```bash
@@ -522,7 +524,8 @@ from the `version` string.
 What this buys: EAS can never serve JS to a binary lacking the native modules it
 references. What it costs: an update built from different native code reaches
 **nobody**, and that failure is silent — it reports as a successful publish.
-`scripts/fingerprint-gate.mjs` is what turns that silence into a failed job.
+`scripts/fingerprint-gate.mjs` is what turns that silence into a failed job
+(production) or a skipped publish with a visible warning (preview, `--skip-if-unserved`).
 
 JS-only changes do not move the label, so ordinary OTAs keep flowing to the same
 binary indefinitely. Only native-affecting changes force a new build — including
