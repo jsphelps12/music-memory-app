@@ -193,7 +193,10 @@ widget colors.
   fixed 30 s clip, so without full playback it's a label only. Grabbing the
   second automatically from Now Playing needs the system player's position
   (native, 1.5).
-- [ ] **Swipe between moments** (polish after 16, Josh 2026-11-19): left and
+- [x] **Swipe between moments** *(built 2026-11-20, `lib/momentSequence.ts`;
+  flips within the Journal or album it was opened from, swipe down closes,
+  seek bar and photo strip keep their drags; checked in the simulator, needs
+  Josh's phone)* (polish after 16, Josh 2026-11-19): left and
   right on a moment flip to the previous/next one in the list it came from.
   Horizontal is taken today (swipe right closes, the seek bar drags, the
   photo strip scrolls), so close moves to a swipe down (like Apple Music's
