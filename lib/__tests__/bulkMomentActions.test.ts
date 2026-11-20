@@ -22,7 +22,7 @@ vi.mock("@/lib/supabase", () => ({ supabase: sb.client }));
 vi.mock("@react-native-async-storage/async-storage", () => ({ default: { multiRemove: vi.fn() } }));
 vi.mock("@/lib/deleteMoment", () => ({ deleteMomentWithCleanup }));
 
-import { addMomentsToAlbum } from "../albums";
+import { addMomentsToAlbum, removeMomentsFromAlbum } from "../albums";
 import { deleteMoments } from "../deleteMoments";
 
 beforeEach(() => {
@@ -75,6 +75,24 @@ describe("addMomentsToAlbum", () => {
     sb.queueData({ is_public: false });
     sb.queueError("permission denied");
     await expect(addMomentsToAlbum("c1", ["m1"], "u1")).rejects.toBeTruthy();
+  });
+});
+
+describe("removeMomentsFromAlbum", () => {
+  it("deletes the album's rows for those moments and returns the ones removed", async () => {
+    sb.queueData([{ moment_id: "m1" }, { moment_id: "m2" }]);
+    const removed = await removeMomentsFromAlbum("c1", ["m1", "m2"]);
+    expect(removed).toEqual(["m1", "m2"]);
+    const q = sb.queries[0];
+    expect(q.table).toBe("collection_moments");
+    expect(q.chain.map((c) => c.method)).toEqual(["delete", "eq", "in", "select"]);
+    expect(q.chain[1].args).toEqual(["collection_id", "c1"]);
+    expect(q.chain[2].args).toEqual(["moment_id", ["m1", "m2"]]);
+  });
+
+  it("throws when the delete fails", async () => {
+    sb.queueError("permission denied");
+    await expect(removeMomentsFromAlbum("c1", ["m1"])).rejects.toBeTruthy();
   });
 });
 
