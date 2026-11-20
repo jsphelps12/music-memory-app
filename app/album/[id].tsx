@@ -25,7 +25,7 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { EmptyState } from "@/components/EmptyState";
 import { MOODS } from "@/constants/Moods";
 import { AlbumNotFoundError, fetchAlbumDetail, markAlbumViewed } from "@/lib/albums";
-import { DEFAULT_SCREEN_STALE } from "@/lib/queryConfig";
+import { ALBUM_DETAIL_STALE } from "@/lib/queryConfig";
 import { friendlyError } from "@/lib/errors";
 import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { Moment } from "@/types";
@@ -43,7 +43,7 @@ function groupByMonth(moments: Moment[]): { title: string; data: Moment[] }[] {
   return Object.entries(grouped).map(([title, data]) => ({ title, data }));
 }
 
-const STALE_TIME = DEFAULT_SCREEN_STALE;
+const STALE_TIME = ALBUM_DETAIL_STALE;
 
 const ART_SIZE = Math.round(Dimensions.get("window").width * 0.72);
 // Room above the cover for the floating controls (a 32pt disc plus air).

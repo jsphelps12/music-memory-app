@@ -84,6 +84,15 @@ export const PROFILE_STATS_STALE = DEFAULT_SCREEN_STALE;
 export const SEARCH_DEBOUNCE_MS = 275;
 
 /**
+ * `["album", albumId, userId]`: one album's moments. Short, because other
+ * people add to a shared album and nothing on this phone invalidates it when
+ * they do: at 2 minutes, a moment a friend just added stayed missing on
+ * reopen while the album card (a different query) already counted it
+ * (2026-11-20). Opening an album is a deliberate "show me what's in here".
+ */
+export const ALBUM_DETAIL_STALE = 15_000;
+
+/**
  * `["friendsList", userId]` — the one friend list every person picker reads
  * (hooks/useFriends.ts): the share sheet, the Friends screen and the "Who was
  * there" suggestions. Invalidated by `invalidateFriendCaches`.
