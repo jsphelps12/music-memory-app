@@ -73,6 +73,15 @@ until relaunch (an old tab navigator stayed mounted under sign-in). The auth
 gate now dismisses to a one-screen stack before every redirect;
 `.maestro/switch-account.yaml` covers it, and the e2e sign-in declines the
 simulator's paste prompt (the script also empties its clipboard per flow).
+**Friends and albums missing after switching accounts (2026-11-20, on
+native/1.4.1, not yet OTA'd):** You showed no albums or friend count and Send
+to a person had nobody until relaunch. Sign-out emptied the query cache only at
+the end of its teardown, unconditionally, and TanStack's `clear()` silently
+cancels in-flight queries, leaving a mounted screen with no data and no error.
+The auth listener now empties it in the same tick the account changes
+(`lib/accountBoundary.ts`, tested), and the teardown never clears once another
+account has signed in. `.maestro/switch-account.yaml` now seeds "Road trip" and
+checks You lists it after the switch.
 **Fields and fills (2026-11-19, in build 16):** the color audit
 (`.claude/reviews/2026-11-19-color-audit.md`) found one opaque tan fill on
 every field, chip and secondary button that read beige on paper and vanished
