@@ -231,10 +231,13 @@ export default function YouScreen() {
       })
     : null;
   const entryCount = summary.data?.entryCount;
+  // The count lives in the stats row now; the subtitle just says since when.
   const subtitle =
     entryCount === undefined
       ? " "
-      : `${entryCount} ${entryCount === 1 ? "entry" : "entries"}${since ? ` since ${since}` : ""}`;
+      : since
+        ? `Here since ${since}`
+        : `${entryCount} ${entryCount === 1 ? "entry" : "entries"}`;
 
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
@@ -294,25 +297,23 @@ export default function YouScreen() {
           </View>
         ) : null}
 
-        {/* A few numbers, for fun (no streaks: lib/profileStats.ts) */}
+        {/* A few numbers, for fun, as one sentence rather than a dashboard
+            (no streaks: lib/profileStats.ts) */}
         {stats ? (
           <View style={styles.stats} testID="you-stats">
-            <View style={styles.statsRow}>
-              {([
-                ["Moments", stats.moments],
-                ["Songs", stats.songs],
-                ["Artists", stats.artists],
-                ["Days", stats.days],
-              ] as const).map(([label, value]) => (
-                <View key={label} style={styles.stat} accessible accessibilityLabel={`${value} ${label.toLowerCase()}`}>
-                  <Text style={styles.statValue} numberOfLines={1}>{value.toLocaleString()}</Text>
-                  <Text style={styles.statLabel}>{label}</Text>
-                </View>
-              ))}
-            </View>
+            <Text style={styles.statLine}>
+              <Text style={styles.statNumber}>{stats.moments.toLocaleString()}</Text>
+              {stats.moments === 1 ? " moment, " : " moments, "}
+              <Text style={styles.statNumber}>{stats.songs.toLocaleString()}</Text>
+              {stats.songs === 1 ? " song by " : " songs by "}
+              <Text style={styles.statNumber}>{stats.artists.toLocaleString()}</Text>
+              {stats.artists === 1 ? " artist, over " : " artists, over "}
+              <Text style={styles.statNumber}>{stats.days.toLocaleString()}</Text>
+              {stats.days === 1 ? " day." : " days."}
+            </Text>
             {stats.topArtist && stats.topArtist.count > 1 ? (
-              <Text style={styles.statNote} numberOfLines={2}>
-                Most often: {stats.topArtist.name}, {stats.topArtist.count} moments
+              <Text style={styles.statNote} numberOfLines={1}>
+                Most often: {stats.topArtist.name}
               </Text>
             ) : null}
           </View>
@@ -391,28 +392,21 @@ export default function YouScreen() {
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     stats: {
-      marginTop: theme.spacing.xl,
-      gap: theme.spacing.md,
+      paddingHorizontal: theme.spacing.xl,
+      marginTop: theme.spacing.lg,
+      gap: theme.spacing.xs,
     },
-    statsRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-    },
-    stat: {
-      flex: 1,
-      gap: 2,
-    },
-    statValue: {
-      ...theme.typography.title,
-      color: theme.colors.text,
-    },
-    statLabel: {
-      ...theme.typography.meta,
+    statLine: {
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
+    },
+    statNumber: {
+      ...theme.typography.bodyStrong,
+      color: theme.colors.text,
     },
     statNote: {
       ...theme.typography.meta,
-      color: theme.colors.textSecondary,
+      color: theme.colors.textTertiary,
     },
     outer: {
       flex: 1,
@@ -462,11 +456,12 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.xl,
       marginTop: theme.spacing.lg,
     },
+    // Groups are separated by space (and a SectionLabel when they have one),
+    // not a top rule: a rule above an unlabeled group stacked under the
+    // previous row's divider and left an empty band between two lines.
     rows: {
       marginHorizontal: theme.spacing.xl,
       marginTop: theme.spacing["2xl"],
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: theme.colors.divider,
     },
     sheetBody: {
       paddingHorizontal: theme.spacing.xl,
