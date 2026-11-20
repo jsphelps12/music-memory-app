@@ -57,3 +57,48 @@ COMMENT ON COLUMN public.moments.song_duration_ms IS
   'iTunes trackTimeMillis at capture.';
 COMMENT ON COLUMN public.moments.capture_source IS
   'How the moment was captured (lib/captureSource.ts). NULL for moments saved before 2026-11-20 or by older builds.';
+
+
+-- The shared view hides fields by name, so a new owner-only column has to be
+-- named here too: how a moment was captured (the nudge, the widget, a share)
+-- is the owner's, like place and people. Same definition as
+-- 20261119000000_shared_view.sql plus "- 'capture_source'"; the song details
+-- above are public catalog data and pass through.
+CREATE OR REPLACE FUNCTION public.moment_view_for(p_moment public.moments, p_viewer uuid)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SET search_path = ''
+AS $$
+  SELECT CASE
+    WHEN p_viewer IS NOT NULL AND (p_moment).user_id = p_viewer THEN to_jsonb(p_moment)
+    ELSE (to_jsonb(p_moment) - 'share_token' - 'capture_source')
+      || jsonb_build_object(
+        'location', NULL,
+        'location_lat', NULL,
+        'location_lng', NULL,
+        'people', '[]'::jsonb,
+        'media_refs',
+        COALESCE(
+          (SELECT jsonb_agg(
+                    CASE WHEN jsonb_typeof(r.ref) = 'object'
+                         THEN r.ref || '{"cloudId": ""}'::jsonb
+                         ELSE r.ref END
+                    ORDER BY r.ord)
+             FROM jsonb_array_elements(
+                    CASE WHEN jsonb_typeof((p_moment).media_refs) = 'array'
+                         THEN (p_moment).media_refs ELSE '[]'::jsonb END
+                  ) WITH ORDINALITY AS r(ref, ord)),
+          '[]'::jsonb)
+      )
+      || COALESCE(
+        (SELECT jsonb_build_object(
+                  'owner_display_name', pr.display_name,
+                  'owner_avatar_url', pr.avatar_url)
+           FROM public.profiles pr
+          WHERE pr.id = (p_moment).user_id),
+        '{}'::jsonb)
+  END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.moment_view_for(public.moments, uuid) FROM PUBLIC, anon, authenticated;
