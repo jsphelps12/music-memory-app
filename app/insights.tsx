@@ -14,7 +14,14 @@ import { MOODS } from "@/constants/Moods";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchBrowseMetadata } from "@/lib/browse";
 import { friendlyError } from "@/lib/errors";
-import { INSIGHTS_MIN_MOMENTS, artistHighlights, insightsSummary, journalInsights } from "@/lib/insights";
+import {
+  INSIGHTS_MIN_MOMENTS,
+  artistHighlights,
+  comingBack,
+  comingBackWhen,
+  insightsSummary,
+  journalInsights,
+} from "@/lib/insights";
 import { artworkUrlAtSize } from "@/lib/itunes";
 import { moodLabel } from "@/lib/moodLabels";
 import { BROWSE_META_STALE } from "@/lib/queryConfig";
@@ -24,6 +31,7 @@ import { Theme } from "@/constants/theme";
 // The same 40pt as the Avatar in Featuring, so every row's text lines up.
 const ART = 40;
 const TOP_ARTISTS = 5;
+const TOP_SONGS = 5;
 const TOP_PEOPLE = 8;
 const TOP_MOODS = 8;
 
@@ -32,9 +40,9 @@ const plural = (n: number) => `${n.toLocaleString()} ${n === 1 ? "moment" : "mom
 /**
  * Insights: what the journal says about its writer, as ruled sections like a
  * record's credits (DESIGN.md "The Liner Notes"). Everything comes from the
- * browse metadata the app already holds (lib/insights.ts). The first cut is
- * artists, people and moods; new sections are added to lib/insights.ts and
- * here. A section with nothing to say is left out, not shown empty.
+ * browse metadata the app already holds (lib/insights.ts): artists, the songs
+ * that keep coming back, people and moods; new sections are added to
+ * lib/insights.ts and here. A section with nothing to say is left out, not shown empty.
  */
 export default function InsightsScreen() {
   const router = useRouter();
@@ -57,6 +65,12 @@ export default function InsightsScreen() {
   );
 
   const insights = useMemo(() => (meta.data ? journalInsights(meta.data) : null), [meta.data]);
+  // Songs written about more than once, each with a line of when.
+  const songs = useMemo(() => {
+    if (!meta.data) return [];
+    const now = new Date();
+    return comingBack(meta.data, TOP_SONGS).map((s) => ({ ...s, when: comingBackWhen(s.dates, s.count, now) }));
+  }, [meta.data]);
   const allMoods = useMemo(() => [...MOODS, ...(profile?.customMoods ?? [])], [profile?.customMoods]);
 
   const moods = useMemo(() => {
@@ -126,6 +140,37 @@ export default function InsightsScreen() {
                 }
                 onPress={() => router.push({ pathname: "/artist", params: { name: a.name } })}
                 last={i === artists.length - 1}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {/* Only when true: no empty state, a song that never repeats isn't news. */}
+        {enough && songs.length > 0 ? (
+          <View style={styles.section}>
+            <SectionLabel>Songs you keep coming back to</SectionLabel>
+            {songs.map((s, i) => (
+              <ListRow
+                key={`${s.title}\u0000${s.artist}`}
+                label={s.title.trim()}
+                strong
+                // Song then artist (Graphite), then when it came back.
+                subtitle={`${s.artist.trim()}\n${s.when}`}
+                subtitleLines={3}
+                leading={
+                  s.artworkUrl ? (
+                    <AppImage
+                      source={{ uri: artworkUrlAtSize(s.artworkUrl, ART * 3) }}
+                      style={styles.art}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <ArtworkPlaceholder style={styles.art} />
+                  )
+                }
+                onPress={() => router.push({ pathname: "/song", params: { title: s.title, artist: s.artist } })}
+                accessibilityLabel={`${s.title.trim()} by ${s.artist.trim()}, ${s.when}`}
+                last={i === songs.length - 1}
               />
             ))}
           </View>

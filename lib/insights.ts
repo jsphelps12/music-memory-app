@@ -146,3 +146,131 @@ export function insightsSummary(i: Pick<Insights, "moments" | "songs" | "artists
     " · "
   );
 }
+
+export interface ComingBackSong {
+  /** Title and artist as stored on the most recent moment (the song screen matches them exactly). */
+  title: string;
+  artist: string;
+  /** Artwork from the most recent moment that has any. */
+  artworkUrl: string | null;
+  /** Moments written to this song. */
+  count: number;
+  /** The dated moments' dates ("YYYY-MM-DD"), oldest first; undated moments count but aren't listed. */
+  dates: string[];
+}
+
+// An undated moment ranks below any dated one when picking "most recent".
+const newer = (a: string | null, b: string | null) => a !== null && (b === null || a > b);
+
+/**
+ * "Songs you keep coming back to": songs written about in REPEAT_MIN or more
+ * moments, the song as the index of a life. Grouped by title and artist (case
+ * and spaces aside; the same title by two artists is two songs). Most moments
+ * first, then the most recently written to; ties keep first-seen order. A
+ * moment with no title or no artist is left out (the song screen needs both).
+ * `meta` is expected newest first, as for journalInsights.
+ */
+export function comingBack(
+  meta: readonly Pick<InsightMoment, "momentDate" | "songTitle" | "songArtist" | "songArtworkUrl">[],
+  max: number
+): ComingBackSong[] {
+  const songs = new Map<string, ComingBackSong & { latest: string | null; artDate: string | null }>();
+
+  for (const m of meta) {
+    const title = m.songTitle?.trim() ?? "";
+    const artist = m.songArtist?.trim() ?? "";
+    if (!title || !artist) continue;
+    const key = `${norm(title)}\u0000${norm(artist)}`;
+    const date = m.momentDate || null;
+    const art = m.songArtworkUrl || null;
+    const entry = songs.get(key);
+    if (!entry) {
+      songs.set(key, {
+        title: m.songTitle,
+        artist: m.songArtist,
+        artworkUrl: art,
+        count: 1,
+        dates: date ? [date] : [],
+        latest: date,
+        artDate: art ? date : null,
+      });
+      continue;
+    }
+    entry.count += 1;
+    if (date) entry.dates.push(date);
+    if (newer(date, entry.latest)) {
+      entry.latest = date;
+      entry.title = m.songTitle;
+      entry.artist = m.songArtist;
+    }
+    if (art && (!entry.artworkUrl || newer(date, entry.artDate))) {
+      entry.artworkUrl = art;
+      entry.artDate = date;
+    }
+  }
+
+  return [...songs.values()]
+    .filter((s) => s.count >= REPEAT_MIN)
+    .sort((a, b) => b.count - a.count || (newer(a.latest, b.latest) ? -1 : newer(b.latest, a.latest) ? 1 : 0))
+    .slice(0, max)
+    .map(({ title, artist, artworkUrl, count, dates }) => ({
+      title,
+      artist,
+      artworkUrl,
+      count,
+      dates: [...dates].sort(),
+    }));
+}
+
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+/** Past this many years or months a list stops being glanceable: the span is shown instead. */
+const WHEN_MAX_PARTS = 4;
+
+/**
+ * When a song came back, as one glanceable line:
+ * - across years: the years, oldest first, the current one as "this year"
+ *   ("2019 · 2023 · this year"); more than four become "2012 to this year";
+ * - within one year: the months ("March · July · November"), followed by the
+ *   year unless it's this one ("March · July 2021"); more than four become
+ *   "February to November";
+ * - otherwise (one month, or no dates): "3 times".
+ * `dates` are "YYYY-MM-DD" in any order; anything else is ignored.
+ */
+export function comingBackWhen(dates: readonly string[], count: number, now: Date = new Date()): string {
+  const thisYear = now.getFullYear();
+  const parsed = dates
+    .map((d) => /^(\d{4})-(\d{2})/.exec(d))
+    .filter((m): m is RegExpExecArray => !!m)
+    .map((m) => ({ year: Number(m[1]), month: Number(m[2]) }))
+    .filter((d) => d.month >= 1 && d.month <= 12);
+
+  const years = [...new Set(parsed.map((d) => d.year))].sort((a, b) => a - b);
+  if (years.length > 1) {
+    const year = (y: number) => (y === thisYear ? "this year" : String(y));
+    if (years.length > WHEN_MAX_PARTS) return `${year(years[0])} to ${year(years[years.length - 1])}`;
+    return years.map(year).join(" · ");
+  }
+
+  const months = [...new Set(parsed.map((d) => d.month))].sort((a, b) => a - b);
+  if (months.length > 1) {
+    const names = months.map((mo) => MONTHS[mo - 1]);
+    const line = names.length > WHEN_MAX_PARTS ? `${names[0]} to ${names[names.length - 1]}` : names.join(" · ");
+    return years[0] === thisYear ? line : `${line} ${years[0]}`;
+  }
+
+  return `${count.toLocaleString()} ${count === 1 ? "time" : "times"}`;
+}
