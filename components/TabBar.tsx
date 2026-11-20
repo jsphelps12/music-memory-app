@@ -15,12 +15,18 @@ import type { MaterialTopTabBarProps } from "expo-router/js-top-tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
-import { fetchSharedAlbumActivity } from "@/lib/albums";
+import { fetchPendingAlbumInviteCount, fetchSharedAlbumActivity } from "@/lib/albums";
 import { MiniPlayer } from "@/components/MiniPlayer";
 
+// New moments in shared albums plus friends' invites waiting in Albums →
+// Shared. Still one dot, never a count; an invite lookup that fails just
+// leaves invites out of it.
 async function fetchAlbumsBadgeCount(userId: string): Promise<number> {
-  const albums = await fetchSharedAlbumActivity(userId);
-  return albums.reduce((sum, c) => sum + c.newMomentCount, 0);
+  const [albums, invites] = await Promise.all([
+    fetchSharedAlbumActivity(userId),
+    fetchPendingAlbumInviteCount(userId).catch(() => 0),
+  ]);
+  return albums.reduce((sum, c) => sum + c.newMomentCount, 0) + invites;
 }
 
 // 2026-11-20: Journal | Albums | Rediscover, and a floating capture button
