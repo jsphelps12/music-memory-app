@@ -363,9 +363,10 @@ function RootLayoutNav() {
         // share_received (Sharing v2): straight to the moment
         router.push(`/moment/${data.momentId}`);
       } else if (data.type === "friends") {
-        // Legacy pushes from pre-v2 binaries: the old Friends tab became Albums,
-        // now a screen pushed from You
-        router.push("/albums" as any);
+        // Legacy pushes from pre-v2 binaries: the old Friends tab became
+        // Albums, a tab again since 2026-11-20. navigate, not push: it
+        // switches to the tab instead of stacking a second set of tabs.
+        router.navigate("/albums");
       } else if (data.momentId) {
         router.push(`/moment/${data.momentId}`);
       } else if (data.type === "create") {
@@ -514,7 +515,9 @@ function RootLayoutNav() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
-            name="albums"
+            name="you"
+            // Pushed from the avatar on the Journal header (2026-11-20), so
+            // it gets the back chevron and edge swipe.
             options={{ headerShown: false }}
           />
           <Stack.Screen
