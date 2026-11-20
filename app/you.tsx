@@ -24,7 +24,7 @@ import { BottomSheet } from "@/components/BottomSheet";
 import { ListRow } from "@/components/ListRow";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
-import { INSIGHTS_MIN_MOMENTS, insightsSummary, journalInsights } from "@/lib/insights";
+import { INSIGHTS_MIN_MOMENTS, insightsSummary, journalInsights, repeatArtists } from "@/lib/insights";
 import { artworkUrlAtSize } from "@/lib/itunes";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Icon } from "@/components/Icon";
@@ -104,6 +104,8 @@ export default function YouScreen() {
     [browseMeta.data]
   );
   const insightsReady = !!insights && insights.moments >= INSIGHTS_MIN_MOMENTS;
+  // Covers only for artists you've come back to; three one-offs say nothing.
+  const previewArtists = insights ? repeatArtists(insights, 3) : [];
 
   const summary = useQuery({
     queryKey: ["youSummary", user?.id],
@@ -325,10 +327,10 @@ export default function YouScreen() {
             <Text style={styles.insightsMeta}>
               {insightsReady ? insightsSummary(insights) : "Insights show up as your journal grows."}
             </Text>
-            {insightsReady && insights.topArtists.length > 0 ? (
+            {insightsReady && previewArtists.length > 0 ? (
               <View style={styles.topArtists} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
                 {[0, 1, 2].map((i) => {
-                  const a = insights.topArtists[i];
+                  const a = previewArtists[i];
                   return (
                     <View key={i} style={styles.topArtist}>
                       {a ? (

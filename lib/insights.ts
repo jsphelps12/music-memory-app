@@ -43,6 +43,17 @@ export interface Insights {
 /** Below this the journal is too small to say anything about. */
 export const INSIGHTS_MIN_MOMENTS = 3;
 
+/**
+ * An artist is "most written about" only from this many moments: a ranking
+ * of artists who each appear once is a list, not an insight (2026-11-20).
+ */
+export const REPEAT_MIN = 2;
+
+/** Artists with at least REPEAT_MIN moments, most first, at most `max`. */
+export function repeatArtists(i: Pick<Insights, "topArtists">, max: number): RankedArtist[] {
+  return i.topArtists.filter((a) => a.count >= REPEAT_MIN).slice(0, max);
+}
+
 const norm = (s: string) => s.trim().toLowerCase();
 
 function rank(counts: Map<string, Ranked>): Ranked[] {

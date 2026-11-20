@@ -14,7 +14,7 @@ import { MOODS } from "@/constants/Moods";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchBrowseMetadata } from "@/lib/browse";
 import { friendlyError } from "@/lib/errors";
-import { INSIGHTS_MIN_MOMENTS, insightsSummary, journalInsights } from "@/lib/insights";
+import { INSIGHTS_MIN_MOMENTS, insightsSummary, journalInsights, repeatArtists } from "@/lib/insights";
 import { artworkUrlAtSize } from "@/lib/itunes";
 import { moodLabel } from "@/lib/moodLabels";
 import { BROWSE_META_STALE } from "@/lib/queryConfig";
@@ -23,7 +23,7 @@ import { Theme } from "@/constants/theme";
 
 // The same 40pt as the Avatar in Featuring, so every row's text lines up.
 const ART = 40;
-const TOP_ARTISTS = 10;
+const TOP_ARTISTS = 5;
 const TOP_PEOPLE = 8;
 const TOP_MOODS = 8;
 
@@ -85,7 +85,7 @@ export default function InsightsScreen() {
   }
 
   const enough = !!insights && insights.moments >= INSIGHTS_MIN_MOMENTS;
-  const artists = insights?.topArtists.slice(0, TOP_ARTISTS) ?? [];
+  const artists = insights ? repeatArtists(insights, TOP_ARTISTS) : [];
   const people = insights?.featuring.slice(0, TOP_PEOPLE) ?? [];
   const topMoodCount = moods[0]?.count ?? 1;
 
@@ -100,6 +100,15 @@ export default function InsightsScreen() {
           <Text style={styles.empty}>
             Insights show up as your journal grows. A few more moments and there&apos;ll be something to see.
           </Text>
+        ) : null}
+
+        {enough && artists.length === 0 && insights.artists > 0 ? (
+          <View style={styles.section}>
+            <SectionLabel>Most written about</SectionLabel>
+            <Text style={styles.note}>
+              {insights.artists.toLocaleString()} {insights.artists === 1 ? "artist" : "artists"} so far, no repeats yet.
+            </Text>
+          </View>
         ) : null}
 
         {enough && artists.length > 0 ? (
@@ -194,6 +203,11 @@ function createStyles(theme: Theme) {
     },
     section: {
       marginTop: theme.spacing["2xl"],
+    },
+    note: {
+      ...theme.typography.body,
+      color: theme.colors.textSecondary,
+      paddingVertical: theme.spacing.md,
     },
     art: {
       width: ART,

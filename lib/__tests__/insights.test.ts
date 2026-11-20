@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { insightsSummary, journalInsights, type InsightMoment } from "@/lib/insights";
+import { insightsSummary, journalInsights, repeatArtists, type InsightMoment } from "@/lib/insights";
 
 const m = (over: Partial<InsightMoment>): InsightMoment => ({
   momentDate: "2026-11-01",
@@ -76,5 +76,24 @@ describe("insightsSummary", () => {
     expect(insightsSummary({ moments: 1200, songs: 900, artists: 300 })).toBe(
       "1,200 moments · 900 songs · 300 artists"
     );
+  });
+});
+
+describe("repeatArtists", () => {
+  it("keeps only artists with two or more moments, capped", () => {
+    const i = journalInsights([
+      m({ songArtist: "A" }),
+      m({ songArtist: "B" }),
+      m({ songArtist: "A" }),
+      m({ songArtist: "C" }),
+      m({ songArtist: "C" }),
+      m({ songArtist: "C" }),
+    ]);
+    expect(repeatArtists(i, 5).map((a) => [a.name, a.count])).toEqual([
+      ["C", 3],
+      ["A", 2],
+    ]);
+    expect(repeatArtists(i, 1).map((a) => a.name)).toEqual(["C"]);
+    expect(repeatArtists(journalInsights([m({ songArtist: "Solo" })]), 5)).toEqual([]);
   });
 });
