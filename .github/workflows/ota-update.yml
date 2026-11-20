@@ -34,12 +34,18 @@ jobs:
       #
       # This fires on every merge with no human in the loop, so a silent
       # no-delivery would otherwise go unnoticed for however long it takes
-      # someone to wonder why beta stopped changing. Fail loudly instead: it
-      # means a new preview build is needed.
+      # someone to wonder why beta stopped changing.
+      #
+      # When no preview build serves this fingerprint (expected after a native
+      # change until a new beta binary is cut), --skip-if-unserved makes the
+      # gate pass with a ::warning:: and a step-summary line, set
+      # publish=false, and the publish steps below are skipped. Anything else
+      # (eas-cli or fingerprint errors, a crash) still fails the job.
       - name: Verify a live preview build serves this runtime version
+        id: gate
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: node scripts/fingerprint-gate.mjs --profile preview
+        run: node scripts/fingerprint-gate.mjs --profile preview --skip-if-unserved
 
       # `--environment preview` pulls EXPO_PUBLIC_SUPABASE_* / SENTRY_DSN /
       # POSTHOG_* from the EAS preview environment — the same values the preview
@@ -51,6 +57,7 @@ jobs:
       # EXPO_PUBLIC_APP_ENV stays explicit: it lives in eas.json's build profile
       # `env` block, which `eas update` does not read.
       - name: Publish OTA update (preview channel)
+        if: steps.gate.outputs.publish == 'true'
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EXPO_PUBLIC_APP_ENV: preview
@@ -64,6 +71,7 @@ jobs:
       # never did. Never fails the job: the export is deterministic for a given
       # commit + env, so re-exporting here reproduces the bundle just published.
       - name: Upload sourcemaps to Sentry
+        if: steps.gate.outputs.publish == 'true'
         continue-on-error: true
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
