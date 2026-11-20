@@ -110,8 +110,11 @@ moments it says insights show up as the journal grows.
      person screen ("N moments together · since …", artists you share or
      recently together as covers, mood words; lib/personSoundtrack.ts);
      BrowseScreen gained optional `header` and `summary`.
-  4. **When you write:** time of day, weekdays, months, as a pattern (never
-     as days missed).
+  4. **When you write** *(built 2026-11-20)*: time of day, weekday, busiest
+     month as patterns ("Mostly in the evening, often on Sundays"); never
+     days missed. Also built: **What resonates**, top genres and release
+     decades ("Mostly pop and hip-hop/rap", "Mostly the 2010s, with a soft
+     spot for the 70s"); rules and thresholds in lib/insights.ts.
   5. **Eras, version 2:** found in the data, not the calendar: slide a ~6-week
      window; where one artist dominates, extend the era while they keep
      dominating; it ends when someone else takes over or moments thin out
@@ -289,6 +292,18 @@ widget colors.
     moments go with you.
   - "Keep this": save a moment someone sent you into your own journal.
   - Analytics: record which share option was used.
+  - **Built 2026-11-20 (app on native/1.4.1, server PR 120 awaiting go):**
+    who was there linked to friends (`moment_people_links`, owner-only,
+    unfriend drops links; PeopleInput friend suggestions with @username,
+    "Who is 'Sam'?" to link a chip, Rediscover People grouped by the real
+    person, "Was there" first in Send to a person). **Album invites** from the
+    friend picker (PR 119: `collection_friend_invites`, owner-only invite of
+    accepted friends into a shared album, push "<Name> invited you to an
+    album", Join / Not now at the top of Albums → Shared; the inviter can't
+    see who said Not now, and Not now sticks). **/m/ link page as the hero**
+    (PR 118). **DB-2** written on `db/db-2`; blockers: album artwork in the
+    app and the web album pages read moments directly, each needs a definer
+    RPC first.
   - **Who was there → friends (right after 1.4.1, over the air; decided
     2026-11-19):** typing a name suggests matching friends (photo, name,
     @username, so two Sams are told apart) and past names, plus "Add 'Sam'
