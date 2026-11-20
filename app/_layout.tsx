@@ -150,6 +150,14 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     }
     if (!route.redirect) return;
 
+    // Every gate redirect is an account boundary (signed out, signed in,
+    // onboarding done), so start it from a stack holding one screen, the way
+    // a cold launch does. Without this, signing out from Settings left the
+    // old tab navigator mounted under the sign-in screen, and signing back in
+    // stacked a second one on top whose Journal never mounted: a blank
+    // Journal until relaunch (2026-11-19).
+    if (router.canDismiss()) router.dismissAll();
+
     if (route.redirect === ROUTE_TABS && session && segments[0] === "(auth)") {
       // An existing user signing in from the auth group already has moments:
       // don't show them the first-moment celebration. (Not when arriving from
