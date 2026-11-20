@@ -67,6 +67,18 @@ Associated Domains for the store App ID and makes soundtracks.app the
 primary domain on Vercel (done 2026-11-18: apex serves the AASA directly, www 308s to apex); album invite links (/c/…)
 now open the join screen and www links are accepted; links are claimed by
 the store app only (not β). Then a device build and TestFlight.
+**Insights, step 1 (Josh 2026-11-20, OTA with the three-tab layout):** what
+the journal says about you, computed on the phone from the browse metadata
+already loaded (`lib/insights.ts`, tested; no streaks). You shows a preview
+(totals line + top three artists as artwork, "See all"); `app/insights.tsx`
+has Most written about (artists with artwork → artist screen), Featuring
+(tagged people → their moments) and Moods (ranked words with a quiet ink
+bar → mood browse); a section with nothing to say is left out, and under 3
+moments it says insights show up as the journal grows.
+- [ ] Next insights (pick with Josh): when you write (months, time of day),
+  songs you came back to, eras/years compared, places, moods by season,
+  then narrated observations ("You reach for Bon Iver when it's cold"; AI may
+  narrate, never writes the reflection).
 **Three tabs, Yours / Shared (decided with Josh 2026-11-20, OTA to build 16
 before submitting):** Journal | Albums | Rediscover; the tab bar no longer
 swipes. Journal and Albums each swipe between Yours and Shared ("Shared" =

@@ -521,6 +521,11 @@ function RootLayoutNav() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
+            name="insights"
+            // Pushed from You's Insights preview; draws its own ScreenHeader.
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
             name="shared"
             options={{ headerShown: false }}
           />

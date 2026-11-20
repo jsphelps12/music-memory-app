@@ -5,6 +5,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   Alert,
   ScrollView,
@@ -23,7 +24,10 @@ import { BottomSheet } from "@/components/BottomSheet";
 import { ListRow } from "@/components/ListRow";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
-import { profileStats } from "@/lib/profileStats";
+import { INSIGHTS_MIN_MOMENTS, insightsSummary, journalInsights } from "@/lib/insights";
+import { artworkUrlAtSize } from "@/lib/itunes";
+import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
+import { Icon } from "@/components/Icon";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -95,10 +99,11 @@ export default function YouScreen() {
     }));
   }, [browseMeta.data]);
 
-  const stats = useMemo(
-    () => (browseMeta.data && browseMeta.data.length > 0 ? profileStats(browseMeta.data) : null),
+  const insights = useMemo(
+    () => (browseMeta.data && browseMeta.data.length > 0 ? journalInsights(browseMeta.data) : null),
     [browseMeta.data]
   );
+  const insightsReady = !!insights && insights.moments >= INSIGHTS_MIN_MOMENTS;
 
   const summary = useQuery({
     queryKey: ["youSummary", user?.id],
@@ -297,26 +302,58 @@ export default function YouScreen() {
           </View>
         ) : null}
 
-        {/* A few numbers, for fun, as one sentence rather than a dashboard
-            (no streaks: lib/profileStats.ts) */}
-        {stats ? (
-          <View style={styles.stats} testID="you-stats">
-            <Text style={styles.statLine}>
-              <Text style={styles.statNumber}>{stats.moments.toLocaleString()}</Text>
-              {stats.moments === 1 ? " moment, " : " moments, "}
-              <Text style={styles.statNumber}>{stats.songs.toLocaleString()}</Text>
-              {stats.songs === 1 ? " song by " : " songs by "}
-              <Text style={styles.statNumber}>{stats.artists.toLocaleString()}</Text>
-              {stats.artists === 1 ? " artist, over " : " artists, over "}
-              <Text style={styles.statNumber}>{stats.days.toLocaleString()}</Text>
-              {stats.days === 1 ? " day." : " days."}
+        {/* Insights: a preview of app/insights.tsx (lib/insights.ts) */}
+        {insights ? (
+          <Pressable
+            style={({ pressed }) => [styles.insights, pressed && insightsReady && styles.pressed]}
+            onPress={insightsReady ? () => router.push("/insights" as any) : undefined}
+            disabled={!insightsReady}
+            accessibilityRole={insightsReady ? "button" : undefined}
+            accessibilityLabel={insightsReady ? `Insights, ${insightsSummary(insights)}` : undefined}
+            accessibilityHint={insightsReady ? "Opens your insights" : undefined}
+            testID="you-insights"
+          >
+            <View style={styles.insightsHead}>
+              <Text style={styles.insightsTitle}>Insights</Text>
+              {insightsReady ? (
+                <View style={styles.seeAll}>
+                  <Text style={styles.seeAllText}>See all</Text>
+                  <Icon name="chevron-forward" size={14} color={theme.colors.textSecondary} />
+                </View>
+              ) : null}
+            </View>
+            <Text style={styles.insightsMeta}>
+              {insightsReady ? insightsSummary(insights) : "Insights show up as your journal grows."}
             </Text>
-            {stats.topArtist && stats.topArtist.count > 1 ? (
-              <Text style={styles.statNote} numberOfLines={1}>
-                Most often: {stats.topArtist.name}
-              </Text>
+            {insightsReady && insights.topArtists.length > 0 ? (
+              <View style={styles.topArtists} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+                {[0, 1, 2].map((i) => {
+                  const a = insights.topArtists[i];
+                  return (
+                    <View key={i} style={styles.topArtist}>
+                      {a ? (
+                        <>
+                          {a.artworkUrl ? (
+                            <AppImage
+                              source={{ uri: artworkUrlAtSize(a.artworkUrl, 300) }}
+                              style={styles.topArt}
+                              contentFit="cover"
+                            />
+                          ) : (
+                            <ArtworkPlaceholder style={styles.topArt} />
+                          )}
+                          <Text style={styles.topName} numberOfLines={1}>{a.name}</Text>
+                          <Text style={styles.topCount}>
+                            {a.count} {a.count === 1 ? "moment" : "moments"}
+                          </Text>
+                        </>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
             ) : null}
-          </View>
+          </Pressable>
         ) : null}
 
         {/* Year in review, any year with enough moments */}
@@ -391,22 +428,59 @@ export default function YouScreen() {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    stats: {
-      paddingHorizontal: theme.spacing.xl,
-      marginTop: theme.spacing.lg,
-      gap: theme.spacing.xs,
+    insights: {
+      marginHorizontal: theme.spacing.xl,
+      marginTop: theme.spacing["2xl"],
     },
-    statLine: {
-      ...theme.typography.body,
-      color: theme.colors.textSecondary,
+    pressed: {
+      opacity: 0.7,
     },
-    statNumber: {
-      ...theme.typography.bodyStrong,
+    insightsHead: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      justifyContent: "space-between",
+    },
+    insightsTitle: {
+      ...theme.typography.title,
       color: theme.colors.text,
     },
-    statNote: {
+    seeAll: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 2,
+    },
+    seeAllText: {
       ...theme.typography.meta,
-      color: theme.colors.textTertiary,
+      color: theme.colors.textSecondary,
+    },
+    insightsMeta: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+      marginTop: 2,
+    },
+    topArtists: {
+      flexDirection: "row",
+      gap: theme.spacing.md,
+      marginTop: theme.spacing.lg,
+    },
+    topArtist: {
+      flex: 1,
+      minWidth: 0,
+    },
+    topArt: {
+      width: "100%",
+      aspectRatio: 1,
+      borderRadius: theme.radii.sm,
+    },
+    topName: {
+      ...theme.typography.bodyStrong,
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.text,
+      marginTop: theme.spacing.sm,
+    },
+    topCount: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
     },
     outer: {
       flex: 1,
