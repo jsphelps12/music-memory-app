@@ -84,6 +84,22 @@ moments it says insights show up as the journal grows.
      widget, nudge). Nullable columns (old builds ignore them) and a one-time
      backfill from the server (needs Josh's go). Library data (play counts,
      date added) stays on device: insights may read it locally, never upload.
+     **Built on `data/song-metadata` (2026-11-20, not merged, migration not
+     applied):** `20261120120000_song_metadata.sql` adds nullable
+     `song_genre` (iTunes primaryGenreName), `song_release_date`,
+     `song_artist_id`, `song_album_id`, `song_duration_ms` and
+     `capture_source` (CHECK: now_playing, identify, search, share, widget,
+     nudge, last_week, from_before, draft, other). Create and edit save them
+     from the lookup (`lib/songMetadata.ts`; Spotify songs stay null);
+     `captureSourceFor()` (`lib/captureSource.ts`) picks the source; writes
+     and the browse read retry without the columns until the migration is
+     applied, so the OTA can go first. `fetchBrowseMetadata` carries
+     `songGenre`/`songReleaseDate` for Insights. Backfill:
+     `scripts/backfill-song-metadata.mjs` turns an exported
+     `[{id, song_apple_music_id}]` list into reviewed `update` SQL (no
+     Supabase access). ISRC isn't in the iTunes lookup: deferred to a
+     MusicKit catalog read later. Left: apply the migration (staging, then
+     prod with Josh's go), regenerate `types/database.ts`, run the backfill.
   2. **Songs that keep coming back:** one song across the years, with dates.
   3. **Your soundtrack with a person:** a summary header (top artists/songs,
      first and latest, moods) on Rediscover's person screen, which Featuring

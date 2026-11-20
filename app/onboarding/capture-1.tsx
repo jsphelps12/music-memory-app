@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import * as Sentry from "@sentry/react-native";
 import * as Haptics from "expo-haptics";
 import {
@@ -19,6 +19,7 @@ import { Button } from "@/components/Button";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
 import { saveMoment } from "@/lib/saveMoment";
+import { captureSourceFor, type SongPick } from "@/lib/captureSource";
 import { friendlyError } from "@/lib/errors";
 import { cancelTodaysCheckIn } from "@/lib/dailyCheckIn";
 import { markTimelineStale } from "@/lib/timelineRefresh";
@@ -33,6 +34,12 @@ export default function OnboardingCapture1Screen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [song, setSong] = useState<Song | null>(null);
+  // How the song was picked (now playing, Identify, search), for capture_source.
+  const [songPick, setSongPick] = useState<SongPick | null>(null);
+  const chooseSong = useCallback((s: Song, pick: SongPick) => {
+    setSong(s);
+    setSongPick(pick);
+  }, []);
   const [reflection, setReflection] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -52,6 +59,7 @@ export default function OnboardingCapture1Screen() {
         moods: [],
         locationResult: null,
         momentDate: new Date(),
+        captureSource: captureSourceFor({}, songPick),
       });
       markTimelineStale();
       // Today is logged: its check-in reminder has nothing left to ask.
@@ -97,7 +105,7 @@ export default function OnboardingCapture1Screen() {
           A song from this week, or one you just heard. Doesn&apos;t have to be meaningful yet.
         </Text>
 
-        <SongPickerSection song={song} onChange={setSong} />
+        <SongPickerSection song={song} onChange={chooseSong} />
 
         <SectionLabel style={styles.sectionLabel}>Reflection</SectionLabel>
         {/* The writer, not a form field: what a person writes is set in the

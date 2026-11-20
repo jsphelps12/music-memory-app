@@ -13,6 +13,15 @@ export function mapRowToMoment(row: any): Moment {
     songAppleMusicId: row.song_apple_music_id ?? null,
     songSpotifyId: row.song_spotify_id ?? null,
     songPreviewUrl: row.song_preview_url ?? null,
+    // Catalog details and how it was captured (20261120120000_song_metadata.sql).
+    // Not in MOMENT_CARD_COLUMNS, so null on card rows; rows from before the
+    // columns existed are null too.
+    songGenre: row.song_genre ?? null,
+    songReleaseDate: row.song_release_date ?? null,
+    songArtistId: row.song_artist_id ?? null,
+    songAlbumId: row.song_album_id ?? null,
+    songDurationMs: row.song_duration_ms ?? null,
+    captureSource: row.capture_source ?? null,
     reflectionText: row.reflection_text,
     photoUrls: row.photo_urls ?? [],
     photoThumbnails: row.photo_thumbnails ?? [],

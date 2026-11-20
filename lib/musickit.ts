@@ -81,25 +81,3 @@ export async function playAppleMusic(appleMusicId: string): Promise<number> {
     Player.play();
   });
 }
-
-export async function fetchPreviewUrl(
-  appleMusicId: string
-): Promise<{ previewUrl: string | null; albumName: string | null }> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(
-      `https://itunes.apple.com/lookup?id=${appleMusicId}`,
-      { signal: controller.signal }
-    );
-    clearTimeout(timeout);
-    const json = await response.json();
-    const result = json.results?.[0];
-    return {
-      previewUrl: result?.previewUrl ?? null,
-      albumName: result?.collectionName ?? null,
-    };
-  } catch {
-    return { previewUrl: null, albumName: null };
-  }
-}

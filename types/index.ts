@@ -37,6 +37,19 @@ export interface Moment {
   songAppleMusicId: string | null;
   songSpotifyId: string | null;
   songPreviewUrl: string | null;
+  /**
+   * From the iTunes lookup at capture (lib/songMetadata.ts); null for Spotify
+   * songs, failed lookups, older moments and rows fetched with
+   * MOMENT_CARD_COLUMNS (which doesn't select them).
+   */
+  songGenre?: string | null;
+  /** "YYYY-MM-DD" */
+  songReleaseDate?: string | null;
+  songArtistId?: string | null;
+  songAlbumId?: string | null;
+  songDurationMs?: number | null;
+  /** How the moment was captured (lib/captureSource.ts). */
+  captureSource?: import("@/lib/captureSource").CaptureSource | null;
   reflectionText: string;
   photoUrls: string[];
   photoThumbnails: string[];

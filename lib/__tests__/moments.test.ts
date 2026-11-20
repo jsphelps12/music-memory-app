@@ -26,6 +26,12 @@ function fullRow() {
     song_apple_music_id: "1440806523",
     song_spotify_id: "3z8h0TU7ReDPLIbEnYhWZb",
     song_preview_url: "https://example.com/preview.m4a",
+    song_genre: "Rock",
+    song_release_date: "1975-10-31",
+    song_artist_id: "3296287",
+    song_album_id: "1440806041",
+    song_duration_ms: 354320,
+    capture_source: "now_playing",
     reflection_text: "Driving home at 2am.",
     photo_urls: ["u1/a.jpg"],
     photo_thumbnails: ["u1/thumb_a.jpg"],
@@ -60,6 +66,12 @@ describe("mapRowToMoment", () => {
       songAppleMusicId: "1440806523",
       songSpotifyId: "3z8h0TU7ReDPLIbEnYhWZb",
       songPreviewUrl: "https://example.com/preview.m4a",
+      songGenre: "Rock",
+      songReleaseDate: "1975-10-31",
+      songArtistId: "3296287",
+      songAlbumId: "1440806041",
+      songDurationMs: 354320,
+      captureSource: "now_playing",
       reflectionText: "Driving home at 2am.",
       photoUrls: ["u1/a.jpg"],
       photoThumbnails: ["u1/thumb_a.jpg"],
@@ -107,6 +119,13 @@ describe("mapRowToMoment", () => {
     expect(m.weatherCondition).toBeNull();
     expect(m.shareToken).toBeNull();
     expect(m.guestUuid).toBeNull();
+    // Song details and capture_source: absent on rows from before the columns.
+    expect(m.songGenre).toBeNull();
+    expect(m.songReleaseDate).toBeNull();
+    expect(m.songArtistId).toBeNull();
+    expect(m.songAlbumId).toBeNull();
+    expect(m.songDurationMs).toBeNull();
+    expect(m.captureSource).toBeNull();
   });
 
   it("dual-reads moods, falling back to the legacy single mood column", () => {
@@ -186,6 +205,13 @@ const CARD_FABRICATED_FIELDS = [
   "weatherCondition",
   "updatedAt",
   "shareToken",
+  // Song details and capture_source (2026-11-20): nothing on a card shows them.
+  "songGenre",
+  "songReleaseDate",
+  "songArtistId",
+  "songAlbumId",
+  "songDurationMs",
+  "captureSource",
 ] as const;
 
 describe("MOMENT_CARD_COLUMNS contract", () => {

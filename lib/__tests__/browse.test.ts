@@ -223,3 +223,31 @@ describe("watchBrowseMetaInvalidation", () => {
     expect(storage.map.has("browse_meta_v2_u1")).toBe(true);
   });
 });
+
+describe("fetchBrowseMetadata song details", () => {
+  it("reads the genre and release date for Insights", async () => {
+    const { fetchBrowseMetadata } = await import("../browse");
+    sb.queueData([{ id: "m1", song_genre: "Rock", song_release_date: "1975-10-31" }, { id: "m2" }]);
+    const meta = await fetchBrowseMetadata("u1");
+    expect(sb.queries[0].chain.find((c) => c.method === "select")?.args[0]).toContain("song_genre, song_release_date");
+    expect(meta[0]).toMatchObject({ songGenre: "Rock", songReleaseDate: "1975-10-31" });
+    expect(meta[1]).toMatchObject({ songGenre: null, songReleaseDate: null });
+  });
+
+  it("falls back to the old columns before the migration is applied", async () => {
+    const { fetchBrowseMetadata } = await import("../browse");
+    sb.queueError({ code: "42703", message: "column moments.song_genre does not exist" });
+    sb.queueData([{ id: "m1", song_title: "T" }]);
+    const meta = await fetchBrowseMetadata("u1");
+    expect(sb.queries).toHaveLength(2);
+    expect(sb.queries[1].chain.find((c) => c.method === "select")?.args[0]).not.toContain("song_genre");
+    expect(meta[0]).toMatchObject({ id: "m1", songTitle: "T", songGenre: null });
+  });
+
+  it("still fails on other errors", async () => {
+    const { fetchBrowseMetadata } = await import("../browse");
+    sb.queueError("network");
+    await expect(fetchBrowseMetadata("u1")).rejects.toMatchObject({ message: "network" });
+    expect(sb.queries).toHaveLength(1);
+  });
+});

@@ -5,13 +5,16 @@ import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { BROWSE_META_STALE } from "@/lib/queryConfig";
+import { isMissingColumnError } from "@/lib/optionalColumns";
 import type { Moment } from "@/types";
 
 // Versioned, like timeline_cache_v2_ / profile_cache_v1_. What lands here is
 // JSON.parsed straight into BrowseMeta[] and handed to queryClient.setQueryData,
 // so a shape change would feed stale-shaped objects to five screens with nothing
 // to notice. Bump the suffix whenever BrowseMeta changes and add the old prefix
-// to BROWSE_CACHE_PREFIXES_TO_CLEAR below.
+// to BROWSE_CACHE_PREFIXES_TO_CLEAR below. (Optional fields every reader treats
+// as maybe-missing, like songGenre and songReleaseDate, don't need a bump: an
+// older copy just lacks them until the next fetch.)
 const BROWSE_CACHE_PREFIX = "browse_meta_v2_"; // v2: mood → moods (multi-mood)
 
 // When the cached copy was fetched (ms since epoch), in its own key so the
@@ -110,6 +113,29 @@ export interface BrowseMeta {
   songArtist: string;
   songAlbumName: string;
   songArtworkUrl: string;
+  /** iTunes primary genre saved at capture; null/absent for older moments. */
+  songGenre?: string | null;
+  /** The song's release date ("YYYY-MM-DD"); null/absent when unknown. */
+  songReleaseDate?: string | null;
+}
+
+const BROWSE_COLUMNS = "id, mood, moods, people, moment_date, song_title, song_artist, song_album_name, song_artwork_url";
+// For Insights (genres, musical periods). Added by 20261120120000_song_metadata.sql;
+// until that's applied the fetch falls back to BROWSE_COLUMNS.
+const BROWSE_SONG_COLUMNS = "song_genre, song_release_date";
+
+function fetchBrowseRows(userId: string, columns: string): Promise<any[]> {
+  return fetchAllRows<any>((from, to) =>
+    supabase
+      .from("moments")
+      .select(columns)
+      .eq("user_id", userId)
+      .order("moment_date", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      // A unique tiebreak, so pages never overlap or skip a row.
+      .order("id", { ascending: false })
+      .range(from, to)
+  );
 }
 
 /**
@@ -118,17 +144,13 @@ export interface BrowseMeta {
  * whichever screen asked for it.
  */
 export async function fetchBrowseMetadata(userId: string): Promise<BrowseMeta[]> {
-  const rows = await fetchAllRows<any>((from, to) =>
-    supabase
-      .from("moments")
-      .select("id, mood, moods, people, moment_date, song_title, song_artist, song_album_name, song_artwork_url")
-      .eq("user_id", userId)
-      .order("moment_date", { ascending: false, nullsFirst: false })
-      .order("created_at", { ascending: false })
-      // A unique tiebreak, so pages never overlap or skip a row.
-      .order("id", { ascending: false })
-      .range(from, to)
-  );
+  let rows: any[];
+  try {
+    rows = await fetchBrowseRows(userId, `${BROWSE_COLUMNS}, ${BROWSE_SONG_COLUMNS}`);
+  } catch (e) {
+    if (!isMissingColumnError(e)) throw e;
+    rows = await fetchBrowseRows(userId, BROWSE_COLUMNS);
+  }
   const meta = rows.map((r: any): BrowseMeta => ({
     id: r.id,
     // Dual-read: single-mood rows from binaries <= build 22 wrap into an array.
@@ -139,6 +161,8 @@ export async function fetchBrowseMetadata(userId: string): Promise<BrowseMeta[]>
     songArtist: r.song_artist ?? "",
     songAlbumName: r.song_album_name ?? "",
     songArtworkUrl: r.song_artwork_url ?? "",
+    songGenre: r.song_genre ?? null,
+    songReleaseDate: r.song_release_date ?? null,
   }));
   void persistIfSignedIn(userId, meta);
   return meta;

@@ -14,6 +14,7 @@
  * Spotify fallback path when the native module is missing.
  */
 import type { Song } from "@/types";
+import { EMPTY_SONG_LOOKUP, parseItunesLookupResult, pickLookupResult, type SongLookup } from "@/lib/songMetadata";
 
 const SEARCH_URL = "https://itunes.apple.com/search";
 const TIMEOUT_MS = 5000;
@@ -170,6 +171,27 @@ export async function lookupItunesSong(appleMusicId: string): Promise<Song | nul
     return track ? itunesTrackToSong(track) : null;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * The preview and catalog details (genre, release date, artist and album ids,
+ * length) for an Apple Music id: what capture saves on the moment. Never
+ * throws; every field is null when the lookup fails.
+ */
+export async function lookupItunesDetails(appleMusicId: string): Promise<SongLookup> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(`https://itunes.apple.com/lookup?id=${encodeURIComponent(appleMusicId)}`, {
+      signal: controller.signal,
+    });
+    if (!res.ok) return EMPTY_SONG_LOOKUP;
+    return parseItunesLookupResult(pickLookupResult(await res.json()));
+  } catch {
+    return EMPTY_SONG_LOOKUP;
   } finally {
     clearTimeout(timeout);
   }

@@ -27,6 +27,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { extractExifFromPath } from "@/lib/photoMetadata";
 import { saveMoment, lookupPreview } from "@/lib/saveMoment";
+import type { SongLookup } from "@/lib/songMetadata";
+import { captureSourceFor, type SongPick } from "@/lib/captureSource";
 import { maybeRequestReview } from "@/lib/reviewPrompt";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
@@ -162,10 +164,14 @@ export default function CreateMomentScreen() {
   }, []);
 
   const [song, setSong] = useState<Song | null>(null);
-  const previewFetchRef = useRef<Promise<{ previewUrl: string | null; albumName: string | null }> | null>(null);
+  const previewFetchRef = useRef<Promise<SongLookup> | null>(null);
+  // How the current song was chosen in the picker; null when it came in with
+  // the route (a share, Last week, a draft). Feeds capture_source.
+  const songPickRef = useRef<SongPick | null>(null);
 
-  const handleSongChange = useCallback((s: Song | null) => {
+  const handleSongChange = useCallback((s: Song | null, pick?: SongPick) => {
     setSong(s);
+    songPickRef.current = s ? pick ?? null : null;
     // Never rejects: a lookup for a song that gets swapped out (or a capture
     // that's cancelled) has no one awaiting it.
     previewFetchRef.current = s ? lookupPreview(s) : null;
@@ -598,6 +604,16 @@ export default function CreateMomentScreen() {
         // The pending lookup itself, so photo uploads start alongside it.
         prefetchedPreview: previewFetchRef.current,
         weatherResult,
+        captureSource: captureSourceFor(
+          {
+            source: params.source,
+            shared: !!(params.songTitle || params.shareCandidates || params.shareFailedUrl || params.sharedPhotoPaths),
+            draft: restoredDraftAt != null,
+            identify: params.identify === "1",
+            search: params.search === "1",
+          },
+          songPickRef.current
+        ),
       });
 
       // Saved: this capture's draft goes, and nothing writes it again (a
