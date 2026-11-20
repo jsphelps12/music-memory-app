@@ -98,8 +98,11 @@ moments it says insights show up as the journal grows.
      `scripts/backfill-song-metadata.mjs` turns an exported
      `[{id, song_apple_music_id}]` list into reviewed `update` SQL (no
      Supabase access). ISRC isn't in the iTunes lookup: deferred to a
-     MusicKit catalog read later. Left: regenerate `types/database.ts`, run
-     the backfill (SQL reviewed by Josh first).
+     MusicKit catalog read later. Backfill applied 2026-11-20 (Josh's go):
+     184 of 207 moments now have genre, release date, ids and length (one
+     update per song from the iTunes lookup); 21 have non-catalog ids and 2
+     no Apple id, so they stay empty. `capture_source` is only set going
+     forward. Left: regenerate `types/database.ts`.
   2. **Songs that keep coming back** *(built 2026-11-20)*: Insights section,
      songs in 2+ moments with a when-line ("2019 · 2023 · this year"), hidden
      when nothing repeats (`comingBack`, `comingBackWhen` in lib/insights.ts).
