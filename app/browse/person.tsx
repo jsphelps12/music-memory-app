@@ -131,7 +131,10 @@ function SoundtrackHeader({ soundtrack }: { soundtrack: PersonSoundtrack }) {
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     // Ruled off from the moments below, like the top of a list.
+    // Room above the label, like a section label anywhere else (it sits
+    // under BrowseScreen's chips, which have no bottom margin of their own).
     header: {
+      paddingTop: theme.spacing.lg,
       paddingBottom: theme.spacing.lg,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.colors.divider,

@@ -84,8 +84,8 @@ moments it says insights show up as the journal grows.
      widget, nudge). Nullable columns (old builds ignore them) and a one-time
      backfill from the server (needs Josh's go). Library data (play counts,
      date added) stays on device: insights may read it locally, never upload.
-     **Built on `data/song-metadata` (2026-11-20, not merged, migration not
-     applied):** `20261120120000_song_metadata.sql` adds nullable
+     **Built 2026-11-20 (merged into native/1.4.1; migration applied to
+     prod via PR 117, which also hides capture_source in the shared view):** `20261120120000_song_metadata.sql` adds nullable
      `song_genre` (iTunes primaryGenreName), `song_release_date`,
      `song_artist_id`, `song_album_id`, `song_duration_ms` and
      `capture_source` (CHECK: now_playing, identify, search, share, widget,
@@ -98,12 +98,15 @@ moments it says insights show up as the journal grows.
      `scripts/backfill-song-metadata.mjs` turns an exported
      `[{id, song_apple_music_id}]` list into reviewed `update` SQL (no
      Supabase access). ISRC isn't in the iTunes lookup: deferred to a
-     MusicKit catalog read later. Left: apply the migration (staging, then
-     prod with Josh's go), regenerate `types/database.ts`, run the backfill.
-  2. **Songs that keep coming back:** one song across the years, with dates.
-  3. **Your soundtrack with a person:** a summary header (top artists/songs,
-     first and latest, moods) on Rediscover's person screen, which Featuring
-     already opens; no new screen.
+     MusicKit catalog read later. Left: regenerate `types/database.ts`, run
+     the backfill (SQL reviewed by Josh first).
+  2. **Songs that keep coming back** *(built 2026-11-20)*: Insights section,
+     songs in 2+ moments with a when-line ("2019 · 2023 · this year"), hidden
+     when nothing repeats (`comingBack`, `comingBackWhen` in lib/insights.ts).
+  3. **Your soundtrack with a person** *(built 2026-11-20)*: header on the
+     person screen ("N moments together · since …", artists you share or
+     recently together as covers, mood words; lib/personSoundtrack.ts);
+     BrowseScreen gained optional `header` and `summary`.
   4. **When you write:** time of day, weekdays, months, as a pattern (never
      as days missed).
   5. **Eras, version 2:** found in the data, not the calendar: slide a ~6-week
