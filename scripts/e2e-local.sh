@@ -96,10 +96,17 @@ for FLOW in "${FLOWS[@]}"; do
   # the Mac synced into the simulator's clipboard makes iOS ask to paste over
   # the sign-in screen. Start each flow with it empty.
   printf '' | xcrun simctl pbcopy "$DEVICE" 2>/dev/null || true
+  # Close the app ourselves before Maestro's clear-state relaunch: with the
+  # previous flow's process still exiting, its driver sometimes read the dead
+  # process right after launch and restarted mid-step (2026-11-21: every flow
+  # after the first died at the first optional wait, no app crash).
+  xcrun simctl terminate "$DEVICE" "$BUNDLE_ID" 2>/dev/null || true
+  sleep 2
 
   echo "── Running .maestro/${FLOW}.yaml"
   mkdir -p "$RUN/$FLOW"
-  if maestro --device "$DEVICE" test ".maestro/${FLOW}.yaml" \
+  if MAESTRO_DRIVER_STARTUP_TIMEOUT="${MAESTRO_DRIVER_STARTUP_TIMEOUT:-120000}" \
+     maestro --device "$DEVICE" test ".maestro/${FLOW}.yaml" \
       --env E2E_PASSWORD="$E2E_PASSWORD" \
       --test-output-dir "$RUN/$FLOW" | tee "$RUN/$FLOW/maestro.log"; then
     :
