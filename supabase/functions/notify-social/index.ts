@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isUuid } from "../_shared/uuid.ts";
 import { socialDelivery } from "../_shared/socialPush.ts";
 import { expoPushHeaders, EXPO_PUSH_URL } from "../_shared/expoPush.ts";
+import { handleAlbumInvite } from "./albumInvite.ts";
 
 // Sharing v2 (docs/SOCIAL-ARCHITECTURE.md "Notifications"): the one edge
 // function path for social pushes on v2 clients, replacing notify-friend's
@@ -13,6 +14,9 @@ import { expoPushHeaders, EXPO_PUSH_URL } from "../_shared/expoPush.ts";
 // Push content is looked up server-side from the caller's identity and the
 // moment row — the client only names the share. A push goes out only for a
 // share the caller sent in the last few minutes, to an accepted friend.
+//
+// album_invite (2026-11-20) lives in albumInvite.ts and branches off before
+// the share path below, which is unchanged.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -54,11 +58,15 @@ Deno.serve(async (req) => {
     const { data: { user: caller }, error: authError } = await adminClient.auth.getUser(jwt);
     if (authError || !caller) return json(401, { error: "unauthorized" });
 
-    let body: { type?: string; toUserId?: string; momentId?: string };
+    let body: { type?: string; toUserId?: string; momentId?: string; collectionId?: string };
     try {
       body = await req.json();
     } catch {
       return json(400, { error: "invalid_body" });
+    }
+    if (body?.type === "album_invite") {
+      const result = await handleAlbumInvite(adminClient, caller.id, body);
+      return json(result.status, result.body);
     }
     const { type, toUserId, momentId } = body;
     if (type !== "share_received" || !isUuid(toUserId) || !isUuid(momentId)) {
