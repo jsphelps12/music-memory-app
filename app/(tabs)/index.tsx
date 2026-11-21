@@ -350,10 +350,15 @@ export default function TimelineScreen() {
   // are in-place views (both stay mounted), Map is its own screen. The native
   // UIMenu (MenuButton), or MomentActionMenu on a binary without it; a row
   // runs once the menu has closed either way.
+  const chooseView = (view: "list" | "calendar" | "map") => {
+    posthog?.capture("journal_view_changed", { view });
+    if (view === "map") router.push("/moments-map" as any);
+    else showView(view);
+  };
   const viewMenuItems: MomentMenuItem[] = [
-    { key: "list", label: "List", icon: "list-outline", onPress: () => showView("list") },
-    { key: "calendar", label: "Calendar", icon: "calendar-outline", onPress: () => showView("calendar") },
-    { key: "map", label: "Map", icon: "map-outline", onPress: () => router.push("/moments-map" as any) },
+    { key: "list", label: "List", icon: "list-outline", onPress: () => chooseView("list") },
+    { key: "calendar", label: "Calendar", icon: "calendar-outline", onPress: () => chooseView("calendar") },
+    { key: "map", label: "Map", icon: "map-outline", onPress: () => chooseView("map") },
   ];
   const viewIcon = viewMode === "list" ? "list-outline" : "calendar-outline";
   const [viewMenuAnchor, setViewMenuAnchor] = useState<MenuAnchor | null>(null);
@@ -368,9 +373,10 @@ export default function TimelineScreen() {
 
   // Moving to Shared ends select mode (selecting is Yours' alone; swiping is
   // off meanwhile, but the label can still be tapped).
-  const handlePaneChange = useCallback((key: string) => {
+  const handlePaneChange = useCallback((key: string, via: "tap" | "swipe") => {
     const next = key === "shared" ? "shared" : "yours";
     setPane(next);
+    posthog?.capture("pane_switched", { tab: "journal", pane: next, via });
     if (next === "shared") {
       exitSelect();
       posthog?.capture("shared_with_me_opened", { unviewed_count: unviewedCount, from: "journal_pane" });
@@ -835,7 +841,10 @@ export default function TimelineScreen() {
             {/* You: profile, settings, friends (the /you screen). */}
             <TouchableOpacity
               style={styles.avatarButton}
-              onPress={() => router.push("/you" as any)}
+              onPress={() => {
+                posthog?.capture("you_opened");
+                router.push("/you" as any);
+              }}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="You"

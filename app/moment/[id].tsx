@@ -253,6 +253,17 @@ export default function MomentDetailScreen() {
   }, [router, returnTo]);
 
   const close = useCallback(() => animateOut(goBack), [animateOut, goBack]);
+  // Analytics for the two ways a person closes it (a delete closes it too,
+  // through `close`, and isn't counted here).
+  const posthog = usePostHog();
+  const closeByBack = useCallback(() => {
+    posthog?.capture("moment_closed", { via: "back" });
+    close();
+  }, [posthog, close]);
+  const closedBySwipe = useCallback(() => {
+    posthog?.capture("moment_closed", { via: "swipe_down" });
+    goBack();
+  }, [posthog, goBack]);
 
   // The entry from the card that was tapped: the first page only.
   useEffect(() => {
@@ -290,7 +301,8 @@ export default function MomentDetailScreen() {
     shownSong.set(null);
     pageIndex.set(nextIndex);
     setPage({ id: sequence.ids[nextIndex], index: nextIndex, initial: momentAt(sequence, nextIndex), flip: dir });
-  }, [sequence, playerActions, flipX, pageOpacity, busy, shownSong, pageIndex]);
+    posthog?.capture("moment_flipped", { direction: dir === 1 ? "next" : "prev" });
+  }, [sequence, playerActions, flipX, pageOpacity, busy, shownSong, pageIndex, posthog]);
 
   // The new page comes in (flips only; the first page has the card entry).
   useLayoutEffect(() => {
@@ -337,14 +349,14 @@ export default function MomentDetailScreen() {
             dragY.set(
               withTiming(screenHeight, CLOSE_OUT, () => {
                 "worklet";
-                runOnJS(goBack)();
+                runOnJS(closedBySwipe)();
               })
             );
           } else {
             dragY.set(withSpring(0, SETTLE));
           }
         }),
-    [busy, scrollY, dragY, screenHeight, goBack]
+    [busy, scrollY, dragY, screenHeight, closedBySwipe]
   );
 
   // Left and right through the list. Off when there's no list: a lone moment
@@ -437,7 +449,7 @@ export default function MomentDetailScreen() {
     <GestureDetector gesture={overlayGesture}>
       <Animated.View
         style={[styles.container, animStyle]}
-        onAccessibilityEscape={close}
+        onAccessibilityEscape={closeByBack}
         testID="moment-detail"
       >
         <MomentPage
@@ -454,6 +466,7 @@ export default function MomentDetailScreen() {
           flipPan={flipPan}
           closePan={closePan}
           onClose={close}
+          onBack={closeByBack}
           onShown={onShown}
           flipActions={flipActions}
           onFlipAction={onFlipAction}
@@ -485,8 +498,10 @@ interface MomentPageProps {
   pageOpacity: SharedValue<number>;
   flipPan: PanGesture;
   closePan: PanGesture;
-  /** Back, or the moment is gone (deleted, removed from the album). */
+  /** The moment is gone (deleted, removed from the album). */
   onClose: () => void;
+  /** The person went back (the back button, an error's Back). */
+  onBack: () => void;
   onShown: (moment: PartialMoment) => void;
   flipActions: AccessibilityActionInfo[];
   onFlipAction: (e: AccessibilityActionEvent) => void;
@@ -505,6 +520,7 @@ function MomentPage({
   flipPan,
   closePan,
   onClose,
+  onBack,
   onShown,
   flipActions,
   onFlipAction,
@@ -1140,7 +1156,7 @@ function MomentPage({
           variant="glass"
           name="chevron-back"
           size={20}
-          onPress={onClose}
+          onPress={onBack}
           accessibilityLabel="Back"
           testID="moment-back"
         />
@@ -1192,10 +1208,10 @@ function MomentPage({
         <ErrorState
           message={error}
           onRetry={() => fetchMoment(true)}
-          onBack={onClose}
+          onBack={onBack}
         />
       ) : screenState === "not_found" || !moment ? (
-        <ErrorState message="Moment not found" onBack={onClose} />
+        <ErrorState message="Moment not found" onBack={onBack} />
       ) : (
         // The hero lives INSIDE the scroll view. As a sibling above it, the top
         // ~280pt of the screen — photo, artwork, photo-count pill — was inert to

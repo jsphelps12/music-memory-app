@@ -1,5 +1,7 @@
 import "../wdyr";
 import * as Sentry from "@sentry/react-native";
+import * as Updates from "expo-updates";
+import { updateTags } from "@/lib/sentryTags";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router";
@@ -68,6 +70,14 @@ if (!__DEV__) {
     enableAutoSessionTracking: true,
     sessionTrackingIntervalMillis: 30_000,
   });
+  // Which bundle is running (an OTA id, or "embedded"), so an error can be
+  // traced to one update. Reading the constants never needs the network; the
+  // catch covers a build without the expo-updates native module.
+  try {
+    Sentry.setTags(updateTags(Updates));
+  } catch {
+    Sentry.setTags(updateTags(null));
+  }
 }
 
 export const unstable_settings = {
