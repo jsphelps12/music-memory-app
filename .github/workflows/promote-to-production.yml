@@ -116,5 +116,5 @@ jobs:
           SENTRY_PROJECT: react-native
         run: |
           npx eas-cli@25.2.0 env:exec production \
-            "npx expo export --platform ios --output-dir dist && npx sentry-expo-upload-sourcemaps dist" \
+            "npx expo export --platform ios --source-maps --output-dir dist && npx sentry-expo-upload-sourcemaps dist" \
             --non-interactive
