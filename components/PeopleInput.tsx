@@ -3,6 +3,7 @@ import { StyleSheet, View } from "react-native";
 import type { TextInputInstance } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useQuery } from "@tanstack/react-query";
+import { usePostHog } from "posthog-react-native";
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
 import { ListRow } from "@/components/ListRow";
@@ -65,6 +66,7 @@ export function PeopleInput({ people, onChangePeople, links: linksProp, onChange
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { user } = useAuth();
+  const posthog = usePostHog();
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   // The chip whose link is being chosen (inline, under the chips).
@@ -120,8 +122,10 @@ export function PeopleInput({ people, onChangePeople, links: linksProp, onChange
   };
 
   /** Link `name` (on the moment, or added now) to this friend. */
-  const linkTo = (name: string, friendId: string, nextPeople: string[]) => {
+  const linkTo = (name: string, friendId: string, nextPeople: string[], source: "suggestion" | "chip") => {
     const key = nameKey(name);
+    // The source only: never the name or who it's linked to.
+    posthog?.capture("person_linked", { source });
     change(nextPeople, [
       ...links.filter((l) => l.friendId !== friendId && nameKey(l.name) !== key),
       { name, friendId },
@@ -133,7 +137,7 @@ export function PeopleInput({ people, onChangePeople, links: linksProp, onChange
     setQuery("");
     const choice = nameForFriend({ friend, people, links, known });
     if (!choice) return;
-    linkTo(choice.name, friend.id, choice.existing ? people : [...people, choice.name]);
+    linkTo(choice.name, friend.id, choice.existing ? people : [...people, choice.name], "suggestion");
   };
 
   const remove = (name: string) => {
@@ -293,7 +297,7 @@ export function PeopleInput({ people, onChangePeople, links: linksProp, onChange
             handles="always"
             searchPlaceholder="Search friends"
             onPick={(f) => {
-              linkTo(linkingName, f.id, people);
+              linkTo(linkingName, f.id, people, "chip");
               setLinkingName(null);
             }}
             rowAccessibilityLabel={(f) => `Link ${linkingName} to ${personLabel(f)}`}

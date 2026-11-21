@@ -592,6 +592,16 @@ export default function CreateMomentScreen() {
       // Photos still loading were shown as picked: wait for them.
       const loaded = await Promise.all([...photoLoads.current]);
       const toSave = withLoadedPhotos(photos, photoAssets, loaded);
+      const captureSource = captureSourceFor(
+        {
+          source: params.source,
+          shared: !!(params.songTitle || params.shareCandidates || params.shareFailedUrl || params.sharedPhotoPaths),
+          draft: restoredDraftAt != null,
+          identify: params.identify === "1",
+          search: params.search === "1",
+        },
+        songPickRef.current
+      );
       const { id: insertedId, moment: savedMoment, secondaryFailures } = await saveMoment({
         userId: user.id,
         song: song!,
@@ -608,16 +618,7 @@ export default function CreateMomentScreen() {
         // The pending lookup itself, so photo uploads start alongside it.
         prefetchedPreview: previewFetchRef.current,
         weatherResult,
-        captureSource: captureSourceFor(
-          {
-            source: params.source,
-            shared: !!(params.songTitle || params.shareCandidates || params.shareFailedUrl || params.sharedPhotoPaths),
-            draft: restoredDraftAt != null,
-            identify: params.identify === "1",
-            search: params.search === "1",
-          },
-          songPickRef.current
-        ),
+        captureSource,
       });
 
       // Saved: this capture's draft goes, and nothing writes it again (a
@@ -640,10 +641,12 @@ export default function CreateMomentScreen() {
         photo_count: toSave.photos.length,
         has_location: Boolean(locationResult),
         has_people: people.length > 0,
+        has_people_links: peopleLinks.length > 0,
         has_collection: Boolean(selectedAlbum),
         capture_ms: sinceOpen(),
         save_ms: sinceSave(),
         source: params.source ?? null,
+        capture_source: captureSource,
       });
 
       checkAndNotifyMilestone(user.id).catch(() => {});

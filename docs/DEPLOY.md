@@ -144,6 +144,36 @@ bypassing it would publish an update to zero users rather than to some of them.
 
 **5. Monitor Sentry for 30 minutes**
 Watch for new crash spikes or error rate increases after the update lands.
+Every event carries `update_id` (the OTA's id, or `embedded` for the bundle
+inside the binary), `update_channel`, `runtime_version` and
+`update_created_at` (set in `app/_layout.tsx` from `lib/sentryTags.ts`), so
+`update_id:<id>` narrows an issue to one update.
+
+### Publishing an OTA by hand
+
+When an OTA has to go out from a laptop instead of the Promote workflow, use
+the script, not a bare `eas update`:
+
+```bash
+scripts/publish-ota.sh "Fix the calendar crash"            # production
+scripts/publish-ota.sh "Try the new header" preview        # preview
+```
+
+It refuses a dirty tree, moves `.env` aside for the publish and always puts it
+back, runs `scripts/fingerprint-gate.mjs` (which prints the runtime version and
+refuses one no installed build serves; `SKIP_GATE=1` skips the refusal in an
+emergency), then runs the same `eas update --branch … --environment …
+--platform ios --non-interactive` as before with `EXPO_PUBLIC_APP_ENV` set.
+
+Then it uploads the sourcemaps for that exact bundle: `eas update` exports
+into `dist/` with source maps, and the script runs
+`eas env:exec <env> "npx sentry-expo-upload-sourcemaps dist"`, which takes
+`SENTRY_AUTH_TOKEN` from the EAS environment (nothing to set locally).
+Sentry matches maps to errors by the debug id that Sentry's Metro serializer
+stamps into the bundle and its map, not by release name, which is why the
+upload has to use the very `dist/` that was published. A failed upload doesn't
+fail the script (the update is already live) but prints a banner with the
+retry command; rerun that from the same commit without exporting again.
 
 ### Rollback (if something goes wrong)
 
@@ -574,7 +604,12 @@ node scripts/fingerprint-check.mjs
 # Rollback production OTA
 eas update --rollback-to-embedded --branch production
 
-# Emergency manual OTA — no reachability gate; may publish to zero users
+# Manual OTA with the reachability gate and a sourcemap upload (see
+# "Publishing an OTA by hand")
+scripts/publish-ota.sh "Description"            # production
+scripts/publish-ota.sh "Description" preview
+
+# Bare manual OTA: no reachability gate, no sourcemaps (errors arrive minified)
 eas update --branch preview --environment preview --message "Description"
 eas update --branch production --environment production --message "Description"
 

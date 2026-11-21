@@ -29,8 +29,8 @@ interface Props {
    * while the Journal is selecting moments. Default true.
    */
   swipeEnabled?: boolean;
-  /** Called when the visible pane changes (by swipe or by tapping a label). */
-  onPaneChange?: (key: string) => void;
+  /** Called when the visible pane changes, saying whether a label tap or a swipe did it. */
+  onPaneChange?: (key: string, via: "tap" | "swipe") => void;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -59,7 +59,7 @@ export function PaneSwitcher({
       setIndex(i);
       pagerRef.current?.setPage(i);
       const key = panes[i]?.key;
-      if (key) onPaneChange?.(key);
+      if (key) onPaneChange?.(key, "tap");
     },
     [panes, onPaneChange]
   );
@@ -110,7 +110,7 @@ export function PaneSwitcher({
           if (i === index) return;
           setIndex(i);
           const key = panes[i]?.key;
-          if (key) onPaneChange?.(key);
+          if (key) onPaneChange?.(key, "swipe");
         }}
       >
         {shownChildren.map((child, i) => (

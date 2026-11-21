@@ -14,6 +14,7 @@ import {
 import type { ViewInstance } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useRouter, useFocusEffect } from "expo-router";
+import { usePostHog } from "posthog-react-native";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { useFriends } from "@/hooks/useFriends";
@@ -309,6 +310,7 @@ export default function AlbumsScreen() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const queryClient = useQueryClient();
+  const posthog = usePostHog();
 
   const [newAlbumVisible, setNewAlbumVisible] = useState(false);
   // The album whose invite sheet (components/AlbumShareSheet) is open.
@@ -388,6 +390,7 @@ export default function AlbumsScreen() {
         Alert.alert(failTitle, friendlyError(e));
       }
       if (status) {
+        posthog?.capture("album_invite_answered", { accepted: accept });
         dropInviteLocally(id);
         if (status === "joined") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         else if (accept) Alert.alert(failTitle, inviteClosedMessage(status));
@@ -400,7 +403,7 @@ export default function AlbumsScreen() {
         return next;
       });
     },
-    [answering, dropInviteLocally, queryClient, userId]
+    [answering, dropInviteLocally, queryClient, userId, posthog]
   );
 
   const openAlbum = useCallback(
@@ -542,7 +545,11 @@ export default function AlbumsScreen() {
     body = <ErrorState message={friendlyError(error)} onRetry={() => refetch()} />;
   } else {
     body = (
-      <PaneSwitcher panes={panes} showSwitch={showSwitch}>
+      <PaneSwitcher
+        panes={panes}
+        showSwitch={showSwitch}
+        onPaneChange={(key, via) => posthog?.capture("pane_switched", { tab: "albums", pane: key, via })}
+      >
         {[
           <AlbumGrid
             key="yours"

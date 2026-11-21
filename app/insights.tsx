@@ -1,7 +1,8 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { usePostHog } from "posthog-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppImage } from "@/components/AppImage";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
@@ -42,6 +43,8 @@ const TOP_DECADES = 5;
 const plural = (n: number) => `${n.toLocaleString()} ${n === 1 ? "moment" : "moments"}`;
 
 type Styles = ReturnType<typeof createStyles>;
+
+type InsightsSection = "artists" | "coming_back" | "genres" | "decades" | "when" | "featuring" | "moods";
 
 /**
  * One ranked word with its count and a quiet ink bar of its share against the
@@ -109,6 +112,16 @@ export default function InsightsScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const { user, profile } = useAuth();
+  const posthog = usePostHog();
+  const { from } = useLocalSearchParams<{ from?: string }>();
+
+  // Only the You preview passes `from`; anything else arrived by link.
+  const openLogged = useRef(false);
+  useEffect(() => {
+    if (openLogged.current) return;
+    openLogged.current = true;
+    posthog?.capture("insights_opened", { from: from || "deep_link" });
+  }, [from, posthog]);
 
   const meta = useQuery({
     queryKey: ["browseMeta", user?.id],
@@ -143,6 +156,42 @@ export default function InsightsScreen() {
       .slice(0, TOP_MOODS);
   }, [insights, allMoods]);
 
+  const enough = !!insights && insights.moments >= INSIGHTS_MIN_MOMENTS;
+  const highlights = insights ? artistHighlights(insights, TOP_ARTISTS) : null;
+  const artists = highlights?.artists ?? [];
+  const people = insights?.featuring.slice(0, TOP_PEOPLE) ?? [];
+  const topMoodCount = moods[0]?.count ?? 1;
+  // A single row only repeats the line above it, so rows show from two.
+  const genres = taste && taste.genres.length > 1 ? taste.genres.slice(0, TOP_GENRES) : [];
+  const decades = taste && taste.decades.length > 1 ? taste.decades.slice(0, TOP_DECADES) : [];
+  const times = writing && writing.times.length > 1 ? writing.times : [];
+  const topTimeCount = Math.max(1, ...times.map((t) => t.count));
+  // The pattern line leads; with no pattern, the busiest month does.
+  const writingLine = writing?.line ?? (writing?.busiestMonth ? `Busiest in ${writing.busiestMonth}` : null);
+  const writingSub = writing?.line && writing.busiestMonth ? `Busiest in ${writing.busiestMonth}` : null;
+
+  // Analytics: which sections had something to show, once per open. Section
+  // names only, never the artists, songs or people in them.
+  const shownSections: InsightsSection[] = [];
+  if (enough) {
+    if (artists.length > 0) shownSections.push("artists");
+    if (songs.length > 0) shownSections.push("coming_back");
+    if (taste?.genreLine || genres.length > 0) shownSections.push("genres");
+    if (taste?.periodLine || decades.length > 0) shownSections.push("decades");
+    if (writingLine) shownSections.push("when");
+    if (people.length > 0) shownSections.push("featuring");
+    if (moods.length > 0) shownSections.push("moods");
+  }
+  const shownKey = shownSections.join(",");
+  const hasData = !!meta.data;
+  const sectionsLogged = useRef(false);
+  useEffect(() => {
+    if (!hasData || sectionsLogged.current) return;
+    sectionsLogged.current = true;
+    posthog?.capture("insights_sections_shown", { sections: shownKey ? shownKey.split(",") : [] });
+  }, [hasData, shownKey, posthog]);
+  const tapped = (section: InsightsSection) => posthog?.capture("insights_section_tapped", { section });
+
   if (meta.isLoading) {
     return (
       <View style={styles.container}>
@@ -160,19 +209,6 @@ export default function InsightsScreen() {
     );
   }
 
-  const enough = !!insights && insights.moments >= INSIGHTS_MIN_MOMENTS;
-  const highlights = insights ? artistHighlights(insights, TOP_ARTISTS) : null;
-  const artists = highlights?.artists ?? [];
-  const people = insights?.featuring.slice(0, TOP_PEOPLE) ?? [];
-  const topMoodCount = moods[0]?.count ?? 1;
-  // A single row only repeats the line above it, so rows show from two.
-  const genres = taste && taste.genres.length > 1 ? taste.genres.slice(0, TOP_GENRES) : [];
-  const decades = taste && taste.decades.length > 1 ? taste.decades.slice(0, TOP_DECADES) : [];
-  const times = writing && writing.times.length > 1 ? writing.times : [];
-  const topTimeCount = Math.max(1, ...times.map((t) => t.count));
-  // The pattern line leads; with no pattern, the busiest month does.
-  const writingLine = writing?.line ?? (writing?.busiestMonth ? `Busiest in ${writing.busiestMonth}` : null);
-  const writingSub = writing?.line && writing.busiestMonth ? `Busiest in ${writing.busiestMonth}` : null;
 
   return (
     <View style={styles.container}>
@@ -208,7 +244,10 @@ export default function InsightsScreen() {
                     <ArtworkPlaceholder style={styles.art} />
                   )
                 }
-                onPress={() => router.push({ pathname: "/artist", params: { name: a.name } })}
+                onPress={() => {
+                  tapped("artists");
+                  router.push({ pathname: "/artist", params: { name: a.name } });
+                }}
                 last={i === artists.length - 1}
               />
             ))}
@@ -238,7 +277,10 @@ export default function InsightsScreen() {
                     <ArtworkPlaceholder style={styles.art} />
                   )
                 }
-                onPress={() => router.push({ pathname: "/song", params: { title: s.title, artist: s.artist } })}
+                onPress={() => {
+                  tapped("coming_back");
+                  router.push({ pathname: "/song", params: { title: s.title, artist: s.artist } });
+                }}
                 accessibilityLabel={`${s.title.trim()} by ${s.artist.trim()}, ${s.when}`}
                 last={i === songs.length - 1}
               />
@@ -284,7 +326,10 @@ export default function InsightsScreen() {
                 label={p.value}
                 subtitle={plural(p.count)}
                 leading={<Avatar path={null} name={p.value} size={40} />}
-                onPress={() => router.push({ pathname: "/browse/person", params: { name: p.value } })}
+                onPress={() => {
+                  tapped("featuring");
+                  router.push({ pathname: "/browse/person", params: { name: p.value } });
+                }}
                 last={i === people.length - 1}
               />
             ))}
@@ -301,7 +346,10 @@ export default function InsightsScreen() {
                 count={m.count}
                 max={topMoodCount}
                 styles={styles}
-                onPress={() => router.push({ pathname: "/browse/mood", params: { value: m.value } })}
+                onPress={() => {
+                  tapped("moods");
+                  router.push({ pathname: "/browse/mood", params: { value: m.value } });
+                }}
               />
             ))}
           </View>

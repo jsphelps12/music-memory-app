@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
+import { usePostHog } from "posthog-react-native";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchBrowseMetadata, fetchMomentsByIds, fetchPersonMoments } from "@/lib/browse";
 import { findPersonGroup, groupPeopleByPerson, type PersonGroup } from "@/lib/people";
@@ -83,6 +84,18 @@ export default function PersonScreen() {
   // Only from loaded moments: none while loading, after a failed first load,
   // or for someone with no moments.
   const soundtrack = useMemo(() => (moments ? personSoundtrack(moments, allMoods) : null), [moments, allMoods]);
+  const showHeader = !!soundtrack && !!(soundtrack.artists || soundtrack.moods);
+
+  // Once per visit, the first time the header has something to show. Whether
+  // the person is a linked friend, never who.
+  const posthog = usePostHog();
+  const headerLogged = useRef(false);
+  const linkedFriend = !!active.friendId;
+  useEffect(() => {
+    if (!showHeader || headerLogged.current) return;
+    headerLogged.current = true;
+    posthog?.capture("person_soundtrack_viewed", { linked_friend: linkedFriend });
+  }, [showHeader, linkedFriend, posthog]);
 
   return (
     <BrowseScreen
@@ -95,7 +108,7 @@ export default function PersonScreen() {
       error={isError ? friendlyError(error) : null}
       onRetry={() => refetch()}
       summary={soundtrack?.summary}
-      header={soundtrack && (soundtrack.artists || soundtrack.moods) ? <SoundtrackHeader soundtrack={soundtrack} /> : null}
+      header={showHeader && soundtrack ? <SoundtrackHeader soundtrack={soundtrack} /> : null}
     />
   );
 }

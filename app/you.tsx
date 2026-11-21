@@ -308,7 +308,7 @@ export default function YouScreen() {
         {insights ? (
           <Pressable
             style={({ pressed }) => [styles.insights, pressed && insightsReady && styles.pressed]}
-            onPress={insightsReady ? () => router.push("/insights" as any) : undefined}
+            onPress={insightsReady ? () => router.push({ pathname: "/insights" as any, params: { from: "you_preview" } }) : undefined}
             disabled={!insightsReady}
             accessibilityRole={insightsReady ? "button" : undefined}
             accessibilityLabel={insightsReady ? `Insights, ${insightsSummary(insights)}` : undefined}
