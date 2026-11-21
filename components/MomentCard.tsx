@@ -85,6 +85,15 @@ interface Props {
   onOpen?: (item: MomentCardData) => void;
 }
 
+/**
+ * How long a press on a card lasts before it stops being a tap, when the
+ * native context menu handles long-press: a little under the system menu's
+ * own recognition (its haptic), so letting go right after the haptic never
+ * opens the moment.
+ */
+const NATIVE_MENU_LONG_PRESS_MS = 300;
+const noop = () => {};
+
 export type CardMenuAction = "share" | "album" | "select" | "remove";
 
 // The native menu's SF Symbols (the JS fallback draws the Icon names).
@@ -323,7 +332,13 @@ function MomentCardComponent({
         scale.set(withSpring(1, { damping: 15, stiffness: 300 }));
       }}
       onPress={handlePress}
-      onLongPress={canModify && !nativeMenu && !selecting ? handleLongPress : undefined}
+      // With the native menu, iOS owns the long-press (its haptic is the menu
+      // starting). Letting go before the menu has finished opening cancels
+      // it, and without an onLongPress here that release counted as a tap
+      // and opened the moment. A no-op long-press at the menu's own timing
+      // turns any press that long into "not a tap".
+      onLongPress={canModify && !selecting ? (nativeMenu ? noop : handleLongPress) : undefined}
+      delayLongPress={nativeMenu ? NATIVE_MENU_LONG_PRESS_MS : undefined}
       accessibilityRole="button"
       accessibilityLabel={`${item.songTitle} by ${item.songArtist}${formattedDate ? `, ${formattedDate}` : ""}`}
       accessibilityState={selecting ? { selected } : undefined}
@@ -332,6 +347,9 @@ function MomentCardComponent({
         {/* Tapping the artwork plays; tapping anywhere else opens the entry. */}
         <TouchableOpacity
           onPress={canPlay && !selecting ? handlePlayPress : handlePress}
+          // Same as the card: a press long enough to start the menu is never a tap.
+          onLongPress={canModify && nativeMenu && !selecting ? noop : undefined}
+          delayLongPress={nativeMenu ? NATIVE_MENU_LONG_PRESS_MS : undefined}
           activeOpacity={0.8}
           accessibilityRole="button"
           accessibilityLabel={canPlay && !selecting ? `${isThisPlaying ? "Pause" : "Play"} ${item.songTitle}` : undefined}
