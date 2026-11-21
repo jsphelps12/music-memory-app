@@ -292,7 +292,8 @@ widget colors.
     moments go with you.
   - "Keep this": save a moment someone sent you into your own journal.
   - Analytics: record which share option was used.
-  - **Built 2026-11-20 (app on native/1.4.1, server PR 120 awaiting go):**
+  - **Built 2026-11-20; server live 2026-11-21 (PRs 118, 119, 120 merged,
+    migrations applied, notify-social deployed, link page live):**
     who was there linked to friends (`moment_people_links`, owner-only,
     unfriend drops links; PeopleInput friend suggestions with @username,
     "Who is 'Sam'?" to link a chip, Rediscover People grouped by the real
@@ -448,6 +449,12 @@ The starred ones bring the app to you, which serves the north star:
   → retire the guest-form code. 1.5 (native): memory widget, Lock Screen
   capture, offline saves, exact second from Now Playing. EAS cloud builds
   return 2026-12-01.
+- **Growth (2026-11-20):** goal ~100 active users, free channels first
+  (short video, Apple featuring nomination, App Store keywords, a few Reddit
+  builder posts). Short-video pipeline built: `scripts/video/make.py` records
+  the app on the simulator with sample moments and renders 9:16 clips with
+  headlines and an end card (`marketing/videos/README.md`). Posting stays
+  manual or via Buffer; songs are added from each platform's sound library.
 
 ## Where things stood (2026-11-17)
 
