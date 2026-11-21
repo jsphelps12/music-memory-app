@@ -70,8 +70,14 @@ import {
   isWorthKeeping,
   draftWhenLabel,
   newDraftId,
+  type CaptureDraft,
+  type DraftAlbum,
+  type DraftContent,
+  type DraftGiven,
   type DraftSession,
 } from "@/lib/captureDraft";
+import { restoreDraftPhotos } from "@/lib/captureDraftFiles";
+import type { DraftPhoto } from "@/lib/draftPhotos";
 import { withLoadedPhotos, type LoadedPhoto } from "@/lib/capturePhotos";
 
 import { goHome } from "@/lib/goHome";
@@ -313,135 +319,6 @@ export default function CreateMomentScreen() {
     if (params.promptStarter) replaceReflection(params.promptStarter, false);
   }, [params.promptStarter, replaceReflection]);
 
-  // Drafts: writing survives a crash or iOS killing the app, silently, and
-  // closing capture asks whether to keep it (below, by close()). This
-  // capture writes only its own draft (lib/captureDraft.ts), so a pre-filled
-  // one (a share, Last week, From before, a prompt, Identify) leaves an
-  // earlier draft alone for the next blank capture to pick up. A blank
-  // capture picks up the newest draft, and writes wait until that read is
-  // done (or, from "Continue a draft", exactly the draft picked: draftId).
-  // After the save, or Discard, nothing is written again.
-  // When the picked-up draft was last written (for "Draft from Tuesday"), or
-  // null when this capture didn't pick one up.
-  const [restoredDraftAt, setRestoredDraftAt] = useState<number | null>(null);
-  const draftSession = useRef<DraftSession | null>(null);
-  const latestDraft = useRef<{ reflection: string; song: Song | null }>({ reflection: "", song: null });
-  // Text the app put in (starters, prompts): not the user's writing on its own.
-  // State for the close prompt's check in render; the ref for effects.
-  const [templates, setTemplates] = useState<string[]>(() => [
-    ...STARTERS.map((s) => s.text),
-    ...(params.promptStarter ? [params.promptStarter] : []),
-  ]);
-  const draftTemplates = useRef(templates);
-  useEffect(() => {
-    draftTemplates.current = templates;
-  }, [templates]);
-  useEffect(() => {
-    if (!user) return;
-    const prefilled =
-      !!params.songTitle || !!params.promptStarter || !!params.shareCandidates ||
-      !!params.shareFailedUrl || !!params.sharedPhotoPaths || params.identify === "1" ||
-      !!params.photosDay;
-    const session = startDraftSession(newDraftId(), prefilled);
-    draftSession.current = session;
-    if (session.phase === "open") return;
-    loadDraftToPickUp(user.id, {
-      prefilled,
-      typed: () => latestDraft.current.reflection,
-      draftId: params.draftId,
-    }).then((draft) => {
-      if (draft) {
-        replaceReflection(draft.reflection, false);
-        if (draft.song) handleSongChange(draft.song);
-        setRestoredDraftAt(draft.savedAt);
-      }
-      draftSession.current = afterDraftLoad(draftSession.current ?? session, draft);
-      // Anything typed while the read was in flight: keep it now rather
-      // than at the next keystroke.
-      const current = draftSession.current;
-      if (!draft && canWriteDraft(current)) {
-        void saveCaptureDraft(user.id, current.id, latestDraft.current, draftTemplates.current);
-      }
-    });
-    // Once per screen open, for the signed-in user.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
-  useEffect(() => {
-    latestDraft.current = { reflection, song };
-    if (!user || !canWriteDraft(draftSession.current)) return;
-    const t = setTimeout(() => {
-      // Checked again when it fires: the moment may have been saved since.
-      const current = draftSession.current;
-      if (canWriteDraft(current)) void saveCaptureDraft(user.id, current.id, { reflection, song }, draftTemplates.current);
-    }, 600);
-    return () => clearTimeout(t);
-  }, [reflection, song, user]);
-
-  // A share that arrives while this capture is open (the share handler
-  // replaces the route, and the screen is reused with the new params) is a
-  // new capture: the writing so far stays as its own draft for the next
-  // blank capture instead of riding along into the shared song's moment.
-  const shareKey = [
-    params.songId, params.songTitle, params.songArtist, params.shareCandidates,
-    params.sharedPhotoPaths, params.shareFailedUrl,
-  ].join("|");
-  const openedWithShareKey = useRef(shareKey);
-  useEffect(() => {
-    if (shareKey === openedWithShareKey.current) return;
-    openedWithShareKey.current = shareKey;
-    const current = draftSession.current;
-    if (user && canWriteDraft(current)) {
-      void saveCaptureDraft(user.id, current.id, latestDraft.current, draftTemplates.current);
-    }
-    if (current) releaseDraft(current.id);
-    draftSession.current = startDraftSession(newDraftId(), true);
-    replaceReflection("", false);
-    if (!params.sharedPhotoPaths) setPhotos([]);
-    setRestoredDraftAt(null);
-    // Only a new share starts this.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shareKey]);
-
-  // Leaving (Cancel, swipe) flushes the last few keystrokes the debounce
-  // hasn't written yet. Not after a save: the draft is gone for good then.
-  useEffect(
-    () => () => {
-      const current = draftSession.current;
-      if (user && canWriteDraft(current)) {
-        void saveCaptureDraft(user.id, current.id, latestDraft.current, draftTemplates.current);
-      }
-      if (current) releaseDraft(current.id);
-    },
-    // Unmount only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
-
-  const startFresh = () => {
-    Haptics.selectionAsync();
-    const current = draftSession.current;
-    if (user && canWriteDraft(current)) void discardCaptureDraft(user.id, current.id);
-    replaceReflection("", false);
-    handleSongChange(null);
-    setRestoredDraftAt(null);
-  };
-
-  const openFullPage = () => {
-    Keyboard.dismiss();
-    setWritingSession({
-      text: latestDraft.current.reflection,
-      songTitle: song?.title,
-      songArtist: song?.artistName,
-      songArtworkUrl: song?.artworkUrl || undefined,
-      placeholder: params.promptQuestion || "What's this song doing for you?",
-      // Mirrored as it's typed so the draft keeps full-page writing too.
-      onChange: setReflection,
-      onDone: (text) => replaceReflection(text, false),
-    });
-    router.push("/write");
-  };
-
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [people, setPeople] = useState<string[]>([]);
   // Names linked to friends (private to the owner; components/PeopleInput.tsx).
@@ -458,6 +335,8 @@ export default function CreateMomentScreen() {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
+  // A continued draft's album, until the albums have loaded to pick it from.
+  const [draftAlbum, setDraftAlbum] = useState<DraftAlbum | null>(null);
   const [albumPickerVisible, setAlbumPickerVisible] = useState(false);
   const [createAlbumVisible, setCreateAlbumVisible] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -467,6 +346,230 @@ export default function CreateMomentScreen() {
   const loadAlbums = useCallback(() => {
     if (user && albums.length === 0) fetchAlbums(user.id).then(setAlbums).catch(() => {});
   }, [user, albums.length]);
+
+  // Drafts: what the person added survives a crash or iOS killing the app,
+  // silently, and closing capture asks whether to keep it (below, by
+  // close()). A draft keeps the writing, song, photos and videos, moods,
+  // people, date, place and album (lib/captureDraft.ts). This capture writes
+  // only its own draft, so a pre-filled one (a share, Last week, From before,
+  // a prompt, Identify) leaves an earlier draft alone. A blank capture opens
+  // blank; from "Continue a draft" it picks up exactly that draft (draftId),
+  // and writes wait until that read is done. After the save, or Discard,
+  // nothing is written again.
+  // When the picked-up draft was last written (for "Draft from Tuesday"), or
+  // null when this capture didn't pick one up.
+  const [restoredDraftAt, setRestoredDraftAt] = useState<number | null>(null);
+  const draftSession = useRef<DraftSession | null>(null);
+  const latestDraft = useRef<DraftContent>({ reflection: "", song: null });
+  // Text the app put in (starters, prompts): not the user's writing on its own.
+  // State for the close prompt's check in render; the ref for effects.
+  const [templates, setTemplates] = useState<string[]>(() => [
+    ...STARTERS.map((s) => s.text),
+    ...(params.promptStarter ? [params.promptStarter] : []),
+  ]);
+  // Photos that came with the capture (Last week, shared in): not, on their
+  // own, something the person added.
+  const givenPhotos = useMemo(() => {
+    try {
+      return params.sharedPhotoPaths ? (JSON.parse(params.sharedPhotoPaths) as string[]) : [];
+    } catch {
+      return [];
+    }
+  }, [params.sharedPhotoPaths]);
+  const draftGiven = useRef<DraftGiven>({ templates, photos: givenPhotos });
+  useEffect(() => {
+    draftGiven.current = { templates, photos: givenPhotos };
+  }, [templates, givenPhotos]);
+
+  // Everything a draft keeps, as it is now.
+  const draftContent = useMemo<DraftContent>(
+    () => ({
+      reflection,
+      song,
+      photos: photos.map(
+        (uri): DraftPhoto => ({ uri, assetId: photoAssets[uri] ?? null, videoMs: photoVideos[uri] ?? null })
+      ),
+      moods: selectedMoods,
+      people,
+      peopleLinks,
+      date: momentDate ? momentDate.getTime() : null,
+      place: locationResult,
+      album: selectedAlbum ? { id: selectedAlbum.id, name: selectedAlbum.name } : draftAlbum,
+    }),
+    [reflection, song, photos, photoAssets, photoVideos, selectedMoods, people, peopleLinks, momentDate, locationResult, selectedAlbum, draftAlbum]
+  );
+
+  // A continued draft back into the form; `restored` is its photos as files
+  // on this phone now (lib/captureDraftFiles.ts).
+  const applyDraft = (draft: CaptureDraft, restored: DraftPhoto[]) => {
+    replaceReflection(draft.reflection, false);
+    if (draft.song) handleSongChange(draft.song);
+    if (restored.length) {
+      const uris = restored.map((p) => p.uri);
+      setPhotos((current) => [...uris, ...current.filter((uri) => !uris.includes(uri))]);
+      const assets: Record<string, string> = {};
+      const videos: Record<string, number> = {};
+      for (const p of restored) {
+        if (p.assetId) assets[p.uri] = p.assetId;
+        if (p.videoMs != null) videos[p.uri] = p.videoMs;
+      }
+      rememberAssets(assets);
+      rememberVideos(videos);
+    }
+    if (draft.moods?.length) setSelectedMoods(draft.moods);
+    if (draft.people?.length) setPeople(draft.people);
+    if (draft.peopleLinks?.length) setPeopleLinks(draft.peopleLinks);
+    if (draft.date !== undefined) setMomentDate(draft.date === null ? null : new Date(draft.date));
+    if (draft.place) setLocationResult(draft.place);
+    if (draft.album) setDraftAlbum(draft.album);
+    setRestoredDraftAt(draft.savedAt);
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    const prefilled =
+      !!params.songTitle || !!params.promptStarter || !!params.shareCandidates ||
+      !!params.shareFailedUrl || !!params.sharedPhotoPaths || params.identify === "1" ||
+      !!params.photosDay;
+    const session = startDraftSession(newDraftId(), prefilled);
+    draftSession.current = session;
+    if (session.phase === "open") return;
+    loadDraftToPickUp(user.id, {
+      prefilled,
+      typed: () => latestDraft.current.reflection,
+      draftId: params.draftId,
+    }).then(async (picked) => {
+      let draft = picked;
+      const restored = draft?.photos?.length ? await restoreDraftPhotos(draft.photos) : [];
+      // Writing typed while its photos were being found: that stays, and the
+      // draft waits for another capture.
+      if (draft && latestDraft.current.reflection.trim()) {
+        releaseDraft(draft.id);
+        draft = null;
+      }
+      if (draft) applyDraft(draft, restored);
+      draftSession.current = afterDraftLoad(draftSession.current ?? session, draft);
+      // Anything typed while the read was in flight: keep it now rather
+      // than at the next keystroke.
+      const current = draftSession.current;
+      if (!draft && canWriteDraft(current)) {
+        void saveCaptureDraft(user.id, current.id, latestDraft.current, draftGiven.current);
+      }
+    });
+    // Once per screen open, for the signed-in user.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  useEffect(() => {
+    latestDraft.current = draftContent;
+    if (!user || !canWriteDraft(draftSession.current)) return;
+    const t = setTimeout(() => {
+      // Checked again when it fires: the moment may have been saved since.
+      const current = draftSession.current;
+      if (canWriteDraft(current)) void saveCaptureDraft(user.id, current.id, draftContent, draftGiven.current);
+    }, 600);
+    return () => clearTimeout(t);
+  }, [draftContent, user]);
+
+  // A continued draft's album, once the albums are here. Left off if it's
+  // gone (deleted, or left), and never over one picked meanwhile.
+  useEffect(() => {
+    if (draftAlbum) loadAlbums();
+  }, [draftAlbum, loadAlbums]);
+  useEffect(() => {
+    if (!draftAlbum || albums.length === 0) return;
+    const match = albums.find((a) => a.id === draftAlbum.id);
+    if (match) setSelectedAlbum((current) => current ?? match);
+    setDraftAlbum(null);
+  }, [draftAlbum, albums]);
+
+  // A share that arrives while this capture is open (the share handler
+  // replaces the route, and the screen is reused with the new params) is a
+  // new capture: what's there so far stays as its own draft for later
+  // instead of riding along into the shared song's moment.
+  const shareKey = [
+    params.songId, params.songTitle, params.songArtist, params.shareCandidates,
+    params.sharedPhotoPaths, params.shareFailedUrl,
+  ].join("|");
+  const openedWithShareKey = useRef(shareKey);
+  useEffect(() => {
+    if (shareKey === openedWithShareKey.current) return;
+    openedWithShareKey.current = shareKey;
+    const current = draftSession.current;
+    if (user && canWriteDraft(current)) {
+      void saveCaptureDraft(user.id, current.id, latestDraft.current, draftGiven.current);
+    }
+    if (current) releaseDraft(current.id);
+    draftSession.current = startDraftSession(newDraftId(), true);
+    replaceReflection("", false);
+    if (!params.sharedPhotoPaths) setPhotos([]);
+    setSelectedMoods([]);
+    setPeople([]);
+    setPeopleLinks([]);
+    setLocationResult(null);
+    setSelectedAlbum(null);
+    setDraftAlbum(null);
+    setRestoredDraftAt(null);
+    // Only a new share starts this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shareKey]);
+
+  // Leaving (Cancel, swipe) flushes the last changes the debounce hasn't
+  // written yet. Not after a save: the draft is gone for good then.
+  useEffect(
+    () => () => {
+      const current = draftSession.current;
+      if (user && canWriteDraft(current)) {
+        void saveCaptureDraft(user.id, current.id, latestDraft.current, draftGiven.current);
+      }
+      if (current) releaseDraft(current.id);
+    },
+    // Unmount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  // Back to a blank capture: after a save, and on "Start fresh".
+  const clearForm = () => {
+    setRestoredDraftAt(null);
+    handleSongChange(null);
+    replaceReflection("", false);
+    setSelectedMoods([]);
+    setPeople([]);
+    setPeopleLinks([]);
+    setPhotos([]);
+    setMomentDate(new Date());
+    setLocationResult(null);
+    setSelectedAlbum(null);
+    setDraftAlbum(null);
+    setWeatherResult(null);
+    setMetaSuggestion(null);
+    setError("");
+  };
+
+  // The draft's photos, moods and the rest go too: its kept photo copies are
+  // deleted with it.
+  const startFresh = () => {
+    Haptics.selectionAsync();
+    const current = draftSession.current;
+    if (user && canWriteDraft(current)) void discardCaptureDraft(user.id, current.id);
+    clearForm();
+  };
+
+  const openFullPage = () => {
+    Keyboard.dismiss();
+    setWritingSession({
+      text: latestDraft.current.reflection,
+      songTitle: song?.title,
+      songArtist: song?.artistName,
+      songArtworkUrl: song?.artworkUrl || undefined,
+      placeholder: params.promptQuestion || "What's this song doing for you?",
+      // Mirrored as it's typed so the draft keeps full-page writing too.
+      onChange: setReflection,
+      onDone: (text) => replaceReflection(text, false),
+    });
+    router.push("/write");
+  };
 
   // Opened from an album view: pre-select that album.
   useEffect(() => {
@@ -538,7 +641,7 @@ export default function CreateMomentScreen() {
   const [leaving, setLeaving] = useState(false);
   const keepChoice = useRef<"keep" | "discard" | null>(null);
   const continueLeave = useRef<(() => void) | null>(null);
-  const worthKeeping = isWorthKeeping(reflection, templates);
+  const worthKeeping = isWorthKeeping(draftContent, { templates, photos: givenPhotos });
   const allowLeave = usePreventRemove(worthKeeping && !leaving, ({ repeat }) => {
     Keyboard.dismiss();
     keepChoice.current = null;
@@ -660,20 +763,7 @@ export default function CreateMomentScreen() {
         );
       }
 
-      // Reset form
-      setRestoredDraftAt(null);
-      handleSongChange(null);
-      replaceReflection("", false);
-      setSelectedMoods([]);
-      setPeople([]);
-      setPeopleLinks([]);
-      setPhotos([]);
-      setMomentDate(new Date());
-      setLocationResult(null);
-      setSelectedAlbum(null);
-      setWeatherResult(null);
-      setMetaSuggestion(null);
-      setError("");
+      clearForm();
 
       markTimelineStale(savedMoment);
       // Today is logged: its check-in reminder has nothing left to ask.
@@ -994,7 +1084,10 @@ export default function CreateMomentScreen() {
         visible={albumPickerVisible}
         collections={albums}
         selectedId={selectedAlbum?.id ?? null}
-        onSelect={(a) => setSelectedAlbum(a)}
+        onSelect={(a) => {
+          setSelectedAlbum(a);
+          setDraftAlbum(null);
+        }}
         onClose={() => setAlbumPickerVisible(false)}
         onRequestCreate={() => {
           // The picker's Modal has to be gone before the next sheet presents
@@ -1027,7 +1120,10 @@ export default function CreateMomentScreen() {
         visible={promptPickerVisible}
         onSelect={(prompt) => {
           setTemplates((list) => [...list, prompt]);
-          draftTemplates.current = [...draftTemplates.current, prompt];
+          draftGiven.current = {
+            ...draftGiven.current,
+            templates: [...(draftGiven.current.templates ?? []), prompt],
+          };
           replaceReflection(prompt, true);
         }}
         onClose={() => setPromptPickerVisible(false)}

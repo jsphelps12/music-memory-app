@@ -9,8 +9,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import {
   continueDraftSubtitle,
-  draftExcerpt,
-  draftWhenLabel,
+  draftMeta,
+  draftTitle,
   type CaptureDraft,
 } from "@/lib/captureDraft";
 
@@ -141,8 +141,8 @@ export function CaptureMenu({
             <ListRow
               key={draft.id}
               testID={`capture-draft-${i}`}
-              label={draftExcerpt(draft.reflection)}
-              subtitle={[draft.song?.title, draftWhenLabel(draft.savedAt, now)].filter(Boolean).join(" · ")}
+              label={draftTitle(draft)}
+              subtitle={draftMeta(draft, now)}
               subtitleLines={1}
               last={i === drafts.length - 1}
               onPress={() => {

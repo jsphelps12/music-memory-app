@@ -5,6 +5,8 @@
 // starts clean. Other per-user caches (timeline, profile, browse, capture
 // draft, daily check-in) are cleared by their own modules' clear* helpers in
 // contexts/AuthContext.tsx; in-memory copies by clearInMemoryStores there.
+// clearCaptureDraft also deletes the drafts' kept photo copies
+// (Documents/capture-drafts/<userId>/, lib/captureDraftFiles.ts).
 //
 // The names are repeated here rather than imported (importing those modules
 // would pull native code into this one); lib/__tests__/signOutKeys.test.ts
