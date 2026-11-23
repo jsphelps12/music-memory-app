@@ -2,8 +2,10 @@
 // __tests__ because the web project doesn't install vitest.
 import { describe, expect, it } from "vitest";
 import {
+  isMissingFunction,
   latestAddedAt,
   mapAlbumMomentRows,
+  mapPublicAlbumRows,
   memberContributorIds,
   type AlbumMomentRow,
 } from "../albumMoments";
@@ -82,5 +84,48 @@ describe("latestAddedAt", () => {
     expect(latestAddedAt(rows, "asc")).toBe("2026-10-02T00:00:00Z");
     expect(latestAddedAt([...rows].reverse(), "desc")).toBe("2026-10-02T00:00:00Z");
     expect(latestAddedAt([], "desc")).toBeNull();
+  });
+});
+
+describe("mapPublicAlbumRows", () => {
+  const pub = (name: string | null, photos: string[] | null = null) => ({
+    added_at: "2026-11-23T10:00:00+00:00",
+    contributor_name: name,
+    moment: {
+      id: "m1",
+      song_title: "Song",
+      song_artist: "Artist",
+      song_artwork_url: null,
+      song_preview_url: null,
+      photo_urls: photos,
+      reflection_text: "words",
+      moment_date: "2026-11-22",
+      mood: "joyful",
+    },
+  });
+
+  it("maps the function's rows like the direct read did", () => {
+    const [item] = mapPublicAlbumRows([pub("Sam", ["u/p.jpg"])], URL);
+    expect(item).toMatchObject({
+      id: "m1",
+      reflection: "words",
+      mood: "joyful",
+      contributorName: "Sam",
+      photoUrls: [`${URL}/storage/v1/object/public/moment-photos/u/p.jpg`],
+    });
+  });
+
+  it("uses the page's fallback name when the function has none", () => {
+    expect(mapPublicAlbumRows([pub(null)], URL, "Owner")[0].contributorName).toBe("Owner");
+    expect(mapPublicAlbumRows([pub(null)], URL)[0].contributorName).toBeNull();
+  });
+});
+
+describe("isMissingFunction", () => {
+  it("knows PostgREST's and Postgres's 'no such function'", () => {
+    expect(isMissingFunction({ code: "PGRST202" })).toBe(true);
+    expect(isMissingFunction({ code: "42883" })).toBe(true);
+    expect(isMissingFunction({ code: "42501" })).toBe(false);
+    expect(isMissingFunction(null)).toBe(false);
   });
 });

@@ -108,11 +108,81 @@ export function latestAddedAt(rows: AlbumMomentRow[], order: "asc" | "desc"): st
   return newest?.added_at ?? null;
 }
 
+/** One row of get_public_album_moments (supabase/migrations/20261123000000). */
+export interface PublicAlbumRow {
+  added_at: string;
+  /** A guest's own name, else the adder's display name; null for the page's fallback. */
+  contributor_name: string | null;
+  moment: {
+    id: string;
+    song_title: string;
+    song_artist: string;
+    song_artwork_url: string | null;
+    song_preview_url: string | null;
+    photo_urls: string[] | null;
+    reflection_text: string | null;
+    moment_date: string | null;
+    mood: string | null;
+  };
+}
+
+export function mapPublicAlbumRows(
+  rows: PublicAlbumRow[],
+  supabaseUrl: string,
+  fallbackContributorName: string | null = null
+): MomentItem[] {
+  return rows.map(({ moment: m, contributor_name }) => ({
+    id: m.id,
+    songTitle: m.song_title,
+    songArtist: m.song_artist,
+    artworkUrl: m.song_artwork_url,
+    previewUrl: m.song_preview_url,
+    photoUrls: (m.photo_urls ?? []).map((path) => publicPhotoUrl(supabaseUrl, path)),
+    reflection: m.reflection_text,
+    momentDate: m.moment_date,
+    mood: m.mood,
+    contributorName: contributor_name ?? fallbackContributorName,
+  }));
+}
+
+/** PostgREST's answer when a function isn't there (yet). */
+export function isMissingFunction(error: { code?: string | null } | null): boolean {
+  return error?.code === "PGRST202" || error?.code === "42883";
+}
+
 /**
+ * An album's moments for the web pages, read through
+ * get_public_album_moments by invite code: only a shared album answers, and
+ * only the fields the pages show come back (DB-2 makes moments owner-only,
+ * so signed-out pages can't read the table). Until that function is on the
+ * database, falls back to the direct read it replaces.
+ *
  * Throws on any query error rather than returning an empty album, so a failed
  * read shows as an error instead of "No songs yet".
  */
 export async function fetchAlbumMomentItems(
+  supabase: SupabaseClient,
+  album: { id: string; inviteCode: string },
+  options: FetchAlbumMomentsOptions
+): Promise<AlbumMoments> {
+  const { order, after, fallbackContributorName = null } = options;
+  const { data, error } = await supabase.rpc("get_public_album_moments", {
+    p_invite_code: album.inviteCode,
+    p_after: after ?? null,
+    p_oldest_first: order === "asc",
+  });
+  if (isMissingFunction(error)) return fetchAlbumMomentItemsDirect(supabase, album.id, options);
+  if (error) throw new Error(`album moments: ${error.message}`);
+  const rows = (data ?? []) as PublicAlbumRow[];
+  const newest = order === "desc" ? rows[0] : rows[rows.length - 1];
+  return {
+    moments: mapPublicAlbumRows(rows, process.env.NEXT_PUBLIC_SUPABASE_URL!, fallbackContributorName),
+    latestAddedAt: newest?.added_at ?? null,
+  };
+}
+
+/** The read get_public_album_moments replaces; only until that function is applied. */
+async function fetchAlbumMomentItemsDirect(
   supabase: SupabaseClient,
   collectionId: string,
   { order, after, fallbackContributorName = null }: FetchAlbumMomentsOptions

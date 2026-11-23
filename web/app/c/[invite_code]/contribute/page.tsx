@@ -26,7 +26,11 @@ export default async function ContributePage({ params, searchParams }: PageProps
   }
 
   // Newest first: the hub prepends polled-in songs above these.
-  const { moments } = await fetchAlbumMomentItems(getSupabase(), collection.id, { order: "desc" });
+  const { moments } = await fetchAlbumMomentItems(
+    getSupabase(),
+    { id: collection.id, inviteCode: invite_code },
+    { order: "desc" }
+  );
 
   return (
     <ContributeHub
