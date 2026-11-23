@@ -29,6 +29,12 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 BUNDLE_ID="com.joshuaphelps.musicmemory.preview"
 
+# --install-only: put this checkout's JS (production backend) into the
+# simulator app and stop, without resetting the account or running flows.
+# scripts/video/make.py uses it so recordings hit the account it seeds.
+INSTALL_ONLY=""
+if [ "${1:-}" = "--install-only" ]; then INSTALL_ONLY=1; shift; fi
+
 FLOWS=("$@")
 [ ${#FLOWS[@]} -gt 0 ] || FLOWS=(actions)
 if [ "${FLOWS[0]}" = "all" ]; then
@@ -84,6 +90,7 @@ echo "── Installing it into the simulator app"
 xcrun simctl terminate "$DEVICE" "$BUNDLE_ID" 2>/dev/null || true
 cp "$BUNDLE/main.jsbundle" "$APP/main.jsbundle"
 cp -R "$BUNDLE/assets/." "$APP/"
+if [ -n "$INSTALL_ONLY" ]; then echo "── Installed into $DEVICE"; exit 0; fi
 
 FAILED=()
 for FLOW in "${FLOWS[@]}"; do

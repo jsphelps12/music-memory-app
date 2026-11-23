@@ -169,6 +169,12 @@ for hex literals; with a later binary, an app-wide ink tint for Alerts and
 widget colors.
 
 **1.5 (a new native build), in `native/1.5` off `native/1.4`:**
+Scope (Josh, 2026-11-23): Memory widget, the part of the song set
+automatically, voice entries with the recordings kept, Siri as the stretch.
+Journaling Suggestions waits on the entitlement (ask Apple now).
+- [ ] **The part of the song, set automatically:** the system player's
+  position when the song came from Playing now; Shazam's match offset when
+  it came from Identify (the exact second you heard it).
 - [ ] **Siri: "remember this song"** — an App Intent (Siri, Shortcuts, the
   Action button) saves what's playing without opening the app, screen off;
   a gentle "finish this one" later. Needs an app group and the session in
@@ -176,7 +182,15 @@ widget colors.
 - [ ] **Journaling Suggestions** — Apple's system picker (as in Apple's
   Journal) offering the day's songs, photos and places, with consent.
   iOS 17.2+; check the entitlement first.
-- [ ] **Voice entries** — speak the reflection, transcribed on device.
+- [ ] **Voice entries** — speak the reflection, transcribed on device;
+  the recording is kept too (Josh, 2026-11-23): your voice plays on the
+  moment and in the film (ducking the song through createMixRestore), and
+  feeds "Your life as a radio show" later. Voice is more personal than a
+  photo, so recordings go in a private bucket with signed URLs (not the
+  public moment-photos bucket), owner-only until shared, a length cap, and
+  deleted with the moment. The transcript is the person's own words, so it
+  can fill the reflection (the "AI never writes it" rule is about
+  generated text).
 - [ ] **Memory widget** — one moment a day on the Home Screen, opening
   into the film.
 
@@ -200,13 +214,18 @@ widget colors.
   photos deleted too). Journal first, album screens next. The menu stays
   the long-press; selection is one of its actions (as in Photos and Files).
 - [ ] **The part of the song** (on the polish list after build 16, Josh
-  2026-11-19; design still to riff on): where in the song the moment
+  2026-11-19; decided 2026-11-23: one point, not a stretch, no looping;
+  show the lyric at that point if it can be done legally, see below): where in the song the moment
   lives ("the bridge at 2:41"); full playback starts there (`seekToTime`
   exists). Over the air: mark it with a scrubber in capture/Edit, one new
   nullable column (also returned by `moment_view_for`). Previews are a
   fixed 30 s clip, so without full playback it's a label only. Grabbing the
   second automatically from Now Playing needs the system player's position
   (native, 1.5).
+  Lyrics: MusicKit gives apps no lyrics, and showing them needs a licence
+  (e.g. Musixmatch's commercial API). Without one, the person types the
+  line themselves ("the line that got me"), which is their own words and
+  needs no licence.
 - [x] **Swipe between moments** *(built 2026-11-20, `lib/momentSequence.ts`;
   flips within the Journal or album it was opened from, swipe down closes,
   seek bar and photo strip keep their drags; checked in the simulator, needs
