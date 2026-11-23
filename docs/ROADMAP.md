@@ -172,6 +172,8 @@ widget colors.
 Scope (Josh, 2026-11-23): Memory widget, the part of the song set
 automatically, voice entries with the recordings kept, Siri as the stretch.
 Journaling Suggestions waits on the entitlement (ask Apple now).
+The working plan, with how each piece is built and the open decisions:
+`docs/PLAN-1.5.md`.
 - [ ] **The part of the song, set automatically:** the system player's
   position when the song came from Playing now; Shazam's match offset when
   it came from Identify (the exact second you heard it).
