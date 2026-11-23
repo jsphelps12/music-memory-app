@@ -86,7 +86,7 @@ export default async function AlbumPage({ params }: PageProps) {
 
   // Oldest first, read like a tracklist. A contributor with no name on file
   // is shown under the owner's name.
-  const { moments } = await fetchAlbumMomentItems(getSupabase(), collection.id, {
+  const { moments } = await fetchAlbumMomentItems(getSupabase(), { id: collection.id, inviteCode: invite_code }, {
     order: "asc",
     fallbackContributorName: ownerName,
   });

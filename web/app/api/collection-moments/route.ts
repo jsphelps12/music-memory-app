@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { moments, latestAddedAt } = await fetchAlbumMomentItems(supabase, collection.id, {
+    const { moments, latestAddedAt } = await fetchAlbumMomentItems(supabase, { id: collection.id, inviteCode }, {
       order: "desc",
       after,
     });
