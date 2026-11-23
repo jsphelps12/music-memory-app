@@ -44,6 +44,8 @@ export interface CaptureDraft {
   date?: number | null;
   place?: DraftPlace | null;
   album?: DraftAlbum | null;
+  /** The part of the song in ms (lib/songPart.ts), null for none. */
+  partMs?: number | null;
 }
 
 export interface DraftPlace {
@@ -59,7 +61,7 @@ export interface DraftAlbum {
 }
 
 export type DraftContent = Pick<CaptureDraft, "reflection" | "song"> &
-  Partial<Pick<CaptureDraft, "photos" | "moods" | "people" | "peopleLinks" | "date" | "place" | "album">>;
+  Partial<Pick<CaptureDraft, "photos" | "moods" | "people" | "peopleLinks" | "date" | "place" | "album" | "partMs">>;
 
 /**
  * What the app put in a capture rather than the person: starter and prompt
@@ -149,6 +151,7 @@ export function draftRecord(id: string, content: DraftContent, now: number): Cap
   if (content.date !== undefined) record.date = content.date;
   if (content.place) record.place = { name: content.place.name, lat: content.place.lat, lng: content.place.lng };
   if (content.album) record.album = { id: content.album.id, name: content.album.name };
+  if (content.partMs != null && content.song) record.partMs = content.partMs;
   return record;
 }
 
@@ -339,6 +342,7 @@ function readDraft(value: unknown): CaptureDraft | null {
   if (place && typeof place.name === "string" && isNumberOrNull(place.lat) && isNumberOrNull(place.lng)) {
     draft.place = { name: place.name, lat: place.lat, lng: place.lng };
   }
+  if (typeof d.partMs === "number" && Number.isFinite(d.partMs) && d.partMs >= 0) draft.partMs = d.partMs;
   const album = d.album as DraftAlbum | null | undefined;
   if (album && typeof album.id === "string" && typeof album.name === "string") {
     draft.album = { id: album.id, name: album.name };

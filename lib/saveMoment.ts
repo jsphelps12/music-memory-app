@@ -12,7 +12,7 @@ import { buildPhotoColumns, newPhotoUris, type EditedPhoto, type PhotoColumns } 
 import { refsColumn, type MediaRefs } from "@/lib/linkedMedia";
 import { cloudIdsFor } from "@/modules/now-playing";
 import { EMPTY_SONG_LOOKUP, songMetadataColumns, type SongLookup } from "@/lib/songMetadata";
-import { SONG_METADATA_OPTIONAL_COLUMNS, writeWithOptionalColumns } from "@/lib/optionalColumns";
+import { MOMENT_OPTIONAL_COLUMNS, writeWithOptionalColumns } from "@/lib/optionalColumns";
 import type { CaptureSource } from "@/lib/captureSource";
 
 /**
@@ -161,7 +161,7 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
       // for stranded build-7 binaries and takes its 'private' DB default here.
       // Privacy is the absence of grant rows, not this column.
     },
-    SONG_METADATA_OPTIONAL_COLUMNS,
+    MOMENT_OPTIONAL_COLUMNS,
     (row) => supabase.from("moments").insert(row).select("*").single()
   );
   if (droppedOptional) {
@@ -287,7 +287,7 @@ export async function updateMoment(input: UpdateMomentInput): Promise<Moment> {
       photo_thumbnails: columns.photo_thumbnails,
       media_refs: refsColumn(columns.media_refs),
     },
-    SONG_METADATA_OPTIONAL_COLUMNS,
+    MOMENT_OPTIONAL_COLUMNS,
     (row) => supabase.from("moments").update(row).eq("id", input.momentId).select("*").single()
   );
 

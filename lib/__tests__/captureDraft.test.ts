@@ -588,3 +588,19 @@ describe("storage: a draft's photos", () => {
     releaseDraft("mine");
   });
 });
+
+describe("the part of the song in a draft", () => {
+  it("keeps the part with its song and reads it back", () => {
+    const [kept] = withDraft([], "p", { reflection: "words", song, partMs: 161_000 }, NOW);
+    expect(kept.partMs).toBe(161_000);
+    const [read] = parseStoredDrafts(JSON.stringify([kept]), null);
+    expect(read.partMs).toBe(161_000);
+  });
+
+  it("drops a part with no song, and a malformed one", () => {
+    const [kept] = withDraft([], "p", { reflection: "words", song: null, partMs: 161_000 }, NOW);
+    expect(kept.partMs).toBeUndefined();
+    const [read] = parseStoredDrafts(JSON.stringify([{ ...kept, partMs: "soon" }]), null);
+    expect(read.partMs).toBeUndefined();
+  });
+});

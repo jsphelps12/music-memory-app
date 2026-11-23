@@ -16,6 +16,7 @@ import { ThemeScheme } from "@/hooks/useTheme";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
+import { partStartSeconds } from "@/lib/songPart";
 import { consumeCachedMoment, setCachedMoment } from "@/lib/momentCache";
 import { artworkUrlAtSize } from "@/lib/itunes";
 import { friendlyError } from "@/lib/errors";
@@ -90,7 +91,8 @@ function MemoryCard() {
         spotifyId: moment.songSpotifyId ?? null,
         durationMs: 0,
       },
-      moment.songPreviewUrl || undefined
+      moment.songPreviewUrl || undefined,
+      partStartSeconds(moment.songPartMs)
     );
   }, [moment, songId, playFull]);
 

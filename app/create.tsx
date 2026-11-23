@@ -82,6 +82,8 @@ import type { DraftPhoto } from "@/lib/draftPhotos";
 import { withLoadedPhotos, type LoadedPhoto } from "@/lib/capturePhotos";
 
 import { goHome } from "@/lib/goHome";
+import { formatSongTime } from "@/lib/songPart";
+import { SongPartSheet } from "@/components/SongPartSheet";
 // Starters, not prompts: they open a sentence for the three ways people use
 // the journal (a memory, a discovery, a day) and get out of the way.
 // The left-edge strip that asks before leaving: about as wide as iOS's own
@@ -96,7 +98,7 @@ const STARTERS = [
   { label: "Today I…", text: "Today I " },
 ] as const;
 
-type DetailSheet = "mood" | "people" | "place" | "date" | null;
+type DetailSheet = "mood" | "people" | "place" | "date" | "part" | null;
 
 function isSameDay(a: Date, b: Date) {
   return a.toDateString() === b.toDateString();
@@ -190,6 +192,35 @@ export default function CreateMomentScreen() {
     // that's cancelled) has no one awaiting it.
     previewFetchRef.current = s ? lookupPreview(s) : null;
   }, []);
+  // The part of the song (lib/songPart.ts) and the song's length for its
+  // scrubber. A different song starts with no part; partSongKey says which
+  // song the part belongs to, so a continued draft can bring its own back.
+  const [songPartMs, setSongPartMs] = useState<number | null>(null);
+  const [songDurationMs, setSongDurationMs] = useState<number | null>(null);
+  const songKey = song ? `${song.provider}:${song.appleMusicId ?? song.spotifyId ?? song.id}:${song.title}` : "";
+  const partSongKey = useRef(songKey);
+  useEffect(() => {
+    if (partSongKey.current === songKey) return;
+    partSongKey.current = songKey;
+    setSongPartMs(null);
+  }, [songKey]);
+  useEffect(() => {
+    if (!song) {
+      setSongDurationMs(null);
+      return;
+    }
+    // The picker's length until the catalog lookup (always ms) says.
+    let cancelled = false;
+    setSongDurationMs(song.durationMs > 0 ? song.durationMs : null);
+    previewFetchRef.current?.then((lookup) => {
+      if (!cancelled && lookup?.durationMs) setSongDurationMs(lookup.durationMs);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // The lookup starts with the song, in handleSongChange.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [songKey]);
   const [candidates, setCandidates] = useState<Song[]>([]);
   const [showCandidateModal, setShowCandidateModal] = useState(false);
 
@@ -402,15 +433,22 @@ export default function CreateMomentScreen() {
       date: momentDate ? momentDate.getTime() : null,
       place: locationResult,
       album: selectedAlbum ? { id: selectedAlbum.id, name: selectedAlbum.name } : draftAlbum,
+      partMs: songPartMs,
     }),
-    [reflection, song, photos, photoAssets, photoVideos, selectedMoods, people, peopleLinks, momentDate, locationResult, selectedAlbum, draftAlbum]
+    [reflection, song, photos, photoAssets, photoVideos, selectedMoods, people, peopleLinks, momentDate, locationResult, selectedAlbum, draftAlbum, songPartMs]
   );
 
   // A continued draft back into the form; `restored` is its photos as files
   // on this phone now (lib/captureDraftFiles.ts).
   const applyDraft = (draft: CaptureDraft, restored: DraftPhoto[]) => {
     replaceReflection(draft.reflection, false);
-    if (draft.song) handleSongChange(draft.song);
+    if (draft.song) {
+      handleSongChange(draft.song);
+      // The draft's part belongs to its song: keep the song-change reset
+      // from clearing it.
+      partSongKey.current = `${draft.song.provider}:${draft.song.appleMusicId ?? draft.song.spotifyId ?? draft.song.id}:${draft.song.title}`;
+      if (draft.partMs != null) setSongPartMs(draft.partMs);
+    }
     if (restored.length) {
       const uris = restored.map((p) => p.uri);
       setPhotos((current) => [...uris, ...current.filter((uri) => !uris.includes(uri))]);
@@ -754,6 +792,7 @@ export default function CreateMomentScreen() {
         prefetchedPreview: previewFetchRef.current,
         weatherResult,
         captureSource,
+        songPartMs,
       });
 
       // Saved: this capture's draft goes, and nothing writes it again (a
@@ -846,6 +885,18 @@ export default function CreateMomentScreen() {
         photoPickerRef.current?.openPicker();
       },
     },
+    // The part of the song: only once there's a song to point into.
+    ...(song
+      ? [
+          {
+            key: "part",
+            icon: "musical-note-outline" as IconName,
+            label: songPartMs != null ? `At ${formatSongTime(songPartMs)}` : "Part",
+            set: songPartMs != null,
+            onPress: () => openSheet("part"),
+          },
+        ]
+      : []),
     {
       key: "mood",
       icon: "happy-outline",
@@ -1086,6 +1137,17 @@ export default function CreateMomentScreen() {
           />
         </View>
       </BottomSheet>
+
+      {song ? (
+        <SongPartSheet
+          visible={detailSheet === "part"}
+          onClose={() => setDetailSheet(null)}
+          song={song}
+          durationMs={songDurationMs}
+          value={songPartMs}
+          onChange={setSongPartMs}
+        />
+      ) : null}
 
       <BottomSheet visible={detailSheet === "place"} onClose={() => setDetailSheet(null)} title="Place" keyboardAvoiding>
         <View style={styles.sheetBody}>

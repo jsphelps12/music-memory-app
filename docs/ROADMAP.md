@@ -214,8 +214,16 @@ Journaling Suggestions waits on the entitlement (ask Apple now).
   photos deleted too). Journal first, album screens next. The menu stays
   the long-press; selection is one of its actions (as in Photos and Files).
 - [ ] **The part of the song** (on the polish list after build 16, Josh
-  2026-11-19; decided 2026-11-23: one point, not a stretch, no looping;
-  show the lyric at that point if it can be done legally, see below): where in the song the moment
+  2026-11-19; decided 2026-11-23: one point, not a stretch, no looping, no
+  lyrics). **Built 2026-11-23** (`lib/songPart.ts`, `components/SongPartSheet.tsx`,
+  column `song_part_ms` in PR 124): a "Part" chip in capture and a "Part of
+  the song" row in Edit open a scrubber with "Play from here" and "Use
+  0:00" (the second you're hearing); drafts keep it; a new song clears it.
+  The moment's autoplay, Play, the card's play button and resurfaced
+  memories start full playback there (`playFull(…, startAt)`, a dropped
+  seek retried in the first 4 s); the detail screen says "Play from 2:41"
+  and marks it on the progress bar. A preview still starts at its top.
+  Earlier notes: where in the song the moment
   lives ("the bridge at 2:41"); full playback starts there (`seekToTime`
   exists). Over the air: mark it with a scrubber in capture/Edit, one new
   nullable column (also returned by `moment_view_for`). Previews are a

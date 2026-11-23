@@ -17,6 +17,13 @@ export const SONG_METADATA_OPTIONAL_COLUMNS = [
 ] as const;
 
 /**
+ * Every column a moment write may drop on a database that doesn't have it
+ * yet: the song metadata above, and the part of the song
+ * (20261123120000_song_part.sql).
+ */
+export const MOMENT_OPTIONAL_COLUMNS = [...SONG_METADATA_OPTIONAL_COLUMNS, "song_part_ms"] as const;
+
+/**
  * Whether an error says a column doesn't exist: Postgres `42703`
  * (undefined_column) or PostgREST `PGRST204` ("Could not find the 'x' column
  * of 'moments' in the schema cache"). Either way nothing was written.

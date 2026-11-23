@@ -31,6 +31,7 @@ function fullRow() {
     song_artist_id: "3296287",
     song_album_id: "1440806041",
     song_duration_ms: 354320,
+    song_part_ms: 161000,
     capture_source: "now_playing",
     reflection_text: "Driving home at 2am.",
     photo_urls: ["u1/a.jpg"],
@@ -71,6 +72,7 @@ describe("mapRowToMoment", () => {
       songArtistId: "3296287",
       songAlbumId: "1440806041",
       songDurationMs: 354320,
+      songPartMs: 161000,
       captureSource: "now_playing",
       reflectionText: "Driving home at 2am.",
       photoUrls: ["u1/a.jpg"],
@@ -186,6 +188,8 @@ const CARD_BACKED_FIELDS = [
   "mediaRefs",
   "reflectionText",
   "guestUuid",
+  // The part of the song: a card tap's autoplay starts there.
+  "songPartMs",
 ] as const;
 
 /**
@@ -225,6 +229,7 @@ describe("MOMENT_CARD_COLUMNS contract", () => {
         "guest_name",
         "guest_uuid",
         "id",
+        "song_part_ms",
         "user_id",
         "mood",
         "moods",

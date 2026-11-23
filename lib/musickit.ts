@@ -32,7 +32,8 @@ export async function searchSongs(query: string): Promise<Song[]> {
     provider: "apple_music" as const,
     appleMusicId: item.id,
     spotifyId: null,
-    durationMs: item.duration ?? 0,
+    // MusicKit gives the length in seconds; Song.durationMs is milliseconds.
+    durationMs: item.duration ? Math.round(item.duration * 1000) : 0,
   }));
 }
 

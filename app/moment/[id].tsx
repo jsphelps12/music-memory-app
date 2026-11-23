@@ -47,6 +47,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayerActions, usePlayerControls, usePlayerProgress } from "@/contexts/PlayerContext";
 import { playAction } from "@/lib/playerAction";
+import { formatSongTime, partFraction, partStartSeconds } from "@/lib/songPart";
 import { supabase } from "@/lib/supabase";
 import { getPublicPhotoUrl, momentCardImageUrls } from "@/lib/storage";
 import { deleteGuestMoment, deleteMomentWithCleanup } from "@/lib/deleteMoment";
@@ -676,7 +677,8 @@ function MomentPage({
           spotifyId: current.songSpotifyId ?? null,
           durationMs: 0,
         },
-        current.songPreviewUrl || undefined
+        current.songPreviewUrl || undefined,
+        partStartSeconds(current.songPartMs)
       );
     }, 400);
     return () => clearTimeout(timer);
@@ -1133,7 +1135,8 @@ function MomentPage({
         spotifyId: moment.songSpotifyId ?? null,
         durationMs: 0,
       },
-      moment.songPreviewUrl || undefined
+      moment.songPreviewUrl || undefined,
+      partStartSeconds(moment.songPartMs)
     );
   };
 
@@ -1344,6 +1347,7 @@ function MomentPage({
                   seekGesture={seekGesture}
                   barWidth={progressBarWidth}
                   duration={progressDuration}
+                  partMs={moment.songPartMs ?? null}
                   styles={styles}
                 />
               </View>
@@ -1548,6 +1552,7 @@ function PlaybackProgress({
   seekGesture,
   barWidth,
   duration,
+  partMs,
   styles,
 }: {
   isCurrentSong: boolean;
@@ -1555,6 +1560,8 @@ function PlaybackProgress({
   seekGesture: ReturnType<typeof Gesture.Race>;
   barWidth: SharedValue<number>;
   duration: SharedValue<number>;
+  /** The part of the song (lib/songPart.ts): marked on the bar, named before play. */
+  partMs: number | null;
   styles: ReturnType<typeof createStyles>;
 }) {
   const { playbackTime, playbackDuration } = usePlayerProgress();
@@ -1562,9 +1569,16 @@ function PlaybackProgress({
     duration.set(playbackDuration);
   }, [duration, playbackDuration]);
 
+  const partStart = partStartSeconds(partMs);
   if (!isCurrentSong || playbackDuration <= 0) {
-    return <Text style={styles.playHint}>{playError ? "Unavailable" : "Play"}</Text>;
+    return (
+      <Text style={styles.playHint}>
+        {playError ? "Unavailable" : partStart != null ? `Play from ${formatSongTime(partStart * 1000)}` : "Play"}
+      </Text>
+    );
   }
+  // A preview is its own 30 s clip, so the part can't be placed on it.
+  const mark = playbackDuration > 40 ? partFraction(partMs, playbackDuration * 1000) : null;
   return (
     <>
       <GestureDetector gesture={seekGesture}>
@@ -1575,6 +1589,12 @@ function PlaybackProgress({
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${Math.min(100, (playbackTime / playbackDuration) * 100)}%` }]} />
           </View>
+          {mark != null ? (
+            <View
+              style={[styles.partMark, { left: `${mark * 100}%` }]}
+              accessibilityLabel={`The part of the song, at ${formatSongTime((partMs ?? 0))}`}
+            />
+          ) : null}
         </View>
       </GestureDetector>
       <Text style={styles.progressTime}>
@@ -1754,6 +1774,16 @@ function createStyles(theme: Theme) {
       flex: 1,
       height: 28,
       justifyContent: "center",
+    },
+    // The part of the song: a short tick through the bar, in ink.
+    partMark: {
+      position: "absolute",
+      width: 2,
+      height: 11,
+      marginLeft: -1,
+      top: 8.5,
+      borderRadius: 1,
+      backgroundColor: theme.colors.text,
     },
     progressTrack: {
       height: 3,

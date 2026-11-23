@@ -48,6 +48,8 @@ export interface Moment {
   songArtistId?: string | null;
   songAlbumId?: string | null;
   songDurationMs?: number | null;
+  /** The part of the song: where the moment lives in it, in ms (lib/songPart.ts). */
+  songPartMs?: number | null;
   /** How the moment was captured (lib/captureSource.ts). */
   captureSource?: import("@/lib/captureSource").CaptureSource | null;
   reflectionText: string;
@@ -104,6 +106,7 @@ export type MomentCardData = Pick<
   | "guestUuid"
   | "contributorName"
   | "mediaRefs"
+  | "songPartMs"
 >;
 
 /**

@@ -41,6 +41,7 @@ import {
   type CardMenuKey,
 } from "@/lib/momentActions";
 import { MomentCardData, Song } from "@/types";
+import { partStartSeconds } from "@/lib/songPart";
 
 interface Props {
   item: MomentCardData;
@@ -261,7 +262,8 @@ function MomentCardComponent({
         spotifyId: item.songSpotifyId ?? null,
         durationMs: 0,
       };
-      player.playFull(song, item.songPreviewUrl || undefined);
+      // From the part of the song when it has one (lib/songPart.ts).
+      player.playFull(song, item.songPreviewUrl || undefined, partStartSeconds(item.songPartMs));
     }
   }, [item, isThisPlaying, player]);
 

@@ -48,7 +48,12 @@ describe("momentRowFields", () => {
       location_lat: 39.7,
       location_lng: -104.9,
       moment_date: "2026-10-05",
+      song_part_ms: null,
     });
+  });
+
+  it("writes the part of the song when there is one", () => {
+    expect(momentRowFields(input({ songPartMs: 161_000 })).song_part_ms).toBe(161_000);
   });
 
   it("clears the coordinates with the place, so the map can't pin a removed location", () => {
