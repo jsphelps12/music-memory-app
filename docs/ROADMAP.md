@@ -316,7 +316,8 @@ widget colors.
     (PR 118). **DB-2** written on `db/db-2`. Its two blockers are handled
     (2026-11-23, PR 122 + OTA): album covers in the app read through
     `get_album_artworks` and the web album pages (`/c/`, contribute hub,
-    polling route) through `get_public_album_moments` by invite code, each
+    polling route, and the link preview via PR 123) through
+    `get_public_album_moments` by invite code, each
     returning only what its screen shows; both fall back to the old direct
     read until the migration is applied. Left for DB-2: raise min-build to
     16 after 1.4.1 is approved (Josh's go), then apply it.
