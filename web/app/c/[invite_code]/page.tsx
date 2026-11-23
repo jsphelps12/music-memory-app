@@ -31,16 +31,20 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const ownerName = profile?.display_name ?? null;
 
-  const { data: firstMoment } = await getSupabase()
-    .from("collection_moments")
-    .select("moments(song_artwork_url)")
-    .eq("collection_id", collection.id)
-    .order("added_at", { ascending: true })
-    .limit(1)
-    .single();
-
-  const ogImage =
-    (firstMoment?.moments as { song_artwork_url?: string } | null)?.song_artwork_url ?? undefined;
+  // The first song's artwork, through the same read as the page (DB-2 makes
+  // moments owner-only, so this can't read the table). A failed read just
+  // means a preview without an image.
+  let ogImage: string | undefined;
+  try {
+    const { moments } = await fetchAlbumMomentItems(
+      getSupabase(),
+      { id: collection.id, inviteCode: invite_code },
+      { order: "asc" }
+    );
+    ogImage = moments[0]?.artworkUrl ?? undefined;
+  } catch {
+    ogImage = undefined;
+  }
 
   const title = collection.name;
   const description = ownerName
