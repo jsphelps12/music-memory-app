@@ -119,6 +119,7 @@ moments it says insights show up as the journal grows.
      open their moments (`app/browse/insight.tsx`, chips to switch, like
      Rediscover's mood and year screens); `insightGroups()` counts exactly
      as the rows do, so the number and the screen agree.
+     Rows that open something carry a chevron, like any ListRow.
   5. **Eras, version 2:** found in the data, not the calendar: slide a ~6-week
      window; where one artist dominates, extend the era while they keep
      dominating; it ends when someone else takes over or moments thin out
@@ -191,6 +192,8 @@ widget colors.
   it finished, showed the Journal, then jumped back to ask. While there's
   something to keep, the native swipe is off and a left-edge swipe asks in
   place; after "Keep draft" or "Discard" it leaves.
+  The "Continue a draft" row names the draft's song too ("Dad's truck ·
+  Harvest Moon").
 - [x] **Select moments** (decided 2026-11-18): built 2026-11-18 on native/1.4 with the card menu (Edit, Share, Add to album, Select, Delete; `.maestro/select.yaml`), OTA to 1.4 the same day (group 8419f305) after all three flows passed.: "Select" in the card's
   long-press menu and in the Journal header enters selection mode; tap to
   tick; a bottom bar with Add to album and Delete ("Delete 5 moments?",
@@ -310,9 +313,13 @@ widget colors.
     accepted friends into a shared album, push "<Name> invited you to an
     album", Join / Not now at the top of Albums → Shared; the inviter can't
     see who said Not now, and Not now sticks). **/m/ link page as the hero**
-    (PR 118). **DB-2** written on `db/db-2`; blockers: album artwork in the
-    app and the web album pages read moments directly, each needs a definer
-    RPC first.
+    (PR 118). **DB-2** written on `db/db-2`. Its two blockers are handled
+    (2026-11-23, PR 122 + OTA): album covers in the app read through
+    `get_album_artworks` and the web album pages (`/c/`, contribute hub,
+    polling route) through `get_public_album_moments` by invite code, each
+    returning only what its screen shows; both fall back to the old direct
+    read until the migration is applied. Left for DB-2: raise min-build to
+    16 after 1.4.1 is approved (Josh's go), then apply it.
   - **Who was there → friends (right after 1.4.1, over the air; decided
     2026-11-19):** typing a name suggests matching friends (photo, name,
     @username, so two Sams are told apart) and past names, plus "Add 'Sam'

@@ -240,9 +240,17 @@ export function draftMeta(draft: CaptureDraft, now: number): string {
   return [draft.song?.title, photos, draftWhenLabel(draft.savedAt, now)].filter(Boolean).join(" · ");
 }
 
-/** The "Continue a draft" row's subtitle: the one draft's words, or how many. */
+/**
+ * The "Continue a draft" row's subtitle: the one draft's words and its song
+ * ("Dad's truck · Harvest Moon"; the song alone when that's the title), or
+ * how many.
+ */
 export function continueDraftSubtitle(drafts: readonly CaptureDraft[]): string {
-  if (drafts.length === 1) return draftTitle(drafts[0]);
+  if (drafts.length === 1) {
+    const title = draftTitle(drafts[0]);
+    const song = drafts[0].song?.title;
+    return song && song !== title ? `${title} · ${song}` : title;
+  }
   return `${drafts.length} drafts`;
 }
 

@@ -7,6 +7,7 @@ import { ensureFullMedia, ensureFullMediaForAlbum, ensureFullMediaForAlbumMoment
 import { planAlbumAdd } from "@/lib/momentSelection";
 import { fetchProfilesByIds } from "@/lib/friends";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { isMissingFunctionError } from "@/lib/profile";
 import {
   isMissingInviteBackend,
   mapPendingInvites,
@@ -909,8 +910,28 @@ export async function renameAlbum(collectionId: string, name: string): Promise<v
  * The embedded rows are limited per album on the server, so a large shared
  * album costs the same as a small one.
  */
+/**
+ * Up to four song artworks per album, newest added first, through
+ * get_album_artworks (20261123000000): albums you own, have joined, or have
+ * an open invite to. DB-2 makes moments owner-only, so other people's
+ * moments in a shared album can't be read from the table. Until that
+ * function is on the database, the direct read it replaces.
+ */
 export async function fetchAlbumArtworks(albumIds: string[]): Promise<Record<string, string[]>> {
   if (albumIds.length === 0) return {};
+  const { data, error } = await supabase.rpc("get_album_artworks", { p_collection_ids: albumIds });
+  if (isMissingFunctionError(error)) return fetchAlbumArtworksDirect(albumIds);
+  if (error) throw error;
+  const byAlbum: Record<string, string[]> = {};
+  for (const row of (data ?? []) as { collection_id: string; artwork_urls: string[] | null }[]) {
+    const urls = (row.artwork_urls ?? []).filter(Boolean).slice(0, ARTWORKS_PER_ALBUM);
+    if (urls.length > 0) byAlbum[row.collection_id] = urls;
+  }
+  return byAlbum;
+}
+
+/** The read get_album_artworks replaces; only until that function is applied. */
+async function fetchAlbumArtworksDirect(albumIds: string[]): Promise<Record<string, string[]>> {
   const { data, error } = await supabase
     .from("collections")
     .select("id, collection_moments(added_at, moments(song_artwork_url))")

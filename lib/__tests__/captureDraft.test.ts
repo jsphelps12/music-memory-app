@@ -332,6 +332,7 @@ describe("draft excerpts", () => {
 
   it("the menu row says the one draft's words, or how many", () => {
     expect(continueDraftSubtitle([draft("a", "Dad's truck")])).toBe("Dad's truck");
+    expect(continueDraftSubtitle([{ ...draft("a", "Dad's truck"), song }])).toBe(`Dad's truck · ${song.title}`);
     expect(continueDraftSubtitle([draft("a", "one"), draft("b", "two")])).toBe("2 drafts");
   });
 });

@@ -8,6 +8,7 @@ import { AppImage } from "@/components/AppImage";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Avatar } from "@/components/Avatar";
 import { ErrorState } from "@/components/ErrorState";
+import { Icon } from "@/components/Icon";
 import { ListRow } from "@/components/ListRow";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
@@ -66,6 +67,7 @@ function BarRow({
   styles: Styles;
   onPress?: () => void;
 }) {
+  const theme = useTheme();
   const content = (
     <>
       <View style={styles.barLine}>
@@ -73,6 +75,8 @@ function BarRow({
           {label}
         </Text>
         <Text style={styles.barCount}>{count.toLocaleString()}</Text>
+        {/* Goes somewhere, like a ListRow's chevron (same size and color). */}
+        {onPress ? <Icon name="chevron-forward" size={16} color={theme.colors.textSecondary} /> : null}
       </View>
       <View style={styles.barTrack}>
         <View style={[styles.bar, { width: `${Math.max(4, (count / Math.max(1, max)) * 100)}%` }]} />
@@ -445,14 +449,14 @@ function createStyles(theme: Theme) {
     },
     barLine: {
       flexDirection: "row",
-      alignItems: "baseline",
-      justifyContent: "space-between",
+      alignItems: "center",
       gap: theme.spacing.md,
     },
     barWord: {
       ...theme.typography.body,
       color: theme.colors.text,
       flexShrink: 1,
+      flexGrow: 1,
     },
     barCount: {
       ...theme.typography.meta,

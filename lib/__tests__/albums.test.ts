@@ -171,13 +171,28 @@ describe("pickAlbumArtworks", () => {
 });
 
 describe("fetchAlbumArtworks", () => {
-  it("limits the embedded rows per album on the server", async () => {
+  it("reads covers through get_album_artworks", async () => {
+    sb.queueData([
+      { collection_id: "a", artwork_urls: ["1", "2", "3", "4", "5"] },
+      { collection_id: "b", artwork_urls: [] },
+    ]);
+    expect(await fetchAlbumArtworks(["a", "b"])).toEqual({ a: ["1", "2", "3", "4"] });
+    expect(sb.client.rpc).toHaveBeenCalledWith("get_album_artworks", { p_collection_ids: ["a", "b"] });
+    expect(sb.queries).toHaveLength(1);
+  });
+
+  it("falls back to the direct read, row limit on the server, until the function exists", async () => {
+    sb.queueError({ code: "PGRST202", message: "Could not find the function" });
     sb.queueData([]);
     await fetchAlbumArtworks(["a", "b"]);
-    const chain = sb.queries[0].chain;
-    expect(sb.queries[0].table).toBe("collections");
-    const limit = chain.find((c) => c.method === "limit");
+    expect(sb.queries[1].table).toBe("collections");
+    const limit = sb.queries[1].chain.find((c) => c.method === "limit");
     expect(limit?.args[1]).toEqual({ referencedTable: "collection_moments" });
+  });
+
+  it("throws any other error", async () => {
+    sb.queueError({ code: "42501", message: "denied" });
+    await expect(fetchAlbumArtworks(["a"])).rejects.toMatchObject({ code: "42501" });
   });
 
   it("skips the request when there are no albums", async () => {
