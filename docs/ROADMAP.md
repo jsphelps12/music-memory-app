@@ -102,7 +102,7 @@ moments it says insights show up as the journal grows.
      184 of 207 moments now have genre, release date, ids and length (one
      update per song from the iTunes lookup); 21 have non-catalog ids and 2
      no Apple id, so they stay empty. `capture_source` is only set going
-     forward. Left: regenerate `types/database.ts`.
+     forward. `types/database.ts` regenerated 2026-11-23.
   2. **Songs that keep coming back** *(built 2026-11-20)*: Insights section,
      songs in 2+ moments with a when-line ("2019 · 2023 · this year"), hidden
      when nothing repeats (`comingBack`, `comingBackWhen` in lib/insights.ts).
@@ -335,8 +335,10 @@ widget colors.
   raise the min-build gate, then ship it.
 - [ ] Database hygiene from the Supabase advisors (2026-11-17): ~~pin the
   search_path on the four occasion slug/song functions~~ (done 2026-11-18),
-  recheck why `get_public_profiles` is callable without signing in, move
-  `pg_trgm` out of public. (Leaked-password protection needs the Pro plan:
+  ~~recheck why `get_public_profiles` is callable without signing in~~
+  (checked 2026-11-23: kept on purpose; the signed-out web album page needs
+  the owner's name, it returns only id, name, avatar and username for ids
+  you already have, and ids can't be guessed), move `pg_trgm` out of public. (Leaked-password protection needs the Pro plan:
   Authentication → Providers → Email.)
 
 ## What makes it an 11/10 (Josh, 2026-11-17)
