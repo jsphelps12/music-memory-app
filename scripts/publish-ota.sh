@@ -3,7 +3,12 @@
 #
 #   scripts/publish-ota.sh "Fix the calendar crash"              # production
 #   scripts/publish-ota.sh "Try the new header" preview          # preview
-#   SKIP_GATE=1 scripts/publish-ota.sh "..."                     # skip the reachability gate
+#   SKIP_GATE=1 scripts/publish-ota.sh "..."                     # skip the reachability gate (emergency only)
+#
+# The gate knows EAS's builds and the ones made on the Mac: record each Mac
+# build you send to TestFlight with
+#   node scripts/record-local-build.mjs path/to/Soundtracks.ipa
+# and commit scripts/local-builds.json. Then a local build needs no SKIP_GATE.
 #
 # CI normally publishes (ota-update.yml for preview, promote-to-production.yml
 # for production) and uploads sourcemaps itself. This is for the times an OTA
@@ -45,6 +50,9 @@ cd "$(git rev-parse --show-toplevel)"
 if [ -n "$(git status --porcelain)" ]; then
   echo "Refusing to publish: the working tree has uncommitted or untracked changes." >&2
   echo "An OTA must be a commit you can point at. Commit or stash first." >&2
+  echo "Untracked work that isn't yours to commit? Publish from a clean worktree:" >&2
+  echo "  git worktree add /tmp/ota <commit> && ln -s \"\$PWD/node_modules\" /tmp/ota/node_modules" >&2
+  echo "  cp .env /tmp/ota/ && cd /tmp/ota && scripts/publish-ota.sh \"...\"" >&2
   git status --short >&2
   exit 1
 fi
@@ -93,6 +101,12 @@ npx "$EAS_CLI" update --branch "$BRANCH" --environment "$APP_ENV" --platform ios
 
 echo ""
 echo "Published. Uploading sourcemaps for the bundle in dist/ ..."
+# Expected and harmless: Sentry's uploader prints "Failed to load environment
+# variables using @expo/env" (Cannot find module '@expo/env'). It only uses
+# that to read .env files, which this script moved aside on purpose; the
+# token comes from the EAS environment. Adding the package would touch
+# package.json, a fingerprint input.
+echo "(A warning that @expo/env can't be found is expected; see the comment in this script.)"
 
 # Non-fatal: the update is already live. Loud, because a skipped upload means
 # minified stack traces for everything this update throws.

@@ -165,7 +165,23 @@ refuses one no installed build serves; `SKIP_GATE=1` skips the refusal in an
 emergency), then runs the same `eas update --branch … --environment …
 --platform ios --non-interactive` as before with `EXPO_PUBLIC_APP_ENV` set.
 
-Then it uploads the sourcemaps for that exact bundle: `eas update` exports
+**Builds made on the Mac.** EAS only lists its own builds, so the gate also
+reads `scripts/local-builds.json`. Record every build you archive in Xcode and
+send to TestFlight, from the built app, then commit the file:
+
+```bash
+node scripts/record-local-build.mjs path/to/Soundtracks.ipa
+```
+
+It reads the runtime version from the app's `EXUpdates.bundle/fingerprint`
+(what the binary asks the update server for), the channel from `Expo.plist`
+and the build number from `Info.plist`; nothing is typed by hand. Build 16
+(1.4.1) is recorded. With untracked files in the checkout that aren't yours to
+commit, publish from a clean worktree of the commit (the script prints how).
+The "Cannot find module '@expo/env'" warning during the sourcemap upload is
+expected and harmless.
+
+After publishing, it uploads the sourcemaps for that exact bundle: `eas update` exports
 into `dist/` with source maps, and the script runs
 `eas env:exec <env> "npx sentry-expo-upload-sourcemaps dist"`, which takes
 `SENTRY_AUTH_TOKEN` from the EAS environment (nothing to set locally).

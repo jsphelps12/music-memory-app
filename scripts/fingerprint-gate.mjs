@@ -13,11 +13,15 @@
  * own: does a finished build for this profile actually carry this runtime
  * version?
  *
+ * Builds made on the Mac count too (scripts/local-builds.json, recorded by
+ * scripts/record-local-build.mjs), so an update for a locally built binary
+ * passes without SKIP_GATE.
+ *
  * Usage:
  *   node scripts/fingerprint-gate.mjs --profile preview
  *   node scripts/fingerprint-gate.mjs --profile production
  */
-import { appEnvForProfile, liveBuilds, localFingerprint } from "./lib/fingerprint.mjs";
+import { appEnvForProfile, knownBuilds, localFingerprint } from "./lib/fingerprint.mjs";
 
 const profileArg = process.argv.indexOf("--profile");
 if (profileArg === -1 || !process.argv[profileArg + 1]) {
@@ -35,7 +39,7 @@ const fail = (msg) => {
 const appEnv = appEnvForProfile(profile);
 const [runtimeVersion, builds] = await Promise.all([
   localFingerprint(appEnv),
-  liveBuilds(profile),
+  knownBuilds(profile),
 ]);
 
 console.log(`update runtimeVersion: ${runtimeVersion}`);
@@ -43,14 +47,15 @@ console.log(`update runtimeVersion: ${runtimeVersion}`);
 if (builds.length === 0) {
   fail(
     `No finished iOS build exists for profile "${profile}". Publishing would reach nobody. ` +
-      `Cut a build first.`
+      `Cut a build first (a Mac build counts once recorded with scripts/record-local-build.mjs).`
   );
 }
 
 console.log(`finished "${profile}" builds:`);
 for (const b of builds) {
   const marker = b.runtimeVersion === runtimeVersion ? "  <- match" : "";
-  console.log(`  build ${b.buildNumber} (v${b.appVersion})  runtimeVersion ${b.runtimeVersion}${marker}`);
+  const where = b.source === "local" ? "  (built on the Mac)" : "";
+  console.log(`  build ${b.buildNumber} (v${b.appVersion})  runtimeVersion ${b.runtimeVersion}${where}${marker}`);
 }
 
 const match = builds.find((b) => b.runtimeVersion === runtimeVersion);
@@ -62,7 +67,8 @@ if (!match) {
       `This commit's runtime version is ${runtimeVersion}; the newest "${profile}" build ` +
       `(build ${newest.buildNumber}) serves ${newest.runtimeVersion}.\n` +
       `Publishing anyway would succeed and reach zero users. Cut a new "${profile}" build ` +
-      `from this commit, then re-run.`
+      `from this commit, then re-run. (Built it on the Mac? Record it first: ` +
+      `node scripts/record-local-build.mjs <path to the .ipa or .app>.)`
   );
 }
 
