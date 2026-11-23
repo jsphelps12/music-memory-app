@@ -20,7 +20,8 @@ import { IconButton } from "@/components/IconButton";
 import { Chip } from "@/components/Chip";
 import * as Haptics from "expo-haptics";
 import type { IconName } from "@/components/Icon";
-import { useRouter, useLocalSearchParams, usePreventRemove } from "expo-router";
+import { useRouter, useLocalSearchParams, useNavigation, usePreventRemove } from "expo-router";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { useQueryClient } from "@tanstack/react-query";
@@ -83,6 +84,12 @@ import { withLoadedPhotos, type LoadedPhoto } from "@/lib/capturePhotos";
 import { goHome } from "@/lib/goHome";
 // Starters, not prompts: they open a sentence for the three ways people use
 // the journal (a memory, a discovery, a day) and get out of the way.
+// The left-edge strip that asks before leaving: about as wide as iOS's own
+// back-swipe zone, a swipe of this far to the right, and not a scroll.
+const EDGE_SWIPE_WIDTH = 20;
+const EDGE_SWIPE_DISTANCE = 24;
+const EDGE_SWIPE_SLOP = 20;
+
 const STARTERS = [
   { label: "It takes me back to…", text: "It takes me back to " },
   { label: "Just found this…", text: "Just found this " },
@@ -642,12 +649,37 @@ export default function CreateMomentScreen() {
   const keepChoice = useRef<"keep" | "discard" | null>(null);
   const continueLeave = useRef<(() => void) | null>(null);
   const worthKeeping = isWorthKeeping(draftContent, { templates, photos: givenPhotos });
-  const allowLeave = usePreventRemove(worthKeeping && !leaving, ({ repeat }) => {
+  const guarding = worthKeeping && !leaving;
+  const allowLeave = usePreventRemove(guarding, ({ repeat }) => {
     Keyboard.dismiss();
     keepChoice.current = null;
     continueLeave.current = repeat;
     setKeepAsk(true);
   });
+
+  // Swiping back asks first (owner, 2026-11-23). iOS's own back swipe can't
+  // be held mid-way: with the guard on it finished, showed the Journal, then
+  // jumped back to capture to ask. So while there's something to keep the
+  // native swipe is off and an edge swipe of our own (below) asks in place;
+  // leaving after the answer lifts the guard first.
+  const navigation = useNavigation();
+  useEffect(() => {
+    navigation.setOptions({ gestureEnabled: !guarding });
+  }, [navigation, guarding]);
+  const askBeforeLeaving = () => {
+    Keyboard.dismiss();
+    keepChoice.current = null;
+    continueLeave.current = () => {
+      allowLeave();
+      close();
+    };
+    setKeepAsk(true);
+  };
+  const edgeSwipe = Gesture.Pan()
+    .runOnJS(true)
+    .activeOffsetX(EDGE_SWIPE_DISTANCE)
+    .failOffsetY([-EDGE_SWIPE_SLOP, EDGE_SWIPE_SLOP])
+    .onStart(askBeforeLeaving);
 
   const chooseKeep = (choice: "keep" | "discard") => {
     Haptics.selectionAsync();
@@ -860,6 +892,12 @@ export default function CreateMomentScreen() {
       style={styles.container}
       behavior="padding"
     >
+      {/* While there's something to keep: the left-edge swipe asks (above). */}
+      {guarding ? (
+        <GestureDetector gesture={edgeSwipe}>
+          <View style={styles.edgeSwipe} testID="create-edge-swipe" />
+        </GestureDetector>
+      ) : null}
       <View style={[styles.topBar, { paddingTop: insets.top }]}>
         {/* Leaving the task: one ✕, on the left (DESIGN.md). */}
         <IconButton
@@ -891,7 +929,12 @@ export default function CreateMomentScreen() {
           song={song}
           onChange={handleSongChange}
           photos={photos}
-          suggestNowPlaying={!params.shareCandidates && !params.shareFailedUrl && params.identify !== "1"}
+          // Not into a continued draft: its own song (or none) is what was
+          // chosen, and the playing song arriving as the draft loads could
+          // land on top of it.
+          suggestNowPlaying={
+            !params.shareCandidates && !params.shareFailedUrl && params.identify !== "1" && !params.draftId
+          }
           autoIdentify={params.identify === "1"}
         />
 
@@ -1197,6 +1240,14 @@ export default function CreateMomentScreen() {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
+    edgeSwipe: {
+      position: "absolute",
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: EDGE_SWIPE_WIDTH,
+      zIndex: 10,
+    },
     container: {
       flex: 1,
       backgroundColor: theme.colors.background,

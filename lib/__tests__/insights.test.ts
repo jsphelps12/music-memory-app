@@ -4,8 +4,11 @@ import {
   comingBack,
   comingBackWhen,
   decadeInSentence,
+  decadeOf,
   genreHeadline,
   genreInSentence,
+  genreOf,
+  insightGroups,
   insightsSummary,
   journalInsights,
   normalizeTimeOfDay,
@@ -525,5 +528,77 @@ describe("writingPattern", () => {
       days(["2025-11-02", "2025-11-03", "2025-11-12", "2025-11-20", "2025-10-01", ...rest])
     );
     expect(sameYear?.busiestMonth ?? null).toBeNull();
+  });
+});
+
+describe("insightGroups", () => {
+  const row = (id: string, over: Partial<InsightMoment>) => ({ ...m(over), id });
+  const now = new Date("2026-11-23T12:00:00Z");
+
+  it("groups genres as Insights counts them: aliases folded, Music left out, most first", () => {
+    const meta = [
+      row("a", { songGenre: "Pop" }),
+      row("b", { songGenre: "Hip-Hop" }),
+      row("c", { songGenre: "hip-hop/rap" }),
+      row("d", { songGenre: "Music" }),
+      row("e", { songGenre: null }),
+    ];
+    expect(insightGroups(meta, "genre", now)).toEqual([
+      { key: "hip-hop/rap", label: "Hip-Hop/Rap", momentIds: ["b", "c"] },
+      { key: "pop", label: "Pop", momentIds: ["a"] },
+    ]);
+  });
+
+  it("groups decades by release year, skipping dates that aren't plausible", () => {
+    const meta = [
+      row("a", { songReleaseDate: "1994-05-01" }),
+      row("b", { songReleaseDate: "1999-01-01" }),
+      row("c", { songReleaseDate: "2016-03-04" }),
+      row("d", { songReleaseDate: "3016-03-04" }),
+      row("e", { songReleaseDate: "unknown" }),
+    ];
+    expect(insightGroups(meta, "decade", now)).toEqual([
+      { key: "1990", label: "1990s", momentIds: ["a", "b"] },
+      { key: "2010", label: "2010s", momentIds: ["c"] },
+    ]);
+  });
+
+  it("puts times of day in the day's order, not by count", () => {
+    const meta = [
+      row("a", { timeOfDay: "Late Night" }),
+      row("b", { timeOfDay: "Late Night" }),
+      row("c", { timeOfDay: "Morning" }),
+      row("d", { timeOfDay: "brunch" }),
+    ];
+    expect(insightGroups(meta, "time", now)).toEqual([
+      { key: "morning", label: "Morning", momentIds: ["c"] },
+      { key: "night", label: "Late night", momentIds: ["a", "b"] },
+    ]);
+  });
+
+  it("counts the same moments as the rows that open it", () => {
+    const meta = [
+      row("a", { songGenre: "Rock", songReleaseDate: "1971-01-01" }),
+      row("b", { songGenre: "Rock", songReleaseDate: "1975-01-01" }),
+      row("c", { songGenre: "Pop", songReleaseDate: "2019-01-01" }),
+    ];
+    const r = resonates(meta, now)!;
+    for (const g of r.genres) {
+      expect(insightGroups(meta, "genre", now).find((x) => x.label === g.value)?.momentIds.length).toBe(g.count);
+    }
+    for (const d of r.decades) {
+      expect(insightGroups(meta, "decade", now).find((x) => x.key === String(d.decade))?.momentIds.length).toBe(d.count);
+    }
+  });
+});
+
+describe("genreOf and decadeOf", () => {
+  it("fold and filter like Insights", () => {
+    expect(genreOf(" R&B ")).toBe("R&B/Soul");
+    expect(genreOf("Music")).toBeNull();
+    expect(genreOf("")).toBeNull();
+    expect(decadeOf("1989-12-31", 2027)).toBe(1980);
+    expect(decadeOf("1899-01-01", 2027)).toBeNull();
+    expect(decadeOf(null, 2027)).toBeNull();
   });
 });

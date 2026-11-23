@@ -20,6 +20,8 @@ import {
   artistHighlights,
   comingBack,
   comingBackWhen,
+  decadeLabel,
+  genreKey,
   insightsSummary,
   journalInsights,
   resonates,
@@ -294,13 +296,33 @@ export default function InsightsScreen() {
             <SectionLabel>What resonates</SectionLabel>
             {taste.genreLine ? <Text style={styles.headline}>{taste.genreLine}</Text> : null}
             {genres.map((g) => (
-              <BarRow key={g.value} label={g.value} count={g.count} max={genres[0].count} styles={styles} />
+              <BarRow
+                key={g.value}
+                label={g.value}
+                count={g.count}
+                max={genres[0].count}
+                styles={styles}
+                onPress={() => {
+                  tapped("genres");
+                  router.push({ pathname: "/browse/insight", params: { kind: "genre", value: genreKey(g.value) } });
+                }}
+              />
             ))}
             {taste.periodLine ? (
               <Text style={[styles.headline, taste.genreLine ? styles.headlineNext : null]}>{taste.periodLine}</Text>
             ) : null}
             {decades.map((d) => (
-              <BarRow key={d.decade} label={`${d.decade}s`} count={d.count} max={decades[0].count} styles={styles} />
+              <BarRow
+                key={d.decade}
+                label={decadeLabel(d.decade)}
+                count={d.count}
+                max={decades[0].count}
+                styles={styles}
+                onPress={() => {
+                  tapped("decades");
+                  router.push({ pathname: "/browse/insight", params: { kind: "decade", value: String(d.decade) } });
+                }}
+              />
             ))}
           </View>
         ) : null}
@@ -312,7 +334,17 @@ export default function InsightsScreen() {
             <Text style={styles.headline}>{writingLine}</Text>
             {writingSub ? <Text style={styles.subline}>{writingSub}</Text> : null}
             {times.map((t) => (
-              <BarRow key={t.value} label={t.label} count={t.count} max={topTimeCount} styles={styles} />
+              <BarRow
+                key={t.value}
+                label={t.label}
+                count={t.count}
+                max={topTimeCount}
+                styles={styles}
+                onPress={() => {
+                  tapped("when");
+                  router.push({ pathname: "/browse/insight", params: { kind: "time", value: t.value } });
+                }}
+              />
             ))}
           </View>
         ) : null}

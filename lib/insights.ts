@@ -449,6 +449,22 @@ export function periodHeadline(decades: readonly RankedDecade[]): string | null 
   return `From ${decadeInSentence(Math.min(...years))} to ${decadeInSentence(Math.max(...years))}`;
 }
 
+/**
+ * A saved genre as Insights counts it: Apple's spelling with aliases folded
+ * ("Hip-Hop" → "Hip-Hop/Rap"); null for none, or Apple's catch-all "Music".
+ */
+export function genreOf(raw: string | null | undefined): string | null {
+  const g = raw?.trim();
+  if (!g || GENRE_IGNORED.has(g.toLowerCase())) return null;
+  return GENRE_ALIASES[g.toLowerCase()] ?? g;
+}
+
+/** A release date's decade (1990 for 1994-…), or null when there's no plausible year. */
+export function decadeOf(releaseDate: string | null | undefined, maxYear: number = new Date().getFullYear() + 1): number | null {
+  const year = Number(/^(\d{4})-/.exec(releaseDate ?? "")?.[1]);
+  return year >= 1900 && year <= maxYear ? Math.floor(year / 10) * 10 : null;
+}
+
 export interface Resonates {
   genreLine: string | null;
   /** Genres most first (`value` as Apple writes it, aliases folded); empty without a genre line. */
@@ -474,18 +490,16 @@ export function resonates(
   const maxYear = now.getFullYear() + 1;
 
   for (const m of meta) {
-    const raw = m.songGenre?.trim();
-    if (raw && !GENRE_IGNORED.has(raw.toLowerCase())) {
-      const alias = GENRE_ALIASES[raw.toLowerCase()];
-      const key = (alias ?? raw).toLowerCase();
+    const genre = genreOf(m.songGenre);
+    if (genre) {
+      const key = genre.toLowerCase();
       const entry = genres.get(key);
       if (entry) entry.count += 1;
-      else genres.set(key, { value: alias ?? raw, count: 1 });
+      else genres.set(key, { value: genre, count: 1 });
     }
 
-    const year = Number(/^(\d{4})-/.exec(m.songReleaseDate ?? "")?.[1]);
-    if (year >= 1900 && year <= maxYear) {
-      const decade = Math.floor(year / 10) * 10;
+    const decade = decadeOf(m.songReleaseDate, maxYear);
+    if (decade !== null) {
       const entry = decades.get(decade);
       if (entry) entry.count += 1;
       else decades.set(decade, { decade, count: 1 });
@@ -658,3 +672,60 @@ export function writingPattern(
         : [],
   };
 }
+
+// ---------------------------------------------------------------------------
+// Tapping through: the moments behind a genre, a decade or a time of day
+// ---------------------------------------------------------------------------
+
+export type InsightKind = "genre" | "decade" | "time";
+
+export interface InsightGroup {
+  /** What the route carries: the genre as counted, "1990", or "evening". */
+  key: string;
+  /** "Pop", "1990s", "Evening". */
+  label: string;
+  momentIds: string[];
+}
+
+/** The decade's label everywhere outside a sentence: "1990s". */
+export const decadeLabel = (decade: number) => `${decade}s`;
+
+/**
+ * Every genre, decade or time of day in the journal with the moments in it,
+ * most first (ties most recent first, as `meta` comes newest first). Counted
+ * exactly as Insights counts them (genreOf, decadeOf, normalizeTimeOfDay), so
+ * a row's number and the screen it opens always agree. Times run morning to
+ * late night instead, like the rows in When you write.
+ */
+export function insightGroups(
+  meta: readonly (Pick<InsightMoment, "songGenre" | "songReleaseDate" | "timeOfDay"> & { id: string })[],
+  kind: InsightKind,
+  now: Date = new Date()
+): InsightGroup[] {
+  const groups = new Map<string, InsightGroup>();
+  const maxYear = now.getFullYear() + 1;
+  for (const m of meta) {
+    let key: string | null = null;
+    let label = "";
+    if (kind === "genre") {
+      const g = genreOf(m.songGenre);
+      if (g) [key, label] = [g.toLowerCase(), g];
+    } else if (kind === "decade") {
+      const d = decadeOf(m.songReleaseDate, maxYear);
+      if (d !== null) [key, label] = [String(d), decadeLabel(d)];
+    } else {
+      const t = normalizeTimeOfDay(m.timeOfDay);
+      if (t) [key, label] = [t, TIME_LABEL[t]];
+    }
+    if (key === null) continue;
+    const group = groups.get(key);
+    if (group) group.momentIds.push(m.id);
+    else groups.set(key, { key, label, momentIds: [m.id] });
+  }
+  const list = [...groups.values()];
+  if (kind === "time") return list.sort((a, b) => TIMES.indexOf(a.key as TimeOfDay) - TIMES.indexOf(b.key as TimeOfDay));
+  return list.sort((a, b) => b.momentIds.length - a.momentIds.length);
+}
+
+/** The route key for a genre as Insights shows it ("Hip-Hop/Rap" → "hip-hop/rap"). */
+export const genreKey = (genre: string) => genre.toLowerCase();

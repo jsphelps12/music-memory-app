@@ -115,6 +115,10 @@ moments it says insights show up as the journal grows.
      days missed. Also built: **What resonates**, top genres and release
      decades ("Mostly pop and hip-hop/rap", "Mostly the 2010s, with a soft
      spot for the 70s"); rules and thresholds in lib/insights.ts.
+     **Tap through (Josh 2026-11-23):** genre, decade and time-of-day rows
+     open their moments (`app/browse/insight.tsx`, chips to switch, like
+     Rediscover's mood and year screens); `insightGroups()` counts exactly
+     as the rows do, so the number and the screen agree.
   5. **Eras, version 2:** found in the data, not the calendar: slide a ~6-week
      window; where one artist dominates, extend the era while they keep
      dominating; it ends when someone else takes over or moments thin out
@@ -183,6 +187,10 @@ widget colors.
   would clutter the top; drafts live in long-press only); a continued draft
   shows "Draft from …"; crashes and iOS kills still save silently. No hidden
   long-press on Save (long-press always opens a menu).
+  Swipe back (Josh 2026-11-23): iOS's back swipe can't be held mid-way, so
+  it finished, showed the Journal, then jumped back to ask. While there's
+  something to keep, the native swipe is off and a left-edge swipe asks in
+  place; after "Keep draft" or "Discard" it leaves.
 - [x] **Select moments** (decided 2026-11-18): built 2026-11-18 on native/1.4 with the card menu (Edit, Share, Add to album, Select, Delete; `.maestro/select.yaml`), OTA to 1.4 the same day (group 8419f305) after all three flows passed.: "Select" in the card's
   long-press menu and in the Journal header enters selection mode; tap to
   tick; a bottom bar with Add to album and Delete ("Delete 5 moments?",
