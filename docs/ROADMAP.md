@@ -1540,6 +1540,8 @@ questionnaire/ML, NFC products, Android.
   (`area: error_boundary`), then shows the stock fallback. Release builds
   running in the Simulator no longer start Sentry (`isSimulatorBundle()` in
   `lib/sentryTags.ts`), so Mac preview and E2E hangs stop showing up as issues.
+  PR #131. Live in production over the air 2026-11-23 (update group
+  `b4489676`, sourcemaps uploaded).
 - Known limit: after 60 days without a commit GitHub disables the scheduled
   workflows (including the staging keepalive), and staging pauses. On
   return: re-enable in the Actions tab and restore staging.
