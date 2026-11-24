@@ -16,7 +16,7 @@ const CAMERA_USAGE =
 const LOCATION_USAGE =
   "Soundtracks uses your location while you add a moment to suggest where it happened. You can change or remove the place before you save.";
 const MICROPHONE_USAGE =
-  "Soundtracks uses the microphone to identify a song playing around you with Shazam. It only listens while you're identifying a song.";
+  "Soundtracks uses the microphone to identify a song playing around you, and to record what you say about a moment. It only listens while you're identifying a song or recording.";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
