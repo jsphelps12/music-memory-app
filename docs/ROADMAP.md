@@ -171,10 +171,11 @@ widget colors.
 **1.5 (a new native build), in `native/1.5` off `native/1.4`:**
 Scope (Josh, 2026-11-23): Memory widget, voice entries with the recordings
 kept, "Remember this song" saved in the background (Siri, Shortcuts, Action
-button), Journaling Suggestions (entitlement permitting), offline saves, and
+button), Journaling Suggestions, offline saves, and
 a polish pass. Not the part of the song set automatically (not accurate
 enough; picking it by hand works).
-Journaling Suggestions waits on the entitlement (ask Apple now).
+Journaling Suggestions needs no request to Apple (a capability, set in
+`app.config.ts`).
 The working plan, with how each piece is built and the open decisions:
 `docs/PLAN-1.5.md`.
 - [ ] **Siri: "remember this song"** — an App Intent (Siri, Shortcuts, the
@@ -187,7 +188,13 @@ The working plan, with how each piece is built and the open decisions:
   (production needs Josh's go) and a try on a phone.
 - [ ] **Journaling Suggestions** — Apple's system picker (as in Apple's
   Journal) offering the day's songs, photos and places, with consent.
-  iOS 17.2+; check the entitlement first.
+  iOS 17.2+. **Built 2026-11-24 on `native-1.5/journaling`:** long-press +
+  → Start from → "Your day (Apple)" (hidden where the picker can't run),
+  `modules/journaling-suggestions`, mapping in `lib/yourDay.ts`,
+  `capture_source 'your_day'` (migration
+  `20261126000000_capture_source_your_day`, not applied yet). Waiting on the
+  migration and a try on a phone (the picker doesn't run in the
+  simulator).
 - [ ] **Voice entries** — speak the reflection, transcribed on device;
   the recording is kept too (Josh, 2026-11-23): your voice plays on the
   moment and in the film (ducking the song through createMixRestore), and

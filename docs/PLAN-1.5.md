@@ -16,7 +16,7 @@ from Playing now or Identify. Neither is accurate enough; picking it by hand
 | 1 | Memory widget: one moment a day on the Home Screen, opening into the film | Yes (widget views, app-group writer) |
 | 2 | Voice entries, recordings kept | Yes: no native code for recording and playback, but build 16's microphone text only covers Identify (decided 2026-11-23). Transcription: native |
 | 3 | "Remember this song" from Siri, Shortcuts and the Action button, saved in the background | Yes (App Intent in the app) |
-| 4 | Journaling Suggestions: Apple's picker of your day's songs, photos and places | Yes, and Apple's entitlement (Josh: request it now) |
+| 4 | Journaling Suggestions: Apple's picker of your day's songs, photos and places | Yes (a capability; no request to Apple) |
 | 5 | Offline saves: capture with no signal, saved when you're back online | **No**, can ship before 1.5 |
 | 6 | Polish (below) | Mostly no |
 
@@ -251,16 +251,47 @@ intent refreshed one the app would be signed out. Instead:
 Apple's own picker (the one Apple's Journal app uses) showing your day: songs
 you listened to, photos, places, workouts, people. Picking a song suggestion
 opens capture with it filled in; photos and the place come along.
-- Needs Apple's entitlement (`com.apple.developer.journal.allow`), which
-  Apple grants on request. **Josh: request it now**; it can take weeks.
-- iOS 17.2+; the picker is Apple's SwiftUI view, shown from a small native
-  view module, and the app only gets what the person picks.
+- No request to Apple: it's the Journaling Suggestions capability
+  (`com.apple.developer.journal.allow` in `app.config.ts`, both variants);
+  signing turns it on for the App ID.
+- iOS 17.2+; the picker is Apple's SwiftUI view, and the app only gets what
+  the person picks.
 - Where it lives: long-press + → Start from → "Your day (Apple)", next to
   Last week. Help's list of ways into capture gets it in the same change.
-- If the entitlement isn't granted in time, it waits for 1.5.1; nothing
-  else depends on it.
 
-**Effort:** about 2 days once the entitlement is granted.
+**Built 2026-11-24** (branch `native-1.5/journaling`):
+- `modules/journaling-suggestions` (pod `SoundtracksJournaling`: a pod named
+  `JournalingSuggestions` would shadow Apple's module). The SDK has a
+  programmatic modifier, `journalingSuggestionsPicker(isPresented:onCompletion:)`
+  (iOS 17.2), so no tap on Apple's `JournalingSuggestionsPicker` button is
+  needed: the row presents a clear full-screen SwiftUI host over the menu
+  sheet, which raises Apple's picker at once. Closing the picker leaves the
+  menu up; a pick reads the suggestion's items in Apple's order and returns
+  plain JSON. The framework is only in the device SDK, so the code is behind
+  `canImport` + `#if !targetEnvironment(simulator)` + `@available(iOS 17.2)`,
+  weak-linked for device builds; `isAvailable` is false on the simulator, an
+  iPad, iOS before 17.2 and binaries before 1.5 (module missing), and the row
+  is hidden there.
+- What a pick fills (`lib/yourDay.ts`, tested): the first Apple Music song
+  (another app's media, iOS 18, only without one) matched in the Apple Music
+  catalog, then the iTunes search; same title, version and artist fills it,
+  several close ones use capture's "which song" picker, none keeps the
+  suggestion's own title and artist (as Last week does). Photos and Live
+  Photo stills as copies in `Caches/journaling-suggestions/` (up to 10;
+  cleared at the next pick and on sign-out; a draft or the outbox keeps its
+  own copies). The first named place (with coordinates when Apple has them),
+  contacts' names as people, and the suggestion's start as the date.
+  Workouts, videos, podcasts and the rest have nowhere to go yet.
+- `capture_source 'your_day'`, migration
+  `20261126000000_capture_source_your_day.sql` (not applied). Until it is,
+  a save with a value the CHECK doesn't list retries without
+  `capture_source` (`lib/optionalColumns.ts`).
+- Privacy: nothing leaves the phone until Save except the song's title and
+  artist to Apple's catalog search (as every song lookup does). PostHog gets
+  `your_day_picked` with counts and flags only.
+- Still to do: apply the migration (staging, then production with Josh's
+  go), then try it on a phone: picking, closing, a suggestion with no song,
+  photos from iCloud.
 
 ## 5. Offline saves
 
@@ -374,8 +405,7 @@ A pass over everything before 1.5 goes to review, mostly over the air:
 2. **Branch `native/1.5`** off `main` (1.4.1 is released and merged).
 3. **Native batch:** the app-group writer, transcription, the alert tint, the
    capture-key keychain. Then the widget views, the film deep link, the
-   background intent and its edge functions, and Journaling Suggestions if
-   the entitlement has come through.
+   background intent and its edge functions, and Journaling Suggestions.
 4. **Build:** EAS cloud builds are back 2026-12-01; a Mac build works too
    (record it with `scripts/record-local-build.mjs` so updates reach it).
 5. **Test:** Maestro flows for voice capture; the widget
