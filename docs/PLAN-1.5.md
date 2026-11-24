@@ -183,8 +183,9 @@ film.
 
 An App Intent in the app, so it works from Siri ("Hey Siri, remember this
 song"), Shortcuts and the Action button, with the screen off and without
-opening the app. It saves what's playing as a moment (song, part of the song
-where it was, date, time). Siri says what it saved ("Saved Holocene by Bon
+opening the app. It saves what's playing as a moment (song, date, time; no
+part of the song: that's only ever picked by hand, the player's position
+isn't accurate enough). Siri says what it saved ("Saved Holocene by Bon
 Iver"). No notification follows (Josh, 2026-11-23: no more pushes); the
 moment is in the Journal like any other, ready for words.
 
@@ -196,15 +197,54 @@ intent refreshed one the app would be signed out. Instead:
   **capture key**: a random secret, stored hashed on the server, that can only
   add a moment for that one person. The app keeps it in the keychain, shared
   with the intent.
-- The intent reads the playing song (`MPMusicPlayerController`), looks it up
-  in the iTunes catalog and sends it with the key to an edge function
-  (`quick-capture`), which checks the key and saves the moment.
-- Sign-out and account deletion revoke the key on the server and delete it
-  from the keychain. Keys can be listed and revoked per device later.
+- The intent reads the playing song (`MPMusicPlayerController`) and sends it
+  with the key to an edge function (`quick-capture`), which checks the key,
+  looks the song up in the iTunes catalog and saves the moment.
+- Sign-out (global, like the app's) revokes every device's key and deletes
+  this one from the keychain; account deletion cascades. The server revokes
+  every key when a user's last session ends (global sign-out, sessions
+  revoked by an admin, expiry) and when the password changes; the app also
+  drops its key whenever it finds itself without a session. Keys
+  expire after 90 days regardless (the app replaces its key every 30 days).
+  Keys can be listed and revoked per device later.
 - No song playing, no signal: the intent says so ("Nothing's playing") and
   saves nothing; with no signal it offers to open the app instead.
 
 **Effort:** about 3–4 days (two edge functions, a table for keys, the intent).
+
+**Built (2026-11-25, branch `native-1.5/bgsave`; not deployed):**
+- Migration `20261125000000_capture_keys.sql`: `capture_keys` (SHA-256 of
+  the secret, a per-install `device_id`, label, created/last used/revoked;
+  owners can read the bookkeeping columns, never the hash; no client writes)
+  and `'background'` added to `moments.capture_source`; triggers revoke a
+  person's keys when their password changes (`auth.users`) and when their
+  last session ends (`auth.sessions`, skipped with a warning if that table
+  is missing or the migration role can't add triggers to it).
+- `capture-key` (signed in): POST `{deviceId, deviceLabel}` returns a new
+  key once and revokes that install's old one (10 live keys a person, the
+  least recently used retired past that; 20 new keys an hour); DELETE
+  revokes all the caller's keys (sign-out) or one install's.
+- `quick-capture` (`Authorization: Capture <key>`, verify_jwt off): checks
+  the key by hash, looks the song up on iTunes for the preview and details,
+  saves the moment with the service role as the key's owner (date and time
+  of day where the phone was; no words, no part of the song), 30 an hour,
+  and the same song again within 2 minutes returns the first moment. Keys
+  over 90 days old are refused. DELETE lets a key revoke itself.
+- The intent (`plugins/remember-this-song/RememberThisSong.swift`, put in
+  the app target by `plugins/withRememberThisSong.js`) with the phrases
+  "Remember this song in / Save this song to Soundtracks". Apple Music only
+  (the system player doesn't see Spotify).
+- The app issues the key on launch while signed in (`lib/captureKey.ts`,
+  keychain via expo-secure-store) and replaces it after 30 days, revokes
+  every device's key before its global sign-out (this phone's key revokes
+  itself if that can't reach the server) and clears it with the per-user
+  teardown. Whenever the app
+  finds itself without a session (the session ended some other way, a
+  corrupt stored session, a signed-out launch after a reinstall) the key
+  leaves the keychain and revokes itself.
+- Still to do: apply the migration and deploy both functions (staging, then
+  production with Josh's go), then try it on a phone: Siri, the Shortcuts
+  app, the Action button, locked and unlocked.
 
 ## 4. Journaling Suggestions
 

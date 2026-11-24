@@ -49,6 +49,14 @@ describe("captureSourceFor", () => {
     expect(captureSourceFor({ source: "something_new" }, "search")).toBe("other");
   });
 
+  it("never credits an in-app capture to the background save (only quick-capture writes it)", () => {
+    for (const source of [undefined, "widget", "capture_menu", "siri", "background"]) {
+      for (const pick of ["now_playing", "identify", "search", null] as const) {
+        expect(captureSourceFor({ source }, pick)).not.toBe("background");
+      }
+    }
+  });
+
   it("only ever returns an allowed value", () => {
     const entries = [{}, { source: "widget" }, { shared: true }, { draft: true }, { source: "x" }];
     for (const entry of entries) {

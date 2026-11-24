@@ -7,7 +7,12 @@
  * app/help.tsx. Pure: importable from vitest.
  */
 
-/** Allowed values: the CHECK constraint in 20261120120000_song_metadata.sql. */
+/**
+ * Allowed values: the CHECK constraint (20261120120000_song_metadata.sql,
+ * 'background' added by 20261125000000_capture_keys.sql). "background" is
+ * only ever written by the quick-capture edge function (Siri, Shortcuts, the
+ * Action button: "Remember this song"); captureSourceFor never returns it.
+ */
 export const CAPTURE_SOURCES = [
   "now_playing",
   "identify",
@@ -19,6 +24,7 @@ export const CAPTURE_SOURCES = [
   "from_before",
   "draft",
   "other",
+  "background",
 ] as const;
 
 export type CaptureSource = (typeof CAPTURE_SOURCES)[number];

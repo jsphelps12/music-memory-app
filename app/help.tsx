@@ -8,7 +8,8 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 
 // Every real way into capture (checked against app/create.tsx, the routes
 // that push /create, components/CaptureMenu.tsx and targets/widget,
-// 2026-11-18; the + is on the Journal only since 2026-11-20). Keep it current
+// 2026-11-18; the + is on the Journal only since 2026-11-20; "Remember this
+// song" from Siri, plugins/remember-this-song, 1.5). Keep it current
 // when a way in is added. No count in the copy: it drifts.
 const CAPTURE_METHODS = [
   {
@@ -70,6 +71,11 @@ const CAPTURE_METHODS = [
     icon: "toggle-outline",
     label: "Control Center and the Action button",
     desc: "On iOS 18 and later, add a Soundtracks control to capture or identify without opening the app first.",
+  },
+  {
+    icon: "musical-note-outline",
+    label: "Siri, Shortcuts and the Action button",
+    desc: "Say “Remember this song in Soundtracks” while Apple Music is playing. It's saved to your Journal without opening the app, ready for your words whenever you like.",
   },
 ] as const;
 

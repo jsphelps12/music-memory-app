@@ -107,6 +107,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // Local Xcode 27 builds: lift pods below iOS 15 (see the plugin).
     "./plugins/withPodsMinDeploymentTarget",
     "./plugins/withControlLinkOpener",
+    // "Remember this song" (1.5): the App Intent and Siri phrases, compiled
+    // into the app target itself (see the plugin for why).
+    "./plugins/withRememberThisSong",
     // expo-share-intent prepends the app group the config already lists.
     "./plugins/withDedupedAppGroups",
     "expo-apple-authentication",

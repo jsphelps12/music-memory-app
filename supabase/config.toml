@@ -11,6 +11,9 @@
 [functions.accept-friend-invite]
 verify_jwt = false # verifies the caller's JWT in-code (writes with service role)
 
+[functions.capture-key]
+verify_jwt = true # signed-in users only; also verifies the caller in-code (writes capture_keys with service role)
+
 [functions.create-guest-user]
 verify_jwt = true
 
@@ -37,6 +40,9 @@ verify_jwt = false # the keepsake page's server; authenticates via the occasion'
 
 [functions.occasion-admin]
 verify_jwt = true # signed-in users only; the function also requires app_admins
+
+[functions.quick-capture]
+verify_jwt = false # the App Intent has no JWT; authenticates via its own capture key (Authorization: Capture <secret>)
 
 [functions.send-notifications]
 verify_jwt = false # cron-invoked with the service key, not user JWTs
