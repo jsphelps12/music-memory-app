@@ -14,7 +14,7 @@ Output lands in `out/` (gitignored): `<id>.mp4`, a cover `<id>.jpg`, and `<id>.t
 ## How it works
 
 1. **Sample data.** `scripts/video/seed-demo.mjs` resets the E2E account on production (the account the Maestro flows use, through RLS as itself) and fills it with `demo-moments.json`: twenty fictional moments with real song artwork (iTunes Search API), people, places, weather, and photos from `photos/` uploaded the way the app uploads them. Any E2E run resets the account, so every recording run seeds again.
-2. **The app.** Before recording, `scripts/e2e-local.sh --install-only` puts this checkout's JS, pointed at production, into the Soundtracks β build on the simulator, so the app shows what was seeded.
+2. **The app.** Before recording, `scripts/e2e-local.sh --install-only` puts this checkout's JS, pointed at production, into the Soundtracks β build on the simulator, so the app shows what was seeded. It also raises that copy's build number, or production's minimum-build gate shows "Time for an update" to a build made on the Mac.
 3. **Recording.** For each shot, Maestro signs in (`flows/signin.yaml`, not recorded), then `xcrun simctl io recordVideo` captures the screen while `flows/<shot>.yaml` drives the app. The status bar is set to 9:41, and dark-palette clips record in dark mode. Raw takes go to `out/raw/<shot>.mp4`.
 4. **Editing.** Each clip in `clips.yaml` is a list of segments: pieces of a shot with their own speed and optional zoom, cut together. Headlines change on each beat and slide in. Then the end card. Pillow draws the text in the app's fonts; ffmpeg does the rest.
 
@@ -28,6 +28,7 @@ Output lands in `out/` (gitignored): `<id>.mp4`, a cover `<id>.jpg`, and `<id>.t
 ## New footage
 
 - **A new shot:** write `flows/<shot>.yaml` (no `launchApp`: it starts on the Journal, already signed in). Pause with `extendedWaitUntil` on `"__pause__"` and `optional: true`. Rows read out as one label ("Fast Car Tracy Chapman…"), so match them with `".*Fast Car.*"`. Typing can drop its first letters; wrap it in a `retry` that checks the result.
+- **Another memory through search:** copy a `flows/search-*.yaml` (three lines: the query and the song title to open); `_search-and-open.yaml` does the rest. The search clips in `clips.yaml` all cut the same way: Rediscover, the query landing, the moment, a punch-in on the photo.
 - **Your own phone recording:** screen-record on your iPhone (real journal, real music), AirDrop it here, and use `input: path/to/recording.mov` (with `trim:`) in a segment instead of `shot`. Usually the strongest footage.
 
 ## Posting

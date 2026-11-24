@@ -90,6 +90,10 @@ echo "── Installing it into the simulator app"
 xcrun simctl terminate "$DEVICE" "$BUNDLE_ID" 2>/dev/null || true
 cp "$BUNDLE/main.jsbundle" "$APP/main.jsbundle"
 cp -R "$BUNDLE/assets/." "$APP/"
+# A build made on the Mac carries build number 1, below production's
+# app_config.min_supported_build, so lib/minBuildGate.ts shows "Time for an
+# update" instead of the app. Raise this simulator copy's number past any floor.
+/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 9999' "$APP/Info.plist"
 if [ -n "$INSTALL_ONLY" ]; then echo "── Installed into $DEVICE"; exit 0; fi
 
 FAILED=()

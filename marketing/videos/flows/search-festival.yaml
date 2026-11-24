@@ -1,0 +1,8 @@
+# Shot: search "festival" → Dog Days Are Over. Steps in _search-and-open.yaml.
+appId: com.joshuaphelps.musicmemory.preview
+---
+- runFlow:
+    file: _search-and-open.yaml
+    env:
+      QUERY: "festival"
+      RESULT: "Dog Days Are Over"

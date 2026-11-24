@@ -450,7 +450,9 @@ def main():
                 record_shot(shot, device, password, appearance[shot])
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
                 # One broken shot shouldn't cost the others; drop its partial file.
-                print(f"── Shot {shot} failed ({e}); skipping its clips")
+                # Not `e` itself: its command line carries the E2E password.
+                why = f"exit {e.returncode}" if isinstance(e, subprocess.CalledProcessError) else "timed out"
+                print(f"── Shot {shot} failed ({why} in {Path(e.cmd[-1] if 'test' not in e.cmd else e.cmd[e.cmd.index('test') + 1]).name}); skipping its clips")
                 for p in (RAW / f"{shot}.mp4", RAW / f"{shot}.json"):
                     p.unlink(missing_ok=True)
         subprocess.run(["xcrun", "simctl", "status_bar", device, "clear"], check=False)

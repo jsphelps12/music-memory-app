@@ -1,0 +1,8 @@
+# Shot: search "Denver" → Rivers and Roads. Steps in _search-and-open.yaml.
+appId: com.joshuaphelps.musicmemory.preview
+---
+- runFlow:
+    file: _search-and-open.yaml
+    env:
+      QUERY: "Denver"
+      RESULT: "Rivers and Roads"

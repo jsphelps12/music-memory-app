@@ -503,6 +503,10 @@ The starred ones bring the app to you, which serves the north star:
   2026-11-23: clips are now 8–10s montages (cuts, speed changes, caption
   pills, punch-ins on photos) over 20 seeded moments with Unsplash photos,
   people and weather: wedding-song, dad-search, seven-years, ten-seconds.
+  Then 10 more (one memory each through search, plus re-cuts in the
+  framed-phone style): 14 clips in all. Also: `e2e-local.sh` now raises the
+  simulator copy's build number past the min-build floor (16), which blocked
+  local runs with "Time for an update".
 
 ## Where things stood (2026-11-17)
 

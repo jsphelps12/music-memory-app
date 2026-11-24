@@ -96,3 +96,146 @@ clips:
       - { at: 4.6, text: "Write one line" }
       - { at: 7.1, text: "Done", y: 1250 }
     caption: "The easiest journal you'll ever keep."
+
+
+  # ── Search → open: one memory each (shared flow: flows/_search-and-open.yaml).
+
+  - id: snow
+    layout: full
+    palette: light
+    segments:
+      - { shot: search-snow, from: 1.0, to: 2.2 }
+      - { shot: search-snow, from: 11.8, to: 13.6 }
+      - { shot: search-snow, from: 18.0, to: 21.5, speed: 1.2 }
+      - { shot: search-snow, from: 21.8, to: 23.4, zoom: 1.3, focus: [0.5, 0.2] }
+    beats:
+      - { at: 0, text: "POV: the song that\nsounds like snow", y: 1050 }
+      - { at: 3.0, text: "Saved with the morning it belonged to" }
+      - { at: 5.92, text: "Coffee. Snow. On repeat." }
+    caption: "Which song sounds like winter to you?"
+
+  - id: festival
+    layout: full
+    palette: light
+    segments:
+      - { shot: search-festival, from: 1.0, to: 2.2 }
+      - { shot: search-festival, from: 12.0, to: 14.2 }
+      - { shot: search-festival, from: 18.7, to: 22.2, speed: 1.2 }
+      - { shot: search-festival, from: 22.5, to: 24.1, zoom: 1.3, focus: [0.5, 0.2] }
+    beats:
+      - { at: 0, text: "The song that took\nher whole voice", y: 1050 }
+      - { at: 3.4, text: "Day three of the festival" }
+      - { at: 6.32, text: "Some songs you scream, not sing" }
+    caption: "What's the song you lost your voice to?"
+
+  - id: denver
+    layout: full
+    palette: light
+    segments:
+      - { shot: search-denver, from: 1.0, to: 2.2 }
+      - { shot: search-denver, from: 10.0, to: 12.2 }
+      - { shot: search-denver, from: 17.9, to: 20.4, speed: 1.0 }
+      - { shot: search-denver, from: 20.4, to: 22.0, zoom: 1.3, focus: [0.5, 0.2] }
+    beats:
+      - { at: 0, text: "The last night before\nhe moved away", y: 1050 }
+      - { at: 3.4, text: "Nobody said it" }
+      - { at: 5.9, text: "Everybody sang louder" }
+    caption: "What song do you associate with a goodbye?"
+
+  - id: front-row
+    layout: full
+    palette: light
+    segments:
+      - { shot: search-front-row, from: 9.5, to: 10.7 }
+      - { shot: search-front-row, from: 23.0, to: 25.2 }
+      - { shot: search-front-row, from: 29.8, to: 33.0, speed: 1.2 }
+      - { shot: search-front-row, from: 33.3, to: 34.9, zoom: 1.3, focus: [0.5, 0.2] }
+    beats:
+      - { at: 0, text: "Some concerts you\nnever want to forget", y: 1050 }
+      - { at: 3.4, text: "Front row. Finally." }
+      - { at: 6.07, text: "So you don't" }
+    caption: "Best concert of your life, go."
+
+  - id: knew
+    layout: full
+    palette: light
+    segments:
+      - { shot: search-knew, from: 1.0, to: 2.2 }
+      - { shot: search-knew, from: 12.0, to: 14.2 }
+      - { shot: search-knew, from: 18.8, to: 23.0, speed: 1.2 }
+      - { shot: search-knew, from: 23.0, to: 24.6, zoom: 1.3, focus: [0.5, 0.2] }
+    beats:
+      - { at: 0, text: "The song playing\nthe night you knew", y: 1050 }
+      - { at: 3.4, text: "Feet in the water, singing it badly" }
+      - { at: 6.9, text: "Write it down before it fades" }
+    caption: "What was playing the night you knew?"
+
+  - id: roommates
+    layout: full
+    palette: light
+    segments:
+      - { shot: search-roommates, from: 1.0, to: 2.2 }
+      - { shot: search-roommates, from: 10.0, to: 12.2 }
+      - { shot: search-roommates, from: 17.9, to: 21.4, speed: 1.2 }
+      - { shot: search-roommates, from: 21.4, to: 23.0, zoom: 1.3, focus: [0.5, 0.2] }
+    beats:
+      - { at: 0, text: "Old roommates.\nOne song.", y: 1050 }
+      - { at: 3.4, text: "Twenty again for four minutes" }
+      - { at: 6.32, text: "Tag the one this song belongs to" }
+    caption: "Tag the person this song belongs to."
+
+  # ── Re-cuts of earlier footage in the other layout.
+  - id: wedding-phone
+    layout: phone
+    palette: light
+    segments:
+      - { shot: open-moment, from: 0, to: 1.4 }
+      - { shot: open-moment, from: 1.6, to: 4.6, speed: 1.2 }
+      - { shot: open-moment, from: 5.0, to: 6.8 }
+      - { shot: open-moment, from: 13.6, to: 15.6 }
+    beats:
+      - { at: 0, text: "Your wedding song\ndeserves a story" }
+      - { at: 2.2, text: "Not just a playlist" }
+      - { at: 5.7, text: "What it meant. Who was there." }
+    caption: "What was your first dance?"
+
+  - id: people-search
+    layout: phone
+    palette: light
+    segments:
+      - { shot: rediscover-search, from: 0.5, to: 1.7 }
+      - { shot: rediscover-search, from: 9.6, to: 11.8 }
+      - { shot: rediscover-search, from: 15.6, to: 20.6, speed: 1.25 }
+    beats:
+      - { at: 0, text: "Search a person.\nGet the songs back." }
+      - { at: 3.4, text: "Every summer in Dad's truck" }
+    caption: "Whose song is stuck in your head forever?"
+
+  - id: capture-phone
+    layout: phone
+    palette: light
+    segments:
+      - { shot: capture, from: 0.2, to: 1.6 }
+      - { shot: capture, from: 10.0, to: 11.8 }
+      - { shot: capture, from: 14.8, to: 16.2 }
+      - { shot: capture, from: 18.0, to: 21.2, speed: 1.3 }
+      - { shot: capture, from: 24.8, to: 26.8 }
+    beats:
+      - { at: 0, text: "Hear it. Save it.\nKeep it forever." }
+      - { at: 1.4, text: "The song" }
+      - { at: 4.6, text: "One line is enough" }
+      - { at: 7.1, text: "Find it in ten years" }
+    caption: "The song that takes you back instantly?"
+
+  - id: scroll-pov
+    layout: full
+    palette: light
+    segments:
+      - { shot: journal-scroll, from: 0, to: 1.4 }
+      - { shot: journal-scroll, from: 3.0, to: 24.0, speed: 3.5 }
+      - { shot: journal-scroll, from: 24.5, to: 26.5 }
+    beats:
+      - { at: 0, text: "POV: a song for\nevery big moment" }
+      - { at: 1.4, text: "Weddings. Road trips. Bad winters." }
+      - { at: 7.4, text: "All the way back to 2019" }
+    caption: "If your life had a soundtrack, what's track one?"

@@ -1,0 +1,8 @@
+# Shot: search "the night I knew" → Home. Steps in _search-and-open.yaml.
+appId: com.joshuaphelps.musicmemory.preview
+---
+- runFlow:
+    file: _search-and-open.yaml
+    env:
+      QUERY: "the night I knew"
+      RESULT: "Home"
