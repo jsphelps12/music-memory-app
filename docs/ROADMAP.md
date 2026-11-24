@@ -170,8 +170,10 @@ widget colors.
 
 **1.5 (a new native build), in `native/1.5` off `native/1.4`:**
 Scope (Josh, 2026-11-23): Memory widget, voice entries with the recordings
-kept, Siri as the stretch. Not the part of the song set automatically (not
-accurate enough; picking it by hand works).
+kept, "Remember this song" saved in the background (Siri, Shortcuts, Action
+button), Journaling Suggestions (entitlement permitting), offline saves, and
+a polish pass. Not the part of the song set automatically (not accurate
+enough; picking it by hand works).
 Journaling Suggestions waits on the entitlement (ask Apple now).
 The working plan, with how each piece is built and the open decisions:
 `docs/PLAN-1.5.md`.
@@ -1138,7 +1140,9 @@ clutter, navigation.
   found it the week it came out". No cloud AI for this (photo locations
   and listening history stay on the phone). Photos' People aren't
   available to apps; Google Photos isn't readable at all.
-- [ ] **Photos ↔ music: three moments a week.** On device only: Apple Music
+- [x] **Photos ↔ music: three moments a week.** *(Shipped in 1.4 as From
+  before, Last week and the On this day pairings: `lib/pastPairings.ts`,
+  `lib/lastWeek.ts`.)* On device only: Apple Music
   library `dateAdded` / play count / last played (+ Replay playlists) matched
   to photos from ±3 days (date, place, favorites; iOS 18 on-device aesthetic
   score picks the best photo), ranked by photo count, favorites, away from
@@ -1146,7 +1150,8 @@ clutter, navigation.
   14 photos in Big Sur." Local notification, no server or AI cost. Step one:
   a prototype screen on Josh's real library to check `dateAdded` quality.
   Native (rides 1.4).
-- [ ] **Log what's playing without opening the app** (App Intent that saves
+- [ ] **Log what's playing without opening the app** *(in 1.5, as "Remember
+  this song" with a capture key: docs/PLAN-1.5.md)* (App Intent that saves
   the now-playing song straight to the journal, with a "write later" nudge).
   Needs an app group + the auth token in a shared keychain; the widget above
   opens the app instead.

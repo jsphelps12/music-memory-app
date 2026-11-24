@@ -15,8 +15,13 @@ from Playing now or Identify. Neither is accurate enough; picking it by hand
 |---|---------|------------------------|
 | 1 | Memory widget: one moment a day on the Home Screen, opening into the film | Yes (widget views, app-group writer) |
 | 2 | Voice entries, recordings kept | Recording and playback: **no**, can ship now. Transcription: yes |
-| 3 | Siri / Shortcuts / Action button: "Remember this song" (stretch) | Yes (App Intent in the app) |
-| — | Journaling Suggestions | Waits on Apple's entitlement (Josh: request it now) |
+| 3 | "Remember this song" from Siri, Shortcuts and the Action button, saved in the background | Yes (App Intent in the app) |
+| 4 | Journaling Suggestions: Apple's picker of your day's songs, photos and places | Yes, and Apple's entitlement (Josh: request it now) |
+| 5 | Offline saves: capture with no signal, saved when you're back online | **No**, can ship before 1.5 |
+| 6 | Polish (below) | Mostly no |
+
+Added 2026-11-23 (Josh): Journaling Suggestions, offline saves, the
+background save, and a polish pass.
 
 Also rides the binary: the app-wide ink tint for system alerts and the widget's
 colors (from the 2026-11-19 color audit).
@@ -86,27 +91,89 @@ stricter rules than photos do:
 **Effort:** recording, upload and playback about 2 days (plus the migration);
 transcription about 1 day in 1.5.
 
-## 3. Siri: "Remember this song" (stretch)
+## 3. "Remember this song", saved in the background
 
-An App Intent in the app, so it works from Siri, Shortcuts and the Action
-button:
-- **1.5 version:** opens straight into capture with the playing song
-  already filled in. Simple, and uses the same capture screen.
-- **Later version:** saves in the background without opening the app, with
-  the screen off. That needs the session shared with the intent (shared
-  keychain), a native save path, and a "finish this one" nudge later. It's a
-  bigger piece, so not in 1.5.
+An App Intent in the app, so it works from Siri ("Hey Siri, remember this
+song"), Shortcuts and the Action button, with the screen off and without
+opening the app. It saves what's playing as a moment (song, part of the song
+where it was, date, time) and a quiet notification later offers "Add your
+words", which opens that moment's Edit.
 
-**Effort:** about 1 day for the 1.5 version.
+**How it saves without the app open.** The intent runs in Swift, outside the
+JavaScript app, so it can't use the app's sign-in directly. Sharing the
+app's session with it is risky: Supabase rotates refresh tokens, and if the
+intent refreshed one the app would be signed out. Instead:
+- On sign-in the app asks a new edge function (`capture-key`) for a
+  **capture key**: a random secret, stored hashed on the server, that can only
+  add a moment for that one person. The app keeps it in the keychain, shared
+  with the intent.
+- The intent reads the playing song (`MPMusicPlayerController`), looks it up
+  in the iTunes catalog and sends it with the key to an edge function
+  (`quick-capture`), which checks the key and saves the moment.
+- Sign-out and account deletion revoke the key on the server and delete it
+  from the keychain. Keys can be listed and revoked per device later.
+- No song playing, no signal: the intent says so ("Nothing's playing") and
+  saves nothing; with no signal it offers to open the app instead.
+
+**Effort:** about 3–4 days (two edge functions, a table for keys, the intent,
+the notification).
+
+## 4. Journaling Suggestions
+
+Apple's own picker (the one Apple's Journal app uses) showing your day: songs
+you listened to, photos, places, workouts, people. Picking a song suggestion
+opens capture with it filled in; photos and the place come along.
+- Needs Apple's entitlement (`com.apple.developer.journal.allow`), which
+  Apple grants on request. **Josh: request it now**; it can take weeks.
+- iOS 17.2+; the picker is Apple's SwiftUI view, shown from a small native
+  view module, and the app only gets what the person picks.
+- Where it lives: long-press + → Start from → "Your day (Apple)", next to
+  Last week. Help's list of ways into capture gets it in the same change.
+- If the entitlement isn't granted in time, it waits for 1.5.1; nothing
+  else depends on it.
+
+**Effort:** about 2 days once the entitlement is granted.
+
+## 5. Offline saves
+
+Today a capture with no signal fails to save; the words survive as a draft,
+but it isn't saved. Offline saves make Save always work:
+- With no connection (or a failed save), the moment goes into an on-device
+  outbox (the same storage drafts use, photos copied alongside) and the
+  Journal shows it at the top with "Saves when you're back online".
+- When the connection returns (NetInfo, app foreground), the outbox saves
+  each one in order: preview lookup, photo uploads, the row; a failure keeps
+  it in the outbox and tries again later, never twice (each has its own id,
+  the same id `saveMoment` already uses to check a lost response).
+- Sign-out clears the outbox only after asking ("2 moments haven't saved
+  yet"); that's the one place it could lose something.
+- Pure JavaScript, so it can ship as an update before 1.5.
+
+**Effort:** about 3 days.
+
+## 6. Polish
+
+A pass over everything before 1.5 goes to review, mostly over the air:
+- The rest of the color cleanup: over-image glass tokens, one shadow token,
+  a lint rule against hex colors in screens.
+- Small journals: Rediscover and Insights show a teaser instead of
+  emptiness when there are only a few moments.
+- Reading the archive: search across words, songs and people, and browsing
+  that makes old moments easy to land on.
+- Josh's list from using 1.4.1 day to day (added as it comes).
+- The 1.5 audit (`/audit`) before submitting, and anything it finds.
+
+**Effort:** a few days, spread over the 1.5 work.
 
 ## Order
 
 1. **Now, over the air to 1.4.1:** voice recording, upload and playback
-   (migration first, then the update). Josh can use it before 1.5 exists.
-2. **Branch `native/1.5`** off `native/1.4.1` once 1.4.1 is released and
-   merged into `main`.
-3. **Native batch:** the app-group writer, transcription, the alert tint. Then the widget views, the film deep link,
-   and the Siri intent.
+   (migration first, then the update), and offline saves. Polish as it comes.
+2. **Branch `native/1.5`** off `main` (1.4.1 is released and merged).
+3. **Native batch:** the app-group writer, transcription, the alert tint, the
+   capture-key keychain. Then the widget views, the film deep link, the
+   background intent and its edge functions, and Journaling Suggestions if
+   the entitlement has come through.
 4. **Build:** EAS cloud builds are back 2026-12-01; a Mac build works too
    (record it with `scripts/record-local-build.mjs` so updates reach it).
 5. **Test:** Maestro flows for voice capture; the widget
@@ -123,5 +190,6 @@ button:
 4. **Voice length:** a 3-minute cap OK?
 5. **Voice before 1.5:** ship recording and playback as an update to 1.4.1
    now (proposed)?
-6. **Offline saves** were on the earlier 1.5 list (save with no signal, sync
-   later). In or out?
+6. **Background save notification:** "Add your words" a while after a
+   background save (proposed: the next morning at 10, with the daily
+   push rules), or right away?
