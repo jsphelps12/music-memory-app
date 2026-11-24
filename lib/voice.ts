@@ -16,7 +16,8 @@ import { formatSongTime } from "@/lib/songPart";
  * Until it's saved a recording is a file on the phone (lib/voiceFiles.ts),
  * which a capture draft keeps; storage calls are in lib/voiceStorage.ts. This
  * file is the pure rules (tested in lib/__tests__/voice.test.ts).
- * Transcription is 1.5 and not part of this.
+ * No transcription: voice-to-text is the keyboard's dictation (decided
+ * 2026-11-24, docs/PLAN-1.5.md decision 7).
  */
 
 export const VOICE_BUCKET = "moment-voice";

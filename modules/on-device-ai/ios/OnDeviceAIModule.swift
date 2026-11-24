@@ -11,8 +11,6 @@ import FoundationModels
 // images come from the copies already on the phone (iCloud-only originals
 // are skipped, not downloaded), and every model is Apple's, running locally.
 // JS decides what to do with the results (lib/photoInterest.ts).
-// Voice entries are transcribed here too (SpeechTranscription.swift, 1.5),
-// on-device only.
 public class OnDeviceAIModule: Module {
   public func definition() -> ModuleDefinition {
     Name("OnDeviceAI")
@@ -66,30 +64,6 @@ public class OnDeviceAIModule: Module {
       }
       #endif
       return nil
-    }
-
-    // Speech recognition permission: "authorized", "denied", "restricted"
-    // or "undetermined".
-    Function("speechAuthorizationStatus") { () -> String in
-      SpeechTranscription.authorizationStatus()
-    }
-
-    AsyncFunction("requestSpeechAuthorization") { () async -> String in
-      SpeechTranscription.statusName(await SpeechTranscription.requestAuthorization())
-    }
-
-    // A voice entry (at most 3 minutes) to text, on the phone only:
-    // { text, segments: [{ text, startMs, durationMs }], locale }. Rejects
-    // with code "denied", "unsupported" (no on-device recognizer for the
-    // language; never the server instead), "no_speech" or "failed".
-    AsyncFunction("transcribeFile") { (uri: String, localeId: String?) async throws -> [String: Any] in
-      do {
-        return try await SpeechTranscription.transcribe(uri: uri, localeId: localeId).dictionary
-      } catch let failure as TranscriptionFailure {
-        throw Exception(name: "TranscriptionError", description: failure.message, code: failure.code)
-      } catch {
-        throw Exception(name: "TranscriptionError", description: error.localizedDescription, code: "failed")
-      }
     }
   }
 

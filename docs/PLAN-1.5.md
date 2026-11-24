@@ -108,7 +108,7 @@ song, so voice waits for 1.5's new text instead of going over the air:
   on-device recognition only; nothing leaves the phone), plus the
   speech-recognition permission string.
 
-**Transcription (built 2026-11-23, branch `native-1.5/speech`).**
+**Transcription (built 2026-11-23, branch `native-1.5/speech`; removed 2026-11-24, see decision 7).**
 - Native, in `modules/on-device-ai` (`ios/SpeechTranscription.swift`):
   `transcribeFile(uri, localeId?)` returns `{ text, segments: [{ text,
   startMs, durationMs }], locale }`. On iOS 26 it uses Apple's
@@ -432,10 +432,15 @@ A pass over everything before 1.5 goes to review, mostly over the air:
 5. **Voice length:** 3 minutes.
 6. **Voice before 1.5:** first decided as an update to 1.4.1, then moved
    into the 1.5 build: build 16's microphone text only covers Identify.
-7. **Transcript (1.5):** fills the reflection when it's empty; offered as
-   "Use what you said" when there's already writing.
-   *Reopened 2026-11-24 (Josh):* should recording your voice and
-   voice-to-text be separate features? Not built until he picks.
+7. **Transcript:** dropped (Josh, 2026-11-24, option A). Recording your
+   voice and voice-to-text are separate features, and the keyboard's
+   dictation mic already does voice-to-text in the reflection field. A
+   recording is audio you play back, nothing more; the app never asks for
+   speech recognition. The transcription module built on
+   `native-1.5/speech` was removed before build 19 (`SpeechTranscription.swift`,
+   `lib/transcription.ts`, `NSSpeechRecognitionUsageDescription`). Maybe
+   later: a recording's own text under its play button, for search (option
+   B), never touching the reflection.
 8. **Voice in the film:** over the song, with the music turned down.
 9. **After a background save:** no notification at all (no more pushes).
 10. **Siri's reply:** says what it saved.

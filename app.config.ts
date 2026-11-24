@@ -17,8 +17,6 @@ const LOCATION_USAGE =
   "Soundtracks uses your location while you add a moment to suggest where it happened. You can change or remove the place before you save.";
 const MICROPHONE_USAGE =
   "Soundtracks uses the microphone to identify a song playing around you, and to record what you say about a moment. It only listens while you're identifying a song or recording.";
-const SPEECH_USAGE =
-  "Soundtracks turns what you say about a song into text on your iPhone. Your recording never leaves your phone to be transcribed.";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -57,7 +55,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       NSCameraUsageDescription: CAMERA_USAGE,
       NSLocationWhenInUseUsageDescription: LOCATION_USAGE,
       NSMicrophoneUsageDescription: MICROPHONE_USAGE,
-      NSSpeechRecognitionUsageDescription: SPEECH_USAGE,
       ITSAppUsesNonExemptEncryption: false,
       // Required by react-native-spotify-remote so iOS allows querying
       // whether the Spotify app is installed and opening it for OAuth.

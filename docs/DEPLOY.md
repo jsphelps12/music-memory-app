@@ -323,8 +323,9 @@ plutil -p "$APP/Info.plist" | grep -E 'UsageDescription|Temporary'
 ```
 
 - The usage strings match the constants at the top of `app.config.ts`
-  (Apple Music, Photos, Camera, Location when in use, Microphone, Speech
-  Recognition from 1.5, Face ID).
+  (Apple Music, Photos, Camera, Location when in use, Microphone, Face ID).
+  No `NSSpeechRecognitionUsageDescription`: transcription was dropped from
+  1.5 (voice-to-text is the keyboard's dictation).
 - No `NSLocationAlways…`, `NSMotionUsageDescription` or
   `NSLocationTemporaryUsageDescriptionDictionary`: the app never asks for them.
 - If associated-domains is missing from the signed app, the App ID lacks the

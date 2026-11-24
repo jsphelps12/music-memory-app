@@ -23,8 +23,11 @@ import Security
 @available(iOS 16.4, *)
 struct RememberThisSongIntent: ForegroundContinuableIntent {
   static let title: LocalizedStringResource = "Remember this song"
+  // App Store Connect rejects an intent description containing "Apple"
+  // (ITMS-90626, build 18), so it says "the Music app" and Siri's lines
+  // avoid the word too.
   static let description: IntentDescription? = IntentDescription(
-    "Saves the song playing in Apple Music to your Soundtracks journal without opening the app. Add your words whenever you like."
+    "Saves the song playing in the Music app to your Soundtracks journal without opening the app. Add your words whenever you like."
   )
   static let openAppWhenRun = false
   // Works with the phone locked, screen off: it only adds a moment, and the
@@ -39,7 +42,7 @@ struct RememberThisSongIntent: ForegroundContinuableIntent {
     case .nothing:
       return .result(dialog: "Nothing's playing")
     case .noLibraryAccess:
-      throw openApp("Soundtracks needs access to Apple Music for this. Open Soundtracks?")
+      throw openApp("Soundtracks needs access to your music library for this. Open Soundtracks?")
     }
 
     guard let setup = CaptureKeyStore.read() else {

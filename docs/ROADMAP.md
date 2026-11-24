@@ -195,8 +195,9 @@ The working plan, with how each piece is built and the open decisions:
   `20261126000000_capture_source_your_day`, not applied yet). Waiting on the
   migration and a try on a phone (the picker doesn't run in the
   simulator).
-- [ ] **Voice entries** — speak the reflection, transcribed on device;
-  the recording is kept too (Josh, 2026-11-23): your voice plays on the
+- [ ] **Voice entries** — your voice, kept as a recording (Josh,
+  2026-11-23; no transcription, decided 2026-11-24: voice-to-text is the
+  keyboard's dictation, a separate feature): your voice plays on the
   moment and in the film (ducking the song through createMixRestore), and
   feeds "Your life as a radio show" later. Voice is more personal than a
   photo, so recordings go in a private bucket with signed URLs (not the
@@ -217,13 +218,10 @@ The working plan, with how each piece is built and the open decisions:
   (`lib/voiceStorage.ts`). The owner's moment shows "Your voice · 0:42"
   under the reflection, played through a signed URL; it pauses the song and
   the song stops it. Deleted with the moment (and the account); never in
-  the shared view. Still to do: on-device transcription and the film.
-  Transcription built 2026-11-23 on `native-1.5/speech`: `transcribeFile`
-  in `modules/on-device-ai` (SpeechAnalyzer on iOS 26, else
-  SFSpeechRecognizer with on-device recognition required; never the
-  server) and `lib/transcription.ts` for the voice sheet to call; the
-  speech permission string is in `app.config.ts`. Needs the 1.5 binary to
-  test on a phone.
+  the shared view. The film plays it over the song, ducked (2026-11-24,
+  `hooks/useFilmVoice.ts`). Transcription was built on
+  `native-1.5/speech` and removed before build 19 (option A, see
+  `docs/PLAN-1.5.md` decision 7).
 - [ ] **Memory widget** — one moment a day on the Home Screen, opening
   into the film. Built 2026-11-23 on `native-1.5/widget` (waiting on the
   1.5 binary and a check on Josh's phone): picks (`lib/widgetPicks.ts`,
