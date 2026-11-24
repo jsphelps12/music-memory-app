@@ -21,6 +21,12 @@ describe("isBuildBelowMinimum", () => {
     expect(isBuildBelowMinimum("24", 23)).toBe(false);
   });
 
+  it("never turns away a simulator or development build (build 1)", () => {
+    expect(isBuildBelowMinimum("1", 16)).toBe(false);
+    expect(isBuildBelowMinimum("0", 16)).toBe(false);
+    expect(isBuildBelowMinimum("8", 16)).toBe(true);
+  });
+
   it("accepts the jsonb value as number or numeric string", () => {
     expect(isBuildBelowMinimum("7", "8")).toBe(true);
     expect(isBuildBelowMinimum("8", "8")).toBe(false);

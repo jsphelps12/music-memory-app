@@ -22,8 +22,17 @@ export function isBuildBelowMinimum(
   const current = Number.parseInt(String(currentBuild), 10);
   const min = typeof minSupported === "number" ? minSupported : Number.parseInt(String(minSupported), 10);
   if (!Number.isFinite(current) || !Number.isFinite(min)) return false;
+  // Simulator and development builds report CFBundleVersion 1 (the E2E
+  // simulator app, local Xcode runs). No App Store build that carries this
+  // gate is that low (the gate arrived with 1.2.0, build 8), so 1 is never
+  // a store build to turn away: without this, raising the floor to 16
+  // (2026-11-23) put the update screen in front of every E2E run.
+  if (current <= DEVELOPMENT_BUILD) return false;
   return current < min;
 }
+
+/** What simulator and development builds report as their build number. */
+export const DEVELOPMENT_BUILD = 1;
 
 /**
  * True when this binary is below the server floor. Resolves false on any
