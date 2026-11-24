@@ -75,6 +75,43 @@ granted for Identify. Only transcription needs native work. So:
   on-device recognition only; nothing leaves the phone), plus the
   speech-recognition permission string.
 
+**Transcription (built 2026-11-23, branch `native-1.5/speech`).**
+- Native, in `modules/on-device-ai` (`ios/SpeechTranscription.swift`):
+  `transcribeFile(uri, localeId?)` returns `{ text, segments: [{ text,
+  startMs, durationMs }], locale }`. On iOS 26 it uses Apple's
+  SpeechAnalyzer (always on-device) when the phone supports the language;
+  otherwise SFSpeechRecognizer with `requiresOnDeviceRecognition`. If the
+  phone can't recognize the language on-device it stops with
+  `unsupported`; it never sends audio to Apple's servers. If iOS 26's
+  speech model for the language isn't on the phone yet and the older
+  recognizer can do it, the older one takes this recording and the model
+  downloads in the background for next time (a model download; the audio
+  stays put). Errors have stable codes: `denied`, `unsupported`,
+  `no_speech`, `failed`. Also `speechAuthorizationStatus()` and
+  `requestSpeechAuthorization()`; `transcribeFile` asks for permission
+  itself the first time.
+- JS: the module's `index.ts` wraps them null-safely (a binary before 1.5
+  gets `{ ok: false, reason: "unavailable" }`). `lib/transcription.ts` has
+  `transcribeRecording(uri)` → `{ ok: true, text } | { ok: false, reason }`
+  (text tidied by `cleanTranscript`: spacing, a capital, a full stop; never
+  reworded), and `applyTranscript(reflection, text, templates)` →
+  `fill` / `offer` / `none` (Decision 7). Tested in
+  `lib/__tests__/transcription.test.ts`.
+- **How the voice sheet calls it** (a few lines once both land): after a
+  recording stops, `transcribeRecording(uri)`; on `ok`, `applyTranscript`
+  with capture's `reflection` and `templates`. `fill` puts the words in the
+  reflection (replacing a starter or prompt); `offer` shows "Use what you
+  said" under the recording; `none` and any failure show nothing, and the
+  recording is kept either way. A recording that couldn't be transcribed
+  is still a voice entry.
+- Permission string: `NSSpeechRecognitionUsageDescription` (`SPEECH_USAGE`
+  in `app.config.ts`). The microphone string still says it only listens
+  for Identify; it needs updating with voice recording.
+- To check in the 1.5 build: the permission prompt, accuracy with music
+  in the background, a language the phone can't do on-device (expect no
+  text, no error shown), iOS 26 vs older, and the first run on iOS 26
+  before the speech model is downloaded.
+
 **Data and privacy.** A voice is more personal than a photo, so recordings get
 stricter rules than photos do:
 - A new **private** storage bucket (`moment-voice`, `{user_id}/` folders, owner
@@ -193,3 +230,6 @@ A pass over everything before 1.5 goes to review, mostly over the air:
 6. **Background save notification:** "Add your words" a while after a
    background save (proposed: the next morning at 10, with the daily
    push rules), or right away?
+7. **Transcript and writing:** the transcript fills the reflection when
+   it's empty (or only a starter or prompt); when there's already writing,
+   it's offered as "Use what you said" instead of overwriting it.

@@ -193,6 +193,12 @@ The working plan, with how each piece is built and the open decisions:
   deleted with the moment. The transcript is the person's own words, so it
   can fill the reflection (the "AI never writes it" rule is about
   generated text).
+  Transcription built 2026-11-23 on `native-1.5/speech`: `transcribeFile`
+  in `modules/on-device-ai` (SpeechAnalyzer on iOS 26, else
+  SFSpeechRecognizer with on-device recognition required; never the
+  server) and `lib/transcription.ts` for the voice sheet to call; the
+  speech permission string is in `app.config.ts`. Needs the 1.5 binary to
+  test on a phone.
 - [ ] **Memory widget** — one moment a day on the Home Screen, opening
   into the film.
 
