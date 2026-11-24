@@ -1,9 +1,18 @@
 # Short videos for TikTok / Reels / Shorts, built from recorded shots of the
 # app (marketing/videos/flows/<shot>.yaml) with scripts/video/make.py.
 #
-# A clip is one or more segments cut together, headline beats over them, then
-# an end card. Aim for 8–12 seconds: a big hook in the first second, a payoff
-# by the end.
+# Two kinds of clip:
+#
+# STORY (what we post): `slides`, in order. A slide is a real-life photo
+# (`photo:` a file in photos/, `seconds:`) or a piece of a shot (`shot:` with
+# from/to/speed/zoom/focus as below), each with its `text`. The format faceless
+# app accounts use: life first, a specific mid-story line in TikTok's own
+# caption look (white, black outline, upper middle, casual lowercase), the app
+# as the payoff, its name on the last slide. No end card. Also exports the
+# slides as JPGs (out/<id>-slides/) for a Photo Mode carousel.
+#
+# MONTAGE (the first attempt, kept for reference): `segments` cut together
+# with caption beats over them, then an end card.
 #
 #   id:        output name (marketing/videos/out/<id>.mp4 / .jpg / .txt)
 #   layout:    phone (the screen in a bezel under a serif headline) or full
@@ -37,205 +46,72 @@ end_card:
   seconds: 2
 
 clips:
-  # Journal → the wedding moment: both photos, then who was there.
-  - id: wedding-song
-    layout: full
-    palette: light
-    segments:
-      - { shot: open-moment, from: 0, to: 1.4 }
-      - { shot: open-moment, from: 1.6, to: 4.6, speed: 1.2 }
-      - { shot: open-moment, from: 5.0, to: 6.8 }
-      - { shot: open-moment, from: 13.6, to: 15.6 }
-    beats:
-      - { at: 0, text: "The song that ends\nevery wedding" }
-      - { at: 2.2, text: "Saved with the photos" }
-      - { at: 5.7, text: "And who was there", y: 1250 }
-    caption: "Every wedding. Every time. What's yours?"
-
-  # Rediscover → search "Dad" → the truck.
-  - id: dad-search
-    layout: full
-    palette: light
-    segments:
-      - { shot: rediscover-search, from: 0.5, to: 1.7 }
-      - { shot: rediscover-search, from: 9.6, to: 11.8 }
-      - { shot: rediscover-search, from: 15.6, to: 20.6, speed: 1.25 }
-    beats:
-      - { at: 0, text: "Type \"Dad\"", y: 1150 }
-      - { at: 3.4, text: "Get every summer back" }
-    caption: "Search your memories by the people in them."
-
-  # The Journal flicked from this month back to 2019.
-  - id: seven-years
-    layout: phone
-    palette: light
-    segments:
-      - { shot: journal-scroll, from: 0, to: 1.4 }
-      - { shot: journal-scroll, from: 3.0, to: 24.0, speed: 3.5 }
-      - { shot: journal-scroll, from: 24.5, to: 26.5 }
-    beats:
-      - { at: 0, text: "Every song\nis a bookmark" }
-      - { at: 1.4, text: "Seven years of them" }
-      - { at: 7.4, text: "Back to the first one" }
-    caption: "What song would be on the first page of yours?"
-
-  # Capture, cut down to the moments that matter.
-  - id: ten-seconds
-    layout: full
-    palette: light
-    caption_y: 1380
-    segments:
-      - { shot: capture, from: 0.2, to: 1.6 }
-      - { shot: capture, from: 10.0, to: 11.8 }
-      - { shot: capture, from: 14.8, to: 16.2 }
-      - { shot: capture, from: 18.0, to: 21.2, speed: 1.3 }
-      - { shot: capture, from: 24.8, to: 26.8 }
-    beats:
-      - { at: 0, text: "Saving a memory\ntakes 10 seconds" }
-      - { at: 1.4, text: "Pick the song" }
-      - { at: 4.6, text: "Write one line" }
-      - { at: 7.1, text: "Done", y: 1250 }
-    caption: "The easiest journal you'll ever keep."
-
-
-  # ── Search → open: one memory each (shared flow: flows/_search-and-open.yaml).
+  - id: wedding
+    slides:
+      - { photo: wedding-1, seconds: 2.6, text: "every wedding ends with mr. brightside and you know it" }
+      - { photo: wedding-2, seconds: 2.0, text: "the whole room screaming the second verse" }
+      - { shot: open-moment, from: 1.6, to: 4.4, text: "now the song lives with the photos" }
+      - { shot: open-moment, from: 5.0, to: 6.8, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what's the song that ends every wedding you go to?"
 
   - id: snow
-    layout: full
-    palette: light
-    segments:
-      - { shot: search-snow, from: 1.0, to: 2.2 }
-      - { shot: search-snow, from: 11.8, to: 13.6 }
-      - { shot: search-snow, from: 18.0, to: 21.5, speed: 1.2 }
-      - { shot: search-snow, from: 21.8, to: 23.4, zoom: 1.3, focus: [0.5, 0.2] }
-    beats:
-      - { at: 0, text: "POV: the song that\nsounds like snow", y: 1050 }
-      - { at: 3.0, text: "Saved with the morning it belonged to" }
-      - { at: 5.92, text: "Coffee. Snow. On repeat." }
-    caption: "Which song sounds like winter to you?"
+    slides:
+      - { photo: cabin-2, seconds: 2.6, text: "some songs only sound right when it's snowing" }
+      - { photo: cabin-1, seconds: 2.0, text: "holocene, 7am, everyone else still asleep" }
+      - { shot: search-snow, from: 18.0, to: 20.6, text: "saved the exact morning it belonged to" }
+      - { shot: search-snow, from: 21.8, to: 23.6, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "which song sounds like winter to you?"
 
   - id: festival
-    layout: full
-    palette: light
-    segments:
-      - { shot: search-festival, from: 1.0, to: 2.2 }
-      - { shot: search-festival, from: 12.0, to: 14.2 }
-      - { shot: search-festival, from: 18.7, to: 22.2, speed: 1.2 }
-      - { shot: search-festival, from: 22.5, to: 24.1, zoom: 1.3, focus: [0.5, 0.2] }
-    beats:
-      - { at: 0, text: "The song that took\nher whole voice", y: 1050 }
-      - { at: 3.4, text: "Day three of the festival" }
-      - { at: 6.32, text: "Some songs you scream, not sing" }
-    caption: "What's the song you lost your voice to?"
+    slides:
+      - { photo: festival-2, seconds: 2.6, text: "the song you lose your voice to on day three" }
+      - { photo: festival-1, seconds: 2.0, text: "no voice left. worth it." }
+      - { shot: search-festival, from: 18.7, to: 21.2, text: "saved with the photos and who was there" }
+      - { shot: search-festival, from: 22.5, to: 24.3, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what's the song you lost your voice to?"
 
-  - id: denver
-    layout: full
-    palette: light
-    segments:
-      - { shot: search-denver, from: 1.0, to: 2.2 }
-      - { shot: search-denver, from: 10.0, to: 12.2 }
-      - { shot: search-denver, from: 17.9, to: 20.4, speed: 1.0 }
-      - { shot: search-denver, from: 20.4, to: 22.0, zoom: 1.3, focus: [0.5, 0.2] }
-    beats:
-      - { at: 0, text: "The last night before\nhe moved away", y: 1050 }
-      - { at: 3.4, text: "Nobody said it" }
-      - { at: 5.9, text: "Everybody sang louder" }
-    caption: "What song do you associate with a goodbye?"
+  - id: last-night
+    slides:
+      - { photo: bonfire-2, seconds: 2.6, text: "last night of the trip before your best friend moves away" }
+      - { photo: bonfire-1, seconds: 2.0, text: "nobody said it. everybody just sang louder." }
+      - { shot: search-denver, from: 17.9, to: 20.4, text: "rivers and roads. kept forever." }
+      - { shot: search-denver, from: 20.4, to: 22.2, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what song do you associate with a goodbye?"
 
   - id: front-row
-    layout: full
-    palette: light
-    segments:
-      - { shot: search-front-row, from: 9.5, to: 10.7 }
-      - { shot: search-front-row, from: 23.0, to: 25.2 }
-      - { shot: search-front-row, from: 29.8, to: 33.0, speed: 1.2 }
-      - { shot: search-front-row, from: 33.3, to: 34.9, zoom: 1.3, focus: [0.5, 0.2] }
-    beats:
-      - { at: 0, text: "Some concerts you\nnever want to forget", y: 1050 }
-      - { at: 3.4, text: "Front row. Finally." }
-      - { at: 6.07, text: "So you don't" }
-    caption: "Best concert of your life, go."
+    slides:
+      - { photo: concert-1, seconds: 2.4, text: "front row. finally." }
+      - { photo: concert-2, seconds: 2.0, text: "everlong live is a religious experience" }
+      - { shot: search-front-row, from: 29.8, to: 32.4, text: "some nights you never want to forget" }
+      - { shot: search-front-row, from: 33.3, to: 35.1, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "best concert of your life, go."
 
-  - id: knew
-    layout: full
-    palette: light
-    segments:
-      - { shot: search-knew, from: 1.0, to: 2.2 }
-      - { shot: search-knew, from: 12.0, to: 14.2 }
-      - { shot: search-knew, from: 18.8, to: 23.0, speed: 1.2 }
-      - { shot: search-knew, from: 23.0, to: 24.6, zoom: 1.3, focus: [0.5, 0.2] }
-    beats:
-      - { at: 0, text: "The song playing\nthe night you knew", y: 1050 }
-      - { at: 3.4, text: "Feet in the water, singing it badly" }
-      - { at: 6.9, text: "Write it down before it fades" }
-    caption: "What was playing the night you knew?"
+  - id: the-night-you-knew
+    slides:
+      - { photo: lake-1, seconds: 2.8, text: "the song playing the night you knew" }
+      - { shot: search-knew, from: 18.8, to: 21.6, text: "feet in the water, singing the whistling part badly" }
+      - { shot: search-knew, from: 21.6, to: 23.6, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what was playing the night you knew?"
 
   - id: roommates
-    layout: full
-    palette: light
-    segments:
-      - { shot: search-roommates, from: 1.0, to: 2.2 }
-      - { shot: search-roommates, from: 10.0, to: 12.2 }
-      - { shot: search-roommates, from: 17.9, to: 21.4, speed: 1.2 }
-      - { shot: search-roommates, from: 21.4, to: 23.0, zoom: 1.3, focus: [0.5, 0.2] }
-    beats:
-      - { at: 0, text: "Old roommates.\nOne song.", y: 1050 }
-      - { at: 3.4, text: "Twenty again for four minutes" }
-      - { at: 6.32, text: "Tag the one this song belongs to" }
-    caption: "Tag the person this song belongs to."
+    slides:
+      - { photo: rooftop-1, seconds: 2.8, text: "old roommates. one night back in the city." }
+      - { shot: search-roommates, from: 17.9, to: 20.7, text: "someone put on ribs and everyone was twenty again" }
+      - { shot: search-roommates, from: 20.7, to: 22.7, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "tag the person this song belongs to"
 
-  # ── Re-cuts of earlier footage in the other layout.
-  - id: wedding-phone
-    layout: phone
-    palette: light
-    segments:
-      - { shot: open-moment, from: 0, to: 1.4 }
-      - { shot: open-moment, from: 1.6, to: 4.6, speed: 1.2 }
-      - { shot: open-moment, from: 5.0, to: 6.8 }
-      - { shot: open-moment, from: 13.6, to: 15.6 }
-    beats:
-      - { at: 0, text: "Your wedding song\ndeserves a story" }
-      - { at: 2.2, text: "Not just a playlist" }
-      - { at: 5.7, text: "What it meant. Who was there." }
-    caption: "What was your first dance?"
+  - id: dads-truck
+    slides:
+      - { photo: truck-1, seconds: 2.6, text: "the song from your dad's truck every summer" }
+      - { shot: rediscover-search, from: 10.4, to: 12.4, y: 1100, text: "type \"dad\"" }
+      - { shot: rediscover-search, from: 16.4, to: 19.4, text: "and every summer comes back" }
+      - { shot: rediscover-search, from: 19.4, to: 21.2, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what song does your dad turn up every time?"
 
-  - id: people-search
-    layout: phone
-    palette: light
-    segments:
-      - { shot: rediscover-search, from: 0.5, to: 1.7 }
-      - { shot: rediscover-search, from: 9.6, to: 11.8 }
-      - { shot: rediscover-search, from: 15.6, to: 20.6, speed: 1.25 }
-    beats:
-      - { at: 0, text: "Search a person.\nGet the songs back." }
-      - { at: 3.4, text: "Every summer in Dad's truck" }
-    caption: "Whose song is stuck in your head forever?"
-
-  - id: capture-phone
-    layout: phone
-    palette: light
-    segments:
-      - { shot: capture, from: 0.2, to: 1.6 }
-      - { shot: capture, from: 10.0, to: 11.8 }
-      - { shot: capture, from: 14.8, to: 16.2 }
-      - { shot: capture, from: 18.0, to: 21.2, speed: 1.3 }
-      - { shot: capture, from: 24.8, to: 26.8 }
-    beats:
-      - { at: 0, text: "Hear it. Save it.\nKeep it forever." }
-      - { at: 1.4, text: "The song" }
-      - { at: 4.6, text: "One line is enough" }
-      - { at: 7.1, text: "Find it in ten years" }
-    caption: "The song that takes you back instantly?"
-
-  - id: scroll-pov
-    layout: full
-    palette: light
-    segments:
-      - { shot: journal-scroll, from: 0, to: 1.4 }
-      - { shot: journal-scroll, from: 3.0, to: 24.0, speed: 3.5 }
-      - { shot: journal-scroll, from: 24.5, to: 26.5 }
-    beats:
-      - { at: 0, text: "POV: a song for\nevery big moment" }
-      - { at: 1.4, text: "Weddings. Road trips. Bad winters." }
-      - { at: 7.4, text: "All the way back to 2019" }
-    caption: "If your life had a soundtrack, what's track one?"
+  - id: how-it-works
+    slides:
+      - { photo: vinyl-1, seconds: 2.4, text: "you hear a song and you're 17 again" }
+      - { shot: capture, from: 10.8, to: 12.6, y: 1180, text: "pick the song" }
+      - { shot: capture, from: 18.0, to: 21.2, speed: 1.3, y: 940, text: "write one line about it" }
+      - { shot: capture, from: 25.6, to: 27.4, y: 330, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what song takes you back instantly?"

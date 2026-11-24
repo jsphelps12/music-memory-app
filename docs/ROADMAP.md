@@ -507,6 +507,10 @@ The starred ones bring the app to you, which serves the north star:
   framed-phone style): 14 clips in all. Also: `e2e-local.sh` now raises the
   simulator copy's build number past the min-build floor (16), which blocked
   local runs with "Time for an update".
+  Then rebuilt after the first cuts read as ads: researched what faceless
+  app accounts post and switched to photo stories (real-life photo + native
+  white-outlined caption → the app as payoff, no end card), 9 clips, each
+  also exported as Photo Mode slides.
 
 ## Where things stood (2026-11-17)
 

@@ -18,11 +18,21 @@ Output lands in `out/` (gitignored): `<id>.mp4`, a cover `<id>.jpg`, and `<id>.t
 3. **Recording.** For each shot, Maestro signs in (`flows/signin.yaml`, not recorded), then `xcrun simctl io recordVideo` captures the screen while `flows/<shot>.yaml` drives the app. The status bar is set to 9:41, and dark-palette clips record in dark mode. Raw takes go to `out/raw/<shot>.mp4`.
 4. **Editing.** Each clip in `clips.yaml` is a list of segments: pieces of a shot with their own speed and optional zoom, cut together. Headlines change on each beat and slide in. Then the end card. Pillow draws the text in the app's fonts; ffmpeg does the rest.
 
+## The style (researched 2026-11-23)
+
+What faceless app accounts post, and what the clips copy:
+
+- **Life first, app last.** Open on a real-life photo with a specific, mid-story line ("every wedding ends with mr. brightside and you know it"), one more photo, then the app holding that memory, then its name. Not a screen recording with a headline.
+- **TikTok's own caption look.** White text, black outline, upper middle, casual lowercase, a few words. Pills, boxes and serif headlines read as an ad.
+- **No end card or logo.** The last slide names the app in the same text.
+- **Hard cuts, slow push-in on photos.** Something moves every 2–3 seconds.
+- **Photo Mode too.** Every story also exports its slides (`out/<id>-slides/1.jpg…`) for a swipeable carousel, the format most recommended for apps; add the song in TikTok.
+
 ## Editing a clip
 
 - **Timing.** `from`/`to` count seconds from when the shot starts moving. To find cut points, sample the raw take through a constant-rate filter, as the composer does (`ffmpeg -i out/raw/<shot>.mp4 -vf fps=30,fps=1 f_%03d.png`). A plain `-ss` seek on these recordings shows the *next* change, not what's on screen, because the simulator writes frames only when something changes.
 - **Zoom** only on photos. Any punch-in on a text screen crops the words.
-- **Layouts.** `full` (screen fills the frame, caption pills) suits TikTok. `phone` (bezel and serif headline) is calmer. Pills default to 420px from the top; set `caption_y` per clip or `y` per beat to keep them off what matters (the search bar, the words being typed).
+- **Stories** (`slides:`) are what to post. Each slide's text sits 600px from the top; give a slide its own `y` when that covers what matters (a search bar, the words being typed). Montages (`segments:`, the first attempt) still build but look like ads.
 - **Length.** Aim for 8–12 seconds: the hook in the first second, the payoff before the end card.
 
 ## New footage

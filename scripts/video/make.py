@@ -224,12 +224,30 @@ def wrap(draw, text, font, max_w):
     return lines
 
 
-def fit_text(d, text, face, start, smallest, max_w, max_h, leading=1.15):
+def wrap_balanced(draw, text, font, max_w):
+    """Like wrap(), but each paragraph's lines come out about the same length:
+    the narrowest width that still needs no more lines than a greedy wrap, so
+    there's no single word left alone on the last line."""
+    lines = []
+    for para in text.split("\n"):
+        count = len(wrap(draw, para, font, max_w))
+        lo, hi = 1, max_w
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if len(wrap(draw, para, font, mid)) <= count:
+                hi = mid
+            else:
+                lo = mid + 1
+        lines.extend(wrap(draw, para, font, lo))
+    return lines
+
+
+def fit_text(d, text, face, start, smallest, max_w, max_h, leading=1.15, balanced=False):
     """The largest size from `start` down at which `text` fits the box."""
     size = start
     while True:
         font = ImageFont.truetype(face, size)
-        lines = wrap(d, text, font, max_w)
+        lines = (wrap_balanced if balanced else wrap)(d, text, font, max_w)
         lh = round(size * leading)
         if len(lines) * lh <= max_h or size <= smallest:
             return font, lines, lh
@@ -283,7 +301,10 @@ def draw_end_card(spec, palette, path):
 
 
 def segments_of(clip):
-    """A clip's segments; a clip with just `shot`/`input` is one segment of the whole take."""
+    """A clip's segments; a clip with just `shot`/`input` is one segment of the whole take.
+    A story's segments are its slides that come from a shot or a recording."""
+    if clip.get("slides"):
+        return [s for s in clip["slides"] if s.get("shot") or s.get("input")]
     if clip.get("segments"):
         return clip["segments"]
     return [{k: clip[k] for k in ("shot", "input", "speed", "trim") if k in clip}]
@@ -403,6 +424,124 @@ def compose(clip, end_card, hashtags):
     return mp4
 
 
+# ── Story clips ──────────────────────────────────────────────────────────────
+# The format faceless app accounts use: real-life photos first, with a
+# specific mid-story line in TikTok's own caption look (white, black outline,
+# upper middle), then the app as the payoff, named in the same text on the
+# last slide. No end card or logo: those read as an ad. Hard cuts; a slow
+# push-in on photos so nothing sits still. Each story also exports its slides
+# as PNGs for a Photo Mode carousel.
+
+STORY_TEXT_Y = 600       # centre of the caption block: below TikTok's top UI, upper third
+STORY_PUSH = 0.07        # how far a photo pushes in over its slide
+
+
+def cover_photo(name, path):
+    """A photo cropped to 9:16 (centred) at 1080x1920."""
+    img = Image.open(VIDEOS / "photos" / f"{name}.jpg").convert("RGB")
+    w, h = img.size
+    if w / h > W / H:
+        cw = round(h * W / H)
+        img = img.crop(((w - cw) // 2, 0, (w - cw) // 2 + cw, h))
+    else:
+        ch = round(w * H / W)
+        img = img.crop((0, (h - ch) // 2, w, (h - ch) // 2 + ch))
+    img.resize((W, H), Image.LANCZOS).save(path, quality=92)
+
+
+def draw_story_text(text, path, center_y=STORY_TEXT_Y):
+    """White text with a black outline: TikTok's default caption look."""
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    font, lines, lh = fit_text(d, text, SANS_BOLD, 72, 48, W - 160, 560, leading=1.2, balanced=True)
+    stroke = max(4, font.size // 11)
+    y = center_y - len(lines) * lh // 2
+    # A soft shadow under the outline keeps it legible on bright photos too.
+    shadow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(shadow)
+    for i, line in enumerate(lines):
+        x = (W - d.textlength(line, font=font)) / 2
+        sd.text((x, y + i * lh + 4), line, font=font, fill=(0, 0, 0, 150), stroke_width=stroke + 2, stroke_fill=(0, 0, 0, 150))
+    img.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(6)))
+    for i, line in enumerate(lines):
+        x = (W - d.textlength(line, font=font)) / 2
+        d.text((x, y + i * lh), line, font=font, fill="white", stroke_width=stroke, stroke_fill="black")
+    img.save(path)
+
+
+def compose_story(clip, hashtags):
+    slides = clip["slides"]
+    print(f"── Composing {clip['id']} (story, {len(slides)} slides)")
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        inputs, f, n = [], [], 0
+
+        def add(args):
+            nonlocal n
+            inputs.extend(args)
+            n += 1
+            return n - 1
+
+        lengths, stills = [], []
+        for i, s in enumerate(slides):
+            text_png = tmp / f"text{i}.png"
+            draw_story_text(s["text"], text_png, int(s.get("y", STORY_TEXT_Y)))
+            if s.get("photo"):
+                length = float(s.get("seconds", 2.4))
+                photo = tmp / f"photo{i}.jpg"
+                cover_photo(s["photo"], photo)
+                k = add(["-loop", "1", "-framerate", str(FPS), "-t", f"{length}", "-i", str(photo)])
+                # Push in: scale up over the slide, crop the centre back to the frame.
+                f.append(f"[{k}:v]scale=w='trunc({W}*(1+{STORY_PUSH}*t/{length})/2)*2':h=-2:eval=frame,"
+                         f"crop={W}:{H},setsar=1,fps={FPS},trim=duration={length},setpts=PTS-STARTPTS,format=rgba[p{i}]")
+                stills.append(("photo", photo, None))
+            else:
+                p = plan_segment(s)
+                length = p["length"]
+                cw, ch, cx, cy = p["crop"]
+                th = round(W * p["src"][1] / p["src"][0]) // 2 * 2
+                k = add(["-i", str(p["raw"])])
+                # The screen fills the frame (its top 1920px; the tab bar falls off the bottom).
+                f.append(f"[{k}:v]fps={FPS},trim=start={p['start']:.3f}:end={p['stop']:.3f},"
+                         f"setpts=(PTS-STARTPTS)/{p['speed']},fps={FPS},crop={cw}:{ch}:{cx}:{cy},scale={W}:{th},"
+                         f"crop={W}:{H}:0:0,setsar=1,tpad=stop_mode=clone:stop_duration=3,trim=duration={length},"
+                         f"setpts=PTS-STARTPTS,format=rgba[p{i}]")
+                stills.append(("shot", p, length))
+            t = add(["-loop", "1", "-framerate", str(FPS), "-t", f"{length}", "-i", str(text_png)])
+            f.append(f"[p{i}][{t}:v]overlay=0:0,format=yuv420p[s{i}]")
+            lengths.append(length)
+        f.append("".join(f"[s{i}]" for i in range(len(slides))) + f"concat=n={len(slides)}:v=1:a=0[out]")
+        total = round(sum(lengths), 3)
+
+        OUT.mkdir(parents=True, exist_ok=True)
+        mp4 = OUT / f"{clip['id']}.mp4"
+        run(["ffmpeg", "-y", "-v", "error", *inputs, "-filter_complex", ";".join(f), "-map", "[out]", "-t", f"{total}",
+             "-r", str(FPS), "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-movflags", "+faststart", "-an", str(mp4)])
+        run(["ffmpeg", "-y", "-v", "error", "-ss", "0.3", "-i", str(mp4), "-frames:v", "1", "-q:v", "3", str(OUT / f"{clip['id']}.jpg")])
+
+        # Photo Mode: one PNG per slide (a shot slide uses its middle frame).
+        slide_dir = OUT / f"{clip['id']}-slides"
+        if slide_dir.exists():
+            shutil.rmtree(slide_dir)
+        slide_dir.mkdir()
+        for i, (kind, src, length) in enumerate(stills):
+            frame = tmp / f"frame{i}.png"
+            if kind == "photo":
+                Image.open(src).convert("RGBA").save(frame)
+            else:
+                th = round(W * src["src"][1] / src["src"][0]) // 2 * 2
+                cw, ch, cx, cy = src["crop"]
+                mid = src["start"] + (src["stop"] - src["start"]) / 2
+                run(["ffmpeg", "-y", "-v", "error", "-i", str(src["raw"]), "-vf",
+                     f"fps={FPS},trim=start={mid:.3f},setpts=PTS-STARTPTS,crop={cw}:{ch}:{cx}:{cy},scale={W}:{th},crop={W}:{H}:0:0",
+                     "-frames:v", "1", str(frame)])
+            img = Image.open(frame).convert("RGBA")
+            img.alpha_composite(Image.open(tmp / f"text{i}.png"))
+            img.convert("RGB").save(slide_dir / f"{i + 1}.jpg", quality=92)
+    (OUT / f"{clip['id']}.txt").write_text(f"{clip['caption'].strip()}\n\n{hashtags}\n")
+    return mp4
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -464,7 +603,7 @@ def main():
         if missing:
             print(f"── Skipping {c['id']}: no recording at {missing[0].relative_to(ROOT)}")
             continue
-        made.append(compose(c, spec["end_card"], spec["hashtags"]))
+        made.append(compose_story(c, spec["hashtags"]) if c.get("slides") else compose(c, spec["end_card"], spec["hashtags"]))
     print("── Done:" if made else "── Nothing made.")
     for m in made:
         print(f"   {m.relative_to(ROOT)}")
