@@ -80,6 +80,12 @@ export interface SaveMomentInput extends MomentFieldsInput {
   captureSource?: CaptureSource | null;
   /** Names in `people` linked to friends (written after the row; never blocks the save). */
   peopleLinks?: PersonLink[];
+  /**
+   * The moment's id, when the caller picked it (the offline outbox,
+   * lib/outbox.ts): a retry of the same moment reuses it, so it can never
+   * save twice. Left out, a new one is picked here.
+   */
+  momentId?: string;
 }
 
 export interface SaveMomentResult {
@@ -134,9 +140,11 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
 
   Sentry.addBreadcrumb({ category: "moment", message: "preview_url + photos ready", level: "info", data: { photoCount: uploaded.photoPaths.length } });
 
-  // The id is chosen here, not by the database, so a failed insert can be
-  // checked: if the row exists after all, the save succeeded.
-  const id = Crypto.randomUUID();
+  // The id is chosen here (or by the caller), not by the database, so a
+  // failed insert can be checked: if the row exists after all, the save
+  // succeeded. That includes a retry of a save that already landed, whose
+  // insert fails on the existing id (Postgres 23505).
+  const id = input.momentId ?? Crypto.randomUUID();
   const {
     data: insertedRow,
     error: insertError,
@@ -178,6 +186,10 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
     }
     // Unknown: keep the photos rather than risk breaking a saved moment.
     if (existing === "unknown") throw insertError;
+    // Saved. On a retry of a save that had already landed, the row points at
+    // the first attempt's photos, so this attempt's uploads are unused.
+    const stored: string[] = existing.photo_urls ?? [];
+    if (!uploaded.photoPaths.every((p) => stored.includes(p))) cleanUpUnusedUploads(uploaded, existing);
     inserted = existing;
   }
 

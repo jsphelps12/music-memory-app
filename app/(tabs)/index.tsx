@@ -30,7 +30,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePlayerActions } from "@/contexts/PlayerContext";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
-import { consumeTimelineStale, planFocusFetch } from "@/lib/timelineRefresh";
+import { consumeListNotice, consumeTimelineStale, planFocusFetch } from "@/lib/timelineRefresh";
 import { shouldRefreshOnResume, useOnForeground, useOnReconnect } from "@/lib/appFocus";
 import {
   consumePrefetchPromise,
@@ -89,6 +89,10 @@ import { DailyCheckInOffer } from "@/components/DailyCheckInOffer";
 import { LastWeekRow } from "@/components/LastWeekRow";
 import { useLastWeek } from "@/hooks/useLastWeek";
 import { lastWeekRowState } from "@/lib/lastWeek";
+import { useOutbox } from "@/hooks/useOutbox";
+import { OutboxCard } from "@/components/OutboxCard";
+import { removeOutboxItem, retryOutboxItem, type OutboxItem } from "@/lib/outbox";
+import { subscribeOutboxSaved } from "@/lib/outboxSaved";
 import { Album, Moment, MomentCardData } from "@/types";
 
 const REFETCH_COOLDOWN_MS = 30_000;
@@ -601,42 +605,73 @@ export default function TimelineScreen() {
     }
   });
 
-  useFocusEffect(
-    useCallback(() => {
-      const { stale, pendingMoment, deletedMomentId } = consumeTimelineStale();
-      const elapsed = Date.now() - lastFetchTime.current;
+  // Catching up with changes made elsewhere: on focus, and while focused
+  // when the outbox saves a moment (below).
+  const catchUp = useCallback(() => {
+    // A brief word left by the screen that just closed (capture, after an
+    // offline save).
+    const leftNotice = consumeListNotice();
+    if (leftNotice) setNotice(leftNotice);
+    const { stale, pendingMoment, deletedMomentId } = consumeTimelineStale();
+    const elapsed = Date.now() - lastFetchTime.current;
 
-      // Applied before the refresh below lands, so the change shows at once.
-      // Only once something is loaded; otherwise the first fetch brings it.
-      const applyNow = !!timelineSnapshotRef.current && !!(pendingMoment || deletedMomentId);
-      if (applyNow) {
-        let list = momentsRef.current;
-        // In its timeline position, deduped by id (insertPendingMoment).
-        if (pendingMoment) list = insertPendingMoment(list, pendingMoment, hasMoreRef.current);
-        if (deletedMomentId) list = list.filter((m) => m.id !== deletedMomentId);
-        applyList(list, hasMoreRef.current);
-        persistFirstPage(list);
-      }
+    // Applied before the refresh below lands, so the change shows at once.
+    // Only once something is loaded; otherwise the first fetch brings it.
+    const applyNow = !!timelineSnapshotRef.current && !!(pendingMoment || deletedMomentId);
+    if (applyNow) {
+      let list = momentsRef.current;
+      // In its timeline position, deduped by id (insertPendingMoment).
+      if (pendingMoment) list = insertPendingMoment(list, pendingMoment, hasMoreRef.current);
+      if (deletedMomentId) list = list.filter((m) => m.id !== deletedMomentId);
+      applyList(list, hasMoreRef.current);
+      persistFirstPage(list);
+    }
 
-      if (stale) calendarFetchedRef.current = null;
-      // applyList above already refreshed a visible calendar.
-      if (!applyNow && viewModeRef.current === "calendar" && calendarFetchedRef.current !== true) {
-        fetchCalendarMoments();
-      }
-      const plan = planFocusFetch({
-        hasFetched: lastFetchTime.current !== 0,
-        stale: stale || needsRefreshRef.current,
-        elapsedMs: elapsed,
-        cooldownMs: REFETCH_COOLDOWN_MS,
-      });
-      if (plan === "initial") fetchMoments(true);
-      else if (plan === "initial_fresh") fetchMoments(true, false, true);
-      else if (plan === "refresh") fetchMoments(false);
+    if (stale) calendarFetchedRef.current = null;
+    // applyList above already refreshed a visible calendar.
+    if (!applyNow && viewModeRef.current === "calendar" && calendarFetchedRef.current !== true) {
+      fetchCalendarMoments();
+    }
+    const plan = planFocusFetch({
+      hasFetched: lastFetchTime.current !== 0,
+      stale: stale || needsRefreshRef.current,
+      elapsedMs: elapsed,
+      cooldownMs: REFETCH_COOLDOWN_MS,
+    });
+    if (plan === "initial") fetchMoments(true);
+    else if (plan === "initial_fresh") fetchMoments(true, false, true);
+    else if (plan === "refresh") fetchMoments(false);
 
-      // The Shared label's unread dot, on the badge cooldown.
-      if (userId && Date.now() - unviewedUpdatedAtRef.current >= SHARED_BADGE_STALE_MS) refetchUnviewed();
-    }, [fetchMoments, fetchCalendarMoments, userId, refetchUnviewed, applyList, persistFirstPage])
-  );
+    // The Shared label's unread dot, on the badge cooldown.
+    if (userId && Date.now() - unviewedUpdatedAtRef.current >= SHARED_BADGE_STALE_MS) refetchUnviewed();
+  }, [fetchMoments, fetchCalendarMoments, userId, refetchUnviewed, applyList, persistFirstPage]);
+  useFocusEffect(catchUp);
+  // The outbox often saves while the Journal is on screen (the connection
+  // comes back with it open): show the moment now, not on the next focus.
+  useEffect(() => {
+    if (!isFocused) return;
+    return subscribeOutboxSaved(catchUp);
+  }, [isFocused, catchUp]);
+
+  // Moments that haven't saved yet (lib/outbox.ts), newest first, above the
+  // first month. Rejected ones wait for Try again or Discard.
+  const outbox = useOutbox();
+  const handleRetryOutbox = useCallback((item: OutboxItem) => {
+    Haptics.selectionAsync();
+    posthog?.capture("outbox_retry_tapped");
+    void retryOutboxItem(item.userId, item.id);
+  }, [posthog]);
+  const handleDiscardOutbox = useCallback(async (item: OutboxItem) => {
+    const ok = await confirmSheet({
+      title: "Discard this moment?",
+      message: "It hasn't been saved.",
+      confirmLabel: "Discard",
+      destructive: true,
+    });
+    if (!ok) return;
+    posthog?.capture("outbox_discarded");
+    await removeOutboxItem(item.userId, item.id);
+  }, [posthog]);
 
   // The calendar is refreshed by applyList once the new list lands: fetching
   // it alongside used the snapshot from before the refresh.
@@ -793,6 +828,9 @@ export default function TimelineScreen() {
       {userId && !selecting ? (
         <DailyCheckInOffer userId={userId} hasMoments={moments.length > 0} waiting={lastWeekAsking} />
       ) : null}
+      {outbox.items.map((item) => (
+        <OutboxCard key={item.id} item={item} onRetry={handleRetryOutbox} onDiscard={handleDiscardOutbox} />
+      ))}
     </>
   );
 
@@ -899,12 +937,15 @@ export default function TimelineScreen() {
                     }
                   >
                     <View style={styles.emptyHeader}>{listHeader}</View>
-                    <EmptyState
-                      icon="musical-notes-outline"
-                      title="No moments yet"
-                      subtitle={"A moment is a song paired with a memory —\nwhat you felt, who you were with, and why it mattered."}
-                      action={{ label: "Capture a song", onPress: () => router.push("/create"), testID: "journal-empty-capture" }}
-                    />
+                    {/* Not empty while a moment waits to save (above). */}
+                    {outbox.items.length === 0 ? (
+                      <EmptyState
+                        icon="musical-notes-outline"
+                        title="No moments yet"
+                        subtitle={"A moment is a song paired with a memory —\nwhat you felt, who you were with, and why it mattered."}
+                        action={{ label: "Capture a song", onPress: () => router.push("/create"), testID: "journal-empty-capture" }}
+                      />
+                    ) : null}
                   </ScrollView>
                 ) : (
                   <SectionList

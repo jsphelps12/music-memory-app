@@ -60,6 +60,19 @@ export function isOnline(isConnected: boolean | null, isInternetReachable: boole
 }
 
 /**
+ * Whether the phone has a connection right now, by NetInfo. Online when
+ * NetInfo can't tell (isOnline above), so a save is still tried.
+ */
+export async function isDeviceOnline(): Promise<boolean> {
+  try {
+    const state = await NetInfo.fetch();
+    return isOnline(state.isConnected, state.isInternetReachable);
+  } catch {
+    return true;
+  }
+}
+
+/**
  * Runs `onReconnect` when the connection comes back after being lost (not on
  * the first reading). For screens that manage their own state (the Journal).
  */

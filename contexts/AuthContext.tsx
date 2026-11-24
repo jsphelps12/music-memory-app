@@ -15,6 +15,7 @@ import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
 import { clearCheckInData } from "@/lib/dailyCheckIn";
 import { clearLastWeekReady } from "@/lib/lastWeekReady";
 import { clearSignOutKeys } from "@/lib/signOutKeys";
+import { clearOutbox } from "@/lib/outbox";
 import { clearPhotoAnalysisStore } from "@/lib/photoAnalysisStore";
 import { clearNudgeQuestions } from "@/lib/nudgeQuestionStore";
 import { clearLibraryCache } from "@/lib/libraryCache";
@@ -461,6 +462,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearLegacyAlbumCaches(userId),
         clearBrowseCache(userId),
         clearCaptureDraft(userId),
+        // Moments that never saved, and their kept photos. Settings asks
+        // before signing out when there are any (lib/outboxUi.ts).
+        clearOutbox(userId),
         clearCheckInData(userId),
         clearLastWeekReady(),
       ]);

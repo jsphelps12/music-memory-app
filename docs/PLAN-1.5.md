@@ -151,6 +151,80 @@ but it isn't saved. Offline saves make Save always work:
 
 **Effort:** about 3 days.
 
+**Offline saves (engine), built 2026-11-23** (branch `feat/offline-saves`, no
+screens touched):
+- `lib/outbox.ts`: the outbox per user (`capture_outbox_v1_<userId>`, cleared
+  by prefix in `lib/signOutKeys.ts`). Each item keeps the moment id it will
+  save under, a JSON copy of the save (new fields like a voice recording
+  round-trip as they are; the date as epoch ms), and its last failure:
+  offline (tried again on every flush, never counts toward giving up),
+  server (backoff 30 s, 2 min, 10 min, then hourly; rejected after 8), or
+  rejected (a 4xx, validation or permission error; stays visible, never
+  retried on its own; `retryOutboxItem` or `removeOutboxItem`). Storage calls
+  run one at a time; `subscribeOutbox` tells listeners after each change.
+- `lib/outboxFiles.ts`: photos and `voiceUri` are copied into
+  Documents/capture-outbox/<userId>/<momentId>/ (stored relative to the app's
+  folders, like drafts) and deleted when the moment saves, is discarded, or
+  on sign-out. Library photos keep their asset id.
+- `lib/outboxFlush.ts`: `flushOutbox` saves due items one at a time, oldest
+  first (offline stops the run, a 5xx moves on, a refusal marks it
+  rejected; one flush at a time); `classifyOutboxError`; `queueFailedSave`
+  (queues a failed save, or returns null when retrying won't fix it);
+  `startOutboxFlushing` (on start, back online, foreground, and a timer for
+  the next backoff); `clearOutbox`, `outboxCount`.
+- `saveMoment` takes `momentId`; a retry of a save that already landed
+  (23505, or found by the read-back) returns the stored row and deletes the
+  retry's own uploads.
+- `hooks/useOutbox.ts`: the signed-in user's items, newest first, split into
+  pending and rejected.
+
+**Offline saves (UI), wired 2026-11-23** (same branch, JavaScript only, an
+update to build 16):
+- Capture (`app/create.tsx`) picks the moment id on the first Save and keeps
+  it across retries of that screen (a new form gets a new one). With no
+  connection (`isDeviceOnline()`, lib/appFocus.ts) it queues straight away;
+  when `saveMoment` throws it calls `queueFailedSave` (null: the error shows
+  as before, draft kept). Queued, it's a save for the person: the draft goes,
+  capture closes, and the Journal (or the album capture came from) shows
+  "Saved on your phone. It'll go up when you're back online." (the list
+  notice, `setListNotice` in lib/timelineRefresh.ts). Event
+  `moment_queued_offline` (reason, counts and flags only).
+- Root (`app/_layout.tsx`): `startOutboxFlushing` while a user is signed in,
+  stopped on sign-out or a change of account. Each save runs
+  `handleOutboxSaved` (lib/outboxSaved.ts): moment and album caches,
+  `markTimelineStale` with the moment, `moment_created` with the same
+  properties plus `from_outbox` and `queued_ms`, the milestone check; the
+  Journal, when focused, catches up at once. Server and rejected failures go
+  to Sentry from the flush (tags only, no content).
+- Journal (Yours): waiting moments above the first month as quieter cards
+  (`components/OutboxCard.tsx`: dimmed artwork, "Saves when you're back
+  online"); refused ones say "Couldn't save" and why, with Try again and
+  Discard ("Discard this moment? It hasn't been saved."). No empty state
+  while one is waiting. testIDs `outbox-card`, `outbox-retry`,
+  `outbox-discard`.
+- Sign-out (`app/settings.tsx`): with moments waiting (or an outbox that
+  can't be read) it asks "2 moments haven't saved yet" / "They're only on
+  this phone. Signing out deletes them." (Sign out anyway / Stay signed in).
+  `clearOutbox` runs in AuthContext's teardown, account deletion included.
+- Words and event properties are pure in `lib/outboxUi.ts` (tested).
+
+To check on a phone before it goes out:
+1. Airplane mode on, capture a song with writing and a photo, Save: capture
+   closes, the notice shows, the card is at the top of the Journal with
+   "Saves when you're back online". Long-press + → Continue a draft has no
+   draft of it.
+2. Airplane mode off with the Journal open: within a few seconds the card
+   goes and the moment appears in its place, photo included (and in its
+   album, if one was picked). One moment, not two.
+3. Airplane mode on, capture, then kill the app. Airplane mode off, reopen:
+   the moment saves on launch.
+4. Airplane mode on, capture two, go to Settings → Sign out: it asks "2
+   moments haven't saved yet"; Stay signed in keeps them; Sign out anyway
+   deletes them (sign back in: no cards).
+5. Rejected (hard to reach on purpose): a moment the server refuses shows
+   "Couldn't save" with Try again / Discard; Discard asks first.
+6. Normal online save still works and shows no notice.
+
 ## 6. Polish
 
 A pass over everything before 1.5 goes to review, mostly over the air:
