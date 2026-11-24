@@ -138,7 +138,7 @@ export function localBuilds(profile, file = new URL("../local-builds.json", impo
     list = JSON.parse(readFileSync(file, "utf8"));
   } catch (e) {
     if (e.code === "ENOENT") return [];
-    throw new Error(`scripts/local-builds.json can't be read: ${e.message}`);
+    throw new Error(`scripts/local-builds.json can't be read: ${e.message}`, { cause: e });
   }
   return list
     .filter((b) => b.profile === profile && typeof b.runtimeVersion === "string")
