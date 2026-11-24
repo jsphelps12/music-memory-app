@@ -7,6 +7,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   MOMENT_OPTIONAL_COLUMNS,
   SONG_METADATA_OPTIONAL_COLUMNS,
+  isCaptureSourceCheckError,
   isMissingColumnError,
   withoutColumns,
   writeWithOptionalColumns,
@@ -33,6 +34,21 @@ describe("isMissingColumnError", () => {
     expect(isMissingColumnError({ message: "network request failed" })).toBe(false);
     expect(isMissingColumnError({ code: "23514", message: "violates check constraint" })).toBe(false);
     expect(isMissingColumnError({ code: "42501", message: "permission denied" })).toBe(false);
+  });
+});
+
+const SOURCE_CHECK = {
+  code: "23514",
+  message: 'new row for relation "moments" violates check constraint "moments_capture_source_check"',
+};
+
+describe("isCaptureSourceCheckError", () => {
+  it("recognises only the capture_source CHECK", () => {
+    expect(isCaptureSourceCheckError(SOURCE_CHECK)).toBe(true);
+    expect(isCaptureSourceCheckError({ code: "23514", message: 'violates check constraint "moments_song_part_ms_check"' })).toBe(false);
+    expect(isCaptureSourceCheckError({ message: SOURCE_CHECK.message })).toBe(false);
+    expect(isCaptureSourceCheckError(PG_MISSING)).toBe(false);
+    expect(isCaptureSourceCheckError(null)).toBe(false);
   });
 });
 
@@ -84,6 +100,29 @@ describe("writeWithOptionalColumns", () => {
     const got = await writeWithOptionalColumns(row, SONG_METADATA_OPTIONAL_COLUMNS, write);
     expect(write).toHaveBeenCalledTimes(1);
     expect(got.droppedOptional).toBe(false);
+  });
+
+  it("saves without capture_source when the database doesn't allow its value yet (a new way in, migration pending)", async () => {
+    const write = vi
+      .fn()
+      .mockResolvedValueOnce({ data: null, error: SOURCE_CHECK })
+      .mockResolvedValueOnce({ data: { id: "m1" }, error: null });
+    const got = await writeWithOptionalColumns({ ...row, capture_source: "your_day" }, SONG_METADATA_OPTIONAL_COLUMNS, write);
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(write).toHaveBeenLastCalledWith({ id: "m1", song_title: "T", song_genre: "Rock" });
+    expect(got).toEqual({ data: { id: "m1" }, error: null, droppedOptional: true });
+  });
+
+  it("after dropping capture_source, still drops missing columns, and never loops", async () => {
+    const write = vi
+      .fn()
+      .mockResolvedValueOnce({ data: null, error: SOURCE_CHECK })
+      .mockResolvedValueOnce({ data: null, error: PG_MISSING })
+      .mockResolvedValueOnce({ data: null, error: SOURCE_CHECK });
+    const got = await writeWithOptionalColumns({ ...row, capture_source: "your_day" }, SONG_METADATA_OPTIONAL_COLUMNS, write);
+    expect(write).toHaveBeenCalledTimes(3);
+    expect(write).toHaveBeenLastCalledWith({ id: "m1", song_title: "T" });
+    expect(got.error).toBe(SOURCE_CHECK);
   });
 
   it("doesn't retry when there is no optional column to drop", async () => {

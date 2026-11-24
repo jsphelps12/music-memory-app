@@ -9,7 +9,8 @@
 
 /**
  * Allowed values: the CHECK constraint (20261120120000_song_metadata.sql,
- * 'background' added by 20261125000000_capture_keys.sql). "background" is
+ * 'background' added by 20261125000000_capture_keys.sql, 'your_day' by
+ * 20261126000000_capture_source_your_day.sql). "background" is
  * only ever written by the quick-capture edge function (Siri, Shortcuts, the
  * Action button: "Remember this song"); captureSourceFor never returns it.
  */
@@ -25,6 +26,7 @@ export const CAPTURE_SOURCES = [
   "draft",
   "other",
   "background",
+  "your_day",
 ] as const;
 
 export type CaptureSource = (typeof CAPTURE_SOURCES)[number];
@@ -33,7 +35,7 @@ export type CaptureSource = (typeof CAPTURE_SOURCES)[number];
 export type SongPick = "now_playing" | "identify" | "search";
 
 export interface CaptureEntry {
-  /** The `source` route param ("widget", "capture_menu", "last_week", …). */
+  /** The `source` route param ("widget", "capture_menu", "last_week", "your_day", …). */
   source?: string | null;
   /** Arrived through the share extension: a shared song, link or photo. */
   shared?: boolean;
@@ -55,6 +57,8 @@ export function captureSourceFor(entry: CaptureEntry, songPick: SongPick | null)
   // These carry their own song and photos in the share params, so they come
   // before the share check.
   if (source === "last_week") return "last_week";
+  // Apple's Journaling Suggestions picker (long-press + → Your day).
+  if (source === "your_day") return "your_day";
   // Rediscover's "On this day" pairings come from the same library history.
   if (source === "from_before" || source === "on_this_day_phone") return "from_before";
   if (entry.shared) return "share";

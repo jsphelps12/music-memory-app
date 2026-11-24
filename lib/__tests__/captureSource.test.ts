@@ -3,6 +3,8 @@
  * is credited to the way its song was picked. One case per way in listed in
  * app/help.tsx.
  */
+import { readdirSync, readFileSync } from "fs";
+import path from "path";
 import { describe, it, expect } from "vitest";
 import { CAPTURE_SOURCES, captureSourceFor } from "../captureSource";
 
@@ -28,6 +30,13 @@ describe("captureSourceFor", () => {
     expect(captureSourceFor({ source: "last_week", shared: true }, null)).toBe("last_week");
     expect(captureSourceFor({ source: "from_before", shared: true }, null)).toBe("from_before");
     expect(captureSourceFor({ source: "on_this_day_phone", shared: true }, null)).toBe("from_before");
+  });
+
+  it("uses Your day (Journaling Suggestions), with or without a song, even if it's then changed", () => {
+    expect(captureSourceFor({ source: "your_day", shared: true }, null)).toBe("your_day");
+    expect(captureSourceFor({ source: "your_day" }, null)).toBe("your_day");
+    expect(captureSourceFor({ source: "your_day", shared: true }, "search")).toBe("your_day");
+    expect(CAPTURE_SOURCES).toContain("your_day");
   });
 
   it("uses the share extension, even when the song is then changed by search", () => {
@@ -64,5 +73,21 @@ describe("captureSourceFor", () => {
         expect(CAPTURE_SOURCES).toContain(captureSourceFor(entry, pick));
       }
     }
+  });
+});
+
+describe("CAPTURE_SOURCES", () => {
+  it("matches the newest migration's moments_capture_source_check", () => {
+    const dir = path.resolve(__dirname, "../../supabase/migrations");
+    const newest = readdirSync(dir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort()
+      .map((f) => readFileSync(path.join(dir, f), "utf8"))
+      .filter((sql) => sql.includes("ADD CONSTRAINT moments_capture_source_check"))
+      .pop();
+    expect(newest).toBeDefined();
+    const list = /capture_source IN \(([^)]*)\)/.exec(newest!)?.[1] ?? "";
+    const values = [...list.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    expect(values.sort()).toEqual([...CAPTURE_SOURCES].sort());
   });
 });

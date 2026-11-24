@@ -43,6 +43,18 @@ export function isMissingColumnError(error: unknown): boolean {
   return /column .* does not exist/i.test(message) || /could not find the .* column/i.test(message);
 }
 
+/**
+ * Whether an error says `capture_source` holds a value the database's CHECK
+ * doesn't list yet (Postgres `23514` on moments_capture_source_check): a
+ * binary with a new way into capture (lib/captureSource.ts) reaching people
+ * before that value's migration is applied. Nothing was written.
+ */
+export function isCaptureSourceCheckError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  return code === "23514" && typeof message === "string" && message.includes("moments_capture_source_check");
+}
+
 /** The row without the named columns. */
 export function withoutColumns<T extends Record<string, unknown>>(row: T, columns: readonly string[]): Partial<T> {
   const drop = new Set(columns);
@@ -53,8 +65,10 @@ type WriteResult<D> = { data: D | null; error: unknown };
 
 /**
  * Runs `write(row)`. If it fails because a column is missing and the row has
- * any of the `optional` columns, runs it once more without them. Returns the
- * last result, and whether the optional columns were dropped.
+ * any of the `optional` columns, runs it once more without them. A
+ * `capture_source` the database doesn't allow yet is dropped the same way
+ * (the row saves with it empty) rather than failing the save. Returns the
+ * last result, and whether optional columns were dropped.
  */
 export async function writeWithOptionalColumns<D>(
   row: Record<string, unknown>,
@@ -62,6 +76,11 @@ export async function writeWithOptionalColumns<D>(
   write: (row: Record<string, unknown>) => PromiseLike<WriteResult<D>>
 ): Promise<WriteResult<D> & { droppedOptional: boolean }> {
   const first = await write(row);
+  if (first.error && isCaptureSourceCheckError(first.error) && row.capture_source != null) {
+    const withoutSource = withoutColumns(row, ["capture_source"]);
+    const retried = await writeWithOptionalColumns(withoutSource, optional, write);
+    return { ...retried, droppedOptional: true };
+  }
   if (!first.error || !isMissingColumnError(first.error)) return { ...first, droppedOptional: false };
   const fallback = withoutColumns(row, optional);
   if (Object.keys(fallback).length === Object.keys(row).length) return { ...first, droppedOptional: false };
