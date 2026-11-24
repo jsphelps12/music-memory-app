@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createMixRestore, DUCK_LEVEL, DUCK_MS, fadeVolume, RESTORE_MS } from "../audioMix";
+import { createMixRestore, DUCK_LEVEL, DUCK_MS, fadeVolume, quietVoice, RESTORE_MS } from "../audioMix";
 
 describe("fadeVolume", () => {
   it("starts where it was and ends at the target", () => {
@@ -60,5 +60,64 @@ describe("createMixRestore", () => {
     mix.hold(undo);
     mix.restore();
     expect(undo).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("quietVoice", () => {
+  it("stops the voice before the song comes back up", () => {
+    const mix = createMixRestore();
+    const order: string[] = [];
+    mix.hold(() => order.push("unduck"));
+    expect(quietVoice(mix, () => order.push("stop voice"))).toBe(true);
+    expect(order).toEqual(["stop voice", "unduck"]);
+  });
+
+  it("gives the song back exactly once, whichever ways out run and in whatever order", () => {
+    // Every exit the film has: the voice ended, the film paused, closed, the
+    // app went to the background, the voice turned off, a clip's sound took
+    // over, the voice was dropped (offline, stalled), unmount.
+    const exits = ["ended", "paused", "closed", "background", "voice off", "clip sound", "dropped", "unmount"];
+    for (const first of exits) {
+      const mix = createMixRestore();
+      const unduck = vi.fn();
+      const stop = vi.fn();
+      mix.hold(unduck);
+      // The first way out, then every other one after it (a close also
+      // unmounts, a pause then a close, and so on).
+      for (const _exit of [first, ...exits.filter((e) => e !== first)]) quietVoice(mix, stop);
+      expect(unduck, first).toHaveBeenCalledTimes(1);
+      expect(stop, first).toHaveBeenCalledTimes(exits.length);
+      expect(mix.held).toBe(false);
+    }
+  });
+
+  it("a voice that never ducked anything (no song playing) restores nothing", () => {
+    const mix = createMixRestore();
+    const stop = vi.fn();
+    expect(quietVoice(mix, stop)).toBe(false);
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("the song still comes back if stopping the voice throws (player already released)", () => {
+    const mix = createMixRestore();
+    const unduck = vi.fn();
+    mix.hold(unduck);
+    expect(
+      quietVoice(mix, () => {
+        throw new Error("released");
+      })
+    ).toBe(true);
+    expect(unduck).toHaveBeenCalledTimes(1);
+  });
+
+  it("paused and played again: each duck is given back once", () => {
+    const mix = createMixRestore();
+    const unduck = vi.fn();
+    mix.hold(unduck); // the voice comes in
+    quietVoice(mix, () => {}); // Pause
+    mix.hold(unduck); // Play: it carries on, ducked again
+    quietVoice(mix, () => {}); // it ends
+    quietVoice(mix, () => {}); // then the film closes
+    expect(unduck).toHaveBeenCalledTimes(2);
   });
 });

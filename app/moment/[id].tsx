@@ -1503,6 +1503,8 @@ function MomentPage({
         startSong={startSong}
         pauseSong={pause}
         ownMoment={!!moment && moment.userId === user?.id}
+        voicePath={isOwnMoment ? moment?.voicePath ?? null : null}
+        voiceDurationMs={moment?.voiceDurationMs ?? null}
       />
 
       {moment && canShare && (

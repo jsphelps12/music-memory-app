@@ -177,8 +177,50 @@ database without the columns); the moment plays it through a signed URL
 (`hooks/useVoicePlayer.ts`), pausing the song; deleting the moment deletes
 the file. The migration is live on staging and production (PR 135,
 2026-11-24). Still to do: check recording and the audio session on a
-device (build 18), then transcription and the film (see the open question
-under decision 7: recording and voice-to-text as separate features).
+device (build 18), then transcription (see the open question under
+decision 7: recording and voice-to-text as separate features).
+
+**The voice in the film (built 2026-11-24, branch `native-1.5/film-voice`,
+no native code; decision 8).** When the owner's moment has a recording, the
+film plays it over the song with the song turned down:
+- **When:** the song goes first. The voice comes in 2.5 s after the song
+  is heard in the film (`VOICE_LEAD_MS`), so the memory opens on the music
+  and the voice arrives over it. With no song playing (offline, a song that
+  can't play, Apple Music slow to start) it waits 6 s and plays alone; a
+  song that starts later comes in under it, turned down.
+- **How long:** the film has no length of its own (its photos loop until
+  it's closed), so a recording is never cut and the film isn't stretched:
+  it plays once, start to end (up to 3:00), while the photos keep their
+  4-second pace around it, and the song comes back up when it ends. Once
+  per opening: the photos looping back or a tap to the next photo doesn't
+  touch it; closing and opening the film plays it from the top.
+- **Ducking:** the same as a clip's sound (`lib/audioMix.ts`): a preview
+  fades to 20%, full Apple Music is ducked by iOS ("duck others"); if iOS
+  refuses, the song pauses for the voice ("Song paused for your voice") and
+  comes back when it ends. The duck is held in its own `createMixRestore()`
+  and given back through `quietVoice()` (the voice stops first, then the
+  song comes up, once) on every way out: the voice ending or being dropped,
+  Pause, closing, the app going to the background, the voice turned off, a
+  clip's sound turned on, unmount.
+- **Controls:** Pause pauses the voice with everything else and Play carries
+  on from where it was. A mic button (shown while there's voice still to
+  play) turns it off, where it waits and the song comes back up, and on
+  again. A clip's own sound takes over from it while it's on; it carries on
+  after.
+- **Failures:** a signed URL that can't be had, or a voice that isn't heard
+  for 8 s (`VOICE_STALL_MS`: offline, stalled), is dropped for that viewing
+  without a word; the film plays as it always has.
+- Owner-only (the moment page passes the recording only for your own
+  moment; the shared view never has it), and only in a real film (more
+  than one photo or video): a single photo opened from the page stays a
+  quiet photo viewer, as it doesn't start the song either.
+- Code: rules in `lib/filmPlayback.ts` (tested), `hooks/useFilmVoice.ts`
+  runs them with `hooks/useVoicePlayer.ts` (now with an `overSong` mode),
+  wired in `components/MomentFilm.tsx`.
+- **To check on a phone (build 18):** the duck itself under full Apple
+  Music playback while the voice (an expo-audio player) is the app's audio,
+  and that the song comes back up at the voice's end, on Pause, on close and
+  on going to the background; a preview under the voice; the lead-in feel.
 
 ## 3. "Remember this song", saved in the background
 
@@ -442,6 +484,11 @@ A pass over everything before 1.5 goes to review, mostly over the air:
    later: a recording's own text under its play button, for search (option
    B), never touching the reflection.
 8. **Voice in the film:** over the song, with the music turned down.
+   *Built 2026-11-24* (`native-1.5/film-voice`): the song first, the voice
+   2.5 s later at full level with the song ducked, once per opening and to
+   its end (the film's photos loop around it, so nothing is cut); Pause and
+   a mic button control it; the song comes back up on every way out. See
+   section 2, "The voice in the film".
 9. **After a background save:** no notification at all (no more pushes).
 10. **Siri's reply:** says what it saved.
 11. **Signing out with unsaved moments:** asks first ("2 moments haven't

@@ -21,7 +21,8 @@ import { Theme } from "@/constants/theme";
 import type { MediaSource } from "@/lib/linkedMedia";
 import { PhotosVideoView, setDuckOthers } from "@/modules/photos-video";
 import { CLIP_LEVEL, createMixRestore } from "@/lib/audioMix";
-import { PHOTO_MS, videoHoldMs, videoLoad, type VideoLoad } from "@/lib/filmPlayback";
+import { filmPlaysVoice, PHOTO_MS, videoHoldMs, videoLoad, type VideoLoad } from "@/lib/filmPlayback";
+import { useFilmVoice } from "@/hooks/useFilmVoice";
 import { StatusBar } from "expo-status-bar";
 /** The cross-fade between one photo or video and the next. */
 const FADE_MS = 700;
@@ -52,6 +53,12 @@ type Styles = ReturnType<typeof createStyles>;
  * is heard). If iOS refuses, the song pauses for the clip and says so, and
  * comes back when the clip's sound goes off (unless the film is paused).
  * Nothing is exported.
+ *
+ * Voice (1.5): the owner's recording comes in over the song a moment after
+ * the song does, with the song turned down the same way, and plays once to
+ * its end while the photos loop (hooks/useFilmVoice.ts, rules in
+ * lib/filmPlayback.ts). Pause pauses it too; its own button turns it off and
+ * on; a clip's sound takes over from it while it's on.
  */
 export function MomentFilm({
   items,
@@ -62,6 +69,8 @@ export function MomentFilm({
   startSong,
   pauseSong,
   ownMoment = true,
+  voicePath = null,
+  voiceDurationMs = null,
 }: {
   items: MediaSource[];
   initialIndex: number;
@@ -72,6 +81,9 @@ export function MomentFilm({
   pauseSong: () => void;
   /** Someone else's moment: its linked videos stay in their Photos, not here. */
   ownMoment?: boolean;
+  /** The owner's voice recording (lib/voice.ts); only ever passed for their own moment. */
+  voicePath?: string | null;
+  voiceDurationMs?: number | null;
 }) {
   const { width, height } = useWindowDimensions();
   const theme = useTheme();
@@ -91,6 +103,19 @@ export function MomentFilm({
   const count = items.length;
   const current = items[index];
   const filmLike = count > 1;
+
+  // ── The owner's voice over the song ────────────────────────────────────
+  const voice = useFilmVoice({
+    voicePath: filmPlaysVoice({ hasRecording: !!voicePath, ownMoment, filmLike }) ? voicePath : null,
+    voiceDurationMs: voiceDurationMs ?? 0,
+    visible,
+    paused,
+    clipSoundOn: soundOn,
+    songPlaying,
+    startSong,
+    pauseSong,
+  });
+  const quietFilmVoice = voice.quiet;
 
   // ── Clip sound and the song ────────────────────────────────────────────
   // Whatever a clip's sound turned down is put back exactly once, on every
@@ -125,6 +150,9 @@ export function MomentFilm({
       clipSoundOff(!paused);
       return;
     }
+    // The voice steps aside first, so putting its duck back can't bring the
+    // song up under the clip.
+    quietFilmVoice();
     setSoundFor(index);
     if (isPreview) {
       duck(true);
@@ -208,7 +236,7 @@ export function MomentFilm({
   const play = () => {
     Haptics.selectionAsync();
     setPaused(false);
-    if (!songPlaying && !songHeldForClip) startSong();
+    if (!songPlaying && !songHeldForClip && !voice.songHeld) startSong();
   };
   const pause = () => {
     Haptics.selectionAsync();
@@ -231,8 +259,21 @@ export function MomentFilm({
   const close = useCallback(() => {
     if (soundOn) clipSoundOff(false);
     mix.restore();
+    quietFilmVoice();
     onClose();
-  }, [clipSoundOff, mix, onClose, soundOn]);
+  }, [clipSoundOff, mix, onClose, soundOn, quietFilmVoice]);
+
+  // The voice's own button: off, it waits where it is and the song comes
+  // back up; on again, it carries on (and takes over from a clip's sound).
+  const toggleVoice = () => {
+    Haptics.selectionAsync();
+    if (!voice.off) {
+      voice.setOff(true);
+      return;
+    }
+    if (soundOn) clipSoundOff(!paused);
+    voice.setOff(false);
+  };
 
   // ── Gestures: drag down closes; swipe or tap moves ─────────────────────
   const tap = useCallback(
@@ -320,6 +361,7 @@ export function MomentFilm({
 
         <View style={[styles.bottom, { bottom: insets.bottom + 24 }]} pointerEvents="box-none">
           {soundOn && songHeldForClip ? <Text style={styles.hint}>Song paused for the clip</Text> : null}
+          {voice.songHeld && !soundOn ? <Text style={styles.hint}>Song paused for your voice</Text> : null}
           <View style={styles.bottomRow}>
             {filmLike || current?.kind === "video" ? (
               <TouchableOpacity
@@ -330,6 +372,16 @@ export function MomentFilm({
               >
                 <Icon name={paused ? "play" : "pause"} size={18} color={PAPER_ON_GLASS} />
                 <Text style={styles.pillText}>{paused ? "Play" : "Pause"}</Text>
+              </TouchableOpacity>
+            ) : null}
+            {voice.present ? (
+              <TouchableOpacity
+                onPress={toggleVoice}
+                style={[styles.glassButton, styles.round]}
+                accessibilityRole="button"
+                accessibilityLabel={voice.off ? "Hear your voice" : "Mute your voice"}
+              >
+                <Icon name={voice.off ? "mic-off-outline" : "mic-outline"} size={20} color={PAPER_ON_GLASS} />
               </TouchableOpacity>
             ) : null}
             {current?.kind === "video" && current.fromLibrary ? (

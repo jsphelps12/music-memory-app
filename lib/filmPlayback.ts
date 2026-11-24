@@ -52,3 +52,79 @@ export function videoLoad(i: number, index: number, under: number | null, count:
 export function loadsVideo(i: number, index: number, under: number | null, count: number): boolean {
   return videoLoad(i, index, under, count) !== null;
 }
+
+// ── The owner's voice (1.5, docs/PLAN-1.5.md decision 8) ───────────────────
+//
+// "Over the song, with the music turned down." A moment's recording plays in
+// its film for its owner only (the shared view never carries it), and only
+// when the film plays as a film: more than one item, the song started with
+// it. A single photo opened from the page stays a quiet photo viewer.
+//
+// When: the song goes first. The voice comes in VOICE_LEAD_MS after the song
+// is heard in the film (a song already playing when the film opens counts
+// from the opening), so the memory starts with the music and the voice
+// arrives over it rather than at the same instant. If the song isn't playing
+// (offline, a song that can't play, Apple Music slow to start), the voice
+// waits VOICE_SONG_WAIT_MS from the film starting and plays on its own; a
+// song that starts after that comes in under it, turned down.
+//
+// How long: the film has no length of its own. It loops its photos until
+// it's closed and the song plays on under it (a 30-second preview stops at
+// its end, full playback runs to the end of the song). So a recording is
+// never cut to fit, and the film doesn't stretch to fit it either: it plays
+// once, start to end (up to the 3-minute cap, lib/voice.ts MAX_VOICE_MS),
+// while the photos keep their PHOTO_MS pace and loop around it. The song
+// comes back up when it ends. Cutting someone off mid-sentence because the
+// photos ran out would be the wrong thing for a memory.
+//
+// Once per opening: looping back to the first photo doesn't replay it, and
+// skipping photos (tap, swipe) doesn't touch it, since it belongs to the
+// moment, not to a photo. Pause pauses it with everything else and Play
+// carries on from where it was (a pause during the lead-in starts the lead-in
+// again). Closing and opening the film again plays it from the top.
+//
+// It gives way: while a clip's own sound is on (the speaker button), or the
+// person turned the voice off, it waits where it is; while the app is in the
+// background it pauses. A recording that can't be had (offline, a signed URL
+// that won't load) or goes quiet for VOICE_STALL_MS is dropped for this
+// viewing: the film plays without it and says nothing.
+
+/** The song on its own before the voice comes in over it. */
+export const VOICE_LEAD_MS = 2500;
+/** With no song playing, how long the voice waits for one before playing alone. */
+export const VOICE_SONG_WAIT_MS = 6000;
+/** Wanted but not heard for this long (loading offline, stalled, failed): dropped. */
+export const VOICE_STALL_MS = 8000;
+
+/**
+ * Where the voice is in this opening of the film: still to come (the lead-in
+ * runs while the film plays), begun (playing, or waiting where it is), or
+ * over (played to its end, or dropped).
+ */
+export type FilmVoicePhase = "waiting" | "started" | "done";
+
+export interface FilmVoiceState {
+  phase: FilmVoicePhase;
+  /** The film is open, not paused, and the app is in front. */
+  filmPlaying: boolean;
+  /** The moment's song is playing. */
+  songPlaying: boolean;
+  /** Something has the floor instead: a clip's own sound, or the voice turned off. */
+  held: boolean;
+}
+
+/** Whether the film plays a recording at all: the owner's own, in a real film. */
+export function filmPlaysVoice(s: { hasRecording: boolean; ownMoment: boolean; filmLike: boolean }): boolean {
+  return s.hasRecording && s.ownMoment && s.filmLike;
+}
+
+/** Milliseconds until the voice starts, or null while it isn't counting down. */
+export function voiceStartInMs(s: FilmVoiceState): number | null {
+  if (s.phase !== "waiting" || !s.filmPlaying || s.held) return null;
+  return s.songPlaying ? VOICE_LEAD_MS : VOICE_SONG_WAIT_MS;
+}
+
+/** Whether the voice should be sounding now. */
+export function voiceSounds(s: Pick<FilmVoiceState, "phase" | "filmPlaying" | "held">): boolean {
+  return s.phase === "started" && s.filmPlaying && !s.held;
+}

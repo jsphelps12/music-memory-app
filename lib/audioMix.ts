@@ -64,3 +64,23 @@ export function createMixRestore(): MixRestore {
     },
   };
 }
+
+/**
+ * The owner's voice in the film (1.5) ducks the song the same way a clip's
+ * sound does, held in its own MixRestore. This silences the voice and gives
+ * the song back: the voice stops first, because iOS only brings other audio
+ * (full Apple Music playback) back up once this app's own audio is quiet
+ * (modules/photos-video endDucking), then whatever the voice turned down is
+ * put back, once. Every way out of the voice calls it (it ended or was
+ * dropped, the film paused or closed, the app went to the background, the
+ * voice was turned off, a clip's sound took over, unmount), so calling it
+ * again is harmless. True if there was a duck to undo.
+ */
+export function quietVoice(mix: MixRestore, stopVoice: () => void): boolean {
+  try {
+    stopVoice();
+  } catch {
+    // A player already released: nothing is sounding, the song still comes back.
+  }
+  return mix.restore();
+}

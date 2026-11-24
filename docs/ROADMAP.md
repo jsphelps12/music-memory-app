@@ -218,9 +218,13 @@ The working plan, with how each piece is built and the open decisions:
   (`lib/voiceStorage.ts`). The owner's moment shows "Your voice · 0:42"
   under the reflection, played through a signed URL; it pauses the song and
   the song stops it. Deleted with the moment (and the account); never in
-  the shared view. The film plays it over the song, ducked (2026-11-24,
-  `hooks/useFilmVoice.ts`). Transcription was built on
-  `native-1.5/speech` and removed before build 19 (option A, see
+  the shared view. The film built 2026-11-24 (JS only): the owner's voice
+  comes in 2.5 s after the song, over it with the song ducked
+  (`hooks/useFilmVoice.ts`, rules in `lib/filmPlayback.ts`), plays once to
+  its end while the photos loop, and gives the song back once on every way
+  out (`quietVoice()`); details in `docs/PLAN-1.5.md` section 2. The duck
+  under full Apple Music needs a check on a phone. Transcription was built
+  on `native-1.5/speech` and removed before build 19 (option A, see
   `docs/PLAN-1.5.md` decision 7).
 - [ ] **Memory widget** — one moment a day on the Home Screen, opening
   into the film. Built 2026-11-23 on `native-1.5/widget` (waiting on the

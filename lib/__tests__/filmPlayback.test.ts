@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { loadsVideo, PHOTO_MS, videoHoldMs, videoLoad } from "../filmPlayback";
+import {
+  filmPlaysVoice,
+  loadsVideo,
+  PHOTO_MS,
+  videoHoldMs,
+  videoLoad,
+  VOICE_LEAD_MS,
+  VOICE_SONG_WAIT_MS,
+  VOICE_STALL_MS,
+  voiceSounds,
+  voiceStartInMs,
+  type FilmVoiceState,
+} from "../filmPlayback";
+import { MAX_VOICE_MS } from "../voice";
 
 const on = { active: true, playing: true, loop: false, usable: true, ready: true };
 
@@ -74,5 +87,69 @@ describe("videoLoad", () => {
   it("a single item is full; going back makes the item left behind light", () => {
     expect(modes(0, null, 1)).toEqual(["full"]);
     expect(modes(1, 2, 4)).toEqual([null, "full", "light", null]);
+  });
+});
+
+describe("filmPlaysVoice", () => {
+  const own = { hasRecording: true, ownMoment: true, filmLike: true };
+
+  it("plays the owner's recording in a film", () => {
+    expect(filmPlaysVoice(own)).toBe(true);
+  });
+
+  it("never for someone else's moment, a moment without one, or a single photo", () => {
+    expect(filmPlaysVoice({ ...own, ownMoment: false })).toBe(false);
+    expect(filmPlaysVoice({ ...own, hasRecording: false })).toBe(false);
+    expect(filmPlaysVoice({ ...own, filmLike: false })).toBe(false);
+  });
+});
+
+describe("voiceStartInMs", () => {
+  const waiting: FilmVoiceState = { phase: "waiting", filmPlaying: true, songPlaying: true, held: false };
+
+  it("the song goes first: the voice comes in a short lead-in after it's heard", () => {
+    expect(voiceStartInMs(waiting)).toBe(VOICE_LEAD_MS);
+    expect(VOICE_LEAD_MS).toBeGreaterThanOrEqual(1500);
+    expect(VOICE_LEAD_MS).toBeLessThan(PHOTO_MS);
+  });
+
+  it("with no song playing, it waits longer for one, then plays alone", () => {
+    expect(voiceStartInMs({ ...waiting, songPlaying: false })).toBe(VOICE_SONG_WAIT_MS);
+    expect(VOICE_SONG_WAIT_MS).toBeGreaterThan(VOICE_LEAD_MS);
+  });
+
+  it("doesn't count down while paused, closed, in the background, or giving way", () => {
+    expect(voiceStartInMs({ ...waiting, filmPlaying: false })).toBeNull();
+    expect(voiceStartInMs({ ...waiting, held: true })).toBeNull();
+  });
+
+  it("only before it has started, once per opening", () => {
+    expect(voiceStartInMs({ ...waiting, phase: "started" })).toBeNull();
+    expect(voiceStartInMs({ ...waiting, phase: "done" })).toBeNull();
+  });
+});
+
+describe("voiceSounds", () => {
+  const started = { phase: "started" as const, filmPlaying: true, held: false };
+
+  it("sounds once started while the film plays", () => {
+    expect(voiceSounds(started)).toBe(true);
+  });
+
+  it("waits where it is while paused, in the background, or giving way to a clip's sound", () => {
+    expect(voiceSounds({ ...started, filmPlaying: false })).toBe(false);
+    expect(voiceSounds({ ...started, held: true })).toBe(false);
+  });
+
+  it("not before the lead-in, and not again after it ended or was dropped", () => {
+    expect(voiceSounds({ ...started, phase: "waiting" })).toBe(false);
+    expect(voiceSounds({ ...started, phase: "done" })).toBe(false);
+  });
+});
+
+describe("voice timing", () => {
+  it("drops a recording that can't be heard well before a long one would end", () => {
+    expect(VOICE_STALL_MS).toBeGreaterThan(VOICE_LEAD_MS);
+    expect(VOICE_STALL_MS).toBeLessThan(MAX_VOICE_MS / 10);
   });
 });
