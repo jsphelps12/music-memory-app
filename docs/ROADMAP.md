@@ -193,6 +193,20 @@ The working plan, with how each piece is built and the open decisions:
   deleted with the moment. The transcript is the person's own words, so it
   can fill the reflection (the "AI never writes it" rule is about
   generated text).
+  **v1 built 2026-11-23** on `feat/voice-entries` (record, save, play; no
+  transcription yet). Ships in the 1.5 build, not over the air (decided
+  2026-11-23): build 16's microphone text says the app only listens while
+  identifying a song, so 1.5 carries the new text ("…and to record what you
+  say about a moment"). Needs `20261124120000_voice_entries.sql` applied
+  (staging, then production) before 1.5 goes out. A "Voice" chip in capture
+  and a "Your voice" row in Edit open `components/VoiceRecorderSheet.tsx`:
+  record up to 3:00 (mono AAC, about 0.5 MB a minute), play back, record
+  again, delete. Drafts keep the take on the phone (`lib/voiceFiles.ts`);
+  the save uploads it with the photos to the private `moment-voice` bucket
+  (`lib/voiceStorage.ts`). The owner's moment shows "Your voice · 0:42"
+  under the reflection, played through a signed URL; it pauses the song and
+  the song stops it. Deleted with the moment (and the account); never in
+  the shared view. Still to do: on-device transcription and the film.
 - [ ] **Memory widget** — one moment a day on the Home Screen, opening
   into the film.
 

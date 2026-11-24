@@ -55,6 +55,7 @@ Copy `.env.example` to `.env` and fill in:
 - Only bare-scheme and `/confirm` deep links are treated as auth callbacks — never add a catch-all, it races the confirm route on single-use PKCE codes
 - Supabase image transformations are NOT enabled on this project: never call `getPublicUrl(path, { transform })`, it 403s. Thumbnails are pre-resized at upload
 - Deleting a moment or removing a photo must also delete the storage objects (`deleteMomentPhotos` in `lib/storage.ts`) — the bucket is public and URLs are guessable
+- **Voice recordings** (2026-11-23, `20261124120000_voice_entries.sql`; rules in `lib/voice.ts`): `moments.voice_path`/`voice_duration_ms`, files in the private `moment-voice` bucket under `{user_id}/`, owner-only, played only through signed URLs (`signedVoiceUrl()` in `lib/voiceStorage.ts`, never a public URL). Deleted with the moment (`deleteMomentWithCleanup` gets the path back from the delete) and with the account (delete-account); never in the shared view (`moment_view_for` strips both columns, `shapeForViewer` too) and not in `MOMENT_CARD_COLUMNS`. Unsaved takes live on the phone in `Documents/capture-voice/<user>/` (`lib/voiceFiles.ts`), kept by drafts. Transcription is 1.5
 - Use `npx expo install <pkg>`, never bare `npm i`, for expo-* packages; a mismatched version silently fails to link natively
 - Profile data (display_name, avatar_url) lives in `profiles` table; AuthContext fetches and exposes it
 - Error handling uses `friendlyError()` from `lib/errors.ts` — never show raw Supabase/network errors to users

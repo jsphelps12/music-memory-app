@@ -14,7 +14,7 @@ from Playing now or Identify. Neither is accurate enough; picking it by hand
 | # | Feature | Needs the 1.5 binary? |
 |---|---------|------------------------|
 | 1 | Memory widget: one moment a day on the Home Screen, opening into the film | Yes (widget views, app-group writer) |
-| 2 | Voice entries, recordings kept | Recording and playback: **no**, can ship now. Transcription: yes |
+| 2 | Voice entries, recordings kept | Yes: no native code for recording and playback, but build 16's microphone text only covers Identify (decided 2026-11-23). Transcription: native |
 | 3 | "Remember this song" from Siri, Shortcuts and the Action button, saved in the background | Yes (App Intent in the app) |
 | 4 | Journaling Suggestions: Apple's picker of your day's songs, photos and places | Yes, and Apple's entitlement (Josh: request it now) |
 | 5 | Offline saves: capture with no signal, saved when you're back online | **No**, can ship before 1.5 |
@@ -66,12 +66,13 @@ into the reflection, which you can then edit. Your voice plays on the moment
 and in the film, with the song turned down under it, and later feeds "Your life
 as a radio show".
 
-**Can ship before 1.5.** Recording, upload and playback need nothing new in the
-binary: `expo-audio` already records and the microphone permission is already
-granted for Identify. Only transcription needs native work. So:
-- **Now, as an update to 1.4.1:** record (AAC, mono, about 0.5 MB a minute,
-  3-minute cap), upload, play on the moment.
-- **In 1.5:** on-device transcription (Apple's speech recognizer with
+**In 1.5, all of it (decided 2026-11-23).** Recording, upload and playback
+need no native code (`expo-audio` already records), but build 16's
+microphone permission text says the app only listens while identifying a
+song, so voice waits for 1.5's new text instead of going over the air:
+- **v1 (built):** record (AAC, mono, about 0.5 MB a minute, 3-minute cap),
+  upload, play on the moment.
+- **Then:** on-device transcription (Apple's speech recognizer with
   on-device recognition only; nothing leaves the phone), plus the
   speech-recognition permission string.
 
@@ -90,6 +91,24 @@ stricter rules than photos do:
 
 **Effort:** recording, upload and playback about 2 days (plus the migration);
 transcription about 1 day in 1.5.
+
+**Status (2026-11-23): v1 built, shipping in 1.5.** Decided 2026-11-23: it
+moved from an over-the-air update to 1.4.1 into the 1.5 build, because
+build 16's microphone permission text says the app only listens while
+identifying a song. 1.5's `app.config.ts` says "…to identify a song playing
+around you, and to record what you say about a moment. It only listens
+while you're identifying a song or recording." Built on
+`feat/voice-entries`: record (up to 3:00, mono AAC m4a at 64 kbps), save,
+play on the moment, for the owner only, with no native changes. Capture's
+"Voice" chip and Edit's "Your voice" row open
+`components/VoiceRecorderSheet.tsx`; drafts keep the take on the phone
+(`lib/voiceFiles.ts`); `lib/saveMoment.ts` uploads it with the photos and
+writes `voice_path`/`voice_duration_ms` (dropped and the upload deleted on a
+database without the columns); the moment plays it through a signed URL
+(`hooks/useVoicePlayer.ts`), pausing the song; deleting the moment deletes
+the file. Still to do: apply the migration before 1.5 ships, check
+recording and the audio session on a device, then transcription and the
+film.
 
 ## 3. "Remember this song", saved in the background
 
