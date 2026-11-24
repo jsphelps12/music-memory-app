@@ -21,6 +21,14 @@ export const CAPTURE_DEVICE_ITEM = "capture_device_v1";
 /** Same shape the capture-key function issues (supabase/functions/_shared/quickCapture.ts). */
 export const CAPTURE_KEY_PATTERN = /^stc_[A-Za-z0-9_-]{43}$/;
 
+/**
+ * The app replaces its key once it's this old, on the next launch while
+ * signed in. quick-capture refuses keys over 90 days old (LIMITS.keyMaxAgeMs
+ * in supabase/functions/_shared/quickCapture.ts), so a phone that opens
+ * Soundtracks now and then never meets that limit.
+ */
+export const KEY_ROTATE_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
+
 export interface StoredCaptureKey {
   v: 1;
   /** The secret. Never logged, never sent anywhere but quick-capture. */
@@ -31,6 +39,8 @@ export interface StoredCaptureKey {
   url: string;
   /** The project's public anon key, sent as `apikey` (public, not a secret). */
   anonKey: string;
+  /** When the key was issued, epoch ms. */
+  issuedAt: number;
 }
 
 export function normalizeProjectUrl(url: string): string {
@@ -38,7 +48,14 @@ export function normalizeProjectUrl(url: string): string {
 }
 
 export function encodeStoredCaptureKey(k: Omit<StoredCaptureKey, "v">): string {
-  const value: StoredCaptureKey = { v: 1, key: k.key, userId: k.userId, url: normalizeProjectUrl(k.url), anonKey: k.anonKey };
+  const value: StoredCaptureKey = {
+    v: 1,
+    key: k.key,
+    userId: k.userId,
+    url: normalizeProjectUrl(k.url),
+    anonKey: k.anonKey,
+    issuedAt: k.issuedAt,
+  };
   return JSON.stringify(value);
 }
 
@@ -58,10 +75,17 @@ export function parseStoredCaptureKey(raw: string | null | undefined): StoredCap
   if (typeof o.userId !== "string" || !o.userId) return null;
   if (typeof o.url !== "string" || !/^https?:\/\//.test(o.url)) return null;
   if (typeof o.anonKey !== "string") return null;
-  return { v: 1, key: o.key, userId: o.userId, url: o.url, anonKey: o.anonKey };
+  if (typeof o.issuedAt !== "number" || !Number.isFinite(o.issuedAt)) return null;
+  return { v: 1, key: o.key, userId: o.userId, url: o.url, anonKey: o.anonKey, issuedAt: o.issuedAt };
 }
 
 /** Whether the stored key already serves this user on this project. */
 export function storedKeyServes(stored: StoredCaptureKey | null, userId: string, url: string): boolean {
   return !!stored && stored.userId === userId && stored.url === normalizeProjectUrl(url);
+}
+
+/** Whether a key that serves this user is old enough to replace (or dated in the future: a changed clock). */
+export function storedKeyDueForRotation(stored: StoredCaptureKey, nowMs: number): boolean {
+  const age = nowMs - stored.issuedAt;
+  return age >= KEY_ROTATE_AFTER_MS || age < -24 * 60 * 60 * 1000;
 }

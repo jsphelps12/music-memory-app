@@ -5,15 +5,17 @@
 //
 // Not a user-JWT function (verify_jwt = false): it authenticates the key
 // itself. The key is looked up by its SHA-256 (the secret is never stored,
-// logged or echoed); a revoked or unknown key is refused. The moment is
+// logged or echoed); a revoked, unknown or expired (over 90 days old) key is
+// refused. The moment is
 // inserted with the service role and user_id from the key row, never from
 // the request. This is the only service-role write path for a user's own
 // moments (guest contributions aside). Nothing is sent afterwards: no push,
 // no notification (Josh, 2026-11-23).
 //
 //   POST   Authorization: Capture <secret>
-//          { appleMusicId?, title, artist, album?, artworkUrl?, durationMs?,
-//            positionMs?, capturedAt (ISO 8601), utcOffsetMinutes? }
+//          { appleMusicId?, title, artist, album?, artworkUrl?,
+//            capturedAt (ISO 8601), utcOffsetMinutes? }
+//          Never sets the part of the song: it's only picked by hand.
 //          -> 200 { momentId, title, artist, duplicate }
 //          400 invalid body · 401 bad/revoked key · 413 too large ·
 //          429 too many saves this hour · 500 server error
@@ -26,6 +28,7 @@ import {
   backgroundMomentRow,
   captureKeyFromHeader,
   EMPTY_SONG_LOOKUP,
+  keyIsLive,
   LIMITS,
   parseQuickCaptureBody,
   sha256Hex,
@@ -77,7 +80,7 @@ async function readBody(req: Request): Promise<unknown | "too_large" | "invalid"
   }
 }
 
-type KeyRow = { id: string; user_id: string; revoked_at: string | null };
+type KeyRow = { id: string; user_id: string; created_at: string; revoked_at: string | null };
 
 async function save(admin: SupabaseClient, key: KeyRow, req: Request) {
   const raw = await readBody(req);
@@ -155,11 +158,21 @@ Deno.serve(async (req) => {
     // secret-dependent string comparison to time.
     const { data: key, error: keyError } = await admin
       .from("capture_keys")
-      .select("id, user_id, revoked_at")
+      .select("id, user_id, created_at, revoked_at")
       .eq("key_hash", await sha256Hex(secret))
       .maybeSingle<KeyRow>();
     if (keyError) throw keyError;
     if (!key || key.revoked_at) return json(401, { error: "invalid_key" });
+    if (!keyIsLive(key, Date.now())) {
+      // Expired: mark it so it shows as revoked, then refuse like any other.
+      const { error } = await admin
+        .from("capture_keys")
+        .update({ revoked_at: new Date().toISOString() })
+        .eq("id", key.id)
+        .is("revoked_at", null);
+      if (error) console.error("[quick-capture] expiring a key failed:", error.message);
+      return json(401, { error: "invalid_key" });
+    }
 
     if (req.method === "DELETE") {
       const { error } = await admin

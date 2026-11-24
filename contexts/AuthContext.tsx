@@ -23,7 +23,7 @@ import { isAccountBoundary, mayClearOnLeave } from "@/lib/accountBoundary";
 import { clearLegacyAlbumCaches } from "@/lib/albums";
 import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
 import { fetchBrowseMetadata, readBrowseCache, writeBrowseCache, clearBrowseCache } from "@/lib/browse";
-import { clearCaptureKey, discardLeftoverCaptureKey, ensureCaptureKey, revokeCaptureKey } from "@/lib/captureKey";
+import { clearCaptureKey, discardCaptureKey, ensureCaptureKey, revokeCaptureKey } from "@/lib/captureKey";
 
 export interface OnboardingData {
   displayName: string;
@@ -342,12 +342,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setLoading(false);
           // A reinstall keeps keychain items: a capture key still here would
           // let Siri save to the last account while nobody is signed in.
-          void discardLeftoverCaptureKey();
+          void discardCaptureKey();
         }
       })
       .catch(async () => {
         // Corrupted session in storage (e.g. HTML error page cached during outage)
         await supabase.auth.signOut({ scope: "local" });
+        void discardCaptureKey();
         if (isMountedRef.current) setLoading(false);
       });
 
@@ -379,6 +380,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfileError(false);
         hydratingUserIdRef.current = null;
         hydratedUserIdRef.current = null;
+        // However the session ended (sign-out, a refresh token that expired
+        // or was revoked, the account deleted elsewhere), Siri's capture key
+        // goes with it. Idempotent; sign-out's own teardown also clears it.
+        void discardCaptureKey();
       }
     });
 

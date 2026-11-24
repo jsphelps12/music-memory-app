@@ -1,10 +1,13 @@
 // Pure helpers for the capture-key and quick-capture edge functions
 // ("Remember this song", docs/PLAN-1.5.md section 3). No network, no
 // database, no Deno APIs: vitest covers them in quickCapture.test.ts, which
-// also checks the song-lookup and song-part rules against the app's own
-// copies (lib/songMetadata.ts, lib/songPart.ts). Edge functions can't import
-// from lib/, so those few lines are repeated here and the test keeps them
-// in step.
+// also checks the song-lookup rules against the app's own copy
+// (lib/songMetadata.ts). Edge functions can't import from lib/, so those few
+// lines are repeated here and the test keeps them in step.
+//
+// A background save never sets the part of the song (song_part_ms): the
+// player's position isn't accurate enough, so the part is only ever picked
+// by hand (Josh, 2026-11-23). The request has no position field.
 
 export const LIMITS = {
   titleMax: 300,
@@ -31,7 +34,22 @@ export const LIMITS = {
   capturedAtMaxAheadMs: 10 * 60 * 1000,
   // UTC-12 to UTC+14, with room to spare.
   utcOffsetMaxMinutes: 16 * 60,
+  // A key's whole life. The app replaces its key every 30 days while it's
+  // opened (lib/captureKeyPayload.ts KEY_ROTATE_AFTER_MS), so only a phone
+  // that has gone months without opening Soundtracks meets this.
+  keyMaxAgeMs: 90 * 24 * 60 * 60 * 1000,
 } as const;
+
+/**
+ * Whether a key row may still save: not revoked, and younger than
+ * keyMaxAgeMs. A leaked key, or one left on a phone that lost its session
+ * some other way, stops working on its own.
+ */
+export function keyIsLive(row: { created_at: string; revoked_at: string | null }, nowMs: number): boolean {
+  if (row.revoked_at) return false;
+  const created = Date.parse(row.created_at);
+  return Number.isFinite(created) && nowMs - created < LIMITS.keyMaxAgeMs;
+}
 
 /** "stc_" + 32 random bytes as base64url (43 characters). */
 export const CAPTURE_KEY_PATTERN = /^stc_[A-Za-z0-9_-]{43}$/;
@@ -91,8 +109,6 @@ export interface QuickCaptureInput {
   artist: string;
   album: string | null;
   artworkUrl: string | null;
-  durationMs: number | null;
-  positionMs: number | null;
   capturedAtMs: number;
   utcOffsetMinutes: number;
 }
@@ -112,15 +128,6 @@ function optionalText(raw: unknown, field: string, max: number): Result<string |
   if (!value) return ok(null);
   if (value.length > max) return fail(`${field} is too long`);
   return ok(value);
-}
-
-/** A non-negative whole number of ms below `max`, or null when absent. */
-function optionalMs(raw: unknown, field: string, max: number): Result<number | null> {
-  if (raw === undefined || raw === null) return ok(null);
-  if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0 || raw >= max) {
-    return fail(`${field} is out of range`);
-  }
-  return ok(Math.round(raw));
 }
 
 /** Catalog ids are digits; the player reports "0" or "" for songs not in it. */
@@ -157,12 +164,6 @@ export function parseQuickCaptureBody(body: unknown, nowMs: number): Result<Quic
     artworkUrl = b.artworkUrl;
   }
 
-  // Under two hours: the song_part_ms column's own bound, and no song is longer.
-  const durationMs = optionalMs(b.durationMs, "durationMs", 7_200_000);
-  if (!durationMs.ok) return durationMs;
-  const positionMs = optionalMs(b.positionMs, "positionMs", 7_200_000);
-  if (!positionMs.ok) return positionMs;
-
   if (typeof b.capturedAt !== "string" || b.capturedAt.length > 40) return fail("capturedAt is required");
   // ISO 8601 with a zone, as Swift's ISO8601DateFormatter writes it.
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:?\d{2})$/.test(b.capturedAt)) {
@@ -189,8 +190,6 @@ export function parseQuickCaptureBody(body: unknown, nowMs: number): Result<Quic
     artist: artist.value,
     album: album.value,
     artworkUrl,
-    durationMs: durationMs.value,
-    positionMs: positionMs.value,
     capturedAtMs,
     utcOffsetMinutes,
   });
@@ -217,18 +216,6 @@ export function localDateAndTimeOfDay(capturedAtMs: number, utcOffsetMinutes: nu
 }
 
 // ── Mirrors of the app's rules (kept in step by quickCapture.test.ts) ──────
-
-/** lib/songPart.ts MIN_PART_MS / normalizePartMs. */
-const MIN_PART_MS = 1000;
-const MAX_PART_MS = 7_200_000;
-
-export function normalizePartMs(ms: number | null | undefined, durationMs?: number | null): number | null {
-  if (ms == null || !Number.isFinite(ms)) return null;
-  let value = Math.round(ms / 1000) * 1000;
-  if (durationMs && durationMs > 0) value = Math.min(value, Math.max(0, Math.floor(durationMs / 1000) * 1000 - 1000));
-  value = Math.min(value, MAX_PART_MS - 1000);
-  return value >= MIN_PART_MS ? value : null;
-}
 
 /** lib/songMetadata.ts SongLookup, plus the artwork (the intent has none to send). */
 export interface SongLookup {
@@ -309,7 +296,6 @@ export function songLookupFromResponse(json: unknown, appleMusicId: string): Son
  */
 export function backgroundMomentRow(userId: string, input: QuickCaptureInput, lookup: SongLookup) {
   const { date, timeOfDay } = localDateAndTimeOfDay(input.capturedAtMs, input.utcOffsetMinutes);
-  const durationMs = input.durationMs ?? lookup.durationMs;
   return {
     user_id: userId,
     song_title: input.title,
@@ -325,7 +311,8 @@ export function backgroundMomentRow(userId: string, input: QuickCaptureInput, lo
     song_artist_id: lookup.artistId,
     song_album_id: lookup.albumId,
     song_duration_ms: lookup.durationMs,
-    song_part_ms: normalizePartMs(input.positionMs, durationMs),
+    // Never set automatically; picked by hand in the app.
+    song_part_ms: null,
     reflection_text: "",
     mood: null,
     moods: [] as string[],

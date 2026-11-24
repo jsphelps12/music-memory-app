@@ -9,9 +9,17 @@
 -- function looks a key up by that hash and saves the moment with the service
 -- role as the key's owner.
 --
--- Additive and idempotent: a new table, and the capture_source CHECK rebuilt
--- with one more value ('background'). No existing column, policy or function
--- changes, so every build in the wild is unaffected.
+-- Keys end on sign-out (the app revokes them), when the session ends any
+-- other way (the app discards and self-revokes them), when the password
+-- changes (trigger below), on account deletion (cascade), and after 90 days
+-- regardless (quick-capture refuses older keys; the app replaces its key
+-- every 30 days while it's opened).
+--
+-- Additive and idempotent: a new table, a trigger on auth.users (password
+-- changes revoke keys, in the style of on_auth_user_created), and the
+-- capture_source CHECK rebuilt with one more value ('background'). No
+-- existing column, policy or function changes, so every build in the wild is
+-- unaffected.
 
 CREATE TABLE IF NOT EXISTS public.capture_keys (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -56,6 +64,39 @@ CREATE POLICY "Owners can read their capture keys"
   FOR SELECT
   TO authenticated
   USING ((SELECT auth.uid()) = user_id);
+
+
+-- A password change (reset or update) revokes every capture key the person
+-- has: whoever changed it may be locking someone else out. The app issues a
+-- new key on its next launch while signed in. This must never block the
+-- password change itself, so a failure is only a warning.
+CREATE OR REPLACE FUNCTION public.revoke_capture_keys_on_password_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  BEGIN
+    UPDATE public.capture_keys
+       SET revoked_at = now()
+     WHERE user_id = NEW.id
+       AND revoked_at IS NULL;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'revoke_capture_keys_on_password_change: %', SQLERRM;
+  END;
+  RETURN NEW;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.revoke_capture_keys_on_password_change() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS on_auth_user_password_changed ON auth.users;
+CREATE TRIGGER on_auth_user_password_changed
+  AFTER UPDATE OF encrypted_password ON auth.users
+  FOR EACH ROW
+  WHEN (OLD.encrypted_password IS DISTINCT FROM NEW.encrypted_password)
+  EXECUTE FUNCTION public.revoke_capture_keys_on_password_change();
 
 
 -- capture_source gains 'background': a moment saved by quick-capture.

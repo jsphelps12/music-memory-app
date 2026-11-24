@@ -10,12 +10,11 @@ import {
   LIMITS,
   localDateAndTimeOfDay,
   newCaptureKey,
-  normalizePartMs,
+  keyIsLive,
   parseQuickCaptureBody,
   sha256Hex,
   songLookupFromResponse,
 } from "./quickCapture";
-import { normalizePartMs as appNormalizePartMs } from "../../../lib/songPart";
 import { parseItunesLookupResult, pickLookupResult } from "../../../lib/songMetadata";
 
 const NOW = Date.parse("2026-11-25T18:30:00Z");
@@ -24,8 +23,6 @@ const valid = {
   title: "Holocene",
   artist: "Bon Iver",
   album: "Bon Iver",
-  durationMs: 336000,
-  positionMs: 161400,
   capturedAt: "2026-11-25T18:29:58Z",
   utcOffsetMinutes: -420,
 };
@@ -64,6 +61,17 @@ describe("capture keys", () => {
   });
 });
 
+describe("keyIsLive", () => {
+  const created = (daysAgo: number) => new Date(NOW - daysAgo * 24 * 60 * 60 * 1000).toISOString();
+  it("accepts a key under 90 days old and refuses older or revoked ones", () => {
+    expect(keyIsLive({ created_at: created(1), revoked_at: null }, NOW)).toBe(true);
+    expect(keyIsLive({ created_at: created(89), revoked_at: null }, NOW)).toBe(true);
+    expect(keyIsLive({ created_at: created(91), revoked_at: null }, NOW)).toBe(false);
+    expect(keyIsLive({ created_at: created(1), revoked_at: created(0) }, NOW)).toBe(false);
+    expect(keyIsLive({ created_at: "garbage", revoked_at: null }, NOW)).toBe(false);
+  });
+});
+
 describe("parseQuickCaptureBody", () => {
   it("accepts what the intent sends", () => {
     const r = parseQuickCaptureBody(valid, NOW);
@@ -75,8 +83,6 @@ describe("parseQuickCaptureBody", () => {
         artist: "Bon Iver",
         album: "Bon Iver",
         artworkUrl: null,
-        durationMs: 336000,
-        positionMs: 161400,
         capturedAtMs: Date.parse(valid.capturedAt),
         utcOffsetMinutes: -420,
       },
@@ -98,10 +104,6 @@ describe("parseQuickCaptureBody", () => {
       { album: 7 },
       { appleMusicId: "12ab" },
       { appleMusicId: { id: 1 } },
-      { durationMs: "336000" },
-      { positionMs: -1 },
-      { positionMs: Number.NaN },
-      { positionMs: 7_200_000 },
       { artworkUrl: "http://example.com/a.jpg" },
       { artworkUrl: "javascript:alert(1)" },
       { capturedAt: 1764095398000 },
@@ -152,25 +154,6 @@ describe("localDateAndTimeOfDay", () => {
 });
 
 describe("mirrors of the app's rules", () => {
-  it("rounds the part of the song exactly as lib/songPart.ts does", () => {
-    const cases: [number | null, number | null][] = [
-      [null, null],
-      [0, 336000],
-      [499, 336000],
-      [1499, 336000],
-      [161_400, 336000],
-      [161_600, null],
-      [335_900, 336000],
-      [400_000, 336000],
-      [7_199_999, null],
-      [-5000, null],
-      [Number.NaN, null],
-    ];
-    for (const [ms, duration] of cases) {
-      expect(normalizePartMs(ms, duration)).toBe(appNormalizePartMs(ms, duration));
-    }
-  });
-
   it("reads an iTunes lookup the way lib/songMetadata.ts does", () => {
     const responses = [
       {
@@ -246,7 +229,8 @@ describe("backgroundMomentRow", () => {
       song_preview_url: "https://audio-ssl.itunes.apple.com/p.m4a",
       song_genre: "Alternative",
       song_duration_ms: 336000,
-      song_part_ms: 161000,
+      // Never from the player's position: the part is only picked by hand.
+      song_part_ms: null,
       reflection_text: "",
       moods: [],
       people: [],
@@ -257,14 +241,19 @@ describe("backgroundMomentRow", () => {
   });
 
   it("saves a song outside the catalog with no preview or details", () => {
-    const parsed = parseQuickCaptureBody({ ...valid, appleMusicId: "0", album: null, positionMs: 400 }, NOW);
+    const parsed = parseQuickCaptureBody({ ...valid, appleMusicId: "0", album: null }, NOW);
     if (!parsed.ok) throw new Error(parsed.error);
     const row = backgroundMomentRow("user-1", parsed.value, EMPTY_SONG_LOOKUP);
     expect(row.song_apple_music_id).toBeNull();
     expect(row.song_preview_url).toBeNull();
     expect(row.song_album_name).toBeNull();
-    // Under half a second in means no particular part.
-    expect(row.song_part_ms).toBeNull();
+  });
+
+  it("ignores a position sent by an older client", () => {
+    const parsed = parseQuickCaptureBody({ ...valid, positionMs: 161400, durationMs: 336000 }, NOW);
+    if (!parsed.ok) throw new Error(parsed.error);
+    expect(parsed.value).not.toHaveProperty("positionMs");
+    expect(backgroundMomentRow("user-1", parsed.value, EMPTY_SONG_LOOKUP).song_part_ms).toBeNull();
   });
 
   it("never takes user_id from the request body", () => {

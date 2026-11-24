@@ -13,8 +13,9 @@ import Security
 // or its Supabase session. It reads the capture key the app left in the
 // keychain (lib/captureKey.ts) and posts the song to the quick-capture edge
 // function, which saves the moment for the key's owner. Siri says what it
-// saved; nothing else follows (no notification, by decision). The key is
-// never logged.
+// saved; nothing else follows (no notification, by decision). It never sends
+// the playing position: the part of the song is only ever picked by hand
+// (the position isn't accurate enough). The key is never logged.
 
 // ForegroundContinuableIntent (iOS 16.4, the app's floor) lets a failure
 // offer to open the app instead of just failing. Deprecated in iOS 26 in
@@ -88,8 +89,6 @@ struct PlayingSong {
   let title: String
   let artist: String
   let album: String?
-  let durationMs: Int?
-  let positionMs: Int?
 
   enum Reading {
     case playing(PlayingSong)
@@ -114,15 +113,11 @@ struct PlayingSong {
     // "0" or empty for songs that aren't in the Apple Music catalog.
     let storeId = item.playbackStoreID
     let album = (item.albumTitle ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-    let duration = item.playbackDuration
-    let position = player.currentPlaybackTime
     return .playing(PlayingSong(
       storeId: storeId.isEmpty || storeId == "0" ? nil : storeId,
       title: String(title.prefix(300)),
       artist: String(artist.prefix(300)),
-      album: album.isEmpty ? nil : String(album.prefix(300)),
-      durationMs: duration.isFinite && duration > 0 ? Int(duration * 1000) : nil,
-      positionMs: position.isFinite && position >= 0 ? Int(position * 1000) : nil
+      album: album.isEmpty ? nil : String(album.prefix(300))
     ))
   }
 }
@@ -196,8 +191,6 @@ enum QuickCaptureClient {
     ]
     if let storeId = song.storeId { body["appleMusicId"] = storeId }
     if let album = song.album { body["album"] = album }
-    if let durationMs = song.durationMs { body["durationMs"] = durationMs }
-    if let positionMs = song.positionMs { body["positionMs"] = positionMs }
 
     var request = URLRequest(url: url, timeoutInterval: 10)
     request.httpMethod = "POST"

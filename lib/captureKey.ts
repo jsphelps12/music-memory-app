@@ -7,13 +7,17 @@
  *
  * - Signed in (each launch): `ensureCaptureKey` makes sure the keychain holds
  *   a key for this user and project, asking the capture-key edge function for
- *   one when it doesn't. A key the server stops accepting is deleted by the
- *   intent, so the next launch gets a new one.
+ *   one when it doesn't, and replacing it once it's 30 days old (the server
+ *   refuses keys over 90 days old). A key the server stops accepting is
+ *   deleted by the intent, so the next launch gets a new one.
  * - Sign-out: `revokeCaptureKey` (while the session is still valid), then
  *   `clearCaptureKey` with the rest of the per-user teardown. Account
  *   deletion cascades on the server; `clearCaptureKey` empties the keychain.
- * - Signed out at launch with a key left behind (a reinstall keeps keychain
- *   items): `discardLeftoverCaptureKey` has the key revoke itself.
+ * - The session ending any other way (refresh token expired or revoked, the
+ *   account deleted elsewhere, a corrupt stored session) or a signed-out
+ *   launch with a key left behind (a reinstall keeps keychain items):
+ *   `discardCaptureKey` takes the key out of the keychain and has it revoke
+ *   itself. It needs no session and is safe to call any number of times.
  *
  * Never throws: a missing key only means the intent asks the person to open
  * the app. The secret is never logged.
@@ -31,6 +35,7 @@ import {
   encodeStoredCaptureKey,
   normalizeProjectUrl,
   parseStoredCaptureKey,
+  storedKeyDueForRotation,
   storedKeyServes,
   type StoredCaptureKey,
 } from "@/lib/captureKeyPayload";
@@ -136,8 +141,11 @@ async function obtain(userId: string): Promise<void> {
   const startedAt = generation;
 
   const stored = await readStored(ss);
-  if (storedKeyServes(stored, userId, proj.url)) return;
-  if (stored) {
+  const serves = storedKeyServes(stored, userId, proj.url);
+  if (serves && !storedKeyDueForRotation(stored!, Date.now())) return;
+  // Due for rotation: the old key keeps working until the new one is written
+  // (issuing revokes this install's previous key on the server).
+  if (stored && !serves) {
     // Someone else's key, or another project's: retire it first.
     await selfRevoke(stored);
     await ss.deleteItemAsync(CAPTURE_KEY_ITEM, options(ss)).catch(() => {});
@@ -161,7 +169,11 @@ async function obtain(userId: string): Promise<void> {
     await selfRevoke({ key, ...proj });
     return;
   }
-  await ss.setItemAsync(CAPTURE_KEY_ITEM, encodeStoredCaptureKey({ key, userId, ...proj }), options(ss));
+  await ss.setItemAsync(
+    CAPTURE_KEY_ITEM,
+    encodeStoredCaptureKey({ key, userId, ...proj, issuedAt: Date.now() }),
+    options(ss)
+  );
 }
 
 /**
@@ -197,22 +209,26 @@ export async function clearCaptureKey(): Promise<void> {
 }
 
 /**
- * Signed out at launch: a key still in the keychain was left by an earlier
- * install or a teardown that didn't finish. It revokes itself and goes.
- * Never throws.
+ * There's no session (it ended, or never started on this launch): any key in
+ * the keychain leaves it first, so the intent can't use it, then revokes
+ * itself on the server (best effort; a key that misses this still expires
+ * after 90 days). Also stops a key request still in flight from writing.
+ * Idempotent and never throws.
  */
-export async function discardLeftoverCaptureKey(): Promise<void> {
+export async function discardCaptureKey(): Promise<void> {
+  generation++;
   const ss = secureStore();
   if (!ss) return;
   try {
     const stored = await readStored(ss);
     if (!stored) return;
-    await selfRevoke(stored);
-    // Only if it's still the same key: someone may have signed in meanwhile.
+    // Only if it's still the same key: someone may have signed in meanwhile
+    // and been issued their own.
     if ((await readStored(ss))?.key === stored.key) {
       await ss.deleteItemAsync(CAPTURE_KEY_ITEM, options(ss));
     }
+    await selfRevoke(stored);
   } catch {
-    // Next signed-out launch tries again.
+    // The next launch without a session tries again.
   }
 }
