@@ -115,3 +115,78 @@ clips:
       - { shot: capture, from: 18.0, to: 21.2, speed: 1.3, y: 940, text: "write one line about it" }
       - { shot: capture, from: 25.6, to: 27.4, y: 330, text: "it's called soundtracks\n(free on iphone)" }
     caption: "what song takes you back instantly?"
+
+  # ── Batch 2 (2026-11-23): the rest of the sample memories.
+
+  - id: windows-down
+    slides:
+      - { photo: coast-2, seconds: 2.6, text: "dreams by fleetwood mac on a coast road with the windows down" }
+      - { photo: coast-1, seconds: 2.0, text: "nobody talking. best part of the trip." }
+      - { shot: search-coast, from: 19.2, to: 21.9, text: "kept the whole afternoon" }
+      - { shot: search-coast, from: 21.9, to: 23.7, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what's your windows-down song?"
+
+  - id: new-apartment
+    slides:
+      - { photo: moving-1, seconds: 2.8, text: "1am in the new apartment. nothing unpacked." }
+      - { shot: search-boxes, from: 16.2, to: 18.9, text: "dancing in the moonlight in the kitchen anyway" }
+      - { shot: search-boxes, from: 18.9, to: 20.7, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "first song you played in a new place?"
+
+  - id: first-dance
+    slides:
+      - { photo: couple-1, seconds: 2.8, text: "first dance practice in the living room. you were both terrible." }
+      - { shot: search-first-dance, from: 16.2, to: 18.9, text: "golden hour. saved before the wedding." }
+      - { shot: search-first-dance, from: 18.9, to: 20.7, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what's your first dance song (or what will it be)?"
+
+  - id: the-21st
+    slides:
+      - { photo: party-1, seconds: 2.8, text: "someone plays september on the 21st and the whole office sings" }
+      - { shot: search-the-21st, from: 15.4, to: 18.1, text: "a dumb little memory you'll want back someday" }
+      - { shot: search-the-21st, from: 18.1, to: 19.9, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "do you play september on the 21st?"
+
+  - id: rainy-sunday
+    slides:
+      - { photo: rain-1, seconds: 2.8, text: "rain all sunday. banana pancakes. nowhere to be." }
+      - { shot: search-pancakes, from: 16.2, to: 18.9, text: "saved it anyway" }
+      - { shot: search-pancakes, from: 18.9, to: 20.7, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what's your rainy sunday song?"
+
+  - id: lived-alone
+    slides:
+      - { photo: winter-1, seconds: 2.8, text: "the winter you lived alone" }
+      - { shot: search-alone, from: 16.2, to: 18.9, text: "you still can't skip this song" }
+      - { shot: search-alone, from: 18.9, to: 20.7, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what song is a whole year of your life?"
+
+  - id: road-trip
+    slides:
+      - { photo: road-1, seconds: 2.6, text: "cross-country, day four, 6am, empty road" }
+      - { photo: truck-2, seconds: 2.0, text: "and someone puts on life is a highway. unironically." }
+      - { shot: search-day-four, from: 16.2, to: 18.9, text: "best song ever made, at 6am" }
+      - { shot: search-day-four, from: 18.9, to: 20.7, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what's on your road trip playlist that shouldn't be?"
+
+  - id: every-word
+    slides:
+      - { photo: road-2, seconds: 2.8, text: "driving back to your parents' place" }
+      - { shot: search-the-dog, from: 16.2, to: 18.9, text: "the whole car knows every word. even the dog." }
+      - { shot: search-the-dog, from: 18.9, to: 20.7, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what song does your whole family know every word to?"
+
+  - id: campfire
+    slides:
+      - { photo: campfire-1, seconds: 2.8, text: "one guitar, four chords, everyone shouting the ho and the hey" }
+      - { shot: search-four-chords, from: 20.8, to: 23.5, text: "the stars were ridiculous" }
+      - { shot: search-four-chords, from: 23.5, to: 25.3, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "best campfire song, go."
+
+  - id: graduation
+    slides:
+      - { photo: grad-1, seconds: 2.8, text: "graduation night. landslide comes on." }
+      - { shot: search-graduation, from: 16.2, to: 18.9, text: "mom cried. you pretended not to." }
+      - { shot: search-graduation, from: 18.9, to: 20.7, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what song makes your mom cry?"
+
