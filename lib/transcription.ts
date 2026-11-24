@@ -16,7 +16,7 @@
 // language) just means no text.
 // Pure parts are tested in lib/__tests__/transcription.test.ts.
 
-import { hasWriting } from "@/lib/captureDraft";
+import { hasWriting } from "@/lib/writing";
 import { transcribeFile, type TranscribeFailure } from "@/modules/on-device-ai";
 
 export type TranscriptionResult = { ok: true; text: string } | { ok: false; reason: TranscribeFailure };
