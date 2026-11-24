@@ -61,6 +61,7 @@ import {
 } from "@/lib/momentSelection";
 import { Album, Moment, MomentCardData } from "@/types";
 import { pluralMoments } from "@/lib/utils";
+import { consumeListNotice } from "@/lib/timelineRefresh";
 
 function groupByMonth(moments: Moment[]): { title: string; data: Moment[] }[] {
   const grouped: Record<string, Moment[]> = {};
@@ -233,6 +234,13 @@ export default function AlbumDetailScreen() {
     }
     setSelected((prev) => pruneSelection(prev, moments.map((m) => m.id)));
   }, [moments, exitSelect]);
+
+  // A brief word left by the screen that just closed (capture from this
+  // album, after an offline save: lib/outboxUi.ts).
+  useFocusEffect(useCallback(() => {
+    const left = consumeListNotice();
+    if (left) setNotice(left);
+  }, []));
 
   useEffect(() => {
     if (!notice) return;

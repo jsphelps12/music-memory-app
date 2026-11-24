@@ -21,6 +21,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/contexts/AuthContext";
 import { PromptsSection } from "@/components/PromptsSection";
 import { confirmSheet } from "@/components/ConfirmSheet";
+import { outboxCount } from "@/lib/outboxFlush";
+import { signOutOutboxAsk } from "@/lib/outboxUi";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
 import { Button } from "@/components/Button";
@@ -152,6 +154,19 @@ export default function SettingsScreen() {
 
   const handleSignOut = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Moments that haven't saved yet live only on this phone, and signing
+    // out deletes them (the outbox, lib/outbox.ts): ask first. An outbox
+    // that can't be read asks too.
+    if (user) {
+      let count: number | null;
+      try {
+        count = await outboxCount(user.id);
+      } catch {
+        count = null;
+      }
+      const ask = signOutOutboxAsk(count);
+      if (ask && !(await confirmSheet(ask))) return;
+    }
     setSigningOut(true);
     setSignOutError("");
     try {

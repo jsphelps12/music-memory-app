@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { updateTags } from "../sentryTags";
+import { isSimulatorBundle, updateTags } from "../sentryTags";
 
 describe("updateTags", () => {
   it("marks dev / disabled builds instead of throwing", () => {
@@ -40,5 +40,21 @@ describe("updateTags", () => {
   it("falls back when fields are missing", () => {
     const tags = updateTags({ isEnabled: true, createdAt: new Date("nope") });
     expect(tags).toEqual({ update_id: "embedded", update_channel: "none", runtime_version: "none" });
+  });
+});
+
+describe("isSimulatorBundle", () => {
+  it("spots a Simulator container", () => {
+    expect(
+      isSimulatorBundle(
+        "file:///Users/me/Library/Developer/CoreSimulator/Devices/F60A67B0/data/Containers/Bundle/Application/D454ED9F/Soundtracksb.app/"
+      )
+    ).toBe(true);
+  });
+
+  it("treats a device bundle or an unknown path as a real device", () => {
+    expect(isSimulatorBundle("file:///private/var/containers/Bundle/Application/ABC/Soundtracks.app/")).toBe(false);
+    expect(isSimulatorBundle(null)).toBe(false);
+    expect(isSimulatorBundle(undefined)).toBe(false);
   });
 });

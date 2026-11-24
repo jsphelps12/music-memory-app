@@ -246,6 +246,21 @@ The working plan, with how each piece is built and the open decisions:
   tick; a bottom bar with Add to album and Delete ("Delete 5 moments?",
   photos deleted too). Journal first, album screens next. The menu stays
   the long-press; selection is one of its actions (as in Photos and Files).
+- [ ] **Offline saves** (docs/PLAN-1.5.md §5, over the air). **Engine built
+  2026-11-23** on `feat/offline-saves`: the per-user outbox (`lib/outbox.ts`,
+  files kept in Documents/capture-outbox by `lib/outboxFiles.ts`), the flush
+  with backoff and rejected items (`lib/outboxFlush.ts`), `hooks/useOutbox.ts`,
+  and `saveMoment` taking a caller-picked id so a retry of a landed save
+  succeeds. **UI wired 2026-11-23** (same branch, JavaScript only, ships over
+  the air to build 16): capture picks the moment id up front and, with no
+  connection or a save that fails for a reason a retry fixes, queues it,
+  drops its draft and closes with "Saved on your phone. It'll go up when
+  you're back online."; the Journal shows waiting moments above the first
+  month (`components/OutboxCard.tsx`; refused ones get Try again / Discard);
+  `startOutboxFlushing` runs in the signed-in root (`lib/outboxSaved.ts`
+  refreshes the caches and the Journal and sends `moment_created` with
+  `from_outbox`); Settings asks before signing out with moments waiting.
+  Needs the phone checks in docs/PLAN-1.5.md §5 before it goes out.
 - [ ] **The part of the song** (on the polish list after build 16, Josh
   2026-11-19; decided 2026-11-23: one point, not a stretch, no looping, no
   lyrics). **Built 2026-11-23** (`lib/songPart.ts`, `components/SongPartSheet.tsx`,
@@ -1562,8 +1577,18 @@ questionnaire/ML, NFC products, Android.
   these numbers, not guesses.
 - [x] **React Compiler** (`experiments.reactCompiler` + the babel plugin):
   on in 1.4 (see "Next native build").
-- [ ] **Authorize the Sentry MCP** so crash data is readable during the
-  1.2.0 / 1.3.0 rollout.
+- [x] **Authorize the Sentry MCP** (`sentry-soundtracks` in `.mcp.json`).
+  First read, 2026-11-23: 5 open issues in 90 days, all native. One
+  production watchdog kill on build 12, the rest hangs from simulator builds.
+- [x] **Sentry sees screen crashes and skips the Simulator (2026-11-23, JS
+  only).** The root `ErrorBoundary` in `app/_layout.tsx` re-exported
+  expo-router's, so a screen that threw while rendering went to React
+  Native's native reporter and never reached Sentry. Now it reports
+  (`area: error_boundary`), then shows the stock fallback. Release builds
+  running in the Simulator no longer start Sentry (`isSimulatorBundle()` in
+  `lib/sentryTags.ts`), so Mac preview and E2E hangs stop showing up as issues.
+  PR #131. Live in production over the air 2026-11-23 (update group
+  `b4489676`, sourcemaps uploaded).
 - Known limit: after 60 days without a commit GitHub disables the scheduled
   workflows (including the staging keepalive), and staging pauses. On
   return: re-enable in the Actions tab and restore staging.

@@ -1,10 +1,17 @@
 import "../wdyr";
 import * as Sentry from "@sentry/react-native";
 import * as Updates from "expo-updates";
-import { updateTags } from "@/lib/sentryTags";
+import { isSimulatorBundle, updateTags } from "@/lib/sentryTags";
+import { Paths } from "expo-file-system";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
-import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router";
+import {
+  DarkTheme,
+  DefaultTheme,
+  ErrorBoundary as RouterErrorBoundary,
+  ThemeProvider,
+  type ErrorBoundaryProps,
+} from "expo-router";
 import { useFonts } from "expo-font";
 import {
   DMSerifDisplay_400Regular,
@@ -27,6 +34,8 @@ import { useOnForeground, wireQueryFocus } from "@/lib/appFocus";
 import { wireLibraryCache } from "@/lib/libraryCache";
 import { refreshCheckIns } from "@/lib/dailyCheckIn";
 import { refreshLastWeekReady } from "@/lib/lastWeekReady";
+import { startOutboxFlushing } from "@/lib/outboxFlush";
+import { handleOutboxSaved } from "@/lib/outboxSaved";
 import { PostHogProvider } from "posthog-react-native";
 import { posthog } from "@/lib/posthog";
 import { View, ActivityIndicator } from "react-native";
@@ -56,12 +65,32 @@ const HAS_LAUNCHED_KEY = "has_launched";
 // Notification taps already routed in this process (request identifiers).
 const handledNotificationIds = new Set<string>();
 
-export { ErrorBoundary } from "expo-router";
+// A screen that throws while rendering is caught here, and React Native hands
+// caught errors to its own native reporter, never to Sentry's global handler
+// or the Sentry.wrap boundary further out. Report it, then show the stock
+// expo-router fallback.
+export function ErrorBoundary(props: ErrorBoundaryProps) {
+  const { error } = props;
+  useEffect(() => {
+    Sentry.captureException(error, { tags: { area: "error_boundary" } });
+  }, [error]);
+  return <RouterErrorBoundary {...props} />;
+}
+
+function runningInSimulator(): boolean {
+  try {
+    return isSimulatorBundle(Paths.bundle.uri);
+  } catch {
+    return false;
+  }
+}
 
 // __DEV__ guard: without it, every local `expo run:ios` (including agent
 // worktree runs) reports into Sentry tagged environment "production" (the
 // APP_ENV fallback below), polluting real crash data with dev-machine noise.
-if (!__DEV__) {
+// Release builds in the Simulator (Mac preview builds, E2E) are skipped too:
+// their hangs come from Mac sleep/wake and simulator stalls, not real phones.
+if (!__DEV__ && !runningInSimulator()) {
   Sentry.init({
     dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
     debug: false,
@@ -314,6 +343,15 @@ function RootLayoutNav() {
   // absence lets them run out (lib/dailyCheckIn.ts).
   useEffect(() => {
     if (user?.id) void refreshCheckIns(user.id);
+  }, [user?.id]);
+
+  // Offline saves (lib/outboxFlush.ts): moments capture couldn't save go up
+  // while this user is signed in (now, back online, back in the foreground,
+  // when a retry wait runs out). Stops on sign-out or a change of account.
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId) return;
+    return startOutboxFlushing(userId, (result, item) => handleOutboxSaved(queryClient, userId, result, item));
   }, [user?.id]);
   useOnForeground(() => {
     if (user?.id) void refreshCheckIns(user.id);

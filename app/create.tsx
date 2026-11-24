@@ -19,6 +19,7 @@ import { Button } from "@/components/Button";
 import { IconButton } from "@/components/IconButton";
 import { Chip } from "@/components/Chip";
 import * as Haptics from "expo-haptics";
+import * as Crypto from "expo-crypto";
 import type { IconName } from "@/components/Icon";
 import { useRouter, useLocalSearchParams, useNavigation, usePreventRemove } from "expo-router";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -27,7 +28,11 @@ import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/dat
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { extractExifFromPath } from "@/lib/photoMetadata";
-import { saveMoment, lookupPreview } from "@/lib/saveMoment";
+import { saveMoment, lookupPreview, type SaveMomentInput, type SaveMomentResult } from "@/lib/saveMoment";
+import { enqueueOutbox } from "@/lib/outbox";
+import { queueFailedSave } from "@/lib/outboxFlush";
+import { momentCreatedProperties, momentQueuedProperties, QUEUED_NOTICE, type QueuedReason } from "@/lib/outboxUi";
+import { isDeviceOnline } from "@/lib/appFocus";
 import type { SongLookup } from "@/lib/songMetadata";
 import { captureSourceFor, type SongPick } from "@/lib/captureSource";
 import { maybeRequestReview } from "@/lib/reviewPrompt";
@@ -48,7 +53,7 @@ import { GeoResult } from "@/lib/geocoding";
 import { friendlyError } from "@/lib/errors";
 import { checkAndNotifyMilestone } from "@/lib/notifications";
 import { cancelTodaysCheckIn } from "@/lib/dailyCheckIn";
-import { markTimelineStale } from "@/lib/timelineRefresh";
+import { markTimelineStale, setListNotice } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches, invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import type { MusicProviderType } from "@/types";
 import { PromptPickerModal } from "@/components/PromptPickerModal";
@@ -187,6 +192,11 @@ export default function CreateMomentScreen() {
   // How the current song was chosen in the picker; null when it came in with
   // the route (a share, Last week, a draft). Feeds capture_source.
   const songPickRef = useRef<SongPick | null>(null);
+  // The id this capture's moment saves under, picked on the first Save and
+  // kept across retries, so a save that landed but lost its response can't
+  // become a second moment (saveMoment reads it back; the outbox reuses it).
+  // A new form (after a save, Start fresh, a share arriving) gets a new one.
+  const momentIdRef = useRef<string | null>(null);
 
   const handleSongChange = useCallback((s: Song | null, pick?: SongPick) => {
     setSong(s);
@@ -557,6 +567,7 @@ export default function CreateMomentScreen() {
     }
     if (current) releaseDraft(current.id);
     draftSession.current = startDraftSession(newDraftId(), true);
+    momentIdRef.current = null;
     replaceReflection("", false);
     if (!params.sharedPhotoPaths) setPhotos([]);
     setSelectedMoods([]);
@@ -589,6 +600,7 @@ export default function CreateMomentScreen() {
 
   // Back to a blank capture: after a save, and on "Start fresh".
   const clearForm = () => {
+    momentIdRef.current = null;
     setRestoredDraftAt(null);
     handleSongChange(null);
     replaceReflection("", false);
@@ -761,6 +773,27 @@ export default function CreateMomentScreen() {
     leave();
   };
 
+  // The moment went to the outbox instead of saving (no connection, or a
+  // save that failed for a reason a retry fixes). For the person it's saved:
+  // the draft goes (the outbox keeps its own copies of the photos), capture
+  // closes as after a save, and the Journal (or album) says where it is.
+  // moment_created fires when the outbox actually saves it (lib/outboxSaved.ts).
+  const finishQueued = (input: SaveMomentInput, reason: QueuedReason) => {
+    const session = draftSession.current;
+    if (user && session) {
+      draftSession.current = afterMomentSaved(session);
+      void discardCaptureDraft(user.id, session.id);
+    }
+    posthog.capture("moment_queued_offline", momentQueuedProperties(input, reason));
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setListNotice(QUEUED_NOTICE);
+    // Today is logged, even if it hasn't gone up yet.
+    void cancelTodaysCheckIn();
+    clearForm();
+    allowLeave();
+    close();
+  };
+
   const handleSave = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!hasSong) {
@@ -791,7 +824,9 @@ export default function CreateMomentScreen() {
         },
         songPickRef.current
       );
-      const { id: insertedId, moment: savedMoment, secondaryFailures } = await saveMoment({
+      if (!momentIdRef.current) momentIdRef.current = Crypto.randomUUID();
+      const input: SaveMomentInput = {
+        momentId: momentIdRef.current,
         userId: user.id,
         song: song!,
         reflection,
@@ -811,7 +846,28 @@ export default function CreateMomentScreen() {
         songPartMs,
         voiceUri: voice?.uri ?? null,
         voiceDurationMs: voice?.durationMs ?? null,
-      });
+      };
+
+      // No connection: straight to the outbox, saved when it's back
+      // (docs/PLAN-1.5.md, "5. Offline saves").
+      if (!(await isDeviceOnline())) {
+        await enqueueOutbox(user.id, input, { failure: { kind: "offline" } });
+        finishQueued(input, "offline");
+        return;
+      }
+      let saved: SaveMomentResult;
+      try {
+        saved = await saveMoment(input);
+      } catch (e) {
+        // A failure retrying can fix (the connection, the server) goes to the
+        // outbox under the same id; anything else is shown as before. An
+        // outbox that can't be written shows the save's error, draft kept.
+        const queued = await queueFailedSave(user.id, input, e).catch(() => null);
+        if (!queued) throw e;
+        finishQueued(input, "save_failed");
+        return;
+      }
+      const { moment: savedMoment, secondaryFailures } = saved;
 
       // Saved: this capture's draft goes, and nothing writes it again (a
       // late debounce or the flush on leaving would bring it back).
@@ -827,20 +883,10 @@ export default function CreateMomentScreen() {
       const savedToAlbumId = selectedAlbum?.id;
 
       posthog.capture("moment_created", {
-        song_title: song!.title,
-        song_artist: song!.artistName,
-        has_reflection: reflection.trim().length > 0,
-        has_mood: selectedMoods.length > 0,
-        mood_count: selectedMoods.length,
-        photo_count: toSave.photos.length,
-        has_location: Boolean(locationResult),
-        has_people: people.length > 0,
-        has_people_links: peopleLinks.length > 0,
-        has_collection: Boolean(selectedAlbum),
+        ...momentCreatedProperties(input),
         capture_ms: sinceOpen(),
         save_ms: sinceSave(),
         source: params.source ?? null,
-        capture_source: captureSource,
         // Whether there's a recording and how long; never the audio itself.
         has_voice: !!voice,
         voice_ms: voice?.durationMs ?? null,

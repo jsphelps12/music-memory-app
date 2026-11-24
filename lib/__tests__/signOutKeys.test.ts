@@ -16,6 +16,10 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
   ...storage,
 }));
 
+// lib/outbox.ts's file side is native; only its key names matter here.
+vi.mock("../outboxFiles", () => ({}));
+vi.mock("expo-crypto", () => ({ randomUUID: () => "id" }));
+
 const { SIGN_OUT_KEYS, SIGN_OUT_PREFIXES, clearSignOutKeys, isSignOutKey } = await import("../signOutKeys");
 
 /** Files whose device-local records aren't keyed by user id. */
@@ -69,6 +73,12 @@ describe("SIGN_OUT_KEYS", () => {
     const { widgetKeys, WIDGET_KEY_PREFIX } = await import("../widgetSettings");
     expect(SIGN_OUT_PREFIXES).toContain(WIDGET_KEY_PREFIX);
     for (const key of Object.values(widgetKeys("u1"))) expect(isSignOutKey(key)).toBe(true);
+  });
+
+  it("covers the outbox of moments waiting to save", async () => {
+    const { outboxKey, OUTBOX_KEY_PREFIX } = await import("../outbox");
+    expect(isSignOutKey(outboxKey("u1"))).toBe(true);
+    expect(SIGN_OUT_PREFIXES).toContain(OUTBOX_KEY_PREFIX);
   });
 
   it("keeps the device-wide keys", () => {

@@ -169,6 +169,51 @@ describe("saveMoment", () => {
   });
 });
 
+describe("saveMoment with an id picked by the caller (the offline outbox)", () => {
+  const DUPLICATE = { code: "23505", message: 'duplicate key value violates unique constraint "moments_pkey"' };
+
+  it("inserts under the given id instead of a new one", async () => {
+    sb.queueData(row({ id: "queued-1" }));
+    const result = await saveMoment({ ...base, photos: [], momentId: "queued-1" });
+    expect(writeOf("insert").id).toBe("queued-1");
+    expect(result.id).toBe("queued-1");
+  });
+
+  it("a retry of a save that already landed succeeds with the stored row", async () => {
+    sb.queueError(DUPLICATE);
+    sb.queueData(row({ id: "queued-1", photo_urls: ["u1/first.jpg"], photo_thumbnails: ["u1/thumb_first.jpg"] }));
+
+    const result = await saveMoment({ ...base, photos: ["file:///a.jpg"], momentId: "queued-1" });
+
+    expect(result.id).toBe("queued-1");
+    expect(result.moment.photoUrls).toEqual(["u1/first.jpg"]);
+    // The read-back looked for this id.
+    expect(sb.queries[1].chain.find((c) => c.method === "eq")?.args).toEqual(["id", "queued-1"]);
+    // This attempt's uploads aren't on the stored row: they go.
+    expect(mocks.deleteMomentPhotos).toHaveBeenCalledWith([...NEW.photoPaths, ...NEW.thumbnailPaths]);
+  });
+
+  it("keeps this attempt's photos when the lost-response row is its own", async () => {
+    sb.queueError("network");
+    sb.queueData(row({ id: "queued-1", photo_urls: NEW.photoPaths, photo_thumbnails: NEW.thumbnailPaths }));
+
+    await expect(saveMoment({ ...base, photos: ["file:///a.jpg"], momentId: "queued-1" })).resolves.toMatchObject({
+      id: "queued-1",
+    });
+    expect(mocks.deleteMomentPhotos).not.toHaveBeenCalled();
+  });
+
+  it("still fails when a duplicate id can't be read back", async () => {
+    sb.queueError(DUPLICATE);
+    sb.queueError("offline");
+
+    await expect(saveMoment({ ...base, photos: ["file:///a.jpg"], momentId: "queued-1" })).rejects.toMatchObject({
+      code: "23505",
+    });
+    expect(mocks.deleteMomentPhotos).not.toHaveBeenCalled();
+  });
+});
+
 const edit = (over: Partial<UpdateMomentInput> = {}): UpdateMomentInput => ({
   ...base,
   momentId: "moment-1",
@@ -451,6 +496,17 @@ describe("the voice recording", () => {
     sb.queueData(null);
     await expect(saveMoment({ ...base, photos: [], ...take })).rejects.toMatchObject({ message: "network" });
     expect(mocks.deleteVoice).toHaveBeenCalledWith([VOICE_PATH]);
+  });
+
+  it("a retry of a save that already landed keeps the first recording and says nothing", async () => {
+    sb.queueError({ code: "23505", message: 'duplicate key value violates unique constraint "moments_pkey"' });
+    sb.queueData(row({ id: "queued-1", voice_path: "u1/queued-1-0.m4a", voice_duration_ms: 42_000 }));
+    const result = await saveMoment({ ...base, photos: [], momentId: "queued-1", ...take });
+
+    expect(result.moment.voicePath).toBe("u1/queued-1-0.m4a");
+    // This attempt's upload is the unused one.
+    expect(mocks.deleteVoice).toHaveBeenCalledWith(["u1/queued-1-1.m4a"]);
+    expect(result.secondaryFailures).toEqual([]);
   });
 
   it("saved without the voice columns (migration not applied): deletes the upload and says so", async () => {

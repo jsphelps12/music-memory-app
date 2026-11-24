@@ -15,6 +15,7 @@ import { prefetchTimeline, clearTimelineCache } from "@/lib/timelinePrefetch";
 import { clearCheckInData } from "@/lib/dailyCheckIn";
 import { clearLastWeekReady } from "@/lib/lastWeekReady";
 import { clearSignOutKeys } from "@/lib/signOutKeys";
+import { clearOutbox } from "@/lib/outbox";
 import { clearPhotoAnalysisStore } from "@/lib/photoAnalysisStore";
 import { clearNudgeQuestions } from "@/lib/nudgeQuestionStore";
 import { clearLibraryCache } from "@/lib/libraryCache";
@@ -475,6 +476,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearLegacyAlbumCaches(userId),
         clearBrowseCache(userId),
         clearCaptureDraft(userId),
+        // Moments that never saved, and their kept photos. Settings asks
+        // before signing out when there are any (lib/outboxUi.ts).
+        clearOutbox(userId),
         clearCheckInData(userId),
         clearLastWeekReady(),
       ]);
@@ -533,7 +537,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await revokeCaptureKey("all");
     // Always clear locally even if the network call fails. supabase-js
     // reports most failures as a returned error (and then keeps the session)
-    // rather than throwing, so both fall back to a local sign-out.
+    // rather than throwing, so both fall back to a local sign-out; before
+    // this, a failed global sign-out left the person signed in.
     const { error: signOutError } = await supabase.auth
       .signOut()
       .catch((e: unknown) => ({ error: e }));

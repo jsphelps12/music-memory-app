@@ -9,6 +9,9 @@ import { Moment } from "@/types";
 let _stale = false;
 let _pendingMoment: Moment | null = null;
 let _deletedMomentId: string | null = null;
+// A brief notice for whichever list screen capture closes back to ("Saved on
+// your phone…" after an offline save, lib/outboxUi.ts). Consumed once.
+let _notice: string | null = null;
 // When moments last changed on this device. Unlike the flag, consuming doesn't
 // reset it: a timeline prefetch started before this time predates the change
 // and must not be painted (see isPrefetchFresh in timelinePrefetch.ts).
@@ -41,6 +44,19 @@ export function resetTimelineRefresh(): void {
   _pendingMoment = null;
   _deletedMomentId = null;
   _lastMarkedAt = 0;
+  _notice = null;
+}
+
+/** Leaves a notice for the next Journal or album screen to gain focus. */
+export function setListNotice(text: string): void {
+  _notice = text;
+}
+
+/** The notice left by setListNotice, once; null when there's none. */
+export function consumeListNotice(): string | null {
+  const n = _notice;
+  _notice = null;
+  return n;
 }
 
 export function consumeTimelineStale(): { stale: boolean; pendingMoment: Moment | null; deletedMomentId: string | null } {

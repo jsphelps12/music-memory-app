@@ -118,6 +118,12 @@ export interface SaveMomentInput extends MomentFieldsInput {
   /** A voice recording on this phone (lib/voice.ts): uploaded alongside the photos. */
   voiceUri?: string | null;
   voiceDurationMs?: number | null;
+  /**
+   * The moment's id, when the caller picked it (the offline outbox,
+   * lib/outbox.ts): a retry of the same moment reuses it, so it can never
+   * save twice. Left out, a new one is picked here.
+   */
+  momentId?: string;
 }
 
 export interface SaveMomentResult {
@@ -165,10 +171,12 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
     }
     return cloudId ? { cloudId, kind: "photo", full: false } : null;
   });
-  // The id is chosen here, not by the database, so a failed insert can be
-  // checked (if the row exists after all, the save succeeded), and so the
-  // voice recording's path can name its moment before the row exists.
-  const id = Crypto.randomUUID();
+  // The id is chosen here (or by the caller), not by the database, so a
+  // failed insert can be checked: if the row exists after all, the save
+  // succeeded. That includes a retry of a save that already landed, whose
+  // insert fails on the existing id (Postgres 23505). It also lets the voice
+  // recording's path name its moment before the row exists.
+  const id = input.momentId ?? Crypto.randomUUID();
   const [preview, media] = await Promise.all([
     previewPromise,
     uploadMomentMedia(input.userId, id, input.photos, refs.map(Boolean), input.voiceUri),
@@ -223,6 +231,10 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
     }
     // Unknown: keep the photos rather than risk breaking a saved moment.
     if (existing === "unknown") throw insertError;
+    // Saved. On a retry of a save that had already landed, the row points at
+    // the first attempt's photos, so this attempt's uploads are unused.
+    const stored: string[] = existing.photo_urls ?? [];
+    if (!uploaded.photoPaths.every((p) => stored.includes(p))) cleanUpUnusedUploads(uploaded, existing);
     inserted = existing;
   }
 
@@ -231,12 +243,14 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
   const secondaryFailures: string[] = [];
   const secondaryOps: Promise<void>[] = [];
 
-  // Saved without the recording (a database without the voice columns yet,
-  // so the retry dropped them): nothing points at the upload, and the person
+  // This attempt's recording isn't the one the row points at: nothing will
+  // ever read it. Either a retry of a save that had already landed (the row
+  // keeps the first attempt's recording, which is fine), or a database
+  // without the voice columns yet, so the insert dropped them and the person
   // should know their voice wasn't kept.
   if (voicePath && inserted?.voice_path !== voicePath) {
     void deleteVoice([voicePath]);
-    secondaryFailures.push("the voice recording couldn't be kept");
+    if (!inserted?.voice_path) secondaryFailures.push("the voice recording couldn't be kept");
   }
 
   if (input.selectedAlbum) {

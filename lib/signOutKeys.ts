@@ -6,7 +6,11 @@
 // draft, daily check-in) are cleared by their own modules' clear* helpers in
 // contexts/AuthContext.tsx; in-memory copies by clearInMemoryStores there.
 // clearCaptureDraft also deletes the drafts' kept photo copies
-// (Documents/capture-drafts/<userId>/, lib/captureDraftFiles.ts).
+// (Documents/capture-drafts/<userId>/, lib/captureDraftFiles.ts), and
+// clearOutbox (lib/outbox.ts) the moments waiting to save and their kept
+// files (Documents/capture-outbox/<userId>/); sign-out asks first when there
+// are any. The outbox's key is also listed by prefix below, so it can't
+// outlive the account even if that call is missed.
 // The capture key for Siri's background save lives in the keychain, not
 // AsyncStorage: lib/captureKey.ts clearCaptureKey, called from the same
 // teardown (and revokeCaptureKey before sign-out).
@@ -51,12 +55,13 @@ export const SIGN_OUT_KEYS: readonly string[] = [
 
 /**
  * Keys named per account or per week: every From before key (now
- * `frombefore_*_<userId>`), every weekly play-count snapshot, and the Memory
+ * `frombefore_*_<userId>`), every weekly play-count snapshot, the outbox of
+ * moments waiting to save (`capture_outbox_v1_<userId>`), and the Memory
  * widget's words setting and shown days (`widget_*_<userId>`,
  * lib/widgetSettings.ts; its file in the App Group is cleared by
  * clearMemoryWidget).
  */
-export const SIGN_OUT_PREFIXES: readonly string[] = ["frombefore_", "lastweek_playcounts_v2:", "widget_"];
+export const SIGN_OUT_PREFIXES: readonly string[] = ["frombefore_", "lastweek_playcounts_v2:", "capture_outbox_", "widget_"];
 
 export function isSignOutKey(key: string): boolean {
   return SIGN_OUT_KEYS.includes(key) || SIGN_OUT_PREFIXES.some((p) => key.startsWith(p));
