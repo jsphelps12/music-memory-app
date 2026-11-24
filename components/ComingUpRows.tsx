@@ -1,8 +1,8 @@
 import { useMemo } from "react";
-import { StyleSheet } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { AppImage } from "@/components/AppImage";
 import { ListRow } from "@/components/ListRow";
-import type { IconName } from "@/components/Icon";
+import { Icon, type IconName } from "@/components/Icon";
 import type { ComingUpRow } from "@/lib/comingUp";
 import { artworkUrlAtSize } from "@/lib/itunes";
 import { useTheme } from "@/hooks/useTheme";
@@ -41,7 +41,6 @@ export function ComingUpRows({
             strong={!!row.momentId}
             subtitle={row.subtitle}
             detail={row.detail}
-            icon={row.artworkUrl ? undefined : ICONS[row.key]}
             leading={
               row.artworkUrl ? (
                 <AppImage
@@ -49,6 +48,11 @@ export function ComingUpRows({
                   style={styles.art}
                   contentFit="cover"
                 />
+              ) : ICONS[row.key] ? (
+                // In an artwork-sized box, so every row's text lines up.
+                <View style={styles.iconBox}>
+                  <Icon name={ICONS[row.key]!} size={22} color={theme.colors.textSecondary} />
+                </View>
               ) : undefined
             }
             onPress={open}
@@ -67,6 +71,12 @@ function createStyles(theme: Theme) {
       width: ART,
       height: ART,
       borderRadius: theme.radii.sm,
+    },
+    iconBox: {
+      width: ART,
+      height: ART,
+      alignItems: "center",
+      justifyContent: "center",
     },
   });
 }

@@ -104,6 +104,9 @@ export default function YouScreen() {
     [browseMeta.data]
   );
   const insightsReady = !!insights && insights.moments >= INSIGHTS_MIN_MOMENTS;
+  // Opens from the first moment: before insights are ready, the screen shows
+  // what's coming up (lib/comingUp.ts) instead of nothing.
+  const canOpenInsights = !!insights && insights.moments > 0;
   // Your most-written artists, or until anyone repeats, your latest three.
   const previewArtists = insights ? artistHighlights(insights, 3).artists : [];
 
@@ -307,17 +310,17 @@ export default function YouScreen() {
         {/* Insights: a preview of app/insights.tsx (lib/insights.ts) */}
         {insights ? (
           <Pressable
-            style={({ pressed }) => [styles.insights, pressed && insightsReady && styles.pressed]}
-            onPress={insightsReady ? () => router.push({ pathname: "/insights" as any, params: { from: "you_preview" } }) : undefined}
-            disabled={!insightsReady}
-            accessibilityRole={insightsReady ? "button" : undefined}
+            style={({ pressed }) => [styles.insights, pressed && canOpenInsights && styles.pressed]}
+            onPress={canOpenInsights ? () => router.push({ pathname: "/insights" as any, params: { from: "you_preview" } }) : undefined}
+            disabled={!canOpenInsights}
+            accessibilityRole={canOpenInsights ? "button" : undefined}
             accessibilityLabel={insightsReady ? `Insights, ${insightsSummary(insights)}` : undefined}
-            accessibilityHint={insightsReady ? "Opens your insights" : undefined}
+            accessibilityHint={canOpenInsights ? "Opens your insights" : undefined}
             testID="you-insights"
           >
             <View style={styles.insightsHead}>
               <Text style={styles.insightsTitle}>Insights</Text>
-              {insightsReady ? (
+              {canOpenInsights ? (
                 <View style={styles.seeAll}>
                   <Text style={styles.seeAllText}>See all</Text>
                   <Icon name="chevron-forward" size={14} color={theme.colors.textSecondary} />

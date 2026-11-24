@@ -29,7 +29,7 @@ export interface ComingUpRow {
   artworkUrl?: string;
 }
 
-type Meta = Pick<BrowseMeta, "id" | "momentDate" | "songTitle" | "songArtworkUrl" | "songGenre" | "songReleaseDate" | "timeOfDay">;
+type Meta = Pick<BrowseMeta, "id" | "momentDate" | "songTitle" | "songArtist" | "songArtworkUrl" | "songGenre" | "songReleaseDate" | "timeOfDay">;
 
 const more = (n: number) => `${n} more`;
 const moments = (n: number) => `${n} more moment${n === 1 ? "" : "s"}`;
@@ -90,7 +90,7 @@ export function rediscoverComingUp(meta: readonly Meta[], now: Date = new Date()
     rows.push({
       key: "rewind",
       label: "Weekly rewind",
-      subtitle: `A month you wrote in, back each week from ${formatDay(nextMonth, now)}`,
+      subtitle: `From ${formatDay(nextMonth, now)}, a past month comes back each week`,
     });
   }
 
@@ -106,7 +106,6 @@ export function rediscoverComingUp(meta: readonly Meta[], now: Date = new Date()
         key: "year_review",
         label: `Your ${year} in review`,
         subtitle: opens ? `Opens ${opens}, with ${moments(need)} this year` : `Opens with ${moments(need)} this year`,
-        detail: more(need),
       });
     } else if (opens) {
       rows.push({ key: "year_review", label: `Your ${year} in review`, subtitle: `Opens ${opens}` });
@@ -132,11 +131,15 @@ export function insightsComingUp(meta: readonly Meta[]): ComingUpRow[] {
       subtitle: "The artists you keep coming back to",
       detail: more(INSIGHTS_MIN_MOMENTS - total),
     });
-    rows.push({
-      key: "coming_back",
-      label: "Songs you keep coming back to",
-      subtitle: "Once a song turns up in more than one moment",
-    });
+    // Only while no song has come back yet: two moments can share one.
+    const songs = new Set(meta.map((m) => `${m.songTitle.trim().toLowerCase()}\u0000${m.songArtist.trim().toLowerCase()}`));
+    if (songs.size === total) {
+      rows.push({
+        key: "coming_back",
+        label: "Songs you keep coming back to",
+        subtitle: "Once a song turns up in more than one moment",
+      });
+    }
   }
 
   const taste = resonates(meta);

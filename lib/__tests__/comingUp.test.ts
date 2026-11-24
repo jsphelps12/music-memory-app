@@ -10,6 +10,7 @@ function m(date: string | null, over: Record<string, unknown> = {}) {
     id: `m${n}`,
     momentDate: date,
     songTitle: `Song ${n}`,
+    songArtist: "Artist",
     songArtworkUrl: `https://art/${n}.jpg`,
     songGenre: null as string | null,
     songReleaseDate: null as string | null,
@@ -47,7 +48,7 @@ describe("rediscoverComingUp", () => {
   it("promises the weekly rewind while everything is from this month", () => {
     const rows = rediscoverComingUp([m("2026-11-02"), m("2026-11-20")], NOW);
     expect(rows.find((r) => r.key === "rewind")?.subtitle).toBe(
-      "A month you wrote in, back each week from December 1"
+      "From December 1, a past month comes back each week"
     );
     // An earlier month already gives the rewind something.
     expect(rediscoverComingUp([m("2026-10-02"), m("2026-11-20")], NOW).some((r) => r.key === "rewind")).toBe(false);
@@ -59,7 +60,6 @@ describe("rediscoverComingUp", () => {
       key: "year_review",
       label: "Your 2026 in review",
       subtitle: "Opens December 1, with 3 more moments this year",
-      detail: "3 more",
     });
   });
 
@@ -102,6 +102,11 @@ describe("insightsComingUp", () => {
       ["resonates", "2 more"],
       ["when", "4 more"],
     ]);
+  });
+
+  it("doesn't promise a song coming back when one already has", () => {
+    const twice = [m("2026-11-20", { songTitle: "Here Comes the Sun" }), m("2026-11-21", { songTitle: "here comes the sun " })];
+    expect(insightsComingUp(twice).some((r) => r.key === "coming_back")).toBe(false);
   });
 
   it("past the minimum, lists only the sections still short", () => {
