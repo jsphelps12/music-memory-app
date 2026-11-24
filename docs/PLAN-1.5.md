@@ -96,8 +96,9 @@ transcription about 1 day in 1.5.
 An App Intent in the app, so it works from Siri ("Hey Siri, remember this
 song"), Shortcuts and the Action button, with the screen off and without
 opening the app. It saves what's playing as a moment (song, part of the song
-where it was, date, time) and a quiet notification later offers "Add your
-words", which opens that moment's Edit.
+where it was, date, time). Siri says what it saved ("Saved Holocene by Bon
+Iver"). No notification follows (Josh, 2026-11-23: no more pushes); the
+moment is in the Journal like any other, ready for words.
 
 **How it saves without the app open.** The intent runs in Swift, outside the
 JavaScript app, so it can't use the app's sign-in directly. Sharing the
@@ -107,16 +108,42 @@ intent refreshed one the app would be signed out. Instead:
   **capture key**: a random secret, stored hashed on the server, that can only
   add a moment for that one person. The app keeps it in the keychain, shared
   with the intent.
-- The intent reads the playing song (`MPMusicPlayerController`), looks it up
-  in the iTunes catalog and sends it with the key to an edge function
-  (`quick-capture`), which checks the key and saves the moment.
+- The intent reads the playing song (`MPMusicPlayerController`) and sends it
+  with the key to an edge function (`quick-capture`), which checks the key,
+  looks the song up in the iTunes catalog and saves the moment.
 - Sign-out and account deletion revoke the key on the server and delete it
   from the keychain. Keys can be listed and revoked per device later.
 - No song playing, no signal: the intent says so ("Nothing's playing") and
   saves nothing; with no signal it offers to open the app instead.
 
-**Effort:** about 3–4 days (two edge functions, a table for keys, the intent,
-the notification).
+**Effort:** about 3–4 days (two edge functions, a table for keys, the intent).
+
+**Built (2026-11-25, branch `native-1.5/bgsave`; not deployed):**
+- Migration `20261125000000_capture_keys.sql`: `capture_keys` (SHA-256 of
+  the secret, a per-install `device_id`, label, created/last used/revoked;
+  owners can read the bookkeeping columns, never the hash; no client writes)
+  and `'background'` added to `moments.capture_source`.
+- `capture-key` (signed in): POST `{deviceId, deviceLabel}` returns a new
+  key once and revokes that install's old one (10 live keys a person, the
+  least recently used retired past that; 20 new keys an hour); DELETE
+  revokes one install's keys (sign-out) or all.
+- `quick-capture` (`Authorization: Capture <key>`, verify_jwt off): checks
+  the key by hash, looks the song up on iTunes for the preview and details,
+  saves the moment with the service role as the key's owner (part of the
+  song from the player's position, date and time of day where the phone
+  was, no words), 30 an hour, and the same song again within 2 minutes
+  returns the first moment. DELETE lets a key revoke itself.
+- The intent (`plugins/remember-this-song/RememberThisSong.swift`, put in
+  the app target by `plugins/withRememberThisSong.js`) with the phrases
+  "Remember this song in / Save this song to Soundtracks". Apple Music only
+  (the system player doesn't see Spotify).
+- The app issues the key on launch while signed in (`lib/captureKey.ts`,
+  keychain via expo-secure-store), revokes it before sign-out and clears it
+  with the per-user teardown; a key left on a signed-out phone (reinstall)
+  revokes itself.
+- Still to do: apply the migration and deploy both functions (staging, then
+  production with Josh's go), then try it on a phone: Siri, the Shortcuts
+  app, the Action button, locked and unlocked.
 
 ## 4. Journaling Suggestions
 

@@ -179,8 +179,12 @@ The working plan, with how each piece is built and the open decisions:
 `docs/PLAN-1.5.md`.
 - [ ] **Siri: "remember this song"** — an App Intent (Siri, Shortcuts, the
   Action button) saves what's playing without opening the app, screen off;
-  a gentle "finish this one" later. Needs an app group and the session in
-  a shared keychain.
+  Siri says what it saved and nothing follows (no notification, by
+  decision). **Built 2026-11-25 on `native-1.5/bgsave`:** a per-device
+  capture key in the keychain (not the session), the `capture-key` and
+  `quick-capture` edge functions, migration `20261125000000_capture_keys`,
+  the intent and Siri phrases. Waiting on the migration and function deploys
+  (production needs Josh's go) and a try on a phone.
 - [ ] **Journaling Suggestions** — Apple's system picker (as in Apple's
   Journal) offering the day's songs, photos and places, with consent.
   iOS 17.2+; check the entitlement first.
@@ -1150,10 +1154,11 @@ clutter, navigation.
   a prototype screen on Josh's real library to check `dateAdded` quality.
   Native (rides 1.4).
 - [ ] **Log what's playing without opening the app** *(in 1.5, as "Remember
-  this song" with a capture key: docs/PLAN-1.5.md)* (App Intent that saves
-  the now-playing song straight to the journal, with a "write later" nudge).
-  Needs an app group + the auth token in a shared keychain; the widget above
-  opens the app instead.
+  this song" with a capture key: docs/PLAN-1.5.md; built 2026-11-25, not
+  yet deployed)* (App Intent that saves the now-playing song straight to the
+  journal; no "write later" nudge, by decision). A per-device capture key in
+  the keychain instead of the session; the widget above opens the app
+  instead.
 - [x] **Face ID lock** (in 1.4, see "Next native build"; journaling-app standard; makes private writing feel
   safe).
 - [x] **Export** your journal (PDF, in 1.4: see "Next native build"): trust that the words are
