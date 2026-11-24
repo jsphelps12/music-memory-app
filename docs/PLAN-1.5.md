@@ -247,6 +247,10 @@ A pass over everything before 1.5 goes to review, mostly over the air:
   but no clear pattern is never promised. Rows go away as they unlock.
 - Reading the archive: search across words, songs and people, and browsing
   that makes old moments easy to land on.
+- Album covers on the Albums tab: a 2×2 grid from 2 covers instead of 4.
+  **Done 2026-11-24 (update to 1.4.1):** `lib/albumMosaic.ts`: two covers
+  on the diagonal (A B / B A), three as A B / C A, the same artwork counted
+  once.
 - Josh's list from using 1.4.1 day to day (added as it comes).
 - The 1.5 audit (`/audit`) before submitting, and anything it finds.
 
