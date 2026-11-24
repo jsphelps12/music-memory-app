@@ -1,8 +1,8 @@
 Pod::Spec.new do |s|
   s.name           = 'OnDeviceAI'
   s.version        = '1.0.0'
-  s.summary        = 'On-device photo understanding (Vision) and phrasing (Foundation Models)'
-  s.description    = 'Expo module: scene labels, faces, text and aesthetics for photos, and short questions from Apple Intelligence, all on the device'
+  s.summary        = 'On-device photo understanding (Vision), phrasing (Foundation Models) and speech transcription (Speech)'
+  s.description    = 'Expo module: scene labels, faces, text and aesthetics for photos, short questions from Apple Intelligence, and voice entries to text, all on the device'
   s.license        = 'MIT'
   s.author         = 'Joshua Phelps'
   s.homepage       = 'https://github.com/joshuaphelps'
@@ -14,7 +14,7 @@ Pod::Spec.new do |s|
   s.dependency 'ExpoModulesCore'
 
   s.source_files = "**/*.{h,m,swift}"
-  s.frameworks = 'Photos', 'Vision', 'UIKit'
+  s.frameworks = 'Photos', 'Vision', 'UIKit', 'Speech', 'AVFoundation', 'CoreMedia'
   # Foundation Models is iOS 26+; weak so the app still launches on older iOS.
   s.weak_frameworks = 'FoundationModels'
 
