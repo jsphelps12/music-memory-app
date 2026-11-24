@@ -194,7 +194,14 @@ The working plan, with how each piece is built and the open decisions:
   can fill the reflection (the "AI never writes it" rule is about
   generated text).
 - [ ] **Memory widget** — one moment a day on the Home Screen, opening
-  into the film.
+  into the film. Built 2026-11-23 on `native-1.5/widget` (waiting on the
+  1.5 binary and a check on Josh's phone): picks (`lib/widgetPicks.ts`,
+  tested), the App Group writer (`lib/widgetData.ts` +
+  `writeWidgetData`/`clearWidgetData`/`reloadWidgets` on
+  `modules/now-playing`), small, medium and Lock Screen views
+  (`targets/widget/MemoryWidget.swift`), `?film=1` on the moment screen,
+  and Settings → Privacy → "Show my words on the widget" (off; never with
+  the app lock on). Cleared on sign-out.
 
 **Over the air on 1.4 meanwhile:**
 - [x] **Drafts you can see** (decided 2026-11-18): built 2026-11-18 on native/1.4 (`.maestro/drafts.yaml`), OTA to 1.4 the same day (group 8419f305) after all three flows passed.: closing capture with

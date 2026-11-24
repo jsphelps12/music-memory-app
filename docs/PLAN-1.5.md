@@ -58,6 +58,38 @@ film. A Lock Screen version shows the song and when.
 
 **Effort:** about 3–4 days, including the widget views and their light/dark checks.
 
+**Built (2026-11-23, branch `native-1.5/widget`, needs the 1.5 binary):**
+- Picks: `lib/widgetPicks.ts` (tested). Each day: a moment from the same
+  day in an earlier year first ("3 years ago today"), else one at least 30
+  days old not shown in the 30 days before that day and not already picked
+  that week. Ties go to a hash of user, day and moment, so a day's pick
+  doesn't change on every rewrite. A day with nothing old enough is left
+  empty ("Your moments will show here").
+- Writer: `lib/widgetData.ts`, fed the whole library from the Journal's
+  shared `["browseMeta", uid]` cache (`hooks/useMemoryWidget.ts`, no new
+  query). Artwork is downloaded at 300 px and copied in by the native side;
+  `widget/moments.json` is versioned (`version: 1`). Runs when the library
+  loads or changes, on return to the app (at most every 30 minutes unless
+  the day changed), and when the words setting or the app lock changes.
+- Words: Settings → Privacy → "Show my words on the widget", off by
+  default, per account. With it on, the first line of the picked moments'
+  reflections (one read of at most 7 of the owner's rows); never with the
+  app lock on. The widget only ever gets the song's artwork, never photos.
+- Native: `writeWidgetData`, `clearWidgetData`, `reloadWidgets` and
+  `appGroupPath` on `modules/now-playing` (`WidgetStore.swift`), null-safe
+  on older binaries. The extension's App Group is named in
+  `targets/widget/expo-target.config.js` (it was already mirrored).
+- Views: `targets/widget/MemoryWidget.swift`, small (artwork full-bleed,
+  date and title over a night scrim), medium (artwork, song, artist, date,
+  optional line), Lock Screen rectangular (date, song, artist). The gallery
+  shows a made-up moment. Tap: `<scheme>:///moment/<id>?film=1`; the
+  moment screen opens the film once when the moment has photos.
+- Sign-out and account deletion: `clearMemoryWidget()` in AuthContext's
+  teardown; the settings go with the `widget_` sign-out prefix.
+- Still to check on a phone: light/dark and tinted Home Screen, artwork
+  sharpness at 300 px on the small size, the film opening from a cold
+  start, and the widget turning over at midnight.
+
 ## 2. Voice entries
 
 **What it is.** Hold a button in capture to say what the song is doing for
@@ -182,10 +214,10 @@ A pass over everything before 1.5 goes to review, mostly over the air:
 
 ## Decisions for Josh
 
-1. **Words on the widget:** show a line of your words, or only the song and
-   date (words behind a setting)?
-2. **Which moment:** "on this day" first, then something at least 30 days old.
-   OK?
+1. **Words on the widget:** decided 2026-11-23: song and date by default; a
+   Settings switch adds one line of your words (built).
+2. **Which moment:** decided 2026-11-23: "on this day" first, then something
+   at least 30 days old (built).
 3. **Voice to friends:** owner-only at first (proposed), or shareable from day one?
 4. **Voice length:** a 3-minute cap OK?
 5. **Voice before 1.5:** ship recording and playback as an update to 1.4.1
