@@ -7,6 +7,9 @@
 // contexts/AuthContext.tsx; in-memory copies by clearInMemoryStores there.
 // clearCaptureDraft also deletes the drafts' kept photo copies
 // (Documents/capture-drafts/<userId>/, lib/captureDraftFiles.ts).
+// The capture key for Siri's background save lives in the keychain, not
+// AsyncStorage: lib/captureKey.ts clearCaptureKey, called from the same
+// teardown (and revokeCaptureKey before sign-out).
 //
 // The names are repeated here rather than imported (importing those modules
 // would pull native code into this one); lib/__tests__/signOutKeys.test.ts

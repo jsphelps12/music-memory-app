@@ -23,6 +23,7 @@ import { isAccountBoundary, mayClearOnLeave } from "@/lib/accountBoundary";
 import { clearLegacyAlbumCaches } from "@/lib/albums";
 import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
 import { fetchBrowseMetadata, readBrowseCache, writeBrowseCache, clearBrowseCache } from "@/lib/browse";
+import { clearCaptureKey, discardLeftoverCaptureKey, ensureCaptureKey, revokeCaptureKey } from "@/lib/captureKey";
 
 export interface OnboardingData {
   displayName: string;
@@ -270,6 +271,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hydratedUserIdRef.current = userId;
 
       startPrefetches(userId);
+      // "Remember this song" (1.5): the key Siri's background save uses.
+      // Usually just a keychain read; off the startup path either way.
+      setTimeout(() => void ensureCaptureKey(userId), 2000);
 
       try {
         const cached = await readProfileCache(userId);
@@ -336,6 +340,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           void hydrateUser(session.user.id, session.user.email);
         } else {
           setLoading(false);
+          // A reinstall keeps keychain items: a capture key still here would
+          // let Siri save to the last account while nobody is signed in.
+          void discardLeftoverCaptureKey();
         }
       })
       .catch(async () => {
@@ -465,6 +472,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearLastWeekReady(),
       ]);
     }
+    // The capture key Siri's background save uses (keychain, lib/captureKey.ts).
+    await clearCaptureKey();
     // From before, Last week, photo analyses, nudge questions, the capture
     // hint: one person's records, stored without a user id (lib/signOutKeys.ts).
     await clearSignOutKeys();
@@ -504,6 +513,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (userId) {
       supabase.from("profiles").update({ push_token: null }).eq("id", userId).then(null, () => {});
     }
+    // Revoke this phone's capture key while the session can still say who
+    // we are (bounded; never throws). clearLocalUserState empties the keychain.
+    await revokeCaptureKey();
     // Always clear locally even if the network call fails
     await supabase.auth.signOut().catch(() => supabase.auth.signOut({ scope: "local" }));
     await clearLocalUserState(userId);
