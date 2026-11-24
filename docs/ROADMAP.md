@@ -215,6 +215,14 @@ The working plan, with how each piece is built and the open decisions:
   tick; a bottom bar with Add to album and Delete ("Delete 5 moments?",
   photos deleted too). Journal first, album screens next. The menu stays
   the long-press; selection is one of its actions (as in Photos and Files).
+- [ ] **Offline saves** (docs/PLAN-1.5.md §5, over the air). **Engine built
+  2026-11-23** on `feat/offline-saves`: the per-user outbox (`lib/outbox.ts`,
+  files kept in Documents/capture-outbox by `lib/outboxFiles.ts`), the flush
+  with backoff and rejected items (`lib/outboxFlush.ts`), `hooks/useOutbox.ts`,
+  and `saveMoment` taking a caller-picked id so a retry of a landed save
+  succeeds. Still to do: the UI wiring (capture queues and closes with a
+  toast, the Journal's pending rows, `startOutboxFlushing` in the signed-in
+  root, sign-out asks first and clears it).
 - [ ] **The part of the song** (on the polish list after build 16, Josh
   2026-11-19; decided 2026-11-23: one point, not a stretch, no looping, no
   lyrics). **Built 2026-11-23** (`lib/songPart.ts`, `components/SongPartSheet.tsx`,

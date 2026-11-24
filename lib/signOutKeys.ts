@@ -6,7 +6,11 @@
 // draft, daily check-in) are cleared by their own modules' clear* helpers in
 // contexts/AuthContext.tsx; in-memory copies by clearInMemoryStores there.
 // clearCaptureDraft also deletes the drafts' kept photo copies
-// (Documents/capture-drafts/<userId>/, lib/captureDraftFiles.ts).
+// (Documents/capture-drafts/<userId>/, lib/captureDraftFiles.ts), and
+// clearOutbox (lib/outbox.ts) the moments waiting to save and their kept
+// files (Documents/capture-outbox/<userId>/); sign-out asks first when there
+// are any. The outbox's key is also listed by prefix below, so it can't
+// outlive the account even if that call is missed.
 //
 // The names are repeated here rather than imported (importing those modules
 // would pull native code into this one); lib/__tests__/signOutKeys.test.ts
@@ -48,9 +52,10 @@ export const SIGN_OUT_KEYS: readonly string[] = [
 
 /**
  * Keys named per account or per week: every From before key (now
- * `frombefore_*_<userId>`) and every weekly play-count snapshot.
+ * `frombefore_*_<userId>`), every weekly play-count snapshot, and the
+ * outbox of moments waiting to save (`capture_outbox_v1_<userId>`).
  */
-export const SIGN_OUT_PREFIXES: readonly string[] = ["frombefore_", "lastweek_playcounts_v2:"];
+export const SIGN_OUT_PREFIXES: readonly string[] = ["frombefore_", "lastweek_playcounts_v2:", "capture_outbox_"];
 
 export function isSignOutKey(key: string): boolean {
   return SIGN_OUT_KEYS.includes(key) || SIGN_OUT_PREFIXES.some((p) => key.startsWith(p));

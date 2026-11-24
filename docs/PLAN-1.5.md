@@ -151,6 +151,48 @@ but it isn't saved. Offline saves make Save always work:
 
 **Effort:** about 3 days.
 
+**Offline saves (engine), built 2026-11-23** (branch `feat/offline-saves`, no
+screens touched):
+- `lib/outbox.ts`: the outbox per user (`capture_outbox_v1_<userId>`, cleared
+  by prefix in `lib/signOutKeys.ts`). Each item keeps the moment id it will
+  save under, a JSON copy of the save (new fields like a voice recording
+  round-trip as they are; the date as epoch ms), and its last failure:
+  offline (tried again on every flush, never counts toward giving up),
+  server (backoff 30 s, 2 min, 10 min, then hourly; rejected after 8), or
+  rejected (a 4xx, validation or permission error; stays visible, never
+  retried on its own; `retryOutboxItem` or `removeOutboxItem`). Storage calls
+  run one at a time; `subscribeOutbox` tells listeners after each change.
+- `lib/outboxFiles.ts`: photos and `voiceUri` are copied into
+  Documents/capture-outbox/<userId>/<momentId>/ (stored relative to the app's
+  folders, like drafts) and deleted when the moment saves, is discarded, or
+  on sign-out. Library photos keep their asset id.
+- `lib/outboxFlush.ts`: `flushOutbox` saves due items one at a time, oldest
+  first (offline stops the run, a 5xx moves on, a refusal marks it
+  rejected; one flush at a time); `classifyOutboxError`; `queueFailedSave`
+  (queues a failed save, or returns null when retrying won't fix it);
+  `startOutboxFlushing` (on start, back online, foreground, and a timer for
+  the next backoff); `clearOutbox`, `outboxCount`.
+- `saveMoment` takes `momentId`; a retry of a save that already landed
+  (23505, or found by the read-back) returns the stored row and deletes the
+  retry's own uploads.
+- `hooks/useOutbox.ts`: the signed-in user's items, newest first, split into
+  pending and rejected.
+
+Still to wire (UI, separately):
+- Capture picks the moment id up front (`Crypto.randomUUID()`, passed as
+  `momentId`) so a save that fails after landing isn't queued as a second
+  moment. On no connection (NetInfo) it queues straight away with
+  `enqueueOutbox`; on a failed save it calls `queueFailedSave` (null means
+  show the error as today). Either way it clears its draft and closes with a
+  toast ("Saved on your phone. It'll save when you're back online").
+- The Journal shows `useOutbox()` items at the top with "Saves when you're
+  back online"; rejected ones say why (`lastError`) with Try again / Discard.
+- `startOutboxFlushing(userId, onSaved)` in the signed-in root, its
+  unsubscribe on sign-out; `onSaved` marks the timeline stale with the moment
+  and invalidates the moment (and album) caches.
+- Sign-out asks first when `outboxCount(userId) > 0` ("2 moments haven't
+  saved yet"), then `clearOutbox(userId)` runs with the other teardown.
+
 ## 6. Polish
 
 A pass over everything before 1.5 goes to review, mostly over the air:
