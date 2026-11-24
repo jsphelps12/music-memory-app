@@ -19,6 +19,7 @@ import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { fetchBrowseMetadata, BrowseMeta } from "@/lib/browse";
+import { rediscoverComingUp } from "@/lib/comingUp";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
@@ -37,6 +38,7 @@ import { setCachedMoment } from "@/lib/momentCache";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { ErrorState } from "@/components/ErrorState";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { ComingUpRows } from "@/components/ComingUpRows";
 import { EmptyState } from "@/components/EmptyState";
 import { TextField } from "@/components/TextField";
 import { Button } from "@/components/Button";
@@ -400,6 +402,8 @@ export default function ReflectionsScreen() {
     return { year, count: inYear.length, artwork };
   }, [meta, todayKey]);
   const albumCounts = useMemo(() => deriveAlbumCounts(meta), [meta]);
+  // A journal under a year old: what comes back here and when (lib/comingUp.ts).
+  const comingUp = useMemo(() => rediscoverComingUp(meta, new Date(todayKey + "T00:00:00")), [meta, todayKey]);
   const topArtists = useMemo(() => deriveTopArtists(meta), [meta]);
 
   // Weekly Rewind: the ISO-week seed picks one past month from the library.
@@ -737,6 +741,16 @@ export default function ReflectionsScreen() {
                 )}
               </View>
               <MomentCard item={randomMoment} allMoods={allMoods} />
+            </View>
+          )}
+
+          {/* ── Coming up: a small journal's next things, so it isn't just waiting ── */}
+          {comingUp.length > 0 && (
+            <View style={styles.sectionSpaced}>
+              <Text style={styles.sectionTitle}>Coming up</Text>
+              <View style={styles.browseList}>
+                <ComingUpRows rows={comingUp} onOpenMoment={(id) => router.push(`/moment/${id}`)} />
+              </View>
             </View>
           )}
 
