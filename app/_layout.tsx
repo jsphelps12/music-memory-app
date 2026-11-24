@@ -1,10 +1,17 @@
 import "../wdyr";
 import * as Sentry from "@sentry/react-native";
 import * as Updates from "expo-updates";
-import { updateTags } from "@/lib/sentryTags";
+import { isSimulatorBundle, updateTags } from "@/lib/sentryTags";
+import { Paths } from "expo-file-system";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
-import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router";
+import {
+  DarkTheme,
+  DefaultTheme,
+  ErrorBoundary as RouterErrorBoundary,
+  ThemeProvider,
+  type ErrorBoundaryProps,
+} from "expo-router";
 import { useFonts } from "expo-font";
 import {
   DMSerifDisplay_400Regular,
@@ -56,12 +63,32 @@ const HAS_LAUNCHED_KEY = "has_launched";
 // Notification taps already routed in this process (request identifiers).
 const handledNotificationIds = new Set<string>();
 
-export { ErrorBoundary } from "expo-router";
+// A screen that throws while rendering is caught here, and React Native hands
+// caught errors to its own native reporter, never to Sentry's global handler
+// or the Sentry.wrap boundary further out. Report it, then show the stock
+// expo-router fallback.
+export function ErrorBoundary(props: ErrorBoundaryProps) {
+  const { error } = props;
+  useEffect(() => {
+    Sentry.captureException(error, { tags: { area: "error_boundary" } });
+  }, [error]);
+  return <RouterErrorBoundary {...props} />;
+}
+
+function runningInSimulator(): boolean {
+  try {
+    return isSimulatorBundle(Paths.bundle.uri);
+  } catch {
+    return false;
+  }
+}
 
 // __DEV__ guard: without it, every local `expo run:ios` (including agent
 // worktree runs) reports into Sentry tagged environment "production" (the
 // APP_ENV fallback below), polluting real crash data with dev-machine noise.
-if (!__DEV__) {
+// Release builds in the Simulator (Mac preview builds, E2E) are skipped too:
+// their hangs come from Mac sleep/wake and simulator stalls, not real phones.
+if (!__DEV__ && !runningInSimulator()) {
   Sentry.init({
     dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
     debug: false,

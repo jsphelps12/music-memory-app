@@ -40,3 +40,14 @@ export function updateTags(info: UpdatesInfo | null | undefined): UpdateTags {
   }
   return tags;
 }
+
+/**
+ * True when the app bundle lives in a Simulator container
+ * (`…/CoreSimulator/Devices/…`). Release builds run in the Simulator (Mac
+ * preview builds, E2E runs) would otherwise report Mac sleep/wake hangs and
+ * simulator-only stalls as if they were real devices. Unknown → false, so a
+ * real device keeps reporting.
+ */
+export function isSimulatorBundle(bundleUri: string | null | undefined): boolean {
+  return typeof bundleUri === "string" && bundleUri.includes("/CoreSimulator/Devices/");
+}

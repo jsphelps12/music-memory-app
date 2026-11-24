@@ -1530,8 +1530,16 @@ questionnaire/ML, NFC products, Android.
   these numbers, not guesses.
 - [x] **React Compiler** (`experiments.reactCompiler` + the babel plugin):
   on in 1.4 (see "Next native build").
-- [ ] **Authorize the Sentry MCP** so crash data is readable during the
-  1.2.0 / 1.3.0 rollout.
+- [x] **Authorize the Sentry MCP** (`sentry-soundtracks` in `.mcp.json`).
+  First read, 2026-11-23: 5 open issues in 90 days, all native. One
+  production watchdog kill on build 12, the rest hangs from simulator builds.
+- [x] **Sentry sees screen crashes and skips the Simulator (2026-11-23, JS
+  only).** The root `ErrorBoundary` in `app/_layout.tsx` re-exported
+  expo-router's, so a screen that threw while rendering went to React
+  Native's native reporter and never reached Sentry. Now it reports
+  (`area: error_boundary`), then shows the stock fallback. Release builds
+  running in the Simulator no longer start Sentry (`isSimulatorBundle()` in
+  `lib/sentryTags.ts`), so Mac preview and E2E hangs stop showing up as issues.
 - Known limit: after 60 days without a commit GitHub disables the scheduled
   workflows (including the staging keepalive), and staging pauses. On
   return: re-enable in the Actions tab and restore staging.
