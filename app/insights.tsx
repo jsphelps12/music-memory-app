@@ -5,6 +5,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { usePostHog } from "posthog-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppImage } from "@/components/AppImage";
+import { ComingUpRows } from "@/components/ComingUpRows";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Avatar } from "@/components/Avatar";
 import { ErrorState } from "@/components/ErrorState";
@@ -15,6 +16,7 @@ import { SectionLabel } from "@/components/SectionLabel";
 import { MOODS } from "@/constants/Moods";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchBrowseMetadata } from "@/lib/browse";
+import { insightsComingUp } from "@/lib/comingUp";
 import { friendlyError } from "@/lib/errors";
 import {
   INSIGHTS_MIN_MOMENTS,
@@ -163,6 +165,9 @@ export default function InsightsScreen() {
   }, [insights, allMoods]);
 
   const enough = !!insights && insights.moments >= INSIGHTS_MIN_MOMENTS;
+  // What hasn't shown up yet and how many more moments it needs (a small
+  // journal sees these instead of an empty screen; they go as they unlock).
+  const comingUp = useMemo(() => (meta.data ? insightsComingUp(meta.data) : []), [meta.data]);
   const highlights = insights ? artistHighlights(insights, TOP_ARTISTS) : null;
   const artists = highlights?.artists ?? [];
   const people = insights?.featuring.slice(0, TOP_PEOPLE) ?? [];
@@ -223,11 +228,7 @@ export default function InsightsScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + theme.spacing["3xl"] }]}
         testID="insights"
       >
-        {!enough ? (
-          <Text style={styles.empty}>
-            Insights show up as your journal grows. A few more moments and there&apos;ll be something to see.
-          </Text>
-        ) : null}
+        {!enough ? <Text style={styles.empty}>Insights show up as your journal grows.</Text> : null}
 
         {enough && artists.length > 0 ? (
           <View style={styles.section}>
@@ -388,6 +389,13 @@ export default function InsightsScreen() {
                 }}
               />
             ))}
+          </View>
+        ) : null}
+
+        {comingUp.length > 0 ? (
+          <View style={styles.section}>
+            <SectionLabel>Coming up</SectionLabel>
+            <ComingUpRows rows={comingUp} />
           </View>
         ) : null}
       </ScrollView>
