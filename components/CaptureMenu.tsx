@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter, type Href } from "expo-router";
 import { usePostHog } from "posthog-react-native";
@@ -37,6 +37,13 @@ const YOUR_DAY_SEARCHES: CatalogSearch[] = [
 /** Your day's row: Apple's picker up, the song being matched, or it failed to open. */
 type YourDayState = "idle" | "picking" | "matching" | "failed";
 
+// Bumped when the menu closes, so a match that finishes after the person
+// dismissed the sheet doesn't open capture anyway. Module-level (there's one
+// menu, in the tab bar) so render never reads a ref.
+let yourDayRun = 0;
+const nextYourDayRun = () => ++yourDayRun;
+const isLatestYourDayRun = (run: number) => run === yourDayRun;
+
 const draftHref = (draft: CaptureDraft): Href => ({
   pathname: "/create",
   params: { draftId: draft.id, source: "capture_menu" },
@@ -72,12 +79,9 @@ export function CaptureMenu({
   // iOS 17.2+ with the 1.5 binary; never the simulator).
   const [yourDayAvailable] = useState(isYourDayAvailable);
   const [yourDay, setYourDay] = useState<YourDayState>("idle");
-  // Bumped when the sheet closes, so a match that finishes after the person
-  // dismissed the sheet doesn't open capture anyway.
-  const yourDayRun = useRef(0);
   useEffect(() => {
     if (visible) return;
-    yourDayRun.current += 1;
+    nextYourDayRun();
     setYourDay("idle");
   }, [visible]);
 
@@ -93,10 +97,10 @@ export function CaptureMenu({
   const startYourDay = async () => {
     if (yourDay === "picking" || yourDay === "matching") return;
     posthog?.capture("capture_menu_choice", { choice: "your_day" });
-    const run = ++yourDayRun.current;
+    const run = nextYourDayRun();
     setYourDay("picking");
     const result = await pickYourDay();
-    if (run !== yourDayRun.current) return;
+    if (!isLatestYourDayRun(run)) return;
     if (result.status === "cancelled") {
       setYourDay("idle");
       return;
@@ -109,7 +113,7 @@ export function CaptureMenu({
     setYourDay("matching");
     const want = suggestionSong(result.suggestion);
     const match = want ? await resolveSuggestionSong(want, YOUR_DAY_SEARCHES) : null;
-    if (run !== yourDayRun.current) return;
+    if (!isLatestYourDayRun(run)) return;
     // Counts and flags only: no titles, names or places leave the phone.
     posthog?.capture("your_day_picked", yourDayEventProps(result.suggestion, match));
     onClose();
