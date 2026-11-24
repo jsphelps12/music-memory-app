@@ -96,8 +96,9 @@ transcription about 1 day in 1.5.
 An App Intent in the app, so it works from Siri ("Hey Siri, remember this
 song"), Shortcuts and the Action button, with the screen off and without
 opening the app. It saves what's playing as a moment (song, part of the song
-where it was, date, time) and a quiet notification later offers "Add your
-words", which opens that moment's Edit.
+where it was, date, time). Siri says what it saved ("Saved Holocene by Bon
+Iver"). No notification follows (Josh, 2026-11-23: no more pushes); the
+moment is in the Journal like any other, ready for words.
 
 **How it saves without the app open.** The intent runs in Swift, outside the
 JavaScript app, so it can't use the app's sign-in directly. Sharing the
@@ -115,8 +116,7 @@ intent refreshed one the app would be signed out. Instead:
 - No song playing, no signal: the intent says so ("Nothing's playing") and
   saves nothing; with no signal it offers to open the app instead.
 
-**Effort:** about 3–4 days (two edge functions, a table for keys, the intent,
-the notification).
+**Effort:** about 3–4 days (two edge functions, a table for keys, the intent).
 
 ## 4. Journaling Suggestions
 
@@ -180,16 +180,25 @@ A pass over everything before 1.5 goes to review, mostly over the air:
    by hand on Josh's phone (Maestro can't drive the Home Screen). TestFlight,
    then the App Store.
 
-## Decisions for Josh
+## Decisions (Josh, 2026-11-23: "go with your suggestions on all of them")
 
-1. **Words on the widget:** show a line of your words, or only the song and
-   date (words behind a setting)?
-2. **Which moment:** "on this day" first, then something at least 30 days old.
-   OK?
-3. **Voice to friends:** owner-only at first (proposed), or shareable from day one?
-4. **Voice length:** a 3-minute cap OK?
-5. **Voice before 1.5:** ship recording and playback as an update to 1.4.1
-   now (proposed)?
-6. **Background save notification:** "Add your words" a while after a
-   background save (proposed: the next morning at 10, with the daily
-   push rules), or right away?
+1. **Widget words:** song and date by default; "Show my words on the widget"
+   in Settings turns a line of the reflection on.
+2. **Widget pick:** "on this day" from an earlier year first, else one at
+   least 30 days old that hasn't been shown recently.
+3. **Widget sizes:** small, medium and the Lock Screen version.
+4. **Voice to friends:** owner-only for now.
+5. **Voice length:** 3 minutes.
+6. **Voice before 1.5:** recording and playback ship as an update to 1.4.1.
+7. **Transcript (1.5):** fills the reflection when it's empty; offered as
+   "Use what you said" when there's already writing.
+8. **Voice in the film:** over the song, with the music turned down.
+9. **After a background save:** no notification at all (no more pushes).
+10. **Siri's reply:** says what it saved.
+11. **Signing out with unsaved moments:** asks first ("2 moments haven't
+    saved yet").
+12. **Journaling Suggestions:** long-press + → Start from → "Your day
+    (Apple)", and in Help's ways into capture.
+13. **Polish:** Josh's list from daily use goes in as it comes.
+14. **Order:** voice recording and offline saves as updates first, then
+    `native/1.5`.
