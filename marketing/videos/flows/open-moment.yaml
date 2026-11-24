@@ -1,0 +1,35 @@
+# Shot: tap the newest moment, let the detail breathe, read the reflection.
+appId: com.joshuaphelps.musicmemory.preview
+---
+- extendedWaitUntil:
+    visible: "__pause__"
+    timeout: 1200
+    optional: true
+- tapOn:
+    id: "moment-card-title"
+    index: 0
+- extendedWaitUntil:
+    visible:
+      id: "moment-more"
+    timeout: 15000
+- extendedWaitUntil:
+    visible: "__pause__"
+    timeout: 4000
+    optional: true
+# Down past the reflection to the photos and who was there.
+- swipe:
+    start: "50%, 80%"
+    end: "50%, 35%"
+    duration: 1800
+- extendedWaitUntil:
+    visible: "__pause__"
+    timeout: 2000
+    optional: true
+- swipe:
+    start: "50%, 80%"
+    end: "50%, 35%"
+    duration: 1800
+- extendedWaitUntil:
+    visible: "__pause__"
+    timeout: 2500
+    optional: true

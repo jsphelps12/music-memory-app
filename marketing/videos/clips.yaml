@@ -1,0 +1,98 @@
+# Short videos for TikTok / Reels / Shorts, built from recorded shots of the
+# app (marketing/videos/flows/<shot>.yaml) with scripts/video/make.py.
+#
+# A clip is one or more segments cut together, headline beats over them, then
+# an end card. Aim for 8–12 seconds: a big hook in the first second, a payoff
+# by the end.
+#
+#   id:        output name (marketing/videos/out/<id>.mp4 / .jpg / .txt)
+#   layout:    phone (the screen in a bezel under a serif headline) or full
+#              (the screen fills the frame, captions as pills on top)
+#   palette:   light | dark (the shots record in that appearance too)
+#   segments:  the cuts, in order. Each:
+#                shot:  flow to record (or input: a recording of your own,
+#                       e.g. from your phone, with trim: seconds to skip)
+#                from / to: seconds into the shot, counted from when it
+#                       starts moving (default: all of it)
+#                speed: playback speed (default 1)
+#                zoom:  punch in (1 = whole screen, 1.6 = 60% closer)
+#                focus: [x, y] point to zoom on, 0–1 across/down the screen
+#              A clip without segments uses `shot` (and `speed`) whole.
+#   beats:     headline text over time; `at` is seconds into the clip. The
+#              first is the hook (bigger). Keep each to a few words.
+#   caption_y: full layout: where the caption pills sit, px from the top of
+#              the 1920 frame (default 420; ~1380 sits over the keyboard).
+#              A beat can set its own `y`.
+#
+# Zoom only on photos: any punch-in on a text screen crops the words.
+#   caption:   post text, written to <id>.txt with the hashtags.
+#
+# The videos are silent on purpose: add the song from the platform's own
+# sound library when you post (a song baked into the upload can get muted).
+
+hashtags: "#musicjournal #nostalgia #songsthatremindme #journaling #iphoneapps"
+end_card:
+  title: "Soundtracks"
+  line: "Free on the App Store"
+  seconds: 2
+
+clips:
+  # Journal → the wedding moment: both photos, then who was there.
+  - id: wedding-song
+    layout: full
+    palette: light
+    segments:
+      - { shot: open-moment, from: 0, to: 1.4 }
+      - { shot: open-moment, from: 1.6, to: 4.6, speed: 1.2 }
+      - { shot: open-moment, from: 5.0, to: 6.8 }
+      - { shot: open-moment, from: 13.6, to: 15.6 }
+    beats:
+      - { at: 0, text: "The song that ends\nevery wedding" }
+      - { at: 2.2, text: "Saved with the photos" }
+      - { at: 5.7, text: "And who was there", y: 1250 }
+    caption: "Every wedding. Every time. What's yours?"
+
+  # Rediscover → search "Dad" → the truck.
+  - id: dad-search
+    layout: full
+    palette: light
+    segments:
+      - { shot: rediscover-search, from: 0.5, to: 1.7 }
+      - { shot: rediscover-search, from: 9.6, to: 11.8 }
+      - { shot: rediscover-search, from: 15.6, to: 20.6, speed: 1.25 }
+    beats:
+      - { at: 0, text: "Type \"Dad\"", y: 1150 }
+      - { at: 3.4, text: "Get every summer back" }
+    caption: "Search your memories by the people in them."
+
+  # The Journal flicked from this month back to 2019.
+  - id: seven-years
+    layout: phone
+    palette: light
+    segments:
+      - { shot: journal-scroll, from: 0, to: 1.4 }
+      - { shot: journal-scroll, from: 3.0, to: 24.0, speed: 3.5 }
+      - { shot: journal-scroll, from: 24.5, to: 26.5 }
+    beats:
+      - { at: 0, text: "Every song\nis a bookmark" }
+      - { at: 1.4, text: "Seven years of them" }
+      - { at: 7.4, text: "Back to the first one" }
+    caption: "What song would be on the first page of yours?"
+
+  # Capture, cut down to the moments that matter.
+  - id: ten-seconds
+    layout: full
+    palette: light
+    caption_y: 1380
+    segments:
+      - { shot: capture, from: 0.2, to: 1.6 }
+      - { shot: capture, from: 10.0, to: 11.8 }
+      - { shot: capture, from: 14.8, to: 16.2 }
+      - { shot: capture, from: 18.0, to: 21.2, speed: 1.3 }
+      - { shot: capture, from: 24.8, to: 26.8 }
+    beats:
+      - { at: 0, text: "Saving a memory\ntakes 10 seconds" }
+      - { at: 1.4, text: "Pick the song" }
+      - { at: 4.6, text: "Write one line" }
+      - { at: 7.1, text: "Done", y: 1250 }
+    caption: "The easiest journal you'll ever keep."

@@ -500,6 +500,9 @@ The starred ones bring the app to you, which serves the north star:
   the app on the simulator with sample moments and renders 9:16 clips with
   headlines and an end card (`marketing/videos/README.md`). Posting stays
   manual or via Buffer; songs are added from each platform's sound library.
+  2026-11-23: clips are now 8–10s montages (cuts, speed changes, caption
+  pills, punch-ins on photos) over 20 seeded moments with Unsplash photos,
+  people and weather: wedding-song, dad-search, seven-years, ten-seconds.
 
 ## Where things stood (2026-11-17)
 
