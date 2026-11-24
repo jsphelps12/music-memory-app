@@ -175,9 +175,10 @@ play on the moment, for the owner only, with no native changes. Capture's
 writes `voice_path`/`voice_duration_ms` (dropped and the upload deleted on a
 database without the columns); the moment plays it through a signed URL
 (`hooks/useVoicePlayer.ts`), pausing the song; deleting the moment deletes
-the file. Still to do: apply the migration before 1.5 ships, check
-recording and the audio session on a device, then transcription and the
-film.
+the file. The migration is live on staging and production (PR 135,
+2026-11-24). Still to do: check recording and the audio session on a
+device (build 18), then transcription and the film (see the open question
+under decision 7: recording and voice-to-text as separate features).
 
 ## 3. "Remember this song", saved in the background
 
@@ -242,9 +243,10 @@ intent refreshed one the app would be signed out. Instead:
   finds itself without a session (the session ended some other way, a
   corrupt stored session, a signed-out launch after a reinstall) the key
   leaves the keychain and revokes itself.
-- Still to do: apply the migration and deploy both functions (staging, then
-  production with Josh's go), then try it on a phone: Siri, the Shortcuts
-  app, the Action button, locked and unlocked.
+- Migration applied and both functions deployed on staging and production
+  (PR 135, 2026-11-24; the `auth.sessions` trigger was allowed). Still to
+  do: try it on a phone (build 18): Siri, the Shortcuts app, the Action
+  button, locked and unlocked.
 
 ## 4. Journaling Suggestions
 
@@ -289,9 +291,9 @@ opens capture with it filled in; photos and the place come along.
 - Privacy: nothing leaves the phone until Save except the song's title and
   artist to Apple's catalog search (as every song lookup does). PostHog gets
   `your_day_picked` with counts and flags only.
-- Still to do: apply the migration (staging, then production with Josh's
-  go), then try it on a phone: picking, closing, a suggestion with no song,
-  photos from iCloud.
+- Migration applied on staging and production (PR 136, 2026-11-24). Still
+  to do: try it on a phone (build 18): picking, closing, a suggestion with
+  no song, photos from iCloud.
 
 ## 5. Offline saves
 
@@ -432,6 +434,8 @@ A pass over everything before 1.5 goes to review, mostly over the air:
    into the 1.5 build: build 16's microphone text only covers Identify.
 7. **Transcript (1.5):** fills the reflection when it's empty; offered as
    "Use what you said" when there's already writing.
+   *Reopened 2026-11-24 (Josh):* should recording your voice and
+   voice-to-text be separate features? Not built until he picks.
 8. **Voice in the film:** over the song, with the music turned down.
 9. **After a background save:** no notification at all (no more pushes).
 10. **Siri's reply:** says what it saved.
