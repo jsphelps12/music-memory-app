@@ -1218,7 +1218,11 @@ are.
   once a year, never rewriting the user's words), and a recap push on
   December 1.
 - [ ] **Reading experience:** browsing and search that make the archive a
-  pleasure, not a list.
+  pleasure, not a list. Search done (2026-11-24, `polish/search`, over the
+  air): it also finds the album, the place, people and moods, says why a
+  result matched ("With Sam", "At Ocean Beach", "Nostalgic"), and the empty
+  search offers your people as well as your artists (docs/PLAN-1.5.md,
+  polish). Browsing still to do.
 - [ ] **Thin-archive states:** Reflections strips show a teaser instead of
   disappearing when there's little data.
 

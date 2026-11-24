@@ -7,20 +7,20 @@ import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
 import { friendlyError } from "@/lib/errors";
-import { momentSearchOrFilter } from "@/lib/browse";
+import type { BrowseMeta } from "@/lib/browse";
+import { localSearchMatches, searchArchive } from "@/lib/archiveSearch";
+import type { MoodLabelDefinition } from "@/lib/moodLabels";
 import { artworkUrlAtSize } from "@/lib/itunes";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { setCachedMoment } from "@/lib/momentCache";
-import { supabase } from "@/lib/supabase";
-import { mapRowToMoment } from "@/lib/moments";
-import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { BROWSE_SEARCH_STALE, SEARCH_DEBOUNCE_MS } from "@/lib/queryConfig";
 
 // Full-library moment search results. Lived inside the Browse tab until the
 // reflections reorg folded the archive into Reflections; extracted so the
 // screen file stays readable. The host owns the TextInput (and what shows
 // before anything is typed); this renders the result list for a query.
+// What matches where (server vs phone) is in lib/archiveSearch.ts.
 
 // 44pt artwork at 3x.
 const ROW_ARTWORK_PX = 132;
@@ -38,7 +38,18 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
   return debounced;
 }
 
-export function MomentSearch({ query, userId }: { query: string; userId: string }) {
+export function MomentSearch({
+  query,
+  userId,
+  meta,
+  allMoods,
+}: {
+  query: string;
+  userId: string;
+  /** The screen's browse metadata: album, people and moods match against it. */
+  meta: readonly BrowseMeta[];
+  allMoods: readonly MoodLabelDefinition[];
+}) {
   const router = useRouter();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -48,20 +59,15 @@ export function MomentSearch({ query, userId }: { query: string; userId: string 
   const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
   const debouncePending = query.trim() !== debouncedQuery.trim();
 
+  // Album, people and moods match on the phone; only their rows are read.
+  const localIds = useMemo(
+    () => localSearchMatches(meta, debouncedQuery, allMoods),
+    [meta, debouncedQuery, allMoods]
+  );
+
   const { data: results = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["browseSearch", userId, debouncedQuery],
-    queryFn: async () => {
-      if (!debouncedQuery.trim()) return [];
-      const { data, error } = await supabase
-        .from("moments")
-        .select(MOMENT_CARD_COLUMNS)
-        .eq("user_id", userId)
-        .or(momentSearchOrFilter(debouncedQuery))
-        .order("moment_date", { ascending: false, nullsFirst: false })
-        .limit(50);
-      if (error) throw error;
-      return (data ?? []).map(mapRowToMoment);
-    },
+    queryKey: ["browseSearch", userId, debouncedQuery, localIds],
+    queryFn: () => searchArchive(userId, debouncedQuery, localIds, allMoods),
     // `!!userId` matters: the screen passes `user?.id ?? ""` while auth settles,
     // and an empty string reaches Postgres as `user_id = ''` — an invalid-uuid
     // error, retried.
@@ -93,7 +99,7 @@ export function MomentSearch({ query, userId }: { query: string; userId: string 
       <EmptyState
         icon="search-outline"
         title="No results"
-        subtitle={`Nothing in your journal matches “${query.trim()}”. Try a song, an artist, or a word you wrote.`}
+        subtitle={`Nothing in your journal matches “${query.trim()}”. Try a song, an artist, a person, a place or a word you wrote.`}
       />
     );
   }
@@ -101,11 +107,11 @@ export function MomentSearch({ query, userId }: { query: string; userId: string 
   return (
     <FlatList
       data={results}
-      keyExtractor={(m) => m.id}
+      keyExtractor={(r) => r.moment.id}
       contentContainerStyle={styles.list}
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
-      renderItem={({ item }) => (
+      renderItem={({ item: { moment: item, why } }) => (
         // A row on paper, ruled by a hairline (DESIGN.md, Rows Not Boxes).
         <TouchableOpacity
           style={styles.row}
@@ -126,7 +132,12 @@ export function MomentSearch({ query, userId }: { query: string; userId: string 
               {item.songTitle}
               <Text style={styles.artist}>{`  ${item.songArtist}`}</Text>
             </Text>
-            {item.reflectionText ? (
+            {why ? (
+              // Matched on a person, the place, a mood or the album: say which.
+              <Text style={styles.why} numberOfLines={1}>
+                {why}
+              </Text>
+            ) : item.reflectionText ? (
               <Text style={styles.reflection} numberOfLines={1}>
                 {item.reflectionText.replace(/\s+/g, " ").trim()}
               </Text>
@@ -181,6 +192,11 @@ function createStyles(theme: Theme) {
       fontFamily: theme.fonts.reading,
       fontSize: theme.fontSize.callout,
       lineHeight: 21,
+      color: theme.colors.textSecondary,
+      marginTop: 2,
+    },
+    why: {
+      ...theme.typography.meta,
       color: theme.colors.textSecondary,
       marginTop: 2,
     },
