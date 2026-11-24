@@ -7,12 +7,15 @@ as pieces land; the roadmap keeps the one-line status.
 
 ## Scope
 
+Not in 1.5 (Josh, 2026-11-23): setting the part of the song automatically
+from Playing now or Identify. Neither is accurate enough; picking it by hand
+(live on 1.4.1) works well enough.
+
 | # | Feature | Needs the 1.5 binary? |
 |---|---------|------------------------|
 | 1 | Memory widget: one moment a day on the Home Screen, opening into the film | Yes (widget views, app-group writer) |
-| 2 | The part of the song, set automatically (Playing now, Identify) | Yes (player position, Shazam offset) |
-| 3 | Voice entries, recordings kept | Recording and playback: **no**, can ship now. Transcription: yes |
-| 4 | Siri / Shortcuts / Action button: "Remember this song" (stretch) | Yes (App Intent in the app) |
+| 2 | Voice entries, recordings kept | Recording and playback: **no**, can ship now. Transcription: yes |
+| 3 | Siri / Shortcuts / Action button: "Remember this song" (stretch) | Yes (App Intent in the app) |
 | — | Journaling Suggestions | Waits on Apple's entitlement (Josh: request it now) |
 
 Also rides the binary: the app-wide ink tint for system alerts and the widget's
@@ -50,21 +53,7 @@ film. A Lock Screen version shows the song and when.
 
 **Effort:** about 3–4 days, including the widget views and their light/dark checks.
 
-## 2. The part of the song, set automatically
-
-Version 1 (picking it by hand) is live on 1.4.1. In 1.5 it fills itself in:
-- **Playing now:** the system player knows its position
-  (`MPMusicPlayerController.currentPlaybackTime`). Add `positionMs` to the
-  now-playing snapshot; when capture fills the song from Playing now, it also
-  sets the part to where the song was when you opened capture.
-- **Identify:** ShazamKit reports how far into the song the match was
-  (`SHMatchedMediaItem.predictedCurrentMatchOffset`). Return it from
-  `modules/shazam-kit`; the part becomes the exact second you heard.
-- The chip shows "At 2:41" either way, and Clear is one tap.
-
-**Effort:** about 1 day (two small native changes and the wiring in capture).
-
-## 3. Voice entries
+## 2. Voice entries
 
 **What it is.** Hold a button in capture to say what the song is doing for
 you. The recording is kept with the moment, and on the phone it's transcribed
@@ -97,12 +86,12 @@ stricter rules than photos do:
 **Effort:** recording, upload and playback about 2 days (plus the migration);
 transcription about 1 day in 1.5.
 
-## 4. Siri: "Remember this song" (stretch)
+## 3. Siri: "Remember this song" (stretch)
 
 An App Intent in the app, so it works from Siri, Shortcuts and the Action
 button:
-- **1.5 version:** opens straight into capture with the playing song and its
-  part already filled in. Simple, and uses the same capture screen.
+- **1.5 version:** opens straight into capture with the playing song
+  already filled in. Simple, and uses the same capture screen.
 - **Later version:** saves in the background without opening the app, with
   the screen off. That needs the session shared with the intent (shared
   keychain), a native save path, and a "finish this one" nudge later. It's a
@@ -116,12 +105,11 @@ button:
    (migration first, then the update). Josh can use it before 1.5 exists.
 2. **Branch `native/1.5`** off `native/1.4.1` once 1.4.1 is released and
    merged into `main`.
-3. **Native batch:** player position and Shazam offset, the app-group writer,
-   transcription, the alert tint. Then the widget views, the film deep link,
+3. **Native batch:** the app-group writer, transcription, the alert tint. Then the widget views, the film deep link,
    and the Siri intent.
 4. **Build:** EAS cloud builds are back 2026-12-01; a Mac build works too
    (record it with `scripts/record-local-build.mjs` so updates reach it).
-5. **Test:** Maestro flows for voice capture and the auto part; the widget
+5. **Test:** Maestro flows for voice capture; the widget
    by hand on Josh's phone (Maestro can't drive the Home Screen). TestFlight,
    then the App Store.
 
@@ -133,9 +121,7 @@ button:
    OK?
 3. **Voice to friends:** owner-only at first (proposed), or shareable from day one?
 4. **Voice length:** a 3-minute cap OK?
-5. **Auto part:** set it automatically (proposed, one tap to clear), or ask
-   ("Use 2:41?")?
-6. **Voice before 1.5:** ship recording and playback as an update to 1.4.1
+5. **Voice before 1.5:** ship recording and playback as an update to 1.4.1
    now (proposed)?
-7. **Offline saves** were on the earlier 1.5 list (save with no signal, sync
+6. **Offline saves** were on the earlier 1.5 list (save with no signal, sync
    later). In or out?

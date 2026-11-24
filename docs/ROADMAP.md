@@ -169,14 +169,12 @@ for hex literals; with a later binary, an app-wide ink tint for Alerts and
 widget colors.
 
 **1.5 (a new native build), in `native/1.5` off `native/1.4`:**
-Scope (Josh, 2026-11-23): Memory widget, the part of the song set
-automatically, voice entries with the recordings kept, Siri as the stretch.
+Scope (Josh, 2026-11-23): Memory widget, voice entries with the recordings
+kept, Siri as the stretch. Not the part of the song set automatically (not
+accurate enough; picking it by hand works).
 Journaling Suggestions waits on the entitlement (ask Apple now).
 The working plan, with how each piece is built and the open decisions:
 `docs/PLAN-1.5.md`.
-- [ ] **The part of the song, set automatically:** the system player's
-  position when the song came from Playing now; Shazam's match offset when
-  it came from Identify (the exact second you heard it).
 - [ ] **Siri: "remember this song"** — an App Intent (Siri, Shortcuts, the
   Action button) saves what's playing without opening the app, screen off;
   a gentle "finish this one" later. Needs an app group and the session in
@@ -494,7 +492,7 @@ The starred ones bring the app to you, which serves the north star:
   eras v2, what resonates (genres/periods) → the rest of sharing (link page
   as hero, friend link rotation, album basics, Keep this, share analytics)
   → retire the guest-form code. 1.5 (native): memory widget, Lock Screen
-  capture, offline saves, exact second from Now Playing. EAS cloud builds
+  capture, offline saves (exact second from Now Playing dropped 2026-11-23). EAS cloud builds
   return 2026-12-01.
 - **Growth (2026-11-20):** goal ~100 active users, free channels first
   (short video, Apple featuring nomination, App Store keywords, a few Reddit
