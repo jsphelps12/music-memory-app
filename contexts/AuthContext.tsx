@@ -518,11 +518,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (userId) {
       supabase.from("profiles").update({ push_token: null }).eq("id", userId).then(null, () => {});
     }
-    // Revoke this phone's capture key while the session can still say who
-    // we are (bounded; never throws). clearLocalUserState empties the keychain.
-    await revokeCaptureKey();
-    // Always clear locally even if the network call fails
-    await supabase.auth.signOut().catch(() => supabase.auth.signOut({ scope: "local" }));
+    // Sign-out is global (every device's session ends), so every device's
+    // capture key goes too, revoked while the session can still say who we
+    // are. Bounded, never throws; if it can't reach the server this phone's
+    // key revokes itself, and the server revokes all keys when the last
+    // session ends anyway. clearLocalUserState empties the keychain.
+    await revokeCaptureKey("all");
+    // Always clear locally even if the network call fails. supabase-js
+    // reports most failures as a returned error (and then keeps the session)
+    // rather than throwing, so both fall back to a local sign-out.
+    const { error: signOutError } = await supabase.auth
+      .signOut()
+      .catch((e: unknown) => ({ error: e }));
+    if (signOutError) await supabase.auth.signOut({ scope: "local" }).catch(() => {});
     await clearLocalUserState(userId);
   };
 

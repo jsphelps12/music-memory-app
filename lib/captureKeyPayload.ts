@@ -89,3 +89,18 @@ export function storedKeyDueForRotation(stored: StoredCaptureKey, nowMs: number)
   const age = nowMs - stored.issuedAt;
   return age >= KEY_ROTATE_AFTER_MS || age < -24 * 60 * 60 * 1000;
 }
+
+/** Which keys a sign-out revokes: every device's (global sign-out) or this install's. */
+export type CaptureKeyRevokeScope = "all" | "device";
+
+/**
+ * The capture-key DELETE body: no deviceId revokes all the user's keys. Null
+ * when a device revoke has no install id (nothing was ever issued here).
+ */
+export function captureKeyRevokeBody(
+  scope: CaptureKeyRevokeScope,
+  installId: string | null
+): { deviceId?: string } | null {
+  if (scope === "all") return {};
+  return installId ? { deviceId: installId } : null;
+}

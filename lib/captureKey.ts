@@ -10,7 +10,8 @@
  *   one when it doesn't, and replacing it once it's 30 days old (the server
  *   refuses keys over 90 days old). A key the server stops accepting is
  *   deleted by the intent, so the next launch gets a new one.
- * - Sign-out: `revokeCaptureKey` (while the session is still valid), then
+ * - Sign-out: `revokeCaptureKey("all")` (while the session is still valid;
+ *   the app's sign-out is global, so every device's key goes), then
  *   `clearCaptureKey` with the rest of the per-user teardown. Account
  *   deletion cascades on the server; `clearCaptureKey` empties the keychain.
  * - The session ending any other way (refresh token expired or revoked, the
@@ -35,8 +36,10 @@ import {
   encodeStoredCaptureKey,
   normalizeProjectUrl,
   parseStoredCaptureKey,
+  captureKeyRevokeBody,
   storedKeyDueForRotation,
   storedKeyServes,
+  type CaptureKeyRevokeScope,
   type StoredCaptureKey,
 } from "@/lib/captureKeyPayload";
 
@@ -177,18 +180,26 @@ async function obtain(userId: string): Promise<void> {
 }
 
 /**
- * Sign-out, while the session is still valid: revokes this install's keys on
- * the server, falling back to the key revoking itself. Bounded and never
- * throws, so sign-out can't hang on it.
+ * Sign-out, while the session is still valid (the capture-key function needs
+ * it): revokes the user's keys on the server. `"all"` for the app's global
+ * sign-out, which ends every device's session, so every device's key goes
+ * too (a lost phone's key must not outlive its session); `"device"` for only
+ * this install's. If that request fails (offline, usually the same moment
+ * global sign-out falls back to local), this phone's key revokes itself,
+ * which needs no session. Bounded and never throws, so sign-out can't hang
+ * on it. The server also revokes every key when a user's last session ends
+ * (20261125000000_capture_keys.sql), which covers a global sign-out whose
+ * revoke request didn't land.
  */
-export async function revokeCaptureKey(): Promise<void> {
+export async function revokeCaptureKey(scope: CaptureKeyRevokeScope): Promise<void> {
   const ss = secureStore();
   if (!ss) return;
   try {
     const install = await ss.getItemAsync(CAPTURE_DEVICE_ITEM, options(ss)).catch(() => null);
-    if (install) {
+    const body = captureKeyRevokeBody(scope, install);
+    if (body) {
       const res = await withTimeout(
-        supabase.functions.invoke("capture-key", { method: "DELETE", body: { deviceId: install } }),
+        supabase.functions.invoke("capture-key", { method: "DELETE", body }),
         REQUEST_TIMEOUT_MS
       );
       if (res !== "timeout" && !res.error) return;

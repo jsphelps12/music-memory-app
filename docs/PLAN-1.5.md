@@ -112,9 +112,11 @@ intent refreshed one the app would be signed out. Instead:
 - The intent reads the playing song (`MPMusicPlayerController`) and sends it
   with the key to an edge function (`quick-capture`), which checks the key,
   looks the song up in the iTunes catalog and saves the moment.
-- Sign-out and account deletion revoke the key on the server and delete it
-  from the keychain; so does the session ending any other way (an expired or
-  revoked refresh token), and a password change revokes every key. Keys
+- Sign-out (global, like the app's) revokes every device's key and deletes
+  this one from the keychain; account deletion cascades. The server revokes
+  every key when a user's last session ends (global sign-out, sessions
+  revoked by an admin, expiry) and when the password changes; the app also
+  drops its key whenever it finds itself without a session. Keys
   expire after 90 days regardless (the app replaces its key every 30 days).
   Keys can be listed and revoked per device later.
 - No song playing, no signal: the intent says so ("Nothing's playing") and
@@ -126,12 +128,14 @@ intent refreshed one the app would be signed out. Instead:
 - Migration `20261125000000_capture_keys.sql`: `capture_keys` (SHA-256 of
   the secret, a per-install `device_id`, label, created/last used/revoked;
   owners can read the bookkeeping columns, never the hash; no client writes)
-  and `'background'` added to `moments.capture_source`; a trigger on
-  `auth.users` revokes a person's keys when their password changes.
+  and `'background'` added to `moments.capture_source`; triggers revoke a
+  person's keys when their password changes (`auth.users`) and when their
+  last session ends (`auth.sessions`, skipped with a warning if that table
+  is missing or the migration role can't add triggers to it).
 - `capture-key` (signed in): POST `{deviceId, deviceLabel}` returns a new
   key once and revokes that install's old one (10 live keys a person, the
   least recently used retired past that; 20 new keys an hour); DELETE
-  revokes one install's keys (sign-out) or all.
+  revokes all the caller's keys (sign-out) or one install's.
 - `quick-capture` (`Authorization: Capture <key>`, verify_jwt off): checks
   the key by hash, looks the song up on iTunes for the preview and details,
   saves the moment with the service role as the key's owner (date and time
@@ -143,8 +147,10 @@ intent refreshed one the app would be signed out. Instead:
   "Remember this song in / Save this song to Soundtracks". Apple Music only
   (the system player doesn't see Spotify).
 - The app issues the key on launch while signed in (`lib/captureKey.ts`,
-  keychain via expo-secure-store) and replaces it after 30 days, revokes it
-  before sign-out and clears it with the per-user teardown. Whenever the app
+  keychain via expo-secure-store) and replaces it after 30 days, revokes
+  every device's key before its global sign-out (this phone's key revokes
+  itself if that can't reach the server) and clears it with the per-user
+  teardown. Whenever the app
   finds itself without a session (the session ended some other way, a
   corrupt stored session, a signed-out launch after a reinstall) the key
   leaves the keychain and revokes itself.

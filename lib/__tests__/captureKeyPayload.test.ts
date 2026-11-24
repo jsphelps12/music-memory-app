@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
 import {
+  captureKeyRevokeBody,
   CAPTURE_KEY_ITEM,
   CAPTURE_KEYCHAIN_SERVICE,
   encodeStoredCaptureKey,
@@ -61,6 +62,15 @@ describe("stored capture key", () => {
     expect(storedKeyDueForRotation(stored, ISSUED - 2 * 24 * 60 * 60 * 1000)).toBe(true);
     // A phone opened at least every two months never holds a refused key.
     expect(SERVER_LIMITS.keyMaxAgeMs - KEY_ROTATE_AFTER_MS).toBeGreaterThanOrEqual(60 * 24 * 60 * 60 * 1000);
+  });
+
+  it("revokes every device's key on a global sign-out, or only this install's", () => {
+    // No deviceId: capture-key revokes all of the caller's keys.
+    expect(captureKeyRevokeBody("all", "install-1")).toEqual({});
+    expect(captureKeyRevokeBody("all", null)).toEqual({});
+    expect(captureKeyRevokeBody("device", "install-1")).toEqual({ deviceId: "install-1" });
+    // Never asked for a key here: nothing to revoke by device.
+    expect(captureKeyRevokeBody("device", null)).toBeNull();
   });
 
   it("uses the keychain names the App Intent reads", () => {

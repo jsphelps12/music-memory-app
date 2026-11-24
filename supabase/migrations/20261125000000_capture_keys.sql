@@ -9,14 +9,18 @@
 -- function looks a key up by that hash and saves the moment with the service
 -- role as the key's owner.
 --
--- Keys end on sign-out (the app revokes them), when the session ends any
--- other way (the app discards and self-revokes them), when the password
--- changes (trigger below), on account deletion (cascade), and after 90 days
+-- Keys end on sign-out (the app's sign-out is global and revokes every
+-- key), when the user's last session ends server-side (trigger on
+-- auth.sessions below: global sign-out, sessions revoked from the dashboard
+-- or admin API, session expiry cleanup), when the app finds itself without a
+-- session (it discards and self-revokes its key), when the password changes
+-- (trigger below), on account deletion (cascade), and after 90 days
 -- regardless (quick-capture refuses older keys; the app replaces its key
 -- every 30 days while it's opened).
 --
--- Additive and idempotent: a new table, a trigger on auth.users (password
--- changes revoke keys, in the style of on_auth_user_created), and the
+-- Additive and idempotent: a new table, triggers on auth.users (password
+-- changes, in the style of on_auth_user_created) and auth.sessions (last
+-- session gone), and the
 -- capture_source CHECK rebuilt with one more value ('background'). No
 -- existing column, policy or function changes, so every build in the wild is
 -- unaffected.
@@ -97,6 +101,56 @@ CREATE TRIGGER on_auth_user_password_changed
   FOR EACH ROW
   WHEN (OLD.encrypted_password IS DISTINCT FROM NEW.encrypted_password)
   EXECUTE FUNCTION public.revoke_capture_keys_on_password_change();
+
+
+-- A user with no sessions left is signed out everywhere: a global sign-out
+-- (the app's default), sessions revoked by an admin, or GoTrue cleaning up
+-- expired sessions. Their capture keys go too, so a lost phone's key can't
+-- outlive its session. Refresh-token rotation doesn't delete the session, so
+-- ordinary use never fires this. auth.sessions has existed since GoTrue's
+-- 2022 sessions migration (every current Supabase project and CLI stack);
+-- the guard below skips the trigger, with a warning, if the table is absent
+-- or this role may not add triggers to it, rather than failing the
+-- migration. Same defensive style as the password trigger: never raises.
+CREATE OR REPLACE FUNCTION public.revoke_capture_keys_on_last_session()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  BEGIN
+    IF OLD.user_id IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM auth.sessions s WHERE s.user_id = OLD.user_id
+    ) THEN
+      UPDATE public.capture_keys
+         SET revoked_at = now()
+       WHERE user_id = OLD.user_id
+         AND revoked_at IS NULL;
+    END IF;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'revoke_capture_keys_on_last_session: %', SQLERRM;
+  END;
+  RETURN OLD;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.revoke_capture_keys_on_last_session() FROM PUBLIC, anon, authenticated;
+
+DO $$
+BEGIN
+  IF to_regclass('auth.sessions') IS NULL THEN
+    RAISE WARNING 'auth.sessions not found: capture keys are not revoked when the last session ends';
+    RETURN;
+  END IF;
+  DROP TRIGGER IF EXISTS on_auth_session_deleted ON auth.sessions;
+  CREATE TRIGGER on_auth_session_deleted
+    AFTER DELETE ON auth.sessions
+    FOR EACH ROW
+    EXECUTE FUNCTION public.revoke_capture_keys_on_last_session();
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE WARNING 'no privilege to add a trigger on auth.sessions: capture keys are not revoked when the last session ends';
+END $$;
 
 
 -- capture_source gains 'background': a moment saved by quick-capture.
