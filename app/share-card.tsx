@@ -201,11 +201,7 @@ function createStyles(theme: Theme) {
       marginVertical: theme.spacing.lg,
       borderRadius: theme.radii.lg,
       overflow: "hidden",
-      shadowColor: theme.shadows.card.shadowColor,
-      shadowOffset: { width: 0, height: 18 },
-      shadowOpacity: 0.25,
-      shadowRadius: 24,
-      elevation: 8,
+      ...theme.shadows.artworkLift,
     },
     pickerSection: {
       marginBottom: theme.spacing.sm,

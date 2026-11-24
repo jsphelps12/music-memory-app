@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { AppImage } from "@/components/AppImage";
-import { Theme } from "@/constants/theme";
+import { Theme, overImage } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { MomentCardData } from "@/types";
 import { pad } from "@/lib/dateUtils";
@@ -19,10 +19,10 @@ import { buildCalendarMonths, type CalendarMonth } from "@/lib/monthGroups";
 const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
 // Warm ink over artwork (DESIGN.md allows it over imagery) so the day number
 // holds contrast; paper for the number itself.
-const INK_VEIL = "rgba(35,34,43,0.22)";
-const INK_GLASS = "rgba(35,34,43,0.6)";
-const INK_SHADOW = "rgba(35,34,43,0.5)";
-const PAPER_ON_ART = "#FBF7F2";
+const INK_VEIL = overImage.veil;
+const INK_GLASS = overImage.glass;
+const INK_SHADOW = overImage.textShadow;
+const PAPER_ON_ART = overImage.text;
 const { width: SW } = Dimensions.get("window");
 const H_PAD = 16;
 const CELL = Math.floor((SW - H_PAD * 2) / 7);

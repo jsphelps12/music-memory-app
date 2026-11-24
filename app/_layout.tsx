@@ -47,7 +47,7 @@ import * as Notifications from "expo-notifications";
 import { ShareIntentProvider } from "expo-share-intent";
 
 import { useColorScheme } from "@/components/useColorScheme";
-import { getTheme } from "@/constants/theme";
+import { darkColors, getTheme, lightColors } from "@/constants/theme";
 import { ConfirmSheetHost } from "@/components/ConfirmSheet";
 import { UpdateRequiredScreen } from "@/components/UpdateRequiredScreen";
 import { checkUpdateRequired } from "@/lib/minBuildGate";
@@ -230,7 +230,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   // An opaque overlay covers everything during the loading window, preventing
   // any flash of the wrong screen (e.g. welcome) before routing resolves.
   const isBlocking = !overlayExpired && route.showOverlay;
-  const bg = colorScheme === "dark" ? "#0E0B0A" : "#FBF7F2";
+  const bg = colorScheme === "dark" ? darkColors.background : lightColors.background;
 
   // One continuous launch: the native launch screen stays up until we know
   // where we're going (auth resolved, profile ready, route chosen), then fades
@@ -479,7 +479,7 @@ function RootLayoutNav() {
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <StatusBar style="auto" />
       <AuthGate>
-        <Stack screenOptions={{ contentStyle: { backgroundColor: colorScheme === "dark" ? "#0E0B0A" : "#FBF7F2" } }}>
+        <Stack screenOptions={{ contentStyle: { backgroundColor: colorScheme === "dark" ? darkColors.background : lightColors.background } }}>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
           <Stack.Screen name="celebration" options={{ headerShown: false, gestureEnabled: false }} />

@@ -35,7 +35,6 @@ const DEFAULT_REGION = {
 const MARKER_ARTWORK_PX = 120;
 const PREVIEW_ARTWORK_PX = 156;
 // Night, not pure black, for the shadows of things floating over the map.
-const SHADOW_INK = "#0E0B0A";
 
 interface MapMoment {
   id: string;
@@ -220,7 +219,7 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.elevated,
       alignItems: "center",
       justifyContent: "center",
-      shadowColor: SHADOW_INK,
+      shadowColor: theme.colors.shadow,
       shadowOpacity: 0.2,
       shadowRadius: 4,
       shadowOffset: { width: 0, height: 2 },
@@ -251,11 +250,7 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       padding: theme.spacing.md,
       gap: theme.spacing.md,
-      shadowColor: SHADOW_INK,
-      shadowOpacity: theme.isDark ? 0.45 : 0.15,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 8,
+      ...theme.shadows.float,
     },
     previewArtwork: {
       width: 52,

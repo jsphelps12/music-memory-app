@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { View, StyleSheet } from "react-native";
+import { overImage } from "@/constants/theme";
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -33,7 +34,7 @@ function Bar({ delay, color }: { delay: number; color: string }) {
   return <Animated.View style={[styles.bar, { backgroundColor: color }, style]} />;
 }
 
-export function PlayingIndicator({ color = "#FBF7F2" }: { color?: string }) {
+export function PlayingIndicator({ color = overImage.text }: { color?: string }) {
   return (
     <View style={styles.row} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <Bar delay={0} color={color} />

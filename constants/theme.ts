@@ -84,6 +84,57 @@ export const shadows = {
   none: {} as ViewStyle,
 };
 
+/** Night: the shadow color for anything that lifts (never pure black). */
+const NIGHT = "#0E0B0A";
+
+/**
+ * DESIGN.md "Shadow Vocabulary", per mode. `float`: things that hover over
+ * the page (the capture button, the tab bar, the mini player, a card over the
+ * map). `artworkLift`: album artwork or a card shown large.
+ */
+function liftShadows(isDark: boolean) {
+  return {
+    float: {
+      shadowColor: NIGHT,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: isDark ? 0.5 : 0.2,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    artworkLift: {
+      shadowColor: NIGHT,
+      shadowOffset: { width: 0, height: 18 },
+      shadowOpacity: isDark ? 0.5 : 0.25,
+      shadowRadius: 24,
+      elevation: 8,
+    },
+  };
+}
+
+/**
+ * Over artwork, photos and the map the colors are the same in both modes:
+ * the image underneath decides the light, not the theme. Warm ink and
+ * paper, never pure black or white (DESIGN.md).
+ */
+export const overImage = {
+  /** Paper text and icons on imagery or on `glass`. */
+  text: "#FBF7F2",
+  /** A control's disc over imagery (IconButton filled, the film's buttons). */
+  glass: "rgba(35,34,43,0.55)",
+  /** A small badge on a thumbnail (remove, order): needs more contrast than glass. */
+  badge: "rgba(35,34,43,0.72)",
+  /** Warm ink over artwork so something on top holds contrast (playing bars). */
+  scrim: "rgba(35,34,43,0.45)",
+  /** A light wash over a tile (a calendar day with a photo). */
+  veil: "rgba(35,34,43,0.22)",
+  /** Text shadow for paper words on imagery. */
+  textShadow: "rgba(35,34,43,0.5)",
+  /** Night dim behind words over a full-screen photo. */
+  dim: "rgba(14,11,10,0.72)",
+  /** The unfilled part of a story's progress segments. */
+  track: "rgba(251,247,242,0.3)",
+} as const;
+
 export interface ThemeColors {
   background: string;
   backgroundSecondary: string;
@@ -109,6 +160,8 @@ export interface ThemeColors {
   onGlass: string;
   /** Shadow color for things that lift (night, never pure black). */
   shadow: string;
+  /** A soft wash over artwork shown behind page content (the moment's hero). */
+  artVeil: string;
   /** A Switch's "on" track: ink on paper, Graphite on night (ink-as-paper would hide the white thumb). */
   switchOn: string;
   /** Placeholder text and the icon inside a field: one muted color, AA on a field on a sheet. */
@@ -140,7 +193,7 @@ export interface ThemeColors {
 // lighter paper, and secondary/tertiary text that pass WCAG AA on it (the old
 // tertiary #9C9AA1 was ~2.6:1). The accent is darker so it holds 3:1 as an
 // icon/indicator color; it is a signal, not a text color.
-const lightColors: ThemeColors = {
+export const lightColors: ThemeColors = {
   background: "#FBF7F2",
   backgroundSecondary: "#F3EDE6",
   backgroundTertiary: "#EBE4DC",
@@ -158,6 +211,7 @@ const lightColors: ThemeColors = {
   glass: "rgba(251,247,242,0.86)",
   onGlass: "#23222B",
   shadow: "#0E0B0A",
+  artVeil: "rgba(251,247,242,0.3)",
   switchOn: "#23222B",
   placeholder: "#6A615A",
   destructive: "#C62828",
@@ -176,7 +230,7 @@ const lightColors: ThemeColors = {
   artworkPlaceholder: "#E5DDD4",
 };
 
-const darkColors: ThemeColors = {
+export const darkColors: ThemeColors = {
   background: "#0E0B0A",
   backgroundSecondary: "#1E1A18",
   backgroundTertiary: "#2A2422",
@@ -194,6 +248,7 @@ const darkColors: ThemeColors = {
   glass: "rgba(38,33,31,0.8)",
   onGlass: "#F5F0EB",
   shadow: "#0E0B0A",
+  artVeil: "rgba(14,11,10,0.35)",
   switchOn: "#ABA39E",
   placeholder: "#A39992",
   destructive: "#ff453a",
@@ -220,7 +275,8 @@ export interface Theme {
   fontSize: typeof fontSize;
   fontWeight: typeof fontWeight;
   radii: typeof radii;
-  shadows: typeof shadows;
+  shadows: typeof shadows & ReturnType<typeof liftShadows>;
+  overImage: typeof overImage;
   typography: typeof typography;
 }
 
@@ -234,7 +290,8 @@ export function getTheme(colorScheme: "light" | "dark" | null | undefined): Them
     fontSize,
     fontWeight,
     radii,
-    shadows,
+    shadows: { ...shadows, ...liftShadows(isDark) },
+    overImage,
     typography,
   };
 }

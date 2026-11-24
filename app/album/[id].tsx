@@ -599,11 +599,7 @@ function createStyles(theme: Theme) {
       height: ART_SIZE,
       borderRadius: theme.radii.md,
       backgroundColor: theme.colors.artworkPlaceholder,
-      shadowColor: theme.shadows.card.shadowColor,
-      shadowOffset: { width: 0, height: 18 },
-      shadowOpacity: theme.isDark ? 0.5 : 0.25,
-      shadowRadius: 24,
-      elevation: 8,
+      ...theme.shadows.artworkLift,
     },
     art: {
       width: ART_SIZE,

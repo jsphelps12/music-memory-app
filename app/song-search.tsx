@@ -370,7 +370,7 @@ function createStyles(theme: Theme) {
       width: 18,
       height: 18,
       borderRadius: 9,
-      backgroundColor: "rgba(35,34,43,0.6)",
+      backgroundColor: theme.overImage.badge,
       alignItems: "center",
       justifyContent: "center",
     },

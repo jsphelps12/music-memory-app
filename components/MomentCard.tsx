@@ -480,7 +480,7 @@ function createStyles(theme: Theme) {
     // Warm ink over the artwork so the playing bars hold contrast.
     playingScrim: {
       ...StyleSheet.absoluteFill,
-      backgroundColor: "rgba(35,34,43,0.45)",
+      backgroundColor: theme.overImage.scrim,
       alignItems: "center",
       justifyContent: "center",
     },

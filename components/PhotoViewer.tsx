@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "@/components/Icon";
 import { AppImage } from "@/components/AppImage";
 import { useTheme } from "@/hooks/useTheme";
-import { Theme } from "@/constants/theme";
+import { Theme, overImage } from "@/constants/theme";
 
 interface Props {
   photos: string[];
@@ -23,8 +23,8 @@ interface Props {
 
 // The close floats over the photo, so it's a warm-ink glass disc with a paper
 // glyph (DESIGN.md allows warm ink over imagery), the same in both themes.
-const INK_GLASS = "rgba(35,34,43,0.55)";
-const PAPER_ON_GLASS = "#FBF7F2";
+const INK_GLASS = overImage.glass;
+const PAPER_ON_GLASS = overImage.text;
 
 export function PhotoViewer({ photos, initialIndex, visible, onClose }: Props) {
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
