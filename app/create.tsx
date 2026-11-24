@@ -84,6 +84,9 @@ import { withLoadedPhotos, type LoadedPhoto } from "@/lib/capturePhotos";
 import { goHome } from "@/lib/goHome";
 import { formatSongTime } from "@/lib/songPart";
 import { SongPartSheet } from "@/components/SongPartSheet";
+import { VoiceRecorderSheet } from "@/components/VoiceRecorderSheet";
+import { voiceTimeLabel, type LocalVoice } from "@/lib/voice";
+import { deleteLocalVoice, restoreDraftVoice } from "@/lib/voiceFiles";
 // Starters, not prompts: they open a sentence for the three ways people use
 // the journal (a memory, a discovery, a day) and get out of the way.
 // The left-edge strip that asks before leaving: about as wide as iOS's own
@@ -98,7 +101,7 @@ const STARTERS = [
   { label: "Today I…", text: "Today I " },
 ] as const;
 
-type DetailSheet = "mood" | "people" | "place" | "date" | "part" | null;
+type DetailSheet = "mood" | "people" | "place" | "date" | "part" | "voice" | null;
 
 function isSameDay(a: Date, b: Date) {
   return a.toDateString() === b.toDateString();
@@ -197,6 +200,10 @@ export default function CreateMomentScreen() {
   // song the part belongs to, so a continued draft can bring its own back.
   const [songPartMs, setSongPartMs] = useState<number | null>(null);
   const [songDurationMs, setSongDurationMs] = useState<number | null>(null);
+  // A voice recording (lib/voice.ts): a take on this phone until the save
+  // uploads it. A draft keeps it; it's deleted from the phone once saved,
+  // on Discard and on "Start fresh" (lib/voiceFiles.ts).
+  const [voice, setVoice] = useState<LocalVoice | null>(null);
   const songKey = song ? `${song.provider}:${song.appleMusicId ?? song.spotifyId ?? song.id}:${song.title}` : "";
   const partSongKey = useRef(songKey);
   useEffect(() => {
@@ -388,9 +395,10 @@ export default function CreateMomentScreen() {
   // Drafts: what the person added survives a crash or iOS killing the app,
   // silently, and closing capture asks whether to keep it (below, by
   // close()). A draft keeps the writing, song, photos and videos, moods,
-  // people, date, place and album (lib/captureDraft.ts). This capture writes
-  // only its own draft, so a pre-filled one (a share, Last week, From before,
-  // a prompt, Identify) leaves an earlier draft alone. A blank capture opens
+  // people, date, place, album and voice recording (lib/captureDraft.ts).
+  // This capture writes only its own draft, so a pre-filled one (a share,
+  // Last week, From before, a prompt, Identify) leaves an earlier draft
+  // alone. A blank capture opens
   // blank; from "Continue a draft" it picks up exactly that draft (draftId),
   // and writes wait until that read is done. After the save, or Discard,
   // nothing is written again.
@@ -434,13 +442,15 @@ export default function CreateMomentScreen() {
       place: locationResult,
       album: selectedAlbum ? { id: selectedAlbum.id, name: selectedAlbum.name } : draftAlbum,
       partMs: songPartMs,
+      voice,
     }),
-    [reflection, song, photos, photoAssets, photoVideos, selectedMoods, people, peopleLinks, momentDate, locationResult, selectedAlbum, draftAlbum, songPartMs]
+    [reflection, song, photos, photoAssets, photoVideos, selectedMoods, people, peopleLinks, momentDate, locationResult, selectedAlbum, draftAlbum, songPartMs, voice]
   );
 
   // A continued draft back into the form; `restored` is its photos as files
-  // on this phone now (lib/captureDraftFiles.ts).
-  const applyDraft = (draft: CaptureDraft, restored: DraftPhoto[]) => {
+  // on this phone now (lib/captureDraftFiles.ts), `restoredVoice` its
+  // recording if the file is still there.
+  const applyDraft = (draft: CaptureDraft, restored: DraftPhoto[], restoredVoice: LocalVoice | null) => {
     replaceReflection(draft.reflection, false);
     if (draft.song) {
       handleSongChange(draft.song);
@@ -467,6 +477,7 @@ export default function CreateMomentScreen() {
     if (draft.date !== undefined) setMomentDate(draft.date === null ? null : new Date(draft.date));
     if (draft.place) setLocationResult(draft.place);
     if (draft.album) setDraftAlbum(draft.album);
+    if (restoredVoice) setVoice(restoredVoice);
     setRestoredDraftAt(draft.savedAt);
   };
 
@@ -492,7 +503,7 @@ export default function CreateMomentScreen() {
         releaseDraft(draft.id);
         draft = null;
       }
-      if (draft) applyDraft(draft, restored);
+      if (draft) applyDraft(draft, restored, restoreDraftVoice(draft.voice));
       draftSession.current = afterDraftLoad(draftSession.current ?? session, draft);
       // Anything typed while the read was in flight: keep it now rather
       // than at the next keystroke.
@@ -554,6 +565,8 @@ export default function CreateMomentScreen() {
     setLocationResult(null);
     setSelectedAlbum(null);
     setDraftAlbum(null);
+    // The recording stays with the draft just written, not the new capture.
+    setVoice(null);
     setRestoredDraftAt(null);
     // Only a new share starts this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -589,15 +602,17 @@ export default function CreateMomentScreen() {
     setDraftAlbum(null);
     setWeatherResult(null);
     setMetaSuggestion(null);
+    setVoice(null);
     setError("");
   };
 
-  // The draft's photos, moods and the rest go too: its kept photo copies are
-  // deleted with it.
+  // The draft's photos, moods and the rest go too: its kept photo copies and
+  // its recording are deleted with it.
   const startFresh = () => {
     Haptics.selectionAsync();
     const current = draftSession.current;
     if (user && canWriteDraft(current)) void discardCaptureDraft(user.id, current.id);
+    deleteLocalVoice(voice?.uri);
     clearForm();
   };
 
@@ -730,6 +745,7 @@ export default function CreateMomentScreen() {
         draftSession.current = afterDraftDiscarded(current);
         if (user) void discardCaptureDraft(user.id, current.id);
       }
+      deleteLocalVoice(latestDraft.current.voice?.uri);
     }
     setKeepAsk(false);
   };
@@ -793,6 +809,8 @@ export default function CreateMomentScreen() {
         weatherResult,
         captureSource,
         songPartMs,
+        voiceUri: voice?.uri ?? null,
+        voiceDurationMs: voice?.durationMs ?? null,
       });
 
       // Saved: this capture's draft goes, and nothing writes it again (a
@@ -802,6 +820,8 @@ export default function CreateMomentScreen() {
         draftSession.current = afterMomentSaved(session);
         void discardCaptureDraft(user.id, session.id);
       }
+      // Uploaded with the moment: the take on the phone has done its job.
+      deleteLocalVoice(voice?.uri);
 
       // Captured before the form reset below clears selectedAlbum.
       const savedToAlbumId = selectedAlbum?.id;
@@ -821,6 +841,9 @@ export default function CreateMomentScreen() {
         save_ms: sinceSave(),
         source: params.source ?? null,
         capture_source: captureSource,
+        // Whether there's a recording and how long; never the audio itself.
+        has_voice: !!voice,
+        voice_ms: voice?.durationMs ?? null,
       });
 
       checkAndNotifyMilestone(user.id).catch(() => {});
@@ -897,6 +920,14 @@ export default function CreateMomentScreen() {
           },
         ]
       : []),
+    // A recording of what the song is doing for you (lib/voice.ts).
+    {
+      key: "voice",
+      icon: "mic-outline",
+      label: voice ? `Voice ${voiceTimeLabel(voice.durationMs)}` : "Voice",
+      set: !!voice,
+      onPress: () => openSheet("voice"),
+    },
     {
       key: "mood",
       icon: "happy-outline",
@@ -1146,6 +1177,16 @@ export default function CreateMomentScreen() {
           durationMs={songDurationMs}
           value={songPartMs}
           onChange={setSongPartMs}
+        />
+      ) : null}
+
+      {user ? (
+        <VoiceRecorderSheet
+          visible={detailSheet === "voice"}
+          onClose={() => setDetailSheet(null)}
+          userId={user.id}
+          value={voice ? { kind: "local", uri: voice.uri, durationMs: voice.durationMs } : null}
+          onChange={(clip) => setVoice(clip?.kind === "local" ? { uri: clip.uri, durationMs: clip.durationMs } : null)}
         />
       ) : null}
 

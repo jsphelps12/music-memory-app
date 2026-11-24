@@ -7,7 +7,8 @@ import type { Moment } from "@/types";
  * The shared view (docs/ROADMAP.md, "Sharing work, in order"). Everyone but a
  * moment's owner reads it through the server's `get_moment_view` /
  * `get_shared_with_me` / album and link RPCs, all shaped by
- * `moment_view_for`: no place, no people's names, no share link token. Only
+ * `moment_view_for`: no place, no people's names, no share link token, no
+ * voice recording (owner-only, 20261124120000_voice_entries.sql). Only
  * the owner can pass a moment on (link, share card, send, add to album).
  */
 
@@ -36,6 +37,8 @@ export function shapeForViewer<T extends Partial<Moment> & { userId?: string | n
     locationLng: null,
     people: [],
     shareToken: null,
+    voicePath: null,
+    voiceDurationMs: null,
   };
 }
 

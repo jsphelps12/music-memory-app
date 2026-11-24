@@ -7,13 +7,15 @@ import { addMomentToAlbum } from "@/lib/albums";
 import { Song, Album, Moment, type PersonLink } from "@/types";
 import { syncMomentPeopleLinks } from "@/lib/momentPeopleLinks";
 import { mapRowToMoment } from "@/lib/moments";
-import { momentRowFields, songIdentityChanged, type MomentFieldsInput } from "@/lib/momentRow";
+import { momentRowFields, songIdentityChanged, voiceColumns, type MomentFieldsInput } from "@/lib/momentRow";
 import { buildPhotoColumns, newPhotoUris, type EditedPhoto, type PhotoColumns } from "@/lib/photoOrder";
 import { refsColumn, type MediaRefs } from "@/lib/linkedMedia";
 import { cloudIdsFor } from "@/modules/now-playing";
 import { EMPTY_SONG_LOOKUP, songMetadataColumns, type SongLookup } from "@/lib/songMetadata";
 import { MOMENT_OPTIONAL_COLUMNS, writeWithOptionalColumns } from "@/lib/optionalColumns";
 import type { CaptureSource } from "@/lib/captureSource";
+import type { LocalVoice } from "@/lib/voice";
+import { deleteVoice, uploadVoice } from "@/lib/voiceStorage";
 
 /**
  * Write the moment's "Who was there" links (lib/momentPeopleLinks.ts) after
@@ -58,6 +60,39 @@ export function lookupPreview(song: Song): Promise<SongLookup> {
   return lookup.catch(() => EMPTY_SONG_LOOKUP);
 }
 
+export interface UploadedMedia {
+  photos: UploadedMomentPhotos;
+  /** The voice recording's storage path, or null with none. */
+  voicePath: string | null;
+}
+
+/**
+ * Upload a moment's photos and its voice recording side by side. All or
+ * nothing: if either fails, whatever did upload is deleted again and the
+ * first error is thrown, so a failed save leaves nothing behind.
+ */
+async function uploadMomentMedia(
+  userId: string,
+  momentId: string,
+  photos: string[],
+  linked: boolean[],
+  voiceUri: string | null | undefined
+): Promise<UploadedMedia> {
+  const [photoResult, voiceResult] = await Promise.allSettled([
+    uploadMomentPhotos(userId, photos, linked),
+    voiceUri ? uploadVoice(userId, momentId, voiceUri) : Promise.resolve(null),
+  ]);
+  if (photoResult.status === "rejected") {
+    if (voiceResult.status === "fulfilled") void deleteVoice([voiceResult.value]);
+    throw photoResult.reason;
+  }
+  if (voiceResult.status === "rejected") {
+    void deleteMomentPhotos(photoResult.value.photoPaths, photoResult.value.thumbnailPaths);
+    throw voiceResult.reason;
+  }
+  return { photos: photoResult.value, voicePath: voiceResult.value };
+}
+
 export interface SaveMomentInput extends MomentFieldsInput {
   userId: string;
   photos: string[];
@@ -80,6 +115,9 @@ export interface SaveMomentInput extends MomentFieldsInput {
   captureSource?: CaptureSource | null;
   /** Names in `people` linked to friends (written after the row; never blocks the save). */
   peopleLinks?: PersonLink[];
+  /** A voice recording on this phone (lib/voice.ts): uploaded alongside the photos. */
+  voiceUri?: string | null;
+  voiceDurationMs?: number | null;
 }
 
 export interface SaveMomentResult {
@@ -105,7 +143,7 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
     category: "moment",
     message: "save_moment started",
     level: "info",
-    data: { photoCount: input.photos.length, song: input.song.title, hasAlbum: !!input.selectedAlbum },
+    data: { photoCount: input.photos.length, song: input.song.title, hasAlbum: !!input.selectedAlbum, hasVoice: !!input.voiceUri },
   });
 
   // The preview lookup and the uploads run side by side; neither waits on the other.
@@ -127,16 +165,19 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
     }
     return cloudId ? { cloudId, kind: "photo", full: false } : null;
   });
-  const [preview, uploaded] = await Promise.all([
-    previewPromise,
-    uploadMomentPhotos(input.userId, input.photos, refs.map(Boolean)),
-  ]);
-
-  Sentry.addBreadcrumb({ category: "moment", message: "preview_url + photos ready", level: "info", data: { photoCount: uploaded.photoPaths.length } });
-
   // The id is chosen here, not by the database, so a failed insert can be
-  // checked: if the row exists after all, the save succeeded.
+  // checked (if the row exists after all, the save succeeded), and so the
+  // voice recording's path can name its moment before the row exists.
   const id = Crypto.randomUUID();
+  const [preview, media] = await Promise.all([
+    previewPromise,
+    uploadMomentMedia(input.userId, id, input.photos, refs.map(Boolean), input.voiceUri),
+  ]);
+  const uploaded = media.photos;
+  const voicePath = media.voicePath;
+
+  Sentry.addBreadcrumb({ category: "moment", message: "preview_url + photos ready", level: "info", data: { photoCount: uploaded.photoPaths.length, hasVoice: !!voicePath } });
+
   const {
     data: insertedRow,
     error: insertError,
@@ -154,6 +195,9 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
       photo_urls: uploaded.photoPaths,
       photo_thumbnails: uploaded.thumbnailPaths,
       media_refs: refsColumn(refs),
+      // Optional until 20261124120000_voice_entries.sql is applied, like the
+      // song metadata.
+      ...voiceColumns(voicePath, input.voiceDurationMs),
       time_of_day: getTimeOfDay(),
       weather_temp_f: input.weatherResult?.tempF ?? null,
       weather_condition: input.weatherResult?.condition ?? null,
@@ -172,8 +216,9 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
   if (insertError) {
     const existing = await readBack(id);
     if (existing === null) {
-      // Confirmed not saved: nothing points at these photos.
+      // Confirmed not saved: nothing points at these photos or the recording.
       void deleteMomentPhotos(uploaded.photoPaths, uploaded.thumbnailPaths);
+      if (voicePath) void deleteVoice([voicePath]);
       throw insertError;
     }
     // Unknown: keep the photos rather than risk breaking a saved moment.
@@ -185,6 +230,14 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
 
   const secondaryFailures: string[] = [];
   const secondaryOps: Promise<void>[] = [];
+
+  // Saved without the recording (a database without the voice columns yet,
+  // so the retry dropped them): nothing points at the upload, and the person
+  // should know their voice wasn't kept.
+  if (voicePath && inserted?.voice_path !== voicePath) {
+    void deleteVoice([voicePath]);
+    secondaryFailures.push("the voice recording couldn't be kept");
+  }
 
   if (input.selectedAlbum) {
     secondaryOps.push(
@@ -233,15 +286,24 @@ export interface UpdateMomentInput extends MomentFieldsInput {
    */
   originalPeopleLinks?: PersonLink[];
   peopleLinks?: PersonLink[];
+  /**
+   * The voice recording (lib/voice.ts voiceEditFor): leave out to keep the
+   * stored one as it is, a take on this phone to add or replace it, null to
+   * remove it.
+   */
+  voice?: LocalVoice | null;
+  /** The recording's path on the row when the editor loaded it. */
+  originalVoicePath?: string | null;
 }
 
 /**
  * Save an edited moment through the same column mapping as saveMoment.
  * Photos are written in the editor's order (lib/photoOrder.ts). Uploads added
- * photos first and deletes them again if the update doesn't land; deletes
- * removed photos only after it does. The stored preview URL and song details
- * are replaced only when the song changed, so a text edit can't lose them to
- * a flaky lookup.
+ * photos and a new recording first and deletes them again if the update
+ * doesn't land; deletes removed photos and a replaced or removed recording
+ * only after it does. The stored preview URL and song details are replaced
+ * only when the song changed, so a text edit can't lose them to a flaky
+ * lookup.
  */
 export async function updateMoment(input: UpdateMomentInput): Promise<Moment> {
   const songChanged = songIdentityChanged(input.originalSong, input.song);
@@ -258,10 +320,18 @@ export async function updateMoment(input: UpdateMomentInput): Promise<Moment> {
     return cloudId ? { cloudId, kind: "photo", full: false } : null;
   });
 
-  const [preview, uploaded] = await Promise.all([
+  const [preview, media] = await Promise.all([
     songChanged ? lookupPreview(input.song) : Promise.resolve(null),
-    uploadMomentPhotos(input.userId, newPhotoUris(input.photos), newRefs.map(Boolean)),
+    uploadMomentMedia(
+      input.userId,
+      input.momentId,
+      newPhotoUris(input.photos),
+      newRefs.map(Boolean),
+      input.voice?.uri ?? null
+    ),
   ]);
+  const uploaded = media.photos;
+  const newVoicePath = media.voicePath;
 
   let columns: PhotoColumns;
   try {
@@ -274,6 +344,7 @@ export async function updateMoment(input: UpdateMomentInput): Promise<Moment> {
   } catch (e) {
     // Nothing references these uploads yet.
     void deleteMomentPhotos(uploaded.photoPaths, uploaded.thumbnailPaths);
+    if (newVoicePath) void deleteVoice([newVoicePath]);
     throw e;
   }
 
@@ -286,6 +357,8 @@ export async function updateMoment(input: UpdateMomentInput): Promise<Moment> {
       photo_urls: columns.photo_urls,
       photo_thumbnails: columns.photo_thumbnails,
       media_refs: refsColumn(columns.media_refs),
+      // Only when the recording changed: a plain edit never touches it.
+      ...(input.voice !== undefined ? voiceColumns(newVoicePath, input.voice?.durationMs) : {}),
     },
     MOMENT_OPTIONAL_COLUMNS,
     (row) => supabase.from("moments").update(row).eq("id", input.momentId).select("*").single()
@@ -293,17 +366,35 @@ export async function updateMoment(input: UpdateMomentInput): Promise<Moment> {
 
   let updated = updatedRow;
   if (updateError) {
-    // Only new uploads are at stake. Their paths are fresh UUIDs, so finding
-    // them on the row proves this update committed after all.
-    if (uploaded.photoPaths.length === 0) throw updateError;
+    // Only new uploads are at stake. Their paths are fresh (UUIDs, and the
+    // time for a recording), so finding them on the row proves this update
+    // committed after all.
+    if (uploaded.photoPaths.length === 0 && !newVoicePath) throw updateError;
     const existing = await readBack(input.momentId);
     if (existing === "unknown") throw updateError;
     const stored: string[] = existing?.photo_urls ?? [];
-    if (!existing || !uploaded.photoPaths.every((p) => stored.includes(p))) {
+    const landed =
+      !!existing &&
+      uploaded.photoPaths.every((p) => stored.includes(p)) &&
+      (!newVoicePath || existing.voice_path === newVoicePath);
+    if (!landed) {
       cleanUpUnusedUploads(uploaded, existing);
+      if (newVoicePath && existing?.voice_path !== newVoicePath) void deleteVoice([newVoicePath]);
       throw updateError;
     }
     updated = existing;
+  }
+
+  // The recording: whichever of the new and the old the row no longer points
+  // at goes. A new one the row doesn't have was dropped with the optional
+  // columns (a database without them yet); the old one stays then.
+  if (input.voice !== undefined) {
+    const storedVoice: string | null = updated?.voice_path ?? null;
+    if (newVoicePath && storedVoice !== newVoicePath) {
+      void deleteVoice([newVoicePath]);
+    } else if (input.originalVoicePath && storedVoice !== input.originalVoicePath) {
+      void deleteVoice([input.originalVoicePath]);
+    }
   }
 
   // The row no longer points at removed photos, but they'd stay publicly

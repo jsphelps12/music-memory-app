@@ -91,6 +91,7 @@ import { Icon } from "@/components/Icon";
 import { formatTime } from "@/lib/formatTime";
 import { runWhenIdle } from "@/lib/whenIdle";
 import { HeroPhotoCycle } from "@/components/HeroPhotoCycle";
+import { VoiceNoteRow } from "@/components/VoiceNoteRow";
 import { useMediaSources } from "@/hooks/useMediaSources";
 import { withoutOthersVideos } from "@/lib/linkedMedia";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
@@ -953,6 +954,7 @@ function MomentPage({
           id,
           photoUrls: moment?.photoUrls ?? [],
           photoThumbnails: moment?.photoThumbnails ?? [],
+          voicePath: moment?.voicePath ?? null,
         });
 
     if (deleteError) {
@@ -1370,6 +1372,12 @@ function MomentPage({
                     <Text key={i} style={styles.reflection} selectable>{para}</Text>
                   ))}
               </View>
+            ) : null}
+
+            {/* The owner's voice recording. The shared view never carries
+                it, and the owner check guards a cached row too. */}
+            {isOwnMoment && moment.voicePath ? (
+              <VoiceNoteRow path={moment.voicePath} durationMs={moment.voiceDurationMs ?? null} />
             ) : null}
 
             {/* Quiet metadata: people, moods as words, weather. */}

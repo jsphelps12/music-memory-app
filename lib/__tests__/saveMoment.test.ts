@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   fetchPreviewUrl: vi.fn(async () => "https://audio/preview.m4a"),
   /** The provider's catalog lookup; unset = a provider without one (Spotify). */
   lookupSong: undefined as undefined | ReturnType<typeof vi.fn>,
+  uploadVoice: vi.fn(async (userId: string, momentId: string) => `${userId}/${momentId}-1.m4a`),
+  deleteVoice: vi.fn(async () => []),
 }));
 
 vi.mock("@/lib/supabase", () => ({ supabase: sb.client }));
@@ -32,6 +34,7 @@ vi.mock("@/lib/storage", () => ({
   uploadMomentPhotos: mocks.uploadMomentPhotos,
   deleteMomentPhotos: mocks.deleteMomentPhotos,
 }));
+vi.mock("@/lib/voiceStorage", () => ({ uploadVoice: mocks.uploadVoice, deleteVoice: mocks.deleteVoice }));
 
 import { saveMoment, updateMoment, type UpdateMomentInput } from "../saveMoment";
 import { EMPTY_SONG_LOOKUP, type SongLookup } from "../songMetadata";
@@ -78,6 +81,9 @@ beforeEach(() => {
   mocks.deleteMomentPhotos.mockClear();
   mocks.fetchPreviewUrl.mockClear();
   mocks.lookupSong = undefined;
+  mocks.uploadVoice.mockReset();
+  mocks.uploadVoice.mockImplementation(async (userId: string, momentId: string) => `${userId}/${momentId}-1.m4a`);
+  mocks.deleteVoice.mockClear();
 });
 
 const DETAILS = {
@@ -401,5 +407,137 @@ describe("who was there links", () => {
     const chain = linkQueries()[0].chain;
     expect(chain[0].method).toBe("delete");
     expect(chain.find((c) => c.method === "in")?.args).toEqual(["friend_id", ["f1"]]);
+  });
+});
+
+describe("the voice recording", () => {
+  const VOICE_PATH = "u1/moment-1-1.m4a";
+  const take = { voiceUri: "file:///Documents/capture-voice/u1/voice-1.m4a", voiceDurationMs: 42_000 };
+
+  it("uploads it alongside the photos under the moment's id and saves its path and length", async () => {
+    sb.queueData(row({ voice_path: VOICE_PATH, voice_duration_ms: 42_000 }));
+    const result = await saveMoment({ ...base, photos: ["file:///a.jpg"], ...take });
+
+    expect(mocks.uploadVoice).toHaveBeenCalledWith("u1", "moment-1", take.voiceUri);
+    expect(writeOf("insert")).toMatchObject({ id: "moment-1", voice_path: VOICE_PATH, voice_duration_ms: 42_000 });
+    expect(result.secondaryFailures).toEqual([]);
+    expect(result.moment.voicePath).toBe(VOICE_PATH);
+    expect(mocks.deleteVoice).not.toHaveBeenCalled();
+  });
+
+  it("writes no recording when there isn't one", async () => {
+    sb.queueData(row());
+    await saveMoment({ ...base, photos: [] });
+    expect(mocks.uploadVoice).not.toHaveBeenCalled();
+    expect(writeOf("insert")).toMatchObject({ voice_path: null, voice_duration_ms: null });
+  });
+
+  it("when a photo upload fails, deletes the uploaded recording and writes nothing", async () => {
+    mocks.uploadMomentPhotos.mockRejectedValue(new Error("upload failed"));
+    await expect(saveMoment({ ...base, photos: ["file:///a.jpg"], ...take })).rejects.toMatchObject({ message: "upload failed" });
+    expect(mocks.deleteVoice).toHaveBeenCalledWith([VOICE_PATH]);
+    expect(sb.queries).toHaveLength(0);
+  });
+
+  it("when the recording's upload fails, deletes the uploaded photos and writes nothing", async () => {
+    mocks.uploadVoice.mockRejectedValue(new Error("voice failed"));
+    await expect(saveMoment({ ...base, photos: ["file:///a.jpg"], ...take })).rejects.toMatchObject({ message: "voice failed" });
+    expect(mocks.deleteMomentPhotos).toHaveBeenCalledWith(NEW.photoPaths, NEW.thumbnailPaths);
+    expect(sb.queries).toHaveLength(0);
+  });
+
+  it("deletes the recording when the insert is confirmed not to have landed", async () => {
+    sb.queueError("network");
+    sb.queueData(null);
+    await expect(saveMoment({ ...base, photos: [], ...take })).rejects.toMatchObject({ message: "network" });
+    expect(mocks.deleteVoice).toHaveBeenCalledWith([VOICE_PATH]);
+  });
+
+  it("saved without the voice columns (migration not applied): deletes the upload and says so", async () => {
+    sb.queueError({ code: "PGRST204", message: "Could not find the 'voice_path' column of 'moments' in the schema cache" });
+    sb.queueData(row());
+    const result = await saveMoment({ ...base, photos: [], ...take });
+
+    const [, retry] = writesOf("insert");
+    expect(retry).not.toHaveProperty("voice_path");
+    expect(retry).not.toHaveProperty("voice_duration_ms");
+    expect(result.id).toBe("moment-1");
+    expect(mocks.deleteVoice).toHaveBeenCalledWith([VOICE_PATH]);
+    expect(result.secondaryFailures).toEqual(["the voice recording couldn't be kept"]);
+  });
+});
+
+describe("the voice recording in an edit", () => {
+  const OLD = "u1/moment-1-0.m4a";
+  const NEW_VOICE = "u1/moment-1-1.m4a";
+  const voiceEdit = (over: Partial<UpdateMomentInput> = {}) =>
+    edit({
+      photos: [
+        { kind: "kept", path: "u1/old1.jpg", thumb: "u1/thumb_old1.jpg" },
+        { kind: "kept", path: "u1/old2.jpg", thumb: "u1/thumb_old2.jpg" },
+      ],
+      originalVoicePath: OLD,
+      ...over,
+    });
+
+  beforeEach(() => mocks.uploadMomentPhotos.mockResolvedValue({ photoPaths: [], thumbnailPaths: [] }));
+
+  it("a plain edit never touches the recording", async () => {
+    sb.queueData(row({ voice_path: OLD }));
+    await updateMoment(voiceEdit());
+    expect(mocks.uploadVoice).not.toHaveBeenCalled();
+    expect(writeOf("update")).not.toHaveProperty("voice_path");
+    expect(writeOf("update")).not.toHaveProperty("voice_duration_ms");
+    expect(mocks.deleteVoice).not.toHaveBeenCalled();
+  });
+
+  it("recording again uploads the new take first, and deletes the old one once the update lands", async () => {
+    sb.queueData(row({ voice_path: NEW_VOICE, voice_duration_ms: 30_000 }));
+    const moment = await updateMoment(voiceEdit({ voice: { uri: "file:///take.m4a", durationMs: 30_000 } }));
+
+    expect(mocks.uploadVoice).toHaveBeenCalledWith("u1", "moment-1", "file:///take.m4a");
+    expect(writeOf("update")).toMatchObject({ voice_path: NEW_VOICE, voice_duration_ms: 30_000 });
+    expect(mocks.deleteVoice).toHaveBeenCalledTimes(1);
+    expect(mocks.deleteVoice).toHaveBeenCalledWith([OLD]);
+    expect(moment.voicePath).toBe(NEW_VOICE);
+  });
+
+  it("adds a recording to a moment that had none", async () => {
+    sb.queueData(row({ voice_path: NEW_VOICE, voice_duration_ms: 30_000 }));
+    await updateMoment(voiceEdit({ originalVoicePath: null, voice: { uri: "file:///take.m4a", durationMs: 30_000 } }));
+    expect(writeOf("update")).toMatchObject({ voice_path: NEW_VOICE });
+    expect(mocks.deleteVoice).not.toHaveBeenCalled();
+  });
+
+  it("deleting it clears both columns, then the stored file", async () => {
+    sb.queueData(row({ voice_path: null }));
+    await updateMoment(voiceEdit({ voice: null }));
+    expect(mocks.uploadVoice).not.toHaveBeenCalled();
+    expect(writeOf("update")).toMatchObject({ voice_path: null, voice_duration_ms: null });
+    expect(mocks.deleteVoice).toHaveBeenCalledWith([OLD]);
+  });
+
+  it("on a failed update, deletes the new take and keeps the old one", async () => {
+    sb.queueError("network");
+    sb.queueData(row({ voice_path: OLD }));
+    await expect(updateMoment(voiceEdit({ voice: { uri: "file:///take.m4a", durationMs: 30_000 } }))).rejects.toMatchObject({
+      message: "network",
+    });
+    expect(mocks.deleteVoice).toHaveBeenCalledTimes(1);
+    expect(mocks.deleteVoice).toHaveBeenCalledWith([NEW_VOICE]);
+  });
+
+  it("treats an update that landed despite the error as saved", async () => {
+    sb.queueError("network");
+    sb.queueData(row({ voice_path: NEW_VOICE }));
+    await updateMoment(voiceEdit({ voice: { uri: "file:///take.m4a", durationMs: 30_000 } }));
+    expect(mocks.deleteVoice).toHaveBeenCalledWith([OLD]);
+    expect(mocks.deleteVoice).not.toHaveBeenCalledWith([NEW_VOICE]);
+  });
+
+  it("a removal that fails leaves the stored file alone", async () => {
+    sb.queueError("network");
+    await expect(updateMoment(voiceEdit({ voice: null }))).rejects.toMatchObject({ message: "network" });
+    expect(mocks.deleteVoice).not.toHaveBeenCalled();
   });
 });

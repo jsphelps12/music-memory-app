@@ -52,6 +52,13 @@ export interface Moment {
   songPartMs?: number | null;
   /** How the moment was captured (lib/captureSource.ts). */
   captureSource?: import("@/lib/captureSource").CaptureSource | null;
+  /**
+   * The owner's voice recording: its path in the private moment-voice bucket
+   * and its length (lib/voice.ts). Only ever set for the owner: the shared
+   * view leaves both out, and card rows don't select them.
+   */
+  voicePath?: string | null;
+  voiceDurationMs?: number | null;
   reflectionText: string;
   photoUrls: string[];
   photoThumbnails: string[];

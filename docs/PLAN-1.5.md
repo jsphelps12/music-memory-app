@@ -14,7 +14,7 @@ from Playing now or Identify. Neither is accurate enough; picking it by hand
 | # | Feature | Needs the 1.5 binary? |
 |---|---------|------------------------|
 | 1 | Memory widget: one moment a day on the Home Screen, opening into the film | Yes (widget views, app-group writer) |
-| 2 | Voice entries, recordings kept | Recording and playback: **no**, can ship now. Transcription: yes |
+| 2 | Voice entries, recordings kept | Yes: no native code for recording and playback, but build 16's microphone text only covers Identify (decided 2026-11-23). Transcription: native |
 | 3 | "Remember this song" from Siri, Shortcuts and the Action button, saved in the background | Yes (App Intent in the app) |
 | 4 | Journaling Suggestions: Apple's picker of your day's songs, photos and places | Yes, and Apple's entitlement (Josh: request it now) |
 | 5 | Offline saves: capture with no signal, saved when you're back online | **No**, can ship before 1.5 |
@@ -66,12 +66,13 @@ into the reflection, which you can then edit. Your voice plays on the moment
 and in the film, with the song turned down under it, and later feeds "Your life
 as a radio show".
 
-**Can ship before 1.5.** Recording, upload and playback need nothing new in the
-binary: `expo-audio` already records and the microphone permission is already
-granted for Identify. Only transcription needs native work. So:
-- **Now, as an update to 1.4.1:** record (AAC, mono, about 0.5 MB a minute,
-  3-minute cap), upload, play on the moment.
-- **In 1.5:** on-device transcription (Apple's speech recognizer with
+**In 1.5, all of it (decided 2026-11-23).** Recording, upload and playback
+need no native code (`expo-audio` already records), but build 16's
+microphone permission text says the app only listens while identifying a
+song, so voice waits for 1.5's new text instead of going over the air:
+- **v1 (built):** record (AAC, mono, about 0.5 MB a minute, 3-minute cap),
+  upload, play on the moment.
+- **Then:** on-device transcription (Apple's speech recognizer with
   on-device recognition only; nothing leaves the phone), plus the
   speech-recognition permission string.
 
@@ -128,13 +129,32 @@ stricter rules than photos do:
 **Effort:** recording, upload and playback about 2 days (plus the migration);
 transcription about 1 day in 1.5.
 
+**Status (2026-11-23): v1 built, shipping in 1.5.** Decided 2026-11-23: it
+moved from an over-the-air update to 1.4.1 into the 1.5 build, because
+build 16's microphone permission text says the app only listens while
+identifying a song. 1.5's `app.config.ts` says "…to identify a song playing
+around you, and to record what you say about a moment. It only listens
+while you're identifying a song or recording." Built on
+`feat/voice-entries`: record (up to 3:00, mono AAC m4a at 64 kbps), save,
+play on the moment, for the owner only, with no native changes. Capture's
+"Voice" chip and Edit's "Your voice" row open
+`components/VoiceRecorderSheet.tsx`; drafts keep the take on the phone
+(`lib/voiceFiles.ts`); `lib/saveMoment.ts` uploads it with the photos and
+writes `voice_path`/`voice_duration_ms` (dropped and the upload deleted on a
+database without the columns); the moment plays it through a signed URL
+(`hooks/useVoicePlayer.ts`), pausing the song; deleting the moment deletes
+the file. Still to do: apply the migration before 1.5 ships, check
+recording and the audio session on a device, then transcription and the
+film.
+
 ## 3. "Remember this song", saved in the background
 
 An App Intent in the app, so it works from Siri ("Hey Siri, remember this
 song"), Shortcuts and the Action button, with the screen off and without
 opening the app. It saves what's playing as a moment (song, part of the song
-where it was, date, time) and a quiet notification later offers "Add your
-words", which opens that moment's Edit.
+where it was, date, time). Siri says what it saved ("Saved Holocene by Bon
+Iver"). No notification follows (Josh, 2026-11-23: no more pushes); the
+moment is in the Journal like any other, ready for words.
 
 **How it saves without the app open.** The intent runs in Swift, outside the
 JavaScript app, so it can't use the app's sign-in directly. Sharing the
@@ -152,8 +172,7 @@ intent refreshed one the app would be signed out. Instead:
 - No song playing, no signal: the intent says so ("Nothing's playing") and
   saves nothing; with no signal it offers to open the app instead.
 
-**Effort:** about 3–4 days (two edge functions, a table for keys, the intent,
-the notification).
+**Effort:** about 3–4 days (two edge functions, a table for keys, the intent).
 
 ## 4. Journaling Suggestions
 
@@ -217,19 +236,26 @@ A pass over everything before 1.5 goes to review, mostly over the air:
    by hand on Josh's phone (Maestro can't drive the Home Screen). TestFlight,
    then the App Store.
 
-## Decisions for Josh
+## Decisions (Josh, 2026-11-23: "go with your suggestions on all of them")
 
-1. **Words on the widget:** show a line of your words, or only the song and
-   date (words behind a setting)?
-2. **Which moment:** "on this day" first, then something at least 30 days old.
-   OK?
-3. **Voice to friends:** owner-only at first (proposed), or shareable from day one?
-4. **Voice length:** a 3-minute cap OK?
-5. **Voice before 1.5:** ship recording and playback as an update to 1.4.1
-   now (proposed)?
-6. **Background save notification:** "Add your words" a while after a
-   background save (proposed: the next morning at 10, with the daily
-   push rules), or right away?
-7. **Transcript and writing:** the transcript fills the reflection when
-   it's empty (or only a starter or prompt); when there's already writing,
-   it's offered as "Use what you said" instead of overwriting it.
+1. **Widget words:** song and date by default; "Show my words on the widget"
+   in Settings turns a line of the reflection on.
+2. **Widget pick:** "on this day" from an earlier year first, else one at
+   least 30 days old that hasn't been shown recently.
+3. **Widget sizes:** small, medium and the Lock Screen version.
+4. **Voice to friends:** owner-only for now.
+5. **Voice length:** 3 minutes.
+6. **Voice before 1.5:** first decided as an update to 1.4.1, then moved
+   into the 1.5 build: build 16's microphone text only covers Identify.
+7. **Transcript (1.5):** fills the reflection when it's empty; offered as
+   "Use what you said" when there's already writing.
+8. **Voice in the film:** over the song, with the music turned down.
+9. **After a background save:** no notification at all (no more pushes).
+10. **Siri's reply:** says what it saved.
+11. **Signing out with unsaved moments:** asks first ("2 moments haven't
+    saved yet").
+12. **Journaling Suggestions:** long-press + → Start from → "Your day
+    (Apple)", and in Help's ways into capture.
+13. **Polish:** Josh's list from daily use goes in as it comes.
+14. **Order:** offline saves as an update first, then `native/1.5`
+    (voice included).

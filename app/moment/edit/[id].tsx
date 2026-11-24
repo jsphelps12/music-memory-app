@@ -51,6 +51,9 @@ import { formatSongTime } from "@/lib/songPart";
 import { lookupPreview } from "@/lib/saveMoment";
 import { ListRow } from "@/components/ListRow";
 import { SongPartSheet } from "@/components/SongPartSheet";
+import { VoiceRecorderSheet } from "@/components/VoiceRecorderSheet";
+import { voiceEditFor, voiceTimeLabel, type VoiceClip } from "@/lib/voice";
+import { deleteLocalVoice } from "@/lib/voiceFiles";
 import type { PersonLink } from "@/types";
 
 type ScreenState = "loading" | "not_found" | "error" | "ready";
@@ -76,6 +79,7 @@ function editSnapshot(v: {
   momentDate: Date | null;
   location: GeoResult | null;
   partMs: number | null;
+  voice: VoiceClip | null;
 }): string {
   return JSON.stringify([
     v.song ? [v.song.id, v.song.title, v.song.artistName, v.song.appleMusicId, v.song.spotifyId] : null,
@@ -87,6 +91,7 @@ function editSnapshot(v: {
     dayKey(v.momentDate),
     v.location ? [v.location.name, v.location.lat, v.location.lng] : null,
     v.partMs,
+    v.voice ? (v.voice.kind === "stored" ? v.voice.path : v.voice.uri) : null,
   ]);
 }
 
@@ -142,6 +147,12 @@ export default function EditMomentScreen() {
   const [songPreviewUrl, setSongPreviewUrl] = useState<string | null>(null);
   const [partSheetOpen, setPartSheetOpen] = useState(false);
   const partSongKey = useRef("");
+  // The voice recording (lib/voice.ts): the stored one as loaded, a new take
+  // on this phone, or null once deleted. The stored file is only replaced or
+  // removed when the edit is saved.
+  const [voice, setVoice] = useState<VoiceClip | null>(null);
+  const originalVoicePathRef = useRef<string | null>(null);
+  const [voiceSheetOpen, setVoiceSheetOpen] = useState(false);
   const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
   const [screenState, setScreenState] = useState<ScreenState>("loading");
   const [saving, setSaving] = useState(false);
@@ -245,6 +256,11 @@ export default function EditMomentScreen() {
       : null;
     setMomentDate(loadedDate);
     setLocationResult(loadedLocation);
+    const loadedVoice: VoiceClip | null = moment.voicePath
+      ? { kind: "stored", path: moment.voicePath, durationMs: moment.voiceDurationMs ?? 0 }
+      : null;
+    originalVoicePathRef.current = moment.voicePath ?? null;
+    setVoice(loadedVoice);
     setInitialSnapshot(
       editSnapshot({
         song: storedSong,
@@ -256,6 +272,7 @@ export default function EditMomentScreen() {
         momentDate: loadedDate,
         location: loadedLocation,
         partMs: moment.songPartMs ?? null,
+        voice: loadedVoice,
       })
     );
     setScreenState("ready");
@@ -381,6 +398,8 @@ export default function EditMomentScreen() {
         originalPeopleLinks: originalLinksRef.current,
         peopleLinks: peopleLinks ?? undefined,
         songPartMs,
+        voice: voiceEditFor(originalVoicePathRef.current, voice),
+        originalVoicePath: originalVoicePathRef.current,
       });
 
       posthog.capture("moment_edited", {
@@ -390,6 +409,9 @@ export default function EditMomentScreen() {
         has_people: people.length > 0,
         photo_count: photos.length,
         has_location: Boolean(locationResult),
+        // Whether there's a recording and how long; never the audio itself.
+        has_voice: !!voice,
+        voice_ms: voice?.durationMs ?? null,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       markTimelineStale();
@@ -421,6 +443,7 @@ export default function EditMomentScreen() {
       momentDate,
       location: locationResult,
       partMs: songPartMs,
+      voice,
     }) !== initialSnapshot;
 
   usePreventRemove(dirty && !saved && !discarding, ({ repeat }) => {
@@ -441,6 +464,20 @@ export default function EditMomentScreen() {
   useEffect(() => {
     if (saved) router.back();
   }, [saved, router]);
+
+  // A new take on this phone is done with once the editor closes: uploaded
+  // by a save, or not wanted after Discard.
+  const voiceRef = useRef(voice);
+  useEffect(() => {
+    voiceRef.current = voice;
+  }, [voice]);
+  useEffect(
+    () => () => {
+      const last = voiceRef.current;
+      if (last?.kind === "local") deleteLocalVoice(last.uri);
+    },
+    []
+  );
 
   if (screenState === "loading") {
     // A fullScreenModal can't be swiped away: the ✕ is there while it loads.
@@ -520,10 +557,20 @@ export default function EditMomentScreen() {
               Keyboard.dismiss();
               setPartSheetOpen(true);
             }}
-            last
             testID="edit-song-part"
           />
         ) : null}
+        <ListRow
+          label="Your voice"
+          detail={voice ? voiceTimeLabel(voice.durationMs) : "Not recorded"}
+          onPress={() => {
+            Keyboard.dismiss();
+            setVoiceSheetOpen(true);
+          }}
+          last
+          accessibilityLabel={voice ? `Your voice, ${voiceTimeLabel(voice.durationMs)}` : "Your voice, not recorded"}
+          testID="edit-voice"
+        />
 
         {/* Reflection */}
         <SectionLabel
@@ -652,6 +699,15 @@ export default function EditMomentScreen() {
           previewUrl={songPreviewUrl}
           value={songPartMs}
           onChange={setSongPartMs}
+        />
+      ) : null}
+      {userId ? (
+        <VoiceRecorderSheet
+          visible={voiceSheetOpen}
+          onClose={() => setVoiceSheetOpen(false)}
+          userId={userId}
+          value={voice}
+          onChange={setVoice}
         />
       ) : null}
       <ConfirmSheetHost />

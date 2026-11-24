@@ -4,6 +4,7 @@ import {
   persistableArtworkUrl,
   songIdentityChanged,
   removedPaths,
+  voiceColumns,
   type MomentFieldsInput,
 } from "../momentRow";
 import type { Song } from "@/types";
@@ -117,5 +118,21 @@ describe("removedPaths", () => {
   it("lists what is no longer referenced", () => {
     expect(removedPaths(["a", "b", "c"], ["a", "c"])).toEqual(["b"]);
     expect(removedPaths(["a"], ["a", "new"])).toEqual([]);
+  });
+});
+
+describe("voiceColumns", () => {
+  it("writes the path and the length together", () => {
+    expect(voiceColumns("u1/m1-1.m4a", 42_000.4)).toEqual({ voice_path: "u1/m1-1.m4a", voice_duration_ms: 42_000 });
+  });
+
+  it("clears both with no recording, so a length never stands alone", () => {
+    expect(voiceColumns(null, 42_000)).toEqual({ voice_path: null, voice_duration_ms: null });
+    expect(voiceColumns(undefined, undefined)).toEqual({ voice_path: null, voice_duration_ms: null });
+  });
+
+  it("keeps the length inside the column's limit", () => {
+    expect(voiceColumns("u1/m1-1.m4a", 999_999).voice_duration_ms).toBe(185_000);
+    expect(voiceColumns("u1/m1-1.m4a", null).voice_duration_ms).toBe(0);
   });
 });
