@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter, type Href } from "expo-router";
 import { usePostHog } from "posthog-react-native";
 import { BottomSheet } from "@/components/BottomSheet";
@@ -13,6 +13,29 @@ import {
   draftTitle,
   type CaptureDraft,
 } from "@/lib/captureDraft";
+import { getProvider } from "@/lib/providers";
+import { searchItunes } from "@/lib/itunes";
+import {
+  resolveSuggestionSong,
+  suggestionSong,
+  yourDayCaptureParams,
+  yourDayEventProps,
+  type CatalogSearch,
+} from "@/lib/yourDay";
+import { isYourDayAvailable, pickYourDay } from "@/modules/journaling-suggestions";
+
+/**
+ * Your day's song is matched in the Apple Music catalog, then the no-auth
+ * iTunes search when Apple Music can't answer (not authorized, no
+ * subscription), like the share extension's songs.
+ */
+const YOUR_DAY_SEARCHES: CatalogSearch[] = [
+  (query) => getProvider("apple_music").search(query),
+  (query) => searchItunes(query, 10),
+];
+
+/** Your day's row: Apple's picker up, the song being matched, or it failed to open. */
+type YourDayState = "idle" | "picking" | "matching" | "failed";
 
 const draftHref = (draft: CaptureDraft): Href => ({
   pathname: "/create",
@@ -45,12 +68,60 @@ export function CaptureMenu({
   const [listOpen, setListOpen] = useState(false);
   // Several drafts: list them once this sheet has gone.
   const [listAfterClose, setListAfterClose] = useState(false);
+  // Your day (Apple, 1.5): only where Apple's picker can run (an iPhone on
+  // iOS 17.2+ with the 1.5 binary; never the simulator).
+  const [yourDayAvailable] = useState(isYourDayAvailable);
+  const [yourDay, setYourDay] = useState<YourDayState>("idle");
+  // Bumped when the sheet closes, so a match that finishes after the person
+  // dismissed the sheet doesn't open capture anyway.
+  const yourDayRun = useRef(0);
+  useEffect(() => {
+    if (visible) return;
+    yourDayRun.current += 1;
+    setYourDay("idle");
+  }, [visible]);
 
   const go = (choice: string, href: Href) => {
     posthog?.capture("capture_menu_choice", { choice });
     onClose();
     router.push(href);
   };
+
+  // Apple's picker opens over this sheet; closing it leaves the sheet up. A
+  // pick fills capture with its song (matched to the catalog), photos, place,
+  // people and date (lib/yourDay.ts). Nothing is saved until Save.
+  const startYourDay = async () => {
+    if (yourDay === "picking" || yourDay === "matching") return;
+    posthog?.capture("capture_menu_choice", { choice: "your_day" });
+    const run = ++yourDayRun.current;
+    setYourDay("picking");
+    const result = await pickYourDay();
+    if (run !== yourDayRun.current) return;
+    if (result.status === "cancelled") {
+      setYourDay("idle");
+      return;
+    }
+    if (result.status === "failed") {
+      posthog?.capture("your_day_failed");
+      setYourDay("failed");
+      return;
+    }
+    setYourDay("matching");
+    const want = suggestionSong(result.suggestion);
+    const match = want ? await resolveSuggestionSong(want, YOUR_DAY_SEARCHES) : null;
+    if (run !== yourDayRun.current) return;
+    // Counts and flags only: no titles, names or places leave the phone.
+    posthog?.capture("your_day_picked", yourDayEventProps(result.suggestion, match));
+    onClose();
+    router.push({ pathname: "/create", params: yourDayCaptureParams(result.suggestion, match) });
+  };
+
+  const yourDaySubtitle =
+    yourDay === "matching"
+      ? "Finding the song…"
+      : yourDay === "failed"
+        ? "Apple's suggestions didn't open. Try again."
+        : "Songs, photos and places Apple suggests from your day";
 
   const continueDraft = () => {
     if (drafts.length === 1) {
@@ -62,7 +133,14 @@ export function CaptureMenu({
     onClose();
   };
 
-  const rows: { key: string; label: string; subtitle: string; icon: IconName; onPress: () => void }[] = [
+  const rows: {
+    key: string;
+    label: string;
+    subtitle: string;
+    icon: IconName;
+    onPress: () => void;
+    busy?: boolean;
+  }[] = [
     ...(drafts.length > 0
       ? [
           {
@@ -95,6 +173,18 @@ export function CaptureMenu({
       icon: "calendar-outline",
       onPress: () => go("last_week", "/last-week"),
     },
+    ...(yourDayAvailable
+      ? [
+          {
+            key: "your_day",
+            label: "Your day (Apple)",
+            subtitle: yourDaySubtitle,
+            icon: "journal-outline" as const,
+            onPress: () => void startYourDay(),
+            busy: yourDay === "picking" || yourDay === "matching",
+          },
+        ]
+      : []),
     {
       key: "from_before",
       label: "From before",
@@ -129,6 +219,8 @@ export function CaptureMenu({
               icon={row.icon}
               last={i === rows.length - 1}
               onPress={row.onPress}
+              disabled={row.busy}
+              trailing={row.busy ? <ActivityIndicator size="small" color={theme.colors.textSecondary} /> : undefined}
             />
           ))}
         </View>

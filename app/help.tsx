@@ -9,7 +9,8 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 // Every real way into capture (checked against app/create.tsx, the routes
 // that push /create, components/CaptureMenu.tsx and targets/widget,
 // 2026-11-18; the + is on the Journal only since 2026-11-20; "Remember this
-// song" from Siri, plugins/remember-this-song, 1.5). Keep it current
+// song" from Siri, plugins/remember-this-song, 1.5; Your day, Apple's
+// Journaling Suggestions, modules/journaling-suggestions, 1.5). Keep it current
 // when a way in is added. No count in the copy: it drifts.
 const CAPTURE_METHODS = [
   {
@@ -20,7 +21,7 @@ const CAPTURE_METHODS = [
   {
     icon: "list-outline",
     label: "Hold the + button",
-    desc: "On your Journal, start from Identify, Search, Last week or From before, or pick up a draft.",
+    desc: "On your Journal, start from Identify, Search, Last week, Your day or From before, or pick up a draft.",
   },
   {
     icon: "pencil-outline",
@@ -36,6 +37,11 @@ const CAPTURE_METHODS = [
     icon: "calendar-outline",
     label: "Last week",
     desc: "Each week, the songs you played most and the photos you took, ready to become moments. Find it at the top of your Journal.",
+  },
+  {
+    icon: "journal-outline",
+    label: "Your day",
+    desc: "Hold + and choose Your day (Apple) to pick from Apple's Journaling Suggestions: a song you played, photos, a place you went, who you were with. Capture opens with them filled in; nothing is saved until you do. iPhone, iOS 17.2 and later.",
   },
   {
     icon: "time-outline",

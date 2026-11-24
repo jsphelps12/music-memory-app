@@ -35,6 +35,7 @@ import { momentCreatedProperties, momentQueuedProperties, QUEUED_NOTICE, type Qu
 import { isDeviceOnline } from "@/lib/appFocus";
 import type { SongLookup } from "@/lib/songMetadata";
 import { captureSourceFor, type SongPick } from "@/lib/captureSource";
+import { peopleFromParams, placeFromParams } from "@/lib/yourDay";
 import { maybeRequestReview } from "@/lib/reviewPrompt";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
@@ -177,6 +178,12 @@ export default function CreateMomentScreen() {
     photosTo?: string;
     /** From "Continue a draft" (components/CaptureMenu): pick up exactly this draft. */
     draftId?: string;
+    /** From Your day (Journaling Suggestions, lib/yourDay.ts): the suggestion's place. */
+    placeName?: string;
+    placeLat?: string;
+    placeLng?: string;
+    /** From Your day: the suggestion's contacts, as a JSON array of names. */
+    peopleNames?: string;
   }>();
 
   // Opened from a widget or control: worth knowing whether capture-from-
@@ -375,7 +382,8 @@ export default function CreateMomentScreen() {
   }, [params.promptStarter, replaceReflection]);
 
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
-  const [people, setPeople] = useState<string[]>([]);
+  // Your day hands over the suggestion's contacts and place (lib/yourDay.ts).
+  const [people, setPeople] = useState<string[]>(() => peopleFromParams(params.peopleNames));
   // Names linked to friends (private to the owner; components/PeopleInput.tsx).
   const [peopleLinks, setPeopleLinks] = useState<PersonLink[]>([]);
   // Dated when it happened when it came from Last week, else now.
@@ -383,7 +391,7 @@ export default function CreateMomentScreen() {
     const at = Number(params.momentAt);
     return Number.isFinite(at) && at > 0 ? new Date(at) : new Date();
   });
-  const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
+  const [locationResult, setLocationResult] = useState<GeoResult | null>(() => placeFromParams(params));
   const [weatherResult, setWeatherResult] = useState<WeatherResult | null>(null);
   const [metaSuggestion, setMetaSuggestion] = useState<{ date?: Date; location?: string; lat?: number; lng?: number } | null>(null);
   const [detailSheet, setDetailSheet] = useState<DetailSheet>(null);
@@ -496,7 +504,7 @@ export default function CreateMomentScreen() {
     const prefilled =
       !!params.songTitle || !!params.promptStarter || !!params.shareCandidates ||
       !!params.shareFailedUrl || !!params.sharedPhotoPaths || params.identify === "1" ||
-      !!params.photosDay;
+      !!params.photosDay || params.source === "your_day";
     const session = startDraftSession(newDraftId(), prefilled);
     draftSession.current = session;
     if (session.phase === "open") return;

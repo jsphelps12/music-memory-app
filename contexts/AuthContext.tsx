@@ -21,6 +21,7 @@ import { clearNudgeQuestions } from "@/lib/nudgeQuestionStore";
 import { clearLibraryCache } from "@/lib/libraryCache";
 import { clearVoiceUrlCache } from "@/lib/voiceStorage";
 import { clearMemoryWidget } from "@/lib/widgetData";
+import { clearYourDayFiles } from "@/modules/journaling-suggestions";
 import { resetTimelineRefresh } from "@/lib/timelineRefresh";
 import { isAccountBoundary, mayClearOnLeave } from "@/lib/accountBoundary";
 import { clearLegacyAlbumCaches } from "@/lib/albums";
@@ -496,6 +497,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Screen stops showing this person's moments (its settings went with the
     // sign-out keys above).
     await clearMemoryWidget();
+    // Photo copies from Apple's Journaling Suggestions picker (Your day), in
+    // the app's caches until the next pick.
+    await clearYourDayFiles();
     // Spotify's session is stored device-wide, not per user: the next person
     // to sign in here must connect their own account.
     await disconnectSpotify().catch(() => {});
