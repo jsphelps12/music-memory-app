@@ -348,8 +348,8 @@ The working plan, with how each piece is built and the open decisions:
     polling route, and the link preview via PR 123) through
     `get_public_album_moments` by invite code, each
     returning only what its screen shows; both fall back to the old direct
-    read until the migration is applied. Left for DB-2: raise min-build to
-    16 after 1.4.1 is approved (Josh's go), then apply it.
+    read until the migration is applied. DB-2 itself is live
+    (2026-11-23): min-build 16, then PR 128.
   - **Who was there → friends (right after 1.4.1, over the air; decided
     2026-11-19):** typing a name suggests matching friends (photo, name,
     @username, so two Sams are told apart) and past names, plus "Add 'Sam'
@@ -360,8 +360,7 @@ The working plan, with how each piece is built and the open decisions:
     unfriending keeps the text and drops the link.
   - Later, if direct sends get used: album activity pushes; "the people who
     were there" as 1.5's social bet.
-- [ ] DB-2 (RLS hardening step 2) once 1.4 is out and widely installed:
-  raise the min-build gate, then ship it.
+- [x] DB-2 (RLS hardening step 2). **Done 2026-11-23:** min_supported_build raised to 16 (production and staging), DB-2 applied (PR 128, `20261124000000_db2_owner_only.sql`) after `supabase/tests/db2_checks.sql` passed on staging.
 - [ ] Database hygiene from the Supabase advisors (2026-11-17): ~~pin the
   search_path on the four occasion slug/song functions~~ (done 2026-11-18),
   ~~recheck why `get_public_profiles` is callable without signing in~~
@@ -794,7 +793,7 @@ changed since build 36.
   and Search Results creative assets (Oct 2026) are optional; none yet.
 - [x] **Josh:** TestFlight pass, 1.3.1 in App Store Connect with the new
   screenshots, submitted and released (live by 2026-11-15).
-- [ ] Raise the min-build gate to 13 once 1.4 (13) is live (decided
+- [x] *(Superseded: raised straight to 16 on 2026-11-23, with 1.4.1 live.)* Raise the min-build gate to 13 once 1.4 (13) is live (decided
   2026-11-18; was 10), which unblocks DB-2 (RLS hardening
   step 2). Josh, 2026-11-16: wait a few days so people on 1.3.0 auto-update
   first instead of hitting the update-required screen.
@@ -1435,8 +1434,7 @@ questionnaire/ML, NFC products, Android.
     server-side (`delete-guest-moments`), and account deletion covers them
     too and never loops or deletes the user with files left behind;
     notifications use each user's local day and page their queries.
-  - [ ] DB-2, RLS hardening step 2: waits for the app changes and the
-    min-build gate.
+  - [x] DB-2, RLS hardening step 2 (2026-11-23, PR 128).
   - [x] WS-G, web, scripts and CI (2026-10-20): the guest form asks for the
     note and photo the server requires and shows its errors; the gift and
     friend clipboard handoff is written on tap; one helper for album moment
