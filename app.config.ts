@@ -24,7 +24,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: isPreview ? "Soundtracks β" : "Soundtracks",
   slug: "music-memory",
-  version: "1.4.1",
+  version: "1.5.0",
   orientation: "portrait",
   icon: isPreview ? "./assets/images/app-icon-beta.png" : "./assets/images/app-icon.png",
   // Per-variant scheme: with both apps installed, iOS routes a shared custom
