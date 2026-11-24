@@ -65,7 +65,8 @@ describe("momentSearchOrFilter", () => {
     expect(momentSearchOrFilter("Hello, Goodbye")).toBe(
       'song_title.ilike."%Hello, Goodbye%",' +
         'song_artist.ilike."%Hello, Goodbye%",' +
-        'reflection_text.ilike."%Hello, Goodbye%"'
+        'reflection_text.ilike."%Hello, Goodbye%",' +
+        'location.ilike."%Hello, Goodbye%"'
     );
     expect(momentSearchOrFilter("(I Can't Get No) Satisfaction")).toContain(
       'song_title.ilike."%(I Can\'t Get No) Satisfaction%"'

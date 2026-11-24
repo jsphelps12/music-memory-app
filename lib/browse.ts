@@ -264,13 +264,17 @@ export function compareLibraryOrder(
  * `groupPeopleByPerson` knows which moments): read by id, 100 a request,
  * then put in library order.
  */
-export async function fetchMomentsByIds(userId: string, ids: readonly string[]): Promise<Moment[]> {
+export async function fetchMomentsByIds(
+  userId: string,
+  ids: readonly string[],
+  columns: string = MOMENT_CARD_COLUMNS
+): Promise<Moment[]> {
   const batches = chunk([...new Set(ids)], ID_BATCH_SIZE);
   const results = await Promise.all(
     batches.map(async (batch) => {
       const { data, error } = await supabase
         .from("moments")
-        .select(MOMENT_CARD_COLUMNS)
+        .select(columns)
         .eq("user_id", userId)
         .in("id", batch);
       if (error) throw error;
@@ -371,12 +375,14 @@ function postgrestQuoted(value: string): string {
  * User text can't go into the filter raw: commas and parentheses are the
  * or-grammar's own delimiters, so a title like "Hello, Goodbye" made the
  * request fail. Each value is quoted, and LIKE wildcards in the text are
- * escaped so they match literally.
+ * escaped so they match literally. `location` is a baseline column (with a
+ * trigram index), so no fallback is needed for it. Album name, people and
+ * moods match on the phone instead (lib/archiveSearch.ts).
  */
 export function momentSearchOrFilter(text: string): string {
   const literal = text.trim().replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
   const pattern = postgrestQuoted(`%${literal}%`);
-  return ["song_title", "song_artist", "reflection_text"]
+  return ["song_title", "song_artist", "reflection_text", "location"]
     .map((column) => `${column}.ilike.${pattern}`)
     .join(",");
 }

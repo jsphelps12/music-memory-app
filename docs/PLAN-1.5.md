@@ -241,6 +241,18 @@ A pass over everything before 1.5 goes to review, mostly over the air:
   but no clear pattern is never promised. Rows go away as they unlock.
 - Reading the archive: search across words, songs and people, and browsing
   that makes old moments easy to land on.
+  **Search widened (built 2026-11-24 on `polish/search`, over the air):**
+  Rediscover's search also finds the album name, the place, people's names
+  and moods. The server's `ilike` gained `location` (title, artist, words,
+  place); album, people and moods match on the phone against the browse
+  metadata the screen already holds, case- and accent-insensitive ("cafe"
+  finds "Café"), and only those rows are read by id. Results merge one per
+  moment in library order (newest 50). A result found only through a
+  person, the place, a mood or the album says why under the song: "With
+  Sam", "At Ocean Beach", "Nostalgic" (custom moods by their label), "From
+  Rumours". The empty search adds "People" (the names written about most)
+  under "Your artists"; one tap searches. `lib/archiveSearch.ts`, tested in
+  `lib/__tests__/archiveSearch.test.ts`. Browsing is still to do.
 - Josh's list from using 1.4.1 day to day (added as it comes).
 - The 1.5 audit (`/audit`) before submitting, and anything it finds.
 
