@@ -508,8 +508,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (userId) {
       supabase.from("profiles").update({ push_token: null }).eq("id", userId).then(null, () => {});
     }
-    // Always clear locally even if the network call fails
-    await supabase.auth.signOut().catch(() => supabase.auth.signOut({ scope: "local" }));
+    // Always clear locally even if the network call fails. supabase-js
+    // reports most failures as a returned error (and then keeps the session)
+    // rather than throwing, so both fall back to a local sign-out; before
+    // this, a failed global sign-out left the person signed in.
+    const { error: signOutError } = await supabase.auth
+      .signOut()
+      .catch((e: unknown) => ({ error: e }));
+    if (signOutError) await supabase.auth.signOut({ scope: "local" }).catch(() => {});
     await clearLocalUserState(userId);
   };
 
