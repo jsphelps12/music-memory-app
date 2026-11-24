@@ -19,6 +19,7 @@ import { clearPhotoAnalysisStore } from "@/lib/photoAnalysisStore";
 import { clearNudgeQuestions } from "@/lib/nudgeQuestionStore";
 import { clearLibraryCache } from "@/lib/libraryCache";
 import { clearVoiceUrlCache } from "@/lib/voiceStorage";
+import { clearMemoryWidget } from "@/lib/widgetData";
 import { resetTimelineRefresh } from "@/lib/timelineRefresh";
 import { isAccountBoundary, mayClearOnLeave } from "@/lib/accountBoundary";
 import { clearLegacyAlbumCaches } from "@/lib/albums";
@@ -473,6 +474,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await Promise.all([clearPhotoAnalysisStore(), clearNudgeQuestions()]).catch(() => {});
     clearLibraryCache();
     clearVoiceUrlCache();
+    // The Memory widget's file and artwork in the App Group, so the Home
+    // Screen stops showing this person's moments (its settings went with the
+    // sign-out keys above).
+    await clearMemoryWidget();
     // Spotify's session is stored device-wide, not per user: the next person
     // to sign in here must connect their own account.
     await disconnectSpotify().catch(() => {});

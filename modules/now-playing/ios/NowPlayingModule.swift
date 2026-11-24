@@ -3,6 +3,7 @@ import MediaPlayer
 import MusicKit
 import Photos
 import UIKit
+import WidgetKit
 
 public class NowPlayingModule: Module {
   private var isObserving = false
@@ -217,6 +218,29 @@ public class NowPlayingModule: Module {
         if case .success(let localId) = result { out[cloudId.stringValue] = localId }
       }
       return out
+    }
+
+    // Memory widget (1.5). The widget extension can't sign in or query the
+    // database, so the app writes what it shows (one JSON file and small
+    // artwork) into the App Group container the two share. See
+    // WidgetStore.swift for the layout; lib/widgetData.ts is the JS side.
+    AsyncFunction("appGroupPath") { () -> String? in
+      WidgetStore.containerURL()?.path
+    }
+
+    // `images`: file name in the widget's folder → local file URI to copy
+    // from (downsampled to at most 300 px on the way in).
+    AsyncFunction("writeWidgetData") { (json: String, images: [String: String]) throws in
+      try WidgetStore.write(json: json, images: images)
+    }
+
+    // Sign-out and account deletion: the file and every image go.
+    AsyncFunction("clearWidgetData") { () throws in
+      try WidgetStore.clear()
+    }
+
+    AsyncFunction("reloadWidgets") { () in
+      WidgetCenter.shared.reloadAllTimelines()
     }
   }
 

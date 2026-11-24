@@ -48,9 +48,12 @@ export const SIGN_OUT_KEYS: readonly string[] = [
 
 /**
  * Keys named per account or per week: every From before key (now
- * `frombefore_*_<userId>`) and every weekly play-count snapshot.
+ * `frombefore_*_<userId>`), every weekly play-count snapshot, and the Memory
+ * widget's words setting and shown days (`widget_*_<userId>`,
+ * lib/widgetSettings.ts; its file in the App Group is cleared by
+ * clearMemoryWidget).
  */
-export const SIGN_OUT_PREFIXES: readonly string[] = ["frombefore_", "lastweek_playcounts_v2:"];
+export const SIGN_OUT_PREFIXES: readonly string[] = ["frombefore_", "lastweek_playcounts_v2:", "widget_"];
 
 export function isSignOutKey(key: string): boolean {
   return SIGN_OUT_KEYS.includes(key) || SIGN_OUT_PREFIXES.some((p) => key.startsWith(p));

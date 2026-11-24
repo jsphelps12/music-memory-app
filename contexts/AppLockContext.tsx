@@ -5,6 +5,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import { FullWindowOverlay } from "react-native-screens";
 import { usePathname } from "expo-router";
 import { monotonicMs } from "@/modules/now-playing";
+import { refreshMemoryWidget } from "@/lib/widgetData";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { Icon } from "@/components/Icon";
@@ -144,6 +145,7 @@ export function AppLockProvider({ children, fontsLoaded }: { children: ReactNode
       try {
         await AsyncStorage.removeItem(APP_LOCK_STORAGE_KEY);
       } catch {}
+      void refreshMemoryWidget({ force: true });
       setLockMessage(null);
       setTurnedOffNotice(decision.message);
     }
@@ -223,6 +225,8 @@ export function AppLockProvider({ children, fontsLoaded }: { children: ReactNode
       enabledRef.current = value;
       setEnabledState(value);
       setOverlayKey((k) => k + 1);
+      // The Memory widget never shows words while the lock is on.
+      void refreshMemoryWidget({ force: true });
       return { ok: true };
     },
     [methodLabel]

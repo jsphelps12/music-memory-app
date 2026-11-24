@@ -11,4 +11,14 @@ enum SoundtracksLink {
   /// Three slashes: an empty host, so expo-router reads "/create" as the path.
   static var capture: URL { URL(string: "\(scheme):///create?source=widget")! }
   static var identify: URL { URL(string: "\(scheme):///create?identify=1&source=widget")! }
+
+  /// The app's Journal: the Memory widget's tap when it has nothing to show.
+  static var home: URL { URL(string: "\(scheme):///")! }
+
+  /// Memory widget (1.5): the moment, with its film playing (app/moment/[id].tsx
+  /// reads `film=1`).
+  static func moment(_ id: String) -> URL {
+    let path = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+    return URL(string: "\(scheme):///moment/\(path)?film=1") ?? home
+  }
 }

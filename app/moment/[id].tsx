@@ -816,6 +816,26 @@ function MomentPage({
     [shown?.photoUrls]
   );
   const mediaSources = useMediaSources(storedPhotoUrls, shown?.mediaRefs, shown?.userId);
+
+  // Memory widget (1.5): its tap opens /moment/<id>?film=1. Play the film
+  // once, as soon as there's something to play (no photos: just the moment).
+  // Only for the moment the link named, not one flipped to; the param is
+  // dropped once used so flipping back doesn't replay it.
+  const { id: linkedId, film: filmParam } = useLocalSearchParams<{ id: string; film?: string }>();
+  const filmOpened = useRef(false);
+  useEffect(() => {
+    if (filmParam !== "1" || filmOpened.current || id !== linkedId) return;
+    if (screenState !== "ready" || mediaSources.length === 0) return;
+    // After the page's entry: a modal presented while this screen is still
+    // being presented can be dropped.
+    const t = setTimeout(() => {
+      filmOpened.current = true;
+      setViewerIndex(0);
+      setViewerVisible(true);
+      router.setParams({ film: undefined });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [filmParam, id, linkedId, screenState, mediaSources.length, router]);
   const photoUrls = useMemo(() => mediaSources.map((s) => s.uri), [mediaSources]);
   const stripUrls = useMemo(() => (shown ? momentCardImageUrls(shown) : []), [shown]);
 
