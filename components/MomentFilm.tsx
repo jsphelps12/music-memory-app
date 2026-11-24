@@ -17,7 +17,7 @@ import { AppImage } from "@/components/AppImage";
 import { Icon } from "@/components/Icon";
 import { usePlayerControls } from "@/contexts/PlayerContext";
 import { useTheme } from "@/hooks/useTheme";
-import { Theme } from "@/constants/theme";
+import { Theme, darkColors, overImage } from "@/constants/theme";
 import type { MediaSource } from "@/lib/linkedMedia";
 import { PhotosVideoView, setDuckOthers } from "@/modules/photos-video";
 import { CLIP_LEVEL, createMixRestore } from "@/lib/audioMix";
@@ -32,10 +32,10 @@ const SWIPE = 50;
 
 // Controls float over photos and video: warm-ink glass, paper glyphs, the
 // same in both themes (as PhotoViewer).
-const INK_GLASS = "rgba(35,34,43,0.55)";
-const PAPER_ON_GLASS = "#FBF7F2";
+const INK_GLASS = overImage.glass;
+const PAPER_ON_GLASS = overImage.text;
 // Night, the second material (DESIGN.md): media sits on it in both themes.
-const NIGHT = "#0E0B0A";
+const NIGHT = darkColors.background;
 
 type Styles = ReturnType<typeof createStyles>;
 
@@ -744,7 +744,7 @@ function createStyles(theme: Theme) {
       flex: 1,
       height: 2,
       borderRadius: 1,
-      backgroundColor: "rgba(251,247,242,0.3)",
+      backgroundColor: overImage.track,
       overflow: "hidden",
     },
     segmentFill: { height: 2, backgroundColor: PAPER_ON_GLASS },

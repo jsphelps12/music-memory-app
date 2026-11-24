@@ -69,7 +69,7 @@ import { FEEDBACK_EMAIL, MAIL_UNAVAILABLE_TEXT, mailtoUrl, openMail } from "@/li
 import { MOODS } from "@/constants/Moods";
 import { moodWords } from "@/lib/moodLabels";
 import { useTheme } from "@/hooks/useTheme";
-import { Theme } from "@/constants/theme";
+import { Theme, overImage } from "@/constants/theme";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { SkeletonMomentDetail } from "@/components/Skeleton";
 import { ErrorState } from "@/components/ErrorState";
@@ -108,9 +108,8 @@ const STALE_TIME = 2 * 60 * 1000;
 
 // Over photos and artwork only (DESIGN.md allows warm ink and night over
 // imagery): the photo counter, and the shadow under lifted artwork.
-const INK_GLASS = "rgba(35,34,43,0.55)";
-const PAPER_ON_GLASS = "#FBF7F2";
-const SHADOW_INK = "#0E0B0A";
+const INK_GLASS = overImage.glass;
+const PAPER_ON_GLASS = overImage.text;
 
 /** A clip's length for its badge: "0:12", "1:05". */
 function clipLength(ms: number | undefined): string {
@@ -1719,17 +1718,14 @@ function createStyles(theme: Theme) {
       overflow: "hidden",
     },
     heroVeil: {
-      backgroundColor: theme.isDark ? "rgba(14,11,10,0.35)" : "rgba(251,247,242,0.3)",
+      backgroundColor: theme.colors.artVeil,
     },
     artworkHero: {
       width: 232,
       height: 232,
       borderRadius: theme.radii.md,
       // Artwork lift (DESIGN.md, Shadow Vocabulary).
-      shadowColor: SHADOW_INK,
-      shadowOffset: { width: 0, height: 18 },
-      shadowOpacity: 0.25,
-      shadowRadius: 24,
+      ...theme.shadows.artworkLift,
     },
     // ── Scroll body ──────────────────────────────────────────────────────────
     scrollView: {

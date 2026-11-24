@@ -402,7 +402,7 @@ function createStyles(theme: Theme) {
     // Night over the blurred artwork so text holds contrast on any cover.
     dim: {
       ...StyleSheet.absoluteFill,
-      backgroundColor: "rgba(14,11,10,0.72)",
+      backgroundColor: theme.overImage.dim,
     },
     topArea: {
       paddingHorizontal: theme.spacing.xl,
@@ -416,7 +416,7 @@ function createStyles(theme: Theme) {
       flex: 1,
       height: 2,
       borderRadius: 1,
-      backgroundColor: "rgba(245,240,235,0.22)",
+      backgroundColor: theme.overImage.track,
     },
     segmentDone: {
       backgroundColor: theme.colors.text,

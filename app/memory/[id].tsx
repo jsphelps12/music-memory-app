@@ -241,7 +241,7 @@ function createStyles(theme: Theme) {
     },
     dim: {
       ...StyleSheet.absoluteFill,
-      backgroundColor: "rgba(14,11,10,0.72)",
+      backgroundColor: theme.overImage.dim,
     },
     topBar: {
       flexDirection: "row",

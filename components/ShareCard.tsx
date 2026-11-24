@@ -18,7 +18,7 @@ import { Icon } from "@/components/Icon";
 import { AppImage } from "@/components/AppImage";
 import { PartialMoment } from "@/types";
 import { MOODS } from "@/constants/Moods";
-import { fonts } from "@/constants/theme";
+import { fonts, lightColors } from "@/constants/theme";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 export const CARD_WIDTH = SCREEN_WIDTH - 48;
@@ -34,12 +34,13 @@ interface Props {
   variant?: ShareCardVariant;
 }
 
-const PAPER = "#FBF7F2";
-const PAPER_DEEP = "#F3EDE6";
-const INK = "#23222B";
-const GRAPHITE = "#5E5C66";
-const UMBER_GRAY = "#736A63";
-const HAIRLINE = "#E9E2D9";
+// The card is always paper (it's an image people send), so light colors.
+const PAPER = lightColors.background;
+const PAPER_DEEP = lightColors.cardBg;
+const INK = lightColors.text;
+const GRAPHITE = lightColors.textSecondary;
+const UMBER_GRAY = lightColors.textTertiary;
+const HAIRLINE = lightColors.divider;
 
 export function ShareCard({ moment, photoUrl, variant = "post" }: Props) {
   const cardHeight = variant === "story" ? CARD_HEIGHT_STORY : CARD_HEIGHT_POST;
