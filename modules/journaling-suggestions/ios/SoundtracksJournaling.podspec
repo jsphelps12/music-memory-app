@@ -1,5 +1,7 @@
 Pod::Spec.new do |s|
-  s.name           = 'JournalingSuggestions'
+  # Not "JournalingSuggestions": the pod's module would shadow Apple's
+  # framework of that name, and `import JournalingSuggestions` would find it.
+  s.name           = 'SoundtracksJournaling'
   s.version        = '1.0.0'
   s.summary        = "Apple's Journaling Suggestions picker as a way into capture"
   s.description    = "Expo module: presents Apple's Journaling Suggestions picker (iOS 17.2+, on a device) and returns what the person picked (songs, photos, places, people, the date) as plain JSON"
@@ -25,8 +27,11 @@ Pod::Spec.new do |s|
   }
   # The framework is iOS 17.2+ and only in the device SDK (the simulator SDK
   # has none), so it's weak-linked for device builds only: the app still
-  # launches on iOS 16.4, and simulator builds never look for it.
+  # launches on iOS 16.4, and simulator builds never look for it. Through a
+  # setting of our own: RNSentry already sets OTHER_LDFLAGS[sdk=iphoneos*],
+  # and CocoaPods can't merge two values for a conditional setting.
   s.user_target_xcconfig = {
-    'OTHER_LDFLAGS[sdk=iphoneos*]' => '$(inherited) -weak_framework JournalingSuggestions'
+    'ST_JOURNALING_LDFLAGS[sdk=iphoneos*]' => '-weak_framework JournalingSuggestions',
+    'OTHER_LDFLAGS' => '$(inherited) $(ST_JOURNALING_LDFLAGS)'
   }
 end
