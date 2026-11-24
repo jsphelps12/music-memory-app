@@ -390,7 +390,14 @@ A pass over everything before 1.5 goes to review, mostly over the air:
 - The rest of the color cleanup: over-image glass tokens, one shadow token,
   a lint rule against hex colors in screens.
 - Small journals: Rediscover and Insights show a teaser instead of
-  emptiness when there are only a few moments.
+  emptiness when there are only a few moments. **Built 2026-11-24 (update to
+  1.4.1):** a "Coming up" section (`lib/comingUp.ts`,
+  `components/ComingUpRows.tsx`). Rediscover, while no moment is a year old:
+  the first moment coming back on this day (its date), the weekly rewind's
+  start while everything is from this month, and when the year in review
+  opens or how many more moments it needs. Insights: each section not shown
+  yet with how many more moments it needs; a section with enough moments
+  but no clear pattern is never promised. Rows go away as they unlock.
 - Reading the archive: search across words, songs and people, and browsing
   that makes old moments easy to land on.
 - Josh's list from using 1.4.1 day to day (added as it comes).
