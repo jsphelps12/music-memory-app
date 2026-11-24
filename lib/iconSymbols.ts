@@ -58,6 +58,7 @@ export const ICON_SYMBOLS = {
   // Not measured like the others yet: sized by eye against the Ionicons glyph.
   mic: { symbol: "mic.fill", box: 1.05 },
   "mic-outline": { symbol: "mic", box: 1.05 },
+  "mic-off-outline": { symbol: "mic.slash", box: 1.05 },
   "musical-note": { symbol: "music.note", box: 1.04 },
   "musical-note-outline": { symbol: "music.note", box: 1.04 },
   "musical-notes": { symbol: "music.note", box: 1.04 },
