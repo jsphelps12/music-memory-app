@@ -26,6 +26,7 @@ What faceless app accounts post, and what the clips copy:
 - **TikTok's own caption look.** White text, black outline, upper middle, casual lowercase, a few words. Pills, boxes and serif headlines read as an ad.
 - **No end card or logo.** The last slide names the app in the same text.
 - **Hard cuts, slow push-in on photos.** Something moves every 2–3 seconds.
+- **Loops** (`loop: true`) end on the first photo pushing back out, so a replay is seamless: rewatches are one of the strongest signals.
 - **Photo Mode too.** Every story also exports its slides (`out/<id>-slides/1.jpg…`) for a swipeable carousel, the format most recommended for apps; add the song in TikTok.
 
 ## Editing a clip

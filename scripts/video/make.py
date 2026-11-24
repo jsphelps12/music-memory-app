@@ -469,8 +469,31 @@ def draw_story_text(text, path, center_y=STORY_TEXT_Y, size=72):
     img.save(path)
 
 
+def photo_grid(path, cols=3, gap=6):
+    """A camera roll: every sample photo in square tiles, taller than the
+    frame so it can scroll past (a "before" with too many photos)."""
+    names = sorted(p.stem for p in (VIDEOS / "photos").glob("*.jpg"))
+    names = (names * 3)[:cols * 18]
+    tile = (W - gap * (cols - 1)) // cols
+    rows = (len(names) + cols - 1) // cols
+    grid = Image.new("RGB", (W, rows * (tile + gap)), "white")
+    for i, name in enumerate(names):
+        img = Image.open(VIDEOS / "photos" / f"{name}.jpg").convert("RGB")
+        side = min(img.size)
+        img = img.crop(((img.width - side) // 2, (img.height - side) // 2,
+                        (img.width + side) // 2, (img.height + side) // 2)).resize((tile, tile), Image.LANCZOS)
+        grid.paste(img, ((i % cols) * (tile + gap), (i // cols) * (tile + gap)))
+    grid.save(path, quality=90)
+    return grid.height
+
+
 def compose_story(clip, hashtags):
-    slides = clip["slides"]
+    slides = list(clip["slides"])
+    if clip.get("loop"):
+        # End on the opening photo pushing back out to its very first frame,
+        # so the restart is seamless and the video reads as one continuous loop.
+        first = slides[0]
+        slides.append({**first, "seconds": float(clip.get("loop_seconds", 1.4)), "push": "out"})
     print(f"── Composing {clip['id']} (story, {len(slides)} slides)")
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
@@ -486,13 +509,26 @@ def compose_story(clip, hashtags):
         for i, s in enumerate(slides):
             text_png = tmp / f"text{i}.png"
             draw_story_text(s["text"], text_png, int(s.get("y", STORY_TEXT_Y)), int(s.get("size", 72)))
-            if s.get("photo"):
+            if s.get("grid"):
+                length = float(s.get("seconds", 2.6))
+                photo = tmp / f"grid{i}.jpg"
+                gh = photo_grid(photo)
+                k = add(["-loop", "1", "-framerate", str(FPS), "-t", f"{length}", "-i", str(photo)])
+                # Scroll down the camera roll, like a thumb flicking through it.
+                f.append(f"[{k}:v]crop={W}:{H}:0:'({gh}-{H})*t/{length}',setsar=1,fps={FPS},"
+                         f"trim=duration={length},setpts=PTS-STARTPTS,format=rgba[p{i}]")
+                still = tmp / f"gridstill{i}.jpg"
+                Image.open(photo).crop((0, 0, W, H)).save(still)
+                stills.append(("photo", still, None))
+            elif s.get("photo"):
                 length = float(s.get("seconds", 2.4))
                 photo = tmp / f"photo{i}.jpg"
                 cover_photo(s["photo"], photo)
                 k = add(["-loop", "1", "-framerate", str(FPS), "-t", f"{length}", "-i", str(photo)])
-                # Push in: scale up over the slide, crop the centre back to the frame.
-                f.append(f"[{k}:v]scale=w='trunc({W}*(1+{STORY_PUSH}*t/{length})/2)*2':h=-2:eval=frame,"
+                # Push in (or out, for a loop's last slide): scale over the slide,
+                # crop the centre back to the frame.
+                grow = f"t/{length}" if s.get("push", "in") == "in" else f"(1-t/{length})"
+                f.append(f"[{k}:v]scale=w='trunc({W}*(1+{STORY_PUSH}*{grow})/2)*2':h=-2:eval=frame,"
                          f"crop={W}:{H},setsar=1,fps={FPS},trim=duration={length},setpts=PTS-STARTPTS,format=rgba[p{i}]")
                 stills.append(("photo", photo, None))
             else:
@@ -524,7 +560,8 @@ def compose_story(clip, hashtags):
         if slide_dir.exists():
             shutil.rmtree(slide_dir)
         slide_dir.mkdir()
-        for i, (kind, src, length) in enumerate(stills):
+        # A loop's closing slide repeats the first; the carousel doesn't need it.
+        for i, (kind, src, length) in enumerate(stills[:len(clip["slides"])]):
             frame = tmp / f"frame{i}.png"
             if kind == "photo":
                 Image.open(src).convert("RGBA").save(frame)

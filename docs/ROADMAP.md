@@ -515,6 +515,9 @@ The starred ones bring the app to you, which serves the north star:
   two each: timeline ("one song from every year"), fill-in-the-blank
   prompt (built for comments), and feature list ("an app for people
   who…"). Next: post them and compare where people stop watching.
+  Batch 3 from research on hooks and formats: seamless loops (rewatches),
+  POV, before/after (a camera roll scrolling past), and a part 1 / part 2
+  series. 32 clips in all.
 
 ## Where things stood (2026-11-17)
 

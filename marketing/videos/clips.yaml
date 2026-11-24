@@ -6,7 +6,9 @@
 # STORY (what we post): `slides`, in order. A slide is a real-life photo
 # (`photo:` a file in photos/, `seconds:`) or a piece of a shot (`shot:` with
 # from/to/speed/zoom/focus as below), each with its `text` (optional `y` for
-# where it sits, `size` for the type size, default 72). The format faceless
+# where it sits, `size` for the type size, default 72). `grid: true` instead
+# of a photo scrolls a camera roll of all the photos. `loop: true` on a clip
+# ends it on its first photo pushing back out, so the replay is seamless. The format faceless
 # app accounts use: life first, a specific mid-story line in TikTok's own
 # caption look (white, black outline, upper middle, casual lowercase), the app
 # as the payoff, its name on the last slide. No end card. Also exports the
@@ -254,3 +256,74 @@ clips:
       - { shot: journal-scroll, from: 3.0, to: 24.0, speed: 8, text: "years of it, one song at a time" }
       - { shot: search-festival, from: 22.5, to: 24.3, text: "it's called soundtracks\n(free on iphone)" }
     caption: "the most romanticize-your-life app there is. agree?"
+
+  # ── Batch 3 (2026-11-24): formats from the research.
+  # LOOP: the same stories, ending where they began so the replay is seamless.
+  - id: wedding-loop
+    loop: true
+    slides:
+      - { photo: wedding-1, seconds: 2.4, text: "every wedding ends with mr. brightside and you know it" }
+      - { photo: wedding-2, seconds: 1.8, text: "the whole room screaming the second verse" }
+      - { shot: open-moment, from: 1.6, to: 4.0, text: "now the song lives with the photos" }
+      - { shot: open-moment, from: 5.0, to: 6.6, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what's the song that ends every wedding you go to?"
+
+  - id: snow-loop
+    loop: true
+    slides:
+      - { photo: cabin-2, seconds: 2.4, text: "some songs only sound right when it's snowing" }
+      - { photo: cabin-1, seconds: 1.8, text: "holocene, 7am, everyone else still asleep" }
+      - { shot: search-snow, from: 18.0, to: 20.4, text: "saved the exact morning it belonged to" }
+      - { shot: search-snow, from: 21.8, to: 23.4, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "which song sounds like winter to you?"
+
+  - id: dads-truck-loop
+    loop: true
+    slides:
+      - { photo: truck-1, seconds: 2.4, text: "the song from your dad's truck every summer" }
+      - { shot: rediscover-search, from: 10.4, to: 12.2, y: 1100, text: "type \"dad\"" }
+      - { shot: rediscover-search, from: 16.4, to: 19.0, text: "and every summer comes back" }
+      - { shot: rediscover-search, from: 19.4, to: 21.0, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what song does your dad turn up every time?"
+
+  # POV: the app on screen inside two seconds.
+  - id: pov-found-it
+    slides:
+      - { shot: journal-scroll, from: 0, to: 1.8, size: 76, text: "pov: you finally found where to keep the song from every big moment" }
+      - { shot: open-moment, from: 1.6, to: 4.2, text: "the song, the photos, what it meant" }
+      - { shot: rediscover-search, from: 10.4, to: 12.2, y: 1100, text: "search anyone. get the songs back." }
+      - { shot: journal-scroll, from: 3.0, to: 24.0, speed: 8, text: "years of it, one song at a time" }
+      - { shot: search-knew, from: 21.6, to: 23.4, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what's the first song you'd save?"
+
+  # BEFORE / AFTER: the camera roll problem, then the same memory kept.
+  - id: before-after
+    slides:
+      - { grid: true, seconds: 2.8, size: 76, text: "4,000 photos and you can't remember which song was playing" }
+      - { photo: wedding-1, seconds: 1.4, text: "you remember this night" }
+      - { shot: open-moment, from: 1.6, to: 4.4, text: "now the song lives right next to it" }
+      - { shot: open-moment, from: 5.0, to: 6.8, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "how many photos are in your camera roll right now?"
+
+  # SERIES: part 1 promises part 2 (pin a comment pointing to it once it's up).
+  - id: twenties-part-1
+    slides:
+      - { photo: berlin-1, seconds: 2.2, size: 80, text: "the songs from your 20s, part 1" }
+      - { photo: berlin-1, seconds: 1.1, size: 96, text: "2019\nheroes" }
+      - { photo: road-2, seconds: 1.1, size: 96, text: "2021\ncountry roads" }
+      - { photo: road-1, seconds: 1.1, size: 96, text: "2022\nlife is a highway" }
+      - { photo: grad-1, seconds: 1.1, size: 96, text: "2022\nlandslide" }
+      - { shot: journal-scroll, from: 3.0, to: 24.0, speed: 8, text: "every one saved in one app" }
+      - { shot: journal-scroll, from: 24.5, to: 26.3, size: 76, text: "part 2 tomorrow" }
+    caption: "part 1. what was your song in 2019?"
+
+  - id: twenties-part-2
+    slides:
+      - { photo: campfire-1, seconds: 2.2, size: 80, text: "the songs from your 20s, part 2" }
+      - { photo: campfire-1, seconds: 1.1, size: 96, text: "2023\nho hey" }
+      - { photo: concert-1, seconds: 1.1, size: 96, text: "2024\neverlong" }
+      - { photo: winter-1, seconds: 1.1, size: 96, text: "2025\nmotion sickness" }
+      - { photo: wedding-1, seconds: 1.3, size: 96, text: "2026\nmr. brightside" }
+      - { shot: open-moment, from: 1.6, to: 4.2, text: "every one saved with the photos" }
+      - { shot: open-moment, from: 5.0, to: 6.8, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "part 2. what's your song for this year?"
