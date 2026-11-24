@@ -26,6 +26,7 @@ import { SectionLabel } from "@/components/SectionLabel";
 import { Button } from "@/components/Button";
 import { ListRow } from "@/components/ListRow";
 import { AppLockRow } from "@/components/AppLockRow";
+import { WidgetWordsRow } from "@/components/WidgetWordsRow";
 import { exportJournalPdf } from "@/lib/journalExportDevice";
 import { moodLabel } from "@/lib/moodLabels";
 import { MOODS } from "@/constants/Moods";
@@ -236,7 +237,8 @@ export default function SettingsScreen() {
 
         <SectionLabel style={[styles.groupLabel, styles.groupLabelSpaced]}>Privacy</SectionLabel>
         <View style={styles.list}>
-          <AppLockRow last />
+          <AppLockRow />
+          <WidgetWordsRow last />
         </View>
 
         <SectionLabel style={[styles.groupLabel, styles.groupLabelSpaced]}>Support</SectionLabel>

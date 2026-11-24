@@ -64,7 +64,7 @@ const CAPTURE_METHODS = [
   {
     icon: "apps-outline",
     label: "Home Screen and Lock Screen widgets",
-    desc: "One tap from anywhere on your phone to capture, or to identify what's playing.",
+    desc: "One tap from anywhere on your phone to capture, or to identify what's playing. The “A moment a day” widget brings back one of your moments each day; tap it to play its film.",
   },
   {
     icon: "toggle-outline",

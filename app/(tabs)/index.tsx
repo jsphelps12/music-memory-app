@@ -88,6 +88,7 @@ import { MenuButton } from "@/modules/context-menu";
 import { DailyCheckInOffer } from "@/components/DailyCheckInOffer";
 import { LastWeekRow } from "@/components/LastWeekRow";
 import { useLastWeek } from "@/hooks/useLastWeek";
+import { useMemoryWidget } from "@/hooks/useMemoryWidget";
 import { lastWeekRowState } from "@/lib/lastWeek";
 import { Album, Moment, MomentCardData } from "@/types";
 
@@ -142,6 +143,8 @@ function scrollToMoment(list: SectionList, sectionIndex: number, itemIndex: numb
 export default function TimelineScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
+  // The Home Screen widget's week of moments, from the whole library.
+  useMemoryWidget();
   // One Journal offer at a time: the check-in offer waits while Last week's
   // access ask is up (or still loading). Shares LastWeekRow's query.
   const { data: lastWeek, isPending: lastWeekPending } = useLastWeek({ passive: true });

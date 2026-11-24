@@ -16,7 +16,7 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
   ...storage,
 }));
 
-const { SIGN_OUT_KEYS, clearSignOutKeys, isSignOutKey } = await import("../signOutKeys");
+const { SIGN_OUT_KEYS, SIGN_OUT_PREFIXES, clearSignOutKeys, isSignOutKey } = await import("../signOutKeys");
 
 /** Files whose device-local records aren't keyed by user id. */
 const OWNERS = [
@@ -63,6 +63,12 @@ describe("SIGN_OUT_KEYS", () => {
     const { snapshotKey } = await import("../lastWeekSnapshots");
     for (const key of Object.values(fromBeforeKeys("u1"))) expect(isSignOutKey(key)).toBe(true);
     expect(isSignOutKey(snapshotKey("2026-11-16"))).toBe(true);
+  });
+
+  it("covers the Memory widget's per-user records", async () => {
+    const { widgetKeys, WIDGET_KEY_PREFIX } = await import("../widgetSettings");
+    expect(SIGN_OUT_PREFIXES).toContain(WIDGET_KEY_PREFIX);
+    for (const key of Object.values(widgetKeys("u1"))) expect(isSignOutKey(key)).toBe(true);
   });
 
   it("keeps the device-wide keys", () => {

@@ -166,3 +166,51 @@ export function monotonicMs(): number {
     return Date.now();
   }
 }
+
+// Memory widget (1.5): the App Group container the widget extension reads.
+// Every call is a no-op (false / null) on a binary without the native
+// functions, so the JS can ship ahead of the 1.5 build.
+
+/**
+ * Writes the widget's JSON (`widget/moments.json`) and copies each image
+ * (file name → local file URI) into `widget/images/`, downsampled to 300 px.
+ * Images the new file doesn't name are removed. False when it couldn't.
+ */
+export async function writeWidgetData(json: string, images: Record<string, string>): Promise<boolean> {
+  try {
+    if (typeof NowPlayingNative.writeWidgetData !== "function") return false;
+    await NowPlayingNative.writeWidgetData(json, images);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Deletes the widget's file and images (sign-out, account deletion). */
+export async function clearWidgetData(): Promise<boolean> {
+  try {
+    if (typeof NowPlayingNative.clearWidgetData !== "function") return false;
+    await NowPlayingNative.clearWidgetData();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Asks iOS to rebuild every widget's timeline from the files. */
+export async function reloadWidgets(): Promise<void> {
+  try {
+    if (typeof NowPlayingNative.reloadWidgets !== "function") return;
+    await NowPlayingNative.reloadWidgets();
+  } catch {}
+}
+
+/** The App Group container's path, or null (no group, or an older binary). */
+export async function appGroupPath(): Promise<string | null> {
+  try {
+    if (typeof NowPlayingNative.appGroupPath !== "function") return null;
+    return (await NowPlayingNative.appGroupPath()) ?? null;
+  } catch {
+    return null;
+  }
+}
