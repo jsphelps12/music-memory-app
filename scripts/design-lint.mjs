@@ -32,6 +32,11 @@ const RULES = [
     re: /rgba\(\s*(0\s*,\s*0\s*,\s*0|255\s*,\s*255\s*,\s*255)\s*,/,
   },
   {
+    id: "literal-color",
+    why: "Colors come from the theme: theme.colors (per mode), theme.overImage (over artwork and photos), lightColors/darkColors (a fixed palette), theme.shadows (float, artworkLift).",
+    re: /["']#[0-9a-fA-F]{3,8}["']|rgba?\(\s*\d/,
+  },
+  {
     id: "literal-font",
     why: "Fonts come from theme.fonts or theme.typography, not literal family strings.",
     re: /["'](DMSans_|DMSerifDisplay_|Newsreader_)\w*["']/,

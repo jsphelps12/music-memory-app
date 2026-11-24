@@ -11,7 +11,6 @@ import { Theme } from "@/constants/theme";
 // 40pt artwork at 3x; songs carry the 600px detail image.
 const ARTWORK_PX = 120;
 // Night, not pure black, for the float shadow in both themes.
-const SHADOW_INK = "#0E0B0A";
 
 export function MiniPlayer() {
   const theme = useTheme();
@@ -128,11 +127,7 @@ function createStyles(theme: Theme) {
       marginBottom: theme.spacing.sm,
       borderRadius: theme.radii.button,
       backgroundColor: theme.colors.elevated,
-      shadowColor: SHADOW_INK,
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: theme.isDark ? 0.45 : 0.12,
-      shadowRadius: 14,
-      elevation: 6,
+      ...theme.shadows.float,
     },
     mainRow: {
       height: 60,

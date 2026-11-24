@@ -579,7 +579,7 @@ function createStyles(theme: Theme, horizontalPadding: number, compact: boolean)
       width: 22,
       height: 22,
       borderRadius: theme.radii.full,
-      backgroundColor: "rgba(35,34,43,0.72)",
+      backgroundColor: theme.overImage.badge,
       alignItems: "center",
       justifyContent: "center",
     },
