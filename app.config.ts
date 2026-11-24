@@ -74,6 +74,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ...(isPreview ? {} : { associatedDomains: ["applinks:soundtracks.app"] }),
     entitlements: {
       "com.apple.developer.applesignin": ["Default"],
+      // Apple's Journaling Suggestions picker (1.5, "Your day";
+      // modules/journaling-suggestions). A capability, no request to Apple:
+      // signing turns it on for the App ID of either variant.
+      "com.apple.developer.journal.allow": true,
       "com.apple.security.application-groups": [
         isPreview
           ? "group.com.joshuaphelps.musicmemory.preview"
