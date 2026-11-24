@@ -2,8 +2,8 @@ import { requireOptionalNativeModule } from "expo";
 import type { RawSuggestion } from "@/lib/yourDay";
 
 // Apple's Journaling Suggestions picker (1.5, "Your day (Apple)"). Null-safe:
-// a binary without the module (before 1.5), the simulator, an iPad or iOS
-// before 17.2 all report unavailable, and the menu row stays hidden.
+// a binary without the module (before 1.5), the simulator or iOS before 17.2
+// all report unavailable, and the menu row stays hidden.
 // What the picker returns stays on the phone: photos are copies in the app's
 // caches, and nothing is saved until the person presses Save in capture.
 

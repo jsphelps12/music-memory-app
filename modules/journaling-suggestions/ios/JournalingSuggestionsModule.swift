@@ -19,7 +19,7 @@ public class JournalingSuggestionsModule: Module {
   public func definition() -> ModuleDefinition {
     Name("JournalingSuggestions")
 
-    // Whether the picker can run here: an iPhone on iOS 17.2+, a device build.
+    // Whether the picker can run here: iOS 17.2+, a device build.
     Function("isAvailable") { () -> Bool in
       JournalingSuggestionsModule.pickerAvailable
     }
@@ -33,11 +33,14 @@ public class JournalingSuggestionsModule: Module {
           promise.reject("no_presenter", "There's no screen to show the picker from")
           return
         }
-        SuggestionPickerSession.start(from: presenter, promise: promise)
+        // runOnQueue(.main) below: this is the main thread.
+        MainActor.assumeIsolated {
+          SuggestionPickerSession.start(from: presenter, promise: promise)
+        }
         return
       }
       #endif
-      promise.reject("unavailable", "Journaling Suggestions needs an iPhone on iOS 17.2 or later")
+      promise.reject("unavailable", "Journaling Suggestions needs iOS 17.2 or later on a device")
     }.runOnQueue(.main)
 
     // Removes every photo copy a pick left behind (sign-out; each pick also
@@ -50,7 +53,7 @@ public class JournalingSuggestionsModule: Module {
   static var pickerAvailable: Bool {
     #if canImport(JournalingSuggestions) && !targetEnvironment(simulator)
     if #available(iOS 17.2, *) {
-      return UIDevice.current.userInterfaceIdiom == .phone
+      return true
     }
     #endif
     return false

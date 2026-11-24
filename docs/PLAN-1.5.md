@@ -269,8 +269,8 @@ opens capture with it filled in; photos and the place come along.
   menu up; a pick reads the suggestion's items in Apple's order and returns
   plain JSON. The framework is only in the device SDK, so the code is behind
   `canImport` + `#if !targetEnvironment(simulator)` + `@available(iOS 17.2)`,
-  weak-linked for device builds; `isAvailable` is false on the simulator, an
-  iPad, iOS before 17.2 and binaries before 1.5 (module missing), and the row
+  weak-linked for device builds; `isAvailable` is false on the simulator,
+  iOS before 17.2 and binaries before 1.5 (module missing), and the row
   is hidden there.
 - What a pick fills (`lib/yourDay.ts`, tested): the first Apple Music song
   (another app's media, iOS 18, only without one) matched in the Apple Music

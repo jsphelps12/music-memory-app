@@ -41,7 +41,7 @@ const CAPTURE_METHODS = [
   {
     icon: "journal-outline",
     label: "Your day",
-    desc: "Hold + and choose Your day (Apple) to pick from Apple's Journaling Suggestions: a song you played, photos, a place you went, who you were with. Capture opens with them filled in; nothing is saved until you do. iPhone, iOS 17.2 and later.",
+    desc: "Hold + and choose Your day (Apple) to pick from Apple's Journaling Suggestions: a song you played, photos, a place you went, who you were with. Capture opens with them filled in; nothing is saved until you do. On iOS 17.2 and later.",
   },
   {
     icon: "time-outline",
