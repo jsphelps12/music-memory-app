@@ -449,11 +449,11 @@ def cover_photo(name, path):
     img.resize((W, H), Image.LANCZOS).save(path, quality=92)
 
 
-def draw_story_text(text, path, center_y=STORY_TEXT_Y):
+def draw_story_text(text, path, center_y=STORY_TEXT_Y, size=72):
     """White text with a black outline: TikTok's default caption look."""
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    font, lines, lh = fit_text(d, text, SANS_BOLD, 72, 48, W - 160, 560, leading=1.2, balanced=True)
+    font, lines, lh = fit_text(d, text, SANS_BOLD, size, 48, W - 160, 700, leading=1.2, balanced=True)
     stroke = max(4, font.size // 11)
     y = center_y - len(lines) * lh // 2
     # A soft shadow under the outline keeps it legible on bright photos too.
@@ -485,7 +485,7 @@ def compose_story(clip, hashtags):
         lengths, stills = [], []
         for i, s in enumerate(slides):
             text_png = tmp / f"text{i}.png"
-            draw_story_text(s["text"], text_png, int(s.get("y", STORY_TEXT_Y)))
+            draw_story_text(s["text"], text_png, int(s.get("y", STORY_TEXT_Y)), int(s.get("size", 72)))
             if s.get("photo"):
                 length = float(s.get("seconds", 2.4))
                 photo = tmp / f"photo{i}.jpg"

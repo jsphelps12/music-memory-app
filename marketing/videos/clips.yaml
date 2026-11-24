@@ -5,7 +5,8 @@
 #
 # STORY (what we post): `slides`, in order. A slide is a real-life photo
 # (`photo:` a file in photos/, `seconds:`) or a piece of a shot (`shot:` with
-# from/to/speed/zoom/focus as below), each with its `text`. The format faceless
+# from/to/speed/zoom/focus as below), each with its `text` (optional `y` for
+# where it sits, `size` for the type size, default 72). The format faceless
 # app accounts use: life first, a specific mid-story line in TikTok's own
 # caption look (white, black outline, upper middle, casual lowercase), the app
 # as the payoff, its name on the last slide. No end card. Also exports the
@@ -190,3 +191,66 @@ clips:
       - { shot: search-graduation, from: 18.9, to: 20.7, text: "it's called soundtracks\n(free on iphone)" }
     caption: "what song makes your mom cry?"
 
+  # ── Format tests (2026-11-24): the 19 stories above are the control.
+  # TIMELINE: a list, one year or chapter per photo, fast cuts, then the journal.
+  - id: every-year
+    slides:
+      - { photo: wedding-2, seconds: 2.0, size: 80, text: "pov: you saved one song from every year" }
+      - { photo: berlin-1, seconds: 0.9, size: 96, text: "2019\nheroes" }
+      - { photo: road-2, seconds: 0.9, size: 96, text: "2021\ncountry roads" }
+      - { photo: grad-1, seconds: 0.9, size: 96, text: "2022\nlandslide" }
+      - { photo: campfire-1, seconds: 0.9, size: 96, text: "2023\nho hey" }
+      - { photo: concert-1, seconds: 0.9, size: 96, text: "2024\neverlong" }
+      - { photo: winter-1, seconds: 0.9, size: 96, text: "2025\nmotion sickness" }
+      - { photo: wedding-1, seconds: 1.1, size: 96, text: "2026\nmr. brightside" }
+      - { shot: journal-scroll, from: 3.0, to: 24.0, speed: 8, text: "all of it, in one place" }
+      - { shot: journal-scroll, from: 24.5, to: 26.3, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what's your song for this year?"
+
+  - id: every-chapter
+    slides:
+      - { photo: road-1, seconds: 2.0, size: 80, text: "a song for every chapter" }
+      - { photo: grad-1, seconds: 1.0, text: "graduation\nlandslide" }
+      - { photo: berlin-1, seconds: 1.0, text: "first trip alone\nheroes" }
+      - { photo: concert-1, seconds: 1.0, text: "front row, finally\neverlong" }
+      - { photo: winter-1, seconds: 1.0, text: "the winter alone\nmotion sickness" }
+      - { photo: lake-1, seconds: 1.0, text: "the night you knew\nhome" }
+      - { photo: wedding-1, seconds: 1.2, text: "the wedding\nmr. brightside" }
+      - { shot: open-moment, from: 1.6, to: 4.4, text: "every one saved with the photos" }
+      - { shot: open-moment, from: 5.0, to: 6.8, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what song is your current chapter?"
+
+  # PROMPT: an unfinished line built for comments, then someone saving theirs.
+  - id: prompt-dad
+    slides:
+      - { photo: truck-1, seconds: 3.4, size: 80, text: "the song you can't hear without thinking of your dad:\n________" }
+      - { shot: capture, from: 18.0, to: 21.2, speed: 1.3, y: 940, text: "save yours before you forget it" }
+      - { shot: capture, from: 25.6, to: 27.4, y: 330, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "comment yours."
+
+  - id: prompt-17
+    slides:
+      - { photo: coast-1, seconds: 3.4, size: 80, text: "the song from the summer you were 17:\n________" }
+      - { shot: capture, from: 18.0, to: 21.2, speed: 1.3, y: 940, text: "write down why, while you still remember" }
+      - { shot: capture, from: 25.6, to: 27.4, y: 330, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "comment yours and the year."
+
+  # FEATURE LIST: a hook naming a kind of person, then numbered features.
+  - id: app-for-people-who
+    slides:
+      - { photo: vinyl-1, seconds: 2.2, size: 80, text: "an app for people who attach a memory to every song" }
+      - { shot: capture, from: 10.8, to: 12.6, y: 1180, text: "1. save the song" }
+      - { shot: capture, from: 18.0, to: 21.2, speed: 1.3, y: 940, text: "2. write one line about it" }
+      - { shot: rediscover-search, from: 10.4, to: 12.4, y: 1100, text: "3. search a person, get the songs back" }
+      - { shot: journal-scroll, from: 3.0, to: 24.0, speed: 8, text: "4. scroll back years" }
+      - { shot: open-moment, from: 5.0, to: 6.8, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "what song would you save first?"
+
+  - id: romanticize
+    slides:
+      - { photo: festival-1, seconds: 2.2, size: 80, text: "if you romanticize your life, you need this app" }
+      - { shot: search-snow, from: 18.0, to: 20.4, text: "every song keeps its photos" }
+      - { shot: rediscover-search, from: 10.4, to: 12.4, y: 1100, text: "search \"dad\", get every summer back" }
+      - { shot: journal-scroll, from: 3.0, to: 24.0, speed: 8, text: "years of it, one song at a time" }
+      - { shot: search-festival, from: 22.5, to: 24.3, text: "it's called soundtracks\n(free on iphone)" }
+    caption: "the most romanticize-your-life app there is. agree?"

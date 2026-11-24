@@ -511,6 +511,10 @@ The starred ones bring the app to you, which serves the north star:
   app accounts post and switched to photo stories (real-life photo + native
   white-outlined caption → the app as payoff, no end card), 9 clips, each
   also exported as Photo Mode slides.
+  2026-11-24: 19 photo stories (the control) plus three formats to test,
+  two each: timeline ("one song from every year"), fill-in-the-blank
+  prompt (built for comments), and feature list ("an app for people
+  who…"). Next: post them and compare where people stop watching.
 
 ## Where things stood (2026-11-17)
 
