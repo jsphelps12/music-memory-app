@@ -89,6 +89,10 @@ Deno.serve(async (req) => {
   const { failed } = await removeAllUnder(adminClient, userId);
   if (failed > 0) return cleanupFailed();
 
+  // 2b. Their voice recordings (moment-voice/{user_id}/, a private bucket).
+  const voice = await removeAllUnder(adminClient, userId, "moment-voice");
+  if (voice.failed > 0) return cleanupFailed();
+
   // 3. Delete the auth user — cascades to profiles, moments, collections,
   //    collection_moments, occasions (and their entries and gallery rows),
   //    and any other tables with ON DELETE CASCADE
