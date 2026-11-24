@@ -220,9 +220,16 @@ The working plan, with how each piece is built and the open decisions:
   files kept in Documents/capture-outbox by `lib/outboxFiles.ts`), the flush
   with backoff and rejected items (`lib/outboxFlush.ts`), `hooks/useOutbox.ts`,
   and `saveMoment` taking a caller-picked id so a retry of a landed save
-  succeeds. Still to do: the UI wiring (capture queues and closes with a
-  toast, the Journal's pending rows, `startOutboxFlushing` in the signed-in
-  root, sign-out asks first and clears it).
+  succeeds. **UI wired 2026-11-23** (same branch, JavaScript only, ships over
+  the air to build 16): capture picks the moment id up front and, with no
+  connection or a save that fails for a reason a retry fixes, queues it,
+  drops its draft and closes with "Saved on your phone. It'll go up when
+  you're back online."; the Journal shows waiting moments above the first
+  month (`components/OutboxCard.tsx`; refused ones get Try again / Discard);
+  `startOutboxFlushing` runs in the signed-in root (`lib/outboxSaved.ts`
+  refreshes the caches and the Journal and sends `moment_created` with
+  `from_outbox`); Settings asks before signing out with moments waiting.
+  Needs the phone checks in docs/PLAN-1.5.md §5 before it goes out.
 - [ ] **The part of the song** (on the polish list after build 16, Josh
   2026-11-19; decided 2026-11-23: one point, not a stretch, no looping, no
   lyrics). **Built 2026-11-23** (`lib/songPart.ts`, `components/SongPartSheet.tsx`,
