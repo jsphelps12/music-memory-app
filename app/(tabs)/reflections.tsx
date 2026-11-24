@@ -25,6 +25,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { MomentCard } from "@/components/MomentCard";
 import { MomentSearch } from "@/components/MomentSearch";
+import { topPeople } from "@/lib/archiveSearch";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ListRow } from "@/components/ListRow";
 import { PersonPicker, pickerHasSearch } from "@/components/PersonPicker";
@@ -405,6 +406,7 @@ export default function ReflectionsScreen() {
   // A journal under a year old: what comes back here and when (lib/comingUp.ts).
   const comingUp = useMemo(() => rediscoverComingUp(meta, new Date(todayKey + "T00:00:00")), [meta, todayKey]);
   const topArtists = useMemo(() => deriveTopArtists(meta), [meta]);
+  const topPeopleNames = useMemo(() => topPeople(meta), [meta]);
 
   // Weekly Rewind: the ISO-week seed picks one past month from the library.
   const rewindMonthKey = useMemo(() => {
@@ -588,7 +590,7 @@ export default function ReflectionsScreen() {
       <TextField
         ref={searchInputRef}
         icon="search"
-        placeholder="Search songs, artists, reflections"
+        placeholder="Search songs, people, places, words"
         value={searchText}
         onChangeText={(t) => { setSearchText(t); if (!searchActive) setSearchActive(true); }}
         onFocus={() => setSearchActive(true)}
@@ -604,27 +606,41 @@ export default function ReflectionsScreen() {
       />
 
       {showSuggestions ? (
-        // Nothing typed yet: offer the artists you write about most instead
-        // of repeating the placeholder. One tap searches.
-        topArtists.length > 0 ? (
+        // Nothing typed yet: offer the artists and people you write about
+        // most instead of repeating the placeholder. One tap searches.
+        topArtists.length > 0 || topPeopleNames.length > 0 ? (
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.suggestions}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           >
-            <SectionLabel>Your artists</SectionLabel>
-            <View style={styles.suggestionChips}>
-              {topArtists.map((artist) => (
-                <Chip key={artist} label={artist} onPress={() => setSearchText(artist)} />
-              ))}
-            </View>
+            {topArtists.length > 0 ? (
+              <View style={styles.suggestionGroup}>
+                <SectionLabel>Your artists</SectionLabel>
+                <View style={styles.suggestionChips}>
+                  {topArtists.map((artist) => (
+                    <Chip key={artist} label={artist} onPress={() => setSearchText(artist)} />
+                  ))}
+                </View>
+              </View>
+            ) : null}
+            {topPeopleNames.length > 0 ? (
+              <View style={styles.suggestionGroup}>
+                <SectionLabel>People</SectionLabel>
+                <View style={styles.suggestionChips}>
+                  {topPeopleNames.map((name) => (
+                    <Chip key={name} label={name} onPress={() => setSearchText(name)} />
+                  ))}
+                </View>
+              </View>
+            ) : null}
           </ScrollView>
         ) : (
           <View style={styles.scroll} />
         )
       ) : searchActive ? (
-        <MomentSearch query={searchText} userId={user?.id ?? ""} />
+        <MomentSearch query={searchText} userId={user?.id ?? ""} meta={meta} allMoods={allMoods} />
       ) : (
         <ScrollView
           style={styles.scroll}
@@ -875,11 +891,14 @@ function createStyles(theme: Theme) {
       paddingTop: theme.spacing.lg,
       paddingBottom: 120,
     },
+    suggestionGroup: {
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing.xl,
+    },
     suggestionChips: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: theme.spacing.sm,
-      marginTop: theme.spacing.sm,
     },
     scroll: { flex: 1 },
     scrollContent: {

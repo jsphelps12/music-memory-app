@@ -11,3 +11,9 @@ export const MOMENT_CARD_COLUMNS =
  * Keep in step with MOMENT_CARD_COLUMNS and mapRowToMoment.
  */
 export const YEAR_REVIEW_COLUMNS = `${MOMENT_CARD_COLUMNS}, people, location`;
+
+/**
+ * Archive search results (lib/archiveSearch.ts): card columns plus people and
+ * place, which say why a result matched ("With Sam", "At Ocean Beach").
+ */
+export const MOMENT_SEARCH_COLUMNS = `${MOMENT_CARD_COLUMNS}, people, location`;
