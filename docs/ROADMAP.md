@@ -55,8 +55,126 @@ after the film, crash guards (context menu, ShazamKit tap, share patch),
 image orientation for on-device AI, lighter film preload and poster
 timeout, Shazam/Spotify races, library sort. If App Review rejects build 12
 over the prompts, this becomes 1.4.0 build 13 instead.
+**Decided 2026-11-18 (Josh):** build 13 goes in as **1.4.0 (13)** and
+replaces build 12 in App Review once it passes on his phone (its prompts are
+the review risk). If 12 is approved first, 13 ships as 1.4.1. The min-build
+gate goes straight to 13 once it's live in the store (not 10): about 8
+people are still on 1.2.0 and auto-update hasn't moved them; DB-2 and the
+shared view follow that raise.
+Status 2026-11-18: all of it written and a release simulator build
+compiles. Still to do: Josh approves the prompt wording, turns on
+Associated Domains for the store App ID and makes soundtracks.app the
+primary domain on Vercel (done 2026-11-18: apex serves the AASA directly, www 308s to apex); album invite links (/c/…)
+now open the join screen and www links are accepted; links are claimed by
+the store app only (not β). Then a device build and TestFlight.
+**Insights, step 1 (Josh 2026-11-20, OTA with the three-tab layout):** what
+the journal says about you, computed on the phone from the browse metadata
+already loaded (`lib/insights.ts`, tested; no streaks). You shows a preview
+(totals line + top three artists as artwork, "See all"); `app/insights.tsx`
+has Most written about (artists with artwork → artist screen), Featuring
+(tagged people → their moments) and Moods (ranked words with a quiet ink
+bar → mood browse); a section with nothing to say is left out, and under 3
+moments it says insights show up as the journal grows.
+- Principle (Josh): **powerful and digestible**. One idea per section, a
+  line you can take in at a glance; depth only when you tap in.
+- [ ] Next, in order (decided 2026-11-20, as OTAs while 1.4.1 is in review):
+  1. **Save more song data at capture** from the lookup already made: genre
+     (Apple's genreNames), release date, artist id, album id, ISRC, duration,
+     plus how the moment was captured (now playing, Shazam, search, share,
+     widget, nudge). Nullable columns (old builds ignore them) and a one-time
+     backfill from the server (needs Josh's go). Library data (play counts,
+     date added) stays on device: insights may read it locally, never upload.
+     **Built 2026-11-20 (merged into native/1.4.1; migration applied to
+     prod via PR 117, which also hides capture_source in the shared view):** `20261120120000_song_metadata.sql` adds nullable
+     `song_genre` (iTunes primaryGenreName), `song_release_date`,
+     `song_artist_id`, `song_album_id`, `song_duration_ms` and
+     `capture_source` (CHECK: now_playing, identify, search, share, widget,
+     nudge, last_week, from_before, draft, other). Create and edit save them
+     from the lookup (`lib/songMetadata.ts`; Spotify songs stay null);
+     `captureSourceFor()` (`lib/captureSource.ts`) picks the source; writes
+     and the browse read retry without the columns until the migration is
+     applied, so the OTA can go first. `fetchBrowseMetadata` carries
+     `songGenre`/`songReleaseDate` for Insights. Backfill:
+     `scripts/backfill-song-metadata.mjs` turns an exported
+     `[{id, song_apple_music_id}]` list into reviewed `update` SQL (no
+     Supabase access). ISRC isn't in the iTunes lookup: deferred to a
+     MusicKit catalog read later. Backfill applied 2026-11-20 (Josh's go):
+     184 of 207 moments now have genre, release date, ids and length (one
+     update per song from the iTunes lookup); 21 have non-catalog ids and 2
+     no Apple id, so they stay empty. `capture_source` is only set going
+     forward. `types/database.ts` regenerated 2026-11-23.
+  2. **Songs that keep coming back** *(built 2026-11-20)*: Insights section,
+     songs in 2+ moments with a when-line ("2019 · 2023 · this year"), hidden
+     when nothing repeats (`comingBack`, `comingBackWhen` in lib/insights.ts).
+  3. **Your soundtrack with a person** *(built 2026-11-20)*: header on the
+     person screen ("N moments together · since …", artists you share or
+     recently together as covers, mood words; lib/personSoundtrack.ts);
+     BrowseScreen gained optional `header` and `summary`.
+  4. **When you write** *(built 2026-11-20)*: time of day, weekday, busiest
+     month as patterns ("Mostly in the evening, often on Sundays"); never
+     days missed. Also built: **What resonates**, top genres and release
+     decades ("Mostly pop and hip-hop/rap", "Mostly the 2010s, with a soft
+     spot for the 70s"); rules and thresholds in lib/insights.ts.
+     **Tap through (Josh 2026-11-23):** genre, decade and time-of-day rows
+     open their moments (`app/browse/insight.tsx`, chips to switch, like
+     Rediscover's mood and year screens); `insightGroups()` counts exactly
+     as the rows do, so the number and the screen agree.
+     Rows that open something carry a chevron, like any ListRow.
+  5. **Eras, version 2:** found in the data, not the calendar: slide a ~6-week
+     window; where one artist dominates, extend the era while they keep
+     dominating; it ends when someone else takes over or moments thin out
+     (real dates, "Mar 12 – May 30 · Bon Iver"); sparse journals fall back to
+     years. Open: can an era be a mood or genre; one headliner per stretch.
+  - Then: what resonates (favorite genres and periods, needs 1), memories vs
+    now, your words, places, moods through the year, narrated observations
+    (on-device AI narrates; never writes the reflection).
+**Three tabs, Yours / Shared (decided with Josh 2026-11-20, OTA to build 16
+before submitting):** Journal | Albums | Rediscover; the tab bar no longer
+swipes. Journal and Albums each swipe between Yours and Shared ("Shared" =
+from other people: moments friends sent you; albums others invited you to),
+and the switch hides for someone with no friends and nothing shared. The
+"new from friends" row became a dot on the Shared label. The header lost
+"Select" (long-press → Select everywhere) and the list/calendar/map toggle
+(one view button with a native menu); an avatar opens You (a pushed screen:
+profile, friends and friend link, Year in review, settings). The + is only
+on the Journal and inside an album (adds to it); Albums has "New album".
+Album tiles long-press to Invite / Rename / Delete or Leave; moments in an
+album long-press to Select / Remove from album / Share (Share only on your
+own), with a select bar (Add to album, Remove from album).
+**Blank Journal after switching accounts (fixed 2026-11-19, OTA to build 16
+and 1.4.0):** signing out from Settings and back in left the Journal blank
+until relaunch (an old tab navigator stayed mounted under sign-in). The auth
+gate now dismisses to a one-screen stack before every redirect;
+`.maestro/switch-account.yaml` covers it, and the e2e sign-in declines the
+simulator's paste prompt (the script also empties its clipboard per flow).
+**Friends and albums missing after switching accounts (2026-11-20, on
+native/1.4.1, not yet OTA'd):** You showed no albums or friend count and Send
+to a person had nobody until relaunch. Sign-out emptied the query cache only at
+the end of its teardown, unconditionally, and TanStack's `clear()` silently
+cancels in-flight queries, leaving a mounted screen with no data and no error.
+The auth listener now empties it in the same tick the account changes
+(`lib/accountBoundary.ts`, tested), and the teardown never clears once another
+account has signed in. `.maestro/switch-account.yaml` now seeds "Road trip" and
+checks You lists it after the switch.
+**Fields and fills (2026-11-19, in build 16):** the color audit
+(`.claude/reviews/2026-11-19-color-audit.md`) found one opaque tan fill on
+every field, chip and secondary button that read beige on paper and vanished
+on sheets (Send pills, picker search). Now one translucent `fill` token; the
+field's icon, placeholder and clear share one AA gray; the caret is
+Terracotta Text; 1pt focus edge; `clearable` search fields; missing artwork
+is a flat tile with a note (the old gradient is gone); action sheets in ink;
+dark `elevated` sits above the sheet; unused tokens deleted. Still to do
+(over the air, later): over-image glass tokens, the shadow token, lint rules
+for hex literals; with a later binary, an app-wide ink tint for Alerts and
+widget colors.
 
 **1.5 (a new native build), in `native/1.5` off `native/1.4`:**
+Scope (Josh, 2026-11-23): Memory widget, voice entries with the recordings
+kept, Siri as the stretch. Not the part of the song set automatically (not
+accurate enough; picking it by hand works).
+Journaling Suggestions waits on the entitlement (ask Apple now).
+The working plan, with how each piece is built and the open decisions:
+`docs/PLAN-1.5.md`.
 - [ ] **Siri: "remember this song"** — an App Intent (Siri, Shortcuts, the
   Action button) saves what's playing without opening the app, screen off;
   a gentle "finish this one" later. Needs an app group and the session in
@@ -64,7 +182,15 @@ over the prompts, this becomes 1.4.0 build 13 instead.
 - [ ] **Journaling Suggestions** — Apple's system picker (as in Apple's
   Journal) offering the day's songs, photos and places, with consent.
   iOS 17.2+; check the entitlement first.
-- [ ] **Voice entries** — speak the reflection, transcribed on device.
+- [ ] **Voice entries** — speak the reflection, transcribed on device;
+  the recording is kept too (Josh, 2026-11-23): your voice plays on the
+  moment and in the film (ducking the song through createMixRestore), and
+  feeds "Your life as a radio show" later. Voice is more personal than a
+  photo, so recordings go in a private bucket with signed URLs (not the
+  public moment-photos bucket), owner-only until shared, a length cap, and
+  deleted with the moment. The transcript is the person's own words, so it
+  can fill the reflection (the "AI never writes it" rule is about
+  generated text).
 - [ ] **Memory widget** — one moment a day on the Home Screen, opening
   into the film.
 
@@ -76,13 +202,51 @@ over the prompts, this becomes 1.4.0 build 13 instead.
   would clutter the top; drafts live in long-press only); a continued draft
   shows "Draft from …"; crashes and iOS kills still save silently. No hidden
   long-press on Save (long-press always opens a menu).
+  Swipe back (Josh 2026-11-23): iOS's back swipe can't be held mid-way, so
+  it finished, showed the Journal, then jumped back to ask. While there's
+  something to keep, the native swipe is off and a left-edge swipe asks in
+  place; after "Keep draft" or "Discard" it leaves.
+  The "Continue a draft" row names the draft's song too ("Dad's truck ·
+  Harvest Moon").
 - [x] **Select moments** (decided 2026-11-18): built 2026-11-18 on native/1.4 with the card menu (Edit, Share, Add to album, Select, Delete; `.maestro/select.yaml`), OTA to 1.4 the same day (group 8419f305) after all three flows passed.: "Select" in the card's
   long-press menu and in the Journal header enters selection mode; tap to
   tick; a bottom bar with Add to album and Delete ("Delete 5 moments?",
   photos deleted too). Journal first, album screens next. The menu stays
   the long-press; selection is one of its actions (as in Photos and Files).
-- [ ] The part of the song: where in the song the moment lives ("the
-  bridge at 2:41"); full playback starts there (`seekToTime` exists).
+- [ ] **The part of the song** (on the polish list after build 16, Josh
+  2026-11-19; decided 2026-11-23: one point, not a stretch, no looping, no
+  lyrics). **Built 2026-11-23** (`lib/songPart.ts`, `components/SongPartSheet.tsx`,
+  column `song_part_ms` in PR 124): a "Part" chip in capture and a "Part of
+  the song" row in Edit open a scrubber with "Play from here" and "Use
+  0:00" (the second you're hearing); drafts keep it; a new song clears it.
+  The moment's autoplay, Play, the card's play button and resurfaced
+  memories start full playback there (`playFull(…, startAt)`, a dropped
+  seek retried in the first 4 s); the detail screen says "Play from 2:41"
+  and marks it on the progress bar. A preview still starts at its top.
+  Earlier notes: where in the song the moment
+  lives ("the bridge at 2:41"); full playback starts there (`seekToTime`
+  exists). Over the air: mark it with a scrubber in capture/Edit, one new
+  nullable column (also returned by `moment_view_for`). Previews are a
+  fixed 30 s clip, so without full playback it's a label only. Grabbing the
+  second automatically from Now Playing needs the system player's position
+  (native, 1.5).
+  Lyrics: MusicKit gives apps no lyrics, and showing them needs a licence
+  (e.g. Musixmatch's commercial API). Without one, the person types the
+  line themselves ("the line that got me"), which is their own words and
+  needs no licence.
+- [x] **Swipe between moments** *(built 2026-11-20, `lib/momentSequence.ts`;
+  flips within the Journal or album it was opened from, swipe down closes,
+  seek bar and photo strip keep their drags; checked in the simulator, needs
+  Josh's phone)* (polish after 16, Josh 2026-11-19): left and
+  right on a moment flip to the previous/next one in the list it came from.
+  Horizontal is taken today (swipe right closes, the seek bar drags, the
+  photo strip scrolls), so close moves to a swipe down (like Apple Music's
+  player) and the strip and seek bar keep their own drags. JS only; test
+  on device.
+- [ ] **Play the month** (polish after 16, Josh 2026-11-19): in Rediscover →
+  Browse by, a play button on a year or month runs through its moments in
+  order, the song under each reflection (preview playback + the film's
+  pieces).
 - [ ] One song across the years: moments with the same song as chapters.
 - [ ] Songs you used to love + Replay playlists as starting points.
 - [ ] From before weekly reminder (local, follows How often).
@@ -129,26 +293,79 @@ over the prompts, this becomes 1.4.0 build 13 instead.
     token can be forwarded). Step 1 the app reads through it (OTA + 1.4.1);
     step 2, after the min-build raise, the table becomes owner-only (with
     DB-2). New sharing features read through it from day one.
+    *Step 1 built 2026-11-19 (migration `20261119000000_shared_view`, ships
+    through CI; JS in 1.4.1):* `moment_view_for` shapes every non-owner read
+    (no place, people or link token; linked-media ids blanked);
+    `get_moment_view` (detail for a moment you don't own) and
+    `get_shared_with_me` (the inbox) are new; the album RPC and both /m/ link
+    RPCs return the shaped fields under their old keys (location now null).
+    App: `lib/momentView.ts`; non-owners get no Share button, link, card or
+    album row. Old builds still read the table directly until step 2.
+  - **Person picker** *(built 2026-11-19, JS in 1.4.1; review in
+    `.claude/reviews/2026-11-19-friend-pickers.md`)*: one
+    `components/PersonPicker.tsx` (inline: 5 rows, search past 8, "Show all"
+    opens the full list in the sheet; list: virtualized with search) and a
+    shared `Avatar`. Used by the share sheet's "Send to a person" (recent
+    sends first, then A–Z), the Friends screen, album members and
+    Rediscover's People. Friends are one React Query cache
+    (`hooks/useFriends.ts`); `fetchFriends` pages in a stable order with no
+    500 cut, looks profiles up 100 ids at a time and throws instead of
+    showing "Unknown"; a reverse-pair duplicate shows once; a failed album
+    member load shows an error. "Who was there" suggests past names and
+    friends' names ignoring case and reuses the existing spelling.
+    Migration `20261119120000_friendship_pair_unique` (one row per pair,
+    removes existing reverse duplicates) and the matching
+    accept-friend-invite change are written, **not applied**. Held for the
+    sharing design: linking a name to a friend's account, a "Was there"
+    section in the picker, telling a friend they were named.
   - Retire the pre-occasions album guest form (`/c/{code}/contribute`, its
     flag and edge function); switched off for every album 2026-11-18 (main PR 109).
   - The /m/ link page as the hero: opens the app (universal links, 1.4.1),
     "Open in app" / "Get the app" otherwise; the share card gets a small
     link or QR; occasion pages point to the app.
   - What travels with a share: no GPS or people's names by default; only
-    the owner can pass a moment on.
+    the owner can pass a moment on. *(Built with the shared view, step 1.)*
   - Friend links rotate on unfriend, which also unsends past shares.
   - Albums: unshare, new invite code, and on leaving, choose whether your
     moments go with you.
   - "Keep this": save a moment someone sent you into your own journal.
   - Analytics: record which share option was used.
+  - **Built 2026-11-20; server live 2026-11-21 (PRs 118, 119, 120 merged,
+    migrations applied, notify-social deployed, link page live):**
+    who was there linked to friends (`moment_people_links`, owner-only,
+    unfriend drops links; PeopleInput friend suggestions with @username,
+    "Who is 'Sam'?" to link a chip, Rediscover People grouped by the real
+    person, "Was there" first in Send to a person). **Album invites** from the
+    friend picker (PR 119: `collection_friend_invites`, owner-only invite of
+    accepted friends into a shared album, push "<Name> invited you to an
+    album", Join / Not now at the top of Albums → Shared; the inviter can't
+    see who said Not now, and Not now sticks). **/m/ link page as the hero**
+    (PR 118). **DB-2** written on `db/db-2`. Its two blockers are handled
+    (2026-11-23, PR 122 + OTA): album covers in the app read through
+    `get_album_artworks` and the web album pages (`/c/`, contribute hub,
+    polling route, and the link preview via PR 123) through
+    `get_public_album_moments` by invite code, each
+    returning only what its screen shows; both fall back to the old direct
+    read until the migration is applied. Left for DB-2: raise min-build to
+    16 after 1.4.1 is approved (Josh's go), then apply it.
+  - **Who was there → friends (right after 1.4.1, over the air; decided
+    2026-11-19):** typing a name suggests matching friends (photo, name,
+    @username, so two Sams are told apart) and past names, plus "Add 'Sam'
+    as a name". Picking a friend links the name to their account in its
+    own table, private to the owner (Sam is never told unless sent the
+    moment). Rediscover People groups by the real person; the share
+    picker puts "Was there" first. Old moments stay text (link from Edit);
+    unfriending keeps the text and drops the link.
   - Later, if direct sends get used: album activity pushes; "the people who
     were there" as 1.5's social bet.
 - [ ] DB-2 (RLS hardening step 2) once 1.4 is out and widely installed:
   raise the min-build gate, then ship it.
 - [ ] Database hygiene from the Supabase advisors (2026-11-17): ~~pin the
   search_path on the four occasion slug/song functions~~ (done 2026-11-18),
-  recheck why `get_public_profiles` is callable without signing in, move
-  `pg_trgm` out of public. (Leaked-password protection needs the Pro plan:
+  ~~recheck why `get_public_profiles` is callable without signing in~~
+  (checked 2026-11-23: kept on purpose; the signed-out web album page needs
+  the owner's name, it returns only id, name, avatar and username for ids
+  you already have, and ids can't be guessed), move `pg_trgm` out of public. (Leaked-password protection needs the Pro plan:
   Authentication → Providers → Email.)
 
 ## What makes it an 11/10 (Josh, 2026-11-17)
@@ -257,7 +474,34 @@ The starred ones bring the app to you, which serves the north star:
   stock Camera reads, or the custom mark plus a short URL under it. Each
   code maps to the moment's existing share token.
 
-## Where things stand (2026-11-17)
+## Where things stand (2026-11-20)
+
+- **Store:** 1.4.0 (build 12) live since 2026-11-19, with OTAs from `main`
+  (blank-Journal fix 73bdcb83). **1.4.1 (build 16) submitted to App Review
+  2026-11-20** from `native/1.4.1`, new 6.3" screenshots with photos.
+- **On build 16 by OTA (TestFlight until approval):** three tabs with
+  Yours / Shared, You behind the avatar, Insights (artists, people, moods,
+  songs you keep coming back to), your soundtrack with a person, swipe
+  between moments, song details saved at capture, account-switch and album
+  fixes, the color/fill fix. Last group 80d8fd23.
+- **Server (prod):** shared view (step 1), friendship pair index, push
+  logging, song-metadata columns + backfill (184 of 207 moments).
+- **Next, in order:** 1.4.1 approved → merge `native/1.4.1` into `main` →
+  raise min-build to 16 (Josh's go) → DB-2 (moments owner-only, shared view
+  step 2) → who-was-there linked to friends → Insights: when you write, then
+  eras v2, what resonates (genres/periods) → the rest of sharing (link page
+  as hero, friend link rotation, album basics, Keep this, share analytics)
+  → retire the guest-form code. 1.5 (native): memory widget, Lock Screen
+  capture, offline saves (exact second from Now Playing dropped 2026-11-23). EAS cloud builds
+  return 2026-12-01.
+- **Growth (2026-11-20):** goal ~100 active users, free channels first
+  (short video, Apple featuring nomination, App Store keywords, a few Reddit
+  builder posts). Short-video pipeline built: `scripts/video/make.py` records
+  the app on the simulator with sample moments and renders 9:16 clips with
+  headlines and an end card (`marketing/videos/README.md`). Posting stays
+  manual or via Buffer; songs are added from each platform's sound library.
+
+## Where things stood (2026-11-17)
 
 - **1.3.1 (build 10) is live** on the App Store: the "Pressed S" icon and
   the Phase 1 look as a store build. 1.3.0 (build 9) went out 2026-11-13.
@@ -548,7 +792,8 @@ changed since build 36.
   and Search Results creative assets (Oct 2026) are optional; none yet.
 - [x] **Josh:** TestFlight pass, 1.3.1 in App Store Connect with the new
   screenshots, submitted and released (live by 2026-11-15).
-- [ ] Raise the min-build gate to 10, which unblocks DB-2 (RLS hardening
+- [ ] Raise the min-build gate to 13 once 1.4 (13) is live (decided
+  2026-11-18; was 10), which unblocks DB-2 (RLS hardening
   step 2). Josh, 2026-11-16: wait a few days so people on 1.3.0 auto-update
   first instead of hitting the update-required screen.
 - [x] E2E green on `main` so the promote path works for JS fixes (PR #33:

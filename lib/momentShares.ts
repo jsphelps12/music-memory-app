@@ -3,13 +3,18 @@ import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { ensureFullMedia, ensureFullMediaForMe } from "@/lib/ensureFullMedia";
+import { isMissingRpcError } from "@/lib/sharedMomentLink";
+import { shapeForViewer } from "@/lib/momentView";
+import { fetchProfilesByIds } from "@/lib/friends";
+import { personLabel } from "@/lib/people";
 import { Moment } from "@/types";
 
 // Sharing v2 (docs/SOCIAL-ARCHITECTURE.md): a moment_shares row is the directed
 // "send this moment to a person" grant. All reads/writes of that table live
 // here. The recipient-side list ("Shared with me") renders through the same
-// MomentCard as the timeline, so each share carries a full card-shaped Moment
-// with the sender's display name in contributorName.
+// MomentCard as the timeline, so each share carries a Moment with the
+// sender's display name in contributorName. The moments come from the shared
+// view (get_shared_with_me): no place, people or share link token.
 
 export interface SharedMoment {
   shareId: string;
@@ -20,12 +25,14 @@ export interface SharedMoment {
 }
 
 /**
- * Pure DB→TypeScript mapping for a moment_shares row with its embedded moment.
- * The embedded row is card-column-shaped, so the mapped Moment fabricates the
- * same defaults the timeline cards do (see momentShares.test.ts).
+ * Pure DB→TypeScript mapping for a moment_shares row with its moment under
+ * `moments` (from get_shared_with_me, or the older table embed). With a
+ * viewer id, the moment is shaped for that viewer (lib/momentView.ts), so a
+ * row from a server without the shared view still hides what it should.
  */
-export function mapShareRow(row: any, senderName: string | null): SharedMoment {
-  const moment = mapRowToMoment(row.moments);
+export function mapShareRow(row: any, senderName: string | null, viewerId?: string): SharedMoment {
+  const mapped = mapRowToMoment(row.moments);
+  const moment = viewerId ? shapeForViewer(mapped, viewerId) : mapped;
   return {
     shareId: row.id,
     sharedAt: row.created_at,
@@ -36,10 +43,23 @@ export function mapShareRow(row: any, senderName: string | null): SharedMoment {
 }
 
 /**
- * Everything shared to this user, newest first. No pagination: this is a
- * directed inbox, not a feed — a 200-row cap outruns any realistic volume.
+ * Everything shared to this user, newest first, through the shared view. No
+ * pagination: this is a directed inbox, not a feed; the server's 200-row
+ * default outruns any realistic volume.
  */
 export async function fetchSharedWithMe(userId: string): Promise<SharedMoment[]> {
+  const { data, error } = await supabase.rpc("get_shared_with_me");
+  if (!error) {
+    return ((data ?? []) as any[])
+      .filter((row) => row?.moments)
+      .map((row) => mapShareRow(row, row.sender_name ?? null, userId));
+  }
+  if (!isMissingRpcError(error)) throw error;
+  return fetchSharedWithMeFromTable(userId);
+}
+
+/** The read before the shared view, for a server without get_shared_with_me. */
+async function fetchSharedWithMeFromTable(userId: string): Promise<SharedMoment[]> {
   const { data, error } = await supabase
     .from("moment_shares")
     .select(`id, sender_id, created_at, viewed_at, moments!inner(${MOMENT_CARD_COLUMNS})`)
@@ -49,17 +69,10 @@ export async function fetchSharedWithMe(userId: string): Promise<SharedMoment[]>
   if (error) throw error;
 
   const rows = data ?? [];
-  const senderIds = [...new Set(rows.map((r: any) => r.sender_id))];
-  let nameById = new Map<string, string | null>();
-  if (senderIds.length > 0) {
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, display_name")
-      .in("id", senderIds);
-    nameById = new Map((profiles ?? []).map((p: any) => [p.id, p.display_name]));
-  }
-
-  return rows.map((row: any) => mapShareRow(row, nameById.get(row.sender_id) ?? null));
+  const profiles = await fetchProfilesByIds(rows.map((r: any) => r.sender_id));
+  return rows.map((row: any) =>
+    mapShareRow(row, profiles.get(row.sender_id)?.display_name ?? null, userId)
+  );
 }
 
 /**
@@ -110,16 +123,40 @@ export async function fetchMomentShareRecipients(momentId: string): Promise<Mome
   if (error) throw error;
   const rows = data ?? [];
   if (rows.length === 0) return [];
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, display_name")
-    .in("id", [...new Set(rows.map((r: any) => r.recipient_id))]);
-  const nameById = new Map((profiles ?? []).map((p: any) => [p.id, p.display_name]));
-  return rows.map((r: any) => ({
-    shareId: r.id,
-    recipientId: r.recipient_id,
-    name: nameById.get(r.recipient_id) ?? null,
-  }));
+  // Throws when the names don't load: the sheet keeps its last chips rather
+  // than showing everyone as "Someone".
+  const profiles = await fetchProfilesByIds(rows.map((r: any) => r.recipient_id));
+  return rows.map((r: any) => {
+    const profile = profiles.get(r.recipient_id);
+    return {
+      shareId: r.id,
+      recipientId: r.recipient_id,
+      name: profile ? personLabel({ displayName: profile.display_name, username: profile.username }) : null,
+    };
+  });
+}
+
+/** How many of the latest sends the picker reads to order "recent" people. */
+export const RECENT_SENDS_LIMIT = 200;
+
+/**
+ * When this user last sent a moment to each person, newest first: the person
+ * pickers put recent recipients on top. Reads the latest sends only (the
+ * `(sender_id)` index covers it); anyone older falls back to A–Z.
+ */
+export async function fetchRecentRecipients(userId: string): Promise<Map<string, string>> {
+  const { data, error } = await supabase
+    .from("moment_shares")
+    .select("recipient_id, created_at")
+    .eq("sender_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(RECENT_SENDS_LIMIT);
+  if (error) throw error;
+  const lastSent = new Map<string, string>();
+  for (const row of (data ?? []) as { recipient_id: string; created_at: string }[]) {
+    if (!lastSent.has(row.recipient_id)) lastSent.set(row.recipient_id, row.created_at);
+  }
+  return lastSent;
 }
 
 /** Sender unsends (RLS also lets a recipient remove a share from their inbox). */

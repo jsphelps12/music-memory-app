@@ -99,7 +99,7 @@ export function Button({
         size === "large" ? styles.large : styles.pill,
         isText && styles.textBase,
         variant === "primary" && { backgroundColor: theme.colors.buttonBg },
-        variant === "secondary" && { backgroundColor: theme.colors.chipBg },
+        variant === "secondary" && { backgroundColor: theme.colors.fill },
         variant === "destructive" && { backgroundColor: theme.colors.destructive },
         stretch ? styles.stretch : align === "center" ? styles.hugCenter : align === "end" ? styles.hugEnd : styles.hug,
         inactive && styles.inactive,

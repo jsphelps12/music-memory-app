@@ -15,6 +15,8 @@ export interface MomentFieldsInput {
   people: string[];
   locationResult: GeoResult | null;
   momentDate: Date | null;
+  /** The part of the song, in ms (lib/songPart.ts); null for none. */
+  songPartMs?: number | null;
 }
 
 /**
@@ -51,6 +53,7 @@ export function momentRowFields(input: MomentFieldsInput, fetchedAlbumName: stri
     location_lat: input.locationResult?.name.trim() ? input.locationResult.lat ?? null : null,
     location_lng: input.locationResult?.name.trim() ? input.locationResult.lng ?? null : null,
     moment_date: input.momentDate ? dateToStr(input.momentDate) : null,
+    song_part_ms: input.songPartMs ?? null,
   };
 }
 

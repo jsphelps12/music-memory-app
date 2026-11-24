@@ -4,8 +4,9 @@ import {
   requestMusicAuthorization,
   searchSongs as searchAppleMusic,
   playAppleMusic,
-  fetchPreviewUrl as fetchItunesPreviewUrl,
 } from "@/lib/musickit";
+import { lookupItunesDetails } from "@/lib/itunes";
+import { EMPTY_SONG_LOOKUP, type SongLookup } from "@/lib/songMetadata";
 import { rankSongResults } from "@/lib/musicSearch";
 import type { Song } from "@/types";
 import type { MusicProvider, PlaybackState } from "./MusicProvider";
@@ -95,9 +96,12 @@ export class AppleMusicProvider implements MusicProvider {
   }
 
   async fetchPreviewUrl(song: Song): Promise<string | null> {
-    if (!song.appleMusicId) return null;
-    const { previewUrl } = await fetchItunesPreviewUrl(song.appleMusicId);
-    return previewUrl;
+    return (await this.lookupSong(song)).previewUrl;
+  }
+
+  async lookupSong(song: Song): Promise<SongLookup> {
+    if (!song.appleMusicId) return EMPTY_SONG_LOOKUP;
+    return lookupItunesDetails(song.appleMusicId);
   }
 
   onStateChange(cb: (state: PlaybackState) => void): () => void {

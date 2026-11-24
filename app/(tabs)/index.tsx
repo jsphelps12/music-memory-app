@@ -11,6 +11,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
+  type ViewInstance,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import Animated, {
@@ -23,7 +24,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useRouter } from "expo-router";
-import { useFocusEffect, useNavigation } from "expo-router";
+import { useFocusEffect, useIsFocused, useNavigation } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayerActions } from "@/contexts/PlayerContext";
@@ -46,6 +47,7 @@ import {
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { groupMomentsByMonth } from "@/lib/monthGroups";
+import { sequenceFromList, setMomentSequence } from "@/lib/momentSequence";
 import { fetchUnviewedSharedCount } from "@/lib/momentShares";
 import { MOODS } from "@/constants/Moods";
 import { useTheme } from "@/hooks/useTheme";
@@ -76,6 +78,13 @@ import { Icon } from "@/components/Icon";
 import { CalendarView, type CalendarMoment } from "@/components/CalendarView";
 import { EmptyState } from "@/components/EmptyState";
 import { setJournalSelecting } from "@/lib/journalSelecting";
+import { PaneSwitcher } from "@/components/PaneSwitcher";
+import { SharedWithYouList, useSharedWithMe } from "@/components/SharedWithYouList";
+import { useFriends } from "@/hooks/useFriends";
+import { Avatar } from "@/components/Avatar";
+import { IconButton } from "@/components/IconButton";
+import { MomentActionMenu, nativeMenuAction, type MenuAnchor, type MomentMenuItem } from "@/components/MomentActionMenu";
+import { MenuButton } from "@/modules/context-menu";
 import { DailyCheckInOffer } from "@/components/DailyCheckInOffer";
 import { LastWeekRow } from "@/components/LastWeekRow";
 import { useLastWeek } from "@/hooks/useLastWeek";
@@ -206,15 +215,26 @@ export default function TimelineScreen() {
   const queryClient = useQueryClient();
   const player = usePlayerActions();
 
-  // Shared with you (Sharing v2) lives under You since Phase 1. The Journal
-  // only carries a quiet "new from friends" row, driven by the cheap unread
-  // count; /shared invalidates it once things are seen.
+  // Journal = Yours | Shared (2026-11-20). Shared is "Shared with you", the
+  // moments friends sent; its label carries a dot while any are unread,
+  // driven by the cheap unread count, which the list invalidates once it has
+  // marked them seen.
   const { data: unviewedCount = 0, refetch: refetchUnviewed, dataUpdatedAt: unviewedUpdatedAt } = useQuery({
     queryKey: ["sharedUnviewed", user?.id],
     queryFn: () => fetchUnviewedSharedCount(user!.id),
     staleTime: SHARED_BADGE_STALE_MS,
     enabled: !!user,
   });
+  // No friends and nothing ever shared: only Yours, no switch. Decided on
+  // loaded data only, so while either is loading the switch stays as last
+  // known (cached), or hidden, rather than flashing in and out.
+  const { data: friends } = useFriends();
+  const { data: sharedItems } = useSharedWithMe();
+  const showShared = (friends?.length ?? 0) > 0 || (sharedItems?.length ?? 0) > 0;
+  const [pane, setPane] = useState<"yours" | "shared">("yours");
+  // A hidden switch puts the pager back on Yours (PaneSwitcher); follow it.
+  if (!showShared && pane !== "yours") setPane("yours");
+  const isFocused = useIsFocused();
   // Read through a ref: as a focus-effect dependency it re-ran the effect on
   // every badge update, which during a cold start fired a second
   // fetchMoments(true) before the first had finished.
@@ -325,6 +345,43 @@ export default function TimelineScreen() {
     showView("list");
     setPendingScrollId(momentId);
   }, [showView]);
+
+  // The view button's menu, the three ways to see Yours: List and Calendar
+  // are in-place views (both stay mounted), Map is its own screen. The native
+  // UIMenu (MenuButton), or MomentActionMenu on a binary without it; a row
+  // runs once the menu has closed either way.
+  const chooseView = (view: "list" | "calendar" | "map") => {
+    posthog?.capture("journal_view_changed", { view });
+    if (view === "map") router.push("/moments-map" as any);
+    else showView(view);
+  };
+  const viewMenuItems: MomentMenuItem[] = [
+    { key: "list", label: "List", icon: "list-outline", onPress: () => chooseView("list") },
+    { key: "calendar", label: "Calendar", icon: "calendar-outline", onPress: () => chooseView("calendar") },
+    { key: "map", label: "Map", icon: "map-outline", onPress: () => chooseView("map") },
+  ];
+  const viewIcon = viewMode === "list" ? "list-outline" : "calendar-outline";
+  const [viewMenuAnchor, setViewMenuAnchor] = useState<MenuAnchor | null>(null);
+  const viewButtonRef = useRef<ViewInstance>(null);
+  // The JS fallback, anchored under the button.
+  const openViewMenu = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    viewButtonRef.current?.measureInWindow((x, y, width, height) => {
+      setViewMenuAnchor({ x, y, width, height });
+    });
+  };
+
+  // Moving to Shared ends select mode (selecting is Yours' alone; swiping is
+  // off meanwhile, but the label can still be tapped).
+  const handlePaneChange = useCallback((key: string, via: "tap" | "swipe") => {
+    const next = key === "shared" ? "shared" : "yours";
+    setPane(next);
+    posthog?.capture("pane_switched", { tab: "journal", pane: next, via });
+    if (next === "shared") {
+      exitSelect();
+      posthog?.capture("shared_with_me_opened", { unviewed_count: unviewedCount, from: "journal_pane" });
+    }
+  }, [exitSelect, posthog, unviewedCount]);
 
   // Each month's title is formatted once (lib/monthGroups.ts), not per moment.
   const sections = useMemo(() => groupMomentsByMonth(moments), [moments]);
@@ -576,7 +633,7 @@ export default function TimelineScreen() {
       else if (plan === "initial_fresh") fetchMoments(true, false, true);
       else if (plan === "refresh") fetchMoments(false);
 
-      // The "new from friends" row's count, on the badge cooldown.
+      // The Shared label's unread dot, on the badge cooldown.
       if (userId && Date.now() - unviewedUpdatedAtRef.current >= SHARED_BADGE_STALE_MS) refetchUnviewed();
     }, [fetchMoments, fetchCalendarMoments, userId, refetchUnviewed, applyList, persistFirstPage])
   );
@@ -605,6 +662,14 @@ export default function TimelineScreen() {
     setCalendarMoments((prev) => prev.filter((m) => !gone.has(m.id)));
   }, [applyList, persistFirstPage]);
   const handleCardDeleted = useCallback((deletedId: string) => removeFromList([deletedId]), [removeFromList]);
+
+  // Opening a moment hands over the list in the order it's shown (months
+  // grouped as the sections are), so left and right on the moment flip
+  // through it. Only what's loaded: the last loaded moment is the end.
+  const handleOpenMoment = useCallback((item: MomentCardData) => {
+    const shown = groupMomentsByMonth(momentsRef.current).flatMap((s) => s.data);
+    setMomentSequence(sequenceFromList(shown, item.id));
+  }, []);
 
   // ── Select mode ─────────────────────────────────────────────────────────
   // Leaving the tab (or pushing a screen over it) ends it.
@@ -710,28 +775,12 @@ export default function TimelineScreen() {
       selecting={selecting}
       selected={selecting && selected.has(item.id)}
       onToggleSelect={toggleSelect}
+      onOpen={handleOpenMoment}
     />
-  ), [allMoods, handleCardDeleted, userId, handleMenuAction, selecting, selected, toggleSelect]);
+  ), [allMoods, handleCardDeleted, userId, handleMenuAction, selecting, selected, toggleSelect, handleOpenMoment]);
 
   const listHeader = (
     <>
-      {unviewedCount > 0 ? (
-        <TouchableOpacity
-          style={styles.sharedRow}
-          onPress={() => {
-            posthog?.capture("shared_with_me_opened", { unviewed_count: unviewedCount, from: "journal_row" });
-            router.push("/shared");
-          }}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-        >
-          <View style={styles.sharedDot} />
-          <Text style={styles.sharedRowText}>
-            {unviewedCount === 1 ? "1 new from friends" : `${unviewedCount} new from friends`}
-          </Text>
-          <Icon name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-        </TouchableOpacity>
-      ) : null}
       {bannerError ? (
         <ErrorBanner
           message={bannerError}
@@ -763,139 +812,152 @@ export default function TimelineScreen() {
             />
           ) : (
           <>
-            {viewMode === "list" && moments.length > 0 ? (
-              <Button
-                label="Select"
-                variant="text"
-                size="pill"
-                onPress={() => enterSelect()}
-                testID="journal-select"
-                // Not just "Select": the card menu has a "Select" too.
-                accessibilityLabel="Select moments"
-                accessibilityHint="Pick moments to add to an album or delete"
-              />
+            {/* The view button: its icon is the view on screen, its menu
+                List / Calendar / Map. Yours only: Shared has one view. */}
+            {pane === "yours" ? (
+              MenuButton ? (
+                // The native button is what's tapped (and carries the
+                // testID); the IconButton inside only draws the icon.
+                <MenuButton
+                  actions={viewMenuItems.map(nativeMenuAction)}
+                  onAction={(e) => viewMenuItems.find((item) => item.key === e.nativeEvent.id)?.onPress()}
+                  label={viewMode === "list" ? "View, List" : "View, Calendar"}
+                  testID="journal-view"
+                >
+                  <IconButton name={viewIcon} size={22} onPress={openViewMenu} />
+                </MenuButton>
+              ) : (
+                <View ref={viewButtonRef} collapsable={false}>
+                  <IconButton
+                    name={viewIcon}
+                    size={22}
+                    onPress={openViewMenu}
+                    accessibilityLabel={viewMode === "list" ? "View, List" : "View, Calendar"}
+                    testID="journal-view"
+                  />
+                </View>
+              )
             ) : null}
-            {/* One control for the three ways to see the journal. List and
-                calendar are in-place views of My Moments (both stay mounted);
-                map is its own screen. */}
-            <View style={styles.segmented} accessibilityRole="tablist">
-              {([
-                { key: "list", icon: "list-outline", label: "List" },
-                { key: "calendar", icon: "calendar-outline", label: "Calendar" },
-                { key: "map", icon: "map-outline", label: "Map" },
-              ] as const).map((seg) => {
-                const active = seg.key !== "map" && viewMode === seg.key;
-                return (
-                  <TouchableOpacity
-                    key={seg.key}
-                    style={[styles.segment, active && styles.segmentActive]}
-                    accessibilityRole="tab"
-                    accessibilityLabel={seg.label}
-                    accessibilityState={{ selected: active }}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      if (seg.key === "map") router.push("/moments-map" as any);
-                      else if (viewMode !== seg.key) showView(seg.key);
-                    }}
-                  >
-                    <Icon
-                      name={seg.icon}
-                      size={17}
-                      color={active ? theme.colors.text : theme.colors.textSecondary}
-                    />
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {/* You: profile, settings, friends (the /you screen). */}
+            <TouchableOpacity
+              style={styles.avatarButton}
+              onPress={() => {
+                posthog?.capture("you_opened");
+                router.push("/you" as any);
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="You"
+              testID="journal-avatar"
+            >
+              <Avatar path={profile?.avatarUrl} name={profile?.displayName ?? user?.email} size={32} />
+            </TouchableOpacity>
           </>
           )
         }
-        style={styles.header}
       />
+      {/* The view menu's fallback; stays closed when the native MenuButton is there. */}
+      <MomentActionMenu anchor={viewMenuAnchor} items={viewMenuItems} onClose={() => setViewMenuAnchor(null)} />
 
-      <View style={{ flex: 1 }}>
-        <GestureDetector gesture={pinchGesture}>
-          <View style={styles.viewsContainer}>
-            <Animated.View style={[StyleSheet.absoluteFill, listAnimStyle]} pointerEvents={viewMode === "list" ? "auto" : "none"}>
-              {loading && moments.length === 0 ? (
-                <View style={styles.skeletonList}>
-                  {[0, 1, 2, 3].map((i) => (
-                    <SkeletonTimelineCard key={i} />
-                  ))}
-                </View>
-              ) : error ? (
-                <ErrorState
-                  message={error}
-                  onRetry={() => fetchMoments(true)}
-                />
-              ) : moments.length === 0 && !loading ? (
-                // Scrollable so pull-to-refresh works here too: an empty list
-                // that turned out to be wrong had no way to recover.
-                <ScrollView
-                  contentContainerStyle={styles.emptyScroll}
-                  showsVerticalScrollIndicator={false}
-                  refreshControl={
-                    <RefreshControl
-                      refreshing={refreshing}
-                      onRefresh={handleRefresh}
-                      tintColor={theme.colors.textSecondary}
-                    />
-                  }
-                >
-                  <View style={styles.emptyHeader}>{listHeader}</View>
-                  <EmptyState
-                    icon="musical-notes-outline"
-                    title="No moments yet"
-                    subtitle={"A moment is a song paired with a memory —\nwhat you felt, who you were with, and why it mattered."}
-                    action={{ label: "Capture a song", onPress: () => router.push("/create"), testID: "journal-empty-capture" }}
+      <View style={styles.body}>
+        <PaneSwitcher
+          panes={[
+            { key: "yours", label: "Yours", testID: "journal-pane-yours" },
+            { key: "shared", label: "Shared", dot: unviewedCount > 0, testID: "journal-pane-shared" },
+          ]}
+          showSwitch={showShared}
+          // Selecting is Yours' alone: a stray swipe mustn't carry it off.
+          swipeEnabled={!selecting}
+          onPaneChange={handlePaneChange}
+        >
+          <GestureDetector gesture={pinchGesture}>
+            <View style={styles.viewsContainer}>
+              <Animated.View style={[StyleSheet.absoluteFill, listAnimStyle]} pointerEvents={viewMode === "list" ? "auto" : "none"}>
+                {loading && moments.length === 0 ? (
+                  <View style={styles.skeletonList}>
+                    {[0, 1, 2, 3].map((i) => (
+                      <SkeletonTimelineCard key={i} />
+                    ))}
+                  </View>
+                ) : error ? (
+                  <ErrorState
+                    message={error}
+                    onRetry={() => fetchMoments(true)}
                   />
-                </ScrollView>
-              ) : (
-                <SectionList
-                  ref={sectionListRef}
-                  sections={sections}
-                  extraData={selected}
-                  keyExtractor={(item) => item.id}
-                  renderItem={renderMoment}
-                  renderSectionHeader={({ section: { title } }) => (
-                    // "November 2026", in Label and its own case (DESIGN.md).
-                    <SectionLabel style={styles.sectionHeader}>{title}</SectionLabel>
-                  )}
-                  ListHeaderComponent={listHeader}
-                  onEndReached={handleLoadMore}
-                  removeClippedSubviews
-                  windowSize={10}
-                  maxToRenderPerBatch={5}
-                  initialNumToRender={10}
-                  onEndReachedThreshold={0.3}
-                  ListFooterComponent={
-                    loadingMore ? (
-                      <ActivityIndicator
-                        style={styles.footerSpinner}
-                        color={theme.colors.textSecondary}
+                ) : moments.length === 0 && !loading ? (
+                  // Scrollable so pull-to-refresh works here too: an empty list
+                  // that turned out to be wrong had no way to recover.
+                  <ScrollView
+                    contentContainerStyle={styles.emptyScroll}
+                    showsVerticalScrollIndicator={false}
+                    refreshControl={
+                      <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={handleRefresh}
+                        tintColor={theme.colors.textSecondary}
                       />
-                    ) : undefined
-                  }
-                  contentContainerStyle={styles.listContent}
-                  showsVerticalScrollIndicator={false}
-                  stickySectionHeadersEnabled={false}
-                  keyboardDismissMode="on-drag"
-                  refreshControl={
-                    <RefreshControl
-                      refreshing={refreshing}
-                      onRefresh={handleRefresh}
-                      tintColor={theme.colors.textSecondary}
+                    }
+                  >
+                    <View style={styles.emptyHeader}>{listHeader}</View>
+                    <EmptyState
+                      icon="musical-notes-outline"
+                      title="No moments yet"
+                      subtitle={"A moment is a song paired with a memory —\nwhat you felt, who you were with, and why it mattered."}
+                      action={{ label: "Capture a song", onPress: () => router.push("/create"), testID: "journal-empty-capture" }}
                     />
-                  }
-                />
-              )}
-            </Animated.View>
+                  </ScrollView>
+                ) : (
+                  <SectionList
+                    ref={sectionListRef}
+                    sections={sections}
+                    extraData={selected}
+                    keyExtractor={(item) => item.id}
+                    renderItem={renderMoment}
+                    renderSectionHeader={({ section: { title } }) => (
+                      // "November 2026", in Label and its own case (DESIGN.md).
+                      <SectionLabel style={styles.sectionHeader}>{title}</SectionLabel>
+                    )}
+                    ListHeaderComponent={listHeader}
+                    onEndReached={handleLoadMore}
+                    removeClippedSubviews
+                    windowSize={10}
+                    maxToRenderPerBatch={5}
+                    initialNumToRender={10}
+                    onEndReachedThreshold={0.3}
+                    ListFooterComponent={
+                      loadingMore ? (
+                        <ActivityIndicator
+                          style={styles.footerSpinner}
+                          color={theme.colors.textSecondary}
+                        />
+                      ) : undefined
+                    }
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={false}
+                    stickySectionHeadersEnabled={false}
+                    keyboardDismissMode="on-drag"
+                    refreshControl={
+                      <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={handleRefresh}
+                        tintColor={theme.colors.textSecondary}
+                      />
+                    }
+                  />
+                )}
+              </Animated.View>
 
-            <Animated.View style={[StyleSheet.absoluteFill, calendarAnimStyle]} pointerEvents={viewMode === "calendar" ? "auto" : "none"}>
-              <CalendarView moments={calendarMoments} onDayPress={handleDayPress} theme={theme} loading={calendarLoading} />
-            </Animated.View>
-          </View>
-        </GestureDetector>
+              <Animated.View style={[StyleSheet.absoluteFill, calendarAnimStyle]} pointerEvents={viewMode === "calendar" ? "auto" : "none"}>
+                <CalendarView moments={calendarMoments} onDayPress={handleDayPress} theme={theme} loading={calendarLoading} />
+              </Animated.View>
+            </View>
+          </GestureDetector>
+          {/* Mounted behind Yours; counts as seen only while it's showing. */}
+          <SharedWithYouList
+            active={pane === "shared" && isFocused}
+            contentContainerStyle={styles.sharedListContent}
+          />
+        </PaneSwitcher>
 
         {/* Select mode's actions, just above the tab bar. Left-aligned so the
             floating capture button keeps its corner. */}
@@ -969,52 +1031,19 @@ function createStyles(theme: Theme) {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
-    header: {
-      paddingBottom: theme.spacing.xs,
-    },
-    segmented: {
-      flexDirection: "row",
-      alignItems: "center",
-      padding: 3,
-      gap: 2,
-      borderRadius: theme.radii.full,
-      backgroundColor: theme.colors.chipBg,
-    },
-    segment: {
-      width: 36,
-      height: 32,
-      borderRadius: theme.radii.full,
+    // The 32pt avatar in a 44pt target, like the IconButton beside it.
+    avatarButton: {
+      width: 44,
+      height: 44,
       alignItems: "center",
       justifyContent: "center",
     },
-    // Segment lift (DESIGN.md, Shadow Vocabulary): a faint ink shadow on
-    // paper, none on night, where the darker fill carries the step.
-    segmentActive: {
-      backgroundColor: theme.colors.background,
-      shadowColor: theme.colors.text,
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: theme.isDark ? 0 : 0.08,
-      shadowRadius: 2,
-    },
-    sharedRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-      paddingVertical: theme.spacing.md,
-      marginBottom: theme.spacing.xs,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.divider,
-    },
-    sharedDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: theme.colors.accent, // design-lint-ignore: the 8px new-activity dot
-    },
-    sharedRowText: {
-      ...theme.typography.callout,
+    body: {
       flex: 1,
-      color: theme.colors.text,
+    },
+    // Clears the floating capture button, like the Yours list.
+    sharedListContent: {
+      paddingBottom: 110,
     },
     viewsContainer: {
       flex: 1,

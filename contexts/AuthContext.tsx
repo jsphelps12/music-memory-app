@@ -19,6 +19,7 @@ import { clearPhotoAnalysisStore } from "@/lib/photoAnalysisStore";
 import { clearNudgeQuestions } from "@/lib/nudgeQuestionStore";
 import { clearLibraryCache } from "@/lib/libraryCache";
 import { resetTimelineRefresh } from "@/lib/timelineRefresh";
+import { isAccountBoundary, mayClearOnLeave } from "@/lib/accountBoundary";
 import { clearLegacyAlbumCaches } from "@/lib/albums";
 import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
 import { fetchBrowseMetadata, readBrowseCache, writeBrowseCache, clearBrowseCache } from "@/lib/browse";
@@ -110,6 +111,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   sessionRef.current = session;
   // Last email we successfully identified with. See resolveIdentityEmail.
   const lastKnownEmailRef = useRef<string | null>(null);
+  // The account whose data the query cache holds (lib/accountBoundary.ts).
+  // Set synchronously by the auth listener, ahead of the render that shows the
+  // next account, so no screen ever reads one account's cache as another's.
+  const cacheOwnerRef = useRef<string | null>(null);
+
+  /**
+   * Called with the incoming session's user before it is published. Crossing
+   * into a different account (sign-out, or another user signing in) empties
+   * the query cache and the unscoped one-shot timeline store right here, in
+   * the same tick, instead of at the end of sign-out's teardown, which could
+   * land after the next account's first queries had started.
+   */
+  function enterAccount(userId: string | null) {
+    if (isAccountBoundary(cacheOwnerRef.current, userId)) {
+      queryClient.clear();
+      resetTimelineRefresh();
+    }
+    cacheOwnerRef.current = userId;
+  }
 
   /**
    * The email to identify this user with in Sentry and PostHog.
@@ -307,6 +327,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         markStartup("session");
         const session = result.data.session;
+        enterAccount(session?.user?.id ?? null);
         setSession(session);
         if (session?.user) {
           // The listener may already have hydrated this user (INITIAL_SESSION
@@ -327,6 +348,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (suppressAuth.current) return;
+      enterAccount(session?.user?.id ?? null);
       setSession(session);
 
       if (session?.user) {
@@ -456,8 +478,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Query keys are user-scoped so the next user can't *see* this data, but
     // consumeTimelineStale carries a pending Moment with no user scoping — it
     // could prepend the previous user's moment to the next user's timeline.
-    queryClient.clear();
-    resetTimelineRefresh();
+    // The auth listener normally did this already when the session ended
+    // (enterAccount). This is the fallback, and it must not run once another
+    // account has signed in: clear() would silently cancel that account's
+    // first queries and leave its screens with nothing (2026-11-20).
+    if (mayClearOnLeave(cacheOwnerRef.current, userId)) {
+      queryClient.clear();
+      resetTimelineRefresh();
+      cacheOwnerRef.current = null;
+    }
     // The onAuthStateChange else-branch also resets these when the session goes
     // null. Doing it here as well keeps teardown deterministic: it is ordered
     // with the rest of the cleanup rather than whenever the listener happens to

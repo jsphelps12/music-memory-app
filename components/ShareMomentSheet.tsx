@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -17,14 +17,18 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import * as Clipboard from "expo-clipboard";
-import { AppImage } from "@/components/AppImage";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ConfirmSheetHost, confirmSheet } from "@/components/ConfirmSheet";
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
 import { SectionLabel } from "@/components/SectionLabel";
 import { ListRow } from "@/components/ListRow";
-import { fetchFriends } from "@/lib/friends";
+import { PersonPicker, pickerHasSearch } from "@/components/PersonPicker";
+import { friendsAsPeople, type FriendPerson } from "@/lib/friends";
+import { rankPeople, wasThereFirst } from "@/lib/people";
+import { linksForMoment } from "@/lib/momentPeopleLinks";
+import { recentRecipientsQueryKey, useFriends, useRecentRecipients } from "@/hooks/useFriends";
+import { usePeopleLinks } from "@/hooks/usePeopleLinks";
 import {
   ensureShareToken,
   fetchMomentShareRecipients,
@@ -37,10 +41,10 @@ import {
 import { fetchAlbumIdsContainingMoment } from "@/lib/albums";
 import { fetchAlbums, removeMomentFromAlbum } from "@/lib/albums";
 import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
-import { getPublicPhotoUrl } from "@/lib/storage";
 import { setShareCardData } from "@/lib/shareCardStore";
 import { friendlyError } from "@/lib/errors";
-import { Friendship, PartialMoment } from "@/types";
+import { canPassOn } from "@/lib/momentView";
+import { PartialMoment } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
@@ -86,6 +90,10 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   const queryClient = useQueryClient();
   const router = useRouter();
   const [personOpen, setPersonOpen] = useState(false);
+  // "Show all" swaps the sheet's rows for the whole list (with search), so a
+  // long friend list never pushes the other verbs and chips out of reach.
+  const [showAllPeople, setShowAllPeople] = useState(false);
+  const [showAllQuery, setShowAllQuery] = useState("");
   // What to open once the sheet is fully closed. iOS drops a Modal (the album
   // sheet) or a full-screen route (the card) that presents while this sheet's
   // Modal is still dismissing, so they wait for BottomSheet's onClosed.
@@ -95,10 +103,13 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   const [error, setError] = useState("");
   const fail = (what: string, err: unknown) => setError(`${what}. ${friendlyError(err)}`);
 
-  const isOwner = !!user && moment.userId === user.id;
+  // Only the owner can pass a moment on (lib/momentView.ts). The detail
+  // screen doesn't offer this sheet to anyone else; this keeps it that way.
+  const isOwner = canPassOn(moment, user?.id);
 
   const handleClose = useCallback(() => {
     setPersonOpen(false);
+    setShowAllPeople(false);
     onClose();
   }, [onClose]);
 
@@ -116,6 +127,9 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   };
 
   const handleClosed = () => {
+    // The picker's order (recent sends first) stays put while the sheet is
+    // open, so a row never jumps under a finger; it catches up for next time.
+    void queryClient.invalidateQueries({ queryKey: recentRecipientsQueryKey(user?.id) });
     const next = afterClose;
     setAfterClose(null);
     if (next === "album") onAddToAlbum?.();
@@ -133,56 +147,73 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
   const [albumGrants, setAlbumGrants] = useState<AlbumGrant[]>([]);
 
   // ── Person picker ─────────────────────────────────────────────────────
-  const [friends, setFriends] = useState<Friendship[]>([]);
-  const [friendsLoading, setFriendsLoading] = useState(false);
-  const [friendsError, setFriendsError] = useState("");
+  // The shared friends cache (hooks/useFriends.ts), warmed as the sheet
+  // opens so "Send to a person" expands without a wait. Recent recipients
+  // come first, then A–Z.
+  const friendsQuery = useFriends({ enabled: visible && isOwner });
+  const recentsQuery = useRecentRecipients({ enabled: visible && isOwner });
+  // Friends linked under "Who was there" on this moment come first ("Was
+  // there"), then the usual order. The links are the owner's own; reading
+  // them tells nobody anything.
+  const linksQuery = usePeopleLinks({ enabled: visible && isOwner });
+  const wasThereIds = useMemo(
+    () =>
+      new Set(
+        linksQuery.data?.available ? linksForMoment(linksQuery.data.links, moment.id).map((l) => l.friendId) : []
+      ),
+    [linksQuery.data, moment.id]
+  );
+  const { people, wasThereCount } = useMemo(
+    () => wasThereFirst(rankPeople(friendsAsPeople(friendsQuery.data ?? []), recentsQuery.data), wasThereIds),
+    [friendsQuery.data, recentsQuery.data, wasThereIds]
+  );
   const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
-  const friendsLoadedRef = useRef(false);
 
   // Per-moment state resets when the sheet is reused for another moment.
   useEffect(() => {
-    friendsLoadedRef.current = false;
     setPeopleGrants([]);
     setAlbumGrants([]);
+    setShowAllPeople(false);
   }, [moment.id]);
 
   // A card-column preview has no shareToken (MOMENT_CARD_COLUMNS omits it), so
-  // trusting the prop could mint a second token over a live one. Re-read the truth from the row every time the sheet opens — and reload the
-  // grant chips alongside it (owner only). Every open, not once per moment:
+  // trusting the prop could mint a second token over a live one. Re-read the
+  // truth from the row every time the sheet opens (owner only), and reload the
+  // grant chips alongside it. Every open, not once per moment:
   // "Add to album" and other screens change them between opens.
   useEffect(() => {
     if (!visible) return;
-    setShareToken(moment.shareToken ?? null);
+    setShareToken(isOwner ? moment.shareToken ?? null : null);
     setLinkCopied(false);
     setError("");
+    // Nobody but the owner ever asks for the link token.
+    if (!isOwner || !user) return;
     supabase
       .from("moments")
       .select("share_token")
       .eq("id", moment.id)
-      .single()
+      .eq("user_id", user.id)
+      .maybeSingle()
       .then(({ data, error }) => {
         if (!error && data) setShareToken(data.share_token);
       });
 
-    if (isOwner && user) {
-      // A failed load keeps the chips from the last successful one; the
-      // chips are state, not the action, so they don't block sharing.
-      fetchMomentShareRecipients(moment.id)
-        .then(setPeopleGrants)
-        .catch((err) => { if (__DEV__) console.warn("[share] recipients load failed:", err); });
-      Promise.all([fetchAlbums(user.id), fetchAlbumIdsContainingMoment(moment.id)])
-        .then(([cols, memberIds]) => {
-          const inAlbum = new Set(memberIds);
-          setAlbumGrants(cols.filter((c) => inAlbum.has(c.id)).map((c) => ({ id: c.id, name: c.name })));
-        })
-        .catch((err) => { if (__DEV__) console.warn("[share] album chips load failed:", err); });
-    }
+    // A failed load keeps the chips from the last successful one; the
+    // chips are state, not the action, so they don't block sharing.
+    fetchMomentShareRecipients(moment.id)
+      .then(setPeopleGrants)
+      .catch((err) => { if (__DEV__) console.warn("[share] recipients load failed:", err); });
+    Promise.all([fetchAlbums(user.id), fetchAlbumIdsContainingMoment(moment.id)])
+      .then(([cols, memberIds]) => {
+        const inAlbum = new Set(memberIds);
+        setAlbumGrants(cols.filter((c) => inAlbum.has(c.id)).map((c) => ({ id: c.id, name: c.name })));
+      })
+      .catch((err) => { if (__DEV__) console.warn("[share] album chips load failed:", err); });
   }, [visible, moment.id, moment.shareToken, isOwner, user]);
 
   // ── Link handlers ─────────────────────────────────────────────────────
-  // Only the owner can create a link; anyone who can see the moment can send
-  // one that already exists.
-  const canSendLink = !!shareToken || isOwner;
+  // Only the owner creates or sends a link.
+  const canSendLink = isOwner;
 
   const handleSendLink = async () => {
     if (sendingLink || !canSendLink) return;
@@ -200,7 +231,9 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     }
     try {
       const url = momentShareUrl(token);
-      await Share.share({ message: url, url });
+      // One or the other: iOS sends both when given both, so the link
+      // arrived twice in Messages.
+      await Share.share(Platform.OS === "ios" ? { url } : { message: url });
       handleClose();
     } catch {
       // The share sheet was dismissed or failed to present; the link exists.
@@ -259,24 +292,20 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     const opening = !personOpen;
     setPersonOpen(opening);
-    if (!opening || friendsLoadedRef.current || !user) return;
-    friendsLoadedRef.current = true;
-    setFriendsLoading(true);
-    setFriendsError("");
-    fetchFriends(user.id)
-      .then(setFriends)
-      .catch((e) => {
-        friendsLoadedRef.current = false;
-        setFriendsError(friendlyError(e));
-      })
-      .finally(() => setFriendsLoading(false));
+    // A failed load retries when the row is opened again.
+    if (opening && friendsQuery.isError) void friendsQuery.refetch();
+  };
+
+  const openAllPeople = (query: string) => {
+    setShowAllQuery(query);
+    setShowAllPeople(true);
   };
 
   const sentIds = new Set(peopleGrants.map((g) => g.recipientId));
 
-  const handleSendToFriend = async (friendship: Friendship) => {
+  const handleSendToFriend = async (person: FriendPerson) => {
     if (!user) return;
-    const recipientId = friendship.otherUserId;
+    const recipientId = person.id;
     if (sentIds.has(recipientId) || sendingIds.has(recipientId)) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSendingIds((prev) => new Set(prev).add(recipientId));
@@ -287,7 +316,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
       if (result.status === "sent") {
         setPeopleGrants((prev) => [
           ...prev,
-          { shareId: result.shareId, recipientId, name: friendship.otherUserDisplayName },
+          { shareId: result.shareId, recipientId, name: person.displayName },
         ]);
       }
       posthog?.capture("moment_share_sent", {
@@ -384,18 +413,34 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
     />
   );
 
-  const personList = friendsLoading ? (
-    <View style={styles.personState}>
-      <ActivityIndicator color={theme.colors.textSecondary} />
-    </View>
-  ) : friendsError ? (
-    <View style={styles.personState}>
-      <Text style={styles.personStateText}>{friendsError}</Text>
-    </View>
-  ) : friends.length === 0 ? (
-    // An empty picker is the moment someone actually *wants* a friend here —
-    // so offer the invite inline instead of describing an errand on another
-    // screen.
+  const sendTrailing = (person: FriendPerson) => {
+    if (sendingIds.has(person.id)) {
+      return <ActivityIndicator size="small" color={theme.colors.textSecondary} />;
+    }
+    if (sentIds.has(person.id)) {
+      return (
+        <View style={styles.sentState}>
+          <Icon name="checkmark" size={16} color={theme.colors.text} />
+          <Text style={styles.sentText}>Sent</Text>
+        </View>
+      );
+    }
+    return (
+      <Button
+        label="Send"
+        variant="secondary"
+        size="pill"
+        align="center"
+        onPress={() => handleSendToFriend(person)}
+        accessibilityLabel={`Send to ${person.displayName ?? "this person"}`}
+      />
+    );
+  };
+
+  // An empty picker is the moment someone actually *wants* a friend here —
+  // so offer the invite inline instead of describing an errand on another
+  // screen.
+  const personEmpty = (
     <View style={styles.personState}>
       <Text style={styles.personStateText}>
         Nobody here yet. Send someone your link — once they open it you can send
@@ -409,67 +454,65 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
         style={styles.personInvite}
       />
     </View>
-  ) : (
-    friends.map((friendship) => {
-      const sent = sentIds.has(friendship.otherUserId);
-      const sending = sendingIds.has(friendship.otherUserId);
-      const initials = (friendship.otherUserDisplayName ?? "?")[0]?.toUpperCase() ?? "?";
-      // A sent (or sending) row isn't a button any more: no onPress, so
-      // ListRow renders it as plain content rather than a dimmed control.
-      return (
-        <ListRow
-          key={friendship.id}
-          label={friendship.otherUserDisplayName ?? "Unknown"}
-          accessibilityLabel={`${sent ? "Sent to" : "Send to"} ${friendship.otherUserDisplayName ?? "Unknown"}`}
-          leading={
-            <View style={styles.personAvatar}>
-              {friendship.otherUserAvatarUrl ? (
-                <AppImage
-                  source={{ uri: getPublicPhotoUrl(friendship.otherUserAvatarUrl) }}
-                  style={StyleSheet.absoluteFill}
-                  contentFit="cover"
-                />
-              ) : (
-                <Text style={styles.personInitial}>{initials}</Text>
-              )}
-            </View>
-          }
-          trailing={
-            sending ? (
-              <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-            ) : sent ? (
-              <View style={styles.sentState}>
-                <Icon name="checkmark" size={16} color={theme.colors.textSecondary} />
-                <Text style={styles.sentText}>Sent</Text>
-              </View>
-            ) : (
-              <Button
-                label="Send"
-                variant="secondary"
-                size="pill"
-                align="center"
-                onPress={() => handleSendToFriend(friendship)}
-              />
-            )
-          }
-          onPress={sent || sending ? undefined : () => handleSendToFriend(friendship)}
-          last
-          style={styles.personRow}
-        />
-      );
-    })
   );
+
+  // Sending is one tap per person. A sent (or sending) row isn't a button
+  // any more: no onPress, so ListRow renders it as plain content.
+  const pickerProps = {
+    people,
+    loading: friendsQuery.isLoading,
+    error: friendsQuery.isError ? friendlyError(friendsQuery.error) : undefined,
+    onRetry: () => void friendsQuery.refetch(),
+    emptyState: personEmpty,
+    renderTrailing: sendTrailing,
+    rowAccessibilityLabel: (p: FriendPerson) =>
+      `${sentIds.has(p.id) ? "Sent to" : "Send to"} ${p.displayName ?? p.username ?? "this person"}`,
+    searchPlaceholder: "Search friends",
+    canPick: (p: FriendPerson) => !sentIds.has(p.id) && !sendingIds.has(p.id),
+    sectionOf:
+      wasThereCount > 0 ? (p: FriendPerson) => (wasThereIds.has(p.id) ? "Was there" : "Friends") : undefined,
+  };
+  const pickerOnPick = (p: FriendPerson) => void handleSendToFriend(p);
 
   return (
     <BottomSheet
       visible={visible}
       onClose={handleClose}
       onClosed={handleClosed}
-      title="Share this moment"
+      title={showAllPeople ? "Send to a person" : "Share this moment"}
+      keyboardAvoiding
+      // Steady height while searching the whole list.
+      minHeight={showAllPeople && pickerHasSearch(people.length) ? "75%" : undefined}
     >
+      {showAllPeople ? (
+        <View style={styles.allPeople}>
+          <Button
+            variant="text"
+            size="pill"
+            tone="secondary"
+            icon="chevron-back"
+            label="Back"
+            onPress={() => setShowAllPeople(false)}
+            accessibilityLabel="Back to sharing options"
+            style={styles.back}
+          />
+          {error ? (
+            <Text style={styles.error} accessibilityRole="alert">
+              {error}
+            </Text>
+          ) : null}
+          <PersonPicker
+            mode="list"
+            {...pickerProps}
+            onPick={pickerOnPick}
+            initialQuery={showAllQuery}
+          />
+        </View>
+      ) : (
       <ScrollView
         contentContainerStyle={styles.body}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         bounces={false}
       >
         {!!songSubtitle && (
@@ -495,18 +538,27 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
                 onPress: togglePerson,
                 expanded: personOpen,
               })}
-              {personOpen ? <View style={styles.personList}>{personList}</View> : null}
+              {personOpen ? (
+                <View style={styles.personList}>
+                  <PersonPicker
+                    mode="inline"
+                    {...pickerProps}
+                    onPick={pickerOnPick}
+                    onShowAll={openAllPeople}
+                    testID="share-person-picker"
+                  />
+                </View>
+              ) : null}
             </>
           )}
-          {onAddToAlbum &&
+          {isOwner && onAddToAlbum &&
             optionRow({
               icon: "albums-outline",
               title: "Add to album",
               desc: "Yours, or one you share",
               onPress: handleAddToAlbum,
             })}
-          {/* Only the owner can create a link, so a viewer of a moment with
-              no link doesn't get the row at all. */}
+          {/* Link and card are the owner's to send. */}
           {canSendLink &&
             optionRow({
               icon: "link-outline",
@@ -526,12 +578,13 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
                   />
                 ) : undefined,
             })}
-          {optionRow({
-            icon: "image-outline",
-            title: "Share card",
-            desc: "A designed image for posts and Stories",
-            onPress: handleOpenCard,
-          })}
+          {isOwner &&
+            optionRow({
+              icon: "image-outline",
+              title: "Share card",
+              desc: "A designed image for posts and Stories",
+              onPress: handleOpenCard,
+            })}
         </View>
 
         {/* Honest state: one chip per grant, each removable */}
@@ -575,6 +628,7 @@ export function ShareMomentSheet({ visible, moment, photoUrls, onClose, onAddToA
           </View>
         )}
       </ScrollView>
+      )}
 
       {/* Local confirm host: a root-level Modal can't present over this open
           sheet (iOS silently drops it), so confirms asked from in here need a
@@ -631,23 +685,15 @@ function createStyles(theme: Theme) {
     personInvite: {
       marginTop: theme.spacing.md,
     },
-    personRow: {
-      minHeight: 0,
-      paddingVertical: theme.spacing.sm,
+    // The whole list, in place of the sheet's rows.
+    allPeople: {
+      flexShrink: 1,
+      paddingHorizontal: theme.spacing.xl,
     },
-    personAvatar: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      alignItems: "center",
-      justifyContent: "center",
-      overflow: "hidden",
-      backgroundColor: theme.colors.backgroundTertiary,
-    },
-    personInitial: {
-      fontFamily: theme.fonts.bodySemibold,
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
+    back: {
+      alignSelf: "flex-start",
+      marginLeft: -theme.spacing.sm,
+      marginBottom: theme.spacing.xs,
     },
     sentState: {
       flexDirection: "row",

@@ -1,7 +1,8 @@
 // Select mode in the Journal (2026-11): pick several moments, then add them
-// to an album or delete them together. Pure, so it's testable; the screen
-// keeps the set in state and the network calls live in lib/deleteMoments.ts
-// and lib/albums.ts (addMomentsToAlbum).
+// to an album or delete them together; and in an album, take them out of it.
+// Pure, so it's testable; the screen keeps the set in state and the network
+// calls live in lib/deleteMoments.ts and lib/albums.ts (addMomentsToAlbum,
+// removeMomentsFromAlbum).
 
 /** The set with `id` flipped in or out. Always a new set (React state). */
 export function toggleSelected(selected: ReadonlySet<string>, id: string): Set<string> {
@@ -111,4 +112,59 @@ export function bulkDeleteFailedTitle(failed: number, total: number): string {
   if (total === 1) return "Couldn't delete moment";
   if (failed === total) return `Couldn't delete ${moments(total)}`;
   return `Couldn't delete ${failed} of ${moments(total)}`;
+}
+
+// ── Select mode in an album (app/album/[id].tsx) ──────────────────────────
+
+export interface AlbumSelectionPlan {
+  /** Selected ids this viewer may take out of the album (canRemoveFromAlbum). */
+  removable: string[];
+  /** Selected ids that stay: someone else's, in an album this viewer doesn't own. */
+  kept: string[];
+  /** Every selected moment is the viewer's own (Add to album needs it: only an owner can add). */
+  allOwn: boolean;
+  /** Every removable one is the viewer's own: the confirm then says "your journal". */
+  removableAllOwn: boolean;
+}
+
+/**
+ * What the album's select bar can do with the selection, in list order.
+ * `canRemove` is canRemoveFromAlbum (lib/momentActions.ts) for this viewer.
+ */
+export function planAlbumSelection(
+  selected: ReadonlySet<string>,
+  albumMoments: readonly { id: string; userId?: string | null }[],
+  viewerId: string | null | undefined,
+  canRemove: (momentUserId: string | null | undefined) => boolean
+): AlbumSelectionPlan {
+  const removable: string[] = [];
+  const kept: string[] = [];
+  let allOwn = true;
+  let removableAllOwn = true;
+  for (const m of albumMoments) {
+    if (!selected.has(m.id)) continue;
+    const own = !!viewerId && m.userId === viewerId;
+    if (!own) allOwn = false;
+    if (canRemove(m.userId)) {
+      removable.push(m.id);
+      if (!own) removableAllOwn = false;
+    } else {
+      kept.push(m.id);
+    }
+  }
+  const any = removable.length + kept.length > 0;
+  return { removable, kept, allOwn: any && allOwn, removableAllOwn };
+}
+
+/** The confirm's extra line when some of the selection can't come out. */
+export function albumRemoveKeptNote(kept: number): string {
+  if (kept === 0) return "";
+  return kept === 1
+    ? "1 moment someone else added stays."
+    : `${kept} moments others added stay.`;
+}
+
+/** The alert title when a remove failed: “Couldn't remove 3 moments from the album”. */
+export function bulkRemoveFailedTitle(total: number): string {
+  return total === 1 ? "Couldn't remove from album" : `Couldn't remove ${moments(total)} from the album`;
 }

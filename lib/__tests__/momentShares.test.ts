@@ -17,10 +17,15 @@ vi.mock("@/lib/ensureFullMedia", () => ({
   ensureFullMediaForAlbum: vi.fn(async () => {}),
   ensureFullMediaForAlbumMoments: vi.fn(async () => {}),
 }));
-vi.mock("@/lib/supabase", () => ({ supabase: {} }));
+// Hoisted with the vi.mock below, which runs before plain top-level consts.
+const sb = await vi.hoisted(async () => {
+  const { createSupabaseMock } = await import("./helpers/supabaseMock");
+  return createSupabaseMock();
+});
+vi.mock("@/lib/supabase", () => ({ supabase: sb.client }));
 vi.mock("expo-crypto", () => ({ randomUUID: () => "uuid-1" }));
 
-import { mapShareRow } from "../momentShares";
+import { fetchRecentRecipients, mapShareRow } from "../momentShares";
 
 /** A moment_shares row as fetchSharedWithMe's select returns it. */
 function shareRow(overrides: Record<string, any> = {}) {
@@ -84,5 +89,28 @@ describe("mapShareRow", () => {
     expect(shared.moment.people).toEqual([]);
     expect(shared.moment.shareToken).toBeNull();
     expect(shared.moment.moods).toEqual(["joyful"]);
+  });
+});
+
+describe("fetchRecentRecipients", () => {
+  it("keeps each person's latest send from the newest-first read", async () => {
+    sb.reset();
+    sb.queueData([
+      { recipient_id: "b", created_at: "2026-11-18T00:00:00Z" },
+      { recipient_id: "a", created_at: "2026-11-10T00:00:00Z" },
+      { recipient_id: "b", created_at: "2026-11-01T00:00:00Z" },
+    ]);
+    const recent = await fetchRecentRecipients("me");
+    expect([...recent]).toEqual([
+      ["b", "2026-11-18T00:00:00Z"],
+      ["a", "2026-11-10T00:00:00Z"],
+    ]);
+    expect(sb.queries[0].chain.map((c) => c.method)).toEqual(["select", "eq", "order", "limit"]);
+  });
+
+  it("throws on a failed read", async () => {
+    sb.reset();
+    sb.queueError("boom");
+    await expect(fetchRecentRecipients("me")).rejects.toMatchObject({ message: "boom" });
   });
 });

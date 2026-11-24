@@ -9,14 +9,20 @@ import {
 } from "react-native";
 import type { TextInputInstance } from "react-native";
 import { Icon, type IconName } from "@/components/Icon";
+import { IconButton } from "@/components/IconButton";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
 interface Props extends Omit<TextInputProps, "style"> {
   /** A leading icon, e.g. "search". */
   icon?: IconName;
-  /** Content after the input, e.g. a clear button or "Cancel". */
+  /** Content after the input, e.g. "Cancel". */
   trailing?: ReactNode;
+  /**
+   * Show a clear (×) button while there's text; tapping it calls
+   * `onChangeText("")`. For search fields.
+   */
+  clearable?: boolean;
   /** Tall writing field (notes, prompts). */
   multiline?: boolean;
   /**
@@ -29,18 +35,31 @@ interface Props extends Omit<TextInputProps, "style"> {
 }
 
 /**
- * The app's one text field (DESIGN.md, Inputs): chip-paper ground, no
- * border at rest, 12 radius, DM Sans 16. Focus draws a hairline ink edge,
- * never a terracotta box. The full-page writer is the exception and has no
- * field chrome at all; it doesn't use this.
+ * The app's one text field (DESIGN.md, Inputs): the quiet `fill` well (ink at
+ * 6% on paper, paper at 10% on night, so it reads the same on a screen and on
+ * a sheet), no border at rest, 12 radius, DM Sans 16. The icon, placeholder
+ * and clear button share one muted color; the caret is Terracotta Text.
+ * Focus draws a 1pt edge in Umber, never a terracotta box. The full-page
+ * writer is the exception and has no field chrome at all; it doesn't use this.
  */
 export const TextField = forwardRef<TextInputInstance, Props>(function TextField(
-  { icon, trailing, multiline = false, variant = "ui", containerStyle, onFocus, onBlur, ...rest },
+  {
+    icon,
+    trailing,
+    clearable = false,
+    multiline = false,
+    variant = "ui",
+    containerStyle,
+    onFocus,
+    onBlur,
+    ...rest
+  },
   ref
 ) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [focused, setFocused] = useState(false);
+  const showClear = clearable && !!rest.value;
 
   return (
     <View
@@ -52,12 +71,13 @@ export const TextField = forwardRef<TextInputInstance, Props>(function TextField
       ]}
     >
       {icon ? (
-        <Icon name={icon} size={17} color={theme.colors.textSecondary} style={styles.icon} />
+        <Icon name={icon} size={17} color={theme.colors.placeholder} style={styles.icon} />
       ) : null}
       <TextInput
         ref={ref}
         placeholderTextColor={theme.colors.placeholder}
-        selectionColor={theme.colors.accent}
+        selectionColor={theme.colors.accentText}
+        keyboardAppearance={theme.isDark ? "dark" : "light"}
         multiline={multiline}
         textAlignVertical={multiline ? "top" : "center"}
         style={[
@@ -75,6 +95,16 @@ export const TextField = forwardRef<TextInputInstance, Props>(function TextField
         }}
         {...rest}
       />
+      {showClear ? (
+        <IconButton
+          name="close-circle"
+          size={18}
+          color={theme.colors.placeholder}
+          onPress={() => rest.onChangeText?.("")}
+          accessibilityLabel="Clear"
+          style={styles.clear}
+        />
+      ) : null}
       {trailing}
     </View>
   );
@@ -88,8 +118,9 @@ function createStyles(theme: Theme) {
       minHeight: 48,
       paddingHorizontal: theme.spacing.md,
       borderRadius: theme.radii.md,
-      backgroundColor: theme.colors.chipBg,
-      borderWidth: StyleSheet.hairlineWidth,
+      backgroundColor: theme.colors.fill,
+      // Always 1pt (transparent at rest) so focus doesn't shift the layout.
+      borderWidth: 1,
       borderColor: "transparent",
       gap: theme.spacing.sm,
     },
@@ -103,6 +134,9 @@ function createStyles(theme: Theme) {
     },
     icon: {
       marginLeft: 2,
+    },
+    clear: {
+      marginRight: -12,
     },
     input: {
       flex: 1,

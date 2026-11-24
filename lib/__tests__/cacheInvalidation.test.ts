@@ -39,6 +39,7 @@ const MOMENT_SCREEN_KEYS = [
   "momentsMap",
   "yearReview",
   "memoryCard",
+  "peopleLinks",
 ];
 
 const MOMENT_DRILLDOWN_KEYS = [
@@ -240,6 +241,12 @@ describe("invalidateFriendCaches", () => {
     expect(isInvalidated(["friendsList", USER])).toBe(true);
     expect(isInvalidated(["youSummary", USER])).toBe(true);
     expect(isInvalidated(["youSummary", OTHER_USER])).toBe(false);
+  });
+
+  it("invalidates the names linked to friends (unfriending drops links)", () => {
+    seed(["peopleLinks", USER]);
+    invalidateFriendCaches(qc, USER);
+    expect(isInvalidated(["peopleLinks", USER])).toBe(true);
   });
 
   it("is a no-op when userId is undefined", () => {

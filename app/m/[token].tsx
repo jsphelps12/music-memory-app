@@ -25,6 +25,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { getPublicPhotoUrl, momentCardImageUrls } from "@/lib/storage";
 import { friendlyError } from "@/lib/errors";
+import { goHome } from "@/lib/goHome";
 import {
   markShareTokenOpened,
   openSharedMoment,
@@ -62,7 +63,7 @@ export default function SharedMomentLinkScreen() {
 
   const close = useCallback(() => {
     if (router.canGoBack()) router.back();
-    else router.replace("/(tabs)" as any);
+    else goHome(router);
   }, [router]);
 
   const load = useCallback(async () => {
@@ -381,7 +382,7 @@ function createStyles(theme: Theme) {
       justifyContent: "center",
     },
     playButtonError: {
-      backgroundColor: theme.colors.chipBg,
+      backgroundColor: theme.colors.fill,
     },
     playHint: {
       fontSize: theme.fontSize.sm,

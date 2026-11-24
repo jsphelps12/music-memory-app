@@ -5,6 +5,9 @@
 # it covers: an album add where the moment is already in, several where one
 # is, a new album from the selection, a single delete (with Cancel first) and
 # a multiple delete, checking each confirm's wording and what's left after.
+# Selecting starts from a card's long-press menu ("Select" ticks that card);
+# the header has no Select button since the three-tab layout (2026-11-20).
+# When select mode ends, the header's avatar (journal-avatar) is back.
 #   scripts/e2e-local.sh select        (see that script for setup)
 # seed: 4
 # seed-album: Road trip
@@ -47,15 +50,17 @@ appId: com.joshuaphelps.musicmemory.preview
     timeout: 5000
 - extendedWaitUntil:
     visible:
-      id: "journal-select"
+      id: "journal-avatar"
     timeout: 5000
 
 # --- Add several to that album: one of the three is already in --------------
-- tapOn:
-    id: "journal-select"
-- tapOn:
+- longPressOn:
     id: "moment-card-title"
     index: 0
+- extendedWaitUntil:
+    visible: "Select"
+    timeout: 5000
+- tapOn: "Select"
 - tapOn:
     id: "moment-card-title"
     index: 1
@@ -78,13 +83,15 @@ appId: com.joshuaphelps.musicmemory.preview
 # --- Add one to a new album made from the selection --------------------------
 - extendedWaitUntil:
     visible:
-      id: "journal-select"
+      id: "journal-avatar"
     timeout: 5000
-- tapOn:
-    id: "journal-select"
-- tapOn:
+- longPressOn:
     id: "moment-card-title"
     index: 3
+- extendedWaitUntil:
+    visible: "Select"
+    timeout: 5000
+- tapOn: "Select"
 - assertVisible: "1 selected"
 - tapOn:
     id: "select-bar-album"
@@ -107,13 +114,15 @@ appId: com.joshuaphelps.musicmemory.preview
 # --- Delete one: Cancel keeps it and the selection, then delete --------------
 - extendedWaitUntil:
     visible:
-      id: "journal-select"
+      id: "journal-avatar"
     timeout: 5000
-- tapOn:
-    id: "journal-select"
-- tapOn:
+- longPressOn:
     id: "moment-card-title"
     index: 3
+- extendedWaitUntil:
+    visible: "Select"
+    timeout: 5000
+- tapOn: "Select"
 - assertVisible: "1 selected"
 - tapOn:
     id: "select-bar-delete"
@@ -149,13 +158,15 @@ appId: com.joshuaphelps.musicmemory.preview
 # --- Delete several: the confirm names how many ------------------------------
 - extendedWaitUntil:
     visible:
-      id: "journal-select"
+      id: "journal-avatar"
     timeout: 5000
-- tapOn:
-    id: "journal-select"
-- tapOn:
+- longPressOn:
     id: "moment-card-title"
     index: 0
+- extendedWaitUntil:
+    visible: "Select"
+    timeout: 5000
+- tapOn: "Select"
 - tapOn:
     id: "moment-card-title"
     index: 1

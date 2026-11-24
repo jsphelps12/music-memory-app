@@ -7,6 +7,13 @@ import type { StyleProp, ViewStyle } from "react-native";
 export interface PhotosVideoProps {
   /** Photos local identifier of the video. */
   localId: string | null;
+  /**
+   * Loaded ahead, not on screen (1.4.1): a copy already on the phone if there
+   * is one, else Photos' lighter streaming version, buffering only a few
+   * seconds. Off (the default) loads the original. Builds before 1.4.1
+   * ignore it and load the original.
+   */
+  preload?: boolean;
   playing: boolean;
   muted: boolean;
   loop: boolean;
@@ -35,7 +42,10 @@ const native = requireOptionalNativeModule("PhotosVideo");
 /**
  * Ducking (1.4): ask iOS to lower other audio (full Apple Music playback
  * included) while a clip's sound is on (true), and restore the session
- * (false). False if unavailable or the session refused.
+ * (false). False if unavailable or the session refused. From 1.4.1,
+ * turning it off returns true at once and finishes a moment later: it
+ * deactivates the session so iOS brings the other audio back up (see the
+ * module's Swift).
  */
 export function setDuckOthers(on: boolean): boolean {
   try {

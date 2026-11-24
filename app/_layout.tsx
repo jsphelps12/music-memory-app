@@ -1,5 +1,7 @@
 import "../wdyr";
 import * as Sentry from "@sentry/react-native";
+import * as Updates from "expo-updates";
+import { updateTags } from "@/lib/sentryTags";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router";
@@ -48,6 +50,7 @@ import { useShareIntentHandler } from "@/hooks/useShareIntentHandler";
 import { useOtaUpdate } from "@/hooks/useOtaUpdate";
 import { registerForPushNotifications } from "@/lib/notifications";
 
+import { goHome } from "@/lib/goHome";
 const HAS_LAUNCHED_KEY = "has_launched";
 
 // Notification taps already routed in this process (request identifiers).
@@ -67,6 +70,14 @@ if (!__DEV__) {
     enableAutoSessionTracking: true,
     sessionTrackingIntervalMillis: 30_000,
   });
+  // Which bundle is running (an OTA id, or "embedded"), so an error can be
+  // traced to one update. Reading the constants never needs the network; the
+  // catch covers a build without the expo-updates native module.
+  try {
+    Sentry.setTags(updateTags(Updates));
+  } catch {
+    Sentry.setTags(updateTags(null));
+  }
 }
 
 export const unstable_settings = {
@@ -155,7 +166,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     // a cold launch does. Without this, signing out from Settings left the
     // old tab navigator mounted under the sign-in screen, and signing back in
     // stacked a second one on top whose Journal never mounted: a blank
-    // Journal until relaunch (2026-11-19).
+    // Journal until relaunch (2026-11-19, .maestro/switch-account.yaml).
     if (router.canDismiss()) router.dismissAll();
 
     if (route.redirect === ROUTE_TABS && session && segments[0] === "(auth)") {
@@ -174,12 +185,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       AsyncStorage.getItem(PENDING_INVITE_CODE_KEY)
         .then((code) => {
           AsyncStorage.removeItem(PENDING_INVITE_CODE_KEY).catch(() => {});
-          router.replace("/(tabs)");
+          router.replace("/(tabs)"); // design-lint-ignore: the auth gate dismisses to one screen first
           if (code) {
             setTimeout(() => router.push({ pathname: "/join" as any, params: { inviteCode: code } }), 300);
           }
         })
-        .catch(() => router.replace("/(tabs)"));
+        .catch(() => router.replace("/(tabs)")); // design-lint-ignore: the auth gate dismisses to one screen first
       return;
     }
 
@@ -362,10 +373,18 @@ function RootLayoutNav() {
       } else if (data.type === "shared_moment" && data.momentId) {
         // share_received (Sharing v2): straight to the moment
         router.push(`/moment/${data.momentId}`);
+      } else if (data.type === "album_invite") {
+        // A friend invited you to an album: the invite waits at the top of
+        // Albums → Shared. navigate switches to the tab; the lists may be
+        // cached from before the invite, so refetch them.
+        void queryClient.invalidateQueries({ queryKey: ["collectionsScreen"] });
+        void queryClient.invalidateQueries({ queryKey: ["collectionsBadge"] });
+        router.navigate("/albums");
       } else if (data.type === "friends") {
-        // Legacy pushes from pre-v2 binaries: the old Friends tab became Albums,
-        // now a screen pushed from You
-        router.push("/albums" as any);
+        // Legacy pushes from pre-v2 binaries: the old Friends tab became
+        // Albums, a tab again since 2026-11-20. navigate, not push: it
+        // switches to the tab instead of stacking a second set of tabs.
+        router.navigate("/albums");
       } else if (data.momentId) {
         router.push(`/moment/${data.momentId}`);
       } else if (data.type === "create") {
@@ -373,7 +392,7 @@ function RootLayoutNav() {
         // daily check-in); capture fills in what's playing as usual.
         router.push(typeof data.source === "string" ? `/create?source=${data.source}` : "/create");
       } else if (data.type === "tabs") {
-        router.replace("/(tabs)");
+        goHome(router);
       }
     }
 
@@ -514,7 +533,14 @@ function RootLayoutNav() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
-            name="albums"
+            name="you"
+            // Pushed from the avatar on the Journal header (2026-11-20), so
+            // it gets the back chevron and edge swipe.
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="insights"
+            // Pushed from You's Insights preview; draws its own ScreenHeader.
             options={{ headerShown: false }}
           />
           <Stack.Screen

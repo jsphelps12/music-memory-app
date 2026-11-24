@@ -1,0 +1,11 @@
+[
+  {
+    "profile": "production",
+    "buildNumber": "16",
+    "appVersion": "1.4.1",
+    "runtimeVersion": "0e862c06614c16b2c17bf05669d6db31caa0d969",
+    "bundleId": "com.joshuaphelps.musicmemory",
+    "recordedAt": "2026-11-23",
+    "note": "Built in Xcode on the Mac (EAS free iOS builds were out); 1.4.1 in App Review."
+  }
+]

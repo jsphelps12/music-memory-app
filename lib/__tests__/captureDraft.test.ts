@@ -12,8 +12,27 @@ import type { Song } from "@/types";
 const storage = createAsyncStorageMock();
 vi.mock("@react-native-async-storage/async-storage", () => ({ default: storage, ...storage }));
 
+// The file side (expo-file-system, Photos) is native glue: stand-ins that
+// record what was kept and pruned. A photo with no library id is "copied"
+// into its draft's folder, as the real one does.
+const files = vi.hoisted(() => ({
+  keepDraftPhotos: vi.fn(async (userId: string, draftId: string, photos: { uri: string; assetId?: string | null }[]) =>
+    photos.map((p) =>
+      p.assetId || p.uri.startsWith("doc:")
+        ? p
+        : { ...p, uri: `doc:capture-drafts/${userId}/${draftId}/${p.uri.split("/").pop()}` }
+    )
+  ),
+  pruneDraftFiles: vi.fn(),
+  deleteDraftFiles: vi.fn(),
+}));
+vi.mock("../captureDraftFiles", () => files);
+
 const {
   isWorthKeeping,
+  hasWriting,
+  draftTitle,
+  draftMeta,
   liveDrafts,
   withDraft,
   withoutDraft,
@@ -67,18 +86,137 @@ function stored(): CaptureDraft[] {
 
 beforeEach(() => {
   storage.reset();
+  files.keepDraftPhotos.mockClear();
+  files.pruneDraftFiles.mockClear();
+  files.deleteDraftFiles.mockClear();
 });
 
 describe("isWorthKeeping", () => {
   it("keeps writing, not blanks", () => {
-    expect(isWorthKeeping("a night drive")).toBe(true);
-    expect(isWorthKeeping("   \n ")).toBe(false);
+    expect(isWorthKeeping({ reflection: "a night drive" })).toBe(true);
+    expect(isWorthKeeping({ reflection: "   \n " })).toBe(false);
   });
 
   it("doesn't count a starter or prompt the app put in as writing", () => {
     const templates = ["It takes me back to "];
-    expect(isWorthKeeping("It takes me back to ", templates)).toBe(false);
-    expect(isWorthKeeping("It takes me back to Lisbon", templates)).toBe(true);
+    expect(hasWriting("It takes me back to ", templates)).toBe(false);
+    expect(isWorthKeeping({ reflection: "It takes me back to " }, { templates })).toBe(false);
+    expect(isWorthKeeping({ reflection: "It takes me back to Lisbon" }, { templates })).toBe(true);
+  });
+
+  it("keeps a photo on its own, with no words or song", () => {
+    expect(isWorthKeeping({ reflection: "", photos: [{ uri: "file:///cam.jpg" }] })).toBe(true);
+    expect(isWorthKeeping({ reflection: "", photos: [] })).toBe(false);
+  });
+
+  it("doesn't count photos the capture came with (Last week, shared in)", () => {
+    const photos = [{ uri: "file:///lastweek.jpg", assetId: "A1" }];
+    expect(isWorthKeeping({ reflection: "", photos }, { photos: ["file:///lastweek.jpg"] })).toBe(false);
+    const added = [...photos, { uri: "file:///cam.jpg" }];
+    expect(isWorthKeeping({ reflection: "", photos: added }, { photos: ["file:///lastweek.jpg"] })).toBe(true);
+    expect(isWorthKeeping({ reflection: "words", photos }, { photos: ["file:///lastweek.jpg"] })).toBe(true);
+  });
+});
+
+describe("what a draft keeps", () => {
+  const details = {
+    reflection: "",
+    song,
+    photos: [
+      { uri: "file:///lib.jpg", assetId: "A1", videoMs: null },
+      { uri: "file:///poster.jpg", assetId: "V1", videoMs: 12_000 },
+      { uri: "file:///cam.jpg", assetId: null, videoMs: null },
+    ],
+    moods: ["nostalgic"],
+    people: ["Sam"],
+    peopleLinks: [{ name: "Sam", friendId: "f1" }],
+    date: NOW - 86_400_000,
+    place: { name: "Lisbon", lat: 38.7, lng: -9.1 },
+    album: { id: "al1", name: "Summer" },
+  };
+
+  it("keeps the photos, moods, people, date, place and album, versioned", () => {
+    const [kept] = withDraft([], "mine", details, NOW);
+    expect(kept).toEqual({
+      id: "mine",
+      reflection: "",
+      song,
+      savedAt: NOW,
+      v: 2,
+      photos: [
+        { uri: "file:///lib.jpg", assetId: "A1" },
+        { uri: "file:///poster.jpg", assetId: "V1", videoMs: 12_000 },
+        { uri: "file:///cam.jpg" },
+      ],
+      moods: ["nostalgic"],
+      people: ["Sam"],
+      peopleLinks: [{ name: "Sam", friendId: "f1" }],
+      date: NOW - 86_400_000,
+      place: { name: "Lisbon", lat: 38.7, lng: -9.1 },
+      album: { id: "al1", name: "Summer" },
+    });
+  });
+
+  it("keeps \"No specific date\" as null, and leaves out what isn't set", () => {
+    const [kept] = withDraft([], "mine", { reflection: "words", song: null, photos: [], moods: [], date: null }, NOW);
+    expect(kept).toEqual({ id: "mine", reflection: "words", song: null, savedAt: NOW, v: 2, date: null });
+  });
+
+  it("details without words or a photo aren't worth a draft", () => {
+    const { photos: _p, ...rest } = details;
+    expect(withDraft([], "mine", rest, NOW)).toEqual([]);
+  });
+
+  it("reads back through storage, and drafts from before load as they were", () => {
+    const old = { id: "old", reflection: "from 1.4.0", song: null, savedAt: NOW };
+    const [kept] = withDraft([], "mine", details, NOW);
+    const list = parseStoredDrafts(JSON.stringify([kept, old]), null);
+    expect(list[0]).toEqual(kept);
+    expect(list[1]).toEqual(old);
+  });
+
+  it("drops a detail that doesn't read right, not the draft", () => {
+    const raw = JSON.stringify([
+      {
+        id: "a",
+        reflection: "words",
+        song: null,
+        savedAt: NOW,
+        v: 2,
+        photos: [{ uri: "file:///ok.jpg" }, { nope: 1 }, { uri: 3 }],
+        moods: ["calm", 4],
+        peopleLinks: [{ name: "Sam" }, { name: "Jo", friendId: "f2" }],
+        date: "yesterday",
+        place: { name: "Somewhere", lat: "x", lng: 1 },
+        album: { id: "al1" },
+      },
+    ]);
+    expect(parseStoredDrafts(raw, null)).toEqual([
+      {
+        id: "a",
+        reflection: "words",
+        song: null,
+        savedAt: NOW,
+        v: 2,
+        photos: [{ uri: "file:///ok.jpg" }],
+        moods: ["calm"],
+        peopleLinks: [{ name: "Jo", friendId: "f2" }],
+      },
+    ]);
+  });
+
+  it("a photo-only draft is listed under how many photos", () => {
+    const [photoOnly] = withDraft([], "p", { reflection: "", song: null, photos: details.photos.slice(0, 1) }, NOW);
+    expect(draftTitle(photoOnly)).toBe("1 photo");
+    expect(continueDraftSubtitle([photoOnly])).toBe("1 photo");
+    expect(draftMeta(photoOnly, NOW)).not.toContain("photo");
+  });
+
+  it("a draft with words says its photos in the meta", () => {
+    const [kept] = withDraft([], "w", { ...details, reflection: "The drive to Kona" }, NOW);
+    expect(draftTitle(kept)).toBe("The drive to Kona");
+    expect(draftMeta(kept, NOW)).toBe(`Harvest Moon · 2 photos, 1 video · ${draftWhenLabel(NOW, NOW)}`);
+    expect(draftMeta(draft("x", "words"), NOW)).toBe(draftWhenLabel(NOW, NOW));
   });
 });
 
@@ -194,6 +332,7 @@ describe("draft excerpts", () => {
 
   it("the menu row says the one draft's words, or how many", () => {
     expect(continueDraftSubtitle([draft("a", "Dad's truck")])).toBe("Dad's truck");
+    expect(continueDraftSubtitle([{ ...draft("a", "Dad's truck"), song }])).toBe(`Dad's truck · ${song.title}`);
     expect(continueDraftSubtitle([draft("a", "one"), draft("b", "two")])).toBe("2 drafts");
   });
 });
@@ -380,5 +519,88 @@ describe("storage: old single draft", () => {
     storage.seed(KEY, JSON.stringify([draft("a", "one", Date.now())]));
     await clearCaptureDraft(USER);
     expect(storage.map.size).toBe(0);
+    expect(files.deleteDraftFiles).toHaveBeenCalledWith(USER);
+  });
+});
+
+describe("storage: a draft's photos", () => {
+  const camera = { uri: "file:///Caches/ImagePicker/cam.jpg", assetId: null, videoMs: null };
+  const library = { uri: "file:///Caches/ImagePicker/lib.jpg", assetId: "A1", videoMs: null };
+  const lastPrune = () => files.pruneDraftFiles.mock.calls.at(-1)?.[1] as Map<string, Set<string>>;
+
+  it("a photo-only draft is kept, with a copy of the camera photo and the library one by id", async () => {
+    await saveCaptureDraft(USER, "mine", { reflection: "", song: null, photos: [camera, library] });
+    expect(files.keepDraftPhotos).toHaveBeenCalledWith(USER, "mine", [{ uri: camera.uri }, { uri: library.uri, assetId: "A1" }]);
+    expect(stored()[0].photos).toEqual([
+      { uri: `doc:capture-drafts/${USER}/mine/cam.jpg` },
+      { uri: library.uri, assetId: "A1" },
+    ]);
+    // The copy is one the cleanup keeps.
+    expect(lastPrune().get("mine")).toEqual(new Set(["cam.jpg"]));
+  });
+
+  it("only photos that came with the capture: nothing kept, nothing copied", async () => {
+    await saveCaptureDraft(USER, "shared", { reflection: "", song, photos: [library] }, { photos: [library.uri] });
+    expect(storage.map.has(KEY)).toBe(false);
+    expect(files.keepDraftPhotos).not.toHaveBeenCalled();
+  });
+
+  it("saving the moment, or Discard, lets the cleanup take its copies", async () => {
+    await saveCaptureDraft(USER, "mine", { reflection: "", song: null, photos: [camera] });
+    await saveCaptureDraft(USER, "other", { reflection: "", song: null, photos: [{ ...camera, uri: "file:///b.jpg" }] });
+    await discardCaptureDraft(USER, "mine");
+    expect(stored().map((d) => d.id)).toEqual(["other"]);
+    expect([...lastPrune().keys()]).toEqual(["other"]);
+  });
+
+  it("taking the last photo off a photo-only draft takes the draft (and its copy) out", async () => {
+    await saveCaptureDraft(USER, "mine", { reflection: "", song: null, photos: [camera] });
+    await saveCaptureDraft(USER, "mine", { reflection: "", song: null, photos: [] });
+    expect(storage.map.has(KEY)).toBe(false);
+    expect(lastPrune().size).toBe(0);
+  });
+
+  it("an expired draft's copies go when the drafts are next listed", async () => {
+    const [kept] = withDraft([], "old", { reflection: "", song: null, photos: [{ uri: `doc:capture-drafts/${USER}/old/cam.jpg` }] }, Date.now() - MAX_AGE_MS - 1);
+    storage.seed(KEY, JSON.stringify([kept, draft("live", "words", Date.now())]));
+    expect((await listCaptureDrafts(USER)).map((d) => d.id)).toEqual(["live"]);
+    expect(lastPrune().has("old")).toBe(false);
+  });
+
+  it("Continue a draft brings its photos and details back", async () => {
+    await saveCaptureDraft(USER, "mine", {
+      reflection: "",
+      song,
+      photos: [camera, library],
+      moods: ["calm"],
+      place: { name: "Lisbon", lat: 38.7, lng: -9.1 },
+      album: { id: "al1", name: "Summer" },
+    });
+    const picked = await loadDraftToPickUp(USER, { prefilled: false, typed: () => "", draftId: "mine" });
+    expect(picked).toMatchObject({
+      id: "mine",
+      song,
+      photos: [{ uri: `doc:capture-drafts/${USER}/mine/cam.jpg` }, { uri: library.uri, assetId: "A1" }],
+      moods: ["calm"],
+      place: { name: "Lisbon", lat: 38.7, lng: -9.1 },
+      album: { id: "al1", name: "Summer" },
+    });
+    releaseDraft("mine");
+  });
+});
+
+describe("the part of the song in a draft", () => {
+  it("keeps the part with its song and reads it back", () => {
+    const [kept] = withDraft([], "p", { reflection: "words", song, partMs: 161_000 }, NOW);
+    expect(kept.partMs).toBe(161_000);
+    const [read] = parseStoredDrafts(JSON.stringify([kept]), null);
+    expect(read.partMs).toBe(161_000);
+  });
+
+  it("drops a part with no song, and a malformed one", () => {
+    const [kept] = withDraft([], "p", { reflection: "words", song: null, partMs: 161_000 }, NOW);
+    expect(kept.partMs).toBeUndefined();
+    const [read] = parseStoredDrafts(JSON.stringify([{ ...kept, partMs: "soon" }]), null);
+    expect(read.partMs).toBeUndefined();
   });
 });
