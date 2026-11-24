@@ -16,6 +16,7 @@ import { ThemeScheme } from "@/hooks/useTheme";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
+import { partStartSeconds } from "@/lib/songPart";
 import { consumeCachedMoment, setCachedMoment } from "@/lib/momentCache";
 import { artworkUrlAtSize } from "@/lib/itunes";
 import { friendlyError } from "@/lib/errors";
@@ -24,6 +25,7 @@ import { anniversaryLabel, fullDateLabel } from "@/lib/memoryCard";
 import { excerpt } from "@/lib/yearInReview";
 import type { MomentCardData } from "@/types";
 
+import { goHome } from "@/lib/goHome";
 const STALE_TIME = 2 * 60 * 1000;
 const night = getTheme("dark");
 
@@ -89,7 +91,8 @@ function MemoryCard() {
         spotifyId: moment.songSpotifyId ?? null,
         durationMs: 0,
       },
-      moment.songPreviewUrl || undefined
+      moment.songPreviewUrl || undefined,
+      partStartSeconds(moment.songPartMs)
     );
   }, [moment, songId, playFull]);
 
@@ -115,7 +118,7 @@ function MemoryCard() {
 
   const close = useCallback(() => {
     if (router.canGoBack()) router.back();
-    else router.replace("/(tabs)");
+    else goHome(router);
   }, [router]);
 
   const openMoment = useCallback(() => {

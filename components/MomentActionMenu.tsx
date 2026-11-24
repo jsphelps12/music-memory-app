@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Modal,
   Platform,
@@ -10,6 +10,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon, type IconName } from "@/components/Icon";
+import { symbolFor } from "@/lib/iconSymbols";
+import { MenuButton, type ContextMenuAction } from "@/modules/context-menu";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
 
@@ -43,15 +45,54 @@ interface Props {
   onClose: () => void;
 }
 
+/** A row as the native menu takes it: its SF Symbol is the one Icon draws for its icon. */
+export function nativeMenuAction(item: MomentMenuItem): ContextMenuAction {
+  return {
+    id: item.key,
+    title: item.label,
+    systemImage: item.icon ? symbolFor(item.icon)?.symbol : undefined,
+    destructive: item.destructive,
+  };
+}
+
+interface MenuButtonProps {
+  items: MomentMenuItem[];
+  testID?: string;
+  /** The look: the glass "…" IconButton. It draws and sizes the button but takes no touches. */
+  children: ReactNode;
+}
+
+function NativeMomentMenuButton({ items, testID, children }: MenuButtonProps) {
+  if (!MenuButton) return null;
+  const onAction = (e: { nativeEvent: { id: string } }) => {
+    // Reported once the native menu has closed, like a row here.
+    items.find((item) => item.key === e.nativeEvent.id)?.onPress();
+  };
+  return (
+    // hitOutset 4: the glass IconButton's hitSlop.
+    <MenuButton actions={items.map(nativeMenuAction)} onAction={onAction} label="More" hitOutset={4} testID={testID}>
+      {children}
+    </MenuButton>
+  );
+}
+
+/**
+ * The "…" that opens a moment's menu as the native UIMenu (the one a
+ * long-pressed card shows). Null on a binary without the native MenuButton:
+ * then the caller opens MomentActionMenu from its own button instead.
+ */
+export const MomentMenuButton = MenuButton ? NativeMomentMenuButton : null;
+
 const MENU_WIDTH = 220;
 const ROW_HEIGHT = 48;
 const MENU_GAP = 8;
 const DISMISS_BACKSTOP_MS = 1000;
 
 /**
- * The one context menu for a moment, from a long-pressed row in a list or the
- * "…" on the entry (design sweep, 2026-11; those used to be two different
- * menus). A raised surface over the warm scrim, rows in Body with hairlines,
+ * The JS moment menu, from a long-pressed row in a list or the "…" on the
+ * entry. Since 1.4/1.4.1 both open the native UIMenu (modules/context-menu:
+ * ContextMenuView for the row, MenuButton for the "…"); this is the fallback
+ * for a binary without those views, so keep its rows the same. A raised surface over the warm scrim, rows in Body with hairlines,
  * destructive rows in the destructive color. It sits just above its anchor,
  * or below it when there isn't room under the status bar, and always inside
  * the safe area.
@@ -191,7 +232,7 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.lg,
     },
     rowPressed: {
-      backgroundColor: theme.colors.backgroundSecondary,
+      backgroundColor: theme.colors.fillPressed,
     },
     rowText: {
       ...theme.typography.body,

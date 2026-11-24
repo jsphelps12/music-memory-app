@@ -4,12 +4,36 @@ import { supabase } from "@/lib/supabase";
 import { getProvider } from "@/lib/providers";
 import { uploadMomentPhotos, deleteMomentPhotos, type UploadedMomentPhotos } from "@/lib/storage";
 import { addMomentToAlbum } from "@/lib/albums";
-import { Song, Album, Moment } from "@/types";
+import { Song, Album, Moment, type PersonLink } from "@/types";
+import { syncMomentPeopleLinks } from "@/lib/momentPeopleLinks";
 import { mapRowToMoment } from "@/lib/moments";
 import { momentRowFields, songIdentityChanged, type MomentFieldsInput } from "@/lib/momentRow";
 import { buildPhotoColumns, newPhotoUris, type EditedPhoto, type PhotoColumns } from "@/lib/photoOrder";
 import { refsColumn, type MediaRefs } from "@/lib/linkedMedia";
 import { cloudIdsFor } from "@/modules/now-playing";
+import { EMPTY_SONG_LOOKUP, songMetadataColumns, type SongLookup } from "@/lib/songMetadata";
+import { MOMENT_OPTIONAL_COLUMNS, writeWithOptionalColumns } from "@/lib/optionalColumns";
+import type { CaptureSource } from "@/lib/captureSource";
+
+/**
+ * Write the moment's "Who was there" links (lib/momentPeopleLinks.ts) after
+ * its row is saved. Never fails the save: a missing table (migration not
+ * applied yet) is skipped, anything else goes to Sentry and the names stay
+ * on the moment as plain text.
+ */
+async function savePeopleLinks(input: {
+  momentId: string;
+  ownerId: string;
+  people: readonly string[];
+  before: readonly PersonLink[];
+  after: readonly PersonLink[];
+}): Promise<void> {
+  try {
+    await syncMomentPeopleLinks(input);
+  } catch (e) {
+    Sentry.captureException(e, { tags: { area: "people_links" } });
+  }
+}
 
 function getTimeOfDay(): string {
   const hour = new Date().getHours();
@@ -19,19 +43,19 @@ function getTimeOfDay(): string {
   return "Late Night";
 }
 
-type PreviewResult = { previewUrl: string | null; albumName: string | null };
-
-const NO_PREVIEW: PreviewResult = { previewUrl: null, albumName: null };
-
 /**
- * The song's preview lookup. Never rejects: a missing preview never fails a
- * save. Capture starts it when the song is picked and hands the promise in.
+ * The song's preview and catalog details (genre, release date, ids, length;
+ * lib/songMetadata.ts). Never rejects: a failed lookup never fails a save, it
+ * just leaves those columns null. Capture starts it when the song is picked
+ * and hands the promise in. Providers without catalog details (Spotify) give
+ * the preview only.
  */
-export function lookupPreview(song: Song): Promise<PreviewResult> {
-  return getProvider(song.provider)
-    .fetchPreviewUrl(song)
-    .then((url) => ({ previewUrl: url, albumName: null }))
-    .catch(() => NO_PREVIEW);
+export function lookupPreview(song: Song): Promise<SongLookup> {
+  const provider = getProvider(song.provider);
+  const lookup = provider.lookupSong
+    ? provider.lookupSong(song)
+    : provider.fetchPreviewUrl(song).then((previewUrl) => ({ ...EMPTY_SONG_LOOKUP, previewUrl }));
+  return lookup.catch(() => EMPTY_SONG_LOOKUP);
 }
 
 export interface SaveMomentInput extends MomentFieldsInput {
@@ -50,8 +74,12 @@ export interface SaveMomentInput extends MomentFieldsInput {
    * A preview lookup already started when the song was picked. Pass the
    * promise itself, not its result, so photo uploads don't wait on it.
    */
-  prefetchedPreview?: Promise<PreviewResult | null> | null;
+  prefetchedPreview?: Promise<SongLookup | null> | null;
   weatherResult?: { tempF: number; condition: string } | null;
+  /** How the moment was captured (lib/captureSource.ts). */
+  captureSource?: CaptureSource | null;
+  /** Names in `people` linked to friends (written after the row; never blocks the save). */
+  peopleLinks?: PersonLink[];
 }
 
 export interface SaveMomentResult {
@@ -81,8 +109,8 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
   });
 
   // The preview lookup and the uploads run side by side; neither waits on the other.
-  const previewPromise: Promise<PreviewResult> = input.prefetchedPreview
-    ? input.prefetchedPreview.then((p) => p ?? NO_PREVIEW).catch(() => NO_PREVIEW)
+  const previewPromise: Promise<SongLookup> = input.prefetchedPreview
+    ? input.prefetchedPreview.then((p) => p ?? EMPTY_SONG_LOOKUP).catch(() => EMPTY_SONG_LOOKUP)
     : lookupPreview(input.song);
   // Linked photos: library photos whose iCloud id resolves keep a reference
   // and upload only a thumbnail. Anything else (camera, shared in) uploads.
@@ -109,13 +137,20 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
   // The id is chosen here, not by the database, so a failed insert can be
   // checked: if the row exists after all, the save succeeded.
   const id = Crypto.randomUUID();
-  const { data: insertedRow, error: insertError } = await supabase
-    .from("moments")
-    .insert({
+  const {
+    data: insertedRow,
+    error: insertError,
+    droppedOptional,
+  } = await writeWithOptionalColumns<Record<string, any>>(
+    {
       id,
       user_id: input.userId,
       ...momentRowFields(input, preview.albumName),
       song_preview_url: preview.previewUrl,
+      // Optional until 20261120120000_song_metadata.sql is applied: dropped
+      // and retried once if the database doesn't have them yet.
+      ...songMetadataColumns(preview),
+      capture_source: input.captureSource ?? null,
       photo_urls: uploaded.photoPaths,
       photo_thumbnails: uploaded.thumbnailPaths,
       media_refs: refsColumn(refs),
@@ -125,9 +160,13 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
       // No visibility write (Social Architecture v2): the column still exists
       // for stranded build-7 binaries and takes its 'private' DB default here.
       // Privacy is the absence of grant rows, not this column.
-    })
-    .select("*")
-    .single();
+    },
+    MOMENT_OPTIONAL_COLUMNS,
+    (row) => supabase.from("moments").insert(row).select("*").single()
+  );
+  if (droppedOptional) {
+    Sentry.addBreadcrumb({ category: "moment", message: "insert retried without song metadata columns", level: "warning" });
+  }
 
   let inserted = insertedRow;
   if (insertError) {
@@ -156,6 +195,18 @@ export async function saveMoment(input: SaveMomentInput): Promise<SaveMomentResu
     );
   }
 
+  if (input.peopleLinks?.length) {
+    secondaryOps.push(
+      savePeopleLinks({
+        momentId: id,
+        ownerId: input.userId,
+        people: input.people,
+        before: [],
+        after: input.peopleLinks,
+      })
+    );
+  }
+
   await Promise.all(secondaryOps);
 
   return { id, moment: mapRowToMoment(inserted!), secondaryFailures };
@@ -175,15 +226,22 @@ export interface UpdateMomentInput extends MomentFieldsInput {
    * them. Saved in exactly this order; the first is the cover.
    */
   photos: EditedPhoto[];
+  /**
+   * "Who was there" links: what was stored when the editor loaded, and what
+   * it has now. Leave `peopleLinks` out to keep the stored links untouched
+   * (e.g. they didn't load).
+   */
+  originalPeopleLinks?: PersonLink[];
+  peopleLinks?: PersonLink[];
 }
 
 /**
  * Save an edited moment through the same column mapping as saveMoment.
  * Photos are written in the editor's order (lib/photoOrder.ts). Uploads added
  * photos first and deletes them again if the update doesn't land; deletes
- * removed photos only after it does. The stored preview URL is
- * replaced only when the song changed, so a text edit can't lose it to a
- * flaky lookup.
+ * removed photos only after it does. The stored preview URL and song details
+ * are replaced only when the song changed, so a text edit can't lose them to
+ * a flaky lookup.
  */
 export async function updateMoment(input: UpdateMomentInput): Promise<Moment> {
   const songChanged = songIdentityChanged(input.originalSong, input.song);
@@ -219,18 +277,19 @@ export async function updateMoment(input: UpdateMomentInput): Promise<Moment> {
     throw e;
   }
 
-  const { data: updatedRow, error: updateError } = await supabase
-    .from("moments")
-    .update({
+  const { data: updatedRow, error: updateError } = await writeWithOptionalColumns<Record<string, any>>(
+    {
       ...momentRowFields(input, preview?.albumName ?? null),
-      ...(preview ? { song_preview_url: preview.previewUrl } : {}),
+      // A new song gets its own preview and details (null where the lookup
+      // has none, so the old song's genre can't stay behind).
+      ...(preview ? { song_preview_url: preview.previewUrl, ...songMetadataColumns(preview) } : {}),
       photo_urls: columns.photo_urls,
       photo_thumbnails: columns.photo_thumbnails,
       media_refs: refsColumn(columns.media_refs),
-    })
-    .eq("id", input.momentId)
-    .select("*")
-    .single();
+    },
+    MOMENT_OPTIONAL_COLUMNS,
+    (row) => supabase.from("moments").update(row).eq("id", input.momentId).select("*").single()
+  );
 
   let updated = updatedRow;
   if (updateError) {
@@ -252,6 +311,16 @@ export async function updateMoment(input: UpdateMomentInput): Promise<Moment> {
   const { photos: gonePhotos, thumbnails: goneThumbs } = columns.removed;
   if (gonePhotos.length || goneThumbs.length) {
     void deleteMomentPhotos(gonePhotos, goneThumbs);
+  }
+
+  if (input.peopleLinks) {
+    await savePeopleLinks({
+      momentId: input.momentId,
+      ownerId: input.userId,
+      people: input.people,
+      before: input.originalPeopleLinks ?? [],
+      after: input.peopleLinks,
+    });
   }
 
   return mapRowToMoment(updated!);

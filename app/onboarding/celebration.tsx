@@ -15,6 +15,7 @@ import { mapRowToMoment } from "@/lib/moments";
 import { Moment } from "@/types";
 import { Button } from "@/components/Button";
 
+import { goHome } from "@/lib/goHome";
 export default function OnboardingCelebrationScreen() {
   const router = useRouter();
   const { completeOnboarding, profile, user } = useAuth();
@@ -78,7 +79,7 @@ export default function OnboardingCelebrationScreen() {
         moments_saved: momentCount,
       });
       try { if (user) await registerForPushNotifications(user.id); } catch {}
-      router.replace("/(tabs)" as any);
+      goHome(router);
     } catch (e: any) {
       setError(friendlyError(e));
       setSaving(false);

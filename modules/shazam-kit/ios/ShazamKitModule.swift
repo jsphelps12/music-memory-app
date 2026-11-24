@@ -22,14 +22,15 @@ public class ShazamKitModule: Module {
   private var audioEngine: AVAudioEngine?
   private var shazamSession: SHSession?
   private var shazamDelegate: ShazamDelegate?
-  private var signatureGenerator = SHSignatureGenerator()
   private var pendingPromise: Promise?
   private var matchTimer: Timer?
   private var timeoutTimer: Timer?
   // The shared audio session as it was before listening, restored after, so
   // the app's playback mode (set by expo-audio) survives an Identify.
   private var savedSessionConfig: (category: AVAudioSession.Category, mode: AVAudioSession.Mode, options: AVAudioSession.CategoryOptions)?
-  // Serial queue protects signatureGenerator from concurrent audio tap + timer access
+  // Every use of a listen's SHSignatureGenerator (the audio tap appending,
+  // the match timer reading) runs on this serial queue. The generator itself
+  // is local to each listen, so the main thread never touches one.
   private let genQueue = DispatchQueue(label: "com.tracks.shazam.gen")
 
   public func definition() -> ModuleDefinition {
@@ -74,7 +75,7 @@ public class ShazamKitModule: Module {
   }
 
   private func startListeningWithPermission() {
-    signatureGenerator = SHSignatureGenerator()
+    let generator = SHSignatureGenerator()
 
     let delegate = ShazamDelegate()
     delegate.onFound = { [weak self] match in
@@ -117,15 +118,32 @@ public class ShazamKitModule: Module {
       return
     }
 
+    // installTap raises an Objective-C exception (which Swift can't catch, so
+    // the app crashes) when the input format is invalid: no input route, or a
+    // 0 Hz / 0 channel format mid route change (AirPods connecting, a call).
+    // Check first and fail the listen instead.
+    let audioSession = AVAudioSession.sharedInstance()
+    guard audioSession.isInputAvailable else {
+      failUnavailableMic("no audio input available")
+      return
+    }
+
     let engine = AVAudioEngine()
     let inputNode = engine.inputNode
+    let hardwareFormat = inputNode.inputFormat(forBus: 0)
     let format = inputNode.outputFormat(forBus: 0)
+    guard ShazamKitModule.isUsable(hardwareFormat),
+          ShazamKitModule.isUsable(format),
+          hardwareFormat.sampleRate == format.sampleRate else {
+      failUnavailableMic("input format hw=\(hardwareFormat) tap=\(format)")
+      return
+    }
 
-    inputNode.installTap(onBus: 0, bufferSize: 8192, format: format) { [weak self] buffer, _ in
-      guard let self = self else { return }
-      self.genQueue.async {
+    let queue = genQueue
+    inputNode.installTap(onBus: 0, bufferSize: 8192, format: format) { buffer, _ in
+      queue.async {
         do {
-          try self.signatureGenerator.append(buffer, at: nil)
+          try generator.append(buffer, at: nil)
         } catch {
           NSLog("[ShazamKit] append error: \(error.localizedDescription)")
         }
@@ -149,8 +167,13 @@ public class ShazamKitModule: Module {
       guard let self = self else { return }
       self.genQueue.async {
         do {
-          let sig = try self.signatureGenerator.signature()
-          DispatchQueue.main.async { self.shazamSession?.match(sig) }
+          let sig = try generator.signature()
+          DispatchQueue.main.async { [weak self] in
+            // Only into the listen this signature came from; a late one from
+            // a finished listen is dropped.
+            guard let self = self, self.shazamSession === session else { return }
+            session.match(sig)
+          }
         } catch {
           // Not enough audio yet — keep accumulating
         }
@@ -165,6 +188,20 @@ public class ShazamKitModule: Module {
       self.cleanUpAudio()
       promise?.reject("TIMEOUT", "Couldn't identify the song. Try again in a quieter spot.")
     }
+  }
+
+  private static func isUsable(_ format: AVAudioFormat) -> Bool {
+    format.sampleRate > 0 && format.channelCount > 0
+  }
+
+  /// The microphone can't be listened to right now. Rejects with the same
+  /// code as other audio failures, which the app already shows as an error.
+  private func failUnavailableMic(_ detail: String) {
+    NSLog("[ShazamKit] microphone unavailable: \(detail)")
+    let promise = pendingPromise
+    pendingPromise = nil
+    cleanUpAudio()
+    promise?.reject("AUDIO_ERROR", "The microphone isn't available right now. If you're on a call or just switched headphones, try again in a moment.")
   }
 
   /// Tears down the audio engine and timers without touching the promise.

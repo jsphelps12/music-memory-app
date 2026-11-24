@@ -68,3 +68,69 @@ export function stopSongOfDeletedMoment(
     void player.stop();
   }
 }
+
+/**
+ * Remove from album, from the album screen. One of your own moments reads
+ * exactly like the entry's Remove from album; someone else's (the album
+ * owner tidying a shared album) says where it goes instead of "your journal".
+ */
+export function removeFromAlbumConfirm(count: number, allOwn: boolean): ConfirmOptions {
+  if (count === 1) {
+    return allOwn ? REMOVE_FROM_ALBUM_CONFIRM : { ...REMOVE_FROM_ALBUM_CONFIRM, message: "It stays in their journal." };
+  }
+  return {
+    title: `Remove ${count} moments from this album?`,
+    message: allOwn ? "They stay in your journal." : "Each stays in the journal it came from.",
+    confirmLabel: "Remove",
+    destructive: true,
+  };
+}
+
+/**
+ * Who can take a moment out of an album: the album's owner (any moment, a
+ * guest's included), or the moment's owner. That is the "member who added
+ * it" of the delete policy on collection_moments: a member can only ever add
+ * their own moments (the insert policy requires owns_moment), so the adder
+ * and the owner are the same person. The same rule as the entry's "…" menu.
+ */
+export function canRemoveFromAlbum(
+  albumRole: string | null | undefined,
+  momentUserId: string | null | undefined,
+  viewerId: string | null | undefined
+): boolean {
+  if (!viewerId) return false;
+  return albumRole === "owner" || (!!momentUserId && momentUserId === viewerId);
+}
+
+/** A long-pressed card's rows, by key. */
+export type CardMenuKey = "edit" | "share" | "album" | "select" | "remove" | "delete";
+
+export interface CardMenuOptions {
+  /** The viewer owns the moment. */
+  own: boolean;
+  /** The host drops a deleted moment from its list (MomentCard's onDeleted). */
+  deletable: boolean;
+  /** The host takes Share, Add to album, Select and Remove (onMenuAction). */
+  hostActions: boolean;
+  /** Inside an album: whether this viewer may take this moment out. Null elsewhere. */
+  album: { canRemove: boolean } | null;
+}
+
+/**
+ * Which rows a card's long-press menu offers, in menu order: Edit, Share,
+ * Add to album, Select, then the destructive ones last (DESIGN.md, Menus).
+ * Outside an album (the Journal) only the owner's own moments get a menu, as
+ * before. Inside one, anyone in the album can Select; Remove follows
+ * canRemoveFromAlbum; Edit, Share, Add to album and Delete stay the owner's
+ * (only the owner can pass a moment on: canPassOn, lib/momentView.ts).
+ */
+export function cardMenuKeys({ own, deletable, hostActions, album }: CardMenuOptions): CardMenuKey[] {
+  if (!album || !hostActions) {
+    if (!own || !deletable) return [];
+    return hostActions ? ["edit", "share", "album", "select", "delete"] : ["edit", "delete"];
+  }
+  const keys: CardMenuKey[] = own ? ["edit", "share", "album", "select"] : ["select"];
+  if (album.canRemove) keys.push("remove");
+  if (own && deletable) keys.push("delete");
+  return keys;
+}

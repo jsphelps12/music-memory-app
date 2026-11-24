@@ -21,7 +21,7 @@ import { Theme } from "@/constants/theme";
 import type { MediaSource } from "@/lib/linkedMedia";
 import { PhotosVideoView, setDuckOthers } from "@/modules/photos-video";
 import { CLIP_LEVEL, createMixRestore } from "@/lib/audioMix";
-import { loadsVideo, PHOTO_MS, videoHoldMs } from "@/lib/filmPlayback";
+import { PHOTO_MS, videoHoldMs, videoLoad, type VideoLoad } from "@/lib/filmPlayback";
 import { StatusBar } from "expo-status-bar";
 /** The cross-fade between one photo or video and the next. */
 const FADE_MS = 700;
@@ -356,11 +356,11 @@ export function MomentFilm({
  * remounted as it changes role: the outgoing item stays exactly as it was
  * (a video keeps its last frame) while the new one fades in on top. The items
  * either side are mounted too, invisible, so their pictures are decoded
- * before they're needed. Only the next one also loads a linked video ahead
- * (lib/filmPlayback.ts loadsVideo): each is a full-quality stream, often from
- * iCloud, so the one behind stays a poster until it's back. The fade waits for
- * the new item's picture, up to FADE_WAIT_MS, so it never dips to black and
- * then pops.
+ * before they're needed. Only the next one also loads a linked video ahead,
+ * and lightly (lib/filmPlayback.ts videoLoad): only the item on screen
+ * streams the original, often from iCloud, and the one behind stays a poster
+ * until it's back. The fade waits for the new item's picture, up to
+ * FADE_WAIT_MS, so it never dips to black and then pops.
  */
 const FADE_WAIT_MS = 600;
 
@@ -451,7 +451,7 @@ function Stage({
             item={items[i]}
             index={i}
             role={role}
-            loadVideo={loadsVideo(i, index, under, count)}
+            videoLoad={videoLoad(i, index, under, count)}
             fade={fade}
             width={width}
             height={height}
@@ -476,7 +476,7 @@ function Layer({
   item,
   index,
   role,
-  loadVideo,
+  videoLoad,
   fade,
   width,
   height,
@@ -493,8 +493,8 @@ function Layer({
   item: MediaSource;
   index: number;
   role: "top" | "under" | "ahead";
-  /** Whether a linked video loads its player now (lib/filmPlayback.ts). */
-  loadVideo: boolean;
+  /** Whether and how a linked video loads its player now (lib/filmPlayback.ts). */
+  videoLoad: VideoLoad;
   fade: SharedValue<number>;
   width: number;
   height: number;
@@ -521,7 +521,8 @@ function Layer({
           width={width}
           height={height}
           active={role === "top"}
-          load={loadVideo}
+          load={videoLoad !== null}
+          light={videoLoad === "light"}
           playing={playing}
           loop={loopVideo}
           muted={muted}
@@ -556,6 +557,7 @@ function VideoPage({
   height,
   active,
   load,
+  light,
   playing,
   loop,
   muted,
@@ -573,6 +575,8 @@ function VideoPage({
   active: boolean;
   /** Whether its player loads now (on screen, fading out, or next up). */
   load: boolean;
+  /** Not on screen: a lighter load, a few seconds buffered (lib/filmPlayback.ts videoLoad). */
+  light: boolean;
   playing: boolean;
   loop: boolean;
   muted: boolean;
@@ -636,6 +640,7 @@ function VideoPage({
         <Video
           key={player}
           localId={localId}
+          preload={light}
           playing={playing}
           muted={muted}
           loop={loop}

@@ -16,5 +16,31 @@ export function isShareIntentPath(path: string): boolean {
  */
 export function routeForSystemPath(path: string, initial: boolean): string | null {
   if (isShareIntentPath(path)) return initial ? "/" : null;
+  const invite = albumInviteCode(path);
+  if (invite) return `/join?inviteCode=${invite}`;
   return path;
+}
+
+/**
+ * An album invite universal link (`/c/{code}`, apex or www, or the bare
+ * path) has no screen of its own: it opens the join screen. Null otherwise.
+ */
+export function albumInviteCode(path: string): string | null {
+  const m = path.match(/^(?:https:\/\/(?:www\.)?soundtracks\.app)?\/c\/([a-zA-Z0-9]+)\/?(?:[?#].*)?$/);
+  return m ? m[1] : null;
+}
+
+/**
+ * What to do with a friend or album universal link the router opens itself
+ * (`/friend/{token}`, `/c/{code}` → /join): park it for after sign-in only
+ * when nobody is signed in. On a cold start auth hasn't restored yet (no user
+ * even for a signed-in person), so the decision waits for it; parking there
+ * used to open the friend screen a second time and leave the invite code
+ * behind for the next sign-in.
+ */
+export type ParkedLinkAction = "wait" | "park" | "skip";
+
+export function parkedLinkAction(authLoading: boolean, signedIn: boolean): ParkedLinkAction {
+  if (signedIn) return "skip";
+  return authLoading ? "wait" : "park";
 }

@@ -73,13 +73,6 @@ export const radii = {
   full: 9999,
 } as const;
 
-// Retired with the old app icon (2026-10). Only ArtworkPlaceholder still
-// reads it; don't add new uses (DESIGN.md: "The Artwork Is the Color").
-export const gradients = {
-  brand: ["#E8825C", "#6B5F8C"] as const,
-  brandDark: ["#E8825C", "#9888C8"] as const,
-} as const;
-
 export const shadows = {
   card: {
     shadowColor: "#000",
@@ -95,16 +88,12 @@ export interface ThemeColors {
   background: string;
   backgroundSecondary: string;
   backgroundTertiary: string;
-  backgroundInput: string;
   text: string;
   textSecondary: string;
   textTertiary: string;
   accent: string;
-  accentBg: string;
+  /** Terracotta that may be thin or small (caret, selection): DESIGN.md "Terracotta Text". */
   accentText: string;
-  accentSecondary: string;
-  accentSecondaryBg: string;
-  accentSecondaryText: string;
   buttonBg: string;
   buttonText: string;
   border: string;
@@ -122,10 +111,18 @@ export interface ThemeColors {
   shadow: string;
   /** A Switch's "on" track: ink on paper, Graphite on night (ink-as-paper would hide the white thumb). */
   switchOn: string;
+  /** Placeholder text and the icon inside a field: one muted color, AA on a field on a sheet. */
   placeholder: string;
   destructive: string;
   success: string;
-  chipBg: string;
+  /**
+   * The one quiet fill (fields, chips, secondary buttons, segmented track,
+   * empty avatar/art): translucent ink on paper, paper on night, so it steps
+   * the same off any surface, a sheet included. Never put a fill on a fill.
+   */
+  fill: string;
+  /** A pressed row on a sheet or menu. */
+  fillPressed: string;
   chipText: string;
   chipSelectedBg: string;
   chipSelectedText: string;
@@ -134,9 +131,7 @@ export interface ThemeColors {
   tabBarBorder: string;
   tabBarActive: string;
   tabBarInactive: string;
-  closeButtonBg: string;
   skeletonBase: string;
-  skeletonHighlight: string;
   artworkPlaceholder: string;
 }
 
@@ -149,16 +144,11 @@ const lightColors: ThemeColors = {
   background: "#FBF7F2",
   backgroundSecondary: "#F3EDE6",
   backgroundTertiary: "#EBE4DC",
-  backgroundInput: "#F8F3EE",
   text: "#23222B",
   textSecondary: "#5E5C66",
   textTertiary: "#736A63",
   accent: "#D9693F",
-  accentBg: "#fdf0eb",
-  accentText: "#c96840",
-  accentSecondary: "#6B5F8C",
-  accentSecondaryBg: "#F0EDF7",
-  accentSecondaryText: "#4A3E6A",
+  accentText: "#B04F2A",
   buttonBg: "#23222B",
   buttonText: "#FBF7F2",
   border: "#E0D8CF",
@@ -169,10 +159,11 @@ const lightColors: ThemeColors = {
   onGlass: "#23222B",
   shadow: "#0E0B0A",
   switchOn: "#23222B",
-  placeholder: "#7A716A",
-  destructive: "#d32f2f",
+  placeholder: "#6A615A",
+  destructive: "#C62828",
   success: "#2e7d32",
-  chipBg: "#F0EAE3",
+  fill: "rgba(35,34,43,0.06)",
+  fillPressed: "rgba(35,34,43,0.10)",
   chipText: "#3D3C48",
   chipSelectedBg: "#23222B",
   chipSelectedText: "#FBF7F2",
@@ -180,10 +171,8 @@ const lightColors: ThemeColors = {
   tabBar: "#FBF7F2",
   tabBarBorder: "#E9E2D9",
   tabBarActive: "#23222B",
-  tabBarInactive: "#6E655E",
-  closeButtonBg: "rgba(35,34,43,0.06)",
-  skeletonBase: "#EAE3DB",
-  skeletonHighlight: "#F5EFE9",
+  tabBarInactive: "#736A63",
+  skeletonBase: "#EBE4DC",
   artworkPlaceholder: "#E5DDD4",
 };
 
@@ -191,41 +180,35 @@ const darkColors: ThemeColors = {
   background: "#0E0B0A",
   backgroundSecondary: "#1E1A18",
   backgroundTertiary: "#2A2422",
-  backgroundInput: "#1E1A18",
   text: "#F5F0EB",
   textSecondary: "#ABA39E",
   textTertiary: "#8E847E",
   accent: "#EE8B62",
-  accentBg: "#3a2820",
-  accentText: "#F0A080",
-  accentSecondary: "#9888C8",
-  accentSecondaryBg: "#251F38",
-  accentSecondaryText: "#C0AEE8",
+  accentText: "#EE8B62",
   buttonBg: "#F5EEE8",
-  buttonText: "#1A0F0A",
+  buttonText: "#0E0B0A",
   border: "#362F2C",
   divider: "#2A2422",
-  elevated: "#1C1716",
+  elevated: "#26211F",
   scrim: "rgba(14,11,10,0.55)",
-  glass: "rgba(28,23,22,0.8)",
+  glass: "rgba(38,33,31,0.8)",
   onGlass: "#F5F0EB",
   shadow: "#0E0B0A",
   switchOn: "#ABA39E",
-  placeholder: "#857B75",
+  placeholder: "#A39992",
   destructive: "#ff453a",
   success: "#30d158",
-  chipBg: "#2A2422",
+  fill: "rgba(245,240,235,0.10)",
+  fillPressed: "rgba(245,240,235,0.16)",
   chipText: "#E8E1DA",
   chipSelectedBg: "#F5EEE8",
-  chipSelectedText: "#1A0F0A",
-  cardBg: "#1E1A1A",
+  chipSelectedText: "#0E0B0A",
+  cardBg: "#1E1A18",
   tabBar: "#0E0B0A",
   tabBarBorder: "#2A2422",
   tabBarActive: "#F5F0EB",
-  tabBarInactive: "#A99E95",
-  closeButtonBg: "rgba(245,240,235,0.1)",
+  tabBarInactive: "#8E847E",
   skeletonBase: "#2A2422",
-  skeletonHighlight: "#38302E",
   artworkPlaceholder: "#2A2422",
 };
 

@@ -1,9 +1,12 @@
 // Device-local records that belong to whoever is signed in: From before,
-// Last week, photo analyses, nudge questions, the capture hint. Signing out
+// Last week, photo analyses, nudge questions, the capture hint, parked deep
+// links. Signing out
 // (or deleting the account) removes them, so the next account on this phone
 // starts clean. Other per-user caches (timeline, profile, browse, capture
 // draft, daily check-in) are cleared by their own modules' clear* helpers in
 // contexts/AuthContext.tsx; in-memory copies by clearInMemoryStores there.
+// clearCaptureDraft also deletes the drafts' kept photo copies
+// (Documents/capture-drafts/<userId>/, lib/captureDraftFiles.ts).
 //
 // The names are repeated here rather than imported (importing those modules
 // would pull native code into this one); lib/__tests__/signOutKeys.test.ts
@@ -34,6 +37,13 @@ export const SIGN_OUT_KEYS: readonly string[] = [
   "nudge_questions_v1",
   // lib/captureHint.ts
   "capture_hold_hint_v1",
+  // hooks/useDeepLinkHandler.ts: links parked until someone signs in. Left
+  // behind, the next account to sign in here would open the last one's
+  // invite. (has_launched there is device-wide and stays.)
+  "pending_invite_code",
+  "pending_friend_token",
+  "pending_share_token",
+  "pending_gift_token",
 ];
 
 /**

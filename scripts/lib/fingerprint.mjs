@@ -15,6 +15,7 @@
  * itself.
  */
 import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
@@ -123,4 +124,43 @@ export function gateDecision({ runtimeVersion, builds, skipIfUnserved = false })
     reason: builds.length === 0 ? "no-builds" : "no-match",
     match: null,
   };
+}
+
+/**
+ * Builds made on the Mac (Xcode archive → TestFlight), which EAS has never
+ * heard of: scripts/local-builds.json, written by scripts/record-local-build.mjs
+ * from the built app itself (its EXUpdates.bundle/fingerprint), so the runtime
+ * version is what the binary asks for, not what someone typed. Newest first.
+ */
+export function localBuilds(profile, file = new URL("../local-builds.json", import.meta.url)) {
+  let list;
+  try {
+    list = JSON.parse(readFileSync(file, "utf8"));
+  } catch (e) {
+    if (e.code === "ENOENT") return [];
+    throw new Error(`scripts/local-builds.json can't be read: ${e.message}`);
+  }
+  return list
+    .filter((b) => b.profile === profile && typeof b.runtimeVersion === "string")
+    .map((b) => ({
+      buildNumber: String(b.buildNumber),
+      appVersion: b.appVersion,
+      runtimeVersion: b.runtimeVersion,
+      completedAt: b.recordedAt ?? null,
+      fingerprint: b.runtimeVersion,
+      source: "local",
+    }))
+    .sort((a, b) => Number(b.buildNumber) - Number(a.buildNumber));
+}
+
+/**
+ * Every build an update for this profile could reach: EAS's and the Mac's,
+ * newest first. A local build with the same number as an EAS one is the same
+ * binary; EAS's record wins.
+ */
+export async function knownBuilds(profile, limit = 10) {
+  const eas = (await liveBuilds(profile, limit)).map((b) => ({ ...b, source: "eas" }));
+  const seen = new Set(eas.map((b) => String(b.buildNumber)));
+  const local = localBuilds(profile).filter((b) => !seen.has(b.buildNumber));
+  return [...eas, ...local].sort((a, b) => Number(b.buildNumber) - Number(a.buildNumber));
 }

@@ -1,4 +1,5 @@
 import type { Song, MusicProviderType } from "@/types";
+import type { SongLookup } from "@/lib/songMetadata";
 
 export interface PlaybackState {
   isPlaying: boolean;
@@ -36,6 +37,14 @@ export interface MusicProvider {
    * Returns null if unavailable (non-blocking — caller will silence the error).
    */
   fetchPreviewUrl(song: Song): Promise<string | null>;
+
+  /**
+   * The preview plus catalog details saved on a moment (genre, release date,
+   * artist and album ids, length). Optional: a provider without catalog
+   * details (Spotify) omits it, and the save uses fetchPreviewUrl alone.
+   * Never rejects.
+   */
+  lookupSong?(song: Song): Promise<SongLookup>;
 
   /**
    * Subscribe to playback state changes. Returns an unsubscribe function.

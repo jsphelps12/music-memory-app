@@ -1,9 +1,22 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import { mapRowToMoment } from "@/lib/moments";
+import { shapeForViewer } from "@/lib/momentView";
 import { MOMENT_CARD_COLUMNS } from "@/lib/momentColumns";
 import { ensureFullMedia, ensureFullMediaForAlbum, ensureFullMediaForAlbumMoments } from "@/lib/ensureFullMedia";
 import { planAlbumAdd } from "@/lib/momentSelection";
+import { fetchProfilesByIds } from "@/lib/friends";
+import { fetchAllRows } from "@/lib/fetchAllRows";
+import { isMissingFunctionError } from "@/lib/profile";
+import {
+  isMissingInviteBackend,
+  mapPendingInvites,
+  parseRespondStatus,
+  pendingInviteCount,
+  type AlbumInvite,
+  type PendingInviteRow,
+  type RespondStatus,
+} from "@/lib/albumInvites";
 import { Album, AlbumPreview, Moment } from "@/types";
 
 // ─── Legacy AsyncStorage caches (removed) ────────────────────────────────────
@@ -127,11 +140,13 @@ export class AlbumUnavailableError extends Error {
  * failed lookup degrades to no name rather than failing the whole screen.
  */
 async function fetchOwnerNames(ownerIds: string[]): Promise<Map<string, string | null>> {
-  const unique = [...new Set(ownerIds)];
-  if (unique.length === 0) return new Map();
-  const { data, error } = await supabase.from("profiles").select("id, display_name").in("id", unique);
-  if (error && __DEV__) console.warn("[albums] owner name lookup failed:", error.message);
-  return new Map((data ?? []).map((p: any) => [p.id, p.display_name ?? null]));
+  try {
+    const profiles = await fetchProfilesByIds(ownerIds);
+    return new Map([...profiles].map(([id, p]) => [id, p.display_name ?? null]));
+  } catch (error) {
+    if (__DEV__) console.warn("[albums] owner name lookup failed:", (error as Error)?.message);
+    return new Map();
+  }
 }
 
 // ─── Album lists ─────────────────────────────────────────────────────────────
@@ -139,6 +154,8 @@ async function fetchOwnerNames(ownerIds: string[]): Promise<Map<string, string |
 export interface AlbumMember {
   userId: string;
   displayName: string | null;
+  avatarUrl: string | null;
+  username: string | null;
   joinedAt: string;
 }
 
@@ -195,30 +212,46 @@ export interface AlbumsOverview {
   albums: Album[];
   /** Shared albums' new-moment counts since the user last opened them. */
   newCounts: Record<string, number>;
-  /** Up to four song artworks per album (see fetchAlbumArtworks). */
+  /** Up to four song artworks per album (see fetchAlbumArtworks); invited-to albums too. */
   artworks: Record<string, string[]>;
+  /** Friends' invites waiting for Join / Not now, newest first (Albums → Shared). */
+  invites: AlbumInvite[];
 }
 
 /**
  * Everything the Albums screen (and the You tab's album row) shows, in two
- * round trips on the critical path: owned + membership rows, then the joined
- * albums (and their owners' names) alongside the artworks.
+ * round trips on the critical path: owned + membership rows and pending
+ * invites, then the joined albums (and their owners' names) alongside the
+ * artworks and the inviters' names.
  */
 export async function fetchAlbumsOverview(userId: string): Promise<AlbumsOverview> {
-  const { owned, members } = await fetchOwnedAndMemberRows(userId);
+  const [{ owned, members }, inviteRows] = await Promise.all([
+    fetchOwnedAndMemberRows(userId),
+    fetchPendingInviteRows(userId),
+  ]);
   const joinedIds = members.map((m) => m.collection_id);
+  const inAlbum = new Set([...owned.map((r) => r.id), ...joinedIds]);
+  const pending = mapPendingInvites(inviteRows, inAlbum, new Map());
   // A joined album's cover isn't known yet, so ask for all of them; the
   // per-album limit keeps that cheap.
-  const artworkIds = [...owned.filter((r) => !r.cover_photo_url).map((r) => r.id), ...joinedIds];
-  const [{ joined, ownerNames }, artworks] = await Promise.all([
+  const artworkIds = [
+    ...owned.filter((r) => !r.cover_photo_url).map((r) => r.id),
+    ...joinedIds,
+    ...pending.filter((i) => !i.coverPhotoUrl).map((i) => i.collectionId),
+  ];
+  const [{ joined, ownerNames }, artworks, senderNames] = await Promise.all([
     fetchJoinedRows(joinedIds),
     fetchAlbumArtworks(artworkIds),
+    pending.length > 0
+      ? fetchOwnerNames(pending.map((i) => i.fromUserId))
+      : Promise.resolve(new Map<string, string | null>()),
   ]);
   const activity = buildAlbumActivity(owned, joined, members, ownerNames);
   return {
     albums: toAlbums(owned, joined, ownerNames),
     newCounts: Object.fromEntries(activity.map((a) => [a.collectionId, a.newMomentCount])),
     artworks,
+    invites: mapPendingInvites(inviteRows, inAlbum, senderNames),
   };
 }
 
@@ -227,7 +260,10 @@ export async function fetchAlbumsOverview(userId: string): Promise<AlbumsOvervie
  * recently made, cut to `limit`. Derived from the overview so both screens can
  * share one query.
  */
-export function selectAlbumsPreview(overview: AlbumsOverview, limit: number) {
+export function selectAlbumsPreview(
+  overview: Pick<AlbumsOverview, "albums" | "newCounts" | "artworks">,
+  limit: number
+) {
   const { albums, newCounts, artworks } = overview;
   const preview = [...albums]
     .sort(
@@ -392,6 +428,30 @@ export async function removeMomentFromAlbum(collectionId: string, momentId: stri
   if (error) throw error;
 }
 
+/**
+ * The album screen's select mode: take these moments out of the album, a
+ * chunk per statement. Returns the ids actually removed: the delete policy
+ * skips rows this user may not remove without an error, so the caller learns
+ * what went from the rows that come back. Throws on a failed request.
+ */
+export async function removeMomentsFromAlbum(
+  collectionId: string,
+  momentIds: readonly string[]
+): Promise<string[]> {
+  const removed: string[] = [];
+  for (let i = 0; i < momentIds.length; i += BULK_ID_CHUNK) {
+    const { data, error } = await supabase
+      .from("collection_moments")
+      .delete()
+      .eq("collection_id", collectionId)
+      .in("moment_id", momentIds.slice(i, i + BULK_ID_CHUNK))
+      .select("moment_id");
+    if (error) throw error;
+    for (const r of (data ?? []) as { moment_id: string }[]) removed.push(r.moment_id);
+  }
+  return removed;
+}
+
 // ─── Invites ─────────────────────────────────────────────────────────────────
 
 /**
@@ -460,6 +520,98 @@ export async function joinAlbum(inviteCode: string, userId: string): Promise<Alb
   };
 }
 
+// ─── Invites from the friend picker (album basics, 2026-11-20) ───────────────
+// The owner invites a friend from the share sheet; the friend answers in
+// Albums → Shared. Server side: 20261121010000_album_invites.sql. Until it's
+// applied, reads come back empty / unavailable and the UI hides itself
+// (isMissingInviteBackend in lib/albumInvites.ts).
+
+const INVITES_TABLE = "collection_friend_invites";
+
+/** The user's pending invite rows with their albums; empty when the server has no invites yet. */
+async function fetchPendingInviteRows(userId: string): Promise<PendingInviteRow[]> {
+  const { data, error } = await supabase
+    .from(INVITES_TABLE)
+    .select("collection_id, from_user, created_at, collections(id, name, cover_photo_url, is_public)")
+    .eq("to_user", userId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+  if (error) {
+    if (isMissingInviteBackend(error)) return [];
+    throw error;
+  }
+  return (data ?? []) as unknown as PendingInviteRow[];
+}
+
+/**
+ * How many invites are waiting (the Albums tab dot). Leaves out albums the
+ * user already joined some other way, as the Shared pane does.
+ */
+export async function fetchPendingAlbumInviteCount(userId: string): Promise<number> {
+  const [rows, memberRes] = await Promise.all([
+    fetchPendingInviteRows(userId),
+    supabase.from("collection_members").select("collection_id").eq("user_id", userId),
+  ]);
+  if (rows.length === 0) return 0;
+  if (memberRes.error) throw memberRes.error;
+  const joined = new Set(((memberRes.data ?? []) as { collection_id: string }[]).map((r) => r.collection_id));
+  return pendingInviteCount(rows, joined);
+}
+
+/**
+ * Who the owner has already invited to this album (pending, or answered Not
+ * now; the owner isn't told which). null when the server has no invites yet:
+ * the share sheet then hides "Invite friends".
+ */
+export async function fetchAlbumInviteeIds(collectionId: string): Promise<Set<string> | null> {
+  // Through an RPC: the owner may know who was asked, not who said Not now.
+  const { data, error } = await supabase.rpc("get_album_invitee_ids", { p_collection_id: collectionId });
+  if (error) {
+    if (isMissingInviteBackend(error)) return null;
+    throw error;
+  }
+  return new Set(((data ?? []) as string[]).filter((id) => typeof id === "string"));
+}
+
+/**
+ * Invite one friend to a shared album (owner only), then push them. The
+ * server skips non-friends, members and anyone already invited, so
+ * "already_invited" covers all of those. The push is best-effort on top: a
+ * failed push doesn't undo or misreport the invite, and notify-social sends at
+ * most one per invite.
+ */
+export async function inviteFriendToAlbum(
+  collectionId: string,
+  friendId: string
+): Promise<"invited" | "already_invited"> {
+  const { data, error } = await supabase.rpc("invite_to_album", {
+    p_collection_id: collectionId,
+    p_friend_ids: [friendId],
+  });
+  if (error) throw error;
+  if (typeof data !== "number" || data < 1) return "already_invited";
+  void supabase.functions
+    .invoke("notify-social", {
+      body: { type: "album_invite", toUserId: friendId, collectionId },
+    })
+    .catch(() => {});
+  return "invited";
+}
+
+/**
+ * Join / Not now on an invite. Join adds the user as a member through the
+ * same rule as joining by link. "unavailable": the album is gone or no longer
+ * shared; "no_invite": the invite was withdrawn or already used.
+ */
+export async function respondToAlbumInvite(collectionId: string, accept: boolean): Promise<RespondStatus> {
+  const { data, error } = await supabase.rpc("respond_to_album_invite", {
+    p_collection_id: collectionId,
+    p_accept: accept,
+  });
+  if (error) throw error;
+  return parseRespondStatus(data);
+}
+
 // Remove the current user from a shared album
 export async function leaveAlbum(collectionId: string, userId: string): Promise<void> {
   const { error } = await supabase
@@ -470,24 +622,35 @@ export async function leaveAlbum(collectionId: string, userId: string): Promise<
   if (error) throw error;
 }
 
-// Fetch all members of an album (owner use only)
+/**
+ * Every member of an album, in join order (owner use only). Paged past the
+ * row cap; throws when the members or their names don't load, so the sheet
+ * shows an error instead of "No one else has joined yet".
+ */
 export async function fetchAlbumMembers(collectionId: string): Promise<AlbumMember[]> {
-  const { data, error } = await supabase
-    .from("collection_members")
-    .select("user_id, joined_at")
-    .eq("collection_id", collectionId)
-    .order("joined_at", { ascending: true });
+  const data = await fetchAllRows<any>((from, to) =>
+    supabase
+      .from("collection_members")
+      .select("user_id, joined_at")
+      .eq("collection_id", collectionId)
+      .order("joined_at", { ascending: true })
+      .order("user_id", { ascending: true })
+      .range(from, to)
+  );
+  if (data.length === 0) return [];
 
-  if (error) throw error;
-  if (!data || data.length === 0) return [];
+  const profiles = await fetchProfilesByIds(data.map((r: any) => r.user_id));
 
-  const names = await fetchOwnerNames(data.map((r: any) => r.user_id));
-
-  return data.map((r: any) => ({
-    userId: r.user_id,
-    displayName: names.get(r.user_id) ?? null,
-    joinedAt: r.joined_at,
-  }));
+  return data.map((r: any) => {
+    const profile = profiles.get(r.user_id);
+    return {
+      userId: r.user_id,
+      displayName: profile?.display_name ?? null,
+      avatarUrl: profile?.avatar_url ?? null,
+      username: profile?.username ?? null,
+      joinedAt: r.joined_at,
+    };
+  });
 }
 
 // Remove a specific member from an album (owner use only)
@@ -617,13 +780,16 @@ export async function markAlbumViewed(
 
 // Fetch all moments across all contributors in a shared album via a single
 // server-side join (get_shared_collection_moments RPC), avoiding 3 serial queries.
-export async function fetchSharedAlbumMoments(collectionId: string): Promise<Moment[]> {
+// Other people's moments come back as the shared view (no place, people or
+// link token); with the viewer's id that's applied on the device too.
+export async function fetchSharedAlbumMoments(collectionId: string, viewerId?: string): Promise<Moment[]> {
   const { data, error } = await supabase.rpc("get_shared_collection_moments", {
     p_collection_id: collectionId,
   });
   if (error) throw error;
   return (data ?? []).map((row: any) => {
-    const moment = mapRowToMoment(row);
+    const mapped = mapRowToMoment(row);
+    const moment = viewerId ? shapeForViewer(mapped, viewerId) : mapped;
     moment.contributorName = row.contributor_name ?? null;
     return moment;
   });
@@ -689,7 +855,7 @@ export async function fetchAlbumDetail(id: string, userId: string): Promise<Albu
   if (!role) throw new AlbumNotFoundError();
 
   const [moments, ownerNames] = await Promise.all([
-    row.is_public ? fetchSharedAlbumMoments(id) : fetchPersonalAlbumMoments(id),
+    row.is_public ? fetchSharedAlbumMoments(id, userId) : fetchPersonalAlbumMoments(id),
     role === "member" ? fetchOwnerNames([row.user_id]) : Promise.resolve(new Map<string, string | null>()),
   ]);
 
@@ -744,8 +910,28 @@ export async function renameAlbum(collectionId: string, name: string): Promise<v
  * The embedded rows are limited per album on the server, so a large shared
  * album costs the same as a small one.
  */
+/**
+ * Up to four song artworks per album, newest added first, through
+ * get_album_artworks (20261123000000): albums you own, have joined, or have
+ * an open invite to. DB-2 makes moments owner-only, so other people's
+ * moments in a shared album can't be read from the table. Until that
+ * function is on the database, the direct read it replaces.
+ */
 export async function fetchAlbumArtworks(albumIds: string[]): Promise<Record<string, string[]>> {
   if (albumIds.length === 0) return {};
+  const { data, error } = await supabase.rpc("get_album_artworks", { p_collection_ids: albumIds });
+  if (isMissingFunctionError(error)) return fetchAlbumArtworksDirect(albumIds);
+  if (error) throw error;
+  const byAlbum: Record<string, string[]> = {};
+  for (const row of (data ?? []) as { collection_id: string; artwork_urls: string[] | null }[]) {
+    const urls = (row.artwork_urls ?? []).filter(Boolean).slice(0, ARTWORKS_PER_ALBUM);
+    if (urls.length > 0) byAlbum[row.collection_id] = urls;
+  }
+  return byAlbum;
+}
+
+/** The read get_album_artworks replaces; only until that function is applied. */
+async function fetchAlbumArtworksDirect(albumIds: string[]): Promise<Record<string, string[]>> {
   const { data, error } = await supabase
     .from("collections")
     .select("id, collection_moments(added_at, moments(song_artwork_url))")

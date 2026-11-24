@@ -1,9 +1,14 @@
 import { requireNativeView } from "expo";
-import type { ReactNode } from "react";
-import type { ColorValue, StyleProp, ViewStyle } from "react-native";
+import type { ComponentType, ReactNode } from "react";
+import { View, type ColorValue, type StyleProp, type ViewStyle } from "react-native";
 
-// The iOS context menu around a view (1.4, modules/context-menu/ios): lift,
-// blur, attached menu. Null on a build without it; callers fall back.
+// The native moment menu (modules/context-menu/ios): one UIMenu, two ways in.
+// - ContextMenuView (1.4): long-press lifts the view, blurs behind it and
+//   attaches the menu.
+// - MenuButton (1.4.1): tap opens the same menu from a button (the "…").
+// Each is null on a binary without it; callers fall back to
+// components/MomentActionMenu. Both report a chosen action as onAction { id }
+// once the menu has closed, and put destructive actions in their own section.
 
 export interface ContextMenuAction {
   id: string;
@@ -24,11 +29,60 @@ export interface ContextMenuProps {
   children?: ReactNode;
 }
 
-let NativeView: React.ComponentType<ContextMenuProps> | null = null;
-try {
-  NativeView = requireNativeView<ContextMenuProps>("ContextMenu");
-} catch {
-  NativeView = null;
+export interface MenuButtonProps {
+  actions: ContextMenuAction[];
+  onAction: (e: { nativeEvent: { id: string } }) => void;
+  /** VoiceOver label for the button. Defaults to "More". */
+  label?: string;
+  /** How far past its frame the button takes taps (IconButton's glass hitSlop is 4). */
+  hitOutset?: number;
+  /** Lands on the native button, the element UI tests tap. */
+  testID?: string;
+  style?: StyleProp<ViewStyle>;
+  /**
+   * The look (the glass "…" IconButton). Drawn inside the native button and
+   * sizing it, but it takes no touches and is hidden from VoiceOver: the
+   * native button is the one tappable, accessible element.
+   */
+  children?: ReactNode;
 }
 
-export const ContextMenuView = NativeView;
+type NativeMenuButtonProps = Omit<MenuButtonProps, "children" | "hitOutset"> & {
+  hitOutset: number;
+  hitSlop: number;
+  children?: ReactNode;
+};
+
+// Whether this binary registered the view. requireNativeView never throws for
+// a missing view (it hands back a component that fails when it renders), so
+// ask the native view registry instead, the same lookup it uses itself.
+// Build 12 has ContextMenu but not MenuButtonView.
+function hasNativeView(viewName?: string): boolean {
+  try {
+    const expo = (globalThis as { expo?: { getViewConfig?: (module: string, view?: string) => unknown } })
+      .expo;
+    return !!expo?.getViewConfig?.("ContextMenu", viewName);
+  } catch {
+    return false;
+  }
+}
+
+export const ContextMenuView: ComponentType<ContextMenuProps> | null = hasNativeView()
+  ? requireNativeView<ContextMenuProps>("ContextMenu")
+  : null;
+
+function makeMenuButton(Native: ComponentType<NativeMenuButtonProps>) {
+  return function MenuButton({ children, hitOutset = 0, ...rest }: MenuButtonProps) {
+    return (
+      <Native {...rest} hitOutset={hitOutset} hitSlop={hitOutset}>
+        <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {children}
+        </View>
+      </Native>
+    );
+  };
+}
+
+export const MenuButton: ComponentType<MenuButtonProps> | null = hasNativeView("MenuButtonView")
+  ? makeMenuButton(requireNativeView<NativeMenuButtonProps>("ContextMenu", "MenuButtonView"))
+  : null;

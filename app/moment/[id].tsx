@@ -8,14 +8,19 @@ import {
   Alert,
   StyleSheet,
   Linking,
+  AccessibilityInfo,
+  useWindowDimensions,
 } from "react-native";
-import type { ViewInstance } from "react-native";
+import type { AccessibilityActionEvent, AccessibilityActionInfo, ViewInstance } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   useAnimatedScrollHandler,
+  useReducedMotion,
   interpolate,
   Extrapolation,
+  withSequence,
+  withSpring,
   withTiming,
   Easing,
   runOnJS,
@@ -25,6 +30,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { consumeCardOrigin } from "@/lib/cardTransition";
 import { consumeCachedMoment } from "@/lib/momentCache";
+import {
+  consumeMomentSequence,
+  flipDirection,
+  momentAt,
+  rubberBand,
+  shouldClose,
+  stepIndex,
+} from "@/lib/momentSequence";
 import { AppImage } from "@/components/AppImage";
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
@@ -34,6 +47,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlayerActions, usePlayerControls, usePlayerProgress } from "@/contexts/PlayerContext";
 import { playAction } from "@/lib/playerAction";
+import { formatSongTime, partFraction, partStartSeconds } from "@/lib/songPart";
 import { supabase } from "@/lib/supabase";
 import { getPublicPhotoUrl, momentCardImageUrls } from "@/lib/storage";
 import { deleteGuestMoment, deleteMomentWithCleanup } from "@/lib/deleteMoment";
@@ -43,7 +57,7 @@ import {
   addMomentToAlbum,
   removeMomentFromAlbum,
 } from "@/lib/albums";
-import { mapRowToMoment } from "@/lib/moments";
+import { canPassOn, fetchMomentForViewer } from "@/lib/momentView";
 import {
   DELETE_MOMENT_CONFIRM,
   DELETE_MOMENT_FAILED,
@@ -63,7 +77,7 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { MomentFilm } from "@/components/MomentFilm";
 import { confirmSheet, ConfirmSheetHost } from "@/components/ConfirmSheet";
 import { friendlyError } from "@/lib/errors";
-import { Album, PartialMoment } from "@/types";
+import { Album, Moment, PartialMoment } from "@/types";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches, invalidateAlbumCaches } from "@/lib/cacheInvalidation";
 import { ShareMomentSheet } from "@/components/ShareMomentSheet";
@@ -72,7 +86,7 @@ import { Button } from "@/components/Button";
 import { AlbumPicker } from "@/components/AlbumPicker";
 import { CreateAlbumSheet } from "@/components/CreateAlbumSheet";
 import { IconButton } from "@/components/IconButton";
-import { MomentActionMenu, MenuAnchor, MomentMenuItem } from "@/components/MomentActionMenu";
+import { MomentActionMenu, MomentMenuButton, MenuAnchor, MomentMenuItem } from "@/components/MomentActionMenu";
 import { Icon } from "@/components/Icon";
 import { formatTime } from "@/lib/formatTime";
 import { runWhenIdle } from "@/lib/whenIdle";
@@ -109,6 +123,55 @@ function seekSeconds(x: number, barWidth: number, duration: number): number {
   return Math.max(0, Math.min(1, x / barWidth)) * duration;
 }
 
+type PanGesture = ReturnType<typeof Gesture.Pan>;
+
+/** One page of the flip: which moment, where it sits in the list, how it came in. */
+interface Page {
+  id: string;
+  /** Its position in the sequence (0 without one). */
+  index: number;
+  /** What the card tap or the list already had, shown while the full row loads. */
+  initial: PartialMoment | null;
+  /** 0 opened; 1 flipped to the next (came in from the right); -1 to the previous. */
+  flip: -1 | 0 | 1;
+}
+
+// The page flip: the page leaves the way the finger was going, the next one
+// slides a quarter-width in from the other side as it fades up.
+const FLIP_OUT = { duration: 180, easing: Easing.out(Easing.quad) };
+const FLIP_IN = { duration: 240, easing: Easing.out(Easing.cubic) };
+const FLIP_IN_OFFSET = 0.25;
+// A drag let go short of a flip or a close: straight back, no overshoot (an
+// overshoot past 0 would show the Journal behind this overlay).
+const SETTLE = { damping: 30, stiffness: 320, overshootClamping: true };
+const CLOSE_OUT = { duration: 220, easing: Easing.out(Easing.cubic) };
+// Pans: a flip claims a drag within ~29° of horizontal (18pt across before
+// 10pt down); a close one steeper than ~53° (16pt down before 12pt across),
+// and only from the top of the page. Between the two, the drag only scrolls.
+const FLIP_ACTIVE_X = 18;
+const FLIP_FAIL_Y = 10;
+const CLOSE_ACTIVE_Y = 16;
+const CLOSE_FAIL_X = 12;
+// Scrolled further than this, a downward drag scrolls back up instead of closing.
+const TOP_SLOP = 1;
+
+function flipTick() {
+  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+}
+
+/**
+ * The moment overlay. It owns what outlives a page: the entry from the card,
+ * swipe down to close, and left/right through the list the moment was opened
+ * from (lib/momentSequence.ts). Each moment is a MomentPage, remounted by key
+ * on a flip, so everything about the last one (its fetch, autoplay timer,
+ * sheets, album ticks) goes with it.
+ *
+ * One page is mounted, not two: a page autoplays, fetches on focus, and can
+ * hold a map, the film and five sheets, so a second live one beside it would
+ * double all of that for the length of a drag. Instead the page leaves with
+ * the finger, the paper behind shows for a beat, and the next slides in.
+ * With the list's card data the next page draws at once, with no skeleton.
+ */
 export default function MomentDetailScreen() {
   const {
     id,
@@ -124,7 +187,348 @@ export default function MomentDetailScreen() {
     contributorName?: string;
   }>();
   const router = useRouter();
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const playerActions = usePlayerActions();
+  const reduceMotion = useReducedMotion();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+
+  // Left and right only when a list handed over its order (the Journal, an
+  // album); a moment opened anywhere else doesn't flip at all.
+  const [sequence] = useState(() => consumeMomentSequence(id));
+  // Only accept the cached moment if it's actually the one being opened. A
+  // swallowed navigation leaves a stale value in the module-level slot, and
+  // entries that don't populate it (push-notification taps) would otherwise
+  // render — and autoplay — someone else's moment.
+  // Until the full row lands, a card hand-off only has card columns: people,
+  // location, weather, updatedAt and shareToken are undefined, not empty.
+  const [page, setPage] = useState<Page>(() => {
+    const cached = consumeCachedMoment();
+    return {
+      id,
+      index: sequence?.index ?? 0,
+      initial: cached && cached.id === id ? cached : sequence ? momentAt(sequence, sequence.index) : null,
+      flip: 0,
+    };
+  });
+  const hasPrev = !!sequence && stepIndex(sequence, page.index, -1) !== null;
+  const hasNext = !!sequence && stepIndex(sequence, page.index, 1) !== null;
+
+  const [origin] = useState(() => consumeCardOrigin());
+  const translateX = useSharedValue(origin.active ? origin.x : 0);
+  const translateY = useSharedValue(origin.active ? origin.y : 0);
+  const scaleAnim = useSharedValue(origin.active ? origin.scale : 1);
+  const opacity = useSharedValue(origin.active ? 0 : 1);
+  // Swipe down to close: how far the whole overlay has been pulled.
+  const dragY = useSharedValue(0);
+  // The flip: the page's sideways offset and fade.
+  const flipX = useSharedValue(0);
+  const pageOpacity = useSharedValue(1);
+  // A flip or close is animating: new drags wait for it.
+  const busy = useSharedValue(false);
+  // The page's scroll offset, written by the page; a close starts only at the top.
+  const scrollY = useSharedValue(0);
+  const canPrev = useSharedValue(hasPrev);
+  const canNext = useSharedValue(hasNext);
+  useLayoutEffect(() => {
+    canPrev.set(hasPrev);
+    canNext.set(hasNext);
+  }, [canPrev, canNext, hasPrev, hasNext]);
+
+  const animateOut = useCallback((then: () => void) => {
+    opacity.set(withTiming(0, { duration: 120 }));
+    scaleAnim.set(
+      withTiming(0.95, { duration: 120 }, () => {
+        "worklet";
+        runOnJS(then)();
+      })
+    );
+  }, [opacity, scaleAnim]);
+
+  const goBack = useCallback(() => {
+    if (returnTo) {
+      router.replace(returnTo as any);
+    } else {
+      router.back();
+    }
+  }, [router, returnTo]);
+
+  const close = useCallback(() => animateOut(goBack), [animateOut, goBack]);
+  // Analytics for the two ways a person closes it (a delete closes it too,
+  // through `close`, and isn't counted here).
+  const posthog = usePostHog();
+  const closeByBack = useCallback(() => {
+    posthog?.capture("moment_closed", { via: "back" });
+    close();
+  }, [posthog, close]);
+  const closedBySwipe = useCallback(() => {
+    posthog?.capture("moment_closed", { via: "swipe_down" });
+    goBack();
+  }, [posthog, goBack]);
+
+  // The entry from the card that was tapped: the first page only.
+  useEffect(() => {
+    const config = { duration: 320, easing: Easing.out(Easing.cubic) };
+    opacity.set(withTiming(1, { duration: 180 }));
+    translateX.set(withTiming(0, config));
+    translateY.set(withTiming(0, config));
+    scaleAnim.set(withTiming(1, config));
+  }, [opacity, translateX, translateY, scaleAnim]);
+
+  // The song of the moment on screen, as its page last reported it (the full
+  // row once it lands): a flip stops it. Shared values, not refs, for this
+  // and the page index: flipTo runs from the pans, and the React Compiler
+  // can't optimize a screen whose gestures reach refs.
+  const shownSong = useSharedValue<{ songSpotifyId: string | null; songAppleMusicId: string | null } | null>(null);
+  const onShown = useCallback((m: PartialMoment) => {
+    shownSong.set({ songSpotifyId: m.songSpotifyId ?? null, songAppleMusicId: m.songAppleMusicId ?? null });
+  }, [shownSong]);
+  const pageIndex = useSharedValue(page.index);
+
+  // Runs once the old page is out of sight.
+  const flipTo = useCallback((dir: 1 | -1) => {
+    const nextIndex = sequence ? stepIndex(sequence, pageIndex.get(), dir) : null;
+    if (!sequence || nextIndex === null) {
+      flipX.set(withSpring(0, SETTLE));
+      pageOpacity.set(withTiming(1, { duration: 160 }));
+      busy.set(false);
+      return;
+    }
+    // The old moment's song stops, by the same rule as deleting it: only if
+    // it's the song loaded, or nothing is yet (that cancels its autoplay if
+    // still waiting on Apple Music). The next page autoplays its own.
+    const outgoing = shownSong.get();
+    if (outgoing) stopSongOfDeletedMoment(playerActions, outgoing, { orIdle: true });
+    shownSong.set(null);
+    pageIndex.set(nextIndex);
+    setPage({ id: sequence.ids[nextIndex], index: nextIndex, initial: momentAt(sequence, nextIndex), flip: dir });
+    posthog?.capture("moment_flipped", { direction: dir === 1 ? "next" : "prev" });
+  }, [sequence, playerActions, flipX, pageOpacity, busy, shownSong, pageIndex, posthog]);
+
+  // The new page comes in (flips only; the first page has the card entry).
+  useLayoutEffect(() => {
+    if (page.flip === 0) return;
+    scrollY.set(0);
+    const from = reduceMotion ? 0 : page.flip * screenWidth * FLIP_IN_OFFSET;
+    flipX.set(withSequence(withTiming(from, { duration: 0 }), withTiming(0, FLIP_IN)));
+    pageOpacity.set(
+      withSequence(
+        withTiming(0, { duration: 0 }),
+        withTiming(1, { duration: 200 }, () => {
+          "worklet";
+          busy.set(false);
+        })
+      )
+    );
+  }, [page, reduceMotion, screenWidth, scrollY, flipX, pageOpacity, busy]);
+
+  // Swipe down to close, like the full-screen player in Apple Music. Only
+  // from the top of the page: scrolled down, a downward drag scrolls back up.
+  // It's simultaneous with the page's scroll (declared on the page's side),
+  // so the scroll is never cancelled while this decides; at the top the page
+  // doesn't bounce (MomentPage), so the overlay moves and the writing doesn't.
+  const closePan = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetY(CLOSE_ACTIVE_Y)
+        .failOffsetY(-8)
+        .failOffsetX([-CLOSE_FAIL_X, CLOSE_FAIL_X])
+        .onTouchesDown((_e, manager) => {
+          "worklet";
+          if (busy.get() || scrollY.get() > TOP_SLOP) manager.fail();
+        })
+        .onUpdate((e) => {
+          "worklet";
+          // If the page does bounce (a fling just landed at the top), take the
+          // bounce out so the overlay still tracks the finger exactly.
+          dragY.set(Math.max(0, e.translationY + Math.min(0, scrollY.get())));
+        })
+        .onEnd((e, success) => {
+          "worklet";
+          if (success && shouldClose(dragY.get(), e.velocityY)) {
+            busy.set(true);
+            dragY.set(
+              withTiming(screenHeight, CLOSE_OUT, () => {
+                "worklet";
+                runOnJS(closedBySwipe)();
+              })
+            );
+          } else {
+            dragY.set(withSpring(0, SETTLE));
+          }
+        }),
+    [busy, scrollY, dragY, screenHeight, closedBySwipe]
+  );
+
+  // Left and right through the list. Off when there's no list: a lone moment
+  // doesn't even rubber-band. Past either end it rubber-bands and settles.
+  // The seek bar and the photo strip block it (MomentPage), so their own
+  // horizontal drags always win.
+  const flipPan = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(!!sequence)
+        .activeOffsetX([-FLIP_ACTIVE_X, FLIP_ACTIVE_X])
+        .failOffsetY([-FLIP_FAIL_Y, FLIP_FAIL_Y])
+        .onTouchesDown((_e, manager) => {
+          "worklet";
+          if (busy.get()) manager.fail();
+        })
+        .onUpdate((e) => {
+          "worklet";
+          const tx = e.translationX;
+          const open = tx < 0 ? canNext.get() : canPrev.get();
+          flipX.set(open ? tx : rubberBand(tx, screenWidth));
+          pageOpacity.set(open ? interpolate(Math.abs(tx), [0, screenWidth], [1, 0.4], Extrapolation.CLAMP) : 1);
+        })
+        .onEnd((e, success) => {
+          "worklet";
+          const dir = success
+            ? flipDirection(e.translationX, e.velocityX, screenWidth, canPrev.get(), canNext.get())
+            : 0;
+          if (dir !== 0) {
+            busy.set(true);
+            runOnJS(flipTick)();
+            pageOpacity.set(withTiming(0, FLIP_OUT));
+            flipX.set(
+              withTiming(-dir * screenWidth, FLIP_OUT, () => {
+                "worklet";
+                runOnJS(flipTo)(dir);
+              })
+            );
+          } else {
+            flipX.set(withSpring(0, SETTLE));
+            pageOpacity.set(withTiming(1, { duration: 160 }));
+          }
+        }),
+    [sequence, busy, canPrev, canNext, flipX, pageOpacity, screenWidth, flipTo]
+  );
+
+  // Whichever claims the drag first; they never both run.
+  const overlayGesture = useMemo(() => Gesture.Race(closePan, flipPan), [closePan, flipPan]);
+
+  // VoiceOver: "Next moment" / "Previous moment" as actions on the song title
+  // (swipe up or down on it), and the two-finger scrub closes.
+  const flipByAction = useCallback((dir: 1 | -1) => {
+    if (busy.get()) return;
+    busy.set(true);
+    flipTick();
+    pageOpacity.set(
+      withTiming(0, { duration: 120 }, () => {
+        "worklet";
+        runOnJS(flipTo)(dir);
+      })
+    );
+  }, [busy, pageOpacity, flipTo]);
+  const flipActions = useMemo<AccessibilityActionInfo[]>(
+    () => [
+      ...(hasPrev ? [{ name: "previous", label: "Previous moment" }] : []),
+      ...(hasNext ? [{ name: "next", label: "Next moment" }] : []),
+    ],
+    [hasPrev, hasNext]
+  );
+  const onFlipAction = useCallback((e: AccessibilityActionEvent) => {
+    if (e.nativeEvent.actionName === "next") flipByAction(1);
+    else if (e.nativeEvent.actionName === "previous") flipByAction(-1);
+  }, [flipByAction]);
+
+  const animStyle = useAnimatedStyle(() => {
+    const pulled = dragY.get();
+    return {
+      opacity: opacity.get(),
+      // Pulled down, it lifts away as a card: corners round, it eases smaller.
+      borderRadius: interpolate(pulled, [0, 120], [0, 24], Extrapolation.CLAMP),
+      transform: [
+        { translateX: translateX.get() },
+        { translateY: translateY.get() + pulled },
+        { scale: scaleAnim.get() * interpolate(pulled, [0, screenHeight], [1, 0.9], Extrapolation.CLAMP) },
+      ],
+    };
+  });
+
+  return (
+    <GestureDetector gesture={overlayGesture}>
+      <Animated.View
+        style={[styles.container, animStyle]}
+        onAccessibilityEscape={closeByBack}
+        testID="moment-detail"
+      >
+        <MomentPage
+          key={`${page.index}:${page.id}`}
+          id={page.id}
+          initial={page.initial}
+          flipped={page.flip !== 0}
+          contributorName={page.flip === 0 ? contributorName : (page.initial?.contributorName ?? undefined)}
+          collectionId={collectionId}
+          collectionRole={collectionRole}
+          scrollY={scrollY}
+          flipX={flipX}
+          pageOpacity={pageOpacity}
+          flipPan={flipPan}
+          closePan={closePan}
+          onClose={close}
+          onBack={closeByBack}
+          onShown={onShown}
+          flipActions={flipActions}
+          onFlipAction={onFlipAction}
+        />
+        {/* Own confirm host: this screen is a native modal, where the root
+            host's sheet cannot present (iOS silently drops it). It answers
+            while this screen is focused; the root host again once it closes.
+            Here rather than in the page, so a flip doesn't remount it. */}
+        <ConfirmSheetHost />
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
+interface MomentPageProps {
+  id: string;
+  initial: PartialMoment | null;
+  /** Came in by a flip: VoiceOver hears which moment it is now. */
+  flipped: boolean;
+  /**
+   * "From X": the opener's param on the first page, the list's card data on
+   * a flipped one (the full row only carries it for guests).
+   */
+  contributorName?: string;
+  collectionId?: string;
+  collectionRole?: string;
+  scrollY: SharedValue<number>;
+  flipX: SharedValue<number>;
+  pageOpacity: SharedValue<number>;
+  flipPan: PanGesture;
+  closePan: PanGesture;
+  /** The moment is gone (deleted, removed from the album). */
+  onClose: () => void;
+  /** The person went back (the back button, an error's Back). */
+  onBack: () => void;
+  onShown: (moment: PartialMoment) => void;
+  flipActions: AccessibilityActionInfo[];
+  onFlipAction: (e: AccessibilityActionEvent) => void;
+}
+
+function MomentPage({
+  id,
+  initial,
+  flipped,
+  contributorName,
+  collectionId,
+  collectionRole,
+  scrollY,
+  flipX,
+  pageOpacity,
+  flipPan,
+  closePan,
+  onClose,
+  onBack,
+  onShown,
+  flipActions,
+  onFlipAction,
+}: MomentPageProps) {
+  const router = useRouter();
   const { user, profile } = useAuth();
+  const userId = user?.id;
   const { currentSong, isPlaying, playError, playFull, pause, resume, seekTo } = usePlayerControls();
   const playerActions = usePlayerActions();
   const theme = useTheme();
@@ -133,35 +537,55 @@ export default function MomentDetailScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
 
+  // At the top the page doesn't bounce, so a pull down moves the overlay
+  // (swipe down to close) instead of stretching the writing; anywhere else it
+  // bounces as usual. Settled only when a drag or fling ends: flipping
+  // `bounces` mid-bounce would snap the page.
+  const [atTop, setAtTop] = useState(true);
+  const atTopNow = useSharedValue(true);
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      scrollY.set(e.contentOffset.y);
+    },
+    onEndDrag: (e) => {
+      const y = e.contentOffset.y;
+      // Let go mid-bounce at the top: decided when the bounce settles.
+      if (y < -0.5) return;
+      const top = y <= TOP_SLOP;
+      if (top !== atTopNow.get()) {
+        atTopNow.set(top);
+        runOnJS(setAtTop)(top);
+      }
+    },
+    onMomentumEnd: (e) => {
+      const top = e.contentOffset.y <= TOP_SLOP;
+      if (top !== atTopNow.get()) {
+        atTopNow.set(top);
+        runOnJS(setAtTop)(top);
+      }
+    },
+  });
   // The paper bar behind the status bar and buttons fades in as the hero
   // band scrolls off, so text never slides under the Dynamic Island and the
-  // buttons never float over writing.
-  const scrollY = useSharedValue(0);
-  const scrollHandler = useAnimatedScrollHandler((e) => {
-    scrollY.set(e.contentOffset.y);
-  });
-  // The artwork's top edge reaches the bar after ~36pt of scroll, so the bar
-  // is fully in by then.
+  // buttons never float over writing. The artwork's top edge reaches the bar
+  // after ~36pt of scroll, so the bar is fully in by then.
   const topBarStyle = useAnimatedStyle(() => ({
     opacity: interpolate(scrollY.get(), [12, 48], [0, 1], Extrapolation.CLAMP),
   }));
-  // Only accept the cached moment if it's actually the one being opened. A
-  // swallowed navigation leaves a stale value in the module-level slot, and
-  // entries that don't populate it (push-notification taps) would otherwise
-  // render — and autoplay — someone else's moment.
-  // Until the full row lands, a card hand-off only has card columns: people,
-  // location, weather, updatedAt and shareToken are undefined, not empty.
-  const [moment, setMoment] = useState<PartialMoment | null>(() => {
-    const cached = consumeCachedMoment();
-    return cached && cached.id === id ? cached : null;
-  });
+  // The flip moves the writing; the paper bar and the buttons stay put.
+  const flipStyle = useAnimatedStyle(() => ({
+    opacity: pageOpacity.get(),
+    transform: [{ translateX: flipX.get() }],
+  }));
+  const [moment, setMoment] = useState<PartialMoment | null>(initial);
   // "ready" straight away when the card handed over the moment; otherwise
   // the skeleton shows until the first fetch, never a "not found" flash.
   const [screenState, setScreenState] = useState<ScreenState>(() => (moment ? "ready" : "loading"));
   const [error, setError] = useState("");
   // A background refresh failed: the moment on screen stays, with a banner.
   const [refreshError, setRefreshError] = useState("");
-  // The "…" button's frame while the context menu is open.
+  // The "…" button's frame while the JS fallback menu is open (binaries
+  // without the native MenuButton).
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
   const menuButtonRef = useRef<ViewInstance>(null);
   const [deleting, setDeleting] = useState(false);
@@ -186,44 +610,31 @@ export default function MomentDetailScreen() {
   const [reportSheetVisible, setReportSheetVisible] = useState(false);
   const [reportAddressCopied, setReportAddressCopied] = useState(false);
 
-  const [origin] = useState(() => consumeCardOrigin());
-  const translateX = useSharedValue(origin.active ? origin.x : 0);
-  const translateY = useSharedValue(origin.active ? origin.y : 0);
-  const scaleAnim = useSharedValue(origin.active ? origin.scale : 1);
-  const opacity = useSharedValue(origin.active ? 0 : 1);
+  // A handle on the ScrollView's own scroll gesture, so the overlay's pans
+  // have a declared relation to it instead of leaving arbitration to emerge
+  // from whichever recognizer happens to fire first. A plain ref would not
+  // do: RNGH resolves relation refs through a `handlerTag` that RN's
+  // ScrollView doesn't carry, so passing one silently registers nothing.
+  //
+  // Simultaneous with both, so the scroll is never cancelled while a pan is
+  // still deciding: the pans fail fast on the wrong axis (FLIP_FAIL_Y, the
+  // close's top-only rule) so an ambiguous drag resolves to a scroll. The
+  // relations live here, on the page's side, not on the overlay's pans: RNGH
+  // checks a simultaneous pair from either side, and the page's handlers are
+  // new each flip while the overlay's stay attached, so declaring them on
+  // the side that attaches last always sees the other's current tag.
+  const scrollNativeGesture = useMemo(
+    () => Gesture.Native().simultaneousWithExternalGesture(flipPan, closePan),
+    [flipPan, closePan]
+  );
 
-  const animateOut = useCallback((then: () => void) => {
-    opacity.set(withTiming(0, { duration: 120 }));
-    scaleAnim.set(
-      withTiming(0.95, { duration: 120 }, () => {
-        "worklet";
-        runOnJS(then)();
-      })
-    );
-  }, [opacity, scaleAnim]);
-
-  const goBack = useCallback(() => {
-    if (returnTo) {
-      router.replace(returnTo as any);
-    } else {
-      router.back();
-    }
-  }, [router, returnTo]);
-
-  useEffect(() => {
-    const config = { duration: 320, easing: Easing.out(Easing.cubic) };
-    opacity.set(withTiming(1, { duration: 180 }));
-    translateX.set(withTiming(0, config));
-    translateY.set(withTiming(0, config));
-    scaleAnim.set(withTiming(1, config));
-  }, []);
-
-  // A handle on the ScrollView's own scroll gesture, so the pans on this screen
-  // can declare a relation to it instead of leaving arbitration to emerge from
-  // whichever recognizer happens to fire first. A plain ref would not do: RNGH
-  // resolves relation refs through a `handlerTag` that RN's ScrollView doesn't
-  // carry, so passing one silently registers nothing.
-  const scrollNativeGesture = useMemo(() => Gesture.Native(), []);
+  // The photo strip keeps its own horizontal drags: the flip waits for the
+  // strip's scroll to fail, which it does at once on a vertical drag (it
+  // can't scroll that way), and never does on a horizontal one.
+  const stripNativeGesture = useMemo(
+    () => Gesture.Native().blocksExternalGesture(flipPan),
+    [flipPan]
+  );
 
   // Written by PlaybackProgress, which owns the per-tick subscription, so the
   // seek gesture can read the bar width and duration without this screen
@@ -266,48 +677,25 @@ export default function MomentDetailScreen() {
           spotifyId: current.songSpotifyId ?? null,
           durationMs: 0,
         },
-        current.songPreviewUrl || undefined
+        current.songPreviewUrl || undefined,
+        partStartSeconds(current.songPartMs)
       );
     }, 400);
     return () => clearTimeout(timer);
   }, [moment?.id]);
 
-  const animStyle = useAnimatedStyle(() => ({
-    opacity: opacity.get(),
-    transform: [
-      { translateX: translateX.get() },
-      { translateY: translateY.get() },
-      { scale: scaleAnim.get() },
-    ],
-  }));
+  // The overlay stops this moment's song on a flip; it needs the latest row.
+  useEffect(() => {
+    if (moment) onShown(moment);
+  }, [moment, onShown]);
 
-  // Swipe right to dismiss. This screen is a transparentModal with no native
-  // swipe-back, so the pan has to exist — but it must never be the reason a
-  // vertical drag failed to scroll. It declares itself simultaneous with the
-  // ScrollView so the scroll is never cancelled while the pan is deciding, and
-  // fails on 8px of vertical travel so an ambiguous drag resolves to a scroll.
-  const swipeGesture = useMemo(
-    () =>
-      Gesture.Pan()
-        .activeOffsetX([40, Infinity])
-        .failOffsetY([-8, 8])
-        .simultaneousWithExternalGesture(scrollNativeGesture)
-        .onUpdate((e) => {
-          "worklet";
-          translateX.set(Math.max(0, e.translationX));
-          opacity.set(Math.max(0, 1 - e.translationX / 220));
-        })
-        .onEnd((e) => {
-          "worklet";
-          if (e.translationX > 60 || e.velocityX > 400) {
-            runOnJS(animateOut)(goBack);
-          } else {
-            translateX.set(withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) }));
-            opacity.set(withTiming(1, { duration: 200 }));
-          }
-        }),
-    [animateOut, goBack, scrollNativeGesture, translateX, opacity]
-  );
+  // Flipped here: say which moment it is now (the focus was on the last one).
+  const announcedRef = useRef(!flipped);
+  useEffect(() => {
+    if (announcedRef.current || !moment) return;
+    announcedRef.current = true;
+    AccessibilityInfo.announceForAccessibility(`${moment.songTitle}, ${moment.songArtist}`);
+  }, [moment]);
 
   // Scrubbing. The seek fires on `.onStart` (activation), never `.onBegin`
   // (touch-down) — the old onBegin meant resting a finger anywhere in the 28pt
@@ -317,9 +705,10 @@ export default function MomentDetailScreen() {
   // The 2:1 ratio between the offsets is what separates a scrub from a scroll:
   // the seek only wins on drags within ~27° of horizontal, anything steeper
   // trips failOffsetY and goes back to the ScrollView. Both numbers are kept
-  // small on purpose — activating at 12px lost a fast rightward flick to
-  // swipeGesture's 40px close (verified on device), so the seek needs to claim
-  // the drag well before the dismiss threshold is anywhere in reach.
+  // small on purpose — activating at 12px lost a fast rightward flick to the
+  // old swipe-right close (verified on device), so the seek claims the drag
+  // well before the flip's 18pt is in reach, and blocks the flip and the
+  // close outright: on the bar, a sideways drag is always a scrub.
   const seekPanGesture = useMemo(
     () =>
       Gesture.Pan()
@@ -327,8 +716,8 @@ export default function MomentDetailScreen() {
         .failOffsetY([-3, 3])
         .onStart((e) => { runOnJS(seekTo)(seekSeconds(e.x, progressBarWidth.get(), progressDuration.get())); })
         .onUpdate((e) => { runOnJS(seekTo)(seekSeconds(e.x, progressBarWidth.get(), progressDuration.get())); })
-        .blocksExternalGesture(swipeGesture),
-    [seekTo, progressBarWidth, progressDuration, swipeGesture]
+        .blocksExternalGesture(flipPan, closePan),
+    [seekTo, progressBarWidth, progressDuration, flipPan, closePan]
   );
 
   // Tap-to-seek, which onBegin used to provide for free. A tap can't be
@@ -363,13 +752,14 @@ export default function MomentDetailScreen() {
     if (blocking) setScreenState("loading");
     setRefreshError("");
     const t0 = Date.now();
-    const { data, error: fetchError } = await supabase
-      .from("moments")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (fetchError) {
+    // The shared view: someone else's moment (or one not on hand yet) comes
+    // through get_moment_view, without its place, people or link token. The
+    // viewer's own moment is re-read from the table as before.
+    const own = !!userId && momentRef.current?.userId === userId;
+    let data: Moment | null;
+    try {
+      data = await fetchMomentForViewer(id, userId, own);
+    } catch (fetchError) {
       if (blocking) {
         setError(friendlyError(fetchError));
         setScreenState("error");
@@ -384,16 +774,17 @@ export default function MomentDetailScreen() {
       setScreenState("not_found");
       return;
     }
-    setMoment(mapRowToMoment(data));
+    setMoment(data);
     setScreenState("ready");
     if (!openTrackedRef.current) {
       openTrackedRef.current = true;
       posthog?.capture("moment_detail_open", {
-        had_preview: !blocking, // pre-populated from momentCache
+        had_preview: !blocking, // pre-populated from momentCache or the list
+        via_flip: flipped,
         duration_ms: Date.now() - t0,
       });
     }
-  }, [id, posthog]);
+  }, [id, userId, posthog, flipped]);
 
   // Focus refetch per CLAUDE.md: only when there's nothing on screen, after an
   // edit, or once the data is stale. The first focus always fetches: a moment
@@ -429,6 +820,7 @@ export default function MomentDetailScreen() {
 
   const allMoods = useMemo(() => [...MOODS, ...(profile?.customMoods ?? [])], [profile?.customMoods]);
 
+  // The JS fallback menu, for binaries without the native MenuButton.
   const openMenu = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Anchored under the "…" itself, inside the safe area.
@@ -579,7 +971,7 @@ export default function MomentDetailScreen() {
     posthog.capture("moment_deleted", { song_title: moment?.songTitle ?? null, song_artist: moment?.songArtist ?? null });
     // Covers every album's detail and list too (the moment may be in any).
     invalidateMomentCaches(queryClient, user?.id);
-    animateOut(goBack);
+    onClose();
   };
 
   const handleRemoveFromCollection = async () => {
@@ -603,7 +995,7 @@ export default function MomentDetailScreen() {
     markTimelineStale();
     invalidateMomentCaches(queryClient, user?.id);
     invalidateAlbumCaches(queryClient, user?.id, collectionId);
-    animateOut(goBack);
+    onClose();
   };
 
   // Moods as one sentence-case Meta line. Every mood shows here (the card caps
@@ -611,7 +1003,7 @@ export default function MomentDetailScreen() {
   const moodLine = moment ? moodWords(moment.moods, allMoods, Infinity) : "";
 
   const openShare = () => {
-    if (!moment) return;
+    if (!moment || !canPassOn(moment, user?.id)) return;
     Haptics.selectionAsync();
     setShareModalVisible(true);
     posthog.capture("moment_shared", { song_title: moment.songTitle, song_artist: moment.songArtist });
@@ -641,11 +1033,15 @@ export default function MomentDetailScreen() {
     }
   };
 
-  // The "…" menu. Each row runs once the menu has closed (MomentActionMenu),
-  // so the sheets and confirms these open can present.
+  // The "…" menu: the native UIMenu (MenuButton, the same menu as a long-
+  // pressed card), or MomentActionMenu on a binary without it. Either way a
+  // row runs once the menu has closed, so the sheets and confirms these open
+  // can present. Destructive rows (Remove from album, Delete) sit in their
+  // own section; Report isn't one (it destroys nothing).
   // Built as one literal (not pushed into): the compiler can't tell a push
   // won't call the handlers it's given.
   const isOwnMoment = !!moment && moment.userId === user?.id;
+  const canShare = canPassOn(moment, user?.id);
   const isGuest = !!moment?.guestUuid;
   const isCollectionOwner = collectionRole === "owner";
   // Taken out of the album it was opened from (with Add to album's ticks):
@@ -739,13 +1135,13 @@ export default function MomentDetailScreen() {
         spotifyId: moment.songSpotifyId ?? null,
         durationMs: 0,
       },
-      moment.songPreviewUrl || undefined
+      moment.songPreviewUrl || undefined,
+      partStartSeconds(moment.songPartMs)
     );
   };
 
   return (
-    <GestureDetector gesture={swipeGesture}>
-    <Animated.View style={[styles.container, animStyle]}>
+    <View style={styles.page}>
       {/* Phase 1: the blurred artwork lives in the hero band and scrolls away
           with it, so the writing always sits on solid paper. As the band
           leaves, a paper bar fades in behind the status bar and buttons. */}
@@ -763,40 +1159,50 @@ export default function MomentDetailScreen() {
           variant="glass"
           name="chevron-back"
           size={20}
-          onPress={() => animateOut(goBack)}
+          onPress={onBack}
           accessibilityLabel="Back"
           testID="moment-back"
         />
         {screenState === "ready" && moment && (
           <View style={styles.glassBtnRow}>
-            <IconButton
-              variant="glass"
-              name="share-outline"
-              size={20}
-              onPress={openShare}
-              accessibilityLabel="Share"
-              testID="moment-share"
-            />
-            <View ref={menuButtonRef} collapsable={false}>
+            {/* Only the owner can pass a moment on (link, card, send). */}
+            {canShare ? (
               <IconButton
                 variant="glass"
-                name="ellipsis-horizontal"
+                name="share-outline"
                 size={20}
-                onPress={openMenu}
-                accessibilityLabel="More"
-                testID="moment-more"
+                onPress={openShare}
+                accessibilityLabel="Share"
+                testID="moment-share"
               />
-            </View>
+            ) : null}
+            {MomentMenuButton ? (
+              // The native button is what's tapped (and carries the testID);
+              // the IconButton inside only draws the glass disc and takes no
+              // touches, so its onPress never runs.
+              <MomentMenuButton items={menuItems} testID="moment-more">
+                <IconButton variant="glass" name="ellipsis-horizontal" size={20} onPress={openMenu} />
+              </MomentMenuButton>
+            ) : (
+              <View ref={menuButtonRef} collapsable={false}>
+                <IconButton
+                  variant="glass"
+                  name="ellipsis-horizontal"
+                  size={20}
+                  onPress={openMenu}
+                  accessibilityLabel="More"
+                  testID="moment-more"
+                />
+              </View>
+            )}
           </View>
         )}
       </View>
 
+      {/* The "…" fallback; stays closed when the native MenuButton is there. */}
       <MomentActionMenu anchor={menuAnchor} items={menuItems} onClose={() => setMenuAnchor(null)} />
-      {/* Own confirm host: this screen is a native modal, where the root
-          host's sheet cannot present (iOS silently drops it). It answers
-          while this screen is focused; the root host again once it closes. */}
-      <ConfirmSheetHost />
 
+      <Animated.View style={[styles.flipLayer, flipStyle]}>
       {screenState === "loading" ? (
         <View style={styles.loadingContainer}>
           <SkeletonMomentDetail />
@@ -805,10 +1211,10 @@ export default function MomentDetailScreen() {
         <ErrorState
           message={error}
           onRetry={() => fetchMoment(true)}
-          onBack={() => animateOut(goBack)}
+          onBack={onBack}
         />
       ) : screenState === "not_found" || !moment ? (
-        <ErrorState message="Moment not found" onBack={() => animateOut(goBack)} />
+        <ErrorState message="Moment not found" onBack={onBack} />
       ) : (
         // The hero lives INSIDE the scroll view. As a sibling above it, the top
         // ~280pt of the screen — photo, artwork, photo-count pill — was inert to
@@ -820,6 +1226,7 @@ export default function MomentDetailScreen() {
           showsVerticalScrollIndicator={false}
           onScroll={scrollHandler}
           scrollEventThrottle={16}
+          bounces={!atTop}
         >
           {/* Hero section */}
           {hasPhotos ? (
@@ -877,6 +1284,8 @@ export default function MomentDetailScreen() {
                   numberOfLines={2}
                   onPress={() => router.push({ pathname: "/song", params: { title: moment.songTitle, artist: moment.songArtist } })}
                   accessibilityRole="link"
+                  accessibilityActions={flipActions.length > 0 ? flipActions : undefined}
+                  onAccessibilityAction={flipActions.length > 0 ? onFlipAction : undefined}
                 >
                   {moment.songTitle}
                 </Text>
@@ -938,6 +1347,7 @@ export default function MomentDetailScreen() {
                   seekGesture={seekGesture}
                   barWidth={progressBarWidth}
                   duration={progressDuration}
+                  partMs={moment.songPartMs ?? null}
                   styles={styles}
                 />
               </View>
@@ -979,6 +1389,7 @@ export default function MomentDetailScreen() {
 
             {/* All the photos: the hero fades through them; tap one here to open it. */}
             {hasPhotos && stripUrls.length > 1 ? (
+              <GestureDetector gesture={stripNativeGesture}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -1008,6 +1419,7 @@ export default function MomentDetailScreen() {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+              </GestureDetector>
             ) : null}
 
             {moment.locationLat != null && moment.locationLng != null ? (
@@ -1051,6 +1463,7 @@ export default function MomentDetailScreen() {
         </Animated.ScrollView>
         </GestureDetector>
       )}
+      </Animated.View>
 
       {/* Photos and videos as a little film: swipe, zoom, play with the song. */}
       <MomentFilm
@@ -1064,7 +1477,7 @@ export default function MomentDetailScreen() {
         ownMoment={!!moment && moment.userId === user?.id}
       />
 
-      {moment && (
+      {moment && canShare && (
         <ShareMomentSheet
           visible={shareModalVisible}
           moment={moment}
@@ -1125,8 +1538,7 @@ export default function MomentDetailScreen() {
           />
         </View>
       </BottomSheet>
-    </Animated.View>
-    </GestureDetector>
+    </View>
   );
 }
 
@@ -1140,6 +1552,7 @@ function PlaybackProgress({
   seekGesture,
   barWidth,
   duration,
+  partMs,
   styles,
 }: {
   isCurrentSong: boolean;
@@ -1147,6 +1560,8 @@ function PlaybackProgress({
   seekGesture: ReturnType<typeof Gesture.Race>;
   barWidth: SharedValue<number>;
   duration: SharedValue<number>;
+  /** The part of the song (lib/songPart.ts): marked on the bar, named before play. */
+  partMs: number | null;
   styles: ReturnType<typeof createStyles>;
 }) {
   const { playbackTime, playbackDuration } = usePlayerProgress();
@@ -1154,9 +1569,16 @@ function PlaybackProgress({
     duration.set(playbackDuration);
   }, [duration, playbackDuration]);
 
+  const partStart = partStartSeconds(partMs);
   if (!isCurrentSong || playbackDuration <= 0) {
-    return <Text style={styles.playHint}>{playError ? "Unavailable" : "Play"}</Text>;
+    return (
+      <Text style={styles.playHint}>
+        {playError ? "Unavailable" : partStart != null ? `Play from ${formatSongTime(partStart * 1000)}` : "Play"}
+      </Text>
+    );
   }
+  // A preview is its own 30 s clip, so the part can't be placed on it.
+  const mark = playbackDuration > 40 ? partFraction(partMs, playbackDuration * 1000) : null;
   return (
     <>
       <GestureDetector gesture={seekGesture}>
@@ -1167,6 +1589,12 @@ function PlaybackProgress({
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${Math.min(100, (playbackTime / playbackDuration) * 100)}%` }]} />
           </View>
+          {mark != null ? (
+            <View
+              style={[styles.partMark, { left: `${mark * 100}%` }]}
+              accessibilityLabel={`The part of the song, at ${formatSongTime((partMs ?? 0))}`}
+            />
+          ) : null}
         </View>
       </GestureDetector>
       <Text style={styles.progressTime}>
@@ -1181,6 +1609,14 @@ function createStyles(theme: Theme) {
     container: {
       flex: 1,
       backgroundColor: theme.colors.background,
+      // Clips to the rounded corners while it's pulled down to close.
+      overflow: "hidden",
+    },
+    page: {
+      flex: 1,
+    },
+    flipLayer: {
+      flex: 1,
     },
     loadingContainer: {
       flex: 1,
@@ -1327,7 +1763,7 @@ function createStyles(theme: Theme) {
       justifyContent: "center",
     },
     playButtonError: {
-      backgroundColor: theme.colors.chipBg,
+      backgroundColor: theme.colors.fill,
     },
     playHint: {
       fontSize: 14,
@@ -1338,6 +1774,16 @@ function createStyles(theme: Theme) {
       flex: 1,
       height: 28,
       justifyContent: "center",
+    },
+    // The part of the song: a short tick through the bar, in ink.
+    partMark: {
+      position: "absolute",
+      width: 2,
+      height: 11,
+      marginLeft: -1,
+      top: 8.5,
+      borderRadius: 1,
+      backgroundColor: theme.colors.text,
     },
     progressTrack: {
       height: 3,

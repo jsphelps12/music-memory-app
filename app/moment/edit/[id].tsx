@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  Keyboard,
 } from "react-native";
 import type { ScrollViewInstance } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
@@ -45,6 +46,12 @@ import { friendlyError } from "@/lib/errors";
 import { onSongSelected } from "@/lib/songEvents";
 import { markTimelineStale } from "@/lib/timelineRefresh";
 import { invalidateMomentCaches } from "@/lib/cacheInvalidation";
+import { fetchMomentPeopleLinks } from "@/lib/momentPeopleLinks";
+import { formatSongTime } from "@/lib/songPart";
+import { lookupPreview } from "@/lib/saveMoment";
+import { ListRow } from "@/components/ListRow";
+import { SongPartSheet } from "@/components/SongPartSheet";
+import type { PersonLink } from "@/types";
 
 type ScreenState = "loading" | "not_found" | "error" | "ready";
 
@@ -54,29 +61,39 @@ function dayKey(d: Date | null): string {
 }
 
 /** Everything the screen can change, as one comparable string. */
+/** Which recording a part belongs to: a different song starts without one. */
+function songKeyOf(song: Song | null): string {
+  return song ? `${song.provider}:${song.appleMusicId ?? song.spotifyId ?? song.id}:${song.title}` : "";
+}
+
 function editSnapshot(v: {
   song: Song | null;
   reflection: string;
   moods: string[];
   people: string[];
+  links: PersonLink[] | null;
   photos: EditedPhoto[];
   momentDate: Date | null;
   location: GeoResult | null;
+  partMs: number | null;
 }): string {
   return JSON.stringify([
     v.song ? [v.song.id, v.song.title, v.song.artistName, v.song.appleMusicId, v.song.spotifyId] : null,
     v.reflection,
     v.moods,
     v.people,
+    (v.links ?? []).map((l) => `${l.friendId}:${l.name}`).sort(),
     v.photos.map((p) => (p.kind === "kept" ? p.path : p.uri)),
     dayKey(v.momentDate),
     v.location ? [v.location.name, v.location.lat, v.location.lng] : null,
+    v.partMs,
   ]);
 }
 
 export default function EditMomentScreen() {
   const router = useRouter();
   const { user, profile, saveCustomMood, deleteCustomMood } = useAuth();
+  const userId = user?.id;
   const posthog = usePostHog();
   const queryClient = useQueryClient();
   const theme = useTheme();
@@ -102,6 +119,11 @@ export default function EditMomentScreen() {
   const [reflection, setReflection] = useState("");
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [people, setPeople] = useState<string[]>([]);
+  // Names linked to friends, and what was stored when the screen loaded (so
+  // a save writes only the difference). Null when they couldn't be read: the
+  // names stay plain here and a save leaves the stored links alone.
+  const [peopleLinks, setPeopleLinks] = useState<PersonLink[] | null>(null);
+  const originalLinksRef = useRef<PersonLink[]>([]);
   // Every photo in the strip, stored and new, in the order the user arranged.
   const [photos, setPhotos] = useState<EditedPhoto[]>([]);
   // What was on the row when we loaded it: the stored photos (paired with
@@ -113,6 +135,13 @@ export default function EditMomentScreen() {
     thumbnails: [],
   });
   const [momentDate, setMomentDate] = useState<Date | null>(new Date());
+  // The part of the song (lib/songPart.ts), the song's length for its
+  // scrubber, and its preview. A different song starts with no part.
+  const [songPartMs, setSongPartMs] = useState<number | null>(null);
+  const [songDurationMs, setSongDurationMs] = useState<number | null>(null);
+  const [songPreviewUrl, setSongPreviewUrl] = useState<string | null>(null);
+  const [partSheetOpen, setPartSheetOpen] = useState(false);
+  const partSongKey = useRef("");
   const [locationResult, setLocationResult] = useState<GeoResult | null>(null);
   const [screenState, setScreenState] = useState<ScreenState>("loading");
   const [saving, setSaving] = useState(false);
@@ -129,14 +158,40 @@ export default function EditMomentScreen() {
   // Listen for song selected in song-search
   useEffect(() => onSongSelected((s) => setSong(s)), []);
 
+  // A different song: its own length and preview, and no part yet (the old
+  // song's 2:41 means nothing in this one).
+  const songKey = songKeyOf(song);
+  useEffect(() => {
+    if (!song || partSongKey.current === songKey) return;
+    partSongKey.current = songKey;
+    setSongPartMs(null);
+    setSongPreviewUrl(null);
+    setSongDurationMs(song.durationMs > 0 ? song.durationMs : null);
+    let cancelled = false;
+    lookupPreview(song).then((lookup) => {
+      if (cancelled) return;
+      if (lookup.durationMs) setSongDurationMs(lookup.durationMs);
+      setSongPreviewUrl(lookup.previewUrl ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Keyed on which recording it is, not the object.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [songKey]);
+
   const fetchMoment = useCallback(async () => {
     setScreenState("loading");
     setLoadError("");
-    const { data, error: fetchError } = await supabase
-      .from("moments")
-      .select("*")
-      .eq("id", params.id)
-      .maybeSingle();
+    const [{ data, error: fetchError }, loadedLinks] = await Promise.all([
+      supabase.from("moments").select("*").eq("id", params.id).maybeSingle(),
+      // Never fails the load: unreadable (or not set up yet) means "leave alone".
+      userId
+        ? fetchMomentPeopleLinks(params.id, userId)
+            .then((r) => (r.available ? r.links : null))
+            .catch(() => null)
+        : Promise.resolve(null),
+    ]);
 
     if (fetchError) {
       setLoadError(friendlyError(fetchError));
@@ -162,10 +217,16 @@ export default function EditMomentScreen() {
       durationMs: 0,
     };
     originalSongRef.current = storedSong;
+    partSongKey.current = songKeyOf(storedSong);
     setSong(storedSong);
+    setSongPartMs(moment.songPartMs ?? null);
+    setSongDurationMs(moment.songDurationMs ?? null);
+    setSongPreviewUrl(moment.songPreviewUrl ?? null);
     setReflection(moment.reflectionText ?? "");
     setSelectedMoods(moment.moods);
     setPeople(moment.people);
+    originalLinksRef.current = loadedLinks ?? [];
+    setPeopleLinks(loadedLinks);
     // Keep each photo's link to Photos (1.4) with it through any reordering.
     const stored = pairStoredPhotos(moment.photoUrls, moment.photoThumbnails).map((p, i) => ({
       ...p,
@@ -190,13 +251,15 @@ export default function EditMomentScreen() {
         reflection: moment.reflectionText ?? "",
         moods: moment.moods,
         people: moment.people,
+        links: loadedLinks,
         photos: loadedPhotos,
         momentDate: loadedDate,
         location: loadedLocation,
+        partMs: moment.songPartMs ?? null,
       })
     );
     setScreenState("ready");
-  }, [params.id]);
+  }, [params.id, userId]);
 
   useEffect(() => {
     fetchMoment();
@@ -315,6 +378,9 @@ export default function EditMomentScreen() {
         originalPhotos: originalPhotosRef.current.photos,
         originalThumbnails: originalPhotosRef.current.thumbnails,
         photos,
+        originalPeopleLinks: originalLinksRef.current,
+        peopleLinks: peopleLinks ?? undefined,
+        songPartMs,
       });
 
       posthog.capture("moment_edited", {
@@ -350,9 +416,11 @@ export default function EditMomentScreen() {
       reflection,
       moods: selectedMoods,
       people,
+      links: peopleLinks,
       photos,
       momentDate,
       location: locationResult,
+      partMs: songPartMs,
     }) !== initialSnapshot;
 
   usePreventRemove(dirty && !saved && !discarding, ({ repeat }) => {
@@ -444,6 +512,18 @@ export default function EditMomentScreen() {
         ) : (
           <Button label="Select song" icon="musical-notes-outline" onPress={openSongSearch} />
         )}
+        {song ? (
+          <ListRow
+            label="Part of the song"
+            detail={songPartMs != null ? formatSongTime(songPartMs) : "Not set"}
+            onPress={() => {
+              Keyboard.dismiss();
+              setPartSheetOpen(true);
+            }}
+            last
+            testID="edit-song-part"
+          />
+        ) : null}
 
         {/* Reflection */}
         <SectionLabel
@@ -493,7 +573,13 @@ export default function EditMomentScreen() {
 
         {/* People */}
         <SectionLabel style={styles.section}>People</SectionLabel>
-        <PeopleInput people={people} onChangePeople={setPeople} />
+        {/* Linked names show the friend's photo; tap a name to link it. */}
+        <PeopleInput
+          people={people}
+          onChangePeople={setPeople}
+          links={peopleLinks ?? undefined}
+          onChangeLinks={peopleLinks ? setPeopleLinks : undefined}
+        />
 
         {/* Photos: the same picker as capture, so edit gets its tap-to-view
             and reordering too. */}
@@ -557,6 +643,17 @@ export default function EditMomentScreen() {
 
       {/* A fullScreenModal: the root confirm host can't present over it
           (CLAUDE.md, Confirms on modal screens). */}
+      {song ? (
+        <SongPartSheet
+          visible={partSheetOpen}
+          onClose={() => setPartSheetOpen(false)}
+          song={song}
+          durationMs={songDurationMs}
+          previewUrl={songPreviewUrl}
+          value={songPartMs}
+          onChange={setSongPartMs}
+        />
+      ) : null}
       <ConfirmSheetHost />
     </KeyboardAvoidingView>
   );
@@ -580,7 +677,7 @@ function createStyles(theme: Theme) {
     songRow: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: theme.colors.chipBg,
+      backgroundColor: theme.colors.fill,
       padding: theme.spacing.md,
       borderRadius: theme.radii.md,
     },

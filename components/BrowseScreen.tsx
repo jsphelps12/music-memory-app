@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { ReactNode, useCallback, useMemo, useState } from "react";
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader } from "@/components/ScreenHeader";
@@ -39,6 +39,16 @@ interface Props {
    */
   error?: string | null;
   onRetry?: () => void;
+  /**
+   * Replaces the moment count under the title (person: "8 moments together ·
+   * since March 2024"). Hidden while loading, like the count.
+   */
+  summary?: string;
+  /**
+   * Drawn above the moments and scrolls with them (person: the soundtrack
+   * header). The caller decides when there's something to show.
+   */
+  header?: ReactNode;
 }
 
 /**
@@ -46,7 +56,19 @@ interface Props {
  * person, year or album. Phase 1 (2026-10): Journal rows instead of carded
  * rows, one pill switcher to hop between siblings, and no "When" bar.
  */
-export function BrowseScreen({ title, subtitle, items, activeKey, onSelect, moments, isLoading, error, onRetry }: Props) {
+export function BrowseScreen({
+  title,
+  subtitle,
+  items,
+  activeKey,
+  onSelect,
+  moments,
+  isLoading,
+  error,
+  onRetry,
+  summary,
+  header,
+}: Props) {
   const { profile } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -74,7 +96,7 @@ export function BrowseScreen({ title, subtitle, items, activeKey, onSelect, mome
       <ScreenHeader
         title={title}
         subtitle={
-          [subtitle, isLoading || (error && moments.length === 0) ? null : pluralMoments(moments.length)]
+          [subtitle, isLoading || (error && moments.length === 0) ? null : (summary ?? pluralMoments(moments.length))]
             .filter(Boolean)
             .join(" · ") || " "
         }
@@ -108,8 +130,13 @@ export function BrowseScreen({ title, subtitle, items, activeKey, onSelect, mome
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
-          showBanner ? (
-            <ErrorBanner message={error!} onRetry={onRetry} onDismiss={() => setDismissedError(error!)} />
+          showBanner || header ? (
+            <>
+              {showBanner ? (
+                <ErrorBanner message={error!} onRetry={onRetry} onDismiss={() => setDismissedError(error!)} />
+              ) : null}
+              {header}
+            </>
           ) : undefined
         }
         ListEmptyComponent={

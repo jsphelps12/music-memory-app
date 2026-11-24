@@ -11,6 +11,7 @@ import { registerForPushNotifications } from "@/lib/notifications";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/Button";
 
+import { goHome } from "@/lib/goHome";
 const NEXT_STEPS = [
   {
     icon: "musical-notes-outline" as const,
@@ -67,7 +68,7 @@ export default function CelebrationScreen() {
       await registerForPushNotifications(user.id);
       posthog.capture("notifications_enabled");
     } catch {}
-    router.replace("/(tabs)");
+    goHome(router);
   }
 
   return (

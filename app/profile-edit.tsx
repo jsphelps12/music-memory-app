@@ -277,7 +277,12 @@ export default function ProfileEditScreen() {
   const handleAvatarPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     ActionSheetIOS.showActionSheetWithOptions(
-      { options: ["Cancel", "Take photo", "Choose from library"], cancelButtonIndex: 0 },
+      {
+        options: ["Cancel", "Take photo", "Choose from library"],
+        cancelButtonIndex: 0,
+        tintColor: theme.colors.text,
+        userInterfaceStyle: theme.isDark ? "dark" : "light",
+      },
       async (buttonIndex) => {
         let result: ImagePicker.ImagePickerResult | null = null;
         if (buttonIndex === 1) {
@@ -435,7 +440,7 @@ export default function ProfileEditScreen() {
       <ActivityIndicator size="small" color={theme.colors.textSecondary} />
     ) : query.length > 0 ? (
       <TouchableOpacity onPress={onClear} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search">
-        <Icon name="close-circle" size={17} color={theme.colors.textSecondary} />
+        <Icon name="close-circle" size={18} color={theme.colors.placeholder} />
       </TouchableOpacity>
     ) : null;
 
@@ -717,18 +722,7 @@ export default function ProfileEditScreen() {
           autoCapitalize="words"
           returnKeyType="search"
           containerStyle={styles.countrySearch}
-          trailing={
-            countrySearch.length > 0 ? (
-              <TouchableOpacity
-                onPress={() => setCountrySearch("")}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Clear search"
-              >
-                <Icon name="close-circle" size={17} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            ) : null
-          }
+          clearable
         />
         <FlatList
           data={filteredCountries}

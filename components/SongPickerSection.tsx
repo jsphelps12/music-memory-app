@@ -13,6 +13,7 @@ import { setAudioModeAsync } from "expo-audio";
 import { onSongSelected } from "@/lib/songEvents";
 import { lookupItunesSong } from "@/lib/itunes";
 import { persistableArtworkUrl } from "@/lib/momentRow";
+import type { SongPick } from "@/lib/captureSource";
 import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
 import { Song } from "@/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -21,7 +22,8 @@ import { Theme } from "@/constants/theme";
 
 interface SongPickerSectionProps {
   song: Song | null;
-  onChange: (song: Song) => void;
+  /** `pick`: how the song was chosen here, for the moment's capture_source. */
+  onChange: (song: Song, pick: SongPick) => void;
   photos?: string[];
   /**
    * Pick up whatever the system player is playing when no song is chosen yet.
@@ -48,7 +50,7 @@ export function SongPickerSection({ song, onChange, photos = [], suggestNowPlayi
   const songRef = useRef(song);
   songRef.current = song;
 
-  useEffect(() => onSongSelected((s) => onChange(s)), [onChange]);
+  useEffect(() => onSongSelected((s) => onChange(s, "search")), [onChange]);
 
   // A song chosen any other way makes an earlier Identify failure moot.
   useEffect(() => {
@@ -59,7 +61,7 @@ export function SongPickerSection({ song, onChange, photos = [], suggestNowPlayi
   // accept. It only fills an empty picker and stops listening once a song is
   // set, so the track changing mid-entry never swaps the song under the user.
   const applyNowPlaying = useCallback(async (nowPlaying: Song) => {
-    onChange(nowPlaying);
+    onChange(nowPlaying, "now_playing");
     setFromNowPlaying(nowPlaying);
     // Artwork from the system player can be the image itself (a data: URI
     // from older binaries) rather than a link; swap in the catalog URL, which
@@ -84,7 +86,7 @@ export function SongPickerSection({ song, onChange, photos = [], suggestNowPlayi
           durationMs: match.durationMs || nowPlaying.durationMs,
           artworkUrl: needsArtwork ? match.artworkUrl : nowPlaying.artworkUrl,
         };
-        onChange(resolved);
+        onChange(resolved, "now_playing");
         setFromNowPlaying(resolved);
       }
     } catch {}
@@ -128,7 +130,7 @@ export function SongPickerSection({ song, onChange, photos = [], suggestNowPlayi
           const results = await getProvider('spotify').search(query);
           const match = results.find((r) => r.title.toLowerCase() === result.title.toLowerCase()) ?? results[0];
           if (match) {
-            onChange(match);
+            onChange(match, "identify");
             return;
           }
         } catch {}
@@ -136,17 +138,20 @@ export function SongPickerSection({ song, onChange, photos = [], suggestNowPlayi
 
       // Asking to identify is the choice, so the match goes straight in;
       // "Different song" is right there if it's wrong.
-      onChange({
-        id: result.appleMusicId,
-        title: result.title,
-        artistName: result.artist,
-        albumName: "",
-        artworkUrl: result.artworkUrl,
-        provider: 'apple_music',
-        appleMusicId: result.appleMusicId,
-        spotifyId: null,
-        durationMs: 0,
-      });
+      onChange(
+        {
+          id: result.appleMusicId,
+          title: result.title,
+          artistName: result.artist,
+          albumName: "",
+          artworkUrl: result.artworkUrl,
+          provider: 'apple_music',
+          appleMusicId: result.appleMusicId,
+          spotifyId: null,
+          durationMs: 0,
+        },
+        "identify"
+      );
     } catch (e: any) {
       const code = e?.code ?? "";
       if (code !== "CANCELLED") {
@@ -267,7 +272,7 @@ function createStyles(theme: Theme) {
       borderRadius: theme.radii.sm,
     },
     emptyArtwork: {
-      backgroundColor: theme.colors.chipBg,
+      backgroundColor: theme.colors.fill,
       alignItems: "center",
       justifyContent: "center",
     },

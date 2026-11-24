@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import * as Sentry from "@sentry/react-native";
 import * as Haptics from "expo-haptics";
 import {
@@ -24,6 +24,7 @@ import { LocationField } from "@/components/LocationField";
 import { MoodSelector } from "@/components/MoodSelector";
 import { PeopleInput } from "@/components/PeopleInput";
 import { saveMoment } from "@/lib/saveMoment";
+import { captureSourceFor, type SongPick } from "@/lib/captureSource";
 import { friendlyError } from "@/lib/errors";
 import { cancelTodaysCheckIn } from "@/lib/dailyCheckIn";
 import { markTimelineStale } from "@/lib/timelineRefresh";
@@ -40,6 +41,12 @@ export default function OnboardingCapture2Screen() {
   const { moment1Id } = useLocalSearchParams<{ moment1Id?: string }>();
 
   const [song, setSong] = useState<Song | null>(null);
+  // How the song was picked (now playing, Identify, search), for capture_source.
+  const [songPick, setSongPick] = useState<SongPick | null>(null);
+  const chooseSong = useCallback((s: Song, pick: SongPick) => {
+    setSong(s);
+    setSongPick(pick);
+  }, []);
   const [reflection, setReflection] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
   const [people, setPeople] = useState<string[]>([]);
@@ -72,6 +79,7 @@ export default function OnboardingCapture2Screen() {
         moods: selectedMoods,
         locationResult,
         momentDate,
+        captureSource: captureSourceFor({}, songPick),
       });
       markTimelineStale();
       // Today is logged: its check-in reminder has nothing left to ask.
@@ -135,7 +143,7 @@ export default function OnboardingCapture2Screen() {
           A song tied to a person or moment that meant something. Take your time.
         </Text>
 
-        <SongPickerSection song={song} onChange={setSong} photos={photos} />
+        <SongPickerSection song={song} onChange={chooseSong} photos={photos} />
 
         <SectionLabel style={styles.sectionLabel}>Reflection</SectionLabel>
         {/* The writer, not a form field: what a person writes is set in the
@@ -145,7 +153,7 @@ export default function OnboardingCapture2Screen() {
           placeholder="Who were you with and what was happening? (optional)"
           placeholderTextColor={theme.colors.placeholder}
           cursorColor={theme.colors.accent}
-          selectionColor={theme.colors.accent}
+          selectionColor={theme.colors.accentText}
           accessibilityLabel="Reflection"
           multiline
           scrollEnabled={false}
@@ -196,7 +204,7 @@ export default function OnboardingCapture2Screen() {
             maximumDate={new Date()}
             onChange={(_event: DateTimePickerEvent, date?: Date) => { if (date) setMomentDate(date); }}
             themeVariant={theme.isDark ? "dark" : "light"}
-            accentColor={theme.colors.accent}
+            accentColor={theme.colors.text}
             style={styles.datePicker}
           />
         ) : (

@@ -29,6 +29,12 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 BUNDLE_ID="com.joshuaphelps.musicmemory.preview"
 
+# --install-only: put this checkout's JS (production backend) into the
+# simulator app and stop, without resetting the account or running flows.
+# scripts/video/make.py uses it so recordings hit the account it seeds.
+INSTALL_ONLY=""
+if [ "${1:-}" = "--install-only" ]; then INSTALL_ONLY=1; shift; fi
+
 FLOWS=("$@")
 [ ${#FLOWS[@]} -gt 0 ] || FLOWS=(actions)
 if [ "${FLOWS[0]}" = "all" ]; then
@@ -84,6 +90,7 @@ echo "── Installing it into the simulator app"
 xcrun simctl terminate "$DEVICE" "$BUNDLE_ID" 2>/dev/null || true
 cp "$BUNDLE/main.jsbundle" "$APP/main.jsbundle"
 cp -R "$BUNDLE/assets/." "$APP/"
+if [ -n "$INSTALL_ONLY" ]; then echo "── Installed into $DEVICE"; exit 0; fi
 
 FAILED=()
 for FLOW in "${FLOWS[@]}"; do
@@ -92,9 +99,21 @@ for FLOW in "${FLOWS[@]}"; do
   echo "── Resetting the E2E account (production, as itself)${SEED:+, seeding $SEED moment(s)}${SEED_ALBUM:+ and an album}"
   E2E_SEED="${SEED:-0}" E2E_SEED_ALBUM="$SEED_ALBUM" npx eas-cli env:exec production "node scripts/reset-e2e-prod.mjs" --non-interactive
 
+  # A fresh install reads the clipboard once (deferred invite links); anything
+  # the Mac synced into the simulator's clipboard makes iOS ask to paste over
+  # the sign-in screen. Start each flow with it empty.
+  printf '' | xcrun simctl pbcopy "$DEVICE" 2>/dev/null || true
+  # Close the app ourselves before Maestro's clear-state relaunch: with the
+  # previous flow's process still exiting, its driver sometimes read the dead
+  # process right after launch and restarted mid-step (2026-11-21: every flow
+  # after the first died at the first optional wait, no app crash).
+  xcrun simctl terminate "$DEVICE" "$BUNDLE_ID" 2>/dev/null || true
+  sleep 2
+
   echo "── Running .maestro/${FLOW}.yaml"
   mkdir -p "$RUN/$FLOW"
-  if maestro --device "$DEVICE" test ".maestro/${FLOW}.yaml" \
+  if MAESTRO_DRIVER_STARTUP_TIMEOUT="${MAESTRO_DRIVER_STARTUP_TIMEOUT:-120000}" \
+     maestro --device "$DEVICE" test ".maestro/${FLOW}.yaml" \
       --env E2E_PASSWORD="$E2E_PASSWORD" \
       --test-output-dir "$RUN/$FLOW" | tee "$RUN/$FLOW/maestro.log"; then
     :

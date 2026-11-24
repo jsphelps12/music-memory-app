@@ -1,0 +1,75 @@
+# Sign out and back in without relaunching: the Journal must render.
+#
+# 2026-11-19: after Settings → Sign out → sign in, the Journal tab was blank
+# (no header, nothing mounted; Rediscover and You fine) until a relaunch.
+# Signs out from Settings, where the stack is (tabs) → you → settings, the way
+# a person switching accounts does it, then checks the Journal on landing,
+# after visiting another tab, and again on the way back.
+# 2026-11-20: after switching accounts, the albums and friends were the old
+# account's (and Send to a person had nobody) until a relaunch. The account
+# has no friends, so the seeded album stands in: the Albums tab must list it
+# after the switch. (You is a pushed screen from the Journal header's avatar
+# since 2026-11-20; albums have their own tab.)
+#   scripts/e2e-local.sh switch-account
+# seed: 2
+# seed-album: Road trip
+appId: com.joshuaphelps.musicmemory.preview
+---
+- runFlow: subflows/sign-in.yaml
+- extendedWaitUntil:
+    visible:
+      id: "moment-card-title"
+      index: 1
+    timeout: 15000
+- takeScreenshot: 01-journal-first-sign-in
+
+# --- Sign out from Settings (Journal avatar → You → gear) --------------------
+- tapOn:
+    id: "journal-avatar"
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 10000
+- tapOn: "Settings"
+- extendedWaitUntil:
+    visible: "Sign out"
+    timeout: 10000
+- scrollUntilVisible:
+    element: "Sign out"
+    direction: DOWN
+- tapOn: "Sign out"
+- extendedWaitUntil:
+    visible:
+      id: "signin-email"
+    timeout: 15000
+- takeScreenshot: 02-signed-out
+
+# --- Sign back in, same app process ------------------------------------------
+- runFlow: subflows/sign-in-form.yaml
+- waitForAnimationToEnd
+- takeScreenshot: 03-journal-after-switch
+# Not assertVisible "Journal": the tab bar label matches even when the
+# screen is blank. A card is the real proof the screen rendered.
+- extendedWaitUntil:
+    visible:
+      id: "moment-card-title"
+      index: 1
+    timeout: 15000
+
+# --- Away and back -----------------------------------------------------------
+- tapOn: "Rediscover"
+- extendedWaitUntil:
+    visible: "Rediscover"
+    timeout: 10000
+- tapOn: "Journal"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "moment-card-title"
+    index: 0
+- takeScreenshot: 04-journal-after-tabs
+
+# --- Albums after the switch: the albums are this account's ------------------
+- tapOn: "Albums"
+- extendedWaitUntil:
+    visible: ".*Road trip.*"
+    timeout: 15000
+- takeScreenshot: 05-albums-after-switch

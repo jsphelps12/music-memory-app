@@ -37,6 +37,7 @@ import { friendlyError } from "@/lib/errors";
 import { buildYearReview, monthName, timesWord, type Chapter, type ReviewMoment } from "@/lib/yearInReview";
 import { fetchYearReviewMoments } from "@/lib/yearReviewData";
 
+import { goHome } from "@/lib/goHome";
 const STALE_TIME = 2 * 60 * 1000;
 
 // The story is always night, whatever the app's theme: it's a dark room with
@@ -133,7 +134,7 @@ function YearInReviewScreen() {
 
   const close = useCallback(() => {
     if (router.canGoBack()) router.back();
-    else router.replace("/(tabs)");
+    else goHome(router);
   }, [router]);
 
   const go = useCallback(

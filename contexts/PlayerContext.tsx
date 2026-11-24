@@ -27,7 +27,11 @@ interface PlayerControls {
   isPreview: boolean;
   playError: boolean;
   playPreview: (song: Song, previewUrl: string) => Promise<void>;
-  playFull: (song: Song, previewUrl?: string) => Promise<void>;
+  /**
+   * `startAt` (seconds): where full playback begins, the moment's part of the
+   * song (lib/songPart.ts). A 30 s preview always starts at its top.
+   */
+  playFull: (song: Song, previewUrl?: string, startAt?: number) => Promise<void>;
   pause: () => void;
   resume: () => void;
   stop: () => void;
@@ -64,6 +68,9 @@ interface PlayerActions {
 const PlayerContext = createContext<PlayerControls | undefined>(undefined);
 const PlayerProgressContext = createContext<PlayerProgress | undefined>(undefined);
 const PlayerActionsContext = createContext<PlayerActions | undefined>(undefined);
+
+/** How long after a song starts a dropped seek to its part is retried. */
+const PART_SEEK_WINDOW_MS = 4000;
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
@@ -161,7 +168,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   }, [unloadSound, stopProvider]);
 
-  const playFull = useCallback(async (song: Song, previewUrl?: string) => {
+  const playFull = useCallback(async (song: Song, previewUrl?: string, startAt?: number) => {
     const gen = ++playGenRef.current;
     pendingFullGenRef.current = gen;
     await unloadSound();
@@ -225,6 +232,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setIsPlaying(true);
       setIsPreview(false);
 
+      // The part of the song. A seek sent as the track loads can be dropped,
+      // so for the first few seconds a report from well before the part
+      // seeks again (twice at most); after that, a scrub back is the
+      // listener's own and is left alone.
+      const seekTarget = startAt && startAt > 0 ? startAt : null;
+      const seekUntil = Date.now() + PART_SEEK_WINDOW_MS;
+      let seekRetries = 0;
+      if (seekTarget != null) {
+        provider.seekTo(seekTarget);
+        setPlaybackTime(seekTarget);
+      }
+
       // The provider is a shared singleton, so a listener only counts while its
       // own unsubscribe is the current one. Anything else is orphaned.
       let unsub: (() => void) | null = null;
@@ -232,6 +251,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         if (activeProviderRef.current !== provider) return;
         if (unsub && providerUnsubRef.current !== unsub) return;
         setIsPlaying(state.isPlaying);
+        if (
+          seekTarget != null &&
+          state.isPlaying &&
+          seekRetries < 2 &&
+          Date.now() < seekUntil &&
+          state.positionMs < (seekTarget - 2) * 1000
+        ) {
+          seekRetries++;
+          provider.seekTo(seekTarget);
+          return;
+        }
         if (state.positionMs > 0) setPlaybackTime(state.positionMs / 1000);
         if (state.durationMs > 0) setPlaybackDuration(state.durationMs / 1000);
         if (!state.isPlaying && state.positionMs === 0 && state.durationMs === 0) {

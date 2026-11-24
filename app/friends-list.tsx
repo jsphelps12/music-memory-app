@@ -1,21 +1,20 @@
 import { useCallback, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  ScrollView,
   RefreshControl,
   Alert,
   Platform,
   Share,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AppImage } from "@/components/AppImage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
+import { useFriends } from "@/hooks/useFriends";
 import { Theme } from "@/constants/theme";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
@@ -23,41 +22,19 @@ import { Button } from "@/components/Button";
 import { ErrorState } from "@/components/ErrorState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { IconButton } from "@/components/IconButton";
+import { PersonPicker } from "@/components/PersonPicker";
 import { confirmSheet } from "@/components/ConfirmSheet";
-import { getPublicPhotoUrl } from "@/lib/storage";
 import { friendlyError } from "@/lib/errors";
 import { invalidateFriendCaches } from "@/lib/cacheInvalidation";
-import { fetchFriends, removeFriend } from "@/lib/friends";
+import { friendsAsPeople, friendsQueryKey, removeFriend, type FriendPerson } from "@/lib/friends";
+import { rankPeople } from "@/lib/people";
 import { friendInviteUrl } from "@/lib/momentShares";
 import { ContextMenuView, type ContextMenuAction } from "@/modules/context-menu";
 import type { Friendship } from "@/types";
 
-const STALE_TIME = 2 * 60 * 1000;
-
 const FRIEND_ACTIONS: ContextMenuAction[] = [
   { id: "remove", title: "Remove friend", systemImage: "person.badge.minus", destructive: true },
 ];
-
-function Avatar({
-  avatarUrl,
-  displayName,
-  styles,
-}: {
-  avatarUrl: string | null;
-  displayName: string | null;
-  styles: ReturnType<typeof createStyles>;
-}) {
-  const initials = (displayName ?? "?")[0]?.toUpperCase() ?? "?";
-  return (
-    <View style={styles.avatar}>
-      {avatarUrl ? (
-        <AppImage source={{ uri: getPublicPhotoUrl(avatarUrl) }} style={StyleSheet.absoluteFill} contentFit="cover" />
-      ) : (
-        <Text style={styles.avatarInitial} allowFontScaling={false}>{initials}</Text>
-      )}
-    </View>
-  );
-}
 
 // Mutual-by-link friends (Social Architecture v2): there are no pending or
 // sent requests — a friendship exists the moment someone opens your link.
@@ -78,13 +55,9 @@ export default function FriendsListScreen() {
     Share.share(Platform.OS === "ios" ? { url } : { message: url });
   }, [profile?.friendInviteToken]);
 
-  const { data, isLoading, isFetching, isError, error, errorUpdatedAt, refetch } = useQuery({
-    queryKey: ["friendsList", user?.id],
-    queryFn: () => fetchFriends(user!.id),
-    staleTime: STALE_TIME,
-    enabled: !!user,
-  });
-  const friends = data ?? [];
+  // The shared friends cache (hooks/useFriends.ts), A–Z.
+  const { data, isLoading, isFetching, isError, error, errorUpdatedAt, refetch } = useFriends();
+  const people = useMemo(() => rankPeople(friendsAsPeople(data ?? [])), [data]);
   // A background refresh failure over existing data; dismissing hides this
   // failure only, a later one shows again.
   const [dismissedErrorAt, setDismissedErrorAt] = useState(0);
@@ -100,7 +73,7 @@ export default function FriendsListScreen() {
     if (!confirmed) return;
     try {
       await removeFriend(friendship.id);
-      queryClient.setQueryData(["friendsList", user?.id], (old: Friendship[] | undefined) =>
+      queryClient.setQueryData(friendsQueryKey(user?.id), (old: Friendship[] | undefined) =>
         old ? old.filter((f) => f.id !== friendship.id) : old
       );
       invalidateFriendCaches(queryClient, user?.id);
@@ -133,9 +106,13 @@ export default function FriendsListScreen() {
         // Nothing to show: a failed load must not read as "no friends".
         <ErrorState message={friendlyError(error)} onRetry={() => refetch()} />
       ) : (
-        <ScrollView
-          contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + theme.spacing["4xl"] }]}
-          showsVerticalScrollIndicator={false}
+        <PersonPicker
+          mode="list"
+          people={people}
+          handles="always"
+          searchPlaceholder="Search friends"
+          style={s.list}
+          contentContainerStyle={{ paddingBottom: insets.bottom + theme.spacing["4xl"] }}
           refreshControl={
             <RefreshControl
               refreshing={isFetching && !isLoading}
@@ -143,15 +120,23 @@ export default function FriendsListScreen() {
               tintColor={theme.colors.textSecondary}
             />
           }
-        >
-          {isError && dismissedErrorAt !== errorUpdatedAt ? (
-            <ErrorBanner
-              message={friendlyError(error)}
-              onRetry={() => refetch()}
-              onDismiss={() => setDismissedErrorAt(errorUpdatedAt)}
-            />
-          ) : null}
-          {friends.length === 0 ? (
+          header={
+            <View>
+              {isError && dismissedErrorAt !== errorUpdatedAt ? (
+                <ErrorBanner
+                  message={friendlyError(error)}
+                  onRetry={() => refetch()}
+                  onDismiss={() => setDismissedErrorAt(errorUpdatedAt)}
+                />
+              ) : null}
+              {people.length > 0 ? (
+                <SectionLabel meta={String(people.length)} style={s.sectionLabel}>
+                  Your friends
+                </SectionLabel>
+              ) : null}
+            </View>
+          }
+          emptyState={
             <View style={s.empty}>
               <Text style={s.emptyText}>
                 Anyone who opens your friend link becomes a friend right away.
@@ -164,118 +149,49 @@ export default function FriendsListScreen() {
                 style={s.shareButton}
               />
             </View>
-          ) : (
-            <>
-              <SectionLabel meta={String(friends.length)} style={s.sectionLabel}>
-                Your friends
-              </SectionLabel>
-              <View style={s.list}>
-                {friends.map((friendship) => {
-                  const info = (
-                    <>
-                      <Avatar
-                        avatarUrl={friendship.otherUserAvatarUrl}
-                        displayName={friendship.otherUserDisplayName}
-                        styles={s}
-                      />
-                      <View style={s.rowInfo}>
-                        <Text style={s.rowName} numberOfLines={1}>
-                          {friendship.otherUserDisplayName ?? "Unknown"}
-                        </Text>
-                        {friendship.otherUserUsername ? (
-                          <Text style={s.rowUsername} numberOfLines={1}>
-                            @{friendship.otherUserUsername}
-                          </Text>
-                        ) : null}
-                      </View>
-                    </>
-                  );
-                  // A long-press opens the iOS menu (DESIGN.md); builds
-                  // without the native view hold straight to the confirm.
-                  return NativeMenu ? (
-                    <NativeMenu
-                      key={friendship.id}
-                      actions={FRIEND_ACTIONS}
-                      onAction={() => void handleRemoveFriend(friendship)}
-                      previewBackgroundColor={theme.colors.background}
-                      previewRadius={theme.radii.md}
-                      previewInset={theme.spacing.md}
-                    >
-                      <View style={s.row}>{info}</View>
-                    </NativeMenu>
-                  ) : (
-                    <TouchableOpacity
-                      key={friendship.id}
-                      style={s.row}
-                      onLongPress={() => handleRemoveFriend(friendship)}
-                      activeOpacity={0.85}
-                      delayLongPress={400}
-                      accessibilityHint="Hold to remove this friend"
-                    >
-                      {info}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <Text style={s.footnote}>Touch and hold a name for options.</Text>
-            </>
-          )}
-        </ScrollView>
+          }
+          // A long-press opens the iOS menu (DESIGN.md); builds without the
+          // native view hold straight to the confirm.
+          wrapRow={(person: FriendPerson, row) =>
+            NativeMenu ? (
+              <NativeMenu
+                actions={FRIEND_ACTIONS}
+                onAction={() => void handleRemoveFriend(person.friendship)}
+                previewBackgroundColor={theme.colors.background}
+                previewRadius={theme.radii.md}
+                previewInset={theme.spacing.md}
+              >
+                {row}
+              </NativeMenu>
+            ) : (
+              <TouchableOpacity
+                onLongPress={() => handleRemoveFriend(person.friendship)}
+                activeOpacity={0.85}
+                delayLongPress={400}
+                accessibilityHint="Hold to remove this friend"
+              >
+                {row}
+              </TouchableOpacity>
+            )
+          }
+          footer={<Text style={s.footnote}>Touch and hold a name for options.</Text>}
+        />
       )}
     </View>
   );
 }
 
-const AVATAR_SIZE = 40;
-
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.colors.background },
     center: { flex: 1, alignItems: "center", justifyContent: "center" },
-    scrollContent: {
-      paddingHorizontal: theme.spacing.xl,
+    list: {
+      flex: 1,
       paddingTop: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.xl,
     },
     sectionLabel: {
       marginBottom: theme.spacing.xs,
-    },
-    list: {
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: theme.colors.divider,
-    },
-    row: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: theme.spacing.md,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.divider,
-      gap: theme.spacing.md,
-    },
-    avatar: {
-      width: AVATAR_SIZE,
-      height: AVATAR_SIZE,
-      borderRadius: AVATAR_SIZE / 2,
-      alignItems: "center",
-      justifyContent: "center",
-      overflow: "hidden",
-      backgroundColor: theme.colors.backgroundTertiary,
-    },
-    avatarInitial: {
-      ...theme.typography.bodyStrong,
-      color: theme.colors.textSecondary,
-    },
-    rowInfo: {
-      flex: 1,
-    },
-    rowName: {
-      ...theme.typography.bodyStrong,
-      color: theme.colors.text,
-    },
-    rowUsername: {
-      ...theme.typography.meta,
-      fontSize: theme.fontSize.sm,
-      color: theme.colors.textSecondary,
-      marginTop: 1,
     },
     footnote: {
       ...theme.typography.meta,

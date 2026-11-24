@@ -18,6 +18,8 @@ import {
   acceptFriendInvite,
   checkUsernameAvailable,
   escapeLikePattern,
+  fetchFriends,
+  fetchProfilesByIds,
   fetchProfileByFriendToken,
   friendInviteErrorCode,
   isConnected,
@@ -107,5 +109,61 @@ describe("acceptFriendInvite", () => {
     expect(friendInviteErrorCode({ error: "not_found" })).toBe("not_found");
     expect(friendInviteErrorCode({ error: "unauthorized" })).toBeNull();
     expect(friendInviteErrorCode(null)).toBeNull();
+  });
+});
+
+describe("fetchFriends", () => {
+  const row = (id: string, requester: string, addressee: string, created: string) => ({
+    id,
+    requester_id: requester,
+    addressee_id: addressee,
+    status: "accepted",
+    created_at: created,
+    updated_at: created,
+  });
+
+  it("reads in a stable order and pages instead of a silent limit", async () => {
+    sb.queueData([row("f1", "me", "a", "2026-01-01")]);
+    sb.queueData([{ id: "a", display_name: "Ana", avatar_url: null, username: "ana" }]);
+    const friends = await fetchFriends("me");
+    const methods = sb.queries[0].chain.map((c) => c.method);
+    expect(methods).toEqual(["select", "or", "eq", "order", "order", "range"]);
+    expect(methods).not.toContain("limit");
+    expect(friends).toMatchObject([{ id: "f1", otherUserId: "a", otherUserDisplayName: "Ana" }]);
+  });
+
+  it("shows a reverse-pair duplicate once", async () => {
+    sb.queueData([row("f1", "me", "a", "2026-01-01"), row("f2", "a", "me", "2026-01-02")]);
+    sb.queueData([{ id: "a", display_name: "Ana", avatar_url: null, username: null }]);
+    expect((await fetchFriends("me")).map((f) => f.id)).toEqual(["f1"]);
+  });
+
+  it("throws when the names don't load instead of listing Unknowns", async () => {
+    sb.queueData([row("f1", "me", "a", "2026-01-01")]);
+    sb.queueError("upstream request timeout");
+    await expect(fetchFriends("me")).rejects.toMatchObject({ message: "upstream request timeout" });
+  });
+});
+
+describe("fetchProfilesByIds", () => {
+  it("looks ids up 100 at a time, deduped", async () => {
+    const ids = Array.from({ length: 230 }, (_, i) => `u${i}`);
+    const profiles = await fetchProfilesByIds([...ids, "u0"]);
+    const batches = sb.queries.map((q) => q.chain.find((c) => c.method === "in")!.args[1] as string[]);
+    expect(batches.map((b) => b.length)).toEqual([100, 100, 30]);
+    expect(profiles.size).toBe(0);
+  });
+
+  it("makes no request for no ids", async () => {
+    await fetchProfilesByIds([]);
+    expect(sb.queries).toHaveLength(0);
+  });
+
+  it("throws if any batch fails", async () => {
+    sb.queueData([]);
+    sb.queueError("Request-URI Too Large");
+    await expect(fetchProfilesByIds(Array.from({ length: 150 }, (_, i) => `u${i}`))).rejects.toMatchObject({
+      message: "Request-URI Too Large",
+    });
   });
 });

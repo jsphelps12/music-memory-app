@@ -1,64 +1,54 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { usePostHog } from "posthog-react-native";
 import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   Alert,
   ScrollView,
   RefreshControl,
   Linking,
-  Dimensions,
+  Platform,
+  Share,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppImage } from "@/components/AppImage";
-import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
-import { AlbumMosaic } from "@/components/AlbumMosaic";
-import { CreateAlbumSheet } from "@/components/CreateAlbumSheet";
 import { IconButton } from "@/components/IconButton";
-import { Button } from "@/components/Button";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ListRow } from "@/components/ListRow";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { SectionLabel } from "@/components/SectionLabel";
+import { INSIGHTS_MIN_MOMENTS, artistHighlights, insightsSummary, journalInsights } from "@/lib/insights";
+import { artworkUrlAtSize } from "@/lib/itunes";
+import { ArtworkPlaceholder } from "@/components/ArtworkPlaceholder";
+import { Icon } from "@/components/Icon";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ProviderSwitchResult } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { getPublicPhotoUrl, avatarFullPathFor } from "@/lib/storage";
-import { fetchAlbumsOverview, selectAlbumsPreview } from "@/lib/albums";
-import { invalidateAlbumCaches } from "@/lib/cacheInvalidation";
-import { artworkUrlAtSize } from "@/lib/itunes";
-import { fetchSharedWithMe } from "@/lib/momentShares";
-import { setCachedMoment } from "@/lib/momentCache";
+import { friendInviteUrl } from "@/lib/momentShares";
 import { spotifyFailureMessage, SPOTIFY_FREE_NOTICE } from "@/lib/providers/spotifyErrors";
 import { friendlyError } from "@/lib/errors";
-import { pluralMoments } from "@/lib/utils";
-import { PROFILE_STATS_STALE, DEFAULT_SCREEN_STALE, BROWSE_META_STALE } from "@/lib/queryConfig";
+import { PROFILE_STATS_STALE, BROWSE_META_STALE } from "@/lib/queryConfig";
 import { fetchBrowseMetadata } from "@/lib/browse";
 import { eligibleReviewYears } from "@/lib/yearInReview";
 import { useTheme } from "@/hooks/useTheme";
-import { Theme, spacing } from "@/constants/theme";
-import { Album, Moment } from "@/types";
+import { Theme } from "@/constants/theme";
 
-// Phase 1 (2026-10): You is about your stuff, not a stats dashboard. A quiet
-// header, what friends sent you, your albums as artwork, then friends and
-// the music service. Every setting moved behind the gear (app/settings.tsx).
+// You (2026-11-20): a pushed screen, opened from the avatar on the Journal
+// header. A quiet header, your years, friends and the music service. What
+// friends sent you lives on the Journal and albums have their own tab. Every
+// setting is behind the gear (app/settings.tsx).
 
 const STALE_TIME = PROFILE_STATS_STALE;
-const SHARED_PREVIEW = 3;
-const ALBUM_PREVIEW = 4;
-// The album-art grid is deliberate: albums are shown as their covers, two
-// across inside the page gutters.
-const ALBUM_GAP = spacing.lg;
-const ALBUM_CELL = (Dimensions.get("window").width - spacing.xl * 2 - ALBUM_GAP) / 2;
-// A mosaic tile (or a single artwork filling the cell) at 3x, rounded up.
-const ALBUM_ARTWORK_PX = Math.ceil((ALBUM_CELL * 3) / 100) * 100;
 
 // BottomSheet's close animation is 220ms; wait a beat past it.
 const SHEET_CLOSE_MS = 280;
@@ -81,12 +71,6 @@ async function fetchYouSummary(userId: string) {
   return { entryCount: entryCount ?? 0, friendCount: friendCount ?? 0 };
 }
 
-function formatShortDate(iso: string) {
-  const d = new Date(iso);
-  const sameYear = d.getFullYear() === new Date().getFullYear();
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) });
-}
-
 export default function YouScreen() {
   const router = useRouter();
   const { user, profile, refreshProfile, preferredProvider, setPreferredProvider } = useAuth();
@@ -94,9 +78,7 @@ export default function YouScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const posthog = usePostHog();
-  const queryClient = useQueryClient();
 
-  const [newAlbumVisible, setNewAlbumVisible] = useState(false);
   // Connecting to Spotify is a sign-in sheet plus an account check; show it's
   // working and ignore repeat taps until it settles.
   const [switchingProvider, setSwitchingProvider] = useState(false);
@@ -117,32 +99,27 @@ export default function YouScreen() {
     }));
   }, [browseMeta.data]);
 
+  const insights = useMemo(
+    () => (browseMeta.data && browseMeta.data.length > 0 ? journalInsights(browseMeta.data) : null),
+    [browseMeta.data]
+  );
+  const insightsReady = !!insights && insights.moments >= INSIGHTS_MIN_MOMENTS;
+  // Your most-written artists, or until anyone repeats, your latest three.
+  const previewArtists = insights ? artistHighlights(insights, 3).artists : [];
+
   const summary = useQuery({
     queryKey: ["youSummary", user?.id],
     queryFn: () => fetchYouSummary(user!.id),
     staleTime: STALE_TIME,
     enabled: !!user,
   });
-  const shared = useQuery({
-    queryKey: ["sharedWithMe", user?.id],
-    queryFn: () => fetchSharedWithMe(user!.id),
-    staleTime: STALE_TIME,
-    enabled: !!user,
-  });
-  // Shares the Albums screen's query (and cache): the row is a preview of it.
-  const albums = useQuery({
-    queryKey: ["collectionsScreen", user?.id],
-    queryFn: () => fetchAlbumsOverview(user!.id),
-    select: (overview) => selectAlbumsPreview(overview, ALBUM_PREVIEW),
-    staleTime: DEFAULT_SCREEN_STALE,
-    enabled: !!user,
-  });
 
   // `refreshProfile` is not a React Query observer, so it has no staleTime of
   // its own — left ungated it ran a full `profiles` select, an AsyncStorage
-  // write and the Sentry/PostHog identify calls on every single tap of the
-  // tab. Same cooldown the queries use.
+  // write and the Sentry/PostHog identify calls on every visit. Same cooldown
+  // the queries use.
   const lastProfileRefresh = useRef(0);
+  const { dataUpdatedAt: summaryUpdatedAt, refetch: refetchSummary } = summary;
   useFocusEffect(
     useCallback(() => {
       const now = Date.now();
@@ -150,13 +127,8 @@ export default function YouScreen() {
         lastProfileRefresh.current = now;
         refreshProfile();
       }
-      for (const q of [summary, shared, albums]) {
-        if (now - q.dataUpdatedAt > STALE_TIME) q.refetch();
-      }
-      // The query objects change identity every render; their timestamps are
-      // what matter here.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [refreshProfile, summary.dataUpdatedAt, shared.dataUpdatedAt, albums.dataUpdatedAt])
+      if (now - summaryUpdatedAt > STALE_TIME) void refetchSummary();
+    }, [refreshProfile, summaryUpdatedAt, refetchSummary])
   );
 
   // Pull-to-refresh is an explicit ask, so it bypasses the cooldown — but it
@@ -166,9 +138,9 @@ export default function YouScreen() {
     setRefreshing(true);
     lastProfileRefresh.current = Date.now();
     refreshProfile();
-    await Promise.all([summary.refetch(), shared.refetch(), albums.refetch()]);
+    await refetchSummary();
     setRefreshing(false);
-  }, [refreshProfile, summary, shared, albums]);
+  }, [refreshProfile, refetchSummary]);
 
   const avatarUri = profile?.avatarUrl ? getPublicPhotoUrl(profile.avatarUrl) : null;
   // URL currently shown in the full-screen viewer; null = closed.
@@ -183,24 +155,36 @@ export default function YouScreen() {
       return;
     }
     const fullUrl = getPublicPhotoUrl(avatarFullPathFor(profile.avatarUrl));
+    // No conditional expression inside the try: the React Compiler skips it.
+    let url = avatarUri;
     try {
       const res = await fetch(fullUrl, { method: "HEAD" });
-      setAvatarViewerUrl(res.ok ? fullUrl : avatarUri);
+      if (res.ok) url = fullUrl;
     } catch {
-      setAvatarViewerUrl(avatarUri);
+      // The 400px file it is.
     }
+    setAvatarViewerUrl(url);
   }, [user, profile, avatarUri, router]);
+
+  // Add-by-link is the only way to make a friend (Sharing v2): opening this
+  // link makes the two of you friends.
+  const friendToken = profile?.friendInviteToken;
+  const handleShareFriendLink = useCallback(() => {
+    if (!friendToken) return;
+    const url = friendInviteUrl(friendToken);
+    void Share.share(Platform.OS === "ios" ? { url } : { message: url });
+  }, [friendToken]);
 
   async function switchProvider(type: "apple_music" | "spotify") {
     setSwitchingProvider(true);
     let result: ProviderSwitchResult;
+    // No finally: the React Compiler skips a component that has one.
     try {
       result = await setPreferredProvider(type);
     } catch {
       result = { ok: false, reason: "failed" };
-    } finally {
-      setSwitchingProvider(false);
     }
+    setSwitchingProvider(false);
     posthog.capture("music_provider_switch", {
       to: type,
       ok: result.ok,
@@ -245,16 +229,6 @@ export default function YouScreen() {
     setTimeout(() => void switchProvider(type), SHEET_CLOSE_MS);
   };
 
-  const openSharedMoment = (moment: Moment) => {
-    setCachedMoment(moment);
-    router.push({
-      pathname: "/moment/[id]",
-      params: { id: moment.id, contributorName: moment.contributorName ?? undefined },
-    });
-  };
-
-  const openAlbum = (album: Album) => router.push({ pathname: "/album/[id]", params: { id: album.id } });
-
   const displayName = profile?.displayName || null;
   const initial = (displayName ?? user?.email ?? "?").charAt(0).toUpperCase();
   const since = user?.created_at
@@ -264,21 +238,30 @@ export default function YouScreen() {
       })
     : null;
   const entryCount = summary.data?.entryCount;
+  // The count lives in the stats row now; the subtitle just says since when.
   const subtitle =
     entryCount === undefined
       ? " "
-      : `${entryCount} ${entryCount === 1 ? "entry" : "entries"}${since ? ` since ${since}` : ""}`;
+      : since
+        ? `Here since ${since}`
+        : `${entryCount} ${entryCount === 1 ? "entry" : "entries"}`;
 
-  const sharedItems = shared.data ?? [];
-  const albumData = albums.data;
-  const anyError = summary.isError || shared.isError || albums.isError;
-  const firstError = summary.error ?? shared.error ?? albums.error;
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   return (
-    <View style={[styles.outer, { paddingTop: insets.top }]}>
+    <View style={styles.outer}>
+      <ScreenHeader
+        leading="back"
+        right={
+          <IconButton
+            name="settings-outline"
+            onPress={() => router.push("/settings")}
+            accessibilityLabel="Settings"
+          />
+        }
+      />
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + theme.spacing["3xl"] }]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.textSecondary} />
         }
@@ -309,117 +292,71 @@ export default function YouScreen() {
             <Text style={styles.name} numberOfLines={1}>{displayName ?? "Add your name"}</Text>
             <Text style={styles.subtitle} numberOfLines={2}>{subtitle}</Text>
           </TouchableOpacity>
-          <IconButton
-            name="settings-outline"
-            onPress={() => router.push("/settings")}
-            accessibilityLabel="Settings"
-          />
         </View>
 
-        {anyError && !bannerDismissed ? (
+        {summary.isError && !bannerDismissed ? (
           <View style={styles.banner}>
             <ErrorBanner
-              message={friendlyError(firstError)}
+              message={friendlyError(summary.error)}
               onRetry={handleRefresh}
               onDismiss={() => setBannerDismissed(true)}
             />
           </View>
         ) : null}
 
-        {/* Shared with you */}
-        {sharedItems.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle} accessibilityRole="header">Shared with you</Text>
-              <Button
-                label="See all"
-                variant="text"
-                size="pill"
-                tone="secondary"
-                onPress={() => router.push("/shared")}
-              />
-            </View>
-            {sharedItems.slice(0, SHARED_PREVIEW).map((item, i, arr) => (
-              <TouchableOpacity
-                key={item.shareId}
-                style={[styles.sharedRow, i < arr.length - 1 && styles.rowDivider]}
-                onPress={() => openSharedMoment(item.moment)}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-              >
-                {item.moment.songArtworkUrl ? (
-                  <AppImage source={{ uri: artworkUrlAtSize(item.moment.songArtworkUrl, 132) }} style={styles.sharedArtwork} />
-                ) : (
-                  <ArtworkPlaceholder style={styles.sharedArtwork} />
-                )}
-                <View style={styles.sharedText}>
-                  <Text style={styles.sharedTitle} numberOfLines={1}>{item.moment.songTitle}</Text>
-                  <Text style={styles.sharedSub} numberOfLines={1}>
-                    {item.moment.contributorName ? `From ${item.moment.contributorName} · ` : ""}
-                    {formatShortDate(item.sharedAt)}
-                  </Text>
+        {/* Insights: a preview of app/insights.tsx (lib/insights.ts) */}
+        {insights ? (
+          <Pressable
+            style={({ pressed }) => [styles.insights, pressed && insightsReady && styles.pressed]}
+            onPress={insightsReady ? () => router.push({ pathname: "/insights" as any, params: { from: "you_preview" } }) : undefined}
+            disabled={!insightsReady}
+            accessibilityRole={insightsReady ? "button" : undefined}
+            accessibilityLabel={insightsReady ? `Insights, ${insightsSummary(insights)}` : undefined}
+            accessibilityHint={insightsReady ? "Opens your insights" : undefined}
+            testID="you-insights"
+          >
+            <View style={styles.insightsHead}>
+              <Text style={styles.insightsTitle}>Insights</Text>
+              {insightsReady ? (
+                <View style={styles.seeAll}>
+                  <Text style={styles.seeAllText}>See all</Text>
+                  <Icon name="chevron-forward" size={14} color={theme.colors.textSecondary} />
                 </View>
-                {!item.viewedAt ? <View style={styles.unreadDot} accessibilityLabel="Unread" /> : null}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        {/* Albums */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle} accessibilityRole="header">Albums</Text>
-            <Button
-              label="New album"
-              variant="text"
-              size="pill"
-              tone="secondary"
-              onPress={() => setNewAlbumVisible(true)}
-            />
-          </View>
-          {albumData && albumData.preview.length > 0 ? (
-            <>
-              <View style={styles.albumGrid}>
-                {albumData.preview.map((album) => {
-                  const fresh = albumData.newCounts[album.id] ?? 0;
-                  const sub =
-                    album.role === "member" && album.ownerName
-                      ? `By ${album.ownerName}`
-                      : album.isPublic
-                      ? `Shared · ${pluralMoments(album.momentCount)}`
-                      : pluralMoments(album.momentCount);
+              ) : null}
+            </View>
+            <Text style={styles.insightsMeta}>
+              {insightsReady ? insightsSummary(insights) : "Insights show up as your journal grows."}
+            </Text>
+            {insightsReady && previewArtists.length > 0 ? (
+              <View style={styles.topArtists} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+                {[0, 1, 2].map((i) => {
+                  const a = previewArtists[i];
                   return (
-                    <TouchableOpacity
-                      key={album.id}
-                      style={styles.albumCell}
-                      onPress={() => openAlbum(album)}
-                      activeOpacity={0.8}
-                      accessibilityRole="button"
-                    >
-                      <AlbumMosaic coverPhotoPath={album.coverPhotoUrl} artworks={albumData.artworks[album.id]?.map((url) => artworkUrlAtSize(url, ALBUM_ARTWORK_PX))} />
-                      <View style={styles.albumNameRow}>
-                        <Text style={styles.albumName} numberOfLines={1}>{album.name}</Text>
-                        {fresh > 0 ? <View style={styles.unreadDot} accessibilityLabel={`${fresh} new`} /> : null}
-                      </View>
-                      <Text style={styles.albumSub} numberOfLines={1}>{sub}</Text>
-                    </TouchableOpacity>
+                    <View key={i} style={styles.topArtist}>
+                      {a ? (
+                        <>
+                          {a.artworkUrl ? (
+                            <AppImage
+                              source={{ uri: artworkUrlAtSize(a.artworkUrl, 300) }}
+                              style={styles.topArt}
+                              contentFit="cover"
+                            />
+                          ) : (
+                            <ArtworkPlaceholder style={styles.topArt} />
+                          )}
+                          <Text style={styles.topName} numberOfLines={1}>{a.name}</Text>
+                          <Text style={styles.topCount} numberOfLines={1}>
+                            {a.count > 1 ? `${a.count} moments` : a.latestSong || "1 moment"}
+                          </Text>
+                        </>
+                      ) : null}
+                    </View>
                   );
                 })}
               </View>
-              {albumData.total > ALBUM_PREVIEW && (
-                <Button
-                  label={`See all ${albumData.total} albums`}
-                  variant="text"
-                  tone="secondary"
-                  onPress={() => router.push("/albums")}
-                  style={styles.seeAllAlbums}
-                />
-              )}
-            </>
-          ) : albumData ? (
-            <Text style={styles.emptyNote}>Group entries into albums: a trip, a person, a year.</Text>
-          ) : null}
-        </View>
+            ) : null}
+          </Pressable>
+        ) : null}
 
         {/* Year in review, any year with enough moments */}
         {reviewYears.length > 0 ? (
@@ -436,13 +373,20 @@ export default function YouScreen() {
           </View>
         ) : null}
 
-        {/* Friends · Music service */}
+        {/* Friends · your friend link · Music service */}
         <View style={styles.rows}>
           <ListRow
             label="Friends"
             detail={summary.data ? String(summary.data.friendCount) : undefined}
             onPress={() => router.push("/friends-list")}
           />
+          {friendToken ? (
+            <ListRow
+              label="Share your friend link"
+              onPress={handleShareFriendLink}
+              accessibilityHint="Anyone who opens it becomes your friend"
+            />
+          ) : null}
           <ListRow
             label="Music service"
             detail={switchingProvider ? "Connecting…" : preferredProvider === "spotify" ? "Spotify" : "Apple Music"}
@@ -474,17 +418,6 @@ export default function YouScreen() {
         </View>
       </BottomSheet>
 
-      {user ? (
-        <CreateAlbumSheet
-          visible={newAlbumVisible}
-          userId={user.id}
-          onClose={() => {
-            setNewAlbumVisible(false);
-            invalidateAlbumCaches(queryClient, user.id);
-          }}
-        />
-      ) : null}
-
       <PhotoViewer
         photos={avatarViewerUrl ? [avatarViewerUrl] : []}
         initialIndex={0}
@@ -497,20 +430,72 @@ export default function YouScreen() {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
+    insights: {
+      marginHorizontal: theme.spacing.xl,
+      marginTop: theme.spacing["2xl"],
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+    insightsHead: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      justifyContent: "space-between",
+    },
+    insightsTitle: {
+      ...theme.typography.title,
+      color: theme.colors.text,
+    },
+    seeAll: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 2,
+    },
+    seeAllText: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+    },
+    insightsMeta: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+      marginTop: 2,
+    },
+    topArtists: {
+      flexDirection: "row",
+      gap: theme.spacing.md,
+      marginTop: theme.spacing.lg,
+    },
+    topArtist: {
+      flex: 1,
+      minWidth: 0,
+    },
+    topArt: {
+      width: "100%",
+      aspectRatio: 1,
+      borderRadius: theme.radii.sm,
+    },
+    topName: {
+      ...theme.typography.bodyStrong,
+      fontSize: theme.fontSize.sm,
+      color: theme.colors.text,
+      marginTop: theme.spacing.sm,
+    },
+    topCount: {
+      ...theme.typography.meta,
+      color: theme.colors.textSecondary,
+    },
     outer: {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
     content: {
-      paddingBottom: 120,
+      paddingTop: theme.spacing.xs,
     },
     header: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.md + 2,
-      paddingTop: theme.spacing.lg,
-      paddingLeft: theme.spacing.xl,
-      paddingRight: theme.spacing.md,
+      paddingHorizontal: theme.spacing.xl,
     },
     avatar: {
       width: 56,
@@ -518,7 +503,7 @@ function createStyles(theme: Theme) {
       borderRadius: 28,
     },
     avatarEmpty: {
-      backgroundColor: theme.colors.chipBg,
+      backgroundColor: theme.colors.fill,
       alignItems: "center",
       justifyContent: "center",
     },
@@ -547,95 +532,12 @@ function createStyles(theme: Theme) {
       paddingHorizontal: theme.spacing.xl,
       marginTop: theme.spacing.lg,
     },
-    section: {
-      paddingHorizontal: theme.spacing.xl,
-      marginTop: theme.spacing["2xl"],
-    },
-    sectionHeader: {
-      flexDirection: "row",
-      flexWrap: "wrap", // at the largest text sizes the action drops below
-      alignItems: "center",
-      justifyContent: "space-between",
-      columnGap: theme.spacing.md,
-      marginBottom: theme.spacing.xs,
-    },
-    sectionTitle: {
-      ...theme.typography.title,
-      color: theme.colors.text,
-    },
-    sharedRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.md,
-      paddingVertical: theme.spacing.sm,
-    },
-    rowDivider: {
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.divider,
-    },
-    sharedArtwork: {
-      width: 44,
-      height: 44,
-      borderRadius: theme.radii.sm,
-    },
-    sharedText: {
-      flex: 1,
-    },
-    sharedTitle: {
-      ...theme.typography.bodyStrong,
-      fontSize: theme.fontSize.callout,
-      color: theme.colors.text,
-    },
-    sharedSub: {
-      ...theme.typography.meta,
-      marginTop: 1,
-      color: theme.colors.textSecondary,
-    },
-    unreadDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: theme.colors.accent, // design-lint-ignore: the 8px new-activity dot
-    },
-    albumGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: ALBUM_GAP,
-      marginTop: theme.spacing.xs,
-    },
-    albumCell: {
-      width: ALBUM_CELL,
-    },
-    albumNameRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs + 2,
-      marginTop: theme.spacing.sm,
-    },
-    albumName: {
-      ...theme.typography.bodyStrong,
-      fontSize: theme.fontSize.callout,
-      flexShrink: 1,
-      color: theme.colors.text,
-    },
-    albumSub: {
-      ...theme.typography.meta,
-      color: theme.colors.textSecondary,
-    },
-    seeAllAlbums: {
-      marginTop: theme.spacing.sm,
-    },
-    emptyNote: {
-      ...theme.typography.body,
-      fontSize: theme.fontSize.sm,
-      lineHeight: 20,
-      color: theme.colors.textSecondary,
-    },
+    // Groups are separated by space (and a SectionLabel when they have one),
+    // not a top rule: a rule above an unlabeled group stacked under the
+    // previous row's divider and left an empty band between two lines.
     rows: {
       marginHorizontal: theme.spacing.xl,
       marginTop: theme.spacing["2xl"],
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: theme.colors.divider,
     },
     sheetBody: {
       paddingHorizontal: theme.spacing.xl,

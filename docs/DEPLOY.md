@@ -146,6 +146,52 @@ bypassing it would publish an update to zero users rather than to some of them.
 
 **5. Monitor Sentry for 30 minutes**
 Watch for new crash spikes or error rate increases after the update lands.
+Every event carries `update_id` (the OTA's id, or `embedded` for the bundle
+inside the binary), `update_channel`, `runtime_version` and
+`update_created_at` (set in `app/_layout.tsx` from `lib/sentryTags.ts`), so
+`update_id:<id>` narrows an issue to one update.
+
+### Publishing an OTA by hand
+
+When an OTA has to go out from a laptop instead of the Promote workflow, use
+the script, not a bare `eas update`:
+
+```bash
+scripts/publish-ota.sh "Fix the calendar crash"            # production
+scripts/publish-ota.sh "Try the new header" preview        # preview
+```
+
+It refuses a dirty tree, moves `.env` aside for the publish and always puts it
+back, runs `scripts/fingerprint-gate.mjs` (which prints the runtime version and
+refuses one no installed build serves; `SKIP_GATE=1` skips the refusal in an
+emergency), then runs the same `eas update --branch … --environment …
+--platform ios --non-interactive` as before with `EXPO_PUBLIC_APP_ENV` set.
+
+**Builds made on the Mac.** EAS only lists its own builds, so the gate also
+reads `scripts/local-builds.json`. Record every build you archive in Xcode and
+send to TestFlight, from the built app, then commit the file:
+
+```bash
+node scripts/record-local-build.mjs path/to/Soundtracks.ipa
+```
+
+It reads the runtime version from the app's `EXUpdates.bundle/fingerprint`
+(what the binary asks the update server for), the channel from `Expo.plist`
+and the build number from `Info.plist`; nothing is typed by hand. Build 16
+(1.4.1) is recorded. With untracked files in the checkout that aren't yours to
+commit, publish from a clean worktree of the commit (the script prints how).
+The "Cannot find module '@expo/env'" warning during the sourcemap upload is
+expected and harmless.
+
+After publishing, it uploads the sourcemaps for that exact bundle: `eas update` exports
+into `dist/` with source maps, and the script runs
+`eas env:exec <env> "npx sentry-expo-upload-sourcemaps dist"`, which takes
+`SENTRY_AUTH_TOKEN` from the EAS environment (nothing to set locally).
+Sentry matches maps to errors by the debug id that Sentry's Metro serializer
+stamps into the bundle and its map, not by release name, which is why the
+upload has to use the very `dist/` that was published. A failed upload doesn't
+fail the script (the update is already live) but prints a banner with the
+retry command; rerun that from the same commit without exporting again.
 
 ### Rollback (if something goes wrong)
 
@@ -264,6 +310,28 @@ EAS's free iOS builds are used up until 2026-12-01, so 1.4 builds run locally
   across that change, re-run the preview prebuild before building, and never
   restore old copies between a prebuild and its build (stale files carry
   production values and break the β share extension).
+
+### 1.4.1 checks (inspect the built IPA before submitting)
+
+Build 12's permission prompts were too narrow and it shipped without the
+associated-domains entitlement, so check the binary, not the config:
+
+```bash
+unzip -q -o <path>.ipa -d /tmp/ipa && APP=$(ls -d /tmp/ipa/Payload/*.app)
+codesign -d --entitlements :- "$APP"   # applinks:soundtracks.app only (www 308-redirects to the apex); one app group, listed once
+plutil -p "$APP/Info.plist" | grep -E 'UsageDescription|Temporary'
+```
+
+- The usage strings match the constants at the top of `app.config.ts`
+  (Apple Music, Photos, Camera, Location when in use, Microphone, Face ID).
+- No `NSLocationAlways…`, `NSMotionUsageDescription` or
+  `NSLocationTemporaryUsageDescriptionDictionary`: the app never asks for them.
+- If associated-domains is missing from the signed app, the App ID lacks the
+  Associated Domains capability (Apple Developer → Identifiers → the bundle
+  id). Turn it on and regenerate the profile: EAS credentials for `eas build
+  --local`, or let Xcode do it with automatic signing and
+  `-allowProvisioningUpdates`. Then tap a `https://soundtracks.app/m/…` link
+  in Notes: it should open the app, not Safari.
 
 ## Manual Regression Checklist
 
@@ -555,7 +623,12 @@ node scripts/fingerprint-check.mjs
 # Rollback production OTA
 eas update --rollback-to-embedded --branch production
 
-# Emergency manual OTA — no reachability gate; may publish to zero users
+# Manual OTA with the reachability gate and a sourcemap upload (see
+# "Publishing an OTA by hand")
+scripts/publish-ota.sh "Description"            # production
+scripts/publish-ota.sh "Description" preview
+
+# Bare manual OTA: no reachability gate, no sourcemaps (errors arrive minified)
 eas update --branch preview --environment preview --message "Description"
 eas update --branch production --environment production --message "Description"
 

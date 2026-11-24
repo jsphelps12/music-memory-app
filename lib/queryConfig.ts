@@ -82,3 +82,32 @@ export const PROFILE_STATS_STALE = DEFAULT_SCREEN_STALE;
  * keystroke, short enough to still feel like search-as-you-type.
  */
 export const SEARCH_DEBOUNCE_MS = 275;
+
+/**
+ * `["album", albumId, userId]`: one album's moments. Short, because other
+ * people add to a shared album and nothing on this phone invalidates it when
+ * they do: at 2 minutes, a moment a friend just added stayed missing on
+ * reopen while the album card (a different query) already counted it
+ * (2026-11-20). Opening an album is a deliberate "show me what's in here".
+ */
+export const ALBUM_DETAIL_STALE = 15_000;
+
+/**
+ * `["friendsList", userId]` — the one friend list every person picker reads
+ * (hooks/useFriends.ts): the share sheet, the Friends screen and the "Who was
+ * there" suggestions. Invalidated by `invalidateFriendCaches`.
+ */
+export const FRIENDS_STALE = DEFAULT_SCREEN_STALE;
+
+/**
+ * `["recentRecipients", userId]` — who this user last sent moments to, for
+ * the share picker's order. Invalidated when the share sheet closes.
+ */
+export const RECENT_RECIPIENTS_STALE = DEFAULT_SCREEN_STALE;
+
+/**
+ * `["peopleLinks", userId]` — "Who was there" names linked to friends
+ * (lib/momentPeopleLinks.ts). Read by capture, edit, Rediscover's People and
+ * the share sheet; invalidated with every moment and friend mutation.
+ */
+export const PEOPLE_LINKS_STALE = DEFAULT_SCREEN_STALE;
