@@ -14,6 +14,8 @@ import {
   resetTimelineRefresh,
   markTimelineDeleted,
   lastTimelineMarkAt,
+  setListNotice,
+  consumeListNotice,
 } from "../timelineRefresh";
 
 const COOLDOWN = 30_000;
@@ -83,5 +85,26 @@ describe("lastTimelineMarkAt (prefetch age check)", () => {
     markTimelineStale();
     resetTimelineRefresh();
     expect(lastTimelineMarkAt()).toBe(0);
+  });
+});
+
+describe("list notice", () => {
+  beforeEach(() => resetTimelineRefresh());
+
+  it("is consumed once", () => {
+    setListNotice("Saved on your phone.");
+    expect(consumeListNotice()).toBe("Saved on your phone.");
+    expect(consumeListNotice()).toBeNull();
+  });
+
+  it("is dropped on sign-out (resetTimelineRefresh)", () => {
+    setListNotice("Saved on your phone.");
+    resetTimelineRefresh();
+    expect(consumeListNotice()).toBeNull();
+  });
+
+  it("doesn't touch the stale flag", () => {
+    setListNotice("x");
+    expect(consumeTimelineStale().stale).toBe(false);
   });
 });

@@ -3,7 +3,7 @@ import NetInfo from "@react-native-community/netinfo";
 import * as Sentry from "@sentry/react-native";
 import { saveMoment, type SaveMomentInput, type SaveMomentResult } from "@/lib/saveMoment";
 import { friendlyError } from "@/lib/errors";
-import { isOnline } from "@/lib/appFocus";
+import { isDeviceOnline, isOnline } from "@/lib/appFocus";
 import {
   enqueueOutbox,
   listOutbox,
@@ -268,15 +268,6 @@ const MIN_WAKE_MS = 1_000;
 /** A long timer is re-armed at most this far ahead. */
 const MAX_WAKE_MS = 60 * 60_000;
 
-async function netIsOnline(): Promise<boolean> {
-  try {
-    const state = await NetInfo.fetch();
-    return isOnline(state.isConnected, state.isInternetReachable);
-  } catch {
-    return true;
-  }
-}
-
 function reportToSentry(err: unknown, item: OutboxItem, kind: OutboxErrorKind): void {
   Sentry.captureException(err, {
     tags: { area: "outbox", outbox_error: kind },
@@ -310,7 +301,7 @@ export function startOutboxFlushing(
     store: appStore,
     toSaveInput: outboxSaveInput,
     now: Date.now,
-    isOnline: netIsOnline,
+    isOnline: isDeviceOnline,
     onSaved,
     report: reportToSentry,
     isActive: () => active,

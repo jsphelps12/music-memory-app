@@ -34,6 +34,8 @@ import { useOnForeground, wireQueryFocus } from "@/lib/appFocus";
 import { wireLibraryCache } from "@/lib/libraryCache";
 import { refreshCheckIns } from "@/lib/dailyCheckIn";
 import { refreshLastWeekReady } from "@/lib/lastWeekReady";
+import { startOutboxFlushing } from "@/lib/outboxFlush";
+import { handleOutboxSaved } from "@/lib/outboxSaved";
 import { PostHogProvider } from "posthog-react-native";
 import { posthog } from "@/lib/posthog";
 import { View, ActivityIndicator } from "react-native";
@@ -341,6 +343,15 @@ function RootLayoutNav() {
   // absence lets them run out (lib/dailyCheckIn.ts).
   useEffect(() => {
     if (user?.id) void refreshCheckIns(user.id);
+  }, [user?.id]);
+
+  // Offline saves (lib/outboxFlush.ts): moments capture couldn't save go up
+  // while this user is signed in (now, back online, back in the foreground,
+  // when a retry wait runs out). Stops on sign-out or a change of account.
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId) return;
+    return startOutboxFlushing(userId, (result, item) => handleOutboxSaved(queryClient, userId, result, item));
   }, [user?.id]);
   useOnForeground(() => {
     if (user?.id) void refreshCheckIns(user.id);
