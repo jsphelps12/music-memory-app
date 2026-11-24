@@ -43,6 +43,8 @@ function ownerRow(overrides: Record<string, unknown> = {}) {
     location_lat: 40.23,
     location_lng: -111.66,
     share_token: "live-token",
+    voice_path: "owner/m1-1.m4a",
+    voice_duration_ms: 42000,
     moment_date: "2026-07-04",
     created_at: "2026-07-04T22:00:00Z",
     updated_at: "2026-07-04T22:00:00Z",
@@ -52,7 +54,7 @@ function ownerRow(overrides: Record<string, unknown> = {}) {
 
 /** The same moment as get_moment_view returns it to someone else. */
 function sharedRow(overrides: Record<string, unknown> = {}) {
-  const { share_token: _token, ...rest } = ownerRow();
+  const { share_token: _token, voice_path: _voice, voice_duration_ms: _voiceMs, ...rest } = ownerRow();
   return {
     ...rest,
     location: null,
@@ -86,15 +88,19 @@ describe("shapeForViewer", () => {
     expect(own.people).toEqual(["Sam", "Alex"]);
     expect(own.locationLat).toBe(40.23);
     expect(own.shareToken).toBe("live-token");
+    expect(own.voicePath).toBe("owner/m1-1.m4a");
+    expect(own.voiceDurationMs).toBe(42000);
   });
 
-  it("hides place, people and the link token from anyone else", () => {
+  it("hides place, people, the link token and the voice recording from anyone else", () => {
     const shaped = shapeForViewer(mapMomentView(ownerRow(), "owner"), "friend");
     expect(shaped.location).toBeNull();
     expect(shaped.locationLat).toBeNull();
     expect(shaped.locationLng).toBeNull();
     expect(shaped.people).toEqual([]);
     expect(shaped.shareToken).toBeNull();
+    expect(shaped.voicePath).toBeNull();
+    expect(shaped.voiceDurationMs).toBeNull();
     // What the shared view keeps.
     expect(shaped.reflectionText).toBe("Kitchen dancing.");
     expect(shaped.photoUrls).toEqual(["owner/a.jpg"]);
@@ -109,6 +115,7 @@ describe("mapMomentView", () => {
     expect(m.locationLat).toBeNull();
     expect(m.people).toEqual([]);
     expect(m.shareToken).toBeNull();
+    expect(m.voicePath).toBeNull();
     expect(m.contributorName).toBe("Josh");
   });
 

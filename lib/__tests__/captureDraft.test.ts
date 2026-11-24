@@ -27,6 +27,17 @@ const files = vi.hoisted(() => ({
   deleteDraftFiles: vi.fn(),
 }));
 vi.mock("../captureDraftFiles", () => files);
+// Voice takes: already in the app's documents, so a draft just stores the
+// path relative to them, as storedDraftVoice does.
+const voiceFiles = vi.hoisted(() => ({
+  storedDraftVoice: vi.fn((v: { uri: string; durationMs: number }) => ({
+    ...v,
+    uri: v.uri.replace("file:///Documents/", "doc:"),
+  })),
+  pruneVoiceFiles: vi.fn(),
+  deleteVoiceFiles: vi.fn(),
+}));
+vi.mock("../voiceFiles", () => voiceFiles);
 
 const {
   isWorthKeeping,
@@ -89,6 +100,9 @@ beforeEach(() => {
   files.keepDraftPhotos.mockClear();
   files.pruneDraftFiles.mockClear();
   files.deleteDraftFiles.mockClear();
+  voiceFiles.storedDraftVoice.mockClear();
+  voiceFiles.pruneVoiceFiles.mockClear();
+  voiceFiles.deleteVoiceFiles.mockClear();
 });
 
 describe("isWorthKeeping", () => {
@@ -520,6 +534,7 @@ describe("storage: old single draft", () => {
     await clearCaptureDraft(USER);
     expect(storage.map.size).toBe(0);
     expect(files.deleteDraftFiles).toHaveBeenCalledWith(USER);
+    expect(voiceFiles.deleteVoiceFiles).toHaveBeenCalledWith(USER);
   });
 });
 
@@ -602,5 +617,60 @@ describe("the part of the song in a draft", () => {
     expect(kept.partMs).toBeUndefined();
     const [read] = parseStoredDrafts(JSON.stringify([{ ...kept, partMs: "soon" }]), null);
     expect(read.partMs).toBeUndefined();
+  });
+});
+
+describe("a voice recording in a draft", () => {
+  const take = { uri: `file:///Documents/capture-voice/${USER}/voice-1.m4a`, durationMs: 42_000 };
+  const storedTake = { uri: `doc:capture-voice/${USER}/voice-1.m4a`, durationMs: 42_000 };
+  const lastVoicePrune = () => voiceFiles.pruneVoiceFiles.mock.calls.at(-1)?.[1] as Set<string>;
+
+  it("is worth keeping on its own, like a photo", () => {
+    expect(isWorthKeeping({ reflection: "", voice: take })).toBe(true);
+    expect(isWorthKeeping({ reflection: "", voice: null })).toBe(false);
+  });
+
+  it("keeps the take and reads it back", () => {
+    const [kept] = withDraft([], "v", { reflection: "", song: null, voice: take }, NOW);
+    expect(kept.voice).toEqual(take);
+    const [read] = parseStoredDrafts(JSON.stringify([kept]), null);
+    expect(read.voice).toEqual(take);
+  });
+
+  it("leaves off a malformed one rather than losing the draft", () => {
+    const [kept] = withDraft([], "v", { reflection: "words", song: null }, NOW);
+    expect(kept.voice).toBeUndefined();
+    const [read] = parseStoredDrafts(JSON.stringify([{ ...kept, voice: { uri: 3, durationMs: "long" } }]), null);
+    expect(read.reflection).toBe("words");
+    expect(read.voice).toBeUndefined();
+  });
+
+  it("is called by its recording in the drafts list when there's nothing else", () => {
+    const voiceOnly = { ...draft("v", ""), song, voice: take };
+    expect(draftTitle(voiceOnly)).toBe("Voice recording");
+    expect(draftMeta(voiceOnly, NOW)).not.toContain("Voice 0:42");
+    const withWords = { ...draft("w", "Dad's truck"), voice: take };
+    expect(draftMeta(withWords, NOW)).toContain("Voice 0:42");
+  });
+
+  it("stores the take relative to the app's folders, and the cleanup keeps it", async () => {
+    await saveCaptureDraft(USER, "mine", { reflection: "", song: null, voice: take });
+    expect(voiceFiles.storedDraftVoice).toHaveBeenCalledWith(take);
+    expect(stored()[0].voice).toEqual(storedTake);
+    expect(lastVoicePrune()).toEqual(new Set(["voice-1.m4a"]));
+  });
+
+  it("saving the moment, or Discard, lets the cleanup take it", async () => {
+    await saveCaptureDraft(USER, "mine", { reflection: "", song: null, voice: take });
+    await discardCaptureDraft(USER, "mine");
+    expect(storage.map.has(KEY)).toBe(false);
+    expect(lastVoicePrune().size).toBe(0);
+  });
+
+  it("Continue a draft brings the take back", async () => {
+    await saveCaptureDraft(USER, "mine", { reflection: "", song, voice: take });
+    const picked = await loadDraftToPickUp(USER, { prefilled: false, typed: () => "", draftId: "mine" });
+    expect(picked?.voice).toEqual(storedTake);
+    releaseDraft("mine");
   });
 });

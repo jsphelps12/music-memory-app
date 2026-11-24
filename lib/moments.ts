@@ -24,6 +24,11 @@ export function mapRowToMoment(row: any): Moment {
     // The part of the song (20261123120000_song_part.sql); in card rows too.
     songPartMs: row.song_part_ms ?? null,
     captureSource: row.capture_source ?? null,
+    // The owner's voice recording (20261124120000_voice_entries.sql). Not in
+    // MOMENT_CARD_COLUMNS, and the shared view leaves it out for anyone but
+    // the owner, so null there too.
+    voicePath: row.voice_path ?? null,
+    voiceDurationMs: row.voice_duration_ms ?? null,
     reflectionText: row.reflection_text,
     photoUrls: row.photo_urls ?? [],
     photoThumbnails: row.photo_thumbnails ?? [],

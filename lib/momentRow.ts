@@ -7,6 +7,7 @@
 import type { Song } from "@/types";
 import type { GeoResult } from "@/lib/geocoding";
 import { dateToStr } from "@/lib/dateUtils";
+import { storableVoiceMs } from "@/lib/voice";
 
 export interface MomentFieldsInput {
   song: Song;
@@ -55,6 +56,16 @@ export function momentRowFields(input: MomentFieldsInput, fetchedAlbumName: stri
     moment_date: input.momentDate ? dateToStr(input.momentDate) : null,
     song_part_ms: input.songPartMs ?? null,
   };
+}
+
+/**
+ * The voice recording's columns (lib/voice.ts): its storage path and length,
+ * or both null for none. A length never stands without a path.
+ */
+export function voiceColumns(path: string | null | undefined, durationMs: number | null | undefined) {
+  return path
+    ? { voice_path: path, voice_duration_ms: storableVoiceMs(durationMs ?? 0) }
+    : { voice_path: null, voice_duration_ms: null };
 }
 
 type SongIdentity = Pick<Song, "title" | "artistName" | "provider" | "appleMusicId" | "spotifyId">;

@@ -16,12 +16,19 @@ export const SONG_METADATA_OPTIONAL_COLUMNS = [
   "capture_source",
 ] as const;
 
+/** Columns added by 20261124120000_voice_entries.sql. */
+export const VOICE_OPTIONAL_COLUMNS = ["voice_path", "voice_duration_ms"] as const;
+
 /**
  * Every column a moment write may drop on a database that doesn't have it
- * yet: the song metadata above, and the part of the song
- * (20261123120000_song_part.sql).
+ * yet: the song metadata above, the part of the song
+ * (20261123120000_song_part.sql) and the voice recording.
  */
-export const MOMENT_OPTIONAL_COLUMNS = [...SONG_METADATA_OPTIONAL_COLUMNS, "song_part_ms"] as const;
+export const MOMENT_OPTIONAL_COLUMNS = [
+  ...SONG_METADATA_OPTIONAL_COLUMNS,
+  "song_part_ms",
+  ...VOICE_OPTIONAL_COLUMNS,
+] as const;
 
 /**
  * Whether an error says a column doesn't exist: Postgres `42703`

@@ -5,6 +5,7 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import {
+  MOMENT_OPTIONAL_COLUMNS,
   SONG_METADATA_OPTIONAL_COLUMNS,
   isMissingColumnError,
   withoutColumns,
@@ -90,5 +91,12 @@ describe("writeWithOptionalColumns", () => {
     const got = await writeWithOptionalColumns({ id: "m1" }, SONG_METADATA_OPTIONAL_COLUMNS, write);
     expect(write).toHaveBeenCalledTimes(1);
     expect(got.error).toBe(PG_MISSING);
+  });
+});
+
+describe("MOMENT_OPTIONAL_COLUMNS", () => {
+  it("lets a save drop the voice columns on a database without them", () => {
+    expect(MOMENT_OPTIONAL_COLUMNS).toEqual(expect.arrayContaining(["voice_path", "voice_duration_ms", "song_part_ms"]));
+    for (const col of SONG_METADATA_OPTIONAL_COLUMNS) expect(MOMENT_OPTIONAL_COLUMNS).toContain(col);
   });
 });

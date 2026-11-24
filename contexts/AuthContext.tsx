@@ -18,6 +18,7 @@ import { clearSignOutKeys } from "@/lib/signOutKeys";
 import { clearPhotoAnalysisStore } from "@/lib/photoAnalysisStore";
 import { clearNudgeQuestions } from "@/lib/nudgeQuestionStore";
 import { clearLibraryCache } from "@/lib/libraryCache";
+import { clearVoiceUrlCache } from "@/lib/voiceStorage";
 import { resetTimelineRefresh } from "@/lib/timelineRefresh";
 import { isAccountBoundary, mayClearOnLeave } from "@/lib/accountBoundary";
 import { clearLegacyAlbumCaches } from "@/lib/albums";
@@ -471,6 +472,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Their in-memory copies too, or the next write would put them back.
     await Promise.all([clearPhotoAnalysisStore(), clearNudgeQuestions()]).catch(() => {});
     clearLibraryCache();
+    clearVoiceUrlCache();
     // Spotify's session is stored device-wide, not per user: the next person
     // to sign in here must connect their own account.
     await disconnectSpotify().catch(() => {});

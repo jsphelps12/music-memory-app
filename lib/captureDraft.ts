@@ -2,6 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { PersonLink, Song } from "@/types";
 import { keptFileNames, photoCountLabel, type DraftPhoto } from "@/lib/draftPhotos";
 import { deleteDraftFiles, keepDraftPhotos, pruneDraftFiles } from "@/lib/captureDraftFiles";
+import { keptVoiceNames, voiceTimeLabel, type LocalVoice } from "@/lib/voice";
+import { deleteVoiceFiles, pruneVoiceFiles, storedDraftVoice } from "@/lib/voiceFiles";
 
 /**
  * Capture drafts: unsaved writing on the capture screen survives Cancel, a
@@ -21,9 +23,10 @@ import { deleteDraftFiles, keepDraftPhotos, pruneDraftFiles } from "@/lib/captur
  * A draft keeps what the person added (version 2, 2026-11-21): the writing
  * and song, photos and videos (lib/draftPhotos.ts; copies of photos with no
  * library id are kept with the draft by lib/captureDraftFiles.ts), moods,
- * people and their friend links, the date, the place and the album. Drafts
- * written before have only the writing and song; every newer field is
- * optional, so they still load. Nothing about a draft leaves the phone.
+ * people and their friend links, the date, the place and the album, and a
+ * voice recording (lib/voiceFiles.ts keeps the file). Drafts written before
+ * have only the writing and song; every newer field is optional, so they
+ * still load. Nothing about a draft leaves the phone.
  *
  * The rules are pure functions below (tested in
  * lib/__tests__/captureDraft.test.ts); the storage calls run one at a time so
@@ -46,7 +49,11 @@ export interface CaptureDraft {
   album?: DraftAlbum | null;
   /** The part of the song in ms (lib/songPart.ts), null for none. */
   partMs?: number | null;
+  /** A voice recording not saved yet (lib/voice.ts); its file is on this phone. */
+  voice?: DraftVoice | null;
 }
+
+export type DraftVoice = LocalVoice;
 
 export interface DraftPlace {
   name: string;
@@ -61,7 +68,7 @@ export interface DraftAlbum {
 }
 
 export type DraftContent = Pick<CaptureDraft, "reflection" | "song"> &
-  Partial<Pick<CaptureDraft, "photos" | "moods" | "people" | "peopleLinks" | "date" | "place" | "album" | "partMs">>;
+  Partial<Pick<CaptureDraft, "photos" | "moods" | "people" | "peopleLinks" | "date" | "place" | "album" | "partMs" | "voice">>;
 
 /**
  * What the app put in a capture rather than the person: starter and prompt
@@ -96,15 +103,16 @@ export function hasWriting(reflection: string, templates: readonly string[] = []
 }
 
 /**
- * Writing, or a photo or video the person added, is worth keeping. A song
- * alone is two taps to redo, and so are moods, people, a place or an album
- * without anything else.
+ * Writing, a voice recording, or a photo or video the person added, is worth
+ * keeping. A song alone is two taps to redo, and so are moods, people, a
+ * place or an album without anything else.
  */
 export function isWorthKeeping(
-  content: Pick<DraftContent, "reflection" | "photos">,
+  content: Pick<DraftContent, "reflection" | "photos" | "voice">,
   given: DraftGiven = {}
 ): boolean {
   if (hasWriting(content.reflection, given.templates)) return true;
+  if (content.voice) return true;
   const givenPhotos = given.photos ?? [];
   return (content.photos ?? []).some((p) => !givenPhotos.includes(p.uri));
 }
@@ -152,6 +160,7 @@ export function draftRecord(id: string, content: DraftContent, now: number): Cap
   if (content.place) record.place = { name: content.place.name, lat: content.place.lat, lng: content.place.lng };
   if (content.album) record.album = { id: content.album.id, name: content.album.name };
   if (content.partMs != null && content.song) record.partMs = content.partMs;
+  if (content.voice) record.voice = { uri: content.voice.uri, durationMs: content.voice.durationMs };
   return record;
 }
 
@@ -228,19 +237,28 @@ export function draftExcerpt(reflection: string, max = 48): string {
 
 /**
  * What a draft is called in the drafts list: its first words, or for one
- * with only photos, how many ("2 photos").
+ * with only photos, how many ("2 photos"), or for one with only a
+ * recording, "Voice recording".
  */
 export function draftTitle(draft: CaptureDraft): string {
-  return draftExcerpt(draft.reflection) || photoCountLabel(draft.photos) || draft.song?.title || "Draft";
+  return (
+    draftExcerpt(draft.reflection) ||
+    photoCountLabel(draft.photos) ||
+    (draft.voice ? "Voice recording" : "") ||
+    draft.song?.title ||
+    "Draft"
+  );
 }
 
 /**
- * A drafts-list row's meta: the song, how many photos (unless the title
- * already says so) and when.
+ * A drafts-list row's meta: the song, how many photos and the recording's
+ * length (unless the title already says so) and when.
  */
 export function draftMeta(draft: CaptureDraft, now: number): string {
-  const photos = draftExcerpt(draft.reflection) ? photoCountLabel(draft.photos) : "";
-  return [draft.song?.title, photos, draftWhenLabel(draft.savedAt, now)].filter(Boolean).join(" · ");
+  const excerpt = draftExcerpt(draft.reflection);
+  const photos = excerpt ? photoCountLabel(draft.photos) : "";
+  const voice = draft.voice && (excerpt || photoCountLabel(draft.photos)) ? `Voice ${voiceTimeLabel(draft.voice.durationMs)}` : "";
+  return [draft.song?.title, photos, voice, draftWhenLabel(draft.savedAt, now)].filter(Boolean).join(" · ");
 }
 
 /**
@@ -343,6 +361,10 @@ function readDraft(value: unknown): CaptureDraft | null {
     draft.place = { name: place.name, lat: place.lat, lng: place.lng };
   }
   if (typeof d.partMs === "number" && Number.isFinite(d.partMs) && d.partMs >= 0) draft.partMs = d.partMs;
+  const voice = d.voice as DraftVoice | null | undefined;
+  if (voice && typeof voice.uri === "string" && typeof voice.durationMs === "number" && Number.isFinite(voice.durationMs)) {
+    draft.voice = { uri: voice.uri, durationMs: voice.durationMs };
+  }
   const album = d.album as DraftAlbum | null | undefined;
   if (album && typeof album.id === "string" && typeof album.name === "string") {
     draft.album = { id: album.id, name: album.name };
@@ -395,8 +417,10 @@ async function writeDrafts(userId: string, drafts: CaptureDraft[]): Promise<void
   else await AsyncStorage.removeItem(key(userId));
   // Folded into the list by readDrafts, so the old key can go.
   await AsyncStorage.removeItem(legacyKey(userId));
-  // Kept photo copies of drafts that have gone, or of photos taken off one.
+  // Kept photo copies of drafts that have gone, or of photos taken off one,
+  // and voice takes no draft points at any more.
   pruneDraftFiles(userId, keptFileNames(drafts, userId));
+  pruneVoiceFiles(userId, keptVoiceNames(drafts, userId));
 }
 
 // Drafts picked up by a capture screen that's still open, so a second
@@ -435,8 +459,10 @@ export function listCaptureDrafts(userId: string): Promise<CaptureDraft[]> {
   return serial(async () => {
     try {
       const live = liveDrafts(await readDrafts(userId), Date.now());
-      // An expired draft's kept photos go even when nothing has been written since.
+      // An expired draft's kept photos and takes go even when nothing has
+      // been written since.
       pruneDraftFiles(userId, keptFileNames(live, userId));
+      pruneVoiceFiles(userId, keptVoiceNames(live, userId));
       return live.filter((d) => !held.has(d.id));
     } catch {
       return [];
@@ -451,7 +477,8 @@ export function releaseDraft(id: string): void {
 
 /**
  * Writes this capture's draft (or takes it out when there's nothing worth
- * keeping). Photos that need one get a copy kept with the draft first.
+ * keeping). Photos that need one get a copy kept with the draft first; a
+ * voice take is already in the app's documents and is stored relative to them.
  */
 export function saveCaptureDraft(
   userId: string,
@@ -464,7 +491,13 @@ export function saveCaptureDraft(
       const next = withDraft(await readDrafts(userId), id, content, Date.now(), given);
       const mine = next.find((d) => d.id === id);
       const photos = mine?.photos?.length ? await keepDraftPhotos(userId, id, mine.photos) : null;
-      await writeDrafts(userId, photos ? next.map((d) => (d.id === id ? { ...d, photos } : d)) : next);
+      const voice = mine?.voice ? storedDraftVoice(mine.voice) : null;
+      await writeDrafts(
+        userId,
+        photos || voice
+          ? next.map((d) => (d.id === id ? { ...d, ...(photos ? { photos } : {}), ...(voice ? { voice } : {}) } : d))
+          : next
+      );
     } catch {}
   });
 }
@@ -478,7 +511,7 @@ export function discardCaptureDraft(userId: string, id: string): Promise<void> {
   });
 }
 
-/** Every draft for this user, and their kept photos (sign out, account deletion). */
+/** Every draft for this user, and their kept photos and takes (sign out, account deletion). */
 export function clearCaptureDraft(userId: string): Promise<void> {
   return serial(async () => {
     try {
@@ -486,5 +519,6 @@ export function clearCaptureDraft(userId: string): Promise<void> {
       await AsyncStorage.removeItem(legacyKey(userId));
     } catch {}
     deleteDraftFiles(userId);
+    deleteVoiceFiles(userId);
   });
 }

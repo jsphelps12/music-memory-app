@@ -33,6 +33,8 @@ function fullRow() {
     song_duration_ms: 354320,
     song_part_ms: 161000,
     capture_source: "now_playing",
+    voice_path: "u1/m1-1700000000000.m4a",
+    voice_duration_ms: 42000,
     reflection_text: "Driving home at 2am.",
     photo_urls: ["u1/a.jpg"],
     photo_thumbnails: ["u1/thumb_a.jpg"],
@@ -74,6 +76,8 @@ describe("mapRowToMoment", () => {
       songDurationMs: 354320,
       songPartMs: 161000,
       captureSource: "now_playing",
+      voicePath: "u1/m1-1700000000000.m4a",
+      voiceDurationMs: 42000,
       reflectionText: "Driving home at 2am.",
       photoUrls: ["u1/a.jpg"],
       photoThumbnails: ["u1/thumb_a.jpg"],
@@ -128,6 +132,9 @@ describe("mapRowToMoment", () => {
     expect(m.songAlbumId).toBeNull();
     expect(m.songDurationMs).toBeNull();
     expect(m.captureSource).toBeNull();
+    // The voice recording: absent before the columns, and for non-owners.
+    expect(m.voicePath).toBeNull();
+    expect(m.voiceDurationMs).toBeNull();
   });
 
   it("dual-reads moods, falling back to the legacy single mood column", () => {
@@ -216,6 +223,10 @@ const CARD_FABRICATED_FIELDS = [
   "songAlbumId",
   "songDurationMs",
   "captureSource",
+  // The voice recording (2026-11-23): cards don't play it; the detail screen
+  // reads the full row.
+  "voicePath",
+  "voiceDurationMs",
 ] as const;
 
 describe("MOMENT_CARD_COLUMNS contract", () => {

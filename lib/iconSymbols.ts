@@ -55,6 +55,9 @@ export const ICON_SYMBOLS = {
   "lock-closed-outline": { symbol: "lock", box: 1.11 },
   "mail-outline": { symbol: "envelope", box: 1.05 },
   "map-outline": { symbol: "map", box: 1.08 },
+  // Not measured like the others yet: sized by eye against the Ionicons glyph.
+  mic: { symbol: "mic.fill", box: 1.05 },
+  "mic-outline": { symbol: "mic", box: 1.05 },
   "musical-note": { symbol: "music.note", box: 1.04 },
   "musical-note-outline": { symbol: "music.note", box: 1.04 },
   "musical-notes": { symbol: "music.note", box: 1.04 },
@@ -79,6 +82,7 @@ export const ICON_SYMBOLS = {
   "settings-outline": { symbol: "gearshape", box: 1.05 },
   "share-outline": { symbol: "square.and.arrow.up", box: 1.08, y: -0.03 },
   shuffle: { symbol: "shuffle", box: 0.99 },
+  stop: { symbol: "stop.fill", box: 0.78 },
   // Rediscover: resurfacing, not a clock face. No .fill exists, so the tab
   // bar's active and inactive states draw the same symbol.
   time: { symbol: "clock.arrow.circlepath", box: 0.89, x: 0.03 },
