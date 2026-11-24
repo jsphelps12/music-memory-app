@@ -232,10 +232,12 @@ Flat by default, with depth by tonal step: paper, deep paper, raised white; nigh
 ### Shadow Vocabulary
 - **Segment lift** (`0 1px 2px rgba(0,0,0,0.08)`, none in dark): the selected segment in a segmented control.
 - **Card hint** (`0 1px 4px rgba(0,0,0,0.08)`): the theme's card shadow; rarely used now that rows replaced cards.
-- **Float** (`0 8px 12px rgba(0,0,0,0.2)`, 0.5 in dark): the capture button above the tab bar.
-- **Artwork lift** (`0 18px 24px rgba(0,0,0,0.25)`): album artwork shown large on an entry.
+- **Float** (`0 8px 12px rgba(0,0,0,0.2)`, 0.5 in dark; `theme.shadows.float`): things that hover over the page: the capture button, the tab bar, the mini player, a card over the map.
+- **Artwork lift** (`0 18px 24px rgba(0,0,0,0.25)`, 0.5 in dark; `theme.shadows.artworkLift`): album artwork shown large on an entry, an album's cover, the share card.
 - **Device** (`inset 0 0 0 1.5px #3b3a40, 0 2px 4px rgba(0,0,0,0.18), 0 34px 70px -18px rgba(0,0,0,0.55)`): the iPhone drawn on web.
 - **Night scrim** (gradients of `rgba(14,11,10,0.08 to 0.94)`): over photographs so night text holds contrast; directional on wide screens, near-solid on small.
+
+**Over imagery** the colors don't follow the mode (the picture decides the light): `theme.overImage` holds them, warm ink and paper only (`glass` for a control's disc, `badge` for a thumbnail's badge, `scrim`, `veil`, `dim`, `track`, `text`, `textShadow`). `scripts/design-lint.mjs` rejects a hex or rgba literal in `app/` or `components/`.
 
 **The Lift Means Physical Rule.** Shadow is reserved for things that sit above the page in the real world. If it is part of the page, it is flat and divided by a hairline.
 

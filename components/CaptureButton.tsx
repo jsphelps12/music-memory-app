@@ -67,11 +67,7 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       justifyContent: "center",
       // Float (DESIGN.md, Shadow Vocabulary).
-      shadowColor: "#0E0B0A",
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: theme.isDark ? 0.5 : 0.2,
-      shadowRadius: 12,
-      elevation: 8,
+      ...theme.shadows.float,
       zIndex: 10,
     },
   });

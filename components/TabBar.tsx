@@ -257,11 +257,7 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.buttonBg,
       alignItems: "center",
       justifyContent: "center",
-      shadowColor: "#0E0B0A",
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: theme.isDark ? 0.5 : 0.2,
-      shadowRadius: 12,
-      elevation: 8,
+      ...theme.shadows.float,
       zIndex: 10,
     },
     bar: {

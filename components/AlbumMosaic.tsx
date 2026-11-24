@@ -5,6 +5,7 @@ import { AppImage } from "@/components/AppImage";
 import { getPublicPhotoUrl } from "@/lib/storage";
 import { useTheme } from "@/hooks/useTheme";
 import { Theme } from "@/constants/theme";
+import { mosaicFace } from "@/lib/albumMosaic";
 
 interface Props {
   /** Storage path of the album's own cover photo; wins when set. */
@@ -15,14 +16,15 @@ interface Props {
 }
 
 /**
- * An album's face: its cover photo if it has one, else a 2×2 grid of the
- * songs in it (one full-bleed artwork until there are four), else a quiet
- * empty tile. Square; size it with `style`.
+ * An album's face: its cover photo if it has one, else its songs' artworks
+ * (one full bleed, or a 2×2 grid from two up: lib/albumMosaic.ts), else a
+ * quiet empty tile. Square; size it with `style`.
  */
 export function AlbumMosaic({ coverPhotoPath, artworks = [], style }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
+  const face = mosaicFace(artworks);
   let content;
   if (coverPhotoPath) {
     content = (
@@ -32,20 +34,21 @@ export function AlbumMosaic({ coverPhotoPath, artworks = [], style }: Props) {
         contentFit="cover"
       />
     );
-  } else if (artworks.length >= 4) {
+  } else if (face.kind === "grid") {
     content = (
       <View style={styles.grid}>
-        {[artworks.slice(0, 2), artworks.slice(2, 4)].map((pair, row) => (
+        {[face.cells.slice(0, 2), face.cells.slice(2, 4)].map((pair, row) => (
           <View key={row} style={styles.gridRow}>
-            {pair.map((uri) => (
-              <AppImage key={uri} source={{ uri }} style={styles.cell} contentFit="cover" />
+            {pair.map((uri, col) => (
+              // By position: two and three covers repeat one (lib/albumMosaic.ts).
+              <AppImage key={col} source={{ uri }} style={styles.cell} contentFit="cover" />
             ))}
           </View>
         ))}
       </View>
     );
-  } else if (artworks.length > 0) {
-    content = <AppImage source={{ uri: artworks[0] }} style={StyleSheet.absoluteFill} contentFit="cover" />;
+  } else if (face.kind === "single") {
+    content = <AppImage source={{ uri: face.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />;
   } else {
     content = (
       <View style={styles.empty}>

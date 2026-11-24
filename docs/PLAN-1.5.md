@@ -229,7 +229,13 @@ To check on a phone before it goes out:
 
 A pass over everything before 1.5 goes to review, mostly over the air:
 - The rest of the color cleanup: over-image glass tokens, one shadow token,
-  a lint rule against hex colors in screens.
+  a lint rule against hex colors in screens. **Done 2026-11-24 (update to
+  1.4.1):** `theme.overImage`, `theme.shadows.float` / `artworkLift`,
+  `theme.colors.artVeil`, exported `lightColors`/`darkColors` (the share
+  card, the root background), design-lint `literal-color`. Near-identical
+  values were folded into one (calendar glass 0.6→0.55, the song-search
+  badge onto the thumbnail badge, the year story's track onto the film's,
+  the mini player and map card onto Float).
 - Small journals: Rediscover and Insights show a teaser instead of
   emptiness when there are only a few moments. **Built 2026-11-24 (update to
   1.4.1):** a "Coming up" section (`lib/comingUp.ts`,
@@ -253,6 +259,10 @@ A pass over everything before 1.5 goes to review, mostly over the air:
   Rumours". The empty search adds "People" (the names written about most)
   under "Your artists"; one tap searches. `lib/archiveSearch.ts`, tested in
   `lib/__tests__/archiveSearch.test.ts`. Browsing is still to do.
+- Album covers on the Albums tab: a 2×2 grid from 2 covers instead of 4.
+  **Done 2026-11-24 (update to 1.4.1):** `lib/albumMosaic.ts`: two covers
+  on the diagonal (A B / B A), three as A B / C A, the same artwork counted
+  once.
 - Josh's list from using 1.4.1 day to day (added as it comes).
 - The 1.5 audit (`/audit`) before submitting, and anything it finds.
 
