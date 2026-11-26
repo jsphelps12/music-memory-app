@@ -40,22 +40,23 @@ struct MemoryProvider: TimelineProvider {
       completion(MemoryEntry(date: .now, content: .sample))
       return
     }
-    completion(entries(from: .now).first ?? MemoryEntry(date: .now, content: .empty))
+    // Only today's entry: the snapshot shows one, so it reads one image.
+    completion(entries(from: .now, days: 1).first ?? MemoryEntry(date: .now, content: .empty))
   }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<MemoryEntry>) -> Void) {
     let now = Date.now
     let calendar = Calendar.current
-    let list = entries(from: now)
+    let list = entries(from: now, days: 7)
     // The app rewrites the file (and reloads) whenever it's opened; this is
     // for a week without that.
     let nextWeek = calendar.date(byAdding: .day, value: 7, to: calendar.startOfDay(for: now)) ?? now.addingTimeInterval(7 * 86_400)
     completion(Timeline(entries: list, policy: .after(nextWeek)))
   }
 
-  /// One entry per local day for a week, starting now; each later one at
-  /// its midnight.
-  private func entries(from now: Date) -> [MemoryEntry] {
+  /// One entry per local day for `days` days, starting now; each later one
+  /// at its midnight.
+  private func entries(from now: Date, days: Int) -> [MemoryEntry] {
     let calendar = Calendar.current
     let today = calendar.startOfDay(for: now)
     guard let file = MemoryStore.load(), !file.entries.isEmpty else {
@@ -64,23 +65,38 @@ struct MemoryProvider: TimelineProvider {
     let byDay = Dictionary(file.entries.map { ($0.day, $0) }, uniquingKeysWith: { first, _ in first })
     let latest = file.entries.max { $0.day < $1.day }
 
-    return (0..<7).map { offset in
+    // Each image read once per call: when the file runs out, the last
+    // moment fills several days with the same artwork.
+    var images: [String: UIImage] = [:]
+    func artwork(_ name: String?) -> UIImage? {
+      guard let name else { return nil }
+      if let cached = images[name] { return cached }
+      let image = MemoryStore.image(named: name)
+      images[name] = image
+      return image
+    }
+
+    var list: [MemoryEntry] = []
+    for offset in 0..<max(days, 1) {
       let start = calendar.date(byAdding: .day, value: offset, to: today) ?? today
       let key = MemoryStore.dayKey(start, calendar: calendar)
       let date = offset == 0 ? now : start
       if let item = byDay[key] {
-        return MemoryEntry(date: date, content: .moment(moment(item, showWords: file.showWords, fresh: true)))
+        let shown = moment(item, showWords: file.showWords, fresh: true, artwork: artwork(item.image))
+        list.append(MemoryEntry(date: date, content: .moment(shown)))
+      } else if let latest, latest.day < key {
+        // The file ran out (the app hasn't been opened for a week): keep the
+        // last moment up, with its plain date, rather than go blank.
+        let shown = moment(latest, showWords: file.showWords, fresh: false, artwork: artwork(latest.image))
+        list.append(MemoryEntry(date: date, content: .moment(shown)))
+      } else {
+        list.append(MemoryEntry(date: date, content: .empty))
       }
-      // The file ran out (the app hasn't been opened for a week): keep the
-      // last moment up, with its plain date, rather than go blank.
-      if let latest, latest.day < key {
-        return MemoryEntry(date: date, content: .moment(moment(latest, showWords: file.showWords, fresh: false)))
-      }
-      return MemoryEntry(date: date, content: .empty)
     }
+    return list
   }
 
-  private func moment(_ item: MemoryStore.Item, showWords: Bool, fresh: Bool) -> MemoryMoment {
+  private func moment(_ item: MemoryStore.Item, showWords: Bool, fresh: Bool, artwork: UIImage?) -> MemoryMoment {
     MemoryMoment(
       momentId: item.momentId,
       title: item.title,
@@ -89,7 +105,7 @@ struct MemoryProvider: TimelineProvider {
       dateLabel: fresh ? item.dateLabel : item.dateText,
       onThisDay: fresh && item.onThisDay,
       line: showWords ? item.line : nil,
-      artwork: MemoryStore.image(named: item.image)
+      artwork: artwork
     )
   }
 }
