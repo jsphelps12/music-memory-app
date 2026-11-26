@@ -126,13 +126,51 @@ describe("resolveSuggestionSong", () => {
   const exact = song("1", "Kids", "MGMT");
   const other = song("2", "Kids", "Another Band");
 
-  it("searches title and first artist, stopping at the first exact match", async () => {
+  it("searches title and first artist in every catalog at once", async () => {
     const appleMusic = vi.fn(async () => [exact]);
     const itunes = vi.fn(async () => [other]);
     const got = await resolveSuggestionSong(want("Kids", "MGMT, Someone"), [appleMusic, itunes]);
     expect(appleMusic).toHaveBeenCalledWith("Kids MGMT");
-    expect(itunes).not.toHaveBeenCalled();
+    expect(itunes).toHaveBeenCalledWith("Kids MGMT");
     expect(got.song).toBe(exact);
+  });
+
+  it("prefers an exact Apple Music match over an exact iTunes one that came back first", async () => {
+    vi.useFakeTimers();
+    const itunesExact = song("3", "Kids", "MGMT");
+    const pending = resolveSuggestionSong(want("Kids", "MGMT"), [
+      () => new Promise<Song[]>((r) => setTimeout(() => r([exact]), 500)),
+      async () => [itunesExact],
+    ]);
+    await vi.advanceTimersByTimeAsync(500);
+    const got = await pending;
+    vi.useRealTimers();
+    expect(got.song).toBe(exact);
+  });
+
+  it("returns an exact Apple Music match without waiting for iTunes", async () => {
+    vi.useFakeTimers();
+    let settled = false;
+    const pending = resolveSuggestionSong(want("Kids", "MGMT"), [async () => [exact], () => new Promise<Song[]>(() => {})], 6000).then(
+      (m) => {
+        settled = true;
+        return m;
+      }
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(settled).toBe(true);
+    vi.useRealTimers();
+    expect((await pending).how).toBe("exact");
+  });
+
+  it("takes no longer than one timeout with both searches hanging", async () => {
+    vi.useFakeTimers();
+    const hang = () => new Promise<Song[]>(() => {});
+    const pending = resolveSuggestionSong(want("Kids", "MGMT"), [hang, hang], 1000);
+    await vi.advanceTimersByTimeAsync(1000);
+    const got = await pending;
+    vi.useRealTimers();
+    expect(got.how).toBe("none");
   });
 
   it("falls through a failing search to the next", async () => {
