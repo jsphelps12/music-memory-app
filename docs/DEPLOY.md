@@ -177,8 +177,8 @@ node scripts/record-local-build.mjs path/to/Soundtracks.ipa
 
 It reads the runtime version from the app's `EXUpdates.bundle/fingerprint`
 (what the binary asks the update server for), the channel from `Expo.plist`
-and the build number from `Info.plist`; nothing is typed by hand. Build 16
-(1.4.1) is recorded. With untracked files in the checkout that aren't yours to
+and the build number from `Info.plist`; nothing is typed by hand. 1.4.1
+build 16 and 1.5.0 build 20 are recorded (build 20 on `main`). With untracked files in the checkout that aren't yours to
 commit, publish from a clean worktree of the commit (the script prints how).
 The "Cannot find module '@expo/env'" warning during the sourcemap upload is
 expected and harmless.
@@ -290,8 +290,11 @@ fastlane and CocoaPods on the Mac, and a UTF-8 locale. Trap: a Homebrew
 upgrade of Ruby (e.g. installing fastlane) breaks CocoaPods ("Could not
 find 'ffi'"); `brew reinstall cocoapods` fixes it.
 
-EAS's free iOS builds are used up until 2026-12-01, so 1.4 builds run locally
-(`eas build --local`, or Xcode directly). Notes:
+EAS's free iOS builds are used up until 2026-12-01, so builds run locally
+until then (1.4.1 build 16 and 1.5.0 build 20 were both built on the Mac;
+`eas build --local`, or Xcode directly). When EAS cloud builds return, check
+that their provisioning profiles carry the Journaling Suggestions entitlement
+and the widget's App Group before relying on them. Notes:
 
 - Prebuild with `--clean` (apple-targets fails to update an existing project)
   and run CocoaPods with a UTF-8 locale. `plugins/withPodsMinDeploymentTarget`
@@ -311,10 +314,11 @@ EAS's free iOS builds are used up until 2026-12-01, so 1.4 builds run locally
   restore old copies between a prebuild and its build (stale files carry
   production values and break the β share extension).
 
-### 1.4.1 checks (inspect the built IPA before submitting)
+### IPA checks (inspect the built IPA before submitting)
 
-Build 12's permission prompts were too narrow and it shipped without the
-associated-domains entitlement, so check the binary, not the config:
+Written for 1.4.1 and still run for every build: build 12's permission
+prompts were too narrow and it shipped without the associated-domains
+entitlement, so check the binary, not the config:
 
 ```bash
 unzip -q -o <path>.ipa -d /tmp/ipa && APP=$(ls -d /tmp/ipa/Payload/*.app)
@@ -334,6 +338,35 @@ plutil -p "$APP/Info.plist" | grep -E 'UsageDescription|Temporary'
   --local`, or let Xcode do it with automatic signing and
   `-allowProvisioningUpdates`. Then tap a `https://soundtracks.app/m/…` link
   in Notes: it should open the app, not Safari.
+
+### 1.5 checks (the same IPA, on top of the checks above)
+
+1.5 adds Journaling Suggestions, the Memory widget's App Group and the
+"Remember this song" App Intent. Build 18 was rejected (ITMS-90626) for the
+word "Apple" in App Intent text, so check these before every 1.5 upload:
+
+```bash
+unzip -q -o <path>.ipa -d /tmp/ipa && APP=$(ls -d /tmp/ipa/Payload/*.app)
+plutil -p "$APP/Info.plist" | grep -E 'CFBundleShortVersionString|CFBundleVersion'
+codesign -d --entitlements :- "$APP"
+for X in "$APP"/PlugIns/*.appex; do echo "$X"; codesign -d --entitlements :- "$X"; done
+plutil -p "$APP/Info.plist" | grep -E 'NSMicrophone|NSSpeech'
+grep -ril "apple" "$APP/Metadata.appintents" ; echo "exit $? (1 = no match)"
+```
+
+- The version and build in `Info.plist` are the ones you mean to upload
+  (build 19 went up as 1.4.1 by mistake).
+- The app's entitlements: `applinks:soundtracks.app`, the app group
+  `group.com.joshuaphelps.musicmemory`, and
+  `com.apple.developer.journal.allow` = `["suggestions"]`.
+- The widget appex has the same app group
+  (`group.com.joshuaphelps.musicmemory`); without it the Memory widget is
+  blank.
+- `NSMicrophoneUsageDescription` is there and mentions recording what you
+  say; there's no `NSSpeechRecognitionUsageDescription`.
+- The App Shortcuts metadata (`Metadata.appintents`) has no "Apple" in any
+  intent title, description or phrase (ITMS-90626). The grep matches
+  case-insensitively, so look at any hit before deciding.
 
 ## Manual Regression Checklist
 
@@ -416,9 +449,18 @@ live under You). Section headings below still use the old tab names.
 - [ ] Export your journal: the PDF builds and the share sheet opens
 - [ ] Widgets and Control Center controls open capture / identify in the right app
 
+### New in 1.5
+- [ ] Voice: record from capture's Voice chip, play it back, record again, delete it; save. In Edit, the "Your voice" row plays, re-records and deletes. Recording pauses music from other apps
+- [ ] Voice in the film: on your own moment with photos, the song starts and your voice comes in about 2.5 s later over the ducked song; Pause, the mic button and closing all bring the song back up
+- [ ] Memory widget: small, medium and Lock Screen, in light, dark and tinted Home Screen. With "Show my words on the widget" off there are no words, on shows a line; with the app lock on there are never words (song, artist and date still show). Tapping opens the moment's film
+- [ ] Siri "Remember this song" with a song playing in the Music app: unlocked and locked, Siri says what it saved and the moment is in the Journal. Run it twice within 2 minutes: one moment
+- [ ] Your day (long-press + → Start from → Your day (Apple)): a pick fills the song, photos, place and people
+- [ ] Sign out: the Memory widget goes blank and "Remember this song" no longer saves (the capture key is revoked)
+- [ ] App Store Connect: the privacy label includes **Audio Data** (App Functionality, linked to the user) for voice recordings
+
 ### Misc
 - [ ] Dark mode: flip it in iOS settings, the app follows
-- [ ] Min-build gate stays inert: the app opens normally (`app_config.min_supported_build` is still 1)
+- [ ] Min-build gate: the build under test opens normally (`app_config.min_supported_build` is 16 since 2026-11-23; the build must be 16 or later)
 - [ ] No new errors in Sentry for the build under test
 
 ### TestFlight pass (production build, production data, about 15 minutes)

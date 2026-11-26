@@ -39,8 +39,9 @@ below should move that, or it doesn't belong on this page.
 ## Next: 1.5 and the updates before it (Josh's picks, 2026-11-17)
 
 Theme: it comes to you. Picked from the full roadmap read once 1.4 was in
-TestFlight with testers and submitted for review. **A draft: 1.5 needs
-more refining before anything is built** (Josh). **Order: the audit and its
+TestFlight with testers and submitted for review. 1.5 was refined into
+`docs/PLAN-1.5.md` and is now built (build 20 on TestFlight; see the 1.5
+status below). **Order: the audit and its
 security/performance fixes first, before any new feature, OTA ones
 included.** The audit is a reusable project skill (`/audit`, in
 `.claude/skills/audit/`, private like its reports in `.claude/audits/`):
@@ -168,7 +169,12 @@ dark `elevated` sits above the sheet; unused tokens deleted. Still to do
 for hex literals; with a later binary, an app-wide ink tint for Alerts and
 widget colors.
 
-**1.5 (a new native build), in `native/1.5` off `native/1.4`:**
+**1.5 (a new native build), in `native/1.5` off `main`:**
+**Status 2026-11-26:** all of it is built. 1.5.0 build 20 is on TestFlight
+(2026-11-24, a Mac build from `native/1.5`); its server side (the voice,
+capture-key and `your_day` migrations, `capture-key` and `quick-capture`)
+is live on production and staging. Josh is testing build 20 now; build 21
+follows with the audit fixes, then submission.
 Scope (Josh, 2026-11-23): Memory widget, voice entries with the recordings
 kept, "Remember this song" saved in the background (Siri, Shortcuts, Action
 button), Journaling Suggestions, offline saves, and
@@ -184,17 +190,20 @@ The working plan, with how each piece is built and the open decisions:
   decision). **Built 2026-11-25 on `native-1.5/bgsave`:** a per-device
   capture key in the keychain (not the session), the `capture-key` and
   `quick-capture` edge functions, migration `20261125000000_capture_keys`,
-  the intent and Siri phrases. Waiting on the migration and function deploys
-  (production needs Josh's go) and a try on a phone.
+  the intent and Siri phrases. Migration and both functions live on
+  production and staging (2026-11-24). It saves the song in the Music app
+  (not Spotify) without opening the app, and may run on a locked phone
+  (Josh, 2026-11-26). Waiting on a try on a phone (build 20); build 21
+  requires the song to be actually playing.
 - [ ] **Journaling Suggestions** — Apple's system picker (as in Apple's
   Journal) offering the day's songs, photos and places, with consent.
   iOS 17.2+. **Built 2026-11-24 on `native-1.5/journaling`:** long-press +
   → Start from → "Your day (Apple)" (hidden where the picker can't run),
   `modules/journaling-suggestions`, mapping in `lib/yourDay.ts`,
   `capture_source 'your_day'` (migration
-  `20261126000000_capture_source_your_day`, not applied yet). Waiting on the
-  migration and a try on a phone (the picker doesn't run in the
-  simulator).
+  `20261126000000_capture_source_your_day`, live on production and
+  staging). Waiting on a try on a phone (build 20; the picker doesn't run
+  in the simulator).
 - [ ] **Voice entries** — your voice, kept as a recording (Josh,
   2026-11-23; no transcription, decided 2026-11-24: voice-to-text is the
   keyboard's dictation, a separate feature): your voice plays on the
@@ -202,15 +211,14 @@ The working plan, with how each piece is built and the open decisions:
   feeds "Your life as a radio show" later. Voice is more personal than a
   photo, so recordings go in a private bucket with signed URLs (not the
   public moment-photos bucket), owner-only until shared, a length cap, and
-  deleted with the moment. The transcript is the person's own words, so it
-  can fill the reflection (the "AI never writes it" rule is about
-  generated text).
-  **v1 built 2026-11-23** on `feat/voice-entries` (record, save, play; no
-  transcription yet). Ships in the 1.5 build, not over the air (decided
+  deleted with the moment. A recording is audio you play back, not text.
+  **v1 built 2026-11-23** on `feat/voice-entries` (record, save, play).
+  Ships in the 1.5 build, not over the air (decided
   2026-11-23): build 16's microphone text says the app only listens while
   identifying a song, so 1.5 carries the new text ("…and to record what you
-  say about a moment"). Needs `20261124120000_voice_entries.sql` applied
-  (staging, then production) before 1.5 goes out. A "Voice" chip in capture
+  say about a moment"). `20261124120000_voice_entries.sql` is live on
+  production and staging; delete-account (v14) clears `moment-voice`.
+  Recording pauses other apps' music (decided 2026-11-26). A "Voice" chip in capture
   and a "Your voice" row in Edit open `components/VoiceRecorderSheet.tsx`:
   record up to 3:00 (mono AAC, about 0.5 MB a minute), play back, record
   again, delete. Drafts keep the take on the phone (`lib/voiceFiles.ts`);
@@ -223,18 +231,19 @@ The working plan, with how each piece is built and the open decisions:
   (`hooks/useFilmVoice.ts`, rules in `lib/filmPlayback.ts`), plays once to
   its end while the photos loop, and gives the song back once on every way
   out (`quietVoice()`); details in `docs/PLAN-1.5.md` section 2. The duck
-  under full Apple Music needs a check on a phone. Transcription was built
-  on `native-1.5/speech` and removed before build 19 (option A, see
-  `docs/PLAN-1.5.md` decision 7).
+  under full Apple Music needs a check on a phone (build 20). No
+  transcription (`docs/PLAN-1.5.md` decision 7).
 - [ ] **Memory widget** — one moment a day on the Home Screen, opening
-  into the film. Built 2026-11-23 on `native-1.5/widget` (waiting on the
-  1.5 binary and a check on Josh's phone): picks (`lib/widgetPicks.ts`,
+  into the film. Built 2026-11-23 on `native-1.5/widget`, in build 20
+  (waiting on a check on Josh's phone; build 21 fixes the tinted look and
+  raises artwork to 512 px): picks (`lib/widgetPicks.ts`,
   tested), the App Group writer (`lib/widgetData.ts` +
   `writeWidgetData`/`clearWidgetData`/`reloadWidgets` on
   `modules/now-playing`), small, medium and Lock Screen views
   (`targets/widget/MemoryWidget.swift`), `?film=1` on the moment screen,
   and Settings → Privacy → "Show my words on the widget" (off; never with
-  the app lock on). Cleared on sign-out.
+  the app lock on, though song, artist and date still show: Josh,
+  2026-11-26). Cleared on sign-out.
 
 **Over the air on 1.4 meanwhile:**
 - [x] **Drafts you can see** (decided 2026-11-18): built 2026-11-18 on native/1.4 (`.maestro/drafts.yaml`), OTA to 1.4 the same day (group 8419f305) after all three flows passed.: closing capture with
@@ -312,6 +321,7 @@ The working plan, with how each piece is built and the open decisions:
 - [x] A fresh full audit (`/audit`), replacing the 2026-10 review.
   Audit 2026-11-17: ~67 open (1 critical, 6 high), private report in
   `.claude/audits/`.
+  Audit 2026-11-26 (1.5 diff): 0 critical, 0 high, 8 medium; private report in .claude/audits/; fixes in progress before build 21.
 - [ ] Its fixes, in order: security now (server), client fixes over the
   air, a 1.4.1 native build, DB-2 after the min-build raise, then code
   quality. Server security batch done 2026-11-18 (main PR 108; Expo
@@ -530,7 +540,29 @@ The starred ones bring the app to you, which serves the north star:
   stock Camera reads, or the custom mark plus a short URL under it. Each
   code maps to the moment's existing share token.
 
-## Where things stand (2026-11-20)
+## Where things stand (2026-11-26)
+
+- **Store:** 1.4.1 (build 16) live since 2026-11-23, with OTAs from `main`
+  (by hand, `scripts/publish-ota.sh`). The min-build gate is 16 on
+  production and staging (2026-11-23), and DB-2
+  (`20261124000000_db2_owner_only`) is live on both.
+- **1.5:** 1.5.0 build 20 is on TestFlight (2026-11-24, a Mac build from
+  `native/1.5`, runtime `c6d38937…`). Build 18 was rejected (ITMS-90626:
+  "Apple" in App Intent text); build 19 was a 1.4.1 build by mistake. The
+  server side is live on production and staging: migrations
+  `20261124120000_voice_entries`, `20261125000000_capture_keys`,
+  `20261126000000_capture_source_your_day`; edge functions `capture-key`
+  and `quick-capture`; delete-account v14 clears `moment-voice`.
+- **Needs a check on a phone (build 20):** the Memory widget (small,
+  medium, Lock Screen; light, dark, tinted), Siri "Remember this song"
+  (unlocked and locked), voice recording and the voice in the film, and
+  Your day.
+- **Next, in order:** Josh's pass on build 20 → the audit fixes → build 21
+  (tinted widget artwork, Siri replies, Your day picker robustness, widget
+  artwork at 512 px, podspec cleanup) → the App Store privacy label adds
+  Audio Data → submission. EAS cloud builds return 2026-12-01.
+
+## Where things stood (2026-11-20)
 
 - **Store:** 1.4.0 (build 12) live since 2026-11-19, with OTAs from `main`
   (blank-Journal fix 73bdcb83). **1.4.1 (build 16) submitted to App Review
@@ -1086,7 +1118,8 @@ clutter, navigation.
   links to iOS Settings. Tapping opens Capture with what's playing filled
   in. Settings are per device. `lib/dailyCheckIn.ts` (tested),
   `components/DailyCheckInRow.tsx`, `components/DailyCheckInOffer.tsx`.
-- [ ] Daily check-in, next: voice entry with on-device transcription; later
+- [ ] Daily check-in, next: a voice entry (a recording, in 1.5; no
+  transcription, `docs/PLAN-1.5.md` decision 7); later
   a real AI phone call as a paid feature, opening with a song you saved
   ("You saved Space Song a year ago today. What's different now?").
 - [x] **Photos ↔ music, the past half** (1.4, built 2026-11-17; the plan
@@ -1205,8 +1238,8 @@ clutter, navigation.
   a prototype screen on Josh's real library to check `dateAdded` quality.
   Native (rides 1.4).
 - [ ] **Log what's playing without opening the app** *(in 1.5, as "Remember
-  this song" with a capture key: docs/PLAN-1.5.md; built 2026-11-25, not
-  yet deployed)* (App Intent that saves the now-playing song straight to the
+  this song" with a capture key: docs/PLAN-1.5.md; built 2026-11-25, server
+  side live, in build 20)* (App Intent that saves the now-playing song straight to the
   journal; no "write later" nudge, by decision). A per-device capture key in
   the keychain instead of the session; the widget above opens the app
   instead.

@@ -5,6 +5,15 @@ working plan: what each piece is, how it's built, what needs a new binary
 and what can go over the air first, and the decisions still open. Update it
 as pieces land; the roadmap keeps the one-line status.
 
+**Status (2026-11-26).** Features 1–5 are built; polish goes on. 1.5.0 build 20 is on
+TestFlight (uploaded 2026-11-24 from `native/1.5`). Build 18 was rejected
+(ITMS-90626: App Intent text may not say "Apple") and build 19 was a 1.4.1
+build by mistake. The server side is live on production and staging: the
+voice, capture-key and `your_day` migrations, and the `capture-key` and
+`quick-capture` functions. Next: Josh's pass on a phone (widget, Siri,
+voice and the film, Your day), the audit fixes, build 21, then the App
+Store.
+
 ## Scope
 
 Not in 1.5 (Josh, 2026-11-23): setting the part of the song automatically
@@ -14,7 +23,7 @@ from Playing now or Identify. Neither is accurate enough; picking it by hand
 | # | Feature | Needs the 1.5 binary? |
 |---|---------|------------------------|
 | 1 | Memory widget: one moment a day on the Home Screen, opening into the film | Yes (widget views, app-group writer) |
-| 2 | Voice entries, recordings kept | Yes: no native code for recording and playback, but build 16's microphone text only covers Identify (decided 2026-11-23). Transcription: native |
+| 2 | Voice entries, recordings kept | Yes: no native code for recording and playback, but build 16's microphone text only covers Identify (decided 2026-11-23). No transcription (decision 7) |
 | 3 | "Remember this song" from Siri, Shortcuts and the Action button, saved in the background | Yes (App Intent in the app) |
 | 4 | Journaling Suggestions: Apple's picker of your day's songs, photos and places | Yes (a capability; no request to Apple) |
 | 5 | Offline saves: capture with no signal, saved when you're back online | **No**, can ship before 1.5 |
@@ -86,64 +95,32 @@ film. A Lock Screen version shows the song and when.
   moment screen opens the film once when the moment has photos.
 - Sign-out and account deletion: `clearMemoryWidget()` in AuthContext's
   teardown; the settings go with the `widget_` sign-out prefix.
-- Still to check on a phone: light/dark and tinted Home Screen, artwork
-  sharpness at 300 px on the small size, the film opening from a cold
+- Still to check on a phone (build 20): light/dark and tinted Home Screen,
+  artwork sharpness on the small size (build 21 raises artwork to 512 px
+  and fixes the tinted look), the film opening from a cold
   start, and the widget turning over at midnight.
 
 ## 2. Voice entries
 
-**What it is.** Hold a button in capture to say what the song is doing for
-you. The recording is kept with the moment, and on the phone it's transcribed
-into the reflection, which you can then edit. Your voice plays on the moment
-and in the film, with the song turned down under it, and later feeds "Your life
-as a radio show".
+**What it is.** The Voice chip in capture opens a recorder sheet, where you
+say what the song is doing for you. The recording is kept with the moment.
+It's audio you play back, not text: there's no transcription (decision 7),
+and voice-to-text in the reflection is the keyboard's own dictation. Your
+voice plays on the moment and in the film, with the song turned down under
+it, and later feeds "Your life as a radio show". Recording pauses other
+apps' music (decided 2026-11-26).
 
 **In 1.5, all of it (decided 2026-11-23).** Recording, upload and playback
 need no native code (`expo-audio` already records), but build 16's
 microphone permission text says the app only listens while identifying a
 song, so voice waits for 1.5's new text instead of going over the air:
-- **v1 (built):** record (AAC, mono, about 0.5 MB a minute, 3-minute cap),
-  upload, play on the moment.
-- **Then:** on-device transcription (Apple's speech recognizer with
-  on-device recognition only; nothing leaves the phone), plus the
-  speech-recognition permission string.
+- **Built:** record (AAC, mono, about 0.5 MB a minute, 3-minute cap),
+  upload, play on the moment and in the film.
+- **No transcription** (decision 7) and no speech-recognition permission.
 
-**Transcription (built 2026-11-23, branch `native-1.5/speech`; removed 2026-11-24, see decision 7).**
-- Native, in `modules/on-device-ai` (`ios/SpeechTranscription.swift`):
-  `transcribeFile(uri, localeId?)` returns `{ text, segments: [{ text,
-  startMs, durationMs }], locale }`. On iOS 26 it uses Apple's
-  SpeechAnalyzer (always on-device) when the phone supports the language;
-  otherwise SFSpeechRecognizer with `requiresOnDeviceRecognition`. If the
-  phone can't recognize the language on-device it stops with
-  `unsupported`; it never sends audio to Apple's servers. If iOS 26's
-  speech model for the language isn't on the phone yet and the older
-  recognizer can do it, the older one takes this recording and the model
-  downloads in the background for next time (a model download; the audio
-  stays put). Errors have stable codes: `denied`, `unsupported`,
-  `no_speech`, `failed`. Also `speechAuthorizationStatus()` and
-  `requestSpeechAuthorization()`; `transcribeFile` asks for permission
-  itself the first time.
-- JS: the module's `index.ts` wraps them null-safely (a binary before 1.5
-  gets `{ ok: false, reason: "unavailable" }`). `lib/transcription.ts` has
-  `transcribeRecording(uri)` → `{ ok: true, text } | { ok: false, reason }`
-  (text tidied by `cleanTranscript`: spacing, a capital, a full stop; never
-  reworded), and `applyTranscript(reflection, text, templates)` →
-  `fill` / `offer` / `none` (Decision 7). Tested in
-  `lib/__tests__/transcription.test.ts`.
-- **How the voice sheet calls it** (a few lines once both land): after a
-  recording stops, `transcribeRecording(uri)`; on `ok`, `applyTranscript`
-  with capture's `reflection` and `templates`. `fill` puts the words in the
-  reflection (replacing a starter or prompt); `offer` shows "Use what you
-  said" under the recording; `none` and any failure show nothing, and the
-  recording is kept either way. A recording that couldn't be transcribed
-  is still a voice entry.
-- Permission string: `NSSpeechRecognitionUsageDescription` (`SPEECH_USAGE`
-  in `app.config.ts`). The microphone string still says it only listens
-  for Identify; it needs updating with voice recording.
-- To check in the 1.5 build: the permission prompt, accuracy with music
-  in the background, a language the phone can't do on-device (expect no
-  text, no error shown), iOS 26 vs older, and the first run on iOS 26
-  before the speech model is downloaded.
+**Transcription: not in 1.5.** A version was built on 2026-11-23 and
+removed on 2026-11-24, before build 19 (decision 7). Don't add a speech
+recognizer or `NSSpeechRecognitionUsageDescription` back.
 
 **Data and privacy.** A voice is more personal than a photo, so recordings get
 stricter rules than photos do:
@@ -158,10 +135,9 @@ stricter rules than photos do:
 - Deleted with the moment and with the account; drafts keep an unsent
   recording on the device.
 
-**Effort:** recording, upload and playback about 2 days (plus the migration);
-transcription about 1 day in 1.5.
+**Effort:** recording, upload and playback about 2 days (plus the migration).
 
-**Status (2026-11-23): v1 built, shipping in 1.5.** Decided 2026-11-23: it
+**Status (2026-11-26): built, in build 20.** Decided 2026-11-23: it
 moved from an over-the-air update to 1.4.1 into the 1.5 build, because
 build 16's microphone permission text says the app only listens while
 identifying a song. 1.5's `app.config.ts` says "…to identify a song playing
@@ -176,9 +152,8 @@ writes `voice_path`/`voice_duration_ms` (dropped and the upload deleted on a
 database without the columns); the moment plays it through a signed URL
 (`hooks/useVoicePlayer.ts`), pausing the song; deleting the moment deletes
 the file. The migration is live on staging and production (PR 135,
-2026-11-24). Still to do: check recording and the audio session on a
-device (build 18), then transcription (see the open question under
-decision 7: recording and voice-to-text as separate features).
+2026-11-24). Still to check on a phone (build 20): recording and the
+audio session, playback, re-recording and deleting in Edit.
 
 **The voice in the film (built 2026-11-24, branch `native-1.5/film-voice`,
 no native code; decision 8).** When the owner's moment has a recording, the
@@ -217,7 +192,7 @@ film plays it over the song with the song turned down:
 - Code: rules in `lib/filmPlayback.ts` (tested), `hooks/useFilmVoice.ts`
   runs them with `hooks/useVoicePlayer.ts` (now with an `overSong` mode),
   wired in `components/MomentFilm.tsx`.
-- **To check on a phone (build 18):** the duck itself under full Apple
+- **To check on a phone (build 20):** the duck itself under full Apple
   Music playback while the voice (an expo-audio player) is the app's audio,
   and that the song comes back up at the voice's end, on Pause, on close and
   on going to the background; a preview under the voice; the lead-in feel.
@@ -255,7 +230,7 @@ intent refreshed one the app would be signed out. Instead:
 
 **Effort:** about 3–4 days (two edge functions, a table for keys, the intent).
 
-**Built (2026-11-25, branch `native-1.5/bgsave`; not deployed):**
+**Built (2026-11-25, branch `native-1.5/bgsave`; live on production and staging):**
 - Migration `20261125000000_capture_keys.sql`: `capture_keys` (SHA-256 of
   the secret, a per-install `device_id`, label, created/last used/revoked;
   owners can read the bookkeeping columns, never the hash; no client writes)
@@ -275,8 +250,10 @@ intent refreshed one the app would be signed out. Instead:
   over 90 days old are refused. DELETE lets a key revoke itself.
 - The intent (`plugins/remember-this-song/RememberThisSong.swift`, put in
   the app target by `plugins/withRememberThisSong.js`) with the phrases
-  "Remember this song in / Save this song to Soundtracks". Apple Music only
-  (the system player doesn't see Spotify).
+  "Remember this song in / Save this song to Soundtracks". It saves the
+  song in the Music app (the system player), which doesn't see Spotify.
+  Build 21 also requires the song to be playing, not just paused. It may
+  run on a locked phone (Josh, 2026-11-26: it only adds a moment).
 - The app issues the key on launch while signed in (`lib/captureKey.ts`,
   keychain via expo-secure-store) and replaces it after 30 days, revokes
   every device's key before its global sign-out (this phone's key revokes
@@ -287,8 +264,8 @@ intent refreshed one the app would be signed out. Instead:
   leaves the keychain and revokes itself.
 - Migration applied and both functions deployed on staging and production
   (PR 135, 2026-11-24; the `auth.sessions` trigger was allowed). Still to
-  do: try it on a phone (build 18): Siri, the Shortcuts app, the Action
-  button, locked and unlocked.
+  do: try it on a phone (build 20): Siri, the Shortcuts app, the Action
+  button, locked and unlocked, and twice within 2 minutes (one moment).
 
 ## 4. Journaling Suggestions
 
@@ -327,14 +304,14 @@ opens capture with it filled in; photos and the place come along.
   contacts' names as people, and the suggestion's start as the date.
   Workouts, videos, podcasts and the rest have nowhere to go yet.
 - `capture_source 'your_day'`, migration
-  `20261126000000_capture_source_your_day.sql` (not applied). Until it is,
-  a save with a value the CHECK doesn't list retries without
+  `20261126000000_capture_source_your_day.sql` (applied). On a database
+  whose CHECK doesn't list a value yet, a save retries without
   `capture_source` (`lib/optionalColumns.ts`).
 - Privacy: nothing leaves the phone until Save except the song's title and
   artist to Apple's catalog search (as every song lookup does). PostHog gets
   `your_day_picked` with counts and flags only.
 - Migration applied on staging and production (PR 136, 2026-11-24). Still
-  to do: try it on a phone (build 18): picking, closing, a suggestion with
+  to do: try it on a phone (build 20): picking, closing, a suggestion with
   no song, photos from iCloud.
 
 ## 5. Offline saves
@@ -476,7 +453,7 @@ A pass over everything before 1.5 goes to review, mostly over the air:
 1. **Now, over the air to 1.4.1:** voice recording, upload and playback
    (migration first, then the update), and offline saves. Polish as it comes.
 2. **Branch `native/1.5`** off `main` (1.4.1 is released and merged).
-3. **Native batch:** the app-group writer, transcription, the alert tint, the
+3. **Native batch:** the app-group writer, the alert tint, the
    capture-key keychain. Then the widget views, the film deep link, the
    background intent and its edge functions, and Journaling Suggestions.
 4. **Build:** EAS cloud builds are back 2026-12-01; a Mac build works too
@@ -484,6 +461,10 @@ A pass over everything before 1.5 goes to review, mostly over the air:
 5. **Test:** Maestro flows for voice capture; the widget
    by hand on Josh's phone (Maestro can't drive the Home Screen). TestFlight,
    then the App Store.
+
+Where it stands (2026-11-26): steps 1–3 are done, build 20 (step 4, a Mac
+build) is on TestFlight, and step 5 is Josh's pass on build 20. Build 21
+follows with the audit fixes.
 
 ## Decisions (Josh, 2026-11-23: "go with your suggestions on all of them")
 
