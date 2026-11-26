@@ -225,7 +225,8 @@ public class NowPlayingModule: Module {
     // artwork) into the App Group container the two share. See
     // WidgetStore.swift for the layout; lib/widgetData.ts is the JS side.
     // `images`: file name in the widget's folder → local file URI to copy
-    // from (downsampled to at most 300 px on the way in).
+    // from (downsampled to at most 512 px on the way in; one already there
+    // at that size is kept).
     AsyncFunction("writeWidgetData") { (json: String, images: [String: String]) throws in
       try WidgetStore.write(json: json, images: images)
     }
@@ -235,8 +236,10 @@ public class NowPlayingModule: Module {
       try WidgetStore.clear()
     }
 
+    // Only the Memory widget reads the file (its kind in
+    // targets/widget/MemoryWidget.swift); the capture widget never changes.
     AsyncFunction("reloadWidgets") { () in
-      WidgetCenter.shared.reloadAllTimelines()
+      WidgetCenter.shared.reloadTimelines(ofKind: "MemoryWidget")
     }
   }
 
