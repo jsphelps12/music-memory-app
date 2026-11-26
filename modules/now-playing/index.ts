@@ -204,13 +204,3 @@ export async function reloadWidgets(): Promise<void> {
     await NowPlayingNative.reloadWidgets();
   } catch {}
 }
-
-/** The App Group container's path, or null (no group, or an older binary). */
-export async function appGroupPath(): Promise<string | null> {
-  try {
-    if (typeof NowPlayingNative.appGroupPath !== "function") return null;
-    return (await NowPlayingNative.appGroupPath()) ?? null;
-  } catch {
-    return null;
-  }
-}
