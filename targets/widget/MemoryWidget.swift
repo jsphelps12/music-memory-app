@@ -127,7 +127,16 @@ struct MemoryWidget: Widget {
 
 struct MemoryWidgetView: View {
   @Environment(\.widgetFamily) private var family
+  @Environment(\.widgetRenderingMode) private var renderingMode
+  @Environment(\.showsWidgetContainerBackground) private var showsBackground
   let entry: MemoryEntry
+
+  /// The small widget's artwork is its background, which the system drops on
+  /// a tinted Home Screen, in StandBy at night and on the iPad Lock Screen.
+  /// There the cover comes forward as a tile instead (MemorySmallView).
+  private var artworkBehind: Bool {
+    renderingMode == .fullColor && showsBackground
+  }
 
   var body: some View {
     switch entry.content {
@@ -152,8 +161,14 @@ struct MemoryWidgetView: View {
       MemoryRectangularView(moment: moment)
         .containerBackground(for: .widget) { Color.clear }
     default:
-      MemorySmallView(moment: moment)
-        .containerBackground(for: .widget) { ArtworkFill(image: moment.artwork) }
+      MemorySmallView(moment: moment, artworkBehind: artworkBehind)
+        .containerBackground(for: .widget) {
+          if artworkBehind {
+            ArtworkFill(image: moment.artwork)
+          } else {
+            Color("paper")
+          }
+        }
     }
   }
 
@@ -194,19 +209,40 @@ struct MemoryWidgetView: View {
 }
 
 /// Small: the artwork edge to edge, the date over a night scrim at the foot.
+/// Where the system drops the background (tinted, StandBy at night), the
+/// cover is a rounded tile above the date and title instead, like the medium
+/// widget's, so it never vanishes or turns into a flat square.
 struct MemorySmallView: View {
   let moment: MemoryMoment
+  let artworkBehind: Bool
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 2) {
-      Spacer(minLength: 0)
-      DateLine(label: moment.dateLabel, onThisDay: moment.onThisDay, onArtwork: true)
-      Text(moment.title)
-        .font(.system(size: 15, weight: .regular, design: .serif))
-        .foregroundStyle(Color.white)
-        .lineLimit(1)
+    if artworkBehind {
+      VStack(alignment: .leading, spacing: 2) {
+        Spacer(minLength: 0)
+        DateLine(label: moment.dateLabel, onThisDay: moment.onThisDay, onArtwork: true)
+        Text(moment.title)
+          .font(.system(size: 15, weight: .regular, design: .serif))
+          .foregroundStyle(Color.white)
+          .lineLimit(1)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+    } else {
+      VStack(alignment: .leading, spacing: 2) {
+        Color.clear
+          .aspectRatio(1, contentMode: .fit)
+          .overlay(ArtworkTile(image: moment.artwork))
+          .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+          .padding(.bottom, 6)
+        DateLine(label: moment.dateLabel, onThisDay: moment.onThisDay, onArtwork: false)
+        Text(moment.title)
+          .font(.system(size: 15, weight: .regular, design: .serif))
+          .foregroundStyle(Color("ink"))
+          .lineLimit(1)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
   }
 }
 
@@ -312,21 +348,41 @@ struct ArtworkFill: View {
 
 /// The artwork, or the app's flat placeholder with a note when there's none.
 struct ArtworkTile: View {
+  @Environment(\.widgetRenderingMode) private var renderingMode
   let image: UIImage?
 
   var body: some View {
     if let image {
       Image(uiImage: image)
         .resizable()
+        .artworkKeepsItsPicture()
         .scaledToFill()
     } else {
       ZStack {
-        Color("chip")
+        // Tinted and StandBy-at-night keep only a color's opacity: a faint
+        // square under a solid note, rather than a solid square hiding it.
+        if renderingMode == .fullColor {
+          Color("chip")
+        } else {
+          Color.primary.opacity(0.15)
+        }
         Image(systemName: "music.note")
           .font(.system(size: 24, weight: .medium))
           .foregroundStyle(Color("inkSoft"))
       }
     }
+  }
+}
+
+extension Image {
+  /// On a tinted Home Screen (iOS 18+) an image is flattened into the tint
+  /// unless it says otherwise; desaturated keeps the cover readable, as a
+  /// grey picture in the tint's color. Full color is untouched.
+  func artworkKeepsItsPicture() -> Image {
+    if #available(iOS 18.0, *) {
+      return widgetAccentedRenderingMode(.desaturated)
+    }
+    return self
   }
 }
 
