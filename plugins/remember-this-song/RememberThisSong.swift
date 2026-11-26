@@ -40,12 +40,24 @@ struct RememberThisSongIntent: ForegroundContinuableIntent {
     case .playing(let playing):
       song = playing
     case .nothing:
-      return .result(dialog: "Nothing's playing")
-    case .noLibraryAccess:
+      // Spotify and other apps don't show up here, only the Music app.
+      return .result(dialog: "Nothing's playing in the Music app")
+    case .libraryAccessNotAsked:
+      // The app asks for it; opening Soundtracks is what helps.
       throw openApp("Soundtracks needs access to your music library for this. Open Soundtracks?")
+    case .libraryAccessDenied:
+      // Turned off (or not allowed on this phone): only Settings can change it.
+      return .result(dialog: "Soundtracks can't see your music library. You can turn that on in Settings, under Soundtracks.")
     }
 
-    guard let setup = CaptureKeyStore.read() else {
+    let setup: CaptureKeyStore.Setup
+    switch CaptureKeyStore.read() {
+    case .found(let found):
+      setup = found
+    case .locked:
+      // Before the first unlock after a restart the keychain stays shut.
+      return .result(dialog: "Unlock your iPhone first, then try again.")
+    case .missing:
       throw openApp("Open Soundtracks once to set this up.")
     }
 
@@ -96,7 +108,10 @@ struct PlayingSong {
   enum Reading {
     case playing(PlayingSong)
     case nothing
-    case noLibraryAccess
+    /// Never asked: the app's own prompt fixes it.
+    case libraryAccessNotAsked
+    /// Denied or restricted: only Settings can.
+    case libraryAccessDenied
   }
 
   /// MPMusicPlayerController is main-thread only. The system player sees
@@ -105,10 +120,21 @@ struct PlayingSong {
   static func read() -> Reading {
     let player = MPMusicPlayerController.systemMusicPlayer
     guard let item = player.nowPlayingItem else {
-      return MPMediaLibrary.authorizationStatus() == .authorized ? .nothing : .noLibraryAccess
+      switch MPMediaLibrary.authorizationStatus() {
+      case .authorized: return .nothing
+      case .notDetermined: return .libraryAccessNotAsked
+      default: return .libraryAccessDenied
+      }
     }
-    // Stopped keeps the last song around long after it ended; paused counts.
-    guard player.playbackState != .stopped else { return .nothing }
+    // Only a song that's actually playing. Paused and stopped keep the last
+    // song around for days, and the player doesn't say when it paused, so a
+    // paused song can't be told apart from yesterday's. Interrupted is
+    // playing that something (Siri talking, a call) cut into; a person's
+    // own pause reads as paused.
+    switch player.playbackState {
+    case .playing, .interrupted: break
+    default: return .nothing
+    }
     let title = (item.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     let artist = (item.artist ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     guard !title.isEmpty, !artist.isEmpty else { return .nothing }
@@ -149,19 +175,30 @@ enum CaptureKeyStore {
     ]
   }
 
-  static func read() -> Setup? {
+  enum Lookup {
+    case found(Setup)
+    /// errSecInteractionNotAllowed: the phone hasn't been unlocked since it
+    /// started, so an after-first-unlock item can't be read yet.
+    case locked
+    /// Not there, or not one this build understands.
+    case missing
+  }
+
+  static func read() -> Lookup {
     var q = query()
     q[kSecMatchLimit as String] = kSecMatchLimitOne
     q[kSecReturnData as String] = kCFBooleanTrue
     var result: AnyObject?
-    guard SecItemCopyMatching(q as CFDictionary, &result) == errSecSuccess,
+    let status = SecItemCopyMatching(q as CFDictionary, &result)
+    if status == errSecInteractionNotAllowed { return .locked }
+    guard status == errSecSuccess,
           let data = result as? Data,
           let setup = try? JSONDecoder().decode(Setup.self, from: data),
           setup.key.hasPrefix("stc_"), setup.key.count == 47,
           setup.url.hasPrefix("https://") else {
-      return nil
+      return .missing
     }
-    return setup
+    return .found(setup)
   }
 
   static func delete() {
