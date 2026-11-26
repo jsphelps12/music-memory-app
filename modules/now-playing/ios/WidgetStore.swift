@@ -27,7 +27,7 @@ enum WidgetStore {
     var errorDescription: String? { message }
   }
 
-  static func containerURL() -> URL? {
+  private static func containerURL() -> URL? {
     FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupId)
   }
 
