@@ -231,6 +231,9 @@ enum QuickCaptureClient {
     ]
     if let storeId = song.storeId { body["appleMusicId"] = storeId }
     if let album = song.album { body["album"] = album }
+    // The phone's region as a storefront guess, so the server's catalog
+    // lookup finds songs that aren't in the US store. Optional.
+    if let country = storefrontCountry() { body["country"] = country }
 
     var request = URLRequest(url: url, timeoutInterval: 10)
     request.httpMethod = "POST"
@@ -256,5 +259,15 @@ enum QuickCaptureClient {
     } catch {
       return .failed
     }
+  }
+
+  /// Two letters, uppercase ("GB"), or nil for a region that isn't a country
+  /// ("419", Latin America) or none at all.
+  static func storefrontCountry() -> String? {
+    guard let region = Locale.current.region?.identifier,
+          region.count == 2,
+          region.unicodeScalars.allSatisfy({ CharacterSet.letters.contains($0) && $0.isASCII })
+    else { return nil }
+    return region.uppercased()
   }
 }

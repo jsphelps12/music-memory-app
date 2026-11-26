@@ -18,6 +18,25 @@ export const CAPTURE_KEY_ITEM = "capture_key_v1";
 /** A random id for this install. Belongs to the device, so sign-out keeps it. */
 export const CAPTURE_DEVICE_ITEM = "capture_device_v1";
 
+/**
+ * The keys of the JSON body the App Intent posts to quick-capture
+ * (QuickCaptureClient.save in RememberThisSong.swift; parsed by
+ * parseQuickCaptureBody in supabase/functions/_shared/quickCapture.ts). The
+ * intent always sends title, artist, capturedAt and utcOffsetMinutes; the
+ * rest only when it has them. `country` is the phone's region as two
+ * uppercase letters, a storefront guess for the catalog lookup. The test
+ * checks the Swift side names each one.
+ */
+export const QUICK_CAPTURE_BODY_FIELDS = [
+  "title",
+  "artist",
+  "capturedAt",
+  "utcOffsetMinutes",
+  "appleMusicId",
+  "album",
+  "country",
+] as const;
+
 /** Same shape the capture-key function issues (supabase/functions/_shared/quickCapture.ts). */
 export const CAPTURE_KEY_PATTERN = /^stc_[A-Za-z0-9_-]{43}$/;
 
