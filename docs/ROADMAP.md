@@ -520,6 +520,24 @@ The starred ones bring the app to you, which serves the north star:
   the app on the simulator with sample moments and renders 9:16 clips with
   headlines and an end card (`marketing/videos/README.md`). Posting stays
   manual or via Buffer; songs are added from each platform's sound library.
+  2026-11-23: clips are now 8–10s montages (cuts, speed changes, caption
+  pills, punch-ins on photos) over 20 seeded moments with Unsplash photos,
+  people and weather: wedding-song, dad-search, seven-years, ten-seconds.
+  Then 10 more (one memory each through search, plus re-cuts in the
+  framed-phone style): 14 clips in all. Also: `e2e-local.sh` now raises the
+  simulator copy's build number past the min-build floor (16), which blocked
+  local runs with "Time for an update".
+  Then rebuilt after the first cuts read as ads: researched what faceless
+  app accounts post and switched to photo stories (real-life photo + native
+  white-outlined caption → the app as payoff, no end card), 9 clips, each
+  also exported as Photo Mode slides.
+  2026-11-24: 19 photo stories (the control) plus three formats to test,
+  two each: timeline ("one song from every year"), fill-in-the-blank
+  prompt (built for comments), and feature list ("an app for people
+  who…"). Next: post them and compare where people stop watching.
+  Batch 3 from research on hooks and formats: seamless loops (rewatches),
+  POV, before/after (a camera roll scrolling past), and a part 1 / part 2
+  series. 32 clips in all.
 
 ## Where things stood (2026-11-17)
 

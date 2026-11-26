@@ -1,0 +1,20 @@
+# Before each recording (not recorded): fresh install state, signed in as the
+# E2E account that scripts/video/seed-demo.mjs filled with sample moments,
+# landed on the Journal. Then the shot flow runs while the screen records.
+appId: com.joshuaphelps.musicmemory.preview
+---
+- runFlow: ../../../.maestro/subflows/sign-in.yaml
+- waitForAnimationToEnd
+# Let the artwork load before the camera rolls.
+- extendedWaitUntil:
+    visible: "__pause__"
+    timeout: 3000
+    optional: true
+# The nightly-nudge offer sits on top of the Journal for a new account; keep
+# it out of the shots.
+- runFlow:
+    when:
+      visible: "A nudge each night?"
+    commands:
+      - tapOn: "Not now"
+      - waitForAnimationToEnd

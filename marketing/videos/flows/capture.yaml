@@ -1,0 +1,53 @@
+# Shot: capture a moment from the +: song, one line, save.
+appId: com.joshuaphelps.musicmemory.preview
+env:
+  SONG_QUERY: "Here Comes the Sun"
+  REFLECTION: "First warm day of the year. Every window open."
+---
+- extendedWaitUntil:
+    visible: "__pause__"
+    timeout: 1000
+    optional: true
+- tapOn:
+    id: "tab-create"
+- extendedWaitUntil:
+    visible:
+      id: "create-select-song"
+    timeout: 10000
+- tapOn:
+    id: "create-select-song"
+- extendedWaitUntil:
+    visible:
+      id: "song-search-input"
+    timeout: 10000
+- tapOn:
+    id: "song-search-input"
+- waitForAnimationToEnd
+- inputText: ${SONG_QUERY}
+- extendedWaitUntil:
+    visible:
+      id: "song-search-result-0"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "__pause__"
+    timeout: 1200
+    optional: true
+- tapOn:
+    id: "song-search-result-0"
+- waitForAnimationToEnd
+- tapOn:
+    id: "create-reflection"
+- inputText: ${REFLECTION}
+- extendedWaitUntil:
+    visible: "__pause__"
+    timeout: 1500
+    optional: true
+- tapOn:
+    id: "create-save"
+- extendedWaitUntil:
+    visible: "Here Comes the Sun"
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "__pause__"
+    timeout: 2000
+    optional: true

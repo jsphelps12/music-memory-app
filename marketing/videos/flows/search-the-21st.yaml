@@ -1,0 +1,8 @@
+# Shot: search "the 21st" → September. Steps in _search-and-open.yaml.
+appId: com.joshuaphelps.musicmemory.preview
+---
+- runFlow:
+    file: _search-and-open.yaml
+    env:
+      QUERY: "the 21st"
+      RESULT: "September"

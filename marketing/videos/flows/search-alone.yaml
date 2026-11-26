@@ -1,0 +1,8 @@
+# Shot: search "lived alone" → Motion Sickness. Steps in _search-and-open.yaml.
+appId: com.joshuaphelps.musicmemory.preview
+---
+- runFlow:
+    file: _search-and-open.yaml
+    env:
+      QUERY: "lived alone"
+      RESULT: "Motion Sickness"

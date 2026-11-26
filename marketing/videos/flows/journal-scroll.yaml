@@ -1,0 +1,19 @@
+# Shot: the Journal, flicked back through the years to the oldest moment.
+# Quick flicks; the clip speeds it up further.
+appId: com.joshuaphelps.musicmemory.preview
+---
+- extendedWaitUntil:
+    visible: "__pause__"
+    timeout: 1200
+    optional: true
+- repeat:
+    times: 14
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 25%"
+          duration: 450
+- extendedWaitUntil:
+    visible: "__pause__"
+    timeout: 2500
+    optional: true

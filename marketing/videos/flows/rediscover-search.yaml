@@ -1,0 +1,48 @@
+# Shot: Rediscover → search "Dad" → open what comes back.
+appId: com.joshuaphelps.musicmemory.preview
+env:
+  QUERY: "Dad"
+---
+- extendedWaitUntil:
+    visible: "__pause__"
+    timeout: 800
+    optional: true
+- tapOn: "Rediscover"
+- extendedWaitUntil:
+    visible: "__pause__"
+    timeout: 1500
+    optional: true
+- tapOn: "Search songs, artists, reflections"
+# The first keystrokes after the keyboard rises can drop (see
+# .maestro/subflows/sign-in-form.yaml); "D" alone matches too much and pushes
+# Fast Car off screen. Retry until the result shows.
+- retry:
+    maxRetries: 3
+    commands:
+      - waitForAnimationToEnd
+      - eraseText
+      - inputText: ${QUERY}
+      - extendedWaitUntil:
+          visible: ".*Fast Car.*"
+          timeout: 8000
+- extendedWaitUntil:
+    visible: "__pause__"
+    timeout: 1500
+    optional: true
+- tapOn: ".*Fast Car.*"
+- extendedWaitUntil:
+    visible:
+      id: "moment-more"
+    timeout: 15000
+- extendedWaitUntil:
+    visible: "__pause__"
+    timeout: 3000
+    optional: true
+- swipe:
+    start: "50%, 80%"
+    end: "50%, 35%"
+    duration: 1800
+- extendedWaitUntil:
+    visible: "__pause__"
+    timeout: 2500
+    optional: true
