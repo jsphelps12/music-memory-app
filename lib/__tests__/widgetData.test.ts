@@ -1,9 +1,12 @@
 /**
  * The Memory widget's writer: words only with the setting on and the app
- * lock off, identical weeks not rewritten, refreshes throttled, and
- * sign-out wiping the file even mid-run.
+ * lock off, identical weeks not rewritten (also across launches), refreshes
+ * throttled, words taken off at once when they go away, sign-out wiping the
+ * file even mid-run, and the JSON matching what the widget decodes.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "fs";
+import path from "path";
 import { createAsyncStorageMock } from "./helpers/asyncStorageMock";
 
 const storage = createAsyncStorageMock();
@@ -58,9 +61,15 @@ const {
   buildWidgetPayload,
   browseToWidgetSource,
   artworkFileName,
+  withoutWords,
   WIDGET_SCHEMA_VERSION,
+  WIDGET_NETWORK_TIMEOUT_MS,
 } = await import("../widgetData");
 const { widgetKeys } = await import("../widgetSettings");
+// The instance widgetData imported (a later vi.resetModules makes new ones).
+const { File: MockFile } = (await import("expo-file-system")) as unknown as {
+  File: { downloadFileAsync: ReturnType<typeof vi.fn> };
+};
 
 const USER = "user-1";
 const moments = [
@@ -131,7 +140,15 @@ describe("browseToWidgetSource", () => {
     const [m] = browseToWidgetSource([
       { id: "x", moods: [], people: [], momentDate: "2024-01-01", songTitle: "T", songArtist: "R", songAlbumName: "", songArtworkUrl: "u" },
     ]);
-    expect(m).toEqual({ id: "x", momentDate: "2024-01-01", songTitle: "T", songArtist: "R", artworkUrl: "u" });
+    expect(m).toEqual({ id: "x", momentDate: "2024-01-01", songTitle: "T", songArtist: "R", artworkUrl: "u", createdAt: null });
+  });
+
+  it("passes when the moment was created, so an undated one can still be shown", () => {
+    const created = new Date(2023, 10, 23, 20, 0).toISOString();
+    const [m] = browseToWidgetSource([
+      { id: "x", moods: [], people: [], momentDate: null, songTitle: "T", songArtist: "R", songAlbumName: "", songArtworkUrl: "", createdAt: created },
+    ]);
+    expect(m.createdAt).toBe(created);
   });
 });
 
@@ -186,6 +203,33 @@ describe("syncMemoryWidget", () => {
   });
 });
 
+describe("across launches", () => {
+  it("doesn't rewrite or reload a week the last launch already wrote", async () => {
+    await syncMemoryWidget(USER, moments);
+    expect(native.writeWidgetData).toHaveBeenCalledTimes(1);
+    // A cold launch: the module starts with no memory of the last file.
+    vi.resetModules();
+    const fresh = await import("../widgetData");
+    vi.clearAllMocks();
+    await fresh.syncMemoryWidget(USER, [...moments]);
+    expect(native.writeWidgetData).not.toHaveBeenCalled();
+    expect(native.reloadWidgets).not.toHaveBeenCalled();
+    // A different week is still written.
+    await fresh.syncMemoryWidget(USER, moments.slice(1));
+    expect(native.writeWidgetData).toHaveBeenCalledTimes(1);
+  });
+
+  it("writes again after the file was wiped", async () => {
+    await syncMemoryWidget(USER, moments);
+    expect(storage.map.has(widgetKeys(USER).written)).toBe(true);
+    await clearMemoryWidget();
+    expect(storage.map.has(widgetKeys(USER).written)).toBe(false);
+    native.writeWidgetData.mockClear();
+    await syncMemoryWidget(USER, moments);
+    expect(native.writeWidgetData).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("refreshMemoryWidget", () => {
   it("does nothing before the Journal has handed over a library", async () => {
     await refreshMemoryWidget({ force: true });
@@ -209,6 +253,114 @@ describe("refreshMemoryWidget", () => {
     storage.seed(widgetKeys(USER).words, "1");
     await refreshMemoryWidget({ force: true });
     expect(lastPayload().showWords).toBe(true);
+  });
+});
+
+describe("words going away", () => {
+  it("are taken off at once, without waiting for a run stuck on the network", async () => {
+    storage.seed(widgetKeys(USER).words, "1");
+    await syncMemoryWidget(USER, moments);
+    expect(lastPayload().entries[0].line).toBe("Words for a");
+
+    // A run that read words as allowed, now stuck reading reflections.
+    let release!: () => void;
+    fetchMomentsByIds.mockImplementationOnce(
+      (_uid, ids) => new Promise((resolve) => (release = () => resolve(ids.map((id) => ({ id, reflectionText: "Late words" })))))
+    );
+    vi.setSystemTime(new Date(2026, 10, 24, 9, 0));
+    const stuck = refreshMemoryWidget();
+    await vi.waitFor(() => expect(fetchMomentsByIds).toHaveBeenCalledTimes(2));
+
+    // The app lock goes on.
+    storage.seed("app_lock_enabled", "1");
+    native.writeWidgetData.mockClear();
+    void refreshMemoryWidget({ force: true });
+    await vi.waitFor(() => expect(native.writeWidgetData).toHaveBeenCalledTimes(1));
+    expect(lastPayload().showWords).toBe(false);
+    expect(lastPayload().entries.every((e: { line: string | null }) => e.line === null)).toBe(true);
+
+    // The stuck run finishing never puts its words back.
+    release();
+    await stuck;
+    await refreshMemoryWidget({ force: true });
+    for (const [json] of native.writeWidgetData.mock.calls) {
+      expect(JSON.parse(json).entries.every((e: { line: string | null }) => e.line === null)).toBe(true);
+    }
+  });
+
+  it("withoutWords drops every line", () => {
+    const payload = {
+      version: WIDGET_SCHEMA_VERSION,
+      generatedAt: "x",
+      showWords: true,
+      entries: [{ day: "d", momentId: "a", title: "", artist: "", dateLabel: "", dateText: "", onThisDay: false, line: "w", image: null }],
+    } as const;
+    expect(withoutWords(payload)).toMatchObject({ showWords: false, entries: [{ line: null }] });
+  });
+});
+
+describe("network timeouts", () => {
+  it("writes the week without words when the reflections read hangs", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    vi.setSystemTime(new Date(2026, 10, 23, 9, 0));
+    storage.seed(widgetKeys(USER).words, "1");
+    fetchMomentsByIds.mockImplementationOnce(() => new Promise(() => {}));
+    const running = syncMemoryWidget(USER, moments);
+    await vi.advanceTimersByTimeAsync(WIDGET_NETWORK_TIMEOUT_MS);
+    await running;
+    expect(lastPayload().entries.every((e: { line: string | null }) => e.line === null)).toBe(true);
+  });
+
+  it("leaves out artwork whose download hangs", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    vi.setSystemTime(new Date(2026, 10, 23, 9, 0));
+    MockFile.downloadFileAsync.mockImplementation(() => new Promise(() => {}));
+    try {
+      const running = syncMemoryWidget(USER, moments);
+      await vi.advanceTimersByTimeAsync(WIDGET_NETWORK_TIMEOUT_MS);
+      await running;
+      expect(lastPayload().entries[0]).toMatchObject({ momentId: "a", image: null });
+    } finally {
+      MockFile.downloadFileAsync.mockImplementation(async () => ({}));
+    }
+  });
+});
+
+describe("the widget's side of the JSON", () => {
+  const swift = readFileSync(path.resolve(__dirname, "../../targets/widget/_shared/MemoryStore.swift"), "utf8");
+  /** The `let` names in one Swift struct. */
+  function lets(struct: string): string[] {
+    const body = new RegExp(`struct ${struct}\\b[^{]*\\{([\\s\\S]*?)\\n  \\}`).exec(swift)?.[1] ?? "";
+    return [...body.matchAll(/^\s*let\s+(\w+)\s*:/gm)].map((m) => m[1]);
+  }
+  const pick = {
+    day: "2026-11-23",
+    momentId: "a",
+    title: "A",
+    artist: "AA",
+    dateLabel: "x",
+    dateText: "x",
+    onThisDay: false,
+    line: "w",
+    artworkUrl: "https://x/a.jpg",
+  };
+  const payload = buildWidgetPayload([pick], true, {}, new Date(0));
+  /** Written for people reading the file, not decoded by the widget. */
+  const UNREAD = new Set(["generatedAt"]);
+
+  it("has the schema version the widget accepts", () => {
+    const version = /static let schemaVersion\s*=\s*(\d+)/.exec(swift)?.[1];
+    expect(Number(version)).toBe(WIDGET_SCHEMA_VERSION);
+  });
+
+  it("writes every key the widget decodes, and the widget decodes every key it's given", () => {
+    const fileLets = lets("File");
+    const itemLets = lets("Item");
+    expect(fileLets.length).toBeGreaterThan(0);
+    expect(itemLets.length).toBeGreaterThan(0);
+    const payloadKeys = Object.keys(payload).filter((k) => !UNREAD.has(k));
+    expect(new Set(fileLets)).toEqual(new Set(payloadKeys));
+    expect(new Set(itemLets)).toEqual(new Set(Object.keys(payload.entries[0])));
   });
 });
 
