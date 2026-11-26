@@ -13,9 +13,14 @@
 // no notification (Josh, 2026-11-23).
 //
 //   POST   Authorization: Capture <secret>
-//          { appleMusicId?, title, artist, album?, artworkUrl?,
+//          { appleMusicId?, title, artist, album?, country?,
 //            capturedAt (ISO 8601), utcOffsetMinutes? }
+//          country (build 21+) is the storefront for the lookup; without it
+//          the lookup uses the US store. Unknown fields are ignored, an
+//          artworkUrl included: artwork only comes from the lookup.
 //          Never sets the part of the song: it's only picked by hand.
+//          A double fire saves one moment (save.ts); the second call gets
+//          the first moment back with duplicate: true.
 //          -> 200 { momentId, title, artist, duplicate }
 //          400 invalid body · 401 bad/revoked key · 413 too large ·
 //          429 too many saves this hour · 500 server error
@@ -25,19 +30,22 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  backgroundMomentRow,
   captureKeyFromHeader,
   EMPTY_SONG_LOOKUP,
+  hasLookupDetails,
+  itunesLookupUrl,
   keyIsLive,
   LIMITS,
   parseQuickCaptureBody,
+  type RecentCapture,
   sha256Hex,
   songLookupFromResponse,
   type SongLookup,
 } from "../_shared/quickCapture.ts";
+import { type CaptureStore, saveBackgroundMoment } from "./save.ts";
 
-const HOUR_MS = 60 * 60 * 1000;
 const LOOKUP_TIMEOUT_MS = 4000;
+const CAPTURE_COLUMNS = "id, song_title, song_artist, created_at";
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -46,21 +54,84 @@ function json(status: number, body: unknown) {
   });
 }
 
-/** The iTunes lookup for the preview and song details. Never throws. */
-async function lookupSong(appleMusicId: string): Promise<SongLookup> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), LOOKUP_TIMEOUT_MS);
+async function lookupOnce(appleMusicId: string, country: string | null, signal: AbortSignal): Promise<SongLookup> {
   try {
-    const res = await fetch(`https://itunes.apple.com/lookup?id=${encodeURIComponent(appleMusicId)}`, {
-      signal: controller.signal,
-    });
+    const res = await fetch(itunesLookupUrl(appleMusicId, country), { signal });
     if (!res.ok) return EMPTY_SONG_LOOKUP;
     return songLookupFromResponse(await res.json(), appleMusicId);
   } catch {
     return EMPTY_SONG_LOOKUP;
+  }
+}
+
+/**
+ * The iTunes lookup for the preview and song details, in the phone's
+ * storefront when it sent one. If that finds nothing (a region that isn't
+ * the storefront), the US store is tried, as before country existed. Both
+ * share one 4 s budget. Never throws.
+ */
+async function lookupSong(appleMusicId: string, country: string | null): Promise<SongLookup> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), LOOKUP_TIMEOUT_MS);
+  try {
+    const found = await lookupOnce(appleMusicId, country, controller.signal);
+    if (hasLookupDetails(found) || !country || controller.signal.aborted) return found;
+    return await lookupOnce(appleMusicId, null, controller.signal);
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function captureStore(admin: SupabaseClient): CaptureStore {
+  return {
+    async countBackgroundSaves(userId, sinceIso) {
+      const { count, error } = await admin
+        .from("moments")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("capture_source", "background")
+        .gte("created_at", sinceIso);
+      if (error) throw error;
+      return count ?? 0;
+    },
+    async recentCaptures(userId, title, artist, sinceIso) {
+      const { data, error } = await admin
+        .from("moments")
+        .select(CAPTURE_COLUMNS)
+        .eq("user_id", userId)
+        .eq("capture_source", "background")
+        .eq("song_title", title)
+        .eq("song_artist", artist)
+        .gte("created_at", sinceIso)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .limit(20)
+        .returns<RecentCapture[]>();
+      if (error) throw error;
+      return data ?? [];
+    },
+    async insertMoment(row) {
+      const { data, error } = await admin.from("moments").insert(row).select(CAPTURE_COLUMNS).single<RecentCapture>();
+      if (error) throw error;
+      return data;
+    },
+    async updateLookup(momentId, userId, appleMusicId, columns) {
+      const { error } = await admin
+        .from("moments")
+        .update(columns)
+        .eq("id", momentId)
+        .eq("user_id", userId)
+        // Not if the moment's song was changed in the app meanwhile.
+        .eq("song_apple_music_id", appleMusicId);
+      if (error) throw error;
+    },
+    async deleteMoment(momentId, userId) {
+      // A background save has no photos, so there are no storage objects.
+      const { error } = await admin.from("moments").delete().eq("id", momentId).eq("user_id", userId);
+      if (error) throw error;
+    },
+    lookupSong,
+  };
 }
 
 async function readBody(req: Request): Promise<unknown | "too_large" | "invalid"> {
@@ -86,36 +157,9 @@ async function save(admin: SupabaseClient, key: KeyRow, req: Request) {
   const raw = await readBody(req);
   if (raw === "too_large") return json(413, { error: "too_large" });
   if (raw === "invalid") return json(400, { error: "invalid_body" });
-  const parsed = parseQuickCaptureBody(raw, Date.now());
-  if (!parsed.ok) return json(400, { error: parsed.error });
-  const input = parsed.value;
-  const userId = key.user_id;
-
-  // Background saves this person made in the last hour.
   const now = Date.now();
-  const { count, error: countError } = await admin
-    .from("moments")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("capture_source", "background")
-    .gte("created_at", new Date(now - HOUR_MS).toISOString());
-  if (countError) throw countError;
-  if ((count ?? 0) >= LIMITS.savesPerHour) return json(429, { error: "rate_limited" });
-
-  // The same song saved moments ago: Siri retrying, or said twice. Hand back
-  // the first one instead of a second copy.
-  const { data: recent, error: recentError } = await admin
-    .from("moments")
-    .select("id, song_title, song_artist")
-    .eq("user_id", userId)
-    .eq("capture_source", "background")
-    .eq("song_title", input.title)
-    .eq("song_artist", input.artist)
-    .gte("created_at", new Date(now - LIMITS.duplicateWindowMs).toISOString())
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle<{ id: string; song_title: string; song_artist: string }>();
-  if (recentError) throw recentError;
+  const parsed = parseQuickCaptureBody(raw, now);
+  if (!parsed.ok) return json(400, { error: parsed.error });
 
   const touch = admin
     .from("capture_keys")
@@ -124,22 +168,12 @@ async function save(admin: SupabaseClient, key: KeyRow, req: Request) {
     .then(({ error }) => {
       if (error) console.error("[quick-capture] last_used_at update failed:", error.message);
     });
-
-  if (recent) {
+  try {
+    const outcome = await saveBackgroundMoment(captureStore(admin), key.user_id, parsed.value, now);
+    return json(outcome.status, outcome.body);
+  } finally {
     await touch;
-    return json(200, { momentId: recent.id, title: recent.song_title, artist: recent.song_artist, duplicate: true });
   }
-
-  const lookup = input.appleMusicId ? await lookupSong(input.appleMusicId) : EMPTY_SONG_LOOKUP;
-  const { data: moment, error: insertError } = await admin
-    .from("moments")
-    .insert(backgroundMomentRow(userId, input, lookup))
-    .select("id, song_title, song_artist")
-    .single<{ id: string; song_title: string; song_artist: string }>();
-  await touch;
-  if (insertError) throw insertError;
-
-  return json(200, { momentId: moment.id, title: moment.song_title, artist: moment.song_artist, duplicate: false });
 }
 
 Deno.serve(async (req) => {

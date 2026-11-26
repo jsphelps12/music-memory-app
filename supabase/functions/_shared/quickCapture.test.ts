@@ -4,15 +4,20 @@ import {
   CAPTURE_KEY_PATTERN,
   captureKeyFromHeader,
   cleanAppleMusicId,
+  cleanCountry,
   cleanDeviceId,
   cleanDeviceLabel,
   EMPTY_SONG_LOOKUP,
+  hasLookupDetails,
+  itunesLookupUrl,
+  keptCapture,
   LIMITS,
   localDateAndTimeOfDay,
   newCaptureKey,
   keyIsLive,
   parseQuickCaptureBody,
   sha256Hex,
+  songLookupColumns,
   songLookupFromResponse,
 } from "./quickCapture";
 import { parseItunesLookupResult, pickLookupResult } from "../../../lib/songMetadata";
@@ -82,7 +87,7 @@ describe("parseQuickCaptureBody", () => {
         title: "Holocene",
         artist: "Bon Iver",
         album: "Bon Iver",
-        artworkUrl: null,
+        country: null,
         capturedAtMs: Date.parse(valid.capturedAt),
         utcOffsetMinutes: -420,
       },
@@ -104,8 +109,6 @@ describe("parseQuickCaptureBody", () => {
       { album: 7 },
       { appleMusicId: "12ab" },
       { appleMusicId: { id: 1 } },
-      { artworkUrl: "http://example.com/a.jpg" },
-      { artworkUrl: "javascript:alert(1)" },
       { capturedAt: 1764095398000 },
       { capturedAt: "yesterday" },
       { capturedAt: "2026-11-25" },
@@ -133,6 +136,31 @@ describe("parseQuickCaptureBody", () => {
     expect(parseQuickCaptureBody(at(NOW + LIMITS.capturedAtMaxAheadMs + 1000), NOW).ok).toBe(false);
     // Swift's ISO8601DateFormatter with an offset instead of Z.
     expect(parseQuickCaptureBody({ ...valid, capturedAt: "2026-11-25T11:29:58-07:00" }, NOW).ok).toBe(true);
+  });
+
+  it("ignores an artworkUrl, valid or not: artwork only comes from the lookup", () => {
+    for (const artworkUrl of ["https://tracker.example.com/pixel.gif", "javascript:alert(1)", 42, "x".repeat(5000)]) {
+      const r = parseQuickCaptureBody({ ...valid, artworkUrl }, NOW);
+      expect(r.ok, JSON.stringify(artworkUrl).slice(0, 40)).toBe(true);
+      if (!r.ok) continue;
+      expect(r.value).not.toHaveProperty("artworkUrl");
+      expect(backgroundMomentRow("user-1", r.value).song_artwork_url).toBeNull();
+    }
+  });
+
+  it("takes an optional storefront country, lowercased (build 21+)", () => {
+    const country = (c: unknown) => {
+      const r = parseQuickCaptureBody({ ...valid, country: c }, NOW);
+      if (!r.ok) throw new Error(r.error);
+      return r.value.country;
+    };
+    expect(country("GB")).toBe("gb");
+    expect(country("jp")).toBe("jp");
+    expect(country(" De ")).toBe("de");
+    // Build 20 sends none; a bad hint is dropped, never a failed save.
+    expect(country(undefined)).toBeNull();
+    for (const bad of [null, "", "419", "GBR", "g", "u$", 44, {}]) expect(country(bad)).toBeNull();
+    expect(cleanCountry("Us")).toBe("us");
   });
 
   it("defaults a missing offset to UTC", () => {
@@ -197,6 +225,28 @@ describe("mirrors of the app's rules", () => {
   });
 });
 
+describe("itunesLookupUrl", () => {
+  it("adds the storefront when there is one and is unchanged without", () => {
+    expect(itunesLookupUrl("1440831203", null)).toBe("https://itunes.apple.com/lookup?id=1440831203");
+    expect(itunesLookupUrl("1440831203", "gb")).toBe("https://itunes.apple.com/lookup?id=1440831203&country=gb");
+  });
+});
+
+describe("keptCapture", () => {
+  const row = (id: string, created_at: string) => ({ id, created_at });
+  it("keeps the earliest, then the lowest id, whatever order the rows come in", () => {
+    const a = row("b-id", "2026-11-25T18:30:00.100Z");
+    const b = row("a-id", "2026-11-25T18:30:00.200Z");
+    const c = row("c-id", "2026-11-25T18:30:00.100Z");
+    expect(keptCapture([a, b, c])).toBe(a);
+    expect(keptCapture([b, c, a])).toBe(a);
+    expect(keptCapture([b])).toBe(b);
+    expect(keptCapture([])).toBeNull();
+    // PostgREST's timestamptz shape, with microseconds.
+    expect(keptCapture([row("z", "2026-11-25T18:30:01.5+00:00"), row("y", "2026-11-25T18:30:00.999999+00:00")])?.id).toBe("y");
+  });
+});
+
 describe("backgroundMomentRow", () => {
   it("builds the row for the key's owner, with no words and capture_source background", () => {
     const parsed = parseQuickCaptureBody(valid, NOW);
@@ -238,6 +288,42 @@ describe("backgroundMomentRow", () => {
       time_of_day: "Morning",
       capture_source: "background",
     });
+  });
+
+  it("inserts with no lookup details; songLookupColumns fills them in afterwards", () => {
+    const parsed = parseQuickCaptureBody({ ...valid, album: null }, NOW);
+    if (!parsed.ok) throw new Error(parsed.error);
+    const bare = backgroundMomentRow("user-1", parsed.value);
+    expect(bare).toMatchObject({
+      song_album_name: null,
+      song_artwork_url: null,
+      song_preview_url: null,
+      song_genre: null,
+      song_duration_ms: null,
+      song_apple_music_id: "1440831203",
+    });
+    const lookup = songLookupFromResponse(
+      { results: [{ trackId: 1440831203, collectionName: "Bon Iver, Bon Iver", trackTimeMillis: 336000 }] },
+      "1440831203"
+    );
+    const cols = songLookupColumns(parsed.value, lookup);
+    // Only lookup columns: never the owner, the song's identity or the words.
+    expect(Object.keys(cols).sort()).toEqual(
+      [
+        "song_album_id",
+        "song_album_name",
+        "song_artist_id",
+        "song_artwork_url",
+        "song_duration_ms",
+        "song_genre",
+        "song_preview_url",
+        "song_release_date",
+      ].sort()
+    );
+    expect(cols).toMatchObject({ song_album_name: "Bon Iver, Bon Iver", song_duration_ms: 336000 });
+    expect(backgroundMomentRow("user-1", parsed.value, lookup)).toEqual({ ...bare, ...cols });
+    expect(hasLookupDetails(lookup)).toBe(true);
+    expect(hasLookupDetails(EMPTY_SONG_LOOKUP)).toBe(false);
   });
 
   it("saves a song outside the catalog with no preview or details", () => {
