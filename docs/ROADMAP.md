@@ -510,6 +510,10 @@ The starred ones bring the app to you, which serves the north star:
   → retire the guest-form code. 1.5 (native): memory widget, Lock Screen
   capture, offline saves (exact second from Now Playing dropped 2026-11-23). EAS cloud builds
   return 2026-12-01.
+- **Upload retries (2026-11-25):** a photo upload that hits a dropped
+  connection or a storage 408/429/5xx is sent up to twice more
+  (`lib/uploadRetry.ts`). A new user lost their second onboarding moment to
+  one dropped thumbnail request (Sentry REACT-NATIVE-1M/1N). OTA-able.
 - **Growth (2026-11-20):** goal ~100 active users, free channels first
   (short video, Apple featuring nomination, App Store keywords, a few Reddit
   builder posts). Short-video pipeline built: `scripts/video/make.py` records

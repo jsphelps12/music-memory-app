@@ -2,6 +2,7 @@ import { File } from "expo-file-system";
 import * as Crypto from "expo-crypto";
 import * as ImageManipulator from "expo-image-manipulator";
 import { supabase } from "@/lib/supabase";
+import { withUploadRetry } from "@/lib/uploadRetry";
 import type { Moment } from "@/types";
 
 const BUCKET = "moment-photos";
@@ -56,12 +57,15 @@ async function compressToSizes(uri: string, maxDimensions: number[]): Promise<st
   }
 }
 
+/** Upload one JPEG, retrying a dropped connection or a storage timeout (lib/uploadRetry.ts). */
 async function uploadJpeg(path: string, localUri: string, upsert = false): Promise<void> {
-  const file = new File(localUri);
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, await file.arrayBuffer(), { contentType: "image/jpeg", upsert });
-  if (error) throw error;
+  const body = await new File(localUri).arrayBuffer();
+  await withUploadRetry(async () => {
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, body, { contentType: "image/jpeg", upsert });
+    return error;
+  });
 }
 
 /**
