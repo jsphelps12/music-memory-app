@@ -1,6 +1,14 @@
 [
   {
     "profile": "production",
+    "buildNumber": "20",
+    "appVersion": "1.5.0",
+    "runtimeVersion": "c6d38937741851bbaa3780989b6f6e540ff61cb4",
+    "bundleId": "com.joshuaphelps.musicmemory",
+    "recordedAt": "2026-11-24"
+  },
+  {
+    "profile": "production",
     "buildNumber": "18",
     "appVersion": "1.5.0",
     "runtimeVersion": "8e50350db530e0a252817a293da2f3ff1ecf1a03",

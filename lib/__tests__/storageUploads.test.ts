@@ -113,11 +113,11 @@ describe("uploadMomentPhotos", () => {
   it("removes every uploaded object when one photo fails, then rethrows", async () => {
     sb.storage.upload.mockImplementation(async (path: string) =>
       path.includes("uuid-2") && !path.includes("thumb_")
-        ? { data: null, error: { message: "network" } }
+        ? { data: null, error: { message: "forbidden", status: 403 } }
         : { data: { path }, error: null }
     );
 
-    await expect(uploadMomentPhotos("u1", ["a", "b", "c"])).rejects.toMatchObject({ message: "network" });
+    await expect(uploadMomentPhotos("u1", ["a", "b", "c"])).rejects.toMatchObject({ message: "forbidden" });
     // Let the fire-and-forget deletes run.
     await new Promise((r) => setTimeout(r, 0));
 
@@ -126,6 +126,30 @@ describe("uploadMomentPhotos", () => {
       .map((c) => c[0] as string)
       .filter((p) => p !== "u1/uuid-2.jpg");
     expect(new Set(removed)).toEqual(new Set(uploaded));
+  });
+});
+
+describe("upload retries", () => {
+  it("resends a dropped thumbnail instead of failing the save", async () => {
+    vi.useFakeTimers();
+    try {
+      let thumbTries = 0;
+      sb.storage.upload.mockImplementation(async (path: string) =>
+        path.includes("thumb_") && ++thumbTries === 1
+          ? { data: null, error: { name: "StorageUnknownError", message: "fetch failed: The network connection was lost." } }
+          : { data: { path }, error: null }
+      );
+
+      const saving = uploadMomentPhotos("u1", ["file:///a.jpg"]);
+      await vi.runAllTimersAsync();
+      const out = await saving;
+
+      expect(out.thumbnailPaths).toEqual(["u1/thumb_uuid-1.jpg"]);
+      expect(thumbTries).toBe(2);
+      expect(sb.storage.remove).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
