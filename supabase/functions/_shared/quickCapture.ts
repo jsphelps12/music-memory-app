@@ -8,12 +8,15 @@
 // A background save never sets the part of the song (song_part_ms): the
 // player's position isn't accurate enough, so the part is only ever picked
 // by hand (Josh, 2026-11-23). The request has no position field.
+//
+// Artwork only ever comes from the iTunes lookup. The intent never sends an
+// artworkUrl; one in the body is ignored, so a leaked key can't plant an
+// arbitrary image URL (a tracking beacon) in the owner's journal.
 
 export const LIMITS = {
   titleMax: 300,
   artistMax: 300,
   albumMax: 300,
-  artworkUrlMax: 1000,
   deviceLabelMax: 80,
   // The whole quick-capture body; a real one is a few hundred bytes.
   bodyMaxBytes: 8 * 1024,
@@ -108,7 +111,8 @@ export interface QuickCaptureInput {
   title: string;
   artist: string;
   album: string | null;
-  artworkUrl: string | null;
+  /** The phone's storefront (ISO 3166 alpha-2, lowercase), for the lookup. */
+  country: string | null;
   capturedAtMs: number;
   utcOffsetMinutes: number;
 }
@@ -139,6 +143,16 @@ export function cleanAppleMusicId(raw: unknown): Result<string | null> {
 }
 
 /**
+ * The storefront country, lowercased, or null. Optional (build 20 doesn't
+ * send it) and only a hint for the lookup, so anything that isn't two
+ * letters (a numeric region like "419", junk) is dropped rather than
+ * refused: a bad hint must never lose a capture.
+ */
+export function cleanCountry(raw: unknown): string | null {
+  return typeof raw === "string" && /^[A-Za-z]{2}$/.test(raw.trim()) ? raw.trim().toLowerCase() : null;
+}
+
+/**
  * The quick-capture body, strictly: unknown types are refused rather than
  * coerced, and every bound is the column's or tighter. `nowMs` is the
  * server's clock.
@@ -155,14 +169,7 @@ export function parseQuickCaptureBody(body: unknown, nowMs: number): Result<Quic
   if (!artist.ok) return artist;
   const album = optionalText(b.album, "album", LIMITS.albumMax);
   if (!album.ok) return album;
-
-  let artworkUrl: string | null = null;
-  if (b.artworkUrl !== undefined && b.artworkUrl !== null && b.artworkUrl !== "") {
-    if (typeof b.artworkUrl !== "string" || b.artworkUrl.length > LIMITS.artworkUrlMax || !/^https:\/\/[^\s]+$/.test(b.artworkUrl)) {
-      return fail("artworkUrl must be an https URL");
-    }
-    artworkUrl = b.artworkUrl;
-  }
+  // b.artworkUrl is deliberately not read (see the header).
 
   if (typeof b.capturedAt !== "string" || b.capturedAt.length > 40) return fail("capturedAt is required");
   // ISO 8601 with a zone, as Swift's ISO8601DateFormatter writes it.
@@ -189,7 +196,7 @@ export function parseQuickCaptureBody(body: unknown, nowMs: number): Result<Quic
     title: title.value,
     artist: artist.value,
     album: album.value,
-    artworkUrl,
+    country: cleanCountry(b.country),
     capturedAtMs,
     utcOffsetMinutes,
   });
@@ -260,6 +267,20 @@ export function releaseDateToDate(v: unknown): string | null {
 }
 
 /**
+ * The iTunes lookup URL. With a storefront country the lookup finds songs
+ * that aren't in the US store; without one it's the US store, as before.
+ */
+export function itunesLookupUrl(appleMusicId: string, country: string | null): string {
+  const url = `https://itunes.apple.com/lookup?id=${encodeURIComponent(appleMusicId)}`;
+  return country ? `${url}&country=${encodeURIComponent(country)}` : url;
+}
+
+/** Whether a lookup found anything worth writing to the moment. */
+export function hasLookupDetails(lookup: SongLookup): boolean {
+  return Object.values(lookup).some((v) => v !== null);
+}
+
+/**
  * The song's details from an iTunes lookup response (`/lookup?id=`): the
  * result whose trackId is the id asked for, else the first track. Missing or
  * malformed fields become null; only https URLs are kept.
@@ -291,26 +312,38 @@ export function songLookupFromResponse(json: unknown, appleMusicId: string): Son
 }
 
 /**
- * The moments row for a background save. `userId` comes from the key row,
- * never from the request.
+ * The moment's columns that come from the iTunes lookup. A background save
+ * inserts with EMPTY_SONG_LOOKUP first and writes these afterwards, so the
+ * row exists (and a second save sees it) before the slow lookup runs.
  */
-export function backgroundMomentRow(userId: string, input: QuickCaptureInput, lookup: SongLookup) {
-  const { date, timeOfDay } = localDateAndTimeOfDay(input.capturedAtMs, input.utcOffsetMinutes);
+export function songLookupColumns(input: QuickCaptureInput, lookup: SongLookup) {
   return {
-    user_id: userId,
-    song_title: input.title,
-    song_artist: input.artist,
+    // The player's album name wins over the catalog's.
     song_album_name: input.album ?? lookup.albumName,
-    song_artwork_url: input.artworkUrl ?? lookup.artworkUrl,
-    song_provider: "apple_music",
-    song_apple_music_id: input.appleMusicId,
-    song_spotify_id: null,
+    song_artwork_url: lookup.artworkUrl,
     song_preview_url: lookup.previewUrl,
     song_genre: lookup.genre,
     song_release_date: lookup.releaseDate,
     song_artist_id: lookup.artistId,
     song_album_id: lookup.albumId,
     song_duration_ms: lookup.durationMs,
+  };
+}
+
+/**
+ * The moments row for a background save. `userId` comes from the key row,
+ * never from the request.
+ */
+export function backgroundMomentRow(userId: string, input: QuickCaptureInput, lookup: SongLookup = EMPTY_SONG_LOOKUP) {
+  const { date, timeOfDay } = localDateAndTimeOfDay(input.capturedAtMs, input.utcOffsetMinutes);
+  return {
+    user_id: userId,
+    song_title: input.title,
+    song_artist: input.artist,
+    song_provider: "apple_music",
+    song_apple_music_id: input.appleMusicId,
+    song_spotify_id: null,
+    ...songLookupColumns(input, lookup),
     // Never set automatically; picked by hand in the app.
     song_part_ms: null,
     reflection_text: "",
@@ -321,4 +354,31 @@ export function backgroundMomentRow(userId: string, input: QuickCaptureInput, lo
     time_of_day: timeOfDay,
     capture_source: "background",
   };
+}
+
+/** A background moment as the duplicate check reads it. */
+export interface RecentCapture {
+  id: string;
+  song_title: string;
+  song_artist: string;
+  created_at: string;
+}
+
+/**
+ * The copy every concurrent save agrees to keep: the earliest by created_at,
+ * then id. A total order, so two saves that each see both rows pick the same
+ * one, and at most one of them removes its own.
+ */
+export function keptCapture<T extends { id: string; created_at: string }>(rows: readonly T[]): T | null {
+  let kept: T | null = null;
+  for (const r of rows) {
+    if (!kept) {
+      kept = r;
+      continue;
+    }
+    const a = Date.parse(r.created_at);
+    const b = Date.parse(kept.created_at);
+    if (a < b || (a === b && r.id < kept.id)) kept = r;
+  }
+  return kept;
 }
