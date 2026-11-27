@@ -289,12 +289,12 @@ describe("words going away", () => {
   });
 
   it("withoutWords drops every line", () => {
-    const payload = {
+    const payload: Parameters<typeof withoutWords>[0] = {
       version: WIDGET_SCHEMA_VERSION,
       generatedAt: "x",
       showWords: true,
       entries: [{ day: "d", momentId: "a", title: "", artist: "", dateLabel: "", dateText: "", onThisDay: false, line: "w", image: null }],
-    } as const;
+    };
     expect(withoutWords(payload)).toMatchObject({ showWords: false, entries: [{ line: null }] });
   });
 });
