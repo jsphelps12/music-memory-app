@@ -126,13 +126,13 @@ struct PlayingSong {
       default: return .libraryAccessDenied
       }
     }
-    // Only a song that's actually playing. Paused and stopped keep the last
-    // song around for days, and the player doesn't say when it paused, so a
-    // paused song can't be told apart from yesterday's. Interrupted is
-    // playing that something (Siri talking, a call) cut into; a person's
-    // own pause reads as paused.
+    // Playing, interrupted or paused, not stopped. Paused has to count: Siri
+    // pauses the music while it listens, and systemMusicPlayer's state read
+    // from another app is often stale, so requiring .playing could answer
+    // "Nothing's playing" over a song that is. The accepted cost: a song
+    // paused long ago can still be the one saved.
     switch player.playbackState {
-    case .playing, .interrupted: break
+    case .playing, .interrupted, .paused: break
     default: return .nothing
     }
     let title = (item.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
