@@ -378,11 +378,15 @@ extension Image {
   /// On a tinted Home Screen (iOS 18+) an image is flattened into the tint
   /// unless it says otherwise; desaturated keeps the cover readable, as a
   /// grey picture in the tint's color. Full color is untouched.
-  func artworkKeepsItsPicture() -> Image {
+  /// (An Image method returning a view, so it comes straight after
+  /// resizable, before any View modifier.)
+  @ViewBuilder
+  func artworkKeepsItsPicture() -> some View {
     if #available(iOS 18.0, *) {
-      return widgetAccentedRenderingMode(.desaturated)
+      widgetAccentedRenderingMode(.desaturated)
+    } else {
+      self
     }
-    return self
   }
 }
 
