@@ -76,12 +76,12 @@ const CAPTURE_METHODS = [
   {
     icon: "toggle-outline",
     label: "Control Center and the Action button",
-    desc: "On iOS 18 and later, add a Soundtracks control to capture or identify without opening the app first.",
+    desc: "On iOS 18 and later, add a Soundtracks control to Control Center or the Action button to capture or identify without opening the app first.",
   },
   {
     icon: "musical-note-outline",
-    label: "Siri, Shortcuts and the Action button",
-    desc: "Say “Remember this song in Soundtracks” while Apple Music is playing. It's saved to your Journal without opening the app, ready for your words whenever you like.",
+    label: "Siri and Shortcuts",
+    desc: "Say “Remember this song in Soundtracks” while a song is playing in the Music app. It's saved to your Journal without opening the app, ready for your words whenever you like. It can't see Spotify. The Action button can run it too: choose Shortcut, then Remember this song (instead of the Soundtracks control).",
   },
 ] as const;
 
