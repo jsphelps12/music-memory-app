@@ -1,7 +1,8 @@
 /**
- * The capture key's app side: coming back to the app re-checks it at most
- * every CAPTURE_KEY_RECHECK_MS once it's there (a failed request is tried
- * again next time), the label is generic, and sign-out's revoke and its
+ * The capture key's app side: coming back to the app reads the keychain
+ * every time and asks for a new key at most every CAPTURE_KEY_REISSUE_MS
+ * after one was issued (a failed request is tried again next time), the
+ * label is generic, and sign-out's revoke and its
  * fallback share one time budget.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -59,16 +60,33 @@ describe.skipIf(!secureStorePath)("capture key", () => {
     expect(keychain.has(CAPTURE_KEY_ITEM)).toBe(true);
   });
 
-  it("re-checks on return to the app at most every 10 minutes once the key is there", async () => {
-    const t0 = Date.now();
-    await mod.ensureCaptureKeyOnResume("user-1", t0);
+  it("checks the keychain on every return to the app and re-issues a key Siri deleted", async () => {
+    await mod.ensureCaptureKeyOnResume("user-1");
     expect(invoke).toHaveBeenCalledTimes(1);
+    // A good key: only the keychain is read.
     secureStore.getItemAsync.mockClear();
-    await mod.ensureCaptureKeyOnResume("user-1", t0 + 60_000);
-    expect(secureStore.getItemAsync).not.toHaveBeenCalled();
-    // The intent deleted a key the server refused: the next check after the window issues one.
+    await mod.ensureCaptureKeyOnResume("user-1");
+    expect(secureStore.getItemAsync).toHaveBeenCalled();
+    expect(invoke).toHaveBeenCalledTimes(1);
+    // The server refused the key and the intent deleted it: the next open
+    // after the re-issue window gets a new one.
     keychain.delete(CAPTURE_KEY_ITEM);
-    await mod.ensureCaptureKeyOnResume("user-1", Date.now() + mod.CAPTURE_KEY_RECHECK_MS + 1);
+    await mod.ensureCaptureKeyOnResume("user-1", Date.now() + mod.CAPTURE_KEY_REISSUE_MS + 1);
+    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(keychain.has(CAPTURE_KEY_ITEM)).toBe(true);
+  });
+
+  it("asks for a new key at most every 10 minutes after one was issued", async () => {
+    await mod.ensureCaptureKeyOnResume("user-1");
+    keychain.delete(CAPTURE_KEY_ITEM);
+    await mod.ensureCaptureKeyOnResume("user-1", Date.now() + 60_000);
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-issues straight away after a clear (the same person signing back in)", async () => {
+    await mod.ensureCaptureKeyOnResume("user-1");
+    await mod.clearCaptureKey();
+    await mod.ensureCaptureKeyOnResume("user-1");
     expect(invoke).toHaveBeenCalledTimes(2);
   });
 

@@ -5,13 +5,12 @@
  * the app. The intent can't use the app's session, so the app gets it a key
  * of its own:
  *
- * - Signed in (each launch, and coming back to the app at most every
- *   CAPTURE_KEY_RECHECK_MS through `ensureCaptureKeyOnResume`):
- *   `ensureCaptureKey` makes sure the keychain holds a key for this user and
+ * - Signed in (each launch, and each return to the app through
+ *   `ensureCaptureKeyOnResume`): `ensureCaptureKey` makes sure the keychain holds a key for this user and
  *   project, asking the capture-key edge function for one when it doesn't,
  *   and replacing it once it's 30 days old (the server refuses keys over 90
  *   days old). A key the server stops accepting (a password change, the
- *   10-key cap) is deleted by the intent, so the next check gets a new one.
+ *   10-key cap) is deleted by the intent, so the next open gets a new one.
  *   A request that fails (offline) is tried again on the next return to the
  *   app, not only on the next launch.
  * - Sign-out: `revokeCaptureKey("all")` (while the session is still valid;
@@ -73,8 +72,12 @@ function options(ss: SecureStore) {
 
 /** Each request, and sign-out's revoke with its fallback all together. */
 const REQUEST_TIMEOUT_MS = 4000;
-/** Coming back to the app re-checks the key at most this often once it's there. */
-export const CAPTURE_KEY_RECHECK_MS = 10 * 60 * 1000;
+/**
+ * Coming back to the app asks for a new key (a missing one, or a rotation)
+ * at most this often after the last one was issued. The keychain itself is
+ * checked on every return.
+ */
+export const CAPTURE_KEY_REISSUE_MS = 10 * 60 * 1000;
 /**
  * What the key's row is labelled with. Generic on purpose: the phone's own
  * name ("Josh's iPhone") is personal and the label is shown nowhere.
@@ -137,22 +140,18 @@ let generation = 0;
 /** One request at a time; a different user's waits for the one before. */
 let inFlight: { userId: string; promise: Promise<void> } | null = null;
 /**
- * When this phone was last known to hold a good key for the user. Only a
- * success sets it, so a request that failed is tried again on the next
- * return to the app; every clear forgets it.
+ * When a key was last issued to this phone for the user. Only a success sets
+ * it, so a request that failed is tried again on the next return to the
+ * app; every clear forgets it.
  */
-let confirmed: { userId: string; at: number } | null = null;
+let lastIssued: { userId: string; at: number } | null = null;
 
 /** Makes sure this phone holds a capture key for `userId`. Never throws. */
 export function ensureCaptureKey(userId: string): Promise<void> {
   if (inFlight?.userId === userId) return inFlight.promise;
   const before = inFlight?.promise ?? Promise.resolve();
-  const startedAt = generation;
   const promise: Promise<void> = before
     .then(() => obtain(userId))
-    .then((held) => {
-      if (held && startedAt === generation) confirmed = { userId, at: Date.now() };
-    })
     .catch((e) => {
       Sentry.captureException(e, { tags: { area: "capture_key" } });
     })
@@ -164,26 +163,31 @@ export function ensureCaptureKey(userId: string): Promise<void> {
 }
 
 /**
- * Coming back to the app: ensureCaptureKey, unless the key was confirmed
- * within CAPTURE_KEY_RECHECK_MS. A key the server revoked meanwhile (and the
- * intent deleted) or a request that failed is put right here, instead of
- * waiting for iOS to end the app. Never throws.
+ * Coming back to the app. The keychain is read every time (cheap): a good
+ * key for this user means nothing to do. A missing one (the server revoked
+ * it and the intent deleted it, or the last request failed) or one due for
+ * rotation goes through ensureCaptureKey, unless a key was issued to this
+ * phone within CAPTURE_KEY_REISSUE_MS. Never throws.
  */
-export function ensureCaptureKeyOnResume(userId: string, now = Date.now()): Promise<void> {
-  if (confirmed?.userId === userId && now - confirmed.at < CAPTURE_KEY_RECHECK_MS) return Promise.resolve();
-  return ensureCaptureKey(userId);
-}
-
-/** True when this phone ends up holding a good key for the user (or has nothing to hold one in). */
-async function obtain(userId: string): Promise<boolean> {
+export async function ensureCaptureKeyOnResume(userId: string, now = Date.now()): Promise<void> {
   const ss = secureStore();
   const proj = project();
-  if (!ss || !proj) return true;
+  if (!ss || !proj) return;
+  const stored = await readStored(ss);
+  if (storedKeyServes(stored, userId, proj.url) && !storedKeyDueForRotation(stored!, now)) return;
+  if (lastIssued?.userId === userId && now - lastIssued.at < CAPTURE_KEY_REISSUE_MS) return;
+  await ensureCaptureKey(userId);
+}
+
+async function obtain(userId: string): Promise<void> {
+  const ss = secureStore();
+  const proj = project();
+  if (!ss || !proj) return;
   const startedAt = generation;
 
   const stored = await readStored(ss);
   const serves = storedKeyServes(stored, userId, proj.url);
-  if (serves && !storedKeyDueForRotation(stored!, Date.now())) return true;
+  if (serves && !storedKeyDueForRotation(stored!, Date.now())) return;
   // Due for rotation: the old key keeps working until the new one is written
   // (issuing revokes this install's previous key on the server).
   if (stored && !serves) {
@@ -200,23 +204,23 @@ async function obtain(userId: string): Promise<boolean> {
   // return to the app.
   if (error) {
     Sentry.addBreadcrumb({ category: "capture_key", message: "capture key not issued", level: "warning" });
-    return false;
+    return;
   }
   const key = (data as { key?: unknown } | null)?.key;
-  if (typeof key !== "string" || !CAPTURE_KEY_PATTERN.test(key)) return false;
+  if (typeof key !== "string" || !CAPTURE_KEY_PATTERN.test(key)) return;
 
   // Signed out (or someone else signed in) while the request was out.
   const { data: session } = await supabase.auth.getSession();
   if (startedAt !== generation || session.session?.user.id !== userId) {
     await selfRevoke({ key, ...proj });
-    return false;
+    return;
   }
   await ss.setItemAsync(
     CAPTURE_KEY_ITEM,
     encodeStoredCaptureKey({ key, userId, ...proj, issuedAt: Date.now() }),
     options(ss)
   );
-  return true;
+  lastIssued = { userId, at: Date.now() };
 }
 
 /**
@@ -260,7 +264,7 @@ export async function revokeCaptureKey(scope: CaptureKeyRevokeScope): Promise<vo
 /** Removes the key from this phone (per-user teardown). Never throws. */
 export async function clearCaptureKey(): Promise<void> {
   generation++;
-  confirmed = null;
+  lastIssued = null;
   const ss = secureStore();
   if (!ss) return;
   await ss.deleteItemAsync(CAPTURE_KEY_ITEM, options(ss)).catch(() => {});
@@ -275,7 +279,7 @@ export async function clearCaptureKey(): Promise<void> {
  */
 export async function discardCaptureKey(): Promise<void> {
   generation++;
-  confirmed = null;
+  lastIssued = null;
   const ss = secureStore();
   if (!ss) return;
   try {
