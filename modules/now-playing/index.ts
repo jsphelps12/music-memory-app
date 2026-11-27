@@ -173,7 +173,7 @@ export function monotonicMs(): number {
 
 /**
  * Writes the widget's JSON (`widget/moments.json`) and copies each image
- * (file name → local file URI) into `widget/images/`, downsampled to 300 px.
+ * (file name → local file URI) into `widget/images/`, downsampled to 512 px.
  * Images the new file doesn't name are removed. False when it couldn't.
  */
 export async function writeWidgetData(json: string, images: Record<string, string>): Promise<boolean> {
