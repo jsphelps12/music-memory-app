@@ -5,10 +5,13 @@ import { useVoicePlayer } from "@/hooks/useVoicePlayer";
 import { createMixRestore, quietVoice } from "@/lib/audioMix";
 import {
   VOICE_STALL_MS,
+  heldSongAction,
+  voiceDuck,
   voiceSounds,
   voiceStartInMs,
   type FilmVoicePhase,
 } from "@/lib/filmPlayback";
+import { signedVoiceUrl } from "@/lib/voiceStorage";
 import { setDuckOthers } from "@/modules/photos-video";
 import type { VoiceClip } from "@/lib/voice";
 
@@ -27,6 +30,13 @@ import type { VoiceClip } from "@/lib/voice";
  * closing, the app going to the background, the voice turned off, a clip's
  * sound turned on, unmount. A recording that can't be had (offline, a failed
  * signed URL) is dropped without a word and the film plays as it always has.
+ * A clip's sound turned on while the song is paused for the voice takes that
+ * pause over (handOffSong), so the song never comes back up under the clip.
+ *
+ * With no recording to play (voicePath null) none of this does anything: no
+ * player is made (hooks/useVoicePlayer.ts makes one on first play), no timer
+ * or listener runs. The signed URL is fetched as the film opens, so the
+ * voice isn't waiting on it at its cue.
  */
 export function useFilmVoice({
   voicePath,
@@ -119,11 +129,11 @@ export function useFilmVoice({
   // Turn the song down once the voice is heard (or once a song that started
   // late is playing under it). Undone by quiet().
   useEffect(() => {
-    if (!audible || mix.held || songHeld) return;
-    if (isPreview) {
+    const how = voiceDuck({ audible, ducked: mix.held, songHeld, isPreview, songPlaying });
+    if (how === "preview") {
       duck(true);
       mix.hold(() => duck(false));
-    } else if (songPlaying) {
+    } else if (how === "others") {
       if (setDuckOthers(true)) {
         mix.hold(() => setDuckOthers(false));
       } else {
@@ -139,11 +149,19 @@ export function useFilmVoice({
   // background it waits: the voice carries on when the app is back.
   const resumeSong = useEffectEvent(() => startSong());
   useEffect(() => {
-    if (!songHeld || wanted) return;
-    if (visible && !paused && !appActive) return;
+    const action = heldSongAction({ songHeld, voiceWanted: wanted, visible, paused, appActive });
+    if (action === "keep") return;
     setSongHeld(false);
-    if (visible && !paused) resumeSong();
+    if (action === "resume") resumeSong();
   }, [songHeld, wanted, visible, paused, appActive]);
+
+  // The recording's link, fetched as the film opens (cached in
+  // lib/voiceStorage.ts), so the voice can start at its cue on a slow
+  // connection instead of stalling on it.
+  useEffect(() => {
+    if (!visible || !voicePath) return;
+    signedVoiceUrl(voicePath).catch(() => {});
+  }, [visible, voicePath]);
 
   // Leaving the app: the voice pauses and the song comes back up right away
   // (not a render later); it carries on when the app is back in front.
@@ -160,6 +178,19 @@ export function useFilmVoice({
     return () => sub.remove();
   }, [present, visible, quiet]);
 
+  /**
+   * A clip's sound is coming on: silence the voice, and if it had the song
+   * paused (iOS wouldn't duck it), let go of that pause without starting the
+   * song, for the clip to hold instead (lib/filmPlayback.ts clipSoundDuck).
+   * True when the song was paused for the voice.
+   */
+  const handOffSong = useCallback(() => {
+    quiet();
+    if (!songHeld) return false;
+    setSongHeld(false);
+    return true;
+  }, [quiet, songHeld]);
+
   return {
     /** The film has a voice still to play or playing: show its button. */
     present: present && phase !== "done",
@@ -173,5 +204,6 @@ export function useFilmVoice({
      * so its undo can't put the song back up under the clip.
      */
     quiet,
+    handOffSong,
   };
 }

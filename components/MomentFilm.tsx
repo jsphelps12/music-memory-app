@@ -21,7 +21,7 @@ import { Theme, darkColors, overImage } from "@/constants/theme";
 import type { MediaSource } from "@/lib/linkedMedia";
 import { PhotosVideoView, setDuckOthers } from "@/modules/photos-video";
 import { CLIP_LEVEL, createMixRestore } from "@/lib/audioMix";
-import { filmPlaysVoice, PHOTO_MS, videoHoldMs, videoLoad, type VideoLoad } from "@/lib/filmPlayback";
+import { clipSoundDuck, filmPlaysVoice, PHOTO_MS, videoHoldMs, videoLoad, type VideoLoad } from "@/lib/filmPlayback";
 import { useFilmVoice } from "@/hooks/useFilmVoice";
 import { StatusBar } from "expo-status-bar";
 /** The cross-fade between one photo or video and the next. */
@@ -151,19 +151,25 @@ export function MomentFilm({
       return;
     }
     // The voice steps aside first, so putting its duck back can't bring the
-    // song up under the clip.
-    quietFilmVoice();
+    // song up under the clip; a song it had paused stays paused, now for the
+    // clip (lib/filmPlayback.ts clipSoundDuck).
+    const voiceHeldSong = voice.handOffSong();
     setSoundFor(index);
-    if (isPreview) {
+    const how = clipSoundDuck({ voiceHeldSong, isPreview, songPlaying });
+    if (how === "takeHeldSong") {
+      setSongHeldForClip(true);
+    } else if (how === "preview") {
       duck(true);
       mix.hold(() => duck(false));
-    } else if (songPlaying && setDuckOthers(true)) {
-      // Full Apple Music: iOS ducks it (verified on Josh's phone, 2026-11-17).
-      mix.hold(() => setDuckOthers(false));
-    } else if (songPlaying) {
-      // The session refused to duck: pause the song for the clip instead.
-      pauseSong();
-      setSongHeldForClip(true);
+    } else if (how === "others") {
+      if (setDuckOthers(true)) {
+        // Full Apple Music: iOS ducks it (verified on Josh's phone, 2026-11-17).
+        mix.hold(() => setDuckOthers(false));
+      } else {
+        // The session refused to duck: pause the song for the clip instead.
+        pauseSong();
+        setSongHeldForClip(true);
+      }
     }
   };
 
@@ -380,6 +386,7 @@ export function MomentFilm({
                 style={[styles.glassButton, styles.round]}
                 accessibilityRole="button"
                 accessibilityLabel={voice.off ? "Hear your voice" : "Mute your voice"}
+                testID="film-voice-toggle"
               >
                 <Icon name={voice.off ? "mic-off-outline" : "mic-outline"} size={20} color={PAPER_ON_GLASS} />
               </TouchableOpacity>

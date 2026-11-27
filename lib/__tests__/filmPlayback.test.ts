@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  clipSoundDuck,
   filmPlaysVoice,
+  heldSongAction,
+  voiceDuck,
   loadsVideo,
   PHOTO_MS,
   videoHoldMs,
@@ -151,5 +154,64 @@ describe("voice timing", () => {
   it("drops a recording that can't be heard well before a long one would end", () => {
     expect(VOICE_STALL_MS).toBeGreaterThan(VOICE_LEAD_MS);
     expect(VOICE_STALL_MS).toBeLessThan(MAX_VOICE_MS / 10);
+  });
+});
+
+describe("voiceDuck", () => {
+  const heard = { audible: true, ducked: false, songHeld: false, isPreview: false, songPlaying: true };
+
+  it("turns full playback down through iOS once the voice is heard", () => {
+    expect(voiceDuck(heard)).toBe("others");
+  });
+
+  it("fades a preview down instead", () => {
+    expect(voiceDuck({ ...heard, isPreview: true })).toBe("preview");
+    expect(voiceDuck({ ...heard, isPreview: true, songPlaying: false })).toBe("preview");
+  });
+
+  it("does nothing before the voice is heard, twice, or while the song is paused for it", () => {
+    expect(voiceDuck({ ...heard, audible: false })).toBeNull();
+    expect(voiceDuck({ ...heard, ducked: true })).toBeNull();
+    expect(voiceDuck({ ...heard, songHeld: true })).toBeNull();
+  });
+
+  it("leaves a full song that isn't playing yet, and ducks it once it starts", () => {
+    expect(voiceDuck({ ...heard, songPlaying: false })).toBeNull();
+    expect(voiceDuck({ ...heard, songPlaying: true })).toBe("others");
+  });
+});
+
+describe("heldSongAction", () => {
+  const held = { songHeld: true, voiceWanted: false, visible: true, paused: false, appActive: true };
+
+  it("brings the song back when the voice stops sounding in a playing film", () => {
+    expect(heldSongAction(held)).toBe("resume");
+  });
+
+  it("keeps it paused while the voice still sounds, or when nothing is held", () => {
+    expect(heldSongAction({ ...held, voiceWanted: true })).toBe("keep");
+    expect(heldSongAction({ ...held, songHeld: false })).toBe("keep");
+  });
+
+  it("waits in the background: the voice carries on when the app is back", () => {
+    expect(heldSongAction({ ...held, appActive: false })).toBe("keep");
+  });
+
+  it("lets go without starting the song after a close or a pause", () => {
+    expect(heldSongAction({ ...held, paused: true })).toBe("release");
+    expect(heldSongAction({ ...held, visible: false })).toBe("release");
+    expect(heldSongAction({ ...held, visible: false, appActive: false })).toBe("release");
+  });
+});
+
+describe("clipSoundDuck", () => {
+  it("takes over a song paused for the voice: it stays paused under the clip", () => {
+    expect(clipSoundDuck({ voiceHeldSong: true, isPreview: false, songPlaying: false })).toBe("takeHeldSong");
+  });
+
+  it("otherwise turns the song down like for the voice", () => {
+    expect(clipSoundDuck({ voiceHeldSong: false, isPreview: true, songPlaying: true })).toBe("preview");
+    expect(clipSoundDuck({ voiceHeldSong: false, isPreview: false, songPlaying: true })).toBe("others");
+    expect(clipSoundDuck({ voiceHeldSong: false, isPreview: false, songPlaying: false })).toBeNull();
   });
 });

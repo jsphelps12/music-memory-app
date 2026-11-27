@@ -128,3 +128,79 @@ export function voiceStartInMs(s: FilmVoiceState): number | null {
 export function voiceSounds(s: Pick<FilmVoiceState, "phase" | "filmPlaying" | "held">): boolean {
   return s.phase === "started" && s.filmPlaying && !s.held;
 }
+
+// ── Who has the song: the voice, a clip's sound ─────────────────────────────
+//
+// The voice and a clip's sound turn the song down the same way
+// (lib/audioMix.ts): a preview fades down, full Apple Music playback is
+// ducked by iOS ("duck others", modules/photos-video). When iOS refuses, the
+// song is paused instead and "held" by whoever paused it, and only that one
+// starts it again. These are the decisions hooks/useFilmVoice.ts and
+// components/MomentFilm.tsx act on.
+
+/** How the song is turned down under something: a preview's fade, iOS ducking full playback, or nothing to do. */
+export type SongDuck = "preview" | "others" | null;
+
+/**
+ * How the voice turns the song down once it's heard. Nothing while it isn't
+ * heard, once it already has (its MixRestore holds the undo), or while the
+ * song is paused for it. "others" can be refused by iOS: then the song is
+ * paused for the voice instead (held). A full song that isn't playing yet
+ * is left alone, and ducked once it starts under the voice.
+ */
+export function voiceDuck(s: {
+  /** The voice is wanted and playing. */
+  audible: boolean;
+  /** The voice's duck is already in place. */
+  ducked: boolean;
+  /** The song is paused for the voice. */
+  songHeld: boolean;
+  isPreview: boolean;
+  songPlaying: boolean;
+}): SongDuck {
+  if (!s.audible || s.ducked || s.songHeld) return null;
+  if (s.isPreview) return "preview";
+  return s.songPlaying ? "others" : null;
+}
+
+/** What happens to a song paused for the voice. */
+export type HeldSongAction = "keep" | "resume" | "release";
+
+/**
+ * A song paused for the voice comes back when the voice stops sounding (it
+ * ended, was dropped or turned off), but only while the film is open and
+ * playing: not after a close or a pause ("release": let go, don't start it).
+ * In the background it waits ("keep"): the voice carries on when the app is
+ * back in front.
+ */
+export function heldSongAction(s: {
+  songHeld: boolean;
+  /** The voice should be sounding now (voiceSounds). */
+  voiceWanted: boolean;
+  visible: boolean;
+  paused: boolean;
+  appActive: boolean;
+}): HeldSongAction {
+  if (!s.songHeld || s.voiceWanted) return "keep";
+  if (s.visible && !s.paused) return s.appActive ? "resume" : "keep";
+  return "release";
+}
+
+/**
+ * Turning a clip's sound on. The voice steps aside first; if it had the song
+ * paused (iOS wouldn't duck it), the clip takes that pause over
+ * ("takeHeldSong"): the song stays paused under the clip and comes back when
+ * the clip's sound goes off, never at full volume under it. Otherwise the
+ * song is turned down like for the voice ("others" can be refused, and then
+ * the song pauses for the clip).
+ */
+export function clipSoundDuck(s: {
+  /** The voice had the song paused until now. */
+  voiceHeldSong: boolean;
+  isPreview: boolean;
+  songPlaying: boolean;
+}): SongDuck | "takeHeldSong" {
+  if (s.voiceHeldSong) return "takeHeldSong";
+  if (s.isPreview) return "preview";
+  return s.songPlaying ? "others" : null;
+}
