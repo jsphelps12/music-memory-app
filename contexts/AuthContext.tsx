@@ -86,24 +86,21 @@ interface AuthState {
 }
 
 /**
- * The per-user records on this device that go however a session ends, and
- * need no network to clear: the Memory widget's file and artwork in the App
- * Group (so the Home Screen stops showing this person's moments), Your day's
- * photo copies, the voice URL cache, and the user's capture draft with its
- * kept photos and voice takes. signOut and deleteAccount run it inside
+ * The records on this device that go however a session ends, and need no
+ * network to clear: the Memory widget's file and artwork in the App Group
+ * (so the Home Screen stops showing this person's moments), Your day's photo
+ * copies and the voice URL cache. signOut and deleteAccount run it inside
  * clearLocalUserState; the auth listener runs it when the session ends any
  * other way (a sign-out from another device, a refresh token that expired
- * or was revoked, the account deleted elsewhere), and a launch with no
- * session runs it without a user (the draft needs one). Idempotent, never
- * throws.
+ * or was revoked, the account deleted elsewhere), and so does a launch with
+ * no session. The capture draft is NOT here: it's keyed by user id and never
+ * shown to another account, so an expired token mustn't cost the person
+ * their unsaved writing; only this app's sign-out and account deletion clear
+ * it. Idempotent, never throws.
  */
-async function clearSessionDeviceRecords(userId: string | null | undefined): Promise<void> {
+async function clearSessionDeviceRecords(): Promise<void> {
   clearVoiceUrlCache();
-  await Promise.all([
-    userId ? clearCaptureDraft(userId) : Promise.resolve(),
-    clearMemoryWidget(),
-    clearYourDayFiles(),
-  ]).catch(() => {});
+  await Promise.all([clearMemoryWidget(), clearYourDayFiles()]).catch(() => {});
 }
 
 // Upper bound on how long the blocking overlay waits for a profile fetch before
@@ -377,14 +374,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           void discardCaptureKey();
           // Whatever a session that ended while the app wasn't running left
           // behind (the widget's file above all).
-          void clearSessionDeviceRecords(null);
+          void clearSessionDeviceRecords();
         }
       })
       .catch(async () => {
         // Corrupted session in storage (e.g. HTML error page cached during outage)
         await supabase.auth.signOut({ scope: "local" });
         void discardCaptureKey();
-        void clearSessionDeviceRecords(null);
+        void clearSessionDeviceRecords();
         if (isMountedRef.current) setLoading(false);
       });
 
@@ -392,8 +389,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (suppressAuth.current) return;
-      // Who the session belonged to, read before enterAccount moves it on.
-      const previousUserId = cacheOwnerRef.current;
       enterAccount(session?.user?.id ?? null);
       setSession(session);
 
@@ -424,7 +419,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // network. Idempotent (sign-out's own teardown clears them too) and
         // not awaited: supabase-js holds its auth lock while this runs.
         void discardCaptureKey();
-        void clearSessionDeviceRecords(previousUserId);
+        void clearSessionDeviceRecords();
       }
     });
 
@@ -435,9 +430,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // "Remember this song": coming back to the app re-checks the capture key
-  // (at most every CAPTURE_KEY_RECHECK_MS once it's there), so a key the
-  // server revoked (a password change, the 10-key cap) or one that failed to
-  // issue is put right without waiting for a cold start.
+  // (a keychain read; a new key is asked for at most every
+  // CAPTURE_KEY_REISSUE_MS), so a key the server revoked (a password change,
+  // the 10-key cap) and Siri deleted, or one that failed to issue, is put
+  // right without waiting for a cold start.
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
@@ -527,6 +523,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearProfileCache(userId),
         clearLegacyAlbumCaches(userId),
         clearBrowseCache(userId),
+        clearCaptureDraft(userId),
         // Moments that never saved, and their kept photos. Settings asks
         // before signing out when there are any (lib/outboxUi.ts).
         clearOutbox(userId),
@@ -542,9 +539,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Their in-memory copies too, or the next write would put them back.
     await Promise.all([clearPhotoAnalysisStore(), clearNudgeQuestions()]).catch(() => {});
     clearLibraryCache();
-    // The widget's file, Your day's photo copies, the voice URL cache and the
-    // capture draft (the widget's settings went with the sign-out keys above).
-    await clearSessionDeviceRecords(userId);
+    // The widget's file, Your day's photo copies and the voice URL cache (the
+    // widget's settings went with the sign-out keys above).
+    await clearSessionDeviceRecords();
     // Spotify's session is stored device-wide, not per user: the next person
     // to sign in here must connect their own account.
     await disconnectSpotify().catch(() => {});
