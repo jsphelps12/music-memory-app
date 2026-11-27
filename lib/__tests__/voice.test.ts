@@ -23,6 +23,10 @@ vi.mock("expo-file-system", () => ({
 
 import {
   MAX_VOICE_MS,
+  VOICE_LOAD_TIMEOUT_MS,
+  VOICE_PLAYBACK_IDLE,
+  nextVoicePlayback,
+  voiceNeedsLoad,
   VOICE_FILE_GRACE_MS,
   isKeepableTake,
   isOwnVoicePath,
@@ -208,5 +212,64 @@ describe("storage", () => {
     await deleteVoice(["u1/m1-1.m4a"]);
     await signedVoiceUrl("u1/m1-1.m4a");
     expect(sb.storage.createSignedUrl).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("voiceNeedsLoad", () => {
+  const loaded = { key: "u/m-1.m4a", at: NOW };
+
+  it("loads when the player has nothing, or another recording", () => {
+    expect(voiceNeedsLoad(null, "u/m-1.m4a", "stored", NOW)).toBe(true);
+    expect(voiceNeedsLoad(loaded, "u/m-2.m4a", "stored", NOW)).toBe(true);
+  });
+
+  it("replays what's loaded while its link is surely still good", () => {
+    expect(voiceNeedsLoad(loaded, "u/m-1.m4a", "stored", NOW + 60_000)).toBe(false);
+  });
+
+  it("loads a stored one again once its signed URL may have lapsed", () => {
+    expect(voiceNeedsLoad(loaded, "u/m-1.m4a", "stored", NOW + 5 * 60_000)).toBe(true);
+    // A URL is never handed out with less than that left (usableCachedUrl).
+    const entry = { url: "x", expiresAt: NOW + 5 * 60_000 + 1 };
+    expect(usableCachedUrl(entry, NOW)).toBe("x");
+  });
+
+  it("a take on the phone never lapses", () => {
+    expect(voiceNeedsLoad({ key: "file:///t.m4a", at: NOW }, "file:///t.m4a", "local", NOW + 86_400_000)).toBe(false);
+  });
+
+  it("gives a play a while to be heard, but not so long it looks stuck", () => {
+    expect(VOICE_LOAD_TIMEOUT_MS).toBeGreaterThanOrEqual(5000);
+    expect(VOICE_LOAD_TIMEOUT_MS).toBeLessThanOrEqual(15_000);
+  });
+});
+
+describe("nextVoicePlayback", () => {
+  const playing = { playing: true, currentTime: 1.5, duration: 42 };
+
+  it("reads playing, position and length from a status", () => {
+    expect(nextVoicePlayback(VOICE_PLAYBACK_IDLE, playing, true)).toEqual({
+      playing: true,
+      positionMs: 1500,
+      durationMs: 42_000,
+    });
+  });
+
+  it("keeps the same object when nothing shown changed (no re-render)", () => {
+    const prev = nextVoicePlayback(VOICE_PLAYBACK_IDLE, playing, true);
+    expect(nextVoicePlayback(prev, playing, true)).toBe(prev);
+  });
+
+  it("without positions (the film) only playing or not counts", () => {
+    const prev = nextVoicePlayback(VOICE_PLAYBACK_IDLE, playing, false);
+    expect(prev).toEqual({ playing: true, positionMs: 0, durationMs: 0 });
+    expect(nextVoicePlayback(prev, { ...playing, currentTime: 9 }, false)).toBe(prev);
+    expect(nextVoicePlayback(prev, { ...playing, playing: false }, false).playing).toBe(false);
+  });
+
+  it("never shows a length or position it can't read", () => {
+    expect(nextVoicePlayback(VOICE_PLAYBACK_IDLE, { playing: false, currentTime: NaN, duration: NaN }, true)).toBe(
+      VOICE_PLAYBACK_IDLE
+    );
   });
 });

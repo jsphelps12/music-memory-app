@@ -161,3 +161,63 @@ export interface SignedUrlEntry {
 export function usableCachedUrl(entry: SignedUrlEntry | undefined, now: number): string | null {
   return entry && entry.expiresAt - now > SIGNED_URL_MARGIN_MS ? entry.url : null;
 }
+
+// ── Playing a recording (hooks/useVoicePlayer.ts) ───────────────────────────
+
+/** A play that hasn't been heard after this long (offline, a link that won't load) has failed. */
+export const VOICE_LOAD_TIMEOUT_MS = 10_000;
+
+/** What the player has loaded: the take's uri or the stored path, and when. */
+export interface LoadedVoice {
+  key: string;
+  at: number;
+}
+
+/**
+ * Whether playing `key` needs the recording loaded (again): the player has
+ * nothing or another recording, or a stored one whose signed URL may have
+ * run out since. A URL is handed out with at least SIGNED_URL_MARGIN_MS
+ * left (usableCachedUrl), so a stored recording loaded longer ago than that
+ * gets a fresh one rather than replaying through a link that has lapsed.
+ */
+export function voiceNeedsLoad(
+  loaded: LoadedVoice | null,
+  key: string,
+  kind: VoiceClip["kind"],
+  now: number
+): boolean {
+  if (!loaded || loaded.key !== key) return true;
+  return kind === "stored" && now - loaded.at >= SIGNED_URL_MARGIN_MS;
+}
+
+/** What a voice player shows: whether it's heard, and where it is. */
+export interface VoicePlayback {
+  playing: boolean;
+  positionMs: number;
+  durationMs: number;
+}
+
+export const VOICE_PLAYBACK_IDLE: VoicePlayback = { playing: false, positionMs: 0, durationMs: 0 };
+
+/**
+ * The next VoicePlayback from a player status update, or `prev` itself when
+ * nothing shown has changed (so the component doesn't re-render). With
+ * `withPosition` false (the film, which shows no progress) only playing or
+ * not counts, so the position ticking along re-renders nothing.
+ */
+export function nextVoicePlayback(
+  prev: VoicePlayback,
+  status: { playing: boolean; currentTime: number; duration: number },
+  withPosition: boolean
+): VoicePlayback {
+  const next: VoicePlayback = withPosition
+    ? {
+        playing: status.playing,
+        positionMs: Number.isFinite(status.currentTime) ? Math.max(0, status.currentTime * 1000) : 0,
+        durationMs: Number.isFinite(status.duration) && status.duration > 0 ? status.duration * 1000 : 0,
+      }
+    : { playing: status.playing, positionMs: prev.positionMs, durationMs: prev.durationMs };
+  return next.playing === prev.playing && next.positionMs === prev.positionMs && next.durationMs === prev.durationMs
+    ? prev
+    : next;
+}
