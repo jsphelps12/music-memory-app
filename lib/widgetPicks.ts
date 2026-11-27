@@ -13,6 +13,7 @@
  * changes it if it wins that day's draw.
  */
 
+import { dateToStr } from "@/lib/dateUtils";
 import { artworkUrlAtSize } from "@/lib/itunes";
 
 export const WIDGET_DAYS = 7;
@@ -22,8 +23,12 @@ export const MIN_AGE_DAYS = 30;
 export const RECENT_DAYS = 30;
 /** Words on the widget: one line, about this long. */
 export const LINE_MAX = 80;
-/** Artwork size the widget gets (px, square). */
-export const WIDGET_ARTWORK_PX = 300;
+/**
+ * Artwork size the widget gets (px, square): the small widget is about 170 pt,
+ * so about 510 px on a @3x phone. The widget's maxImagePixels matches
+ * (targets/widget).
+ */
+export const WIDGET_ARTWORK_PX = 512;
 
 export interface WidgetSourceMoment {
   id: string;
@@ -32,8 +37,6 @@ export interface WidgetSourceMoment {
   songTitle: string;
   songArtist: string;
   artworkUrl: string;
-  /** The reflection, passed only when words may be shown. */
-  reflection?: string | null;
   /** ISO timestamp, the fallback date when momentDate is missing. */
   createdAt?: string | null;
 }
@@ -49,7 +52,11 @@ export interface WidgetPick {
   /** Always the date ("March 12, 2023"): what a stale entry falls back to. */
   dateText: string;
   onThisDay: boolean;
-  /** First line of the reflection, trimmed to about LINE_MAX, or null. */
+  /**
+   * First line of the reflection, trimmed to about LINE_MAX, or null. Always
+   * null from pickWidgetMoments: lib/widgetData.ts reads the picked moments'
+   * reflections only when words may be shown.
+   */
   line: string | null;
   artworkUrl: string | null;
 }
@@ -91,10 +98,7 @@ export function momentDay(m: Pick<WidgetSourceMoment, "momentDate" | "createdAt"
   if (m.momentDate && DAY_RE.test(m.momentDate)) return m.momentDate.slice(0, 10);
   if (m.createdAt) {
     const d = new Date(m.createdAt);
-    if (!Number.isNaN(d.getTime())) {
-      const pad = (n: number) => String(n).padStart(2, "0");
-      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    }
+    if (!Number.isNaN(d.getTime())) return dateToStr(d);
   }
   return null;
 }
@@ -154,6 +158,18 @@ interface Candidate {
   day: string;
 }
 
+interface RankKey {
+  tier: number;
+  lastShown: string;
+  draw: number;
+}
+
+function ranksBefore(a: RankKey, b: RankKey): boolean {
+  if (a.tier !== b.tier) return a.tier < b.tier;
+  if (a.lastShown !== b.lastShown) return a.lastShown < b.lastShown;
+  return a.draw < b.draw;
+}
+
 /**
  * The widget's picks for `days` days from `today`. A day with nothing to
  * show (no moment old enough yet) is left out.
@@ -190,18 +206,11 @@ export function pickWidgetMoments({ moments, shown, today, seed, days = WIDGET_D
       if (d >= windowStart && d < day && (lastShown.get(id) ?? "") < d) lastShown.set(id, d);
     }
 
-    const draw = (c: Candidate) => hash(`${seed}:${day}:${c.m.id}`);
-    // Lowest first: fresh beats shown recently beats picked this week; among
-    // ones already shown, the longest ago; then the day's draw.
-    const rank = (a: Candidate, b: Candidate) => {
-      const tier = (c: Candidate) => (pickedThisRun.has(c.m.id) ? 2 : lastShown.has(c.m.id) ? 1 : 0);
-      const t = tier(a) - tier(b);
-      if (t !== 0) return t;
-      const la = lastShown.get(a.m.id) ?? "";
-      const lb = lastShown.get(b.m.id) ?? "";
-      if (la !== lb) return la < lb ? -1 : 1;
-      return draw(a) - draw(b);
-    };
+    const rankKey = (c: Candidate): RankKey => ({
+      tier: pickedThisRun.has(c.m.id) ? 2 : lastShown.has(c.m.id) ? 1 : 0,
+      lastShown: lastShown.get(c.m.id) ?? "",
+      draw: hash(`${seed}:${day}:${c.m.id}`),
+    });
 
     const anniversaries = candidates.filter((c) => {
       const cp = parts(c.day)!;
@@ -211,7 +220,19 @@ export function pickWidgetMoments({ moments, shown, today, seed, days = WIDGET_D
     const pool = anniversaries.length > 0 ? anniversaries : candidates.filter((c) => c.day <= oldEnough);
     if (pool.length === 0) continue;
 
-    const chosen = [...pool].sort(rank)[0];
+    // Lowest wins: fresh beats shown recently beats picked this week; among
+    // ones already shown, the longest ago; then the day's draw. One pass,
+    // each draw worked out once; on a full tie the earlier one in the pool
+    // stays, as a stable sort would keep it.
+    let chosen = pool[0];
+    let best = rankKey(chosen);
+    for (let j = 1; j < pool.length; j++) {
+      const key = rankKey(pool[j]);
+      if (ranksBefore(key, best)) {
+        chosen = pool[j];
+        best = key;
+      }
+    }
     const onThisDay = anniversaries.length > 0;
     const dateText = longDate(chosen.day);
     picks.push({
@@ -222,7 +243,7 @@ export function pickWidgetMoments({ moments, shown, today, seed, days = WIDGET_D
       dateLabel: onThisDay ? yearsAgoToday(year - parts(chosen.day)![0]) : dateText,
       dateText,
       onThisDay,
-      line: firstLine(chosen.m.reflection),
+      line: null,
       artworkUrl: chosen.m.artworkUrl ? artworkUrlAtSize(chosen.m.artworkUrl, WIDGET_ARTWORK_PX) : null,
     });
     pickedThisRun.add(chosen.m.id);

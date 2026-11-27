@@ -230,10 +230,12 @@ function within<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
 }
 
 /**
- * Matches the suggested song against each catalog search in turn (Apple
- * Music, then the no-auth iTunes search), stopping at the first exact match.
- * A search that fails or takes longer than `timeoutMs` counts as no results.
- * Never throws.
+ * Matches the suggested song against the catalog searches (Apple Music, then
+ * the no-auth iTunes search). All of them start at once, so the whole match
+ * takes at most `timeoutMs`; their results are weighed in the order given,
+ * so an exact match from an earlier search wins over a later one's, and an
+ * exact Apple Music match returns without waiting for iTunes. A search that
+ * fails or takes longer than `timeoutMs` counts as no results. Never throws.
  */
 export async function resolveSuggestionSong(
   want: WantedSong,
@@ -241,14 +243,16 @@ export async function resolveSuggestionSong(
   timeoutMs = 6000
 ): Promise<SongMatch> {
   const query = [want.title, want.artist.split(",")[0]?.trim()].filter(Boolean).join(" ");
-  let best: SongMatch | null = null;
-  for (const search of searches) {
-    const results = await within(
+  const pending = searches.map((search) =>
+    within(
       Promise.resolve().then(() => search(query)),
       timeoutMs,
       [] as Song[]
-    );
-    const match = matchSuggestionSong(want, results);
+    )
+  );
+  let best: SongMatch | null = null;
+  for (const results of pending) {
+    const match = matchSuggestionSong(want, await results);
     if (match.how === "exact") return match;
     if (!best || (best.how === "none" && match.how === "close")) best = match;
   }

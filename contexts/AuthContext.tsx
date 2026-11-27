@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { AppState } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { Session, User } from "@supabase/supabase-js";
 import * as AppleAuthentication from "expo-apple-authentication";
@@ -27,7 +28,13 @@ import { isAccountBoundary, mayClearOnLeave } from "@/lib/accountBoundary";
 import { clearLegacyAlbumCaches } from "@/lib/albums";
 import { readProfileCache, writeProfileCache, clearProfileCache } from "@/lib/profileCache";
 import { fetchBrowseMetadata, readBrowseCache, writeBrowseCache, clearBrowseCache } from "@/lib/browse";
-import { clearCaptureKey, discardCaptureKey, ensureCaptureKey, revokeCaptureKey } from "@/lib/captureKey";
+import {
+  clearCaptureKey,
+  discardCaptureKey,
+  ensureCaptureKey,
+  ensureCaptureKeyOnResume,
+  revokeCaptureKey,
+} from "@/lib/captureKey";
 
 export interface OnboardingData {
   displayName: string;
@@ -76,6 +83,24 @@ interface AuthState {
   deleteCustomPromptCategory: (id: string) => Promise<void>;
   preferredProvider: MusicProviderType;
   setPreferredProvider: (type: MusicProviderType) => Promise<ProviderSwitchResult>;
+}
+
+/**
+ * The records on this device that go however a session ends, and need no
+ * network to clear: the Memory widget's file and artwork in the App Group
+ * (so the Home Screen stops showing this person's moments), Your day's photo
+ * copies and the voice URL cache. signOut and deleteAccount run it inside
+ * clearLocalUserState; the auth listener runs it when the session ends any
+ * other way (a sign-out from another device, a refresh token that expired
+ * or was revoked, the account deleted elsewhere), and so does a launch with
+ * no session. The capture draft is NOT here: it's keyed by user id and never
+ * shown to another account, so an expired token mustn't cost the person
+ * their unsaved writing; only this app's sign-out and account deletion clear
+ * it. Idempotent, never throws.
+ */
+async function clearSessionDeviceRecords(): Promise<void> {
+  clearVoiceUrlCache();
+  await Promise.all([clearMemoryWidget(), clearYourDayFiles()]).catch(() => {});
 }
 
 // Upper bound on how long the blocking overlay waits for a profile fetch before
@@ -347,12 +372,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // A reinstall keeps keychain items: a capture key still here would
           // let Siri save to the last account while nobody is signed in.
           void discardCaptureKey();
+          // Whatever a session that ended while the app wasn't running left
+          // behind (the widget's file above all).
+          void clearSessionDeviceRecords();
         }
       })
       .catch(async () => {
         // Corrupted session in storage (e.g. HTML error page cached during outage)
         await supabase.auth.signOut({ scope: "local" });
         void discardCaptureKey();
+        void clearSessionDeviceRecords();
         if (isMountedRef.current) setLoading(false);
       });
 
@@ -386,8 +415,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         hydratedUserIdRef.current = null;
         // However the session ended (sign-out, a refresh token that expired
         // or was revoked, the account deleted elsewhere), Siri's capture key
-        // goes with it. Idempotent; sign-out's own teardown also clears it.
+        // goes with it, and so do the records on this phone that need no
+        // network. Idempotent (sign-out's own teardown clears them too) and
+        // not awaited: supabase-js holds its auth lock while this runs.
         void discardCaptureKey();
+        void clearSessionDeviceRecords();
       }
     });
 
@@ -395,6 +427,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isMountedRef.current = false;
       subscription.unsubscribe();
     };
+  }, []);
+
+  // "Remember this song": coming back to the app re-checks the capture key
+  // (a keychain read; a new key is asked for at most every
+  // CAPTURE_KEY_REISSUE_MS), so a key the server revoked (a password change,
+  // the 10-key cap) and Siri deleted, or one that failed to issue, is put
+  // right without waiting for a cold start.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      const userId = sessionRef.current?.user?.id;
+      if (!userId || hydratedUserIdRef.current !== userId) return;
+      void ensureCaptureKeyOnResume(userId);
+    });
+    return () => sub.remove();
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -492,14 +539,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Their in-memory copies too, or the next write would put them back.
     await Promise.all([clearPhotoAnalysisStore(), clearNudgeQuestions()]).catch(() => {});
     clearLibraryCache();
-    clearVoiceUrlCache();
-    // The Memory widget's file and artwork in the App Group, so the Home
-    // Screen stops showing this person's moments (its settings went with the
-    // sign-out keys above).
-    await clearMemoryWidget();
-    // Photo copies from Apple's Journaling Suggestions picker (Your day), in
-    // the app's caches until the next pick.
-    await clearYourDayFiles();
+    // The widget's file, Your day's photo copies and the voice URL cache (the
+    // widget's settings went with the sign-out keys above).
+    await clearSessionDeviceRecords();
     // Spotify's session is stored device-wide, not per user: the next person
     // to sign in here must connect their own account.
     await disconnectSpotify().catch(() => {});

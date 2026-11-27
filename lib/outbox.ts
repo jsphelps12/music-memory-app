@@ -129,8 +129,8 @@ export function isLocalFileUri(uri: string): boolean {
 }
 
 /** The local files a queued moment needs kept: its photos and voice recording. */
-export function outboxFileUris(input: Pick<OutboxInput, "photos">): string[] {
-  const voice = (input as Record<string, unknown>).voiceUri;
+export function outboxFileUris(input: Pick<OutboxInput, "photos" | "voiceUri">): string[] {
+  const voice = input.voiceUri;
   const uris = [...(input.photos ?? []), ...(typeof voice === "string" ? [voice] : [])];
   return [...new Set(uris.filter(isLocalFileUri))];
 }

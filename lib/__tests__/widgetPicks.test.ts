@@ -221,15 +221,18 @@ describe("pickWidgetMoments", () => {
     throw new Error("every extra moment won a day");
   });
 
-  it("carries the words only when given, as one trimmed line", () => {
-    const withWords = m("w", "2023-11-23", { reflection: "First line\nsecond" });
-    expect(pick([withWords])[0].line).toBe("First line");
+  it("leaves the words to the writer, which reads them only when allowed", () => {
     expect(pick([m("w", "2023-11-23")])[0].line).toBeNull();
   });
 
-  it("asks for 300 px Apple artwork and passes other artwork through", () => {
+  it("shows a moment with no moment date on the day it was written", () => {
+    const undated = m("u", null, { createdAt: new Date(2023, 10, 23, 21, 0).toISOString() });
+    expect(pick([undated], { days: 1 })[0]).toMatchObject({ momentId: "u", onThisDay: true });
+  });
+
+  it("asks for 512 px Apple artwork and passes other artwork through", () => {
     const apple = pick([m("a", "2023-11-23")])[0];
-    expect(apple.artworkUrl).toBe("https://is1-ssl.mzstatic.com/image/thumb/a/300x300bb.jpg");
+    expect(apple.artworkUrl).toBe("https://is1-ssl.mzstatic.com/image/thumb/a/512x512bb.jpg");
     const spotify = pick([m("s", "2023-11-23", { artworkUrl: "https://i.scdn.co/image/abc" })])[0];
     expect(spotify.artworkUrl).toBe("https://i.scdn.co/image/abc");
     expect(pick([m("n", "2023-11-23", { artworkUrl: "" })])[0].artworkUrl).toBeNull();

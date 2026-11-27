@@ -120,11 +120,13 @@ export interface BrowseMeta {
   songReleaseDate?: string | null;
   /** When it was written, as saved ("Morning" … "Late Night"); null/absent when unknown or cached before it was read. */
   timeOfDay?: string | null;
+  /** When the row was created (ISO); absent in a copy cached before it was read. The Memory widget dates undated moments by it. */
+  createdAt?: string | null;
 }
 
-// time_of_day is a baseline column, so it's in the fallback list too.
+// time_of_day and created_at are baseline columns, so they're in the fallback list too.
 const BROWSE_COLUMNS =
-  "id, mood, moods, people, moment_date, song_title, song_artist, song_album_name, song_artwork_url, time_of_day";
+  "id, mood, moods, people, moment_date, song_title, song_artist, song_album_name, song_artwork_url, time_of_day, created_at";
 // For Insights (genres, musical periods). Added by 20261120120000_song_metadata.sql;
 // until that's applied the fetch falls back to BROWSE_COLUMNS.
 const BROWSE_SONG_COLUMNS = "song_genre, song_release_date";
@@ -169,6 +171,7 @@ export async function fetchBrowseMetadata(userId: string): Promise<BrowseMeta[]>
     songGenre: r.song_genre ?? null,
     songReleaseDate: r.song_release_date ?? null,
     timeOfDay: r.time_of_day ?? null,
+    createdAt: r.created_at ?? null,
   }));
   void persistIfSignedIn(userId, meta);
   return meta;
