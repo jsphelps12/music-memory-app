@@ -5,11 +5,15 @@
  * the app. The intent can't use the app's session, so the app gets it a key
  * of its own:
  *
- * - Signed in (each launch): `ensureCaptureKey` makes sure the keychain holds
- *   a key for this user and project, asking the capture-key edge function for
- *   one when it doesn't, and replacing it once it's 30 days old (the server
- *   refuses keys over 90 days old). A key the server stops accepting is
- *   deleted by the intent, so the next launch gets a new one.
+ * - Signed in (each launch, and coming back to the app at most every
+ *   CAPTURE_KEY_RECHECK_MS through `ensureCaptureKeyOnResume`):
+ *   `ensureCaptureKey` makes sure the keychain holds a key for this user and
+ *   project, asking the capture-key edge function for one when it doesn't,
+ *   and replacing it once it's 30 days old (the server refuses keys over 90
+ *   days old). A key the server stops accepting (a password change, the
+ *   10-key cap) is deleted by the intent, so the next check gets a new one.
+ *   A request that fails (offline) is tried again on the next return to the
+ *   app, not only on the next launch.
  * - Sign-out: `revokeCaptureKey("all")` (while the session is still valid;
  *   the app's sign-out is global, so every device's key goes), then
  *   `clearCaptureKey` with the rest of the per-user teardown. Account
@@ -24,7 +28,6 @@
  * the app. The secret is never logged.
  */
 import { Platform } from "react-native";
-import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
 import * as Sentry from "@sentry/react-native";
 import { supabase } from "@/lib/supabase";
@@ -68,7 +71,17 @@ function options(ss: SecureStore) {
   return { keychainService: CAPTURE_KEYCHAIN_SERVICE, keychainAccessible: ss.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
 }
 
+/** Each request, and sign-out's revoke with its fallback all together. */
 const REQUEST_TIMEOUT_MS = 4000;
+/** Coming back to the app re-checks the key at most this often once it's there. */
+export const CAPTURE_KEY_RECHECK_MS = 10 * 60 * 1000;
+/**
+ * What the key's row is labelled with. Generic on purpose: the phone's own
+ * name ("Josh's iPhone") is personal and the label is shown nowhere.
+ */
+function deviceLabel(): string {
+  return Platform.OS === "ios" && Platform.isPad ? "iPad" : "iPhone";
+}
 
 function project(): { url: string; anonKey: string } | null {
   const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -97,14 +110,17 @@ async function deviceId(ss: SecureStore): Promise<string> {
 }
 
 /** The key revokes itself on the project it was issued by (no session needed). */
-async function selfRevoke(k: Pick<StoredCaptureKey, "key" | "url" | "anonKey">): Promise<boolean> {
+async function selfRevoke(
+  k: Pick<StoredCaptureKey, "key" | "url" | "anonKey">,
+  timeoutMs = REQUEST_TIMEOUT_MS
+): Promise<boolean> {
   try {
     const res = await withTimeout(
       fetch(`${k.url}/functions/v1/quick-capture`, {
         method: "DELETE",
         headers: { Authorization: `Capture ${k.key}`, apikey: k.anonKey },
       }),
-      REQUEST_TIMEOUT_MS
+      timeoutMs
     );
     // 401: already revoked or unknown, which is the outcome wanted.
     return res !== "timeout" && (res.ok || res.status === 401);
@@ -120,13 +136,23 @@ async function selfRevoke(k: Pick<StoredCaptureKey, "key" | "url" | "anonKey">):
 let generation = 0;
 /** One request at a time; a different user's waits for the one before. */
 let inFlight: { userId: string; promise: Promise<void> } | null = null;
+/**
+ * When this phone was last known to hold a good key for the user. Only a
+ * success sets it, so a request that failed is tried again on the next
+ * return to the app; every clear forgets it.
+ */
+let confirmed: { userId: string; at: number } | null = null;
 
 /** Makes sure this phone holds a capture key for `userId`. Never throws. */
 export function ensureCaptureKey(userId: string): Promise<void> {
   if (inFlight?.userId === userId) return inFlight.promise;
   const before = inFlight?.promise ?? Promise.resolve();
+  const startedAt = generation;
   const promise: Promise<void> = before
     .then(() => obtain(userId))
+    .then((held) => {
+      if (held && startedAt === generation) confirmed = { userId, at: Date.now() };
+    })
     .catch((e) => {
       Sentry.captureException(e, { tags: { area: "capture_key" } });
     })
@@ -137,15 +163,27 @@ export function ensureCaptureKey(userId: string): Promise<void> {
   return promise;
 }
 
-async function obtain(userId: string): Promise<void> {
+/**
+ * Coming back to the app: ensureCaptureKey, unless the key was confirmed
+ * within CAPTURE_KEY_RECHECK_MS. A key the server revoked meanwhile (and the
+ * intent deleted) or a request that failed is put right here, instead of
+ * waiting for iOS to end the app. Never throws.
+ */
+export function ensureCaptureKeyOnResume(userId: string, now = Date.now()): Promise<void> {
+  if (confirmed?.userId === userId && now - confirmed.at < CAPTURE_KEY_RECHECK_MS) return Promise.resolve();
+  return ensureCaptureKey(userId);
+}
+
+/** True when this phone ends up holding a good key for the user (or has nothing to hold one in). */
+async function obtain(userId: string): Promise<boolean> {
   const ss = secureStore();
   const proj = project();
-  if (!ss || !proj) return;
+  if (!ss || !proj) return true;
   const startedAt = generation;
 
   const stored = await readStored(ss);
   const serves = storedKeyServes(stored, userId, proj.url);
-  if (serves && !storedKeyDueForRotation(stored!, Date.now())) return;
+  if (serves && !storedKeyDueForRotation(stored!, Date.now())) return true;
   // Due for rotation: the old key keeps working until the new one is written
   // (issuing revokes this install's previous key on the server).
   if (stored && !serves) {
@@ -156,27 +194,29 @@ async function obtain(userId: string): Promise<void> {
 
   const install = await deviceId(ss);
   const { data, error } = await supabase.functions.invoke("capture-key", {
-    body: { deviceId: install, deviceLabel: Constants.deviceName ?? "iPhone" },
+    body: { deviceId: install, deviceLabel: deviceLabel() },
   });
-  // Offline, or the function isn't deployed yet: try again next launch.
+  // Offline, or the function isn't deployed yet: try again on the next
+  // return to the app.
   if (error) {
     Sentry.addBreadcrumb({ category: "capture_key", message: "capture key not issued", level: "warning" });
-    return;
+    return false;
   }
   const key = (data as { key?: unknown } | null)?.key;
-  if (typeof key !== "string" || !CAPTURE_KEY_PATTERN.test(key)) return;
+  if (typeof key !== "string" || !CAPTURE_KEY_PATTERN.test(key)) return false;
 
   // Signed out (or someone else signed in) while the request was out.
   const { data: session } = await supabase.auth.getSession();
   if (startedAt !== generation || session.session?.user.id !== userId) {
     await selfRevoke({ key, ...proj });
-    return;
+    return false;
   }
   await ss.setItemAsync(
     CAPTURE_KEY_ITEM,
     encodeStoredCaptureKey({ key, userId, ...proj, issuedAt: Date.now() }),
     options(ss)
   );
+  return true;
 }
 
 /**
@@ -186,26 +226,32 @@ async function obtain(userId: string): Promise<void> {
  * too (a lost phone's key must not outlive its session); `"device"` for only
  * this install's. If that request fails (offline, usually the same moment
  * global sign-out falls back to local), this phone's key revokes itself,
- * which needs no session. Bounded and never throws, so sign-out can't hang
- * on it. The server also revokes every key when a user's last session ends
+ * which needs no session. The request and that fallback share one
+ * REQUEST_TIMEOUT_MS between them, and a request that timed out gets no
+ * fallback (the network isn't answering, and the server revokes the keys
+ * when the session ends anyway), so sign-out waits at most that long.
+ * Never throws. The server also revokes every key when a user's last session ends
  * (20261125000000_capture_keys.sql), which covers a global sign-out whose
  * revoke request didn't land.
  */
 export async function revokeCaptureKey(scope: CaptureKeyRevokeScope): Promise<void> {
   const ss = secureStore();
   if (!ss) return;
+  const deadline = Date.now() + REQUEST_TIMEOUT_MS;
+  const left = () => deadline - Date.now();
   try {
     const install = await ss.getItemAsync(CAPTURE_DEVICE_ITEM, options(ss)).catch(() => null);
     const body = captureKeyRevokeBody(scope, install);
     if (body) {
       const res = await withTimeout(
         supabase.functions.invoke("capture-key", { method: "DELETE", body }),
-        REQUEST_TIMEOUT_MS
+        Math.max(left(), 0)
       );
-      if (res !== "timeout" && !res.error) return;
+      if (res === "timeout") return;
+      if (!res.error) return;
     }
     const stored = await readStored(ss);
-    if (stored) await selfRevoke(stored);
+    if (stored && left() > 0) await selfRevoke(stored, left());
   } catch {
     // Best effort: clearCaptureKey still empties the keychain.
   }
@@ -214,6 +260,7 @@ export async function revokeCaptureKey(scope: CaptureKeyRevokeScope): Promise<vo
 /** Removes the key from this phone (per-user teardown). Never throws. */
 export async function clearCaptureKey(): Promise<void> {
   generation++;
+  confirmed = null;
   const ss = secureStore();
   if (!ss) return;
   await ss.deleteItemAsync(CAPTURE_KEY_ITEM, options(ss)).catch(() => {});
@@ -228,6 +275,7 @@ export async function clearCaptureKey(): Promise<void> {
  */
 export async function discardCaptureKey(): Promise<void> {
   generation++;
+  confirmed = null;
   const ss = secureStore();
   if (!ss) return;
   try {
