@@ -84,8 +84,8 @@ film. A Lock Screen version shows the song and when.
   default, per account. With it on, the first line of the picked moments'
   reflections (one read of at most 7 of the owner's rows); never with the
   app lock on. The widget only ever gets the song's artwork, never photos.
-- Native: `writeWidgetData`, `clearWidgetData`, `reloadWidgets` and
-  `appGroupPath` on `modules/now-playing` (`WidgetStore.swift`), null-safe
+- Native: `writeWidgetData`, `clearWidgetData` and `reloadWidgets` on
+  `modules/now-playing` (`WidgetStore.swift`), null-safe
   on older binaries. The extension's App Group is named in
   `targets/widget/expo-target.config.js` (it was already mirrored).
 - Views: `targets/widget/MemoryWidget.swift`, small (artwork full-bleed,
@@ -225,7 +225,7 @@ intent refreshed one the app would be signed out. Instead:
   drops its key whenever it finds itself without a session. Keys
   expire after 90 days regardless (the app replaces its key every 30 days).
   Keys can be listed and revoked per device later.
-- No song playing, no signal: the intent says so ("Nothing's playing") and
+- No song playing, no signal: the intent says so ("Nothing's playing in the Music app") and
   saves nothing; with no signal it offers to open the app instead.
 
 **Effort:** about 3–4 days (two edge functions, a table for keys, the intent).
