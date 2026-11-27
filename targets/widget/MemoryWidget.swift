@@ -40,22 +40,23 @@ struct MemoryProvider: TimelineProvider {
       completion(MemoryEntry(date: .now, content: .sample))
       return
     }
-    completion(entries(from: .now).first ?? MemoryEntry(date: .now, content: .empty))
+    // Only today's entry: the snapshot shows one, so it reads one image.
+    completion(entries(from: .now, days: 1).first ?? MemoryEntry(date: .now, content: .empty))
   }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<MemoryEntry>) -> Void) {
     let now = Date.now
     let calendar = Calendar.current
-    let list = entries(from: now)
+    let list = entries(from: now, days: 7)
     // The app rewrites the file (and reloads) whenever it's opened; this is
     // for a week without that.
     let nextWeek = calendar.date(byAdding: .day, value: 7, to: calendar.startOfDay(for: now)) ?? now.addingTimeInterval(7 * 86_400)
     completion(Timeline(entries: list, policy: .after(nextWeek)))
   }
 
-  /// One entry per local day for a week, starting now; each later one at
-  /// its midnight.
-  private func entries(from now: Date) -> [MemoryEntry] {
+  /// One entry per local day for `days` days, starting now; each later one
+  /// at its midnight.
+  private func entries(from now: Date, days: Int) -> [MemoryEntry] {
     let calendar = Calendar.current
     let today = calendar.startOfDay(for: now)
     guard let file = MemoryStore.load(), !file.entries.isEmpty else {
@@ -64,23 +65,38 @@ struct MemoryProvider: TimelineProvider {
     let byDay = Dictionary(file.entries.map { ($0.day, $0) }, uniquingKeysWith: { first, _ in first })
     let latest = file.entries.max { $0.day < $1.day }
 
-    return (0..<7).map { offset in
+    // Each image read once per call: when the file runs out, the last
+    // moment fills several days with the same artwork.
+    var images: [String: UIImage] = [:]
+    func artwork(_ name: String?) -> UIImage? {
+      guard let name else { return nil }
+      if let cached = images[name] { return cached }
+      let image = MemoryStore.image(named: name)
+      images[name] = image
+      return image
+    }
+
+    var list: [MemoryEntry] = []
+    for offset in 0..<max(days, 1) {
       let start = calendar.date(byAdding: .day, value: offset, to: today) ?? today
       let key = MemoryStore.dayKey(start, calendar: calendar)
       let date = offset == 0 ? now : start
       if let item = byDay[key] {
-        return MemoryEntry(date: date, content: .moment(moment(item, showWords: file.showWords, fresh: true)))
+        let shown = moment(item, showWords: file.showWords, fresh: true, artwork: artwork(item.image))
+        list.append(MemoryEntry(date: date, content: .moment(shown)))
+      } else if let latest, latest.day < key {
+        // The file ran out (the app hasn't been opened for a week): keep the
+        // last moment up, with its plain date, rather than go blank.
+        let shown = moment(latest, showWords: file.showWords, fresh: false, artwork: artwork(latest.image))
+        list.append(MemoryEntry(date: date, content: .moment(shown)))
+      } else {
+        list.append(MemoryEntry(date: date, content: .empty))
       }
-      // The file ran out (the app hasn't been opened for a week): keep the
-      // last moment up, with its plain date, rather than go blank.
-      if let latest, latest.day < key {
-        return MemoryEntry(date: date, content: .moment(moment(latest, showWords: file.showWords, fresh: false)))
-      }
-      return MemoryEntry(date: date, content: .empty)
     }
+    return list
   }
 
-  private func moment(_ item: MemoryStore.Item, showWords: Bool, fresh: Bool) -> MemoryMoment {
+  private func moment(_ item: MemoryStore.Item, showWords: Bool, fresh: Bool, artwork: UIImage?) -> MemoryMoment {
     MemoryMoment(
       momentId: item.momentId,
       title: item.title,
@@ -89,7 +105,7 @@ struct MemoryProvider: TimelineProvider {
       dateLabel: fresh ? item.dateLabel : item.dateText,
       onThisDay: fresh && item.onThisDay,
       line: showWords ? item.line : nil,
-      artwork: MemoryStore.image(named: item.image)
+      artwork: artwork
     )
   }
 }
@@ -111,7 +127,16 @@ struct MemoryWidget: Widget {
 
 struct MemoryWidgetView: View {
   @Environment(\.widgetFamily) private var family
+  @Environment(\.widgetRenderingMode) private var renderingMode
+  @Environment(\.showsWidgetContainerBackground) private var showsBackground
   let entry: MemoryEntry
+
+  /// The small widget's artwork is its background, which the system drops on
+  /// a tinted Home Screen, in StandBy at night and on the iPad Lock Screen.
+  /// There the cover comes forward as a tile instead (MemorySmallView).
+  private var artworkBehind: Bool {
+    renderingMode == .fullColor && showsBackground
+  }
 
   var body: some View {
     switch entry.content {
@@ -136,8 +161,14 @@ struct MemoryWidgetView: View {
       MemoryRectangularView(moment: moment)
         .containerBackground(for: .widget) { Color.clear }
     default:
-      MemorySmallView(moment: moment)
-        .containerBackground(for: .widget) { ArtworkFill(image: moment.artwork) }
+      MemorySmallView(moment: moment, artworkBehind: artworkBehind)
+        .containerBackground(for: .widget) {
+          if artworkBehind {
+            ArtworkFill(image: moment.artwork)
+          } else {
+            Color("paper")
+          }
+        }
     }
   }
 
@@ -178,19 +209,40 @@ struct MemoryWidgetView: View {
 }
 
 /// Small: the artwork edge to edge, the date over a night scrim at the foot.
+/// Where the system drops the background (tinted, StandBy at night), the
+/// cover is a rounded tile above the date and title instead, like the medium
+/// widget's, so it never vanishes or turns into a flat square.
 struct MemorySmallView: View {
   let moment: MemoryMoment
+  let artworkBehind: Bool
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 2) {
-      Spacer(minLength: 0)
-      DateLine(label: moment.dateLabel, onThisDay: moment.onThisDay, onArtwork: true)
-      Text(moment.title)
-        .font(.system(size: 15, weight: .regular, design: .serif))
-        .foregroundStyle(Color.white)
-        .lineLimit(1)
+    if artworkBehind {
+      VStack(alignment: .leading, spacing: 2) {
+        Spacer(minLength: 0)
+        DateLine(label: moment.dateLabel, onThisDay: moment.onThisDay, onArtwork: true)
+        Text(moment.title)
+          .font(.system(size: 15, weight: .regular, design: .serif))
+          .foregroundStyle(Color.white)
+          .lineLimit(1)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+    } else {
+      VStack(alignment: .leading, spacing: 2) {
+        Color.clear
+          .aspectRatio(1, contentMode: .fit)
+          .overlay(ArtworkTile(image: moment.artwork))
+          .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+          .padding(.bottom, 6)
+        DateLine(label: moment.dateLabel, onThisDay: moment.onThisDay, onArtwork: false)
+        Text(moment.title)
+          .font(.system(size: 15, weight: .regular, design: .serif))
+          .foregroundStyle(Color("ink"))
+          .lineLimit(1)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
   }
 }
 
@@ -296,20 +348,44 @@ struct ArtworkFill: View {
 
 /// The artwork, or the app's flat placeholder with a note when there's none.
 struct ArtworkTile: View {
+  @Environment(\.widgetRenderingMode) private var renderingMode
   let image: UIImage?
 
   var body: some View {
     if let image {
       Image(uiImage: image)
         .resizable()
+        .artworkKeepsItsPicture()
         .scaledToFill()
     } else {
       ZStack {
-        Color("chip")
+        // Tinted and StandBy-at-night keep only a color's opacity: a faint
+        // square under a solid note, rather than a solid square hiding it.
+        if renderingMode == .fullColor {
+          Color("chip")
+        } else {
+          Color.primary.opacity(0.15)
+        }
         Image(systemName: "music.note")
           .font(.system(size: 24, weight: .medium))
           .foregroundStyle(Color("inkSoft"))
       }
+    }
+  }
+}
+
+extension Image {
+  /// On a tinted Home Screen (iOS 18+) an image is flattened into the tint
+  /// unless it says otherwise; desaturated keeps the cover readable, as a
+  /// grey picture in the tint's color. Full color is untouched.
+  /// (An Image method returning a view, so it comes straight after
+  /// resizable, before any View modifier.)
+  @ViewBuilder
+  func artworkKeepsItsPicture() -> some View {
+    if #available(iOS 18.0, *) {
+      widgetAccentedRenderingMode(.desaturated)
+    } else {
+      self
     }
   }
 }

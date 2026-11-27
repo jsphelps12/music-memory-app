@@ -106,29 +106,58 @@ enum SuggestionFiles {
 /// view raises Apple's picker with `journalingSuggestionsPicker(isPresented:)`
 /// (no tap on an Apple button needed), then goes away once the person picks
 /// or closes it.
+///
+/// The JS promise is settled exactly once (`settled`), and the session stops
+/// being `current` at that moment, so nothing can leave the picker stuck at
+/// "busy":
+/// - a pick resolves with its contents, once they're read;
+/// - closing the picker resolves null after `pickGrace`, unless a pick
+///   arrives first (the order of the binding change and the completion isn't
+///   documented, and a pick must win over the tentative cancel);
+/// - a present UIKit drops, or a host torn down from below (the screen under
+///   it went away), settles too: rejected and null respectively;
+/// - a new `pick` finding a `current` whose host isn't on screen settles that
+///   one (null) and starts afresh.
 @available(iOS 17.2, *)
 @MainActor
 final class SuggestionPickerSession {
   private static var current: SuggestionPickerSession?
 
+  /// How long a closed picker waits for a late pick before calling it a cancel.
+  static let pickGrace: TimeInterval = 1.5
+  /// By then the host must be on screen, or the present was dropped.
+  static let presentCheck: TimeInterval = 1.0
+
   private let promise: Promise
   private let state = SuggestionPickerState()
-  private var host: UIViewController?
+  private var host: SuggestionHostController?
   private var picked = false
-  private var finished = false
+  /// The picker closed with no pick yet; the cancel is pending.
+  private var closedWithoutPick = false
+  private var settled = false
 
   private init(promise: Promise) {
     self.promise = promise
   }
 
   static func start(from presenter: UIViewController, promise: Promise) {
-    guard current == nil else {
-      promise.reject("busy", "The picker is already open")
-      return
+    if let current {
+      guard current.hostGone else {
+        promise.reject("busy", "The picker is already open")
+        return
+      }
+      // Its host isn't on screen any more, so nothing will ever end it.
+      current.settle(nil)
     }
     let session = SuggestionPickerSession(promise: promise)
     current = session
     session.present(from: presenter)
+  }
+
+  /// Not presented: never shown, dropped by UIKit, or dismissed from below.
+  private var hostGone: Bool {
+    guard let host else { return true }
+    return host.presentingViewController == nil
   }
 
   private func present(from presenter: UIViewController) {
@@ -142,49 +171,101 @@ final class SuggestionPickerSession {
       },
       onTapBackground: { [weak self] in
         // Only reachable when Apple's picker isn't covering the screen (it
-        // failed to appear): a way out instead of a stuck clear layer.
-        guard let self, !self.picked else { return }
-        self.finish(nil)
+        // failed to appear): a way out instead of a stuck clear layer. While
+        // a close is pending, the grace timer ends it; a tap mustn't beat a
+        // late pick.
+        guard let self, !self.picked, !self.closedWithoutPick else { return }
+        self.close { [weak self] in self?.settle(nil) }
       }
     )
-    let host = UIHostingController(rootView: root)
+    let host = SuggestionHostController(rootView: root)
     host.view.backgroundColor = .clear
     host.modalPresentationStyle = .overFullScreen
+    host.onRemoved = { [weak self] in
+      self?.hostRemoved()
+    }
     self.host = host
-    presenter.present(host, animated: false)
+    presenter.present(host, animated: false) { [weak self] in
+      self?.checkPresented()
+    }
+    // UIKit doesn't always call the completion when it refuses a present
+    // (the presenter is already presenting or going away).
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.presentCheck) { [weak self] in
+      self?.checkPresented()
+    }
+  }
+
+  private func checkPresented() {
+    guard !settled, !picked, hostGone else { return }
+    settled = true
+    promise.reject("not_presented", "The picker couldn't be shown")
+    clearCurrent()
+  }
+
+  /// The host left the screen without us dismissing it: whatever presented
+  /// it was dismissed. A pick already being read still delivers.
+  private func hostRemoved() {
+    guard !settled, !picked else { return }
+    settle(nil)
   }
 
   private func didPick(_ suggestion: JournalingSuggestion) async {
-    guard !finished else { return }
+    // A late pick still counts as long as the promise is open.
+    guard !settled else { return }
     picked = true
     state.loading = true
     let result = await SuggestionReader.read(suggestion)
-    finish(result)
+    close { [weak self] in self?.settle(result) }
   }
 
   private func pickerDismissed() {
-    guard !picked else { return }
-    // Closing the picker and picking both end with it dismissed, and the
-    // order of the binding change and the completion isn't documented: give a
-    // pick a moment to arrive before calling it a cancel.
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) { [weak self] in
-      guard let self, !self.picked else { return }
-      self.finish(nil)
+    guard !picked, !closedWithoutPick else { return }
+    closedWithoutPick = true
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.pickGrace) { [weak self] in
+      guard let self, !self.picked, !self.settled else { return }
+      self.close { [weak self] in
+        // A pick that landed while the host was going away wins.
+        guard let self, !self.picked else { return }
+        self.settle(nil)
+      }
     }
   }
 
-  private func finish(_ result: [String: Any]?) {
-    guard !finished else { return }
-    finished = true
-    let promise = self.promise
-    let done = {
-      promise.resolve(result)
-      SuggestionPickerSession.current = nil
-    }
-    if let host, host.presentingViewController != nil {
-      host.dismiss(animated: false, completion: done)
+  /// Takes the host off screen (if it's there), then runs `then`. The
+  /// promise is settled after the dismiss so JS can present straight away.
+  private func close(then: @escaping () -> Void) {
+    if let host, host.presentingViewController != nil, !host.isBeingDismissed {
+      host.dismiss(animated: false, completion: then)
     } else {
-      done()
+      then()
+    }
+  }
+
+  private func settle(_ result: [String: Any]?) {
+    guard !settled else { return }
+    settled = true
+    promise.resolve(result)
+    clearCurrent()
+  }
+
+  private func clearCurrent() {
+    if Self.current === self { Self.current = nil }
+  }
+}
+
+/// The clear host. Tells the session when it leaves the screen without
+/// having been dismissed by it, e.g. the screen under it was dismissed. Being
+/// covered by Apple's picker also fires viewDidDisappear, but leaves it
+/// presented, so that's told apart by checking once the transition is over.
+@available(iOS 17.2, *)
+final class SuggestionHostController: UIHostingController<SuggestionPickerHost> {
+  var onRemoved: (() -> Void)?
+
+  override func viewDidDisappear(_ animated: Bool) {
+    super.viewDidDisappear(animated)
+    DispatchQueue.main.async { [weak self] in
+      guard let self, self.presentingViewController == nil else { return }
+      self.onRemoved?()
     }
   }
 }

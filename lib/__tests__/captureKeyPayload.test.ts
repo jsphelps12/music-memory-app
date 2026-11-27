@@ -12,6 +12,7 @@ import {
   encodeStoredCaptureKey,
   KEY_ROTATE_AFTER_MS,
   parseStoredCaptureKey,
+  QUICK_CAPTURE_BODY_FIELDS,
   storedKeyDueForRotation,
   storedKeyServes,
 } from "../captureKeyPayload";
@@ -83,5 +84,16 @@ describe("stored capture key", () => {
     expect(swift).toContain(`"${CAPTURE_KEY_ITEM}"`);
     // The JSON fields the intent decodes.
     for (const field of ["key", "url", "anonKey"]) expect(swift).toMatch(new RegExp(`let ${field}: String`));
+  });
+
+  it("sends the quick-capture body fields listed here, and no others", () => {
+    const swift = readFileSync(
+      path.resolve(__dirname, "../../plugins/remember-this-song/RememberThisSong.swift"),
+      "utf8"
+    );
+    const save = swift.slice(swift.indexOf("static func save("), swift.indexOf("var request = URLRequest"));
+    const sent = new Set(Array.from(save.matchAll(/^\s*"(\w+)":/gm), (m) => m[1]));
+    for (const m of save.matchAll(/body\["(\w+)"\]/g)) sent.add(m[1]);
+    expect([...sent].sort()).toEqual([...QUICK_CAPTURE_BODY_FIELDS].sort());
   });
 });

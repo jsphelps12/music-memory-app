@@ -18,16 +18,17 @@ enum WidgetStore {
       : "group.com.joshuaphelps.musicmemory"
   }
 
-  /// Artwork is drawn at widget size; anything bigger only costs the
-  /// extension memory, which iOS caps tightly.
-  static let maxImagePixels = 300
+  /// Artwork is drawn at widget size (the small widget is about 510 px wide
+  /// on a 3x phone); anything bigger only costs the extension memory, which
+  /// iOS caps tightly. Matches WIDGET_ARTWORK_PX in lib/widgetData.ts.
+  static let maxImagePixels = 512
 
   struct StoreError: LocalizedError {
     let message: String
     var errorDescription: String? { message }
   }
 
-  static func containerURL() -> URL? {
+  private static func containerURL() -> URL? {
     FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupId)
   }
 
@@ -40,7 +41,9 @@ enum WidgetStore {
 
   /// Copies the images in, swaps the JSON in atomically, then removes images
   /// the new file no longer names. A widget reading mid-write sees either the
-  /// old file (whose images are still there) or the new one.
+  /// old file (whose images are still there) or the new one. Names change
+  /// with the artwork (lib/widgetData.ts artworkFileName), so an image that's
+  /// already there at full size is kept rather than encoded again.
   static func write(json: String, images: [String: String]) throws {
     let fm = FileManager.default
     let dir = try folder()
@@ -53,7 +56,9 @@ enum WidgetStore {
       // the folder.
       guard isSafeName(name), let sourceURL = fileURL(source) else { continue }
       let dest = imagesDir.appendingPathComponent(name)
-      if writeThumbnail(from: sourceURL, to: dest) { kept.insert(name) }
+      if isCurrent(dest, for: sourceURL) || writeThumbnail(from: sourceURL, to: dest) {
+        kept.insert(name)
+      }
     }
 
     guard let data = json.data(using: .utf8) else {
@@ -82,6 +87,28 @@ enum WidgetStore {
   private static func fileURL(_ uri: String) -> URL? {
     if let url = URL(string: uri), url.isFileURL { return url }
     return uri.hasPrefix("/") ? URL(fileURLWithPath: uri) : nil
+  }
+
+  /// Whether `dest` already holds this artwork at the size writeThumbnail
+  /// would make: the long side is maxImagePixels, or the whole source when
+  /// that's smaller. A thumbnail from an older build (300 px) is redone.
+  /// Reads only the two files' headers.
+  private static func isCurrent(_ dest: URL, for source: URL) -> Bool {
+    guard FileManager.default.fileExists(atPath: dest.path),
+          let have = longSide(of: dest)
+    else { return false }
+    if have >= maxImagePixels { return true }
+    guard let full = longSide(of: source) else { return false }
+    return have >= full
+  }
+
+  private static func longSide(of url: URL) -> Int? {
+    guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
+          let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
+          let width = props[kCGImagePropertyPixelWidth] as? Int,
+          let height = props[kCGImagePropertyPixelHeight] as? Int
+    else { return nil }
+    return max(width, height)
   }
 
   /// Decodes at most maxImagePixels on the long side (ImageIO never loads
