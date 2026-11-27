@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { IconButton } from "@/components/IconButton";
+import { VoiceProgress } from "@/components/VoiceProgress";
 import { useVoicePlayer } from "@/hooks/useVoicePlayer";
 import { voiceTimeLabel, type VoiceClip } from "@/lib/voice";
 import { useTheme } from "@/hooks/useTheme";
@@ -33,29 +34,37 @@ export function VoiceNoteRow({ path, durationMs }: Props) {
   return (
     <View style={styles.wrap}>
       <View style={styles.row}>
-        {playback.loading ? (
-          <View style={styles.spinner}>
-            <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+        {/* While the recording's link is fetched a spinner holds the
+            button's place: the button stays laid out underneath (hidden),
+            so the spinner's box is always the button's own size. */}
+        <View pointerEvents={playback.loading ? "none" : "auto"}>
+          <View
+            style={playback.loading ? styles.hidden : null}
+            accessibilityElementsHidden={playback.loading}
+            importantForAccessibility={playback.loading ? "no-hide-descendants" : "auto"}
+          >
+            <IconButton
+              name={playback.playing ? "pause" : "play"}
+              variant="filled"
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                playback.toggle();
+              }}
+              accessibilityLabel={playback.playing ? "Pause your voice recording" : "Play your voice recording"}
+              testID="moment-voice-play"
+            />
           </View>
-        ) : (
-          <IconButton
-            name={playback.playing ? "pause" : "play"}
-            variant="filled"
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              playback.toggle();
-            }}
-            accessibilityLabel={playback.playing ? "Pause your voice recording" : "Play your voice recording"}
-            testID="moment-voice-play"
-          />
-        )}
+          {playback.loading ? (
+            <View style={styles.spinner}>
+              <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+            </View>
+          ) : null}
+        </View>
         <View style={styles.info}>
           <Text style={styles.label} accessibilityLabel={`Your voice, ${voiceTimeLabel(length)}`}>
             Your voice · {voiceTimeLabel(shown)}
           </Text>
-          <View style={styles.track}>
-            <View style={[styles.fill, { width: `${progress * 100}%` }]} />
-          </View>
+          <VoiceProgress progress={progress} />
         </View>
       </View>
       {playback.error ? <Text style={styles.error}>{playback.error}</Text> : null}
@@ -66,7 +75,7 @@ export function VoiceNoteRow({ path, durationMs }: Props) {
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     wrap: {
-      marginTop: 22,
+      marginTop: theme.spacing.xl,
       gap: theme.spacing.xs,
     },
     row: {
@@ -74,10 +83,15 @@ function createStyles(theme: Theme) {
       alignItems: "center",
       gap: theme.spacing.md,
     },
-    // Holds the button's place while the recording's link is fetched.
+    hidden: {
+      opacity: 0,
+    },
     spinner: {
-      width: 32,
-      height: 32,
+      position: "absolute",
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
       alignItems: "center",
       justifyContent: "center",
     },
@@ -88,16 +102,6 @@ function createStyles(theme: Theme) {
     label: {
       ...theme.typography.meta,
       color: theme.colors.textSecondary,
-    },
-    track: {
-      height: 2,
-      borderRadius: 1,
-      backgroundColor: theme.colors.fill,
-      overflow: "hidden",
-    },
-    fill: {
-      height: 2,
-      backgroundColor: theme.colors.text,
     },
     error: {
       ...theme.typography.meta,
