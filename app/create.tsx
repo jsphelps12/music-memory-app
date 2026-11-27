@@ -91,7 +91,7 @@ import { goHome } from "@/lib/goHome";
 import { formatSongTime } from "@/lib/songPart";
 import { SongPartSheet } from "@/components/SongPartSheet";
 import { VoiceRecorderSheet } from "@/components/VoiceRecorderSheet";
-import { voiceTimeLabel, type LocalVoice } from "@/lib/voice";
+import { voiceTimeLabel, type LocalVoice, type VoiceClip } from "@/lib/voice";
 import { deleteLocalVoice, restoreDraftVoice } from "@/lib/voiceFiles";
 // Starters, not prompts: they open a sentence for the three ways people use
 // the journal (a memory, a discovery, a day) and get out of the way.
@@ -221,6 +221,17 @@ export default function CreateMomentScreen() {
   // uploads it. A draft keeps it; it's deleted from the phone once saved,
   // on Discard and on "Start fresh" (lib/voiceFiles.ts).
   const [voice, setVoice] = useState<LocalVoice | null>(null);
+  // The same objects from render to render (this screen isn't compiled by
+  // the React Compiler), so the voice sheet doesn't re-render per keystroke.
+  const voiceClip = useMemo<VoiceClip | null>(
+    () => (voice ? { kind: "local", uri: voice.uri, durationMs: voice.durationMs } : null),
+    [voice]
+  );
+  const onVoiceChange = useCallback(
+    (clip: VoiceClip | null) =>
+      setVoice(clip?.kind === "local" ? { uri: clip.uri, durationMs: clip.durationMs } : null),
+    []
+  );
   const songKey = song ? `${song.provider}:${song.appleMusicId ?? song.spotifyId ?? song.id}:${song.title}` : "";
   const partSongKey = useRef(songKey);
   useEffect(() => {
@@ -395,6 +406,7 @@ export default function CreateMomentScreen() {
   const [weatherResult, setWeatherResult] = useState<WeatherResult | null>(null);
   const [metaSuggestion, setMetaSuggestion] = useState<{ date?: Date; location?: string; lat?: number; lng?: number } | null>(null);
   const [detailSheet, setDetailSheet] = useState<DetailSheet>(null);
+  const closeDetailSheet = useCallback(() => setDetailSheet(null), []);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
@@ -585,7 +597,11 @@ export default function CreateMomentScreen() {
     setSelectedAlbum(null);
     setDraftAlbum(null);
     // The recording stays with the draft just written, not the new capture.
+    // An open detail sheet closes (it was about the old capture). A voice
+    // take still being made is thrown away: VoiceRecorderSheet's session is
+    // this shareKey, so it can't land here or delete the draft's take.
     setVoice(null);
+    setDetailSheet(null);
     setRestoredDraftAt(null);
     // Only a new share starts this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1237,10 +1253,11 @@ export default function CreateMomentScreen() {
       {user ? (
         <VoiceRecorderSheet
           visible={detailSheet === "voice"}
-          onClose={() => setDetailSheet(null)}
+          onClose={closeDetailSheet}
           userId={user.id}
-          value={voice ? { kind: "local", uri: voice.uri, durationMs: voice.durationMs } : null}
-          onChange={(clip) => setVoice(clip?.kind === "local" ? { uri: clip.uri, durationMs: clip.durationMs } : null)}
+          value={voiceClip}
+          onChange={onVoiceChange}
+          session={shareKey}
         />
       ) : null}
 
